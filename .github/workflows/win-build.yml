@@ -58,9 +58,14 @@ jobs:
             /p:WindowsTargetPlatformVersion=10.0 `
             /m /verbosity:minimal
 
-      - name: Locate exe
+      - name: Smoke test CLI
         shell: pwsh
-        run: Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object FullName,Length
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object -First 1
+          if (-not $exe -or $exe.Length -le 0) { throw "Rotor-Cuda.exe missing or empty" }
+          & $exe.FullName --help 2>&1 | Tee-Object help.txt
+          if ($LASTEXITCODE -ne 0) { throw "--help failed with exit code $LASTEXITCODE" }
+          if (-not (Select-String -Path help.txt -Pattern "Display this message" -Quiet)) { throw "help output missing expected usage text" }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
