@@ -26,7 +26,7 @@ jobs:
         working-directory: Rotor-Cuda
         run: |
           g++ -std=c++14 -O2 -m64 -mssse3 -Wno-write-strings -I. -include cstdint \
-            Int.cpp IntMod.cpp Point.cpp SECP256K1.cpp Random.cpp Timer.cpp \
+            Int.cpp IntMod.cpp IntGroup.cpp Point.cpp SECP256K1.cpp Random.cpp Timer.cpp \
             hash/sha256.cpp hash/ripemd160.cpp hash/sha512.cpp \
             hash/sha256_sse.cpp hash/ripemd160_sse.cpp hash/keccak160.cpp \
             Base58.cpp bsgs/BsgsCpu.cpp bsgs/bsgs_selftest.cpp \
