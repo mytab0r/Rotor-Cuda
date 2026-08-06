@@ -5,7 +5,7 @@
 - [x] Add first Windows cloud build workflow.
 - [ ] Make CUDA/GMP/MSBuild workflow green.
 - [ ] Add CPU `--help` and deterministic BSGS smoke test.
-- [ ] Add release-on-tag packaging and SHA-256.
+- [x] Add release-on-tag packaging and SHA-256.
 
 ## Search modes
 - [ ] Extract CPU BSGS interfaces and state model.
@@ -15,10 +15,10 @@
 - [ ] Add CPU/GPU statistics with separate backend labels.
 
 ## Filters
-- [ ] Keep Bloom reader/writer compatibility.
-- [ ] Integrate binary-fuse filter behind explicit selection.
-- [ ] Add filter format tests and reject mismatched manifests.
-- [ ] Add non-overwriting range catalog.
+- [x] Keep Bloom reader/writer compatibility.
+- [x] Integrate binary-fuse filter behind explicit selection.
+- [x] Add filter format tests and reject mismatched manifests.
+- [x] Add non-overwriting range catalog.
 
 ## Quality gate
 - [ ] Hosted CI passes build and CPU tests.
