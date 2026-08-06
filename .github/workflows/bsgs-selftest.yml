@@ -1,0 +1,35 @@
+name: bsgs-selftest
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ci/windows-build ]
+    paths:
+      - 'Rotor-Cuda/bsgs/**'
+      - 'Rotor-Cuda/filter/**'
+      - '.github/workflows/bsgs-selftest.yml'
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/windows-build
+      - name: Install GMP
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev
+      - name: Build CPU BSGS self-test (real EC, no CUDA)
+        working-directory: Rotor-Cuda
+        run: |
+          g++ -std=c++14 -O2 -m64 -mssse3 -Wno-write-strings -I. \
+            Int.cpp IntMod.cpp Point.cpp SECP256K1.cpp Random.cpp Timer.cpp \
+            hash/sha256.cpp hash/ripemd160.cpp hash/sha512.cpp \
+            hash/sha256_sse.cpp hash/ripemd160_sse.cpp hash/keccak160.cpp \
+            Base58.cpp bsgs/BsgsCpu.cpp bsgs/bsgs_selftest.cpp \
+            -lgmp -o bsgs_selftest
+      - name: Run self-test
+        run: ./Rotor-Cuda/bsgs_selftest
