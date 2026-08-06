@@ -19,3 +19,4 @@ jobs:
         run: g++ -std=c++14 -O2 -Wall -I Rotor-Cuda/filter Rotor-Cuda/filter/FilterCatalog.cpp Rotor-Cuda/filter/filter_selftest.cpp -o filter_selftest
       - name: Run self-test
         run: ./filter_selftest
+# touch to register
