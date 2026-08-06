@@ -5,18 +5,19 @@ concurrency:
   cancel-in-progress: true
 
 on:
+  workflow_dispatch:
   push:
     branches: [ ci/windows-build ]
     paths: [ 'Rotor-Cuda/filter/**', '.github/workflows/filter-selftest.yml' ]
-  workflow_dispatch:
 
 jobs:
   selftest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ci/windows-build
       - name: Build filter self-test (portable C++, no CUDA)
         run: g++ -std=c++14 -O2 -Wall -I Rotor-Cuda/filter Rotor-Cuda/filter/FilterCatalog.cpp Rotor-Cuda/filter/filter_selftest.cpp -o filter_selftest
       - name: Run self-test
         run: ./filter_selftest
-# touch to register
