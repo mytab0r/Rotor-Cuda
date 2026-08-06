@@ -7,7 +7,7 @@
 
 #include <cstdint>
 #include <string>
-#include "../SECP256K1.h"
+#include "../SECP256k1.h"
 
 namespace rotor_bsgs {
 
