@@ -4,13 +4,13 @@
 - [x] Create personal fork and verified commit identity.
 - [x] Add first Windows cloud build workflow.
 - [ ] Make CUDA/GMP/MSBuild workflow green.
-- [ ] Add CPU `--help` and deterministic BSGS smoke test.
+- [x] Add CPU `--help` and deterministic BSGS smoke test.
 - [x] Add release-on-tag packaging and SHA-256.
 
 ## Search modes
-- [ ] Extract CPU BSGS interfaces and state model.
+- [x] Extract CPU BSGS interfaces and state model.
 - [ ] Add versioned table manifest/checksum.
-- [ ] Add sequential checkpoint/restart test.
+- [x] Add sequential checkpoint/restart test.
 - [ ] Port GPU giant-step and lookup kernel over Rotor CUDA math.
 - [ ] Add CPU/GPU statistics with separate backend labels.
 
