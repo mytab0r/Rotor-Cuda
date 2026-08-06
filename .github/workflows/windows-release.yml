@@ -1,5 +1,10 @@
 name: windows-release
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
 on:
   push:
     tags: [ 'v*' ]
@@ -24,16 +29,19 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install GMP via vcpkg
+      - name: Bootstrap pinned GMP binary
         shell: pwsh
         run: |
-          vcpkg install gmp:x64-windows-static
-          $root = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static"
+          $commit = "6aa2b2956609471a7a9c2fc3afb9f47c1c779c1d"
+          $base = "https://raw.githubusercontent.com/Qalander/KeyHunt-Cuda/$commit/gmp"
           New-Item -ItemType Directory -Force -Path "Rotor-Cuda/gmp/include" | Out-Null
           New-Item -ItemType Directory -Force -Path "Rotor-Cuda/gmp/lib/x64" | Out-Null
-          Copy-Item "$root/include/gmp.h" "Rotor-Cuda/gmp/include/gmp.h" -Force
-          if (Test-Path "$root/include/gmpxx.h") { Copy-Item "$root/include/gmpxx.h" "Rotor-Cuda/gmp/include/gmpxx.h" -Force }
-          Copy-Item "$root/lib/gmp.lib" "Rotor-Cuda/gmp/lib/x64/gmp.lib" -Force
+          Invoke-WebRequest "$base/include/gmp.h" -OutFile "Rotor-Cuda/gmp/include/gmp.h"
+          Invoke-WebRequest "$base/include/gmpxx.h" -OutFile "Rotor-Cuda/gmp/include/gmpxx.h"
+          Invoke-WebRequest "$base/lib/x64/gmp.lib" -OutFile "Rotor-Cuda/gmp/lib/x64/gmp.lib"
+          $hash = (Get-FileHash "Rotor-Cuda/gmp/lib/x64/gmp.lib" -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "3f435b154acadae40fd529d399b50e5189f27235fdbfcdf4de6c4414955e8568") { throw "GMP checksum mismatch" }
+
 
       - name: Patch vcxproj for cloud toolchain
         shell: pwsh
