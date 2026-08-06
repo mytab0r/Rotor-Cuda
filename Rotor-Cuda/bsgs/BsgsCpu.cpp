@@ -37,7 +37,8 @@ BsgsResult solve(Secp256K1& sec, Point& target,
     // Q = target - kStart*G  ->  solve Q = k'*G, k' in [0, span].
     Int ksMut; ksMut.Set((Int*)&kStart);
     Point startPt = sec.ComputePublicKey(&ksMut);
-    Point Q = sec.Add(target, negate(startPt)); Q.Reduce();
+    Point negStart = negate(startPt);
+    Point Q = sec.Add(target, negStart); Q.Reduce();
 
     // --- baby table: x(j*G) for j in [1, m] ---  (j=0 is identity, handled below)
     std::unordered_map<uint64_t, uint32_t> babyMap;
