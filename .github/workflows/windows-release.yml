@@ -1,0 +1,75 @@
+name: windows-release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: '12.5.1'
+          method: network
+          sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install GMP via vcpkg
+        shell: pwsh
+        run: |
+          vcpkg install gmp:x64-windows-static
+          $root = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static"
+          New-Item -ItemType Directory -Force -Path "Rotor-Cuda/gmp/include" | Out-Null
+          New-Item -ItemType Directory -Force -Path "Rotor-Cuda/gmp/lib/x64" | Out-Null
+          Copy-Item "$root/include/gmp.h" "Rotor-Cuda/gmp/include/gmp.h" -Force
+          if (Test-Path "$root/include/gmpxx.h") { Copy-Item "$root/include/gmpxx.h" "Rotor-Cuda/gmp/include/gmpxx.h" -Force }
+          Copy-Item "$root/lib/gmp.lib" "Rotor-Cuda/gmp/lib/x64/gmp.lib" -Force
+
+      - name: Patch vcxproj for cloud toolchain
+        shell: pwsh
+        run: |
+          $p = "Rotor-Cuda/Rotor-Cuda.vcxproj"
+          $x = Get-Content $p -Raw
+          $x = $x -replace 'CUDA 10\.2\.props', 'CUDA 12.5.props'
+          $x = $x -replace 'CUDA 10\.2\.targets', 'CUDA 12.5.targets'
+          $x = $x -replace '<PlatformToolset>v142</PlatformToolset>', '<PlatformToolset>v143</PlatformToolset>'
+          $x = $x -replace 'compute_30,sm_30;compute_35,sm_35;compute_37,sm_37;compute_50,sm_50;compute_52,sm_52;', 'compute_52,sm_52;'
+          $x = $x -replace '(compute_75,sm_75)', '$1;compute_80,sm_80;compute_86,sm_86;compute_89,sm_89;compute_90,sm_90'
+          Set-Content $p $x
+
+      - name: MSBuild (Release x64)
+        shell: pwsh
+        run: msbuild "Rotor-Cuda/Rotor-Cuda.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0 /m /verbosity:minimal
+
+      - name: Smoke test and package
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object -First 1
+          if (-not $exe -or $exe.Length -le 0) { throw "Rotor-Cuda.exe missing or empty" }
+          & $exe.FullName --help 2>&1 | Tee-Object help.txt
+          if ($LASTEXITCODE -ne 0) { throw "--help failed with exit code $LASTEXITCODE" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item $exe.FullName dist/Rotor-Cuda.exe
+          Copy-Item LICENSE dist/LICENSE
+          if (Test-Path README.md) { Copy-Item README.md dist/README.md }
+          $version = "${{ github.ref_name }}"
+          Compress-Archive -Path dist/* -DestinationPath "Rotor-Cuda-windows-x64-$version.zip" -Force
+          Get-FileHash "Rotor-Cuda-windows-x64-$version.zip" -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Set-Content "Rotor-Cuda-windows-x64-$version.zip.sha256"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            Rotor-Cuda-windows-x64-*.zip
+            Rotor-Cuda-windows-x64-*.zip.sha256
