@@ -2,6 +2,7 @@
 #include "Rotor.h"
 #include "Base58.h"
 #include "CmdParse.h"
+#include "bsgs/SelfUpdate.h"
 #include <fstream>
 #include <string>
 #include <string.h>
@@ -14,6 +15,17 @@
 #endif
 
 #define RELEASE "2.0  Mehdi256"
+#define UPDATE_REPO "mytab0r/Rotor-Cuda"   // self-update source (GitHub releases/latest)
+#ifndef ROTOR_VERSION
+#  if defined(__has_include)
+#    if __has_include("version_stamp.h")
+#      include "version_stamp.h"   // CI writes: #define ROTOR_VERSION "vX.Y.Z"
+#    endif
+#  endif
+#endif
+#ifndef ROTOR_VERSION
+#define ROTOR_VERSION "dev"        // dev builds have no release tag
+#endif
 
 using namespace std;
 bool should_exit = false;
@@ -200,6 +212,9 @@ int main(int argc, char** argv)
 {
 	// Global Init
 	Timer::Init();
+#ifdef _WIN32
+	rotor_update::cleanup_old();   // delete <self>.old from a prior --update
+#endif
 	rseed(Timer::getSeed32());
 		
 	bool gpuEnable = false;
@@ -254,6 +269,8 @@ int main(int argc, char** argv)
 	parser.add("", "--range", true);
 	parser.add("-r", "--rkey", true);
 	parser.add("-v", "--version", false);
+	parser.add("", "--check-update", false);
+	parser.add("", "--update", false);
 	parser.add("-n", "--next", true);
 	parser.add("-z", "--zet", true);
 	parser.add("-d", "--display", true);
@@ -358,6 +375,29 @@ int main(int argc, char** argv)
 				printf("Rotor-Cuda v" RELEASE "\n");
 				return 0;
 			}
+#ifdef _WIN32
+			else if (optArg.equals("", "--check-update")) {
+				rotor_update::UpdateInfo info; std::string err;
+				if (!rotor_update::check_latest(UPDATE_REPO, ROTOR_VERSION, info, err)) {
+					printf(" update check failed: %s\n", err.c_str()); return -1;
+				}
+				printf(" current: %s  latest: %s  ->  %s\n", ROTOR_VERSION, info.latest.c_str(),
+					info.available ? "UPDATE AVAILABLE (run --update)" : "up to date");
+				return 0;
+			}
+			else if (optArg.equals("", "--update")) {
+				rotor_update::UpdateInfo info; std::string err;
+				if (!rotor_update::check_latest(UPDATE_REPO, ROTOR_VERSION, info, err)) {
+					printf(" update check failed: %s\n", err.c_str()); return -1;
+				}
+				if (!info.available) { printf(" already up to date (%s)\n", ROTOR_VERSION); return 0; }
+				printf(" updating %s -> %s ...\n", ROTOR_VERSION, info.latest.c_str());
+				if (!rotor_update::apply_update(info, argc, argv, true, err)) {
+					printf(" update failed: %s\n", err.c_str()); return -1;
+				}
+				return 0;   // unreachable if restart succeeded (ExitProcess)
+			}
+#endif
 		}
 		catch (std::string err) {
 			printf("Error: %s\n", err.c_str());
