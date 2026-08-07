@@ -1,0 +1,45 @@
+name: selfupdate-check
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ci/windows-build ]
+    paths:
+      - 'Rotor-Cuda/bsgs/SelfUpdate.cpp'
+      - 'Rotor-Cuda/bsgs/SelfUpdate.h'
+      - 'Rotor-Cuda/bsgs/selfupdate_selftest.cpp'
+      - '.github/workflows/selfupdate-check.yml'
+
+jobs:
+  # Portable version_cmp logic: run the real self-test (asserts + exit code).
+  version-cmp-selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/windows-build
+      - name: Compile + run version_cmp self-test
+        working-directory: Rotor-Cuda
+        run: |
+          g++ -std=c++14 -O2 -I. bsgs/SelfUpdate.cpp bsgs/selfupdate_selftest.cpp -o selfupdate_selftest
+          ./selfupdate_selftest
+
+  # Windows-only WinHTTP + MoveFileEx path: compile-only (no live download/swap).
+  winhttp-compile:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/windows-build
+      - name: cl compile-only (SelfUpdate.cpp, WinHTTP branch)
+        working-directory: Rotor-Cuda
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /std:c++14 /EHsc /I. /c bsgs\SelfUpdate.cpp /Fo:SelfUpdate.obj
+          if not exist SelfUpdate.obj exit /b 1
+          echo OK: SelfUpdate.obj built
