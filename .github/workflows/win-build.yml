@@ -60,10 +60,16 @@ jobs:
       - name: MSBuild (Release x64)
         shell: pwsh
         run: |
-          msbuild "Rotor-Cuda/Rotor-Cuda.vcxproj" `
-            /p:Configuration=Release /p:Platform=x64 `
-            /p:WindowsTargetPlatformVersion=10.0 `
-            /m /verbosity:minimal
+          $log = Join-Path $pwd "msbuild.log"
+          & msbuild "Rotor-Cuda/Rotor-Cuda.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0 /m /verbosity:minimal *> $log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $tail = (Get-Content $log -Tail 40 | Out-String).Trim()
+            $tail = $tail -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
+            Write-Host "::error file=.github/workflows/win-build.yml,line=64::MSBUILD exit=$code $tail"
+            throw "MSBuild failed ($code)"
+          }
+          Write-Host "MSBuild OK"
 
       - name: Smoke test CLI
         shell: pwsh
