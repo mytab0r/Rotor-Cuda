@@ -78,21 +78,16 @@ jobs:
         shell: pwsh
         run: |
           $exe = Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object -First 1
-          # pubkey of scalar 1 == generator G (compressed). Recover it in [1,100].
           $G = "0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798"
-          & $exe.FullName --mode bsgs --range 1:100 $G 2>&1 | Tee-Object bsgs.txt
-          $code = $LASTEXITCODE
-          Get-Content bsgs.txt | ForEach-Object { Write-Host "::error::OUT $_" }
-          Write-Host "::error::EXITCODE $code"
-          if ($code -ne 0) { throw "BSGS exited $code (expected 0 = found)" }
-          if (-not (Select-String -Path bsgs.txt -Pattern "KEY FOUND: 1" -Quiet)) {
-            throw "BSGS did not recover scalar 1 for generator pubkey"
-          }
-          Write-Host "BSGS e2e OK: recovered scalar 1"
-          # negative: malformed pubkey must fail loudly, not silently 'not found'
-          & $exe.FullName --mode bsgs --range 1:100 "deadbeef" 2>&1 | Tee-Object bad.txt
-          if ($LASTEXITCODE -eq 0) { throw "malformed pubkey should be rejected with nonzero exit" }
-          Write-Host "BSGS input validation OK"
+          & $exe.FullName --mode bsgs --range 1:100 $G *> pos.txt
+          $posCode = $LASTEXITCODE
+          $posFound = [bool](Select-String -Path pos.txt -Pattern "KEY FOUND: 1" -Quiet)
+          & $exe.FullName --mode bsgs --range 1:100 "deadbeef" *> neg.txt
+          $negCode = $LASTEXITCODE
+          Write-Host ("::error::VERDICT posCode={0} posFound={1} negCode={2}" -f $posCode,$posFound,$negCode)
+          if ($posCode -ne 0 -or -not $posFound) { throw "positive: expected exit 0 + KEY FOUND 1 (posCode=$posCode found=$posFound)" }
+          if ($negCode -eq 0) { throw "negative: malformed pubkey must exit nonzero (negCode=$negCode)" }
+          Write-Host "BSGS e2e OK"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
