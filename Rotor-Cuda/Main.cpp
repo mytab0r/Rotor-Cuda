@@ -442,9 +442,24 @@ int main(int argc, char** argv)
 			printf("  Error: BSGS needs --range START:END\n");
 			usage(); return -1;
 		}
+		if (rangeEnd.IsLower(&rangeStart)) {
+			printf("  Error: BSGS range END must be >= START\n");
+			return -1;
+		}
+		{
+			size_t n = bops[0].size();
+			if (n != 66 && n != 130) {
+				printf("  Error: target pubkey must be 66 (compressed) or 130 (uncompressed) hex chars, got %zu\n", n);
+				return -1;
+			}
+		}
 		Secp256K1 sec; sec.Init();
 		bool comp = true;
 		Point target = sec.ParsePublicKeyHex(bops[0], comp);
+		if (!sec.EC(target)) {
+			printf("  Error: target pubkey is not a valid point on secp256k1\n");
+			return -1;
+		}
 		printf("\n  Rotor-Cuda v" RELEASE "\n");
 		printf("  SEARCH MODE  : BSGS (pubkey -> scalar)\n");
 		printf("  TARGET PUB   : %s\n", bops[0].c_str());
