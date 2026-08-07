@@ -114,7 +114,7 @@ bool check_latest(const std::string& repo, const std::string& current,
     out.latest  = json_str(j, "tag_name");
     if (out.latest.empty()) { err = "no tag_name in release JSON"; return false; }
     out.exe_url = asset_url(j, "Rotor-Cuda.exe");        // matches the packaged asset
-    out.sha_url = asset_url(j, ".sha256");
+    out.sha_url = asset_url(j, ".exe.sha256");
     out.available = version_cmp(current, out.latest) < 0;
     return true;
 }
