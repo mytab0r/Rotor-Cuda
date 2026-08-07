@@ -54,6 +54,9 @@ jobs:
           $x = $x -replace 'compute_30,sm_30;compute_35,sm_35;compute_37,sm_37;compute_50,sm_50;compute_52,sm_52;', 'compute_52,sm_52;'
           $x = $x -replace '(compute_75,sm_75)', '$1;compute_80,sm_80;compute_86,sm_86;compute_89,sm_89;compute_90,sm_90'
           Set-Content $p $x
+          # Stamp the release tag into a header Main.cpp picks up via __has_include (no escaping hell).
+          $ver = "${{ github.ref_name }}"
+          Set-Content "Rotor-Cuda/version_stamp.h" "#define ROTOR_VERSION `"$ver`""
 
       - name: MSBuild (Release x64)
         shell: pwsh
@@ -73,6 +76,9 @@ jobs:
           $version = "${{ github.ref_name }}"
           Compress-Archive -Path dist/* -DestinationPath "Rotor-Cuda-windows-x64-$version.zip" -Force
           Get-FileHash "Rotor-Cuda-windows-x64-$version.zip" -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } | Set-Content "Rotor-Cuda-windows-x64-$version.zip.sha256"
+          # Bare exe + its sha256 for the in-app self-updater (downloads the exe directly, no zip parsing).
+          Copy-Item $exe.FullName Rotor-Cuda.exe -Force
+          Get-FileHash Rotor-Cuda.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  Rotor-Cuda.exe" } | Set-Content Rotor-Cuda.exe.sha256
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -81,3 +87,5 @@ jobs:
           files: |
             Rotor-Cuda-windows-x64-*.zip
             Rotor-Cuda-windows-x64-*.zip.sha256
+            Rotor-Cuda.exe
+            Rotor-Cuda.exe.sha256
