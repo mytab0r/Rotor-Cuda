@@ -4,6 +4,16 @@
 #include "SelfUpdate.h"
 #include <cctype>
 #include <cstdlib>
+#ifdef _WIN32
+// All system headers BEFORE the namespace, or their templates land inside it.
+// NOMINMAX: windows.h min/max macros otherwise break <__msvc_bit_utils.hpp>.
+#define NOMINMAX
+#include <windows.h>
+#include <winhttp.h>
+#include <vector>
+#include "../hash/sha256.h"
+#pragma comment(lib, "winhttp.lib")
+#endif
 
 namespace rotor_update {
 
@@ -22,11 +32,6 @@ int version_cmp(const std::string& a, const std::string& b) {
 }
 
 #ifdef _WIN32
-#include <windows.h>
-#include <winhttp.h>
-#include <vector>
-#include "../hash/sha256.h"
-#pragma comment(lib, "winhttp.lib")
 
 // Minimal HTTPS GET via WinHTTP. host like "api.github.com", path like "/repos/..".
 // Follows the default redirect policy; returns body bytes or false on any error.
