@@ -1,0 +1,61 @@
+name: gpu-bsgs-compile
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ci/windows-build ]
+    paths:
+      - 'Rotor-Cuda/bsgs/BsgsGpu.cu'
+      - 'Rotor-Cuda/GPU/GPUMath.h'
+      - '.github/workflows/gpu-bsgs-compile.yml'
+
+# nvcc-compile-only: proves the giant-step kernel builds against real CUDA + the
+# fork's device math. Hosted runners have NO GPU, so device EXECUTION stays
+# UNVERIFIED until a self-hosted NVIDIA runner is wired. Compilation is the gate.
+jobs:
+  nvcc-compile:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/windows-build
+
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        with:
+          cuda: '12.5.1'
+          method: network
+          sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Locate MSVC cl.exe
+        id: cl
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $cl = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $bin = Join-Path $cl.FullName "bin\Hostx64\x64"
+          if (-not (Test-Path (Join-Path $bin "cl.exe"))) { throw "cl.exe not found under $bin" }
+          "clbin=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "cl.exe dir: $bin"
+
+      - name: nvcc compile-only (device code, no link, no run)
+        shell: pwsh
+        working-directory: Rotor-Cuda
+        run: |
+          nvcc -c bsgs/BsgsGpu.cu -o BsgsGpu.obj `
+            -ccbin "${{ steps.cl.outputs.clbin }}" `
+            -gencode arch=compute_75,code=sm_75 `
+            -std=c++14 -I. --Wno-deprecated-gpu-targets
+          if ($LASTEXITCODE -ne 0) { throw "nvcc compile failed ($LASTEXITCODE)" }
+          if (-not (Test-Path BsgsGpu.obj) -or (Get-Item BsgsGpu.obj).Length -le 0) {
+            throw "BsgsGpu.obj missing or empty"
+          }
+          Write-Host "OK: BsgsGpu.obj = $((Get-Item BsgsGpu.obj).Length) bytes"
