@@ -60,6 +60,8 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="GPU\GPUEngine.cu" />
+    <CudaCompile Include="bsgs\BsgsGpu.cu" />
+    <CudaCompile Include="bsgs\BsgsGpuHost.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C982E936-E84D-40E6-AA84-D439DC2D83A9}</ProjectGuid>
