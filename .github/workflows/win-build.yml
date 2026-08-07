@@ -74,6 +74,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "--help failed with exit code $LASTEXITCODE" }
           if (-not (Select-String -Path help.txt -Pattern "Display this message" -Quiet)) { throw "help output missing expected usage text" }
 
+      - name: E2E BSGS smoke (recover scalar from pubkey, CPU)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object -First 1
+          # pubkey of scalar 1 == generator G (compressed). Recover it in [1,100].
+          $G = "0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798"
+          & $exe.FullName --mode bsgs --range 1:100 $G 2>&1 | Tee-Object bsgs.txt
+          if ($LASTEXITCODE -ne 0) { throw "BSGS exited $LASTEXITCODE (expected 0 = found)" }
+          if (-not (Select-String -Path bsgs.txt -Pattern "KEY FOUND: 1\b" -Quiet)) {
+            Get-Content bsgs.txt; throw "BSGS did not recover scalar 1 for generator pubkey"
+          }
+          Write-Host "BSGS e2e OK: recovered scalar 1"
+          # negative: malformed pubkey must fail loudly, not silently 'not found'
+          & $exe.FullName --mode bsgs --range 1:100 "deadbeef" 2>&1 | Tee-Object bad.txt
+          if ($LASTEXITCODE -eq 0) { throw "malformed pubkey should be rejected with nonzero exit" }
+          Write-Host "BSGS input validation OK"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
