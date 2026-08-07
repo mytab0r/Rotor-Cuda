@@ -1,13 +1,27 @@
-# Rotor-Cuda  v2.0
+# Rotor-Cuda  v2.0-rotor  (mytab0r fork)
 ![alt text](Linux.jpg "Rotor-Cuda")
 
-This is a modified version of KeyHunt v1.7 ... 
-A lot of gratitude to all the developers whose codes has been used here  
+Maintained by **mytab0r** — https://github.com/mytab0r/Rotor-Cuda
+
+This is a modified version of KeyHunt v1.7 ...
+A lot of gratitude to all the developers whose codes has been used here (KeyHunt, VanitySearch / JeanLucPons, Mehdi256's Rotor-Cuda v2). Licensed under GPLv3.0 — original copyrights are retained; the changes below are by mytab0r.
 Also, many thanks to the friends who allowed the Rotor-Cuda version 2 to be built and tested on their servers.
 
 Telegram  **https://t.me/CryptoCrackersUK**
 
-## Changes :
+## What this fork adds (mytab0r) :
+- **BSGS mode `--mode bsgs`** — recover a scalar from a known **public key** inside a `--range START:END` (baby-step/giant-step over secp256k1, CPU). Baby table + binary-fuse fast-reject + EC re-verify. For authorized public puzzles where the pubkey is exposed.
+- **Filter catalog** — binary-fuse filter alongside the classic bloom for large hash160 sets (lower false-positive at similar memory).
+- **Self-update** — SHA-256 verified binary self-replace via WinHTTP + MoveFileEx rename-trick (Windows).
+- **Cloud CI/CD** — full Windows build (MSBuild + CUDA) and Release pipeline run entirely on GitHub Actions; no local toolchain needed.
+- Only for **authorized public puzzle events** (known addresses, known bit ranges, official rewards). Not for mass scanning or de-anonymization.
+
+### BSGS usage (CPU) :
+```
+./Rotor --mode bsgs --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
+```
+
+## Changes (upstream v2) :
 - Default Random 95% (252-256) bit + 5% (248-252) bit
 - Random in a given bit range (1-256)
 - Random between given bit ranges -n ? -z ?
@@ -62,7 +76,7 @@ Telegram  **https://t.me/CryptoCrackersUK**
 ```
 $./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 1000000000:1fffffffff 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
 
-  Rotor-Cuda v2.0  Mehdi256
+  Rotor-Cuda v2.0-rotor  mytab0r
 
   COMP MODE    : COMPRESSED
   COIN TYPE    : BITCOIN
@@ -106,7 +120,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 100
 ```
 $./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 1000000000:1fffffffff -r 5 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
 
-  Rotor-Cuda v2.0  Mehdi256
+  Rotor-Cuda v2.0-rotor  mytab0r
 
   COMP MODE    : COMPRESSED
   COIN TYPE    : BITCOIN
@@ -139,7 +153,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 100
 ```
 $./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 1000000000:1fffffffff -r 5 -i Puzzles_h160.bin
 
-  Rotor-Cuda v2.0  Mehdi256
+  Rotor-Cuda v2.0-rotor  mytab0r
 
   COMP MODE    : COMPRESSED
   COIN TYPE    : BITCOIN
@@ -163,7 +177,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 1000000000:1
   Bytes        : 1158 (0 MB)
   Hash funcs   : 20
 
-  Site         : https://github.com/Mehdi256/Rotor-Cuda 
+  Site         : https://github.com/mytab0r/Rotor-Cuda 
   Donate       : bc1qdfaj5zyvfkr7wtzaa72vqxzztpl2tz7g5zk5ug 
 
   Start Time   : Sun Sep 21 18:06:29 2025
@@ -187,7 +201,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 1000000000:1
 ```
 $./Rotor -g --gpui 0,1,2 --gpux 256,256,256,256,256,256 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff -r 15 1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
 
-  Rotor-Cuda v2.0  Mehdi256
+  Rotor-Cuda v2.0-rotor  mytab0r
 
   COMP MODE    : COMPRESSED
   COIN TYPE    : BITCOIN
