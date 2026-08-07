@@ -15,7 +15,7 @@
 #include <unistd.h>
 #endif
 
-#define RELEASE "2.0  Mehdi256"
+#define RELEASE "2.0-rotor  mytab0r"
 #define UPDATE_REPO "mytab0r/Rotor-Cuda"   // self-update source (GitHub releases/latest)
 #ifndef ROTOR_VERSION
 #  if defined(__has_include)
