@@ -178,7 +178,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 1000000000:1
   Hash funcs   : 20
 
   Site         : https://github.com/mytab0r/Rotor-Cuda 
-  Donate       : bc1qdfaj5zyvfkr7wtzaa72vqxzztpl2tz7g5zk5ug 
+  Donate       : bc1qju488ckc7fg87rck3fymd8tnajzeumgxflw9ts 
 
   Start Time   : Sun Sep 21 18:06:29 2025
 
@@ -271,7 +271,10 @@ $./Rotor -g --gpui 0,1,2 --gpux 256,256,256,256,256,256 -m address --coin BTC --
 - Rotor-Cuda is licensed under GPLv3.0
 
 ## Donation
-- BTC: bc1qdfaj5zyvfkr7wtzaa72vqxzztpl2tz7g5zk5ug
+- BTC: bc1qju488ckc7fg87rck3fymd8tnajzeumgxflw9ts
+- ETH / BNB (ERC20/BEP20): 0x3d64cea25a809e8eF8D5813c5f4147e2da44D8Fb
+- TRON: TSAc8KEWdbyS36PPd39K8DyA9dwmmdguS4
+- TON (GRAM): UQAl5dhwG2EACwdgKSBQgvE9LrWthZflWDO-62OTx4-UQaIB
 
 ## __Disclaimer__
   ALL THE CODES, PROGRAM AND INFORMATION ARE FOR EDUCATIONAL PURPOSES ONLY. USE IT AT YOUR OWN RISK. THE         DEVELOPER WILL NOT BE RESPONSIBLE FOR ANY LOSS, DAMAGE OR CLAIM ARISING FROM USING THIS PROGRAM.
