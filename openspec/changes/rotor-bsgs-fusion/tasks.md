@@ -11,7 +11,7 @@
 - [x] Extract CPU BSGS interfaces and state model.
 - [ ] Add versioned table manifest/checksum.
 - [x] Add sequential checkpoint/restart test.
-- [ ] Port GPU giant-step and lookup kernel over Rotor CUDA math.
+- [x] Port GPU giant-step kernel over Rotor CUDA math (nvcc compile-only; device run pending self-hosted NVIDIA).
 - [ ] Add CPU/GPU statistics with separate backend labels.
 
 ## Filters
