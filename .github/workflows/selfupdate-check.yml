@@ -40,6 +40,6 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cl /nologo /std:c++14 /EHsc /I. /c bsgs\SelfUpdate.cpp /Fo:SelfUpdate.obj
+          cl /nologo /std:c++17 /EHsc /I. /c bsgs\SelfUpdate.cpp /Fo:SelfUpdate.obj
           if not exist SelfUpdate.obj exit /b 1
           echo OK: SelfUpdate.obj built
