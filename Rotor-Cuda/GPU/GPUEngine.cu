@@ -896,6 +896,7 @@ int GPUEngine::CheckBinary(const uint8_t* _x, int K_LENGTH)
 	return r;
 }
 
-
-
-
+// Unity-include the BSGS giant-step kernel + host launcher so all device
+// primitives (GPUMath.h) live in ONE CUDA translation unit; a separate TU
+// would re-emit the non-inline __device__ helpers and collide at link (LNK2005).
+#include "../bsgs/BsgsGpu.cu"
