@@ -25,3 +25,14 @@ Every set has canonical `coin`, `bits`, `range_id`, `filter_kind`, `format_versi
 - GIVEN concurrent generation attempts for one canonical path
 - WHEN both publish
 - THEN one wins an atomic create/rename, the other fails, and no partial manifest is visible
+
+## Requirements
+
+### Requirement: versioned filter identity
+Every generated filter/table set MUST record coin, bit width, range, filter kind, format version, and checksum.
+
+### Requirement: no silent overwrite
+Generating a set for an existing range/filter path MUST fail unless caller explicitly chooses a new identifier.
+
+### Requirement: legacy Bloom
+Existing Bloom remains available as default until alternative filter compatibility is verified by CPU tests.
