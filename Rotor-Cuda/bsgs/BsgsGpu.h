@@ -31,5 +31,29 @@ bool launch_giant_batch(const uint64_t* startXY, const uint64_t* strideXY,
                         uint32_t nWalks, uint32_t nSteps, uint32_t W,
                         GiantBatch& out, std::string& error);
 
+// Distinguished-point variant. Runs the same batch-inversion giant walk but,
+// instead of storing every point, emits a point only when the low `dpBits`
+// bits of its canonical (least-residue) X are zero. This removes the per-point
+// store that dominates the plain walk and is the on-device shape a real BSGS
+// baby-table match / DP-kangaroo needs. `dpBits` in 0..64 (0 = emit all).
+// Hits are appended to `out.hits` up to `maxHits`; `out.total` is the true
+// number of distinguished points found (may exceed maxHits -> out.truncated).
+// W in 1..8. Output uses canonical X, unlike the raw quasi-reduced launchers.
+struct DpHit {
+    uint32_t walk;
+    uint32_t step;
+    uint64_t x[4];      // canonical X (least residue mod P)
+    uint8_t  parity;    // Y parity of the quasi-reduced point
+};
+struct DpResult {
+    std::vector<DpHit> hits;
+    uint64_t total = 0;      // distinguished points found (pre-truncation)
+    bool truncated = false;  // total > maxHits
+};
+bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
+                     uint32_t nWalks, uint32_t nSteps, uint32_t W,
+                     uint32_t dpBits, uint32_t maxHits,
+                     DpResult& out, std::string& error);
+
 } // namespace rotor_bsgs_gpu
 #endif
