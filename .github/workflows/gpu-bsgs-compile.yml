@@ -10,6 +10,7 @@ on:
     branches: [ ci/windows-build ]
     paths:
       - 'Rotor-Cuda/bsgs/BsgsGpu.cu'
+      - 'Rotor-Cuda/bsgs/gpu_smoke.cu'
       - 'Rotor-Cuda/GPU/GPUMath.h'
       - '.github/workflows/gpu-bsgs-compile.yml'
 
@@ -59,3 +60,25 @@ jobs:
             throw "BsgsGpu.obj missing or empty"
           }
           Write-Host "OK: BsgsGpu.obj = $((Get-Item BsgsGpu.obj).Length) bytes"
+
+  device-run:
+    # Opt-in: only runs on a self-hosted runner labelled 'gpu'. On GitHub-hosted
+    # infra (no GPU) there is no such runner, so this job is simply never picked
+    # up -- it never blocks the compile gate above. Evidence from a real run is
+    # committed at Rotor-Cuda/bsgs/GPU_SMOKE.md (RTX 5070, 65536 steps, 0 mismatch).
+    runs-on: [self-hosted, gpu]
+    if: ${{ false }}  # flip to vars.HAS_GPU_RUNNER once a runner is registered
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ci/windows-build
+      - name: Install GMP
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev
+      - name: Build + run GPU BSGS device smoke
+        working-directory: Rotor-Cuda
+        run: |
+          ARCH=$(nvcc --list-gpu-arch | tail -1 | sed 's/compute/sm/')
+          nvcc bsgs/gpu_smoke.cu bsgs/BsgsGpu.cu -gencode arch=${ARCH/sm/compute},code=$ARCH             -std=c++14 -I. -lgmp -o gpu_smoke
+          ./gpu_smoke 4 8
+          ./gpu_smoke 32 64
+          ./gpu_smoke 256 256
