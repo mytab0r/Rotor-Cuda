@@ -16,4 +16,4 @@
 - [x] gpu-bsgs-compile stays green (batch device code in same TU, nvcc compile-only)
 
 ## Archive
-- [ ] Merge nothing to specs (behaviour/CLI unchanged); move change to openspec/archive/
+- [x] Merge nothing to specs (behaviour/CLI unchanged); move change to openspec/archive/
