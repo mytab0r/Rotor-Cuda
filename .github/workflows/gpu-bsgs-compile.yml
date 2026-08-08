@@ -11,6 +11,7 @@ on:
     paths:
       - 'Rotor-Cuda/bsgs/BsgsGpu.cu'
       - 'Rotor-Cuda/bsgs/gpu_smoke.cu'
+      - 'Rotor-Cuda/bsgs/gpu_smoke_kangaroo.cu'
       - 'Rotor-Cuda/GPU/GPUMath.h'
       - '.github/workflows/gpu-bsgs-compile.yml'
 
@@ -82,3 +83,12 @@ jobs:
           ./gpu_smoke 4 8
           ./gpu_smoke 32 64
           ./gpu_smoke 256 256
+
+      - name: Build + run GPU kangaroo device smoke
+        working-directory: Rotor-Cuda
+        run: |
+          ARCH=sm_120
+          nvcc bsgs/gpu_smoke_kangaroo.cu bsgs/BsgsGpu.cu \
+            -gencode arch=compute_120,code=$ARCH -std=c++14 -I. -lgmp \
+            -o gpu_smoke_kangaroo
+          ./gpu_smoke_kangaroo

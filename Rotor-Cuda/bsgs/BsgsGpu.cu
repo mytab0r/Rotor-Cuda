@@ -229,6 +229,97 @@ extern "C" __global__ void bsgs_giant_kernel_dp(
     }
 }
 
+// --- Track B: Pollard kangaroo baseline ---
+// Affine point add R = A + J (both z=1). s = (Jy-Ay)/(Jx-Ax);
+// Rx = s^2 - Ax - Jx;  Ry = s*(Ax-Rx) - Ay. Mirror of point_sub_S but adding a
+// data-dependent jump point J instead of subtracting a fixed stride.
+// ponytail: one _ModInv per jump (obvious + correct). Warp batch-invert across
+// threads is the A1-shaped upgrade path; wire when perf matters on a real GPU.
+// ponytail: assumes Ax != Jx (add, not double). For random-walk jumps over
+// secp256k1 a collision Ax==Jx has ~2^-256 probability; not handled in the
+// baseline. Add a doubling branch only if a real workload ever trips it.
+__device__ __forceinline__ void point_add_J(
+    uint64_t* rx, uint64_t* ry,
+    const uint64_t* Ax, const uint64_t* Ay,
+    const uint64_t* Jx, const uint64_t* Jy)
+{
+    uint64_t dx[4], dy[4], s[4], s2[4], inv[5];
+    ModSub256(dx, (uint64_t*)Jx, (uint64_t*)Ax);   // dx = Jx - Ax
+    Load256(inv, dx); inv[4] = 0; _ModInv(inv);    // inv = 1/(Jx-Ax)
+    ModSub256(dy, (uint64_t*)Jy, (uint64_t*)Ay);   // dy = Jy - Ay
+    _ModMult(s, dy, inv);                          // s = dy/dx
+    _ModSqr(s2, s);
+    ModSub256(rx, s2, (uint64_t*)Ax);
+    ModSub256(rx, (uint64_t*)Jx);                  // rx = s^2 - Ax - Jx
+    ModSub256(ry, (uint64_t*)Ax, rx);
+    _ModMult(ry, s);
+    ModSub256(ry, (uint64_t*)Ay);                  // ry = s*(Ax-rx) - Ay
+}
+
+// 256-bit add of 2^bit into a little-endian distance accumulator (4 limbs).
+// bit < 64*4; no reduction mod n on device (distances stay < 2^256 for the
+// bounded smoke; host reduces mod n during the collision solve).
+__device__ __forceinline__ void dist_add_pow2(uint64_t d[4], uint32_t bit) {
+    uint32_t limb = bit >> 6, off = bit & 63;
+    uint64_t add = 1ULL << off;
+    uint64_t carry = 0;
+    for (uint32_t i = limb; i < 4; ++i) {
+        uint64_t v = d[i] + (i == limb ? add : 0ULL) + carry;
+        carry = (v < d[i]) || (carry && v == d[i]) ? 1ULL : 0ULL;
+        d[i] = v;
+    }
+}
+
+// One kangaroo per thread. Deterministic jump chosen on the CANONICAL X (so the
+// tame/wild trail-merge invariant holds regardless of representation), DP test
+// and atomic-cursor emission reused verbatim from the DP filter (A2).
+extern "C" __global__ void kangaroo_jump_kernel(
+    const uint64_t* __restrict__ start,   // 8 limbs per kangaroo (x||y)
+    const uint8_t*  __restrict__ kind,    // 1 byte per kangaroo (tame/wild)
+    const uint64_t* __restrict__ jumps,   // nJumps * 8 limbs (jump[i]=2^i*G)
+    uint32_t nJumps, uint32_t nKang, uint32_t nSteps, uint32_t dpBits,
+    uint32_t maxHits,
+    uint8_t*  __restrict__ outKind,
+    uint32_t* __restrict__ outKang,
+    uint64_t* __restrict__ outX,          // canonical DP X, 4 limbs per hit
+    uint64_t* __restrict__ outDist,       // 4 limbs per hit
+    uint8_t*  __restrict__ outParity,
+    unsigned long long* __restrict__ outCount)
+{
+    uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= nKang) return;
+
+    uint64_t ax[4], ay[4], rx[4], ry[4];
+    Load256(ax, start + tid * 8);
+    Load256(ay, start + tid * 8 + 4);
+    uint8_t myKind = kind[tid];
+    uint64_t dist[4] = {0, 0, 0, 0};
+    uint32_t mask = nJumps - 1;   // nJumps is a power of two (host-validated)
+
+    for (uint32_t step = 0; step < nSteps; ++step) {
+        uint64_t cx[4]; cx[0]=ax[0]; cx[1]=ax[1]; cx[2]=ax[2]; cx[3]=ax[3];
+        canonicalize_X(cx);
+        if (is_distinguished(cx, dpBits)) {
+            unsigned long long slot = atomicAdd(outCount, 1ULL);
+            if (slot < maxHits) {
+                outKind[slot] = myKind;
+                outKang[slot] = tid;
+                outX[slot*4+0]=cx[0]; outX[slot*4+1]=cx[1];
+                outX[slot*4+2]=cx[2]; outX[slot*4+3]=cx[3];
+                outDist[slot*4+0]=dist[0]; outDist[slot*4+1]=dist[1];
+                outDist[slot*4+2]=dist[2]; outDist[slot*4+3]=dist[3];
+                outParity[slot] = (uint8_t)(ay[0] & 1ULL);
+            }
+        }
+        uint32_t j = (uint32_t)(cx[0] & mask);      // jump index on canonical X
+        const uint64_t* Jx = jumps + (size_t)j * 8;
+        const uint64_t* Jy = Jx + 4;
+        point_add_J(rx, ry, ax, ay, Jx, Jy);
+        Load256(ax, rx); Load256(ay, ry);
+        dist_add_pow2(dist, j);                     // dist += 2^j
+    }
+}
+
 } // namespace rotor_bsgs_gpu
 
 // Host launcher lives in same translation unit as kernel. This avoids requiring
@@ -439,6 +530,110 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
 
     cudaFree(dCount); cudaFree(dParity); cudaFree(dX);
     cudaFree(dStep); cudaFree(dWalk); cudaFree(dStride); cudaFree(dStart);
+    return true;
+}
+
+// --- Track B: Pollard kangaroo baseline launcher ---
+bool launch_kangaroo(const uint64_t* startXY, const uint8_t* kind,
+                     const uint64_t* jumpXY, uint32_t nJumps,
+                     uint32_t nKang, uint32_t nSteps,
+                     uint32_t dpBits, uint32_t maxHits,
+                     KangarooResult& out, std::string& error) {
+    if (!startXY || !kind || !jumpXY || nKang == 0 || nSteps == 0) {
+        error = "invalid GPU kangaroo dimensions";
+        return false;
+    }
+    if (dpBits > 64) { error = "dpBits must be 0..64"; return false; }
+    if (nJumps == 0 || nJumps > 64 || (nJumps & (nJumps - 1)) != 0) {
+        error = "nJumps must be a power of two in 1..64";
+        return false;
+    }
+
+    const size_t startBytes = (size_t)nKang * 8 * sizeof(uint64_t);
+    const size_t kindBytes = (size_t)nKang;
+    const size_t jumpBytes = (size_t)nJumps * 8 * sizeof(uint64_t);
+    const uint32_t cap = maxHits ? maxHits : 1;
+    const size_t outKindBytes = (size_t)cap;
+    const size_t outXBytes = (size_t)cap * 4 * sizeof(uint64_t);
+    const size_t outDistBytes = (size_t)cap * 4 * sizeof(uint64_t);
+    const size_t outParityBytes = (size_t)cap;
+
+    int devices = 0;
+    cudaError_t e = cudaGetDeviceCount(&devices);
+    if (e != cudaSuccess || devices == 0) {
+        error = e == cudaSuccess ? "no CUDA device" : cudaGetErrorString(e);
+        return false;
+    }
+
+    uint64_t *dStart = nullptr, *dJumps = nullptr, *dX = nullptr, *dDist = nullptr;
+    uint8_t *dKind = nullptr, *dOutKind = nullptr, *dParity = nullptr;
+    uint32_t *dKang = nullptr;
+    unsigned long long *dCount = nullptr;
+    auto fail = [&](cudaError_t err) {
+        if (dCount) cudaFree(dCount);
+        if (dParity) cudaFree(dParity);
+        if (dDist) cudaFree(dDist);
+        if (dX) cudaFree(dX);
+        if (dKang) cudaFree(dKang);
+        if (dOutKind) cudaFree(dOutKind);
+        if (dJumps) cudaFree(dJumps);
+        if (dKind) cudaFree(dKind);
+        if (dStart) cudaFree(dStart);
+        error = cudaGetErrorString(err);
+        return false;
+    };
+    if ((e = cudaMalloc((void**)&dStart, startBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dKind, kindBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dJumps, jumpBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dOutKind, outKindBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dKang, (size_t)cap * sizeof(uint32_t))) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dX, outXBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dDist, outDistBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dParity, outParityBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dCount, sizeof(unsigned long long))) != cudaSuccess) return fail(e);
+    if ((e = cudaMemcpy(dStart, startXY, startBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
+    if ((e = cudaMemcpy(dKind, kind, kindBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
+    if ((e = cudaMemcpy(dJumps, jumpXY, jumpBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
+    if ((e = cudaMemset(dCount, 0, sizeof(unsigned long long))) != cudaSuccess) return fail(e);
+
+    const uint32_t block = 128;
+    const uint32_t grid = (nKang + block - 1) / block;
+    kangaroo_jump_kernel<<<grid, block>>>(dStart, dKind, dJumps, nJumps, nKang,
+                                          nSteps, dpBits, maxHits,
+                                          dOutKind, dKang, dX, dDist, dParity, dCount);
+    if ((e = cudaGetLastError()) != cudaSuccess) return fail(e);
+    if ((e = cudaDeviceSynchronize()) != cudaSuccess) return fail(e);
+
+    unsigned long long total = 0;
+    if ((e = cudaMemcpy(&total, dCount, sizeof(total), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+    out.total = (uint64_t)total;
+    out.truncated = total > maxHits;
+    const uint32_t stored = (uint32_t)(total < maxHits ? total : maxHits);
+
+    std::vector<uint8_t> hk(stored), hp(stored);
+    std::vector<uint32_t> hkang(stored);
+    std::vector<uint64_t> hx((size_t)stored * 4), hd((size_t)stored * 4);
+    if (stored) {
+        if ((e = cudaMemcpy(hk.data(), dOutKind, (size_t)stored, cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hkang.data(), dKang, (size_t)stored*sizeof(uint32_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hx.data(), dX, (size_t)stored*4*sizeof(uint64_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hd.data(), dDist, (size_t)stored*4*sizeof(uint64_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hp.data(), dParity, (size_t)stored, cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+    }
+    out.hits.clear();
+    out.hits.reserve(stored);
+    for (uint32_t i = 0; i < stored; ++i) {
+        KangHit h;
+        h.kind = hk[i];
+        h.kang = hkang[i];
+        h.dpX[0]=hx[i*4+0]; h.dpX[1]=hx[i*4+1]; h.dpX[2]=hx[i*4+2]; h.dpX[3]=hx[i*4+3];
+        h.dist[0]=hd[i*4+0]; h.dist[1]=hd[i*4+1]; h.dist[2]=hd[i*4+2]; h.dist[3]=hd[i*4+3];
+        h.parity = hp[i];
+        out.hits.push_back(h);
+    }
+
+    cudaFree(dCount); cudaFree(dParity); cudaFree(dDist); cudaFree(dX);
+    cudaFree(dKang); cudaFree(dOutKind); cudaFree(dJumps); cudaFree(dKind); cudaFree(dStart);
     return true;
 }
 
