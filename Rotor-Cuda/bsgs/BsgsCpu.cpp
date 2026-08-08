@@ -20,6 +20,16 @@ static uint64_t fold32(const uint8_t* p) {
     return h;
 }
 
+// FNV-1a/64 over the little-endian bytes of the baby-step folds. This is the
+// table_checksum: two tables with the same m+range but different contents (bad
+// EC, changed fold) get different checksums, so a mismatched resume is rejected.
+static uint64_t fold_table(const std::vector<uint64_t>& folds) {
+    uint64_t h = 1469598103934665603ULL;
+    for (uint64_t f : folds)
+        for (int b = 0; b < 8; ++b) { h ^= (uint8_t)(f >> (b * 8)); h *= 1099511628211ULL; }
+    return h;
+}
+
 // -P : affine, negate Y in the field. Input must be reduced (z=1).
 static Point negate(Point p) { p.y.ModNeg(); return p; }
 
@@ -64,6 +74,14 @@ BsgsResult solve(Secp256K1& sec, Point& target,
         babyMap.emplace(f, (uint32_t)j);
         if (j < m) cur = padd(sec, cur, sec.G);
     }
+
+    // Versioned identity of this table (see TableManifest). Checksum binds the
+    // actual baby-step content so a checkpoint from a different table is rejected.
+    R.manifest.format_version = BSGS_TABLE_FORMAT_VERSION;
+    R.manifest.curve          = "secp256k1";
+    R.manifest.baby_size      = m;
+    R.manifest.range_id       = ((Int&)kStart).GetBase16() + ":" + ((Int&)kEnd).GetBase16();
+    R.manifest.table_checksum = fold_table(folds);
 
     // Fast-reject filter over baby folds. Map stays authoritative.
     binary_fuse8_t fuse; bool haveFuse = false;
