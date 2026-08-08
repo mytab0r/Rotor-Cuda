@@ -3,7 +3,7 @@
 ## Cloud foundation
 - [x] Create personal fork and verified commit identity.
 - [x] Add first Windows cloud build workflow.
-- [ ] Make CUDA/GMP/MSBuild workflow green.
+- [x] Make CUDA/GMP/MSBuild workflow green. (run 31224945126 / 632e4a5: MSBuild+Smoke+E2E green)
 - [x] Add CPU `--help` and deterministic BSGS smoke test.
 - [x] Add release-on-tag packaging and SHA-256.
 
@@ -21,6 +21,6 @@
 - [x] Add non-overwriting range catalog.
 
 ## Quality gate
-- [ ] Hosted CI passes build and CPU tests.
+- [x] Hosted CI passes build and CPU tests. (run 31224945126: Smoke CLI + E2E BSGS CPU pass, artifact 5.96MB)
 - [ ] NVIDIA self-hosted smoke passes GPU kernel test.
 - [ ] Random recovery either fixed with evidence or documented as unsupported.
