@@ -156,6 +156,79 @@ extern "C" __global__ void bsgs_giant_kernel_batch(
     }
 }
 
+// --- A2: on-device distinguished-point (DP) filter ---
+// Device X from the walk is VanitySearch quasi-reduced: congruent mod P but may
+// be >= P (never >= 2P, since X < 2^256 < 2P). Canonicalize with a single
+// conditional subtract of P, THEN test low bits, so DP semantics match any
+// external least-residue consumer. P = 2^256 - 2^32 - 977, so X >= P iff the
+// top three limbs are all-ones and limb0 >= 0xFFFFFFFEFFFFFC2F.
+__device__ __forceinline__ void canonicalize_X(uint64_t x[4]) {
+    bool ge = (x[3] == 0xFFFFFFFFFFFFFFFFULL) &&
+              (x[2] == 0xFFFFFFFFFFFFFFFFULL) &&
+              (x[1] == 0xFFFFFFFFFFFFFFFFULL) &&
+              (x[0] >= 0xFFFFFFFEFFFFFC2FULL);
+    if (ge) {
+        uint64_t t[5]; t[0]=x[0]; t[1]=x[1]; t[2]=x[2]; t[3]=x[3]; t[4]=0;
+        SubP(t);
+        x[0]=t[0]; x[1]=t[1]; x[2]=t[2]; x[3]=t[3];
+    }
+}
+
+// Low `dpBits` bits of canonical X all zero. dpBits==0 emits every point.
+__device__ __forceinline__ bool is_distinguished(const uint64_t x[4], uint32_t dpBits) {
+    if (dpBits == 0) return true;
+    uint64_t mask = (dpBits >= 64) ? ~0ULL : ((1ULL << dpBits) - 1ULL);
+    return (x[0] & mask) == 0ULL;
+}
+
+// DP variant of the batch walk: same math, but a point is stored only when it
+// is distinguished. Hits go to SoA arrays via an atomic cursor; outCount is the
+// TRUE number of distinguished points (may exceed maxHits -> host truncates).
+extern "C" __global__ void bsgs_giant_kernel_dp(
+    const uint64_t* __restrict__ start,
+    const uint64_t* __restrict__ S,
+    uint32_t nWalks, uint32_t nSteps, uint32_t W, uint32_t dpBits,
+    uint32_t maxHits,
+    uint32_t* __restrict__ outWalk,
+    uint32_t* __restrict__ outStep,
+    uint64_t* __restrict__ outX,
+    uint8_t*  __restrict__ outParity,
+    unsigned long long* __restrict__ outCount)
+{
+    uint32_t grp = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t w0 = grp * W;
+    if (w0 >= nWalks) return;
+    uint32_t Wl = (w0 + W <= nWalks) ? W : (nWalks - w0);
+
+    uint64_t ax[RC_BSGS_MAXW][4], ay[RC_BSGS_MAXW][4];
+    uint64_t rx[RC_BSGS_MAXW][4], ry[RC_BSGS_MAXW][4];
+    for (uint32_t j = 0; j < Wl; ++j) {
+        Load256(ax[j], start + (w0 + j) * 8);
+        Load256(ay[j], start + (w0 + j) * 8 + 4);
+    }
+    const uint64_t* Sx = S;
+    const uint64_t* Sy = S + 4;
+
+    for (uint32_t step = 0; step < nSteps; ++step) {
+        for (uint32_t j = 0; j < Wl; ++j) {
+            uint64_t cx[4]; cx[0]=ax[j][0]; cx[1]=ax[j][1]; cx[2]=ax[j][2]; cx[3]=ax[j][3];
+            canonicalize_X(cx);
+            if (is_distinguished(cx, dpBits)) {
+                unsigned long long slot = atomicAdd(outCount, 1ULL);
+                if (slot < maxHits) {
+                    outWalk[slot] = w0 + j;
+                    outStep[slot] = step;
+                    outX[slot*4+0]=cx[0]; outX[slot*4+1]=cx[1];
+                    outX[slot*4+2]=cx[2]; outX[slot*4+3]=cx[3];
+                    outParity[slot] = (uint8_t)(ay[j][0] & 1ULL);
+                }
+            }
+        }
+        point_sub_S_batch(rx, ry, ax, ay, Sx, Sy, Wl);
+        for (uint32_t j = 0; j < Wl; ++j) { Load256(ax[j], rx[j]); Load256(ay[j], ry[j]); }
+    }
+}
+
 } // namespace rotor_bsgs_gpu
 
 // Host launcher lives in same translation unit as kernel. This avoids requiring
@@ -276,6 +349,96 @@ bool launch_giant_batch(const uint64_t* startXY, const uint64_t* strideXY,
     if ((e = cudaMemcpy(out.parity.data(), dParity, parityBytes, cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
 
     cudaFree(dParity); cudaFree(dX); cudaFree(dStride); cudaFree(dStart);
+    return true;
+}
+
+bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
+                     uint32_t nWalks, uint32_t nSteps, uint32_t W,
+                     uint32_t dpBits, uint32_t maxHits,
+                     DpResult& out, std::string& error) {
+    if (!startXY || !strideXY || nWalks == 0 || nSteps == 0 || W == 0 || W > RC_BSGS_MAXW) {
+        error = "invalid GPU BSGS batch dimensions (W in 1..8)";
+        return false;
+    }
+    if (dpBits > 64) { error = "dpBits must be 0..64"; return false; }
+
+    const size_t startBytes = (size_t)nWalks * 8 * sizeof(uint64_t);
+    const size_t strideBytes = 8 * sizeof(uint64_t);
+    // Hit buffers sized to maxHits (>=1 so cudaMalloc never gets 0 bytes).
+    const uint32_t cap = maxHits ? maxHits : 1;
+    const size_t walkBytes = (size_t)cap * sizeof(uint32_t);
+    const size_t stepBytes = (size_t)cap * sizeof(uint32_t);
+    const size_t xBytes = (size_t)cap * 4 * sizeof(uint64_t);
+    const size_t parityBytes = (size_t)cap;
+
+    int devices = 0;
+    cudaError_t e = cudaGetDeviceCount(&devices);
+    if (e != cudaSuccess || devices == 0) {
+        error = e == cudaSuccess ? "no CUDA device" : cudaGetErrorString(e);
+        return false;
+    }
+
+    uint64_t *dStart = nullptr, *dStride = nullptr, *dX = nullptr;
+    uint32_t *dWalk = nullptr, *dStep = nullptr;
+    uint8_t *dParity = nullptr;
+    unsigned long long *dCount = nullptr;
+    auto fail = [&](cudaError_t err) {
+        if (dCount) cudaFree(dCount);
+        if (dParity) cudaFree(dParity);
+        if (dX) cudaFree(dX);
+        if (dStep) cudaFree(dStep);
+        if (dWalk) cudaFree(dWalk);
+        if (dStride) cudaFree(dStride);
+        if (dStart) cudaFree(dStart);
+        error = cudaGetErrorString(err);
+        return false;
+    };
+    if ((e = cudaMalloc((void**)&dStart, startBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dStride, strideBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dWalk, walkBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dStep, stepBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dX, xBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dParity, parityBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dCount, sizeof(unsigned long long))) != cudaSuccess) return fail(e);
+    if ((e = cudaMemcpy(dStart, startXY, startBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
+    if ((e = cudaMemcpy(dStride, strideXY, strideBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
+    if ((e = cudaMemset(dCount, 0, sizeof(unsigned long long))) != cudaSuccess) return fail(e);
+
+    const uint32_t nGroups = (nWalks + W - 1) / W;
+    const uint32_t block = 128;
+    const uint32_t grid = (nGroups + block - 1) / block;
+    bsgs_giant_kernel_dp<<<grid, block>>>(dStart, dStride, nWalks, nSteps, W, dpBits,
+                                          maxHits, dWalk, dStep, dX, dParity, dCount);
+    if ((e = cudaGetLastError()) != cudaSuccess) return fail(e);
+    if ((e = cudaDeviceSynchronize()) != cudaSuccess) return fail(e);
+
+    unsigned long long total = 0;
+    if ((e = cudaMemcpy(&total, dCount, sizeof(total), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+    out.total = (uint64_t)total;
+    out.truncated = total > maxHits;
+    const uint32_t stored = (uint32_t)(total < maxHits ? total : maxHits);
+
+    std::vector<uint32_t> hw(stored), hs(stored);
+    std::vector<uint64_t> hx((size_t)stored * 4);
+    std::vector<uint8_t> hp(stored);
+    if (stored) {
+        if ((e = cudaMemcpy(hw.data(), dWalk, (size_t)stored*sizeof(uint32_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hs.data(), dStep, (size_t)stored*sizeof(uint32_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hx.data(), dX, (size_t)stored*4*sizeof(uint64_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hp.data(), dParity, (size_t)stored, cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+    }
+    out.hits.clear();
+    out.hits.reserve(stored);
+    for (uint32_t i = 0; i < stored; ++i) {
+        DpHit h;
+        h.walk = hw[i]; h.step = hs[i];
+        h.x[0]=hx[i*4+0]; h.x[1]=hx[i*4+1]; h.x[2]=hx[i*4+2]; h.x[3]=hx[i*4+3];
+        h.parity = hp[i];
+        out.hits.push_back(h);
+    }
+
+    cudaFree(dCount); cudaFree(dParity); cudaFree(dX);
+    cudaFree(dStep); cudaFree(dWalk); cudaFree(dStride); cudaFree(dStart);
     return true;
 }
 
