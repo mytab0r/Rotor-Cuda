@@ -20,9 +20,19 @@ are retained. Everything below marked as fork work is by mytab0r.
 - **GPU BSGS giant-step kernel (internal)** — device giant-walk with
   **batch modular inversion**: W independent walks sharing one stride fold
   their per-step inverses into a single `_ModInv` (Montgomery's trick). Proven
-  on an RTX 5070 (sm_120) against a GMP ground truth — 65536 points, 0 mismatch
-  — at up to x1.71 vs the scalar path. Not yet wired to the CLI; see
-  `bsgs/BATCH_INVERT.md` and `bsgs/GPU_SMOKE.md` for evidence.
+  on an RTX 5070 (sm_120) against GMP ground truth. Not yet wired to the CLI;
+  see `bsgs/BATCH_INVERT.md` for evidence.
+- **GPU BSGS distinguished-point filter (internal)** — batch-inversion walks
+  emit only canonical-X distinguished points, removing the per-point store.
+  Device `total` remains honest and `truncated` reports host-cap overflow.
+  Proven on RTX 5070 against an independent GMP walk; see
+  `bsgs/DP_FILTER.md`.
+- **GPU Pollard kangaroo baseline (internal)** — classic 2-herd tame/wild
+  bounded DP producer with deterministic data-dependent jumps, canonical DP X,
+  accumulated distance, and host collision solving guarded by `cand*G == Q`.
+  Proven end to end on RTX 5070 (sm_120); see `bsgs/KANGAROO.md`. This is an
+  internal baseline, not CLI-exposed; SOTA K≈1.15, continuation/persistent
+  walks, and multi-GPU remain separate follow-up work.
 - **Filter catalog** — a binary-fuse filter alongside the classic bloom filter
   for large hash160 sets (lower false-positive rate at similar memory).
 - **Self-update** — SHA-256 verified binary self-replace (WinHTTP + MoveFileEx
