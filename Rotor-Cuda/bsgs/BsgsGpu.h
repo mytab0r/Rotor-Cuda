@@ -55,5 +55,37 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
                      uint32_t dpBits, uint32_t maxHits,
                      DpResult& out, std::string& error);
 
+// --- Track B: Pollard kangaroo baseline (classic 2-herd, K~=2.0) ---
+// Each thread walks one kangaroo. The jump is data-dependent:
+//   j = canonical_X(P).limb0 & (nJumps-1);  P += jump[j];  dist += 2^j
+// jump[i] = 2^i * G, host-precomputed as X[4]||Y[4] LE limbs, nJumps a power of
+// two in 1..64. A point is emitted only when its canonical X is distinguished
+// (low `dpBits` bits zero) -- same canonicalize + DP test + atomic-cursor SoA
+// emission as launch_giant_dp. Each hit carries its herd `kind`, canonical DP
+// X, and the 4-limb accumulated distance. The tame/wild collision-solve and the
+// key*G==target reverify are host-side (not in this launcher): the kernel is a
+// pure bounded DP producer. `dpBits` in 0..64. `out.total` is the true DP count
+// (may exceed maxHits -> out.truncated). GPU kangaroo is not CLI-exposed.
+enum KangKind : uint8_t { KANG_TAME = 0, KANG_WILD = 1 };
+struct KangHit {
+    uint8_t  kind;      // KANG_TAME or KANG_WILD
+    uint32_t kang;      // kangaroo index (maps back to its start offset)
+    uint64_t dpX[4];    // canonical X (least residue mod P)
+    uint64_t dist[4];   // accumulated jump distance (little-endian limbs)
+    uint8_t  parity;    // Y parity of the quasi-reduced point (informational)
+};
+struct KangarooResult {
+    std::vector<KangHit> hits;
+    uint64_t total = 0;      // distinguished points found (pre-truncation)
+    bool truncated = false;  // total > maxHits
+};
+// startXY: nKang points (X[4]||Y[4] LE) -- kind[i] herd of kangaroo i.
+// jumpXY: nJumps points (X[4]||Y[4] LE), jump[i] = 2^i*G. nJumps power of two.
+bool launch_kangaroo(const uint64_t* startXY, const uint8_t* kind,
+                     const uint64_t* jumpXY, uint32_t nJumps,
+                     uint32_t nKang, uint32_t nSteps,
+                     uint32_t dpBits, uint32_t maxHits,
+                     KangarooResult& out, std::string& error);
+
 } // namespace rotor_bsgs_gpu
 #endif
