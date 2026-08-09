@@ -353,7 +353,6 @@ bool launch_giant(const uint64_t* startXY, const uint64_t* strideXY,
         error = e == cudaSuccess ? "no CUDA device" : cudaGetErrorString(e);
         return false;
     }
-
     uint64_t *dStart = nullptr, *dStride = nullptr, *dX = nullptr;
     uint8_t *dParity = nullptr;
     auto fail = [&](cudaError_t err) {
@@ -446,7 +445,7 @@ bool launch_giant_batch(const uint64_t* startXY, const uint64_t* strideXY,
 bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
                      uint32_t nWalks, uint32_t nSteps, uint32_t W,
                      uint32_t dpBits, uint32_t maxHits,
-                     DpResult& out, std::string& error) {
+                     int deviceIndex, DpResult& out, std::string& error) {
     if (!startXY || !strideXY || nWalks == 0 || nSteps == 0 || W == 0 || W > RC_BSGS_MAXW) {
         error = "invalid GPU BSGS batch dimensions (W in 1..8)";
         return false;
@@ -466,6 +465,14 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
     cudaError_t e = cudaGetDeviceCount(&devices);
     if (e != cudaSuccess || devices == 0) {
         error = e == cudaSuccess ? "no CUDA device" : cudaGetErrorString(e);
+        return false;
+    }
+    if (deviceIndex < 0 || deviceIndex >= devices) {
+        error = "GPU device index out of range";
+        return false;
+    }
+    if ((e = cudaSetDevice(deviceIndex)) != cudaSuccess) {
+        error = cudaGetErrorString(e);
         return false;
     }
 

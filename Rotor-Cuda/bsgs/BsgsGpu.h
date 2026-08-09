@@ -53,7 +53,7 @@ struct DpResult {
 bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
                      uint32_t nWalks, uint32_t nSteps, uint32_t W,
                      uint32_t dpBits, uint32_t maxHits,
-                     DpResult& out, std::string& error);
+                     int deviceIndex, DpResult& out, std::string& error);
 
 // --- Track B: Pollard kangaroo baseline (classic 2-herd, K~=2.0) ---
 // Each thread walks one kangaroo. The jump is data-dependent:

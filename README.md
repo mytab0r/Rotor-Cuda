@@ -17,16 +17,21 @@ are retained. Everything below marked as fork work is by mytab0r.
   table + binary-fuse fast-reject + EC re-verify. End-to-end recover-scalar
   test runs in CI on every commit. Use only when the pubkey is public
   (authorized puzzles).
+- **GPU BSGS giant-step backend — `--mode bsgs -g`** — the verified device
+  giant-walk now serves the CLI recovery path. It reuses the CPU baby table,
+  binary-fuse fast-reject, and EC re-verification; GPU hits use the same
+  canonical-X fold as CPU. Select one card with `--gpui 0`; multi-GPU scheduling
+  is deliberately deferred. RTX 5070 (`sm_120`) self-test covers start,
+  boundary, middle, and end keys.
 - **GPU BSGS giant-step kernel (internal)** — device giant-walk with
   **batch modular inversion**: W independent walks sharing one stride fold
   their per-step inverses into a single `_ModInv` (Montgomery's trick). Proven
-  on an RTX 5070 (sm_120) against GMP ground truth. Not yet wired to the CLI;
-  see `bsgs/BATCH_INVERT.md` for evidence.
+  on an RTX 5070 (sm_120) against GMP ground truth. See
+  `bsgs/BATCH_INVERT.md` for evidence.
 - **GPU BSGS distinguished-point filter (internal)** — batch-inversion walks
   emit only canonical-X distinguished points, removing the per-point store.
   Device `total` remains honest and `truncated` reports host-cap overflow.
-  Proven on RTX 5070 against an independent GMP walk; see
-  `bsgs/DP_FILTER.md`.
+  Proven on RTX 5070 against an independent GMP walk; see `bsgs/DP_FILTER.md`.
 - **GPU Pollard kangaroo baseline (internal)** — classic 2-herd tame/wild
   bounded DP producer with deterministic data-dependent jumps, canonical DP X,
   accumulated distance, and host collision solving guarded by `cand*G == Q`.
@@ -44,7 +49,21 @@ Inherited from Rotor-Cuda v2 (upstream, not fork-authored): GPU search over
 single/multi BTC & ETH addresses, sequential range and `-r` random modes.
 These still work but are not the focus of this fork.
 
-## CPU BSGS usage
+## GPU BSGS usage
+
+Recover a known compressed public key on one selected NVIDIA GPU:
+
+```sh
+./Rotor --mode bsgs -g --gpui 0 \
+  --range 400000000000000000:7fffffffffffffffff \
+  02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
+```
+
+`-g` selects GPU-BSGS explicitly; it never silently falls back to CPU. Current
+CLI backend supports one GPU. Multi-GPU scheduling remains deferred. GPU giant
+walk uses exhaustive output (`dpBits=0`) and the same baby-table fold plus final
+EC re-verification as CPU-BSGS.
+
 
 Recover the scalar of a known compressed public key within a range:
 

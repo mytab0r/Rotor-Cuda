@@ -4,12 +4,14 @@
 // Baby membership = vendored binary-fuse (fast reject) + exact map for j; every
 // candidate is EC-reverified so a fold collision can never yield a wrong key.
 #include "BsgsCpu.h"
+#include "BsgsGpu.h"
 #include "../filter/binaryfusefilter.h"
 
 #include <unordered_map>
 #include <vector>
 #include <cmath>
 #include <cstring>
+#include <cstdio>
 
 namespace rotor_bsgs {
 
@@ -45,25 +47,43 @@ static Point padd(Secp256K1& sec, Point a, Point b) {
     return sec.AddDirect(a, b);
 }
 
-BsgsResult solve(Secp256K1& sec, Point& target,
-                 const Int& kStart, const Int& kEnd, uint64_t m) {
-    BsgsResult R;
+// Baby table shared by the CPU and GPU giant-step drivers. Holds the exact-map
+// (authoritative), the binary-fuse fast-reject filter, the versioned manifest,
+// and the derived quantities the giant loop needs (m, Q, stride S). Built once
+// per solve so both backends fold X the SAME way -- see solve_gpu.
+struct BabyTable {
+    uint64_t m = 1;
+    uint64_t span = 0;
+    Point S;                                     // stride m*G
+    std::unordered_map<uint64_t, uint32_t> map;  // fold(x(j*G)) -> j, j in [1,m]
+    binary_fuse8_t fuse{};
+    bool haveFuse = false;
+    TableManifest manifest;
+
+    ~BabyTable() { if (haveFuse) binary_fuse8_free(&fuse); }
+    BabyTable() = default;
+    BabyTable(BabyTable&& other) noexcept
+        : m(other.m), span(other.span), S(other.S), map(std::move(other.map)),
+          fuse(other.fuse), haveFuse(other.haveFuse), manifest(std::move(other.manifest)) {
+        other.haveFuse = false;
+        other.fuse = binary_fuse8_t{};
+    }
+    BabyTable(const BabyTable&) = delete;
+    BabyTable& operator=(const BabyTable&) = delete;
+};
+
+static BabyTable build_baby(Secp256K1& sec,
+                            const Int& kStart, const Int& kEnd, uint64_t m) {
+    BabyTable bt;
 
     Int spanI; spanI.Set((Int*)&kEnd); { Int ks; ks.Set((Int*)&kStart); spanI.Sub(&ks); }
-    uint64_t span = spanI.bits64[0];           // low 64 bits; caller keeps CPU ranges sane
-    if (m == 0) { double s = std::sqrt((double)span + 1.0); m = (uint64_t)s + 1; }
+    bt.span = spanI.bits64[0];                   // low 64 bits; caller keeps ranges sane
+    if (m == 0) { double s = std::sqrt((double)bt.span + 1.0); m = (uint64_t)s + 1; }
     if (m < 1) m = 1;
-    R.baby_size = m;
-
-    // Q = target - kStart*G  ->  solve Q = k'*G, k' in [0, span].
-    Int ksMut; ksMut.Set((Int*)&kStart);
-    Point startPt = sec.ComputePublicKey(&ksMut);
-    Point negStart = negate(startPt);
-    Point Q = padd(sec, target, negStart);
+    bt.m = m;
 
     // --- baby table: x(j*G) for j in [1, m] ---
-    std::unordered_map<uint64_t, uint32_t> babyMap;
-    babyMap.reserve(m * 2);
+    bt.map.reserve(m * 2);
     std::vector<uint64_t> folds; folds.reserve(m);
     uint8_t xb[32];
     Point cur = sec.G;                          // j = 1
@@ -71,51 +91,66 @@ BsgsResult solve(Secp256K1& sec, Point& target,
         sec.GetXBytes(true, cur, xb);
         uint64_t f = fold32(xb);
         folds.push_back(f);
-        babyMap.emplace(f, (uint32_t)j);
+        bt.map.emplace(f, (uint32_t)j);
         if (j < m) cur = padd(sec, cur, sec.G);
     }
 
     // Versioned identity of this table (see TableManifest). Checksum binds the
     // actual baby-step content so a checkpoint from a different table is rejected.
-    R.manifest.format_version = BSGS_TABLE_FORMAT_VERSION;
-    R.manifest.curve          = "secp256k1";
-    R.manifest.baby_size      = m;
-    R.manifest.range_id       = ((Int&)kStart).GetBase16() + ":" + ((Int&)kEnd).GetBase16();
-    R.manifest.table_checksum = fold_table(folds);
+    bt.manifest.format_version = BSGS_TABLE_FORMAT_VERSION;
+    bt.manifest.curve          = "secp256k1";
+    bt.manifest.baby_size      = m;
+    bt.manifest.range_id       = ((Int&)kStart).GetBase16() + ":" + ((Int&)kEnd).GetBase16();
+    bt.manifest.table_checksum = fold_table(folds);
 
     // Fast-reject filter over baby folds. Map stays authoritative.
-    binary_fuse8_t fuse; bool haveFuse = false;
-    if (folds.size() >= 2 && binary_fuse8_allocate((uint32_t)folds.size(), &fuse)) {
+    if (folds.size() >= 2 && binary_fuse8_allocate((uint32_t)folds.size(), &bt.fuse)) {
         std::vector<uint64_t> copy = folds;
-        haveFuse = binary_fuse8_populate(copy.data(), (uint32_t)copy.size(), &fuse);
-        if (!haveFuse) binary_fuse8_free(&fuse);
+        bt.haveFuse = binary_fuse8_populate(copy.data(), (uint32_t)copy.size(), &bt.fuse);
+        if (!bt.haveFuse) binary_fuse8_free(&bt.fuse);
     }
 
-    // --- giant steps: R_i = Q - i*(m*G) ---   stride S = m*G
+    // stride S = m*G
     Int mScalar; mScalar.SetInt32(0); mScalar.Add((uint64_t)m);
-    Point S = sec.ComputePublicKey(&mScalar);
-    Point negS = negate(S);
+    bt.S = sec.ComputePublicKey(&mScalar);
+    return bt;
+}
 
-    uint64_t giants = (m > 0) ? (span / m + 1) : 1;
+BsgsResult solve(Secp256K1& sec, Point& target,
+                 const Int& kStart, const Int& kEnd, uint64_t m) {
+    BsgsResult R;
+
+    BabyTable bt = build_baby(sec, kStart, kEnd, m);
+    R.baby_size = bt.m;
+    R.manifest  = bt.manifest;
+
+    // Q = target - kStart*G  (target-dependent, so done here not in build_baby)
+    Int ksMut; ksMut.Set((Int*)&kStart);
+    Point negStart = negate(sec.ComputePublicKey(&ksMut));
+    Point Q = padd(sec, target, negStart);
+    Point negS = negate(bt.S);
+
+    uint8_t xb[32];
+    uint64_t giants = (bt.m > 0) ? (bt.span / bt.m + 1) : 1;
     Point Ri = Q;
     for (uint64_t i = 0; i <= giants; ++i) {
         R.giant_steps = i + 1;
 
         if (Ri.isZero()) {                       // Q == i*S  => k' = i*m
-            uint64_t kp = i * m;
+            uint64_t kp = i * bt.m;
             Int k; k.Set((Int*)&kStart); k.Add(kp);
             R.found = true; R.key = k; break;
         }
         sec.GetXBytes(true, Ri, xb);
         uint64_t f = fold32(xb);
 
-        bool maybe = haveFuse ? binary_fuse8_contain(f, &fuse) : true;
+        bool maybe = bt.haveFuse ? binary_fuse8_contain(f, &bt.fuse) : true;
         if (maybe) {
-            auto it = babyMap.find(f);
-            if (it != babyMap.end()) {
+            auto it = bt.map.find(f);
+            if (it != bt.map.end()) {
                 uint32_t j = it->second;         // Ri ?= j*G  => Q = i*S + j*G
-                uint64_t kp = i * m + j;
-                if (kp <= span) {
+                uint64_t kp = i * bt.m + j;
+                if (kp <= bt.span) {
                     Int k; k.Set((Int*)&kStart); k.Add(kp);
                     Int kMut; kMut.Set(&k);
                     Point chk = sec.ComputePublicKey(&kMut);
@@ -127,8 +162,99 @@ BsgsResult solve(Secp256K1& sec, Point& target,
         Ri = padd(sec, Ri, negS);                // Ri -= S
     }
 
-    if (haveFuse) binary_fuse8_free(&fuse);
     return R;
 }
+
+#ifdef WITHGPU
+BsgsResult solve_gpu(Secp256K1& sec, Point& target,
+                     const Int& kStart, const Int& kEnd,
+                     int gpuId, uint64_t m) {
+    BsgsResult R;
+    BabyTable bt = build_baby(sec, kStart, kEnd, m);
+    R.baby_size = bt.m;
+    R.manifest = bt.manifest;
+
+    Int ksMut; ksMut.Set((Int*)&kStart);
+    Point negStart = negate(sec.ComputePublicKey(&ksMut));
+    Point walkStart = padd(sec, target, negStart); // Q = target - kStart*G
+
+    // CPU solve visits indices 0..span/m+1; final extra index cannot produce
+    // an in-range kp, so GPU emits exactly the useful [0, span/m] points.
+    const uint64_t giantPoints = bt.span / bt.m + 1;
+    const uint32_t nSteps = 1024;
+    if (giantPoints > UINT32_MAX) return R; // launcher output uses 32-bit counts
+    const uint32_t nWalks = (uint32_t)((giantPoints + nSteps - 1) / nSteps);
+    const uint64_t emittedPoints = (uint64_t)nWalks * nSteps;
+    if (nWalks == 0 || emittedPoints > UINT32_MAX) return R;
+
+    std::vector<uint64_t> starts((size_t)nWalks * 8);
+    for (uint32_t walk = 0; walk < nWalks; ++walk) {
+        // Infinity has no canonical X, so resolve exact giant-boundary hits on
+        // host instead of sending (0,0) into the affine GPU kernel.
+        if (walkStart.isZero()) {
+            uint64_t kp = (uint64_t)walk * nSteps * bt.m;
+            if (kp <= bt.span) {
+                Int k; k.Set((Int*)&kStart); k.Add(kp);
+                R.found = true; R.key = k;
+                return R;
+            }
+        }
+        std::memcpy(&starts[(size_t)walk * 8], walkStart.x.bits64, 4 * sizeof(uint64_t));
+        std::memcpy(&starts[(size_t)walk * 8 + 4], walkStart.y.bits64, 4 * sizeof(uint64_t));
+        // Build next walk's start as Q - (walk+1)*nSteps*S. The final unused
+        // tail is harmless; kernel still reports its indices and kp bounds reject.
+        if (walk + 1 < nWalks) {
+            Int chunkScalar; chunkScalar.SetInt32(0);
+            chunkScalar.Add((uint64_t)nSteps * bt.m);
+            Point chunk = sec.ComputePublicKey(&chunkScalar);
+            walkStart = padd(sec, walkStart, negate(chunk));
+        }
+    }
+    uint64_t stride[8];
+    std::memcpy(stride, bt.S.x.bits64, 4 * sizeof(uint64_t));
+    std::memcpy(stride + 4, bt.S.y.bits64, 4 * sizeof(uint64_t));
+
+    rotor_bsgs_gpu::DpResult out;
+    std::string error;
+    bool ok = rotor_bsgs_gpu::launch_giant_dp(
+        starts.data(), stride, nWalks, nSteps, 8, 0,
+        (uint32_t)emittedPoints, gpuId, out, error);
+    if (!ok || out.truncated) {
+        R.error = !ok ? error : "GPU-BSGS output truncated; reduce range or use CPU-BSGS";
+        return R;
+    }
+    R.giant_steps = out.total;
+
+    uint8_t xb[32];
+    for (const rotor_bsgs_gpu::DpHit& hit : out.hits) {
+        uint64_t i = (uint64_t)hit.walk * nSteps + hit.step;
+        if (i >= giantPoints) continue;
+
+        // GPU limbs are LE and canonical; fold through the exact CPU path
+        // (GetXBytes/Get32Bytes) rather than folding raw limb memory.
+        Point hitPoint;
+        hitPoint.x.SetInt32(0); hitPoint.y.SetInt32(0); hitPoint.z.SetInt32(1);
+        std::memcpy(hitPoint.x.bits64, hit.x, 4 * sizeof(uint64_t));
+        sec.GetXBytes(true, hitPoint, xb);
+        uint64_t f = fold32(xb);
+        bool maybe = bt.haveFuse ? binary_fuse8_contain(f, &bt.fuse) : true;
+        if (!maybe) continue;
+        auto it = bt.map.find(f);
+        if (it == bt.map.end()) continue;
+
+        uint64_t kp = i * bt.m + it->second;
+        if (kp > bt.span) continue;
+        Int k; k.Set((Int*)&kStart); k.Add(kp);
+        Int kMut; kMut.Set(&k);
+        Point chk = sec.ComputePublicKey(&kMut);
+        if (chk.equals(target)) {
+            R.found = true;
+            R.key = k;
+            return R;
+        }
+    }
+    return R;
+}
+#endif
 
 } // namespace rotor_bsgs

@@ -457,11 +457,13 @@ void GPUEngine::PrintCudaInfo()
 		CudaSafeCall(cudaSetDevice(i));
 		cudaDeviceProp deviceProp;
 		CudaSafeCall(cudaGetDeviceProperties(&deviceProp, i));
+		int computeMode = 0;
+		CudaSafeCall(cudaDeviceGetAttribute(&computeMode, cudaDevAttrComputeMode, i));
 		printf("GPU #%d %s (%dx%d cores) (Cap %d.%d) (%.1f MB) (%s)\n",
 			i, deviceProp.name, deviceProp.multiProcessorCount,
 			_ConvertSMVer2Cores(deviceProp.major, deviceProp.minor),
 			deviceProp.major, deviceProp.minor, (double)deviceProp.totalGlobalMem / 1048576.0,
-			sComputeMode[deviceProp.computeMode]);
+			sComputeMode[computeMode]);
 	}
 }
 
