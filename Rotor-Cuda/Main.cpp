@@ -2,6 +2,8 @@
 #include "Rotor.h"
 #include "Base58.h"
 #include "CmdParse.h"
+#include "bsgs/SelfUpdate.h"
+#include "bsgs/BsgsCpu.h"
 #include <fstream>
 #include <string>
 #include <string.h>
@@ -13,10 +15,25 @@
 #include <unistd.h>
 #endif
 
-#define RELEASE "2.0  Mehdi256"
+#define RELEASE "2.0-rotor  mytab0r"
+#define UPDATE_REPO "mytab0r/Rotor-Cuda"   // self-update source (GitHub releases/latest)
+#ifndef ROTOR_VERSION
+#  if defined(__has_include)
+#    if __has_include("version_stamp.h")
+#      include "version_stamp.h"   // CI writes: #define ROTOR_VERSION "vX.Y.Z"
+#    endif
+#  endif
+#endif
+#ifndef ROTOR_VERSION
+#define ROTOR_VERSION "dev"        // dev builds have no release tag
+#endif
 
 using namespace std;
 bool should_exit = false;
+
+// BSGS is a separate search family (pubkey -> scalar), not one of the fork's
+// hash/xpoint SEARCH_MODE_* values. Sentinel keeps it out of the Rotor switch.
+#define SEARCH_MODE_BSGS 100
 
 // ----------------------------------------------------------------------------
 void usage()
@@ -39,6 +56,7 @@ void usage()
 	printf("                                                      Addresses: for multiple hashes/addresses\n");
 	printf("                                                      Xpoint   : for single xpoint\n");
 	printf("                                                      Xpoints : for multiple xpoints\n");
+	printf("                                                      BSGS     : recover scalar from a public key in --range (CPU-BSGS; -g selects GPU-BSGS)\n");
 	printf("--coin BTC/ETH                      : Specify Coin name to search\n");
 	printf("                                                      BTC: available mode :-\n");
 	printf("                                                      ADDRESS, ADDRESSES, XPOINT, XPOINTS\n");
@@ -112,6 +130,10 @@ int parseSearchMode(const std::string& s)
 
 	if (stype == "xpoints") {
 		return SEARCH_MODE_MX;
+	}
+
+	if (stype == "bsgs") {
+		return SEARCH_MODE_BSGS;
 	}
 
 	printf("  Invalid search mode format: %s", stype.c_str());
@@ -200,8 +222,11 @@ int main(int argc, char** argv)
 {
 	// Global Init
 	Timer::Init();
+#ifdef _WIN32
+	rotor_update::cleanup_old();   // delete <self>.old from a prior --update
+#endif
 	rseed(Timer::getSeed32());
-		
+
 	bool gpuEnable = false;
 	bool gpuAutoGrid = true;
 	int compMode = SEARCH_COMPRESSED;
@@ -254,6 +279,8 @@ int main(int argc, char** argv)
 	parser.add("", "--range", true);
 	parser.add("-r", "--rkey", true);
 	parser.add("-v", "--version", false);
+	parser.add("", "--check-update", false);
+	parser.add("", "--update", false);
 	parser.add("-n", "--next", true);
 	parser.add("-z", "--zet", true);
 	parser.add("-d", "--display", true);
@@ -358,6 +385,29 @@ int main(int argc, char** argv)
 				printf("Rotor-Cuda v" RELEASE "\n");
 				return 0;
 			}
+#ifdef _WIN32
+			else if (optArg.equals("", "--check-update")) {
+				rotor_update::UpdateInfo info; std::string err;
+				if (!rotor_update::check_latest(UPDATE_REPO, ROTOR_VERSION, info, err)) {
+					printf(" update check failed: %s\n", err.c_str()); return -1;
+				}
+				printf(" current: %s  latest: %s  ->  %s\n", ROTOR_VERSION, info.latest.c_str(),
+					info.available ? "UPDATE AVAILABLE (run --update)" : "up to date");
+				return 0;
+			}
+			else if (optArg.equals("", "--update")) {
+				rotor_update::UpdateInfo info; std::string err;
+				if (!rotor_update::check_latest(UPDATE_REPO, ROTOR_VERSION, info, err)) {
+					printf(" update check failed: %s\n", err.c_str()); return -1;
+				}
+				if (!info.available) { printf(" already up to date (%s)\n", ROTOR_VERSION); return 0; }
+				printf(" updating %s -> %s ...\n", ROTOR_VERSION, info.latest.c_str());
+				if (!rotor_update::apply_update(info, argc, argv, true, err)) {
+					printf(" update failed: %s\n", err.c_str()); return -1;
+				}
+				return 0;   // unreachable if restart succeeded (ExitProcess)
+			}
+#endif
 		}
 		catch (std::string err) {
 			printf("Error: %s\n", err.c_str());
@@ -377,6 +427,86 @@ int main(int argc, char** argv)
 	}
 	if (searchMode == (int)SEARCH_MODE_MX || searchMode == (int)SEARCH_MODE_SX)
 		useSSE = false;
+
+	// --- BSGS: pubkey -> scalar. Reuses Secp256K1 directly; short-circuits the
+	// whole hash/xpoint Rotor pipeline (different search family). CPU-only for
+	// now; GPU giant-step kernel (BsgsGpu.cu) is compile-verified but needs a
+	// real NVIDIA runner before it can be wired here.
+	if (searchMode == SEARCH_MODE_BSGS) {
+		std::vector<std::string> bops = parser.getOperands();
+		if (bops.size() != 1) {
+			printf("  Error: BSGS needs exactly one target public key (hex)\n");
+			usage(); return -1;
+		}
+		if (rangeStart.IsZero() && rangeEnd.IsZero()) {
+			printf("  Error: BSGS needs --range START:END\n");
+			usage(); return -1;
+		}
+		if (rangeEnd.IsLower(&rangeStart)) {
+			printf("  Error: BSGS range END must be >= START\n");
+			return -1;
+		}
+		{
+			size_t n = bops[0].size();
+			if (n != 66 && n != 130) {
+				printf("  Error: target pubkey must be 66 (compressed) or 130 (uncompressed) hex chars, got %zu\n", n);
+				return -1;
+			}
+		}
+		Secp256K1 sec; sec.Init();
+		// Backend is explicit: -g selects GPU-BSGS; no silent CPU fallback.
+		if (rKey != 0) {
+			printf("  Error: random BSGS (-r) is non-resumable and unsupported; run sequential BSGS instead\n");
+			return -1;
+		}
+		bool comp = true;
+		Point target = sec.ParsePublicKeyHex(bops[0], comp);
+		if (!sec.EC(target)) {
+			printf("  Error: target pubkey is not a valid point on secp256k1\n");
+			return -1;
+		}
+#ifdef WITHGPU
+		if (gpuEnable && gpuId.size() != 1) {
+			printf("  Error: GPU-BSGS supports one GPU; multi-GPU is deferred\n");
+			return -1;
+		}
+#else
+		if (gpuEnable) {
+			printf("  Error: GPU code not compiled, use -DWITHGPU\n");
+			return -1;
+		}
+#endif
+		printf("\n  Rotor-Cuda v" RELEASE "\n");
+		printf("  SEARCH MODE  : BSGS (pubkey -> scalar)\n");
+		printf("  BACKEND      : %s\n", gpuEnable ? "GPU-BSGS" : "CPU-BSGS");
+		printf("  TARGET PUB   : %s\n", bops[0].c_str());
+		printf("  RANGE        : %s : %s\n", rangeStart.GetBase16().c_str(), rangeEnd.GetBase16().c_str());
+		double t0 = Timer::get_tick();
+		rotor_bsgs::BsgsResult r;
+#ifdef WITHGPU
+		if (gpuEnable)
+			r = rotor_bsgs::solve_gpu(sec, target, rangeStart, rangeEnd, gpuId[0]);
+		else
+#endif
+			r = rotor_bsgs::solve(sec, target, rangeStart, rangeEnd);
+		printf("  [%s] GIANT STEPS: %llu   BABY SIZE: %llu   (%.1fs)\n",
+			gpuEnable ? "GPU-BSGS" : "CPU-BSGS",
+			(unsigned long long)r.giant_steps, (unsigned long long)r.baby_size, Timer::get_tick() - t0);
+		if (!r.found && !r.error.empty()) {
+			printf("  Error: %s\n\n", r.error.c_str());
+			return 1;
+		}
+		if (r.found) {
+			std::string hex = r.key.GetBase16();
+			printf("\n  =====> KEY FOUND: %s\n", hex.c_str());
+			std::ofstream f(outputFile, std::ios::app);
+			if (f) f << bops[0] << " " << hex << "\n";
+			printf("  (written to %s)\n\n", outputFile.c_str());
+			return 0;
+		}
+		printf("\n  Not found in range.\n\n");
+		return 1;
+	}
 
 
 	// Parse operands
@@ -541,7 +671,7 @@ int main(int argc, char** argv)
 			printf("\n");
 	}
 	printf("  SSE          : %s\n", useSSE ? "YES" : "NO");
-	
+
 	if (coinType == COIN_BTC) {
 		switch (searchMode) {
 		case (int)SEARCH_MODE_MA:
@@ -573,7 +703,7 @@ int main(int argc, char** argv)
 		}
 	}
 	printf("  OUTPUT FILE  : %s\n", outputFile.c_str());
-	
+
 #ifdef WIN64
 	if (SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
 		Rotor* v;
