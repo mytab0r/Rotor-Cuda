@@ -1,0 +1,104 @@
+name: windows-build
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+on:
+  push:
+    branches: [ "ci/windows-build", "main" ]
+    paths-ignore: [ "**/*.md" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda
+        with:
+          cuda: '12.5.1'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Bootstrap pinned GMP binary
+        shell: pwsh
+        run: |
+          $commit = "6aa2b2956609471a7a9c2fc3afb9f47c1c779c1d"
+          $base = "https://raw.githubusercontent.com/Qalander/KeyHunt-Cuda/$commit/gmp"
+          New-Item -ItemType Directory -Force -Path "Rotor-Cuda/gmp/include" | Out-Null
+          New-Item -ItemType Directory -Force -Path "Rotor-Cuda/gmp/lib/x64" | Out-Null
+          Invoke-WebRequest "$base/include/gmp.h" -OutFile "Rotor-Cuda/gmp/include/gmp.h"
+          Invoke-WebRequest "$base/include/gmpxx.h" -OutFile "Rotor-Cuda/gmp/include/gmpxx.h"
+          Invoke-WebRequest "$base/lib/x64/gmp.lib" -OutFile "Rotor-Cuda/gmp/lib/x64/gmp.lib"
+          $hash = (Get-FileHash "Rotor-Cuda/gmp/lib/x64/gmp.lib" -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "3f435b154acadae40fd529d399b50e5189f27235fdbfcdf4de6c4414955e8568") { throw "GMP checksum mismatch" }
+
+
+      - name: Patch vcxproj for cloud toolchain
+        shell: pwsh
+        run: |
+          $p = "Rotor-Cuda/Rotor-Cuda.vcxproj"
+          $x = Get-Content $p -Raw
+          $x = $x -replace 'CUDA 10\.2\.props', 'CUDA 12.5.props'
+          $x = $x -replace 'CUDA 10\.2\.targets', 'CUDA 12.5.targets'
+          $x = $x -replace '<PlatformToolset>v142</PlatformToolset>', '<PlatformToolset>v143</PlatformToolset>'
+          # CUDA 12 dropped compute_30/35/37/50-52 codegen for some; keep 52..90
+          $x = $x -replace 'compute_30,sm_30;compute_35,sm_35;compute_37,sm_37;compute_50,sm_50;compute_52,sm_52;', 'compute_52,sm_52;'
+          $x = $x -replace '(compute_75,sm_75)', '$1;compute_80,sm_80;compute_86,sm_86;compute_89,sm_89;compute_90,sm_90'
+          Set-Content $p $x
+          Write-Host "---- patched Import/Toolset/CodeGeneration ----"
+          Select-String -Path $p -Pattern 'CUDA 12|PlatformToolset|CodeGeneration' | ForEach-Object { $_.Line.Trim() }
+
+      - name: MSBuild (Release x64)
+        shell: pwsh
+        run: |
+          $log = Join-Path $pwd "msbuild.log"
+          & msbuild "Rotor-Cuda/Rotor-Cuda.vcxproj" /p:Configuration=Release /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0 /m /verbosity:minimal *> $log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $tail = (Get-Content $log -Tail 40 | Out-String).Trim()
+            $tail = $tail -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'
+            Write-Host "::error file=.github/workflows/win-build.yml,line=64::MSBUILD exit=$code $tail"
+            throw "MSBuild failed ($code)"
+          }
+          Write-Host "MSBuild OK"
+
+      - name: Smoke test CLI
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object -First 1
+          if (-not $exe -or $exe.Length -le 0) { throw "Rotor-Cuda.exe missing or empty" }
+          & $exe.FullName --help 2>&1 | Tee-Object help.txt
+          if ($LASTEXITCODE -ne 0) { throw "--help failed with exit code $LASTEXITCODE" }
+          if (-not (Select-String -Path help.txt -Pattern "Display this message" -Quiet)) { throw "help output missing expected usage text" }
+
+      - name: E2E BSGS smoke (recover scalar from pubkey, CPU)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter "Rotor-Cuda.exe" | Select-Object -First 1
+          $G = "0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798"
+          & $exe.FullName --mode bsgs --range 1:100 $G *> pos.txt
+          $posCode = $LASTEXITCODE
+          $posFound = [bool](Select-String -Path pos.txt -Pattern "KEY FOUND: 1" -Quiet)
+          & $exe.FullName --mode bsgs --range 1:100 "deadbeef" *> neg.txt
+          $negCode = $LASTEXITCODE
+          Write-Host ("::error::VERDICT posCode={0} posFound={1} negCode={2}" -f $posCode,$posFound,$negCode)
+          if ($posCode -ne 0 -or -not $posFound) { throw "positive: expected exit 0 + KEY FOUND 1 (posCode=$posCode found=$posFound)" }
+          if ($negCode -eq 0) { throw "negative: malformed pubkey must exit nonzero (negCode=$negCode)" }
+          Write-Host "BSGS e2e OK"
+          exit 0  # asserts above throw on real failure; reset $LASTEXITCODE (negative run left -1)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rotor-Cuda-windows-x64
+          path: "**/Rotor-Cuda.exe"
+          if-no-files-found: error

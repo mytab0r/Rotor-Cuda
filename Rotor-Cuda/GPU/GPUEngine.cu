@@ -457,11 +457,13 @@ void GPUEngine::PrintCudaInfo()
 		CudaSafeCall(cudaSetDevice(i));
 		cudaDeviceProp deviceProp;
 		CudaSafeCall(cudaGetDeviceProperties(&deviceProp, i));
+		int computeMode = 0;
+		CudaSafeCall(cudaDeviceGetAttribute(&computeMode, cudaDevAttrComputeMode, i));
 		printf("GPU #%d %s (%dx%d cores) (Cap %d.%d) (%.1f MB) (%s)\n",
 			i, deviceProp.name, deviceProp.multiProcessorCount,
 			_ConvertSMVer2Cores(deviceProp.major, deviceProp.minor),
 			deviceProp.major, deviceProp.minor, (double)deviceProp.totalGlobalMem / 1048576.0,
-			sComputeMode[deviceProp.computeMode]);
+			sComputeMode[computeMode]);
 	}
 }
 
@@ -896,6 +898,7 @@ int GPUEngine::CheckBinary(const uint8_t* _x, int K_LENGTH)
 	return r;
 }
 
-
-
-
+// Unity-include the BSGS giant-step kernel + host launcher so all device
+// primitives (GPUMath.h) live in ONE CUDA translation unit; a separate TU
+// would re-emit the non-inline __device__ helpers and collide at link (LNK2005).
+#include "../bsgs/BsgsGpu.cu"

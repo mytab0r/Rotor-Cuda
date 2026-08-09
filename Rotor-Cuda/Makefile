@@ -7,7 +7,7 @@
 
 SRC = Base58.cpp IntGroup.cpp Main.cpp Bloom.cpp Random.cpp Sort.cpp \
       Timer.cpp Int.cpp IntMod.cpp Point.cpp SECP256K1.cpp \
-      Rotor.cpp GPU/GPUGenerate.cpp hash/ripemd160.cpp \
+      Rotor.cpp bsgs/BsgsCpu.cpp GPU/GPUGenerate.cpp hash/ripemd160.cpp \
       hash/sha256.cpp hash/sha512.cpp hash/ripemd160_sse.cpp \
       hash/sha256_sse.cpp hash/keccak160.cpp GmpUtil.cpp CmdParse.cpp
 
@@ -17,7 +17,7 @@ ifdef gpu
 
 OBJET = $(addprefix $(OBJDIR)/, \
         Base58.o IntGroup.o Main.o Bloom.o Random.o Sort.o Timer.o Int.o \
-        IntMod.o Point.o SECP256K1.o Rotor.o GPU/GPUGenerate.o \
+        IntMod.o Point.o SECP256K1.o Rotor.o bsgs/BsgsCpu.o GPU/GPUGenerate.o \
         hash/ripemd160.o hash/sha256.o hash/sha512.o \
         hash/ripemd160_sse.o hash/sha256_sse.o hash/keccak160.o \
         GPU/GPUEngine.o GmpUtil.o CmdParse.o)
@@ -26,7 +26,7 @@ else
 
 OBJET = $(addprefix $(OBJDIR)/, \
         Base58.o IntGroup.o Main.o Bloom.o Random.o Sort.o Timer.o Int.o \
-        IntMod.o Point.o SECP256K1.o Rotor.o GPU/GPUGenerate.o \
+        IntMod.o Point.o SECP256K1.o Rotor.o bsgs/BsgsCpu.o GPU/GPUGenerate.o \
         hash/ripemd160.o hash/sha256.o hash/sha512.o \
         hash/ripemd160_sse.o hash/sha256_sse.o hash/keccak160.o \
         GmpUtil.o CmdParse.o)
@@ -78,7 +78,7 @@ Rotor: $(OBJET)
 	@echo Making Rotor...
 	$(CXX) $(OBJET) $(LFLAGS) -o Rotor
 
-$(OBJET): | $(OBJDIR) $(OBJDIR)/GPU $(OBJDIR)/hash
+$(OBJET): | $(OBJDIR) $(OBJDIR)/GPU $(OBJDIR)/hash $(OBJDIR)/bsgs
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
@@ -88,6 +88,9 @@ $(OBJDIR)/GPU: $(OBJDIR)
 
 $(OBJDIR)/hash: $(OBJDIR)
 	cd $(OBJDIR) && mkdir -p hash
+
+$(OBJDIR)/bsgs: $(OBJDIR)
+	cd $(OBJDIR) && mkdir -p bsgs
 
 # -------------------------------------------------------------------
 # Destructive clean: delete obj dir completely and remove Rotor binary
