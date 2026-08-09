@@ -178,79 +178,96 @@ BsgsResult solve_gpu(Secp256K1& sec, Point& target,
     Point negStart = negate(sec.ComputePublicKey(&ksMut));
     Point walkStart = padd(sec, target, negStart); // Q = target - kStart*G
 
-    // CPU solve visits indices 0..span/m+1; final extra index cannot produce
-    // an in-range kp, so GPU emits exactly the useful [0, span/m] points.
     const uint64_t giantPoints = bt.span / bt.m + 1;
     const uint32_t nSteps = 1024;
-    if (giantPoints > UINT32_MAX) return R; // launcher output uses 32-bit counts
-    const uint32_t nWalks = (uint32_t)((giantPoints + nSteps - 1) / nSteps);
-    const uint64_t emittedPoints = (uint64_t)nWalks * nSteps;
-    if (nWalks == 0 || emittedPoints > UINT32_MAX) return R;
-
-    std::vector<uint64_t> starts((size_t)nWalks * 8);
-    for (uint32_t walk = 0; walk < nWalks; ++walk) {
-        // Infinity has no canonical X, so resolve exact giant-boundary hits on
-        // host instead of sending (0,0) into the affine GPU kernel.
-        if (walkStart.isZero()) {
-            uint64_t kp = (uint64_t)walk * nSteps * bt.m;
-            if (kp <= bt.span) {
-                Int k; k.Set((Int*)&kStart); k.Add(kp);
-                R.found = true; R.key = k;
-                return R;
-            }
-        }
-        std::memcpy(&starts[(size_t)walk * 8], walkStart.x.bits64, 4 * sizeof(uint64_t));
-        std::memcpy(&starts[(size_t)walk * 8 + 4], walkStart.y.bits64, 4 * sizeof(uint64_t));
-        // Build next walk's start as Q - (walk+1)*nSteps*S. The final unused
-        // tail is harmless; kernel still reports its indices and kp bounds reject.
-        if (walk + 1 < nWalks) {
-            Int chunkScalar; chunkScalar.SetInt32(0);
-            chunkScalar.Add((uint64_t)nSteps * bt.m);
-            Point chunk = sec.ComputePublicKey(&chunkScalar);
-            walkStart = padd(sec, walkStart, negate(chunk));
-        }
-    }
+    // ponytail: bounded host buffer, chunked launcher; raise only after measured GPU memory allows it.
+    const uint64_t maxBatchPoints = 1ULL << 20;
+    const uint64_t strideStep = (uint64_t)nSteps * bt.m;
+    uint64_t batchBase = 0;
+    Point batchStart = walkStart;
     uint64_t stride[8];
     std::memcpy(stride, bt.S.x.bits64, 4 * sizeof(uint64_t));
     std::memcpy(stride + 4, bt.S.y.bits64, 4 * sizeof(uint64_t));
-
-    rotor_bsgs_gpu::DpResult out;
-    std::string error;
-    bool ok = rotor_bsgs_gpu::launch_giant_dp(
-        starts.data(), stride, nWalks, nSteps, 8, 0,
-        (uint32_t)emittedPoints, gpuId, out, error);
-    if (!ok || out.truncated) {
-        R.error = !ok ? error : "GPU-BSGS output truncated; reduce range or use CPU-BSGS";
-        return R;
-    }
-    R.giant_steps = out.total;
-
     uint8_t xb[32];
-    for (const rotor_bsgs_gpu::DpHit& hit : out.hits) {
-        uint64_t i = (uint64_t)hit.walk * nSteps + hit.step;
-        if (i >= giantPoints) continue;
 
-        // GPU limbs are LE and canonical; fold through the exact CPU path
-        // (GetXBytes/Get32Bytes) rather than folding raw limb memory.
-        Point hitPoint;
-        hitPoint.x.SetInt32(0); hitPoint.y.SetInt32(0); hitPoint.z.SetInt32(1);
-        std::memcpy(hitPoint.x.bits64, hit.x, 4 * sizeof(uint64_t));
-        sec.GetXBytes(true, hitPoint, xb);
-        uint64_t f = fold32(xb);
-        bool maybe = bt.haveFuse ? binary_fuse8_contain(f, &bt.fuse) : true;
-        if (!maybe) continue;
-        auto it = bt.map.find(f);
-        if (it == bt.map.end()) continue;
-
-        uint64_t kp = i * bt.m + it->second;
-        if (kp > bt.span) continue;
-        Int k; k.Set((Int*)&kStart); k.Add(kp);
-        Int kMut; kMut.Set(&k);
-        Point chk = sec.ComputePublicKey(&kMut);
-        if (chk.equals(target)) {
-            R.found = true;
-            R.key = k;
+    while (batchBase < giantPoints) {
+        const uint64_t remaining = giantPoints - batchBase;
+        const uint64_t batchPoints = std::min(remaining, maxBatchPoints);
+        const uint32_t nWalks = (uint32_t)((batchPoints + nSteps - 1) / nSteps);
+        const uint64_t emittedPoints = (uint64_t)nWalks * nSteps;
+        if (nWalks == 0 || emittedPoints > UINT32_MAX) {
+            R.error = "GPU-BSGS batch dimensions overflow";
             return R;
+        }
+
+        std::vector<uint64_t> starts((size_t)nWalks * 8);
+        Point currentStart = batchStart;
+        for (uint32_t walk = 0; walk < nWalks; ++walk) {
+            // Infinity has no canonical X, so resolve exact batch-boundary hits
+            // on host instead of sending (0,0) into the affine GPU kernel.
+            if (currentStart.isZero()) {
+                const uint64_t i = batchBase + (uint64_t)walk * nSteps;
+                if (i < giantPoints) {
+                    Int k; k.Set((Int*)&kStart); k.Add(i * bt.m);
+                    R.found = true; R.key = k;
+                    return R;
+                }
+                // Rounded final walk is outside the range; keep kernel input finite.
+                currentStart = sec.G;
+            }
+            std::memcpy(&starts[(size_t)walk * 8], currentStart.x.bits64, 4 * sizeof(uint64_t));
+            std::memcpy(&starts[(size_t)walk * 8 + 4], currentStart.y.bits64, 4 * sizeof(uint64_t));
+            if (walk + 1 < nWalks) {
+                Int chunkScalar; chunkScalar.SetInt32(0);
+                chunkScalar.Add(strideStep);
+                Point chunk = sec.ComputePublicKey(&chunkScalar);
+                currentStart = padd(sec, currentStart, negate(chunk));
+            }
+        }
+
+        rotor_bsgs_gpu::DpResult out;
+        std::string error;
+        bool ok = rotor_bsgs_gpu::launch_giant_dp(
+            starts.data(), stride, nWalks, nSteps, 8, 0,
+            (uint32_t)emittedPoints, gpuId, out, error);
+        if (!ok || out.truncated) {
+            R.error = !ok ? error : "GPU-BSGS output truncated; reduce range or use CPU-BSGS";
+            return R;
+        }
+        R.giant_steps += out.total;
+        for (const rotor_bsgs_gpu::DpHit& hit : out.hits) {
+            const uint64_t i = batchBase + (uint64_t)hit.walk * nSteps + hit.step;
+            if (i >= giantPoints) continue;
+
+            // GPU limbs are LE and canonical; fold through exact CPU path.
+            Point hitPoint;
+            hitPoint.x.SetInt32(0); hitPoint.y.SetInt32(0); hitPoint.z.SetInt32(1);
+            std::memcpy(hitPoint.x.bits64, hit.x, 4 * sizeof(uint64_t));
+            sec.GetXBytes(true, hitPoint, xb);
+            uint64_t f = fold32(xb);
+            bool maybe = bt.haveFuse ? binary_fuse8_contain(f, &bt.fuse) : true;
+            if (!maybe) continue;
+            auto it = bt.map.find(f);
+            if (it == bt.map.end()) continue;
+
+            uint64_t kp = i * bt.m + it->second;
+            if (kp > bt.span) continue;
+            Int k; k.Set((Int*)&kStart); k.Add(kp);
+            Int kMut; kMut.Set(&k);
+            Point chk = sec.ComputePublicKey(&kMut);
+            if (chk.equals(target)) {
+                R.found = true;
+                R.key = k;
+                return R;
+            }
+        }
+        const uint64_t covered = (uint64_t)nWalks * nSteps;
+        batchBase += covered;
+        if (batchBase < giantPoints) {
+            Int chunkScalar; chunkScalar.SetInt32(0);
+            chunkScalar.Add(covered * bt.m);
+            Point chunk = sec.ComputePublicKey(&chunkScalar);
+            batchStart = padd(sec, batchStart, negate(chunk));
         }
     }
     return R;
