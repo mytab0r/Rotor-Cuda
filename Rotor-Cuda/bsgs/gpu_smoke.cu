@@ -124,6 +124,51 @@ int main(int argc,char**argv){
     if(!ok){ fprintf(stderr,"launch_giant FAILED: %s\n", err.c_str()); return 2; }
     printf("launch_giant OK: %u threads x %u steps on GPU\n", nThreads, nSteps);
 
+    // Boundary fixtures: S-S = infinity, infinity-S = -S, and (-S)-S = -2S.
+    // These paths must avoid _ModInv(0) and preserve the transient infinity marker.
+    {
+        Pt negS; pt_init(negS); pt_set(negS, S.x, S.y); mpz_sub(negS.y, P, negS.y);
+        Pt twiceNegS; pt_init(twiceNegS); ec_add(twiceNegS, negS, negS);
+        uint64_t boundaryStart[8]; pt_to_limbs(S, boundaryStart);
+        rotor_bsgs_gpu::GiantBatch boundary; std::string boundaryErr;
+        bool boundaryOk = rotor_bsgs_gpu::launch_giant(
+            boundaryStart, strideXY, 1, 3, boundary, boundaryErr);
+        uint64_t expectedTwice[8]; pt_to_limbs(twiceNegS, expectedTwice);
+        bool infinityPoint = boundaryOk &&
+            boundary.x[4] == 0 && boundary.x[5] == 0 &&
+            boundary.x[6] == 0 && boundary.x[7] == 0;
+        bool minusS = boundaryOk &&
+            boundary.x[8] == strideXY[0] && boundary.x[9] == strideXY[1] &&
+            boundary.x[10] == strideXY[2] && boundary.x[11] == strideXY[3];
+
+        uint64_t oppositeStart[8]; pt_to_limbs(negS, oppositeStart);
+        rotor_bsgs_gpu::GiantBatch opposite; std::string oppositeErr;
+        bool oppositeOk = rotor_bsgs_gpu::launch_giant(
+            oppositeStart, strideXY, 1, 2, opposite, oppositeErr);
+        bool doubledOpposite = oppositeOk &&
+            opposite.x[4] == expectedTwice[0] && opposite.x[5] == expectedTwice[1] &&
+            opposite.x[6] == expectedTwice[2] && opposite.x[7] == expectedTwice[3];
+
+        rotor_bsgs_gpu::DpResult dpBoundary; std::string dpBoundaryErr;
+        bool dpOk = rotor_bsgs_gpu::launch_giant_dp(
+            boundaryStart, strideXY, 1, 3, 1, 64, 3, 0,
+            dpBoundary, dpBoundaryErr);
+        bool dpInfinity = false;
+        for (const auto& hit : dpBoundary.hits) {
+            if (hit.walk == 0 && hit.step == 1 && hit.infinity) dpInfinity = true;
+        }
+        if (!boundaryOk || !infinityPoint || !minusS ||
+            !oppositeOk || !doubledOpposite || !dpOk || !dpInfinity) {
+            fprintf(stderr, "BOUNDARY FAIL: giant=%s opposite=%s dp=%s\n",
+                    boundaryOk ? "ok" : boundaryErr.c_str(),
+                    oppositeOk ? "ok" : oppositeErr.c_str(),
+                    dpOk ? (dpInfinity ? "ok" : "missing-infinity") : dpBoundaryErr.c_str());
+            return 3;
+        }
+        printf("boundary fixtures: A==S, A==-S, infinity marker OK\n");
+        pt_clear(negS); pt_clear(twiceNegS);
+    }
+
     // ---- DECISIVE PROBE: compute R0 - S directly with the GMP EC adder (no
     // scalar_mul), compare to GPU step 1. Splits "device math wrong" from
     // "my scalar ground-truth wrong": if GPU step1 == (R0 + (-S)) here but the

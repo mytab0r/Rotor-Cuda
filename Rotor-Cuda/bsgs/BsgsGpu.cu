@@ -11,37 +11,107 @@
 // Correctness rests on: (a) reuse of the fork's proven GPUMath device primitives,
 // (b) the affine subtraction formula below matching the CPU padd()/negate() path.
 #include <cstdint>
+#include <cuda_runtime.h>
+#include "BsgsGpu.h"
 #include "../GPU/GPUMath.h"   // Load256/Store256A, ModSub256, ModNeg256, _ModMult, _ModSqr, _ModInv
 
 namespace rotor_bsgs_gpu {
 
-// R = A - S, all affine (z=1), 4-limb little-endian limbs.
-// C = -S = (Sx, -Sy);  s = (Cy-Ay)/(Cx-Ax);  Rx = s^2-Ax-Sx;  Ry = s*(Ax-Rx)-Ay.
-// ponytail: one _ModInv per step (obvious + correct). Upgrade path = Montgomery
-// batch-invert across the thread's run (as _ModInvGrouped does for the group),
-// wire when a real GPU is available to measure the win.
-__device__ __forceinline__ void point_sub_S(
+__device__ __forceinline__ bool is_zero256(const uint64_t* a)
+{
+    return (a[0] | a[1] | a[2] | a[3]) == 0;
+}
+
+__device__ __forceinline__ bool same256(
+    const uint64_t* a, const uint64_t* b)
+{
+    return a[0] == b[0] && a[1] == b[1] &&
+           a[2] == b[2] && a[3] == b[3];
+}
+
+__device__ __forceinline__ void point_double(
+    uint64_t* rx, uint64_t* ry,
+    const uint64_t* Ax, const uint64_t* Ay)
+{
+    uint64_t xx[4], threeX2[4], den[4], nAy[4], slope[4], slope2[4], inv[5];
+    if (is_zero256(Ay)) {
+        rx[0] = rx[1] = rx[2] = rx[3] = 0;
+        ry[0] = ry[1] = ry[2] = ry[3] = 0;
+        return;
+    }
+    _ModMult(xx, (uint64_t*)Ax, (uint64_t*)Ax);
+    uint64_t three[4] = {3, 0, 0, 0};
+    _ModMult(threeX2, xx, three);
+    ModNeg256(nAy, (uint64_t*)Ay);
+    ModSub256(den, (uint64_t*)Ay, nAy);
+    Load256(inv, den); inv[4] = 0; _ModInv(inv);
+    _ModMult(slope, threeX2, inv);
+    _ModSqr(slope2, slope);
+    ModSub256(rx, slope2, (uint64_t*)Ax);
+    ModSub256(rx, (uint64_t*)Ax);
+    ModSub256(ry, (uint64_t*)Ax, rx);
+    _ModMult(ry, slope);
+    ModSub256(ry, (uint64_t*)Ay);
+}
+
+__device__ __forceinline__ void point_sub_S_regular(
     uint64_t* rx, uint64_t* ry,
     const uint64_t* Ax, const uint64_t* Ay,
     const uint64_t* Sx, const uint64_t* Sy)
 {
     uint64_t dx[4], dy[4], nSy[4], s[4], s2[4], inv[5];
-
-    ModSub256(dx, (uint64_t*)Sx, (uint64_t*)Ax);   // dx = Sx - Ax
-    Load256(inv, dx); inv[4] = 0; _ModInv(inv);    // inv = 1/(Sx-Ax)  (needs 320-bit)
-
-    ModNeg256(nSy, (uint64_t*)Sy);                 // -Sy
-    ModSub256(dy, nSy, (uint64_t*)Ay);             // dy = -Sy - Ay
-
-    _ModMult(s, dy, inv);                          // s = dy/dx
+    ModSub256(dx, (uint64_t*)Sx, (uint64_t*)Ax);
+    Load256(inv, dx); inv[4] = 0; _ModInv(inv);
+    ModNeg256(nSy, (uint64_t*)Sy);
+    ModSub256(dy, nSy, (uint64_t*)Ay);
+    _ModMult(s, dy, inv);
     _ModSqr(s2, s);
-
     ModSub256(rx, s2, (uint64_t*)Ax);
-    ModSub256(rx, (uint64_t*)Sx);                  // rx = s^2 - Ax - Sx
-
+    ModSub256(rx, (uint64_t*)Sx);
     ModSub256(ry, (uint64_t*)Ax, rx);
     _ModMult(ry, s);
-    ModSub256(ry, (uint64_t*)Ay);                  // ry = s*(Ax-rx) - Ay
+    ModSub256(ry, (uint64_t*)Ay);
+}
+
+// Safe affine transition. `infinity` is a transient state: infinity-S = -S.
+// It prevents zero-denominator inversion at A==S and handles A==-S as doubling.
+__device__ __forceinline__ void point_sub_S_safe(
+    uint64_t* rx, uint64_t* ry,
+    const uint64_t* Ax, const uint64_t* Ay,
+    const uint64_t* Sx, const uint64_t* Sy, bool& infinity)
+{
+    if (is_zero256(Ax) && is_zero256(Ay)) {
+        Load256(rx, Sx);
+        ModNeg256(ry, (uint64_t*)Sy);
+        infinity = false;
+        return;
+    }
+    if (!same256(Ax, Sx)) {
+        point_sub_S_regular(rx, ry, Ax, Ay, Sx, Sy);
+        return;
+    }
+
+    uint64_t nSy[4];
+    ModNeg256(nSy, (uint64_t*)Sy);
+    if (same256(Ay, Sy)) {
+        rx[0] = rx[1] = rx[2] = rx[3] = 0;
+        ry[0] = ry[1] = ry[2] = ry[3] = 0;
+        infinity = true;
+    } else {
+        // On secp256k1, equal X on valid points means Ay == Sy or Ay == -Sy.
+        point_double(rx, ry, Ax, Ay);
+        (void)nSy;
+    }
+}
+
+// R = A - S, all affine except the transient infinity state.
+// C = -S = (Sx, -Sy); s = (Cy-Ay)/(Cx-Ax).
+__device__ __forceinline__ void point_sub_S(
+    uint64_t* rx, uint64_t* ry,
+    const uint64_t* Ax, const uint64_t* Ay,
+    const uint64_t* Sx, const uint64_t* Sy, bool& infinity)
+{
+    point_sub_S_safe(rx, ry, Ax, Ay, Sx, Sy, infinity);
 }
 
 // start[tid] = R_0 for thread tid as (x[4],y[4]) interleaved: 8 limbs/thread.
@@ -58,6 +128,7 @@ extern "C" __global__ void bsgs_giant_kernel(
     if (tid >= nThreads) return;
 
     uint64_t ax[4], ay[4], rx[4], ry[4];
+    bool infinity = false;
     Load256(ax, start + tid * 8);
     Load256(ay, start + tid * 8 + 4);
 
@@ -66,12 +137,20 @@ extern "C" __global__ void bsgs_giant_kernel(
 
     uint64_t base = (uint64_t)tid * nSteps;
     for (uint32_t step = 0; step < nSteps; ++step) {
-        uint64_t idx = (base + step) * 4;
-        outX[idx + 0] = ax[0]; outX[idx + 1] = ax[1];
-        outX[idx + 2] = ax[2]; outX[idx + 3] = ax[3];
-        outParity[base + step] = (uint8_t)(ay[0] & 1ULL);   // compressed-Y parity
+        if (infinity) {
+            outX[(base + step) * 4 + 0] = 0;
+            outX[(base + step) * 4 + 1] = 0;
+            outX[(base + step) * 4 + 2] = 0;
+            outX[(base + step) * 4 + 3] = 0;
+            outParity[base + step] = 0;
+        } else {
+            uint64_t idx = (base + step) * 4;
+            outX[idx + 0] = ax[0]; outX[idx + 1] = ax[1];
+            outX[idx + 2] = ax[2]; outX[idx + 3] = ax[3];
+            outParity[base + step] = (uint8_t)(ay[0] & 1ULL);
+        }
 
-        point_sub_S(rx, ry, ax, ay, Sx, Sy);                // R -= S
+        point_sub_S(rx, ry, ax, ay, Sx, Sy, infinity);
         Load256(ax, rx);
         Load256(ay, ry);
     }
@@ -89,10 +168,20 @@ extern "C" __global__ void bsgs_giant_kernel(
 __device__ __forceinline__ void point_sub_S_batch(
     uint64_t rx[RC_BSGS_MAXW][4], uint64_t ry[RC_BSGS_MAXW][4],
     const uint64_t ax[RC_BSGS_MAXW][4], const uint64_t ay[RC_BSGS_MAXW][4],
-    const uint64_t* Sx, const uint64_t* Sy, uint32_t W)
+    const uint64_t* Sx, const uint64_t* Sy, uint32_t W,
+    bool infinity[RC_BSGS_MAXW])
 {
+    bool singular = false;
+    for (uint32_t j = 0; j < W; ++j)
+        singular = singular || infinity[j] || same256(ax[j], Sx);
+    if (singular) {
+        for (uint32_t j = 0; j < W; ++j)
+            point_sub_S_safe(rx[j], ry[j], ax[j], ay[j], Sx, Sy, infinity[j]);
+        return;
+    }
+
     uint64_t dx[RC_BSGS_MAXW][4];
-    uint64_t pre[RC_BSGS_MAXW][4];   // prefix products of dx
+    uint64_t pre[RC_BSGS_MAXW][4];
     uint64_t inverse[5];
 
     for (uint32_t j = 0; j < W; ++j) ModSub256(dx[j], (uint64_t*)Sx, (uint64_t*)ax[j]);
@@ -103,11 +192,11 @@ __device__ __forceinline__ void point_sub_S_batch(
 
     for (uint32_t j = W - 1; j > 0; --j) {
         uint64_t invj[4];
-        _ModMult(invj, pre[j - 1], inverse);   // invj = 1/dx_j
-        _ModMult(inverse, dx[j]);              // inverse = 1/pre_{j-1}
+        _ModMult(invj, pre[j - 1], inverse);
+        _ModMult(inverse, dx[j]);
         Load256(dx[j], invj);
     }
-    Load256(dx[0], inverse);                   // 1/dx_0
+    Load256(dx[0], inverse);
 
     for (uint32_t j = 0; j < W; ++j) {
         uint64_t nSy[4], dy[4], s[4], s2[4];
@@ -137,6 +226,7 @@ extern "C" __global__ void bsgs_giant_kernel_batch(
 
     uint64_t ax[RC_BSGS_MAXW][4], ay[RC_BSGS_MAXW][4];
     uint64_t rx[RC_BSGS_MAXW][4], ry[RC_BSGS_MAXW][4];
+    bool infinity[RC_BSGS_MAXW] = {};
     for (uint32_t j = 0; j < Wl; ++j) {
         Load256(ax[j], start + (w0 + j) * 8);
         Load256(ay[j], start + (w0 + j) * 8 + 4);
@@ -151,8 +241,11 @@ extern "C" __global__ void bsgs_giant_kernel_batch(
             outX[idx + 2] = ax[j][2]; outX[idx + 3] = ax[j][3];
             outParity[(uint64_t)(w0 + j) * nSteps + step] = (uint8_t)(ay[j][0] & 1ULL);
         }
-        point_sub_S_batch(rx, ry, ax, ay, Sx, Sy, Wl);
-        for (uint32_t j = 0; j < Wl; ++j) { Load256(ax[j], rx[j]); Load256(ay[j], ry[j]); }
+        point_sub_S_batch(rx, ry, ax, ay, Sx, Sy, Wl, infinity);
+        for (uint32_t j = 0; j < Wl; ++j) {
+            Load256(ax[j], rx[j]);
+            Load256(ay[j], ry[j]);
+        }
     }
 }
 
@@ -193,6 +286,7 @@ extern "C" __global__ void bsgs_giant_kernel_dp(
     uint32_t* __restrict__ outStep,
     uint64_t* __restrict__ outX,
     uint8_t*  __restrict__ outParity,
+    uint8_t*  __restrict__ outInfinity,
     unsigned long long* __restrict__ outCount)
 {
     uint32_t grp = blockIdx.x * blockDim.x + threadIdx.x;
@@ -202,6 +296,7 @@ extern "C" __global__ void bsgs_giant_kernel_dp(
 
     uint64_t ax[RC_BSGS_MAXW][4], ay[RC_BSGS_MAXW][4];
     uint64_t rx[RC_BSGS_MAXW][4], ry[RC_BSGS_MAXW][4];
+    bool infinity[RC_BSGS_MAXW] = {};
     for (uint32_t j = 0; j < Wl; ++j) {
         Load256(ax[j], start + (w0 + j) * 8);
         Load256(ay[j], start + (w0 + j) * 8 + 4);
@@ -211,21 +306,29 @@ extern "C" __global__ void bsgs_giant_kernel_dp(
 
     for (uint32_t step = 0; step < nSteps; ++step) {
         for (uint32_t j = 0; j < Wl; ++j) {
-            uint64_t cx[4]; cx[0]=ax[j][0]; cx[1]=ax[j][1]; cx[2]=ax[j][2]; cx[3]=ax[j][3];
+            uint64_t cx[4];
+            cx[0]=ax[j][0]; cx[1]=ax[j][1]; cx[2]=ax[j][2]; cx[3]=ax[j][3];
             canonicalize_X(cx);
-            if (is_distinguished(cx, dpBits)) {
+            if (infinity[j]) {
+                cx[0] = cx[1] = cx[2] = cx[3] = 0;
+            }
+            if (infinity[j] || is_distinguished(cx, dpBits)) {
                 unsigned long long slot = atomicAdd(outCount, 1ULL);
                 if (slot < maxHits) {
                     outWalk[slot] = w0 + j;
                     outStep[slot] = step;
                     outX[slot*4+0]=cx[0]; outX[slot*4+1]=cx[1];
                     outX[slot*4+2]=cx[2]; outX[slot*4+3]=cx[3];
-                    outParity[slot] = (uint8_t)(ay[j][0] & 1ULL);
+                    outParity[slot] = infinity[j] ? 0 : (uint8_t)(ay[j][0] & 1ULL);
+                    outInfinity[slot] = infinity[j] ? 1 : 0;
                 }
             }
         }
-        point_sub_S_batch(rx, ry, ax, ay, Sx, Sy, Wl);
-        for (uint32_t j = 0; j < Wl; ++j) { Load256(ax[j], rx[j]); Load256(ay[j], ry[j]); }
+        point_sub_S_batch(rx, ry, ax, ay, Sx, Sy, Wl, infinity);
+        for (uint32_t j = 0; j < Wl; ++j) {
+            Load256(ax[j], rx[j]);
+            Load256(ay[j], ry[j]);
+        }
     }
 }
 
@@ -324,12 +427,8 @@ extern "C" __global__ void kangaroo_jump_kernel(
 
 // Host launcher lives in same translation unit as kernel. This avoids requiring
 // CUDA relocatable device code in legacy Visual Studio project settings.
-#include "BsgsGpu.h"
-#include <cuda_runtime.h>
-#include <string>
-#include <vector>
-
 namespace rotor_bsgs_gpu {
+
 bool launch_giant(const uint64_t* startXY, const uint64_t* strideXY,
                   uint32_t nThreads, uint32_t nSteps,
                   GiantBatch& out, std::string& error) {
@@ -478,10 +577,11 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
 
     uint64_t *dStart = nullptr, *dStride = nullptr, *dX = nullptr;
     uint32_t *dWalk = nullptr, *dStep = nullptr;
-    uint8_t *dParity = nullptr;
+    uint8_t *dParity = nullptr, *dInfinity = nullptr;
     unsigned long long *dCount = nullptr;
     auto fail = [&](cudaError_t err) {
         if (dCount) cudaFree(dCount);
+        if (dInfinity) cudaFree(dInfinity);
         if (dParity) cudaFree(dParity);
         if (dX) cudaFree(dX);
         if (dStep) cudaFree(dStep);
@@ -497,6 +597,7 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
     if ((e = cudaMalloc((void**)&dStep, stepBytes)) != cudaSuccess) return fail(e);
     if ((e = cudaMalloc((void**)&dX, xBytes)) != cudaSuccess) return fail(e);
     if ((e = cudaMalloc((void**)&dParity, parityBytes)) != cudaSuccess) return fail(e);
+    if ((e = cudaMalloc((void**)&dInfinity, parityBytes)) != cudaSuccess) return fail(e);
     if ((e = cudaMalloc((void**)&dCount, sizeof(unsigned long long))) != cudaSuccess) return fail(e);
     if ((e = cudaMemcpy(dStart, startXY, startBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
     if ((e = cudaMemcpy(dStride, strideXY, strideBytes, cudaMemcpyHostToDevice)) != cudaSuccess) return fail(e);
@@ -506,7 +607,8 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
     const uint32_t block = 128;
     const uint32_t grid = (nGroups + block - 1) / block;
     bsgs_giant_kernel_dp<<<grid, block>>>(dStart, dStride, nWalks, nSteps, W, dpBits,
-                                          maxHits, dWalk, dStep, dX, dParity, dCount);
+                                          maxHits, dWalk, dStep, dX, dParity,
+                                          dInfinity, dCount);
     if ((e = cudaGetLastError()) != cudaSuccess) return fail(e);
     if ((e = cudaDeviceSynchronize()) != cudaSuccess) return fail(e);
 
@@ -518,12 +620,13 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
 
     std::vector<uint32_t> hw(stored), hs(stored);
     std::vector<uint64_t> hx((size_t)stored * 4);
-    std::vector<uint8_t> hp(stored);
+    std::vector<uint8_t> hp(stored), hi(stored);
     if (stored) {
         if ((e = cudaMemcpy(hw.data(), dWalk, (size_t)stored*sizeof(uint32_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
         if ((e = cudaMemcpy(hs.data(), dStep, (size_t)stored*sizeof(uint32_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
         if ((e = cudaMemcpy(hx.data(), dX, (size_t)stored*4*sizeof(uint64_t), cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
         if ((e = cudaMemcpy(hp.data(), dParity, (size_t)stored, cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
+        if ((e = cudaMemcpy(hi.data(), dInfinity, (size_t)stored, cudaMemcpyDeviceToHost)) != cudaSuccess) return fail(e);
     }
     out.hits.clear();
     out.hits.reserve(stored);
@@ -532,10 +635,11 @@ bool launch_giant_dp(const uint64_t* startXY, const uint64_t* strideXY,
         h.walk = hw[i]; h.step = hs[i];
         h.x[0]=hx[i*4+0]; h.x[1]=hx[i*4+1]; h.x[2]=hx[i*4+2]; h.x[3]=hx[i*4+3];
         h.parity = hp[i];
+        h.infinity = hi[i] != 0;
         out.hits.push_back(h);
     }
 
-    cudaFree(dCount); cudaFree(dParity); cudaFree(dX);
+    cudaFree(dCount); cudaFree(dInfinity); cudaFree(dParity); cudaFree(dX);
     cudaFree(dStep); cudaFree(dWalk); cudaFree(dStride); cudaFree(dStart);
     return true;
 }
