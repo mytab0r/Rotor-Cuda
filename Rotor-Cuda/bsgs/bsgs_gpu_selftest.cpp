@@ -34,6 +34,13 @@ int main() {
     check(sec, base + 127,    lo, hi, 64);
     check(sec, base + span/2, lo, hi, 64);
     check(sec, base + span,   lo, hi, 64);
+
+    // Force two bounded host launches without a large baby table. The hit is
+    // in the second batch, proving batch index translation and continuation.
+    const uint64_t batchSpan = (1ULL << 20) + 1;
+    Int batchLo = fromU64(base), batchHi = fromU64(base + batchSpan);
+    check(sec, base + batchSpan, batchLo, batchHi, 1);
+
     printf("GPU BSGS SELFTEST: CPU==GPU==fixture for start/boundary/middle/end\n");
     return 0;
 #endif

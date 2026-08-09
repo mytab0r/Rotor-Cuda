@@ -34,7 +34,7 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 ```
 ./Rotor --mode bsgs -g --gpui 0 --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
 ```
-`-g` requires one selected NVIDIA GPU. GPU-BSGS fails loudly on invalid device or output truncation; it never falls back to CPU.
+`-g` requires one selected NVIDIA GPU. GPU-BSGS fails loudly on invalid device or output truncation; it never falls back to CPU. Giant output is processed in bounded host batches, so range size is not limited by one `uint32_t` output allocation; each batch still uses 32-bit kernel walk/step coordinates.
 
 ## Changes (upstream v2) :
 - Default Random 95% (252-256) bit + 5% (248-252) bit
