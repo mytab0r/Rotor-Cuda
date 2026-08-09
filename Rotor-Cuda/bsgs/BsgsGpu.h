@@ -42,8 +42,9 @@ bool launch_giant_batch(const uint64_t* startXY, const uint64_t* strideXY,
 struct DpHit {
     uint32_t walk;
     uint32_t step;
-    uint64_t x[4];      // canonical X (least residue mod P)
-    uint8_t  parity;    // Y parity of the quasi-reduced point
+    uint64_t x[4];      // canonical X (least residue mod P); zero for infinity
+    uint8_t  parity;   // Y parity of the quasi-reduced point
+    bool infinity;      // exact giant-boundary infinity marker
 };
 struct DpResult {
     std::vector<DpHit> hits;

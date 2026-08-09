@@ -33,5 +33,33 @@ nvcc bsgs/gpu_smoke.cu bsgs/BsgsGpu.cu \
 - `32×64` → checked=2048 mismatches=0
 - `256×256` → **checked=65536 mismatches=0**
 
-Device math (`point_sub_S` + `GPU/GPUMath.h` primitives) == GMP ground truth on
-all sizes. The fork's single-TU device code runs correctly on sm_120.
+## Boundary result — PASS
+
+The same RTX 5070 device run now includes explicit affine boundary fixtures:
+
+- `A == S`: emits infinity without calling `_ModInv(0)`;
+- infinity minus `S`: emits `-S`;
+- `A == -S`: emits doubling;
+- DP output carries and preserves explicit infinity marker.
+
+Observed output:
+
+```text
+launch_giant OK: 4 threads x 8 steps on GPU
+boundary fixtures: A==S, A==-S, infinity marker OK
+checked=32 mismatches=0
+GPU BSGS DEVICE-RUN: PASS (device math == GMP ground truth on RTX 5070)
+```
+
+## DP filter result — PASS
+
+Independent GMP comparison for `32` walks × `64` steps, `W=4`, `dpBits=8`:
+
+```text
+launch_giant_dp OK: 32 walks x 64 steps (W=4, dpBits=8) -> total=11 stored=11
+GMP DP count=11   device total=11   COUNT-MATCH
+stored-hit checks: not-distinguished=0 x-mismatch=0 unknown-key=0
+GPU BSGS DP-FILTER DEVICE-RUN: PASS (device DP == GMP ground truth on RTX 5070)
+```
+
+Boundary fixture source: `bsgs/gpu_smoke.cu`. DP fixture source: `bsgs/gpu_smoke_dp.cu`.

@@ -239,6 +239,16 @@ BsgsResult solve_gpu(Secp256K1& sec, Point& target,
             const uint64_t i = batchBase + (uint64_t)hit.walk * nSteps + hit.step;
             if (i >= giantPoints) continue;
 
+            if (hit.infinity) {
+                const uint64_t i = batchBase + (uint64_t)hit.walk * nSteps + hit.step;
+                if (i < giantPoints) {
+                    Int k; k.Set((Int*)&kStart); k.Add(i * bt.m);
+                    R.found = true;
+                    R.key = k;
+                    return R;
+                }
+                continue;
+            }
             // GPU limbs are LE and canonical; fold through exact CPU path.
             Point hitPoint;
             hitPoint.x.SetInt32(0); hitPoint.y.SetInt32(0); hitPoint.z.SetInt32(1);
