@@ -12,6 +12,7 @@ on:
       - 'Rotor-Cuda/bsgs/BsgsGpu.cu'
       - 'Rotor-Cuda/bsgs/gpu_smoke.cu'
       - 'Rotor-Cuda/bsgs/gpu_smoke_kangaroo.cu'
+      - 'Rotor-Cuda/bsgs/bsgs_gpu_selftest.cpp'
       - 'Rotor-Cuda/GPU/GPUMath.h'
       - '.github/workflows/gpu-bsgs-compile.yml'
 
@@ -83,6 +84,30 @@ jobs:
           ./gpu_smoke 4 8
           ./gpu_smoke 32 64
           ./gpu_smoke 256 256
+
+      - name: Build + run GPU BSGS CLI self-test
+        working-directory: Rotor-Cuda
+        run: |
+          ARCH=sm_120
+          CXXFLAGS="-std=c++14 -O2 -m64 -mssse3 -msse4.1 -Wno-write-strings -I. -DWITHGPU"
+          mkdir -p /tmp/bsgs-gpu-obj
+          for src in Int.cpp IntMod.cpp IntGroup.cpp Point.cpp SECP256K1.cpp Random.cpp Timer.cpp Base58.cpp bsgs/BsgsCpu.cpp bsgs/bsgs_gpu_selftest.cpp; do
+            obj="/tmp/bsgs-gpu-obj/$(basename "$src" .cpp).o"
+            g++ $CXXFLAGS -c "$src" -o "$obj"
+          done
+          for src in hash/sha256.cpp hash/ripemd160.cpp hash/sha512.cpp hash/sha256_sse.cpp hash/ripemd160_sse.cpp hash/keccak160.cpp; do
+            obj="/tmp/bsgs-gpu-obj/$(basename "$src" .cpp).o"
+            g++ $CXXFLAGS -c "$src" -o "$obj"
+          done
+          nvcc -std=c++14 -O2 -I. -DWITHGPU -gencode arch=compute_120,code=$ARCH \
+            -c bsgs/BsgsGpu.cu -o /tmp/bsgs-gpu-obj/BsgsGpu.o
+          nvcc /tmp/bsgs-gpu-obj/Base58.o /tmp/bsgs-gpu-obj/BsgsCpu.o /tmp/bsgs-gpu-obj/BsgsGpu.o \
+            /tmp/bsgs-gpu-obj/Int.o /tmp/bsgs-gpu-obj/IntGroup.o /tmp/bsgs-gpu-obj/IntMod.o /tmp/bsgs-gpu-obj/Point.o \
+            /tmp/bsgs-gpu-obj/Random.o /tmp/bsgs-gpu-obj/SECP256K1.o /tmp/bsgs-gpu-obj/Timer.o \
+            /tmp/bsgs-gpu-obj/keccak160.o /tmp/bsgs-gpu-obj/ripemd160.o /tmp/bsgs-gpu-obj/ripemd160_sse.o \
+            /tmp/bsgs-gpu-obj/selftest.o /tmp/bsgs-gpu-obj/sha256.o /tmp/bsgs-gpu-obj/sha256_sse.o \
+            /tmp/bsgs-gpu-obj/sha512.o -lgmp -o bsgs_gpu_selftest
+          ./bsgs_gpu_selftest
 
       - name: Build + run GPU kangaroo device smoke
         working-directory: Rotor-Cuda

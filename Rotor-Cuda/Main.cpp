@@ -56,7 +56,7 @@ void usage()
 	printf("                                                      Addresses: for multiple hashes/addresses\n");
 	printf("                                                      Xpoint   : for single xpoint\n");
 	printf("                                                      Xpoints : for multiple xpoints\n");
-	printf("                                                      BSGS     : recover scalar from a public key in --range (CPU-BSGS; sequential only, -g/-r unsupported)\n");
+	printf("                                                      BSGS     : recover scalar from a public key in --range (CPU-BSGS; -g selects GPU-BSGS)\n");
 	printf("--coin BTC/ETH                      : Specify Coin name to search\n");
 	printf("                                                      BTC: available mode :-\n");
 	printf("                                                      ADDRESS, ADDRESSES, XPOINT, XPOINTS\n");
@@ -226,7 +226,7 @@ int main(int argc, char** argv)
 	rotor_update::cleanup_old();   // delete <self>.old from a prior --update
 #endif
 	rseed(Timer::getSeed32());
-		
+
 	bool gpuEnable = false;
 	bool gpuAutoGrid = true;
 	int compMode = SEARCH_COMPRESSED;
@@ -454,17 +454,7 @@ int main(int argc, char** argv)
 			}
 		}
 		Secp256K1 sec; sec.Init();
-		// Backend is explicit: BSGS runs on CPU in this build. The GPU giant-step
-		// kernel is device-run proven on an RTX 5070 (see bsgs/gpu_smoke.cu) but is
-		// not wired into this executable yet, so -g must fail loudly rather than
-		// silently fall back to CPU (openspec search: explicit BSGS backend).
-		if (gpuEnable) {
-			printf("  Error: GPU-BSGS is not wired into this build; drop -g to run CPU-BSGS\n");
-			return -1;
-		}
-		// Random recovery is NOT resumable: no tested table-identity + random-state
-		// restoration exists, so a checkpoint could resume the wrong walk. Refuse
-		// instead of pretending it is safe (openspec search: random recovery safety).
+		// Backend is explicit: -g selects GPU-BSGS; no silent CPU fallback.
 		if (rKey != 0) {
 			printf("  Error: random BSGS (-r) is non-resumable and unsupported; run sequential BSGS instead\n");
 			return -1;
@@ -475,15 +465,37 @@ int main(int argc, char** argv)
 			printf("  Error: target pubkey is not a valid point on secp256k1\n");
 			return -1;
 		}
+#ifdef WITHGPU
+		if (gpuEnable && gpuId.size() != 1) {
+			printf("  Error: GPU-BSGS supports one GPU; multi-GPU is deferred\n");
+			return -1;
+		}
+#else
+		if (gpuEnable) {
+			printf("  Error: GPU code not compiled, use -DWITHGPU\n");
+			return -1;
+		}
+#endif
 		printf("\n  Rotor-Cuda v" RELEASE "\n");
 		printf("  SEARCH MODE  : BSGS (pubkey -> scalar)\n");
-		printf("  BACKEND      : CPU-BSGS (single backend; not combined with GPU)\n");
+		printf("  BACKEND      : %s\n", gpuEnable ? "GPU-BSGS" : "CPU-BSGS");
 		printf("  TARGET PUB   : %s\n", bops[0].c_str());
 		printf("  RANGE        : %s : %s\n", rangeStart.GetBase16().c_str(), rangeEnd.GetBase16().c_str());
 		double t0 = Timer::get_tick();
-		rotor_bsgs::BsgsResult r = rotor_bsgs::solve(sec, target, rangeStart, rangeEnd);
-		printf("  [CPU-BSGS] GIANT STEPS: %llu   BABY SIZE: %llu   (%.1fs)\n",
+		rotor_bsgs::BsgsResult r;
+#ifdef WITHGPU
+		if (gpuEnable)
+			r = rotor_bsgs::solve_gpu(sec, target, rangeStart, rangeEnd, gpuId[0]);
+		else
+#endif
+			r = rotor_bsgs::solve(sec, target, rangeStart, rangeEnd);
+		printf("  [%s] GIANT STEPS: %llu   BABY SIZE: %llu   (%.1fs)\n",
+			gpuEnable ? "GPU-BSGS" : "CPU-BSGS",
 			(unsigned long long)r.giant_steps, (unsigned long long)r.baby_size, Timer::get_tick() - t0);
+		if (!r.found && !r.error.empty()) {
+			printf("  Error: %s\n\n", r.error.c_str());
+			return 1;
+		}
 		if (r.found) {
 			std::string hex = r.key.GetBase16();
 			printf("\n  =====> KEY FOUND: %s\n", hex.c_str());
@@ -659,7 +671,7 @@ int main(int argc, char** argv)
 			printf("\n");
 	}
 	printf("  SSE          : %s\n", useSSE ? "YES" : "NO");
-	
+
 	if (coinType == COIN_BTC) {
 		switch (searchMode) {
 		case (int)SEARCH_MODE_MA:
@@ -691,7 +703,7 @@ int main(int argc, char** argv)
 		}
 	}
 	printf("  OUTPUT FILE  : %s\n", outputFile.c_str());
-	
+
 #ifdef WIN64
 	if (SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
 		Rotor* v;

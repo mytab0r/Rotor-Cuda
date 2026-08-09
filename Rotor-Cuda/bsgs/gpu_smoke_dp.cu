@@ -110,7 +110,8 @@ int main(int argc,char**argv){
     // ---- GPU run ----
     rotor_bsgs_gpu::DpResult out; std::string err;
     bool ok = rotor_bsgs_gpu::launch_giant_dp(startXY.data(), strideXY,
-                                              nWalks, nSteps, W, dpBits, maxHits, out, err);
+                                              nWalks, nSteps, W, dpBits, maxHits,
+                                              0, out, err);
     if(!ok){ fprintf(stderr,"launch_giant_dp FAILED: %s\n", err.c_str()); return 2; }
     printf("launch_giant_dp OK: %u walks x %u steps (W=%u, dpBits=%u) -> total=%llu stored=%zu%s\n",
            nWalks,nSteps,W,dpBits,(unsigned long long)out.total,out.hits.size(),

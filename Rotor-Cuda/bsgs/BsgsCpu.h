@@ -38,6 +38,7 @@ struct BsgsResult {
     uint64_t giant_steps = 0;
     uint64_t baby_size   = 0;
     TableManifest manifest;   // identity of the table this run built
+    std::string error;         // non-empty when backend setup or execution fails
 };
 
 // Solve P = k*G for k in [kStart, kEnd] inclusive. m defaults to ceil(sqrt(span)).
@@ -45,6 +46,17 @@ struct BsgsResult {
 // failure found=false (k outside range or not on curve as generated).
 BsgsResult solve(Secp256K1& sec, Point& target,
                  const Int& kStart, const Int& kEnd, uint64_t m = 0);
+
+#ifdef WITHGPU
+// GPU backend for the same recover-scalar problem. Shares the baby-table build
+// with solve(); giant steps run on the CUDA giant-step kernel (BsgsGpu.cu)
+// instead of the CPU loop. gpuId selects the device. Result is byte-identical
+// to solve() for the same inputs (proven by bsgs_gpu_selftest). On no device /
+// launch failure / output overflow, returns found=false with giant_steps=0.
+BsgsResult solve_gpu(Secp256K1& sec, Point& target,
+                     const Int& kStart, const Int& kEnd,
+                     int gpuId, uint64_t m = 0);
+#endif
 
 } // namespace rotor_bsgs
 #endif
