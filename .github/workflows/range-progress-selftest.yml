@@ -1,0 +1,28 @@
+name: range-progress-selftest
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ ci/windows-build, ci/security-gates, main ]
+    paths:
+      - 'Rotor-Cuda/progress/**'
+      - '.github/workflows/range-progress-selftest.yml'
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build range progress selftest
+        working-directory: Rotor-Cuda
+        run: |
+          g++ -std=c++17 -O2 -I. -Wall -Wextra -Wno-unused-parameter \
+            progress/RangeProgress.cpp progress/range_progress_selftest.cpp \
+            -o progress/range_progress_selftest
+      - name: Run selftest
+        working-directory: Rotor-Cuda
+        run: ./progress/range_progress_selftest
