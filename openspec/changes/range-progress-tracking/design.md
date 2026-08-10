@@ -1,23 +1,54 @@
-# Design
+# Design: Range Progress Tracking
 
-## Work identity
-
-Every interval record is keyed by target identity, half-open `[start,end)`, algorithm, backend, and table-manifest version. Target identity is a validated public key hash, not a display-name substring.
+## Work Identity
+Every interval record is keyed by:
+- `JobIdentity`: `target_pubkey_hash` (SHA-256 of compressed pubkey), `algorithm`, `backend`, `table_format_version`, `table_checksum` (FNV-1a/64 over baby-step folds)
+- Interval: half-open `[start, end)` in scalar space (uint64, up to 2^64-1)
+- `JobIdentity::compatible()` validates exact match on all fields. No substring matching.
 
 ## Storage
+- **Journal**: append-only JSONL, one line per event (`CLAIM`, `COMPLETE`, `ABORT`). Fsync after each write.
+- **Snapshot**: atomic write (tmp + rename) for fast restart on large journals. Ponytail: not implemented yet; journal replay is fast enough for expected sizes.
+- **Exclusive lock**: single-worker assumption. No file locking yet (OS lock + rename).
 
-First implementation uses append-only JSONL events plus an atomically replaced compact snapshot. One local worker uses an exclusive lock. Events are fsynced before completion is acknowledged. A crash leaves `running` work as `unknown-after-crash`; it is not silently completed.
+## Crash Semantics
+- `CLAIM` without matching `COMPLETE`/`ABORT` → `unknown_after_crash`
+- Caller decides reallocation; no automatic re-claim.
+- Progress report shows `unknown_after_crash` explicitly as percentage.
 
-Upgrade path: SQLite when multiple workers, concurrent readers, or large journals justify transactional queries.
+## Deterministic Selection
+```
+uncovered = full_range \ (claimed U completed U aborted)
+total_uncovered = sum(uncovered.length)
+offset = FNV1a64(seed + "|" + nonce) % total_uncovered
+claim = interval at offset in uncovered
+```
+- Seed chosen by caller (e.g., `target_pubkey_hash + "|" + algorithm + "|" + backend`).
+- Nonce increments per claim (0, 1, 2...).
+- `max_len` caps interval length (0 = no cap).
 
-## Selection
-
-Normalize completed intervals into a sorted disjoint union. Select a random offset from uncovered measure using a deterministic seed plus explicit run nonce. Map offset into an uncovered interval. This avoids replacement and repeated random guessing. Record seed, nonce, chosen interval, and command parameters.
-
-## Progress
-
-Report covered/uncovered key counts, percentage, rate, ETA, journal generation, and last durable checkpoint. Never publish sensitive target or discovered-key data outside authorized event context.
+## Progress Report
+```
+Progress {
+    covered: u64,              // sum(completed.length)
+    uncovered: u64,            // sum(uncovered.length)
+    unknown_after_crash: u64,  // sum(claimed.length)
+    total_range: u64,          // end - start of full_range
+    pct_covered: f64,          // covered / total_range * 100
+    pct_unknown: f64,          // unknown_after_crash / total_range * 100
+    last_checkpoint_ts: u64    // epoch ms of last journal write
+}
+```
 
 ## Tests
+- `range_progress_selftest.cpp`: basic claim/complete, resume after crash, abort returns to uncovered, job mismatch rejection, deterministic selection, exhaustion, max_len cap.
+- CI: `.github/workflows/range-progress-selftest.yml` runs on push to tracked branches.
 
-Test overlap and adjacency merge, gaps, journal replay, torn final line, unknown-after-crash recovery, deterministic selection, no-repeat selection until exhaustion, and schema/version rejection.
+## Files
+- `Rotor-Cuda/progress/RangeProgress.h` — public API
+- `Rotor-Cuda/progress/RangeProgress.cpp` — implementation
+- `Rotor-Cuda/progress/range_progress_selftest.cpp` — standalone tests
+
+## Non-goals (per proposal)
+- No multi-worker/SQLite in this change.
+- No CLI wiring; separate change after tests accepted.
