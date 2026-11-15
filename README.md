@@ -285,6 +285,53 @@ sudo apt install -y libgmp-dev
 
   ```
 
+## Rust CPU port
+
+The CPU side of Rotor-Cuda is being ported to Rust (GPLv3, same licence). The CUDA
+tree under `Rotor-Cuda/` is unchanged and remains the reference for the GPU backend.
+
+Build (no GMP, no CUDA, no MSBuild needed):
+
+```sh
+cargo build --release
+./target/release/rotor --help
+```
+
+Implemented in Rust:
+
+- `-c/--check` self-check (secp256k1 vectors, address/WIF pairs)
+- `-m address` / `-m addresses` for BTC (compressed/uncompressed/both), multi-threaded
+- `-m xpoint` / `-m xpoints` (32-byte X targets)
+- `-m address` / `-m addresses` for Ethereum (keccak160)
+- `-m bsgs` CPU baby-step/giant-step (pubkey → scalar), manifest identity
+- `-r` random mode with `-n`/`-z` bit-range selection
+- `-n` checkpoint files (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`)
+- headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
+- `Found.txt` block format and progress line of the C++ binary
+
+Not implemented yet (use the C++ binary): `-g` GPU execution and `--update`
+self-update.
+
+Known deviations from the C++ binary:
+
+- `-g` without a GPU build exits with code 2 (C++ prints the same message but continues).
+- `.bin` inputs are sorted internally; the C++ binary requires a pre-sorted file.
+- CPU-BSGS uses the full 256-bit range span and rejects spans above `u128`.
+- BinaryFuse acceleration is not ported (results are unchanged).
+- The `Priv (WIF)` string printed in the C++ README example is not a valid WIF;
+  the Rust binary prints the canonical one.
+- Timestamps in the banner and checkpoint files are UTC (the C++ binary uses local time).
+- BTC addresses are validated with Base58Check; the C++ binary does not verify the
+  checksum and would accept a corrupted address.
+- On resume, the banner shows the shifted start key that is actually scanned.
+- `-n`/`-z` are validated against 0..256 even when `--range` is given (C++ checks
+  them only in the bit-range branch).
+- Random-mode banner lines (`ROTOR Random`, `Base Key`) are not reproduced; the
+  progress line uses the same `[R: n]` field.
+
+Rough CPU throughput on a 4-thread release build (compressed address hashing):
+~5.3 Mk/s total (~1.3 Mk/s per core). CPU-BSGS solves a 2^31-wide range in ~0.13 s.
+
 ## License
 - Rotor-Cuda is licensed under GPLv3.0
 

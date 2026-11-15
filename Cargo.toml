@@ -1,0 +1,21 @@
+[package]
+name = "rotor"
+version = "2.0.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Rust port of the Rotor-Cuda CPU key search"
+
+[lib]
+name = "rotor"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rotor"
+path = "src/main.rs"
+
+[dependencies]
+ctrlc = "3"
+sha2 = "0.11"
+ripemd = "0.2"
+sha3 = "0.11"
+bs58 = "0.5"

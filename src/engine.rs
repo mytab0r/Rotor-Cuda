@@ -1,0 +1,1381 @@
+//! CPU multi-threaded key search for the BTC address/xpoint and ETH address
+//! modes, with optional random-start scanning.
+//!
+//! Ported from the CPU path in `Rotor-Cuda/Rotor.cpp` (range split, batch point
+//! generation, hit output and progress line) and the startup banner in
+//! `Rotor-Cuda/Main.cpp`.
+//!
+//! Checkpoints (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`) are
+//! written and read through [`crate::checkpoint`]; GPU search belongs to a
+//! later milestone.
+
+#![allow(clippy::needless_range_loop)] // fixed-size limb loops read better with indices
+
+use std::cmp::Ordering;
+use std::fmt::Write as FmtWrite;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Write as IoWrite};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering};
+use std::sync::{Mutex, Once};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use crate::base58;
+use crate::checkpoint;
+use crate::cli::{self, Coin, CompMode, Config, SearchMode, U256};
+use crate::filter::TargetSet;
+use crate::point::{Affine, Jacobian, batch_to_affine};
+use crate::scalar::Scalar;
+use crate::secp;
+
+/// Number of keys generated and normalized per batch (`CPU_GRP_SIZE` in C++).
+const BATCH_SIZE: usize = 2048;
+
+/// Set by the Ctrl-C handler, checked by every worker before each batch.
+static STOP: AtomicBool = AtomicBool::new(false);
+
+/// `ctrlc::set_handler` can only be installed once per process.
+static HANDLER: Once = Once::new();
+
+/// Result counters returned by [`run`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SearchOutcome {
+    pub found: u64,
+    pub scanned: u64,
+}
+
+/// Runs a search over `config.range` (sequential) or over random start keys
+/// (when `config.rkey > 0`), keeping checkpoint files in the current directory.
+///
+/// Returns an explicit error for every configuration this milestone cannot
+/// honor (unsupported coin/mode pair, missing/invalid range, bad target).
+pub fn run(config: &Config) -> Result<SearchOutcome, String> {
+    run_in(config, None)
+}
+
+/// Like [`run`], but reads and writes checkpoints in `checkpoint_dir`
+/// (`None` means the current directory).
+pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOutcome, String> {
+    let mode = config.mode.ok_or_else(|| {
+        "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
+    })?;
+    let supported = matches!(
+        (config.coin, mode),
+        (
+            Coin::Btc,
+            SearchMode::Address | SearchMode::Addresses | SearchMode::XPoint | SearchMode::XPoints
+        ) | (Coin::Eth, SearchMode::Address | SearchMode::Addresses)
+    );
+    if !supported {
+        return Err(match config.coin {
+            Coin::Eth => "xpoint modes are not supported for ETH".to_owned(),
+            Coin::Btc => "unsupported search mode for the CPU engine".to_owned(),
+        });
+    }
+    // `Main.cpp:513-540`: multi-address/xpoint modes take their targets from
+    // `-i FILE` only, never from positional operands.
+    if matches!(mode, SearchMode::Addresses | SearchMode::XPoints) && !config.operands.is_empty() {
+        return Err("Wrong search mode provided for multiple addresses or xpoints".to_owned());
+    }
+    // `-t 0` means zero CPU workers in the C++ tool; refuse instead of
+    // silently using every core.
+    if config.threads == 0 {
+        return Err("no CPU threads requested".to_owned());
+    }
+
+    let random = config.rkey > 0;
+    let random_spec = if random {
+        Some(RandomSpec::from_config(config)?)
+    } else {
+        None
+    };
+
+    let (start, end) = match config.range {
+        Some(range) => {
+            let start = Split::from_u256(&range.start);
+            let end = Split::from_u256(&range.end);
+            if end < start {
+                return Err("--range END must be >= START".to_owned());
+            }
+            if Scalar::from_bytes_be(&range.end.0).is_none() {
+                return Err("--range END must be below the secp256k1 curve order n".to_owned());
+            }
+            (start, end)
+        }
+        None if random => (Split::from_u256(&U256::ZERO), Split::from_u256(&U256::ZERO)),
+        None => return Err("--range START:END is required for search modes".to_owned()),
+    };
+
+    let target = build_target(config, mode)?;
+
+    // `Rotor.cpp:213-255`: sequential runs with `-n` resume from the stored
+    // per-worker counts and otherwise leave a START.bat behind.
+    let checkpoint_mode = config.next > 0 && config.rkey == 0;
+    let checkpoint_dir = checkpoint_dir.unwrap_or_else(|| Path::new("."));
+    let continue_path = checkpoint_dir.join("Rotor-Cuda_Continue.bat");
+    let start_path = checkpoint_dir.join("Rotor-Cuda_START.bat");
+
+    let resume = if checkpoint_mode {
+        match checkpoint::read_continue(&continue_path).filter(|saved| saved.count > 0) {
+            Some(saved) => {
+                println!(
+                    "  Rotor        : Continuing search from BAT file. Checkpoint created: {}\n",
+                    saved.created
+                );
+                Some(saved)
+            }
+            None => {
+                if let Err(err) = checkpoint::write_start(&start_path, &checkpoint::command_line())
+                {
+                    eprintln!("  Cannot write Rotor-Cuda_START.bat: {err}");
+                }
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // `-t 0` was rejected above; keep the divisor non-zero.
+    let threads = config.threads.max(1);
+
+    let mut chunks = Vec::new();
+    let mut baseline: Vec<u64> = Vec::new();
+    let mut chunk_count = 0usize;
+    if !random {
+        let ranges = split_range(start, end, threads);
+        let offsets = resume_offsets(resume.as_ref(), ranges.len());
+        chunk_count = ranges.len();
+        baseline = offsets.clone();
+        for (index, (low, high)) in ranges.into_iter().enumerate() {
+            let Some((low, high)) = shift_chunk(low, high, offsets[index], end) else {
+                continue;
+            };
+            let low = low.to_scalar().ok_or_else(|| {
+                "--range START must be below the secp256k1 curve order n".to_owned()
+            })?;
+            let high = high.to_scalar().ok_or_else(|| {
+                "--range END must be below the secp256k1 curve order n".to_owned()
+            })?;
+            chunks.push((index, low, high));
+        }
+        if resume.is_some() && chunks.is_empty() {
+            // Every chunk was fully scanned already.
+            return Ok(SearchOutcome {
+                found: 0,
+                scanned: 0,
+            });
+        }
+    }
+
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&config.output_file)
+        .map_err(|err| format!("failed to open {} for writing: {err}", config.output_file))?;
+
+    print_banner(config, mode, start, end);
+
+    let modes: &[bool] = if config.coin == Coin::Eth {
+        // ETH is always uncompressed, whatever the CLI default says.
+        &[false]
+    } else {
+        match config.comp_mode {
+            CompMode::Compressed => &[true],
+            CompMode::Uncompressed => &[false],
+            CompMode::Both => &[true, false],
+        }
+    };
+
+    let shared = Shared {
+        output: Mutex::new(file),
+        found: AtomicU64::new(0),
+        scanned: AtomicU64::new(0),
+        stop_after: target.stop_after(),
+        counters: (0..chunk_count).map(|_| AtomicU64::new(0)).collect(),
+        error: Mutex::new(None),
+        epoch: AtomicU64::new(0),
+        rotations: AtomicU64::new(0),
+        random_key: Mutex::new("0".to_owned()),
+        epoch_len: if random {
+            config.rkey.saturating_mul(1_000_000_000)
+        } else {
+            0
+        },
+    };
+    let done = AtomicBool::new(false);
+    let started = Instant::now();
+    let total = end.sub(start).add_u64(1);
+
+    STOP.store(false, AtomicOrdering::SeqCst);
+    HANDLER.call_once(|| {
+        // Never fail the run if the handler cannot be installed; Ctrl-C then
+        // keeps the platform default instead of breaking the search.
+        let _ = ctrlc::set_handler(|| {
+            STOP.store(true, AtomicOrdering::SeqCst);
+        });
+    });
+
+    thread::scope(|scope| {
+        let mut workers = Vec::with_capacity(chunks.len().max(threads));
+        let mut index = 0u64;
+        if random {
+            for _ in 0..threads {
+                let shared = &shared;
+                let target = &target;
+                let spec = random_spec.as_ref();
+                workers.push(scope.spawn(move || {
+                    worker(None, index, spec, target, modes, config.coin, shared);
+                }));
+                index += 1;
+            }
+        } else {
+            for (chunk_index, low, high) in chunks {
+                let shared = &shared;
+                let target = &target;
+                workers.push(scope.spawn(move || {
+                    worker(
+                        Some((low, high)),
+                        chunk_index as u64,
+                        None,
+                        target,
+                        modes,
+                        config.coin,
+                        shared,
+                    );
+                }));
+            }
+        }
+
+        let monitor = if config.display != 0 {
+            let shared = &shared;
+            let done = &done;
+            Some(scope.spawn(move || {
+                monitor(shared, started, start, total, threads, done, random);
+            }))
+        } else {
+            None
+        };
+
+        let checkpoint_thread = if checkpoint_mode {
+            let shared = &shared;
+            let done = &done;
+            let baseline = &baseline;
+            let path = continue_path.as_path();
+            let interval = Duration::from_secs(config.next as u64 * 55);
+            Some(scope.spawn(move || {
+                checkpoint_loop(path, interval, baseline, shared, done);
+            }))
+        } else {
+            None
+        };
+
+        for handle in workers {
+            let _ = handle.join();
+        }
+        done.store(true, AtomicOrdering::SeqCst);
+        if let Some(handle) = monitor {
+            let _ = handle.join();
+        }
+        if let Some(handle) = checkpoint_thread {
+            let _ = handle.join();
+        }
+    });
+
+    if config.display != 0 {
+        let _guard = shared.output.lock().expect("output mutex");
+        println!();
+    }
+
+    if let Some(error) = shared.error.lock().expect("error mutex").take() {
+        return Err(error);
+    }
+
+    Ok(SearchOutcome {
+        found: shared.found.load(AtomicOrdering::SeqCst),
+        scanned: shared.scanned.load(AtomicOrdering::SeqCst),
+    })
+}
+
+/// Builds the search target for the requested coin/mode pair.
+fn build_target(config: &Config, mode: SearchMode) -> Result<Target, String> {
+    Ok(match (config.coin, mode) {
+        (Coin::Btc, SearchMode::Address) => Target::Hash(parse_btc_address(config)?),
+        (Coin::Btc, SearchMode::Addresses) => {
+            Target::Hashes(load_target_set(config, 20, "addresses")?)
+        }
+        (Coin::Btc, SearchMode::XPoint) => Target::X(parse_xpoint(config)?),
+        (Coin::Btc, SearchMode::XPoints) => Target::Xs(load_target_set(config, 32, "xpoints")?),
+        (Coin::Eth, SearchMode::Address) => Target::Hash(parse_eth_address(config)?),
+        (Coin::Eth, SearchMode::Addresses) => {
+            Target::Hashes(load_target_set(config, 20, "addresses")?)
+        }
+        _ => return Err("unsupported search mode for the CPU engine".to_owned()),
+    })
+}
+
+/// Search target: a single hash160/X, or a loaded `.bin` record set.
+enum Target {
+    Hash([u8; 20]),
+    Hashes(TargetSet),
+    X([u8; 32]),
+    Xs(TargetSet),
+}
+
+impl Target {
+    fn matches(&self, needle: &[u8]) -> bool {
+        match self {
+            Target::Hash(target) => target.as_slice() == needle,
+            Target::X(target) => target.as_slice() == needle,
+            Target::Hashes(set) | Target::Xs(set) => set.contains(needle),
+        }
+    }
+
+    fn is_xpoint(&self) -> bool {
+        matches!(self, Target::X(_) | Target::Xs(_))
+    }
+
+    /// Number of hits that ends the search: one for single targets, the loaded
+    /// record count for multi modes (`Rotor.cpp:3266`).
+    fn stop_after(&self) -> u64 {
+        match self {
+            Target::Hash(_) | Target::X(_) => 1,
+            Target::Hashes(set) | Target::Xs(set) => set.len() as u64,
+        }
+    }
+}
+
+/// Shared state between workers and the progress monitor.
+struct Shared {
+    /// Guards the output file and stdout so hit blocks never interleave.
+    output: Mutex<File>,
+    found: AtomicU64,
+    scanned: AtomicU64,
+    /// Number of hits that ends the search (`targetCounter` in `Rotor.cpp`).
+    stop_after: u64,
+    /// Per-worker scan counters, indexed like the chunk list; empty in
+    /// random mode.
+    counters: Vec<AtomicU64>,
+    /// First write error seen by any worker; reported by [`run`].
+    error: Mutex<Option<String>>,
+    /// Global random-mode epoch already announced by some worker.
+    epoch: AtomicU64,
+    /// Number of random-start rotations (`rKeyCount` in C++).
+    rotations: AtomicU64,
+    /// Most recent random start key, shown in the progress line.
+    random_key: Mutex<String>,
+    /// `rkey * 1_000_000_000`, the scanned-key count per random epoch.
+    epoch_len: u64,
+}
+
+fn parse_btc_address(config: &Config) -> Result<[u8; 20], String> {
+    if config.operands.len() != 1 {
+        return Err("address mode requires exactly one address operand".to_owned());
+    }
+    let address = &config.operands[0];
+    let payload = base58::decode_check(address)?;
+    if payload.len() != 21 || payload[0] != 0x00 {
+        return Err(format!(
+            "invalid BTC P2PKH address (expected a 21-byte 0x00 payload): {address}"
+        ));
+    }
+    let mut hash = [0u8; 20];
+    hash.copy_from_slice(&payload[1..]);
+    Ok(hash)
+}
+
+fn parse_eth_address(config: &Config) -> Result<[u8; 20], String> {
+    if config.operands.len() != 1 {
+        return Err("address mode requires exactly one address operand".to_owned());
+    }
+    let address = &config.operands[0];
+    let hex = address
+        .strip_prefix("0x")
+        .or_else(|| address.strip_prefix("0X"))
+        .ok_or_else(|| format!("invalid ETH address (expected 0x + 40 hex chars): {address}"))?;
+    let bytes = parse_hex_bytes(hex, 20)
+        .ok_or_else(|| format!("invalid ETH address (expected 0x + 40 hex chars): {address}"))?;
+    Ok(bytes.try_into().expect("20 bytes"))
+}
+
+fn parse_xpoint(config: &Config) -> Result<[u8; 32], String> {
+    if config.operands.len() != 1 {
+        return Err("xpoint mode requires exactly one 32-byte X operand".to_owned());
+    }
+    let xpoint = &config.operands[0];
+    let bytes = parse_hex_bytes(xpoint, 32)
+        .ok_or_else(|| format!("invalid xpoint (expected 64 hex chars): {xpoint}"))?;
+    Ok(bytes.try_into().expect("32 bytes"))
+}
+
+/// Decodes exactly `len` bytes worth of hexadecimal digits.
+fn parse_hex_bytes(text: &str, len: usize) -> Option<Vec<u8>> {
+    if text.len() != len * 2 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(
+        (0..text.len())
+            .step_by(2)
+            .map(|index| u8::from_str_radix(&text[index..index + 2], 16).expect("validated hex"))
+            .collect(),
+    )
+}
+
+fn load_target_set(config: &Config, record_len: usize, what: &str) -> Result<TargetSet, String> {
+    let path = config
+        .input_file
+        .as_deref()
+        .ok_or_else(|| format!("{what} mode requires -i FILE with {record_len}-byte records"))?;
+    TargetSet::load(Path::new(path), record_len)
+}
+
+/// Random-start parameters derived from `-r`, `-n`, `-z` and `--range`
+/// (`Rotor.cpp:636-722`).
+#[derive(Debug)]
+pub(crate) struct RandomSpec {
+    /// Inclusive `[start, end]` range, when it spans more than one key.
+    range: Option<(Split, Split)>,
+    next: i32,
+    zet: i32,
+}
+
+impl RandomSpec {
+    pub(crate) fn from_config(config: &Config) -> Result<Self, String> {
+        if config.next < 0 || config.next > 256 {
+            return Err(format!(
+                "ROTOR Random: -n must be between 0 and 256, got {}",
+                config.next
+            ));
+        }
+        if config.zet < 0 || config.zet > 256 {
+            return Err(format!(
+                "ROTOR Random: -z must be between 0 and 256, got {}",
+                config.zet
+            ));
+        }
+
+        let range = match config.range {
+            Some(range) => {
+                let start = Split::from_u256(&range.start);
+                let end = Split::from_u256(&range.end);
+                if end < start {
+                    return Err("--range END must be >= START".to_owned());
+                }
+                if Scalar::from_bytes_be(&range.end.0).is_none() {
+                    return Err("--range END must be below the secp256k1 curve order n".to_owned());
+                }
+                if end > start {
+                    Some((start, end))
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+
+        // `Rotor.cpp:694-699`: the -z end must be above the -n start. Only the
+        // bit-range branch is validated; an explicit range takes precedence.
+        if range.is_none() && config.next > 0 && config.zet > 1 && config.zet <= config.next {
+            return Err("ROTOR Random: -n start must be less than -z end".to_owned());
+        }
+
+        Ok(Self {
+            range,
+            next: config.next,
+            zet: config.zet,
+        })
+    }
+}
+
+/// Picks a random start key according to the C++ random branches.
+pub(crate) fn random_start_key(spec: &RandomSpec, rng: &mut SplitMix64) -> Scalar {
+    if let Some((start, end)) = spec.range {
+        // Uniform in [start, end]: mask the draw to the span's bit length and
+        // reject values above the span (no modulo bias).
+        let span = end.sub(start).add_u64(1);
+        let bits = span.bit_length();
+        loop {
+            let mut bytes = rng.fill32();
+            mask_bits(&mut bytes, bits);
+            let candidate = Split::from_u256(&U256(bytes));
+            if candidate < span {
+                return start
+                    .add(candidate)
+                    .0
+                    .to_scalar()
+                    .expect("random range endpoints are below the curve order");
+            }
+        }
+    }
+
+    if spec.next > 0 {
+        let width = if spec.zet > 1 {
+            let band = (spec.zet - spec.next).max(1) as u64;
+            spec.next as u64 + rng.next_u64() % band + rng.next_u64() % 2
+        } else {
+            spec.next as u64
+        };
+        loop {
+            let mut bytes = rng.fill32();
+            mask_bits(&mut bytes, width as u32);
+            // `width` can be 256, where the draw may exceed the curve order.
+            if let Some(key) = Scalar::from_bytes_be(&bytes) {
+                return key;
+            }
+        }
+    }
+
+    loop {
+        if let Some(key) = Scalar::from_bytes_be(&rng.fill32()) {
+            return key;
+        }
+    }
+}
+
+/// Keeps only the low `width` bits of a big-endian 256-bit value.
+fn mask_bits(bytes: &mut [u8; 32], width: u32) {
+    if width >= 256 {
+        return;
+    }
+    let full_bytes = (width / 8) as usize;
+    let partial_bits = width % 8;
+    let zero_len = 32 - full_bytes - usize::from(partial_bits > 0);
+    bytes[..zero_len].fill(0);
+    if partial_bits > 0 {
+        bytes[zero_len] &= (1u8 << partial_bits) - 1;
+    }
+}
+
+/// SplitMix64, seeded from the clock and the worker index (no dependencies).
+pub(crate) struct SplitMix64 {
+    state: u64,
+}
+
+impl SplitMix64 {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    fn fill32(&mut self) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        for chunk in out.as_chunks_mut::<8>().0 {
+            chunk.copy_from_slice(&self.next_u64().to_le_bytes());
+        }
+        out
+    }
+}
+
+fn thread_rng(thread_index: u64) -> SplitMix64 {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos() as u64)
+        .unwrap_or(0);
+    SplitMix64::new(nanos ^ thread_index.wrapping_mul(0x9E37_79B9_7F4A_7C15))
+}
+
+/// Scans one inclusive chunk (sequential mode) or an endless random walk
+/// (random mode), one batch of [`BATCH_SIZE`] keys at a time. Successive points
+/// are chained with `add_affine(G)` and normalized by a single batch inversion,
+/// as in the C++ CPU group loop.
+fn worker(
+    chunk: Option<(Scalar, Scalar)>,
+    thread_index: u64,
+    random_spec: Option<&RandomSpec>,
+    target: &Target,
+    modes: &[bool],
+    coin: Coin,
+    shared: &Shared,
+) {
+    let generator = secp::g();
+    let batch_scalar = Scalar::from_u64(BATCH_SIZE as u64);
+
+    let mut rng = thread_rng(thread_index);
+    let mut epoch = 0u64;
+    let mut key = match random_spec {
+        Some(spec) => random_start_key(spec, &mut rng),
+        None => chunk.expect("sequential workers always have a chunk").0,
+    };
+    let mut point = starting_point(&key);
+    if random_spec.is_some() {
+        record_random_key(shared, &key);
+    }
+
+    loop {
+        if STOP.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+
+        if let Some(spec) = random_spec {
+            // A new global epoch asks every worker for a fresh random start.
+            let current = shared.scanned.load(AtomicOrdering::SeqCst) / shared.epoch_len;
+            if current > epoch {
+                epoch = current;
+                note_rotation(shared, current);
+                key = random_start_key(spec, &mut rng);
+                point = starting_point(&key);
+                record_random_key(shared, &key);
+            }
+        }
+
+        let remaining = match chunk {
+            Some((_, chunk_end)) => {
+                let difference = chunk_end.sub(&key);
+                if difference < batch_scalar {
+                    Some(scalar_low_u64(&difference) + 1)
+                } else {
+                    None
+                }
+            }
+            None => None,
+        };
+        let count = remaining.unwrap_or(BATCH_SIZE as u64) as usize;
+
+        let mut points = Vec::with_capacity(count);
+        let mut next_point = point;
+        for _ in 0..count {
+            points.push(next_point);
+            next_point = next_point.add_affine(&generator);
+        }
+
+        for (offset, maybe_point) in batch_to_affine(&points).iter().enumerate() {
+            let Some(affine) = maybe_point else {
+                // Key 0 has no affine form; the C++ search never yields it.
+                continue;
+            };
+            let point_key = key.add_u64(offset as u64);
+
+            if target.is_xpoint() {
+                // `GetXBytes` compares the 32-byte big-endian X for both
+                // compression modes; emit one block per configured mode.
+                let x = affine.x.to_bytes_be();
+                if !target.matches(&x) {
+                    continue;
+                }
+                for &compressed in modes {
+                    shared.found.fetch_add(1, AtomicOrdering::SeqCst);
+                    emit(shared, &point_key, affine, compressed, coin);
+                }
+                continue;
+            }
+
+            for &compressed in modes {
+                let needle = if coin == Coin::Eth {
+                    secp::eth_address(affine)
+                } else {
+                    secp::hash160(affine, compressed)
+                };
+                if !target.matches(&needle) {
+                    continue;
+                }
+                shared.found.fetch_add(1, AtomicOrdering::SeqCst);
+                emit(shared, &point_key, affine, compressed, coin);
+            }
+        }
+
+        shared
+            .scanned
+            .fetch_add(count as u64, AtomicOrdering::SeqCst);
+        if let Some(counter) = shared.counters.get(thread_index as usize) {
+            counter.fetch_add(count as u64, AtomicOrdering::SeqCst);
+        }
+
+        // `Rotor.cpp:3266`: stop every worker once enough targets were found.
+        if shared.found.load(AtomicOrdering::SeqCst) >= shared.stop_after {
+            break;
+        }
+
+        if remaining.is_some() {
+            break;
+        }
+        key = key.add_u64(count as u64);
+        point = next_point;
+    }
+}
+
+fn starting_point(key: &Scalar) -> Jacobian {
+    if key.is_zero() {
+        Jacobian::infinity()
+    } else {
+        Jacobian::from_affine(&secp::mul_g(key))
+    }
+}
+
+/// Announces a new random epoch once, no matter how many workers observe it.
+fn note_rotation(shared: &Shared, epoch: u64) {
+    let mut current = shared.epoch.load(AtomicOrdering::SeqCst);
+    while epoch > current {
+        match shared.epoch.compare_exchange(
+            current,
+            epoch,
+            AtomicOrdering::SeqCst,
+            AtomicOrdering::SeqCst,
+        ) {
+            Ok(_) => {
+                shared.rotations.fetch_add(1, AtomicOrdering::SeqCst);
+                return;
+            }
+            Err(actual) => current = actual,
+        }
+    }
+}
+
+fn record_random_key(shared: &Shared, key: &Scalar) {
+    *shared.random_key.lock().expect("random key mutex") = scalar_hex_trimmed(key);
+}
+
+/// Appends the C++ hit block to `config.output_file` and duplicates it on
+/// stdout with a two-space indent (`Rotor.cpp:344-369`).
+fn emit(shared: &Shared, key: &Scalar, point: &Affine, compressed: bool, coin: Coin) {
+    let private_hex = scalar_hex_trimmed(key);
+    let (address, wif, public_hex) = match coin {
+        Coin::Btc => (
+            base58::address_from_hash160(&secp::hash160(point, compressed), compressed),
+            Some(base58::wif_encode(key, compressed)),
+            if compressed {
+                hex_upper(&secp::compress(point))
+            } else {
+                hex_upper(&secp::uncompress(point))
+            },
+        ),
+        Coin::Eth => {
+            let public = secp::uncompress(point);
+            (
+                format!("0x{}", hex_lower(&secp::eth_address(point))),
+                None,
+                hex_upper(&public[1..]),
+            )
+        }
+    };
+
+    let mut file = shared.output.lock().expect("output mutex");
+    let result = write_block(
+        &mut file,
+        &address,
+        wif.as_deref(),
+        &private_hex,
+        &public_hex,
+    );
+    if let Err(err) = result {
+        let mut slot = shared.error.lock().expect("error mutex");
+        if slot.is_none() {
+            *slot = Some(format!("failed to write the output file: {err}"));
+        }
+    }
+
+    print!("\n  {}\n", "=".repeat(96));
+    println!("  PubAddress: {address}");
+    if let Some(wif) = &wif {
+        println!("  Priv (WIF): {wif}");
+    }
+    println!("  Priv (HEX): {private_hex}");
+    println!("  PubK (HEX): {public_hex}");
+    println!();
+    let _ = io::stdout().flush();
+}
+
+fn write_block(
+    file: &mut File,
+    address: &str,
+    wif: Option<&str>,
+    private_hex: &str,
+    public_hex: &str,
+) -> io::Result<()> {
+    writeln!(file, "PubAddress: {address}")?;
+    if let Some(wif) = wif {
+        writeln!(file, "Priv (WIF): {wif}")?;
+    }
+    writeln!(file, "Priv (HEX): {private_hex}")?;
+    writeln!(file, "PubK (HEX): {public_hex}")?;
+    writeln!(file, "{}", "=".repeat(86))?;
+    file.flush()
+}
+
+/// Prints the progress line once per second while workers are alive.
+fn monitor(
+    shared: &Shared,
+    started: Instant,
+    start_key: Split,
+    total: Split,
+    threads: usize,
+    done: &AtomicBool,
+    random: bool,
+) {
+    let total = total.to_f64();
+    let mut last = Instant::now();
+    loop {
+        if done.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+        if done.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+        if last.elapsed() < Duration::from_secs(1) {
+            continue;
+        }
+        last = Instant::now();
+
+        let scanned = shared.scanned.load(AtomicOrdering::SeqCst);
+        let found = shared.found.load(AtomicOrdering::SeqCst);
+        let elapsed = started.elapsed().as_secs_f64();
+        let rate = scanned as f64 / elapsed.max(1e-9);
+        let rate_text = if rate >= 1e9 {
+            format!("{:.2} Gk/s", rate / 1e9)
+        } else {
+            format!("{:.2} Mk/s", rate / 1e6)
+        };
+
+        if random {
+            // `Rotor.cpp:1814-1839`: the C: percentage field is replaced by the
+            // rotation count and the current random start key.
+            let rotations = shared.rotations.load(AtomicOrdering::SeqCst);
+            let key = shared.random_key.lock().expect("random key mutex").clone();
+            let _guard = shared.output.lock().expect("output mutex");
+            print!(
+                "\r  [{}] [R: {}] [{}] [F: {}] [CPU {}: {}] [T: {}]  ",
+                to_time_str(elapsed),
+                rotations,
+                key,
+                found,
+                threads,
+                rate_text,
+                format_thousands(scanned),
+            );
+        } else {
+            let percent = if total > 0.0 {
+                scanned as f64 / total * 100.0
+            } else {
+                0.0
+            };
+            let key = start_key.add_u64(scanned).to_hex();
+            let _guard = shared.output.lock().expect("output mutex");
+            print!(
+                "\r  [{}] [{}] [F: {}] [C: {:.6} %] [CPU {}: {}] [T: {}]  ",
+                to_time_str(elapsed),
+                key,
+                found,
+                percent,
+                threads,
+                rate_text,
+                format_thousands(scanned),
+            );
+        }
+        let _ = io::stdout().flush();
+    }
+}
+
+/// Writes `Rotor-Cuda_Continue.bat` every `interval` while the search runs.
+///
+/// The checkpoint thread only reads the scan counter and never takes the
+/// output mutex. The first write error is reported; later ones are dropped so
+/// a full disk does not flood stderr.
+fn checkpoint_loop(
+    path: &Path,
+    interval: Duration,
+    baseline: &[u64],
+    shared: &Shared,
+    done: &AtomicBool,
+) {
+    let mut last_write = Instant::now();
+    let mut reported_error = false;
+    while !done.load(AtomicOrdering::SeqCst) {
+        thread::sleep(Duration::from_millis(100));
+        if done.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+        if last_write.elapsed() < interval {
+            continue;
+        }
+        last_write = Instant::now();
+        let chunks: Vec<u64> = baseline
+            .iter()
+            .zip(&shared.counters)
+            .map(|(saved, counter)| saved.saturating_add(counter.load(AtomicOrdering::SeqCst)))
+            .collect();
+        let count = chunks.iter().copied().fold(0u64, u64::saturating_add);
+        if let Err(err) = checkpoint::write_continue_with_chunks(
+            path,
+            &checkpoint::command_line(),
+            count,
+            &chunks,
+        ) && !reported_error
+        {
+            eprintln!("  Cannot write checkpoint: {err}");
+            reported_error = true;
+        }
+    }
+}
+
+/// Per-worker resume offsets: the exact `chunks:` extension when it matches the
+/// current chunk layout, otherwise the C++ fallback `count / threads`.
+fn resume_offsets(resume: Option<&checkpoint::Checkpoint>, chunk_count: usize) -> Vec<u64> {
+    let Some(saved) = resume else {
+        return vec![0; chunk_count];
+    };
+    match saved.chunks.as_ref() {
+        Some(values) if saved.threads == Some(chunk_count) && values.len() == chunk_count => {
+            values.clone()
+        }
+        _ => vec![saved.count / chunk_count.max(1) as u64; chunk_count],
+    }
+}
+
+/// Slides one chunk window forward by `offset` and clips it at the range end;
+/// `None` means the whole window was scanned already.
+fn shift_chunk(low: Split, high: Split, offset: u64, end: Split) -> Option<(Split, Split)> {
+    let (low, low_carry) = low.add(Split::from_u64(offset));
+    let (high, high_carry) = high.add(Split::from_u64(offset));
+    let high = if high_carry || high > end { end } else { high };
+    if low_carry || low > high {
+        return None;
+    }
+    Some((low, high))
+}
+
+/// Startup banner: field names and layout from `Main.cpp:638-705` and the
+/// `Global start/end/range` block from `Rotor.cpp:280-282`.
+fn print_banner(config: &Config, mode: SearchMode, start: Split, end: Split) {
+    let comp = match config.comp_mode {
+        CompMode::Compressed => "COMPRESSED",
+        CompMode::Uncompressed => "UNCOMPRESSED",
+        CompMode::Both => "COMPRESSED & UNCOMPRESSED",
+    };
+    let search = match mode {
+        SearchMode::Address => "Single Address",
+        SearchMode::Addresses => "Multi Address",
+        SearchMode::XPoint => "Single X Point",
+        SearchMode::XPoints => "Multi X Points",
+        SearchMode::Bsgs => "BSGS",
+    };
+    let range = end.sub(start);
+
+    println!();
+    println!("  {}", cli::VERSION_LINE);
+    println!();
+    if config.coin == Coin::Btc {
+        println!("  COMP MODE    : {comp}");
+    }
+    println!(
+        "  COIN TYPE    : {}",
+        if config.coin == Coin::Btc {
+            "BITCOIN"
+        } else {
+            "ETHEREUM"
+        }
+    );
+    println!("  SEARCH MODE  : {search}");
+    println!("  DEVICE       : CPU");
+    match (config.coin, mode) {
+        (Coin::Btc, SearchMode::Address) => {
+            println!("  BTC ADDRESS  : {}", config.operands[0]);
+        }
+        (Coin::Btc, SearchMode::Addresses) => println!(
+            "  BTC HASH160s : {}",
+            config.input_file.as_deref().unwrap_or("")
+        ),
+        (Coin::Btc, SearchMode::XPoint) => {
+            println!("  BTC XPOINT   : {}", config.operands[0]);
+        }
+        (Coin::Btc, SearchMode::XPoints) => println!(
+            "  BTC XPOINTS  : {}",
+            config.input_file.as_deref().unwrap_or("")
+        ),
+        (Coin::Eth, SearchMode::Address) => {
+            println!("  ETH ADDRESS  : {}", config.operands[0]);
+        }
+        (Coin::Eth, SearchMode::Addresses) => println!(
+            "  ETH ADDRESS  : {}",
+            config.input_file.as_deref().unwrap_or("")
+        ),
+        _ => {}
+    }
+    println!("  OUTPUT FILE  : {}", config.output_file);
+    println!("  Start Time   : {}", start_time_string());
+    println!(
+        "  Global start : {} ({} bit)",
+        start.to_hex(),
+        start.bit_length()
+    );
+    println!(
+        "  Global end   : {} ({} bit)",
+        end.to_hex(),
+        end.bit_length()
+    );
+    println!(
+        "  Global range : {} ({} bit)",
+        range.to_hex(),
+        range.bit_length()
+    );
+    println!();
+}
+
+/// Little-endian 4x64-bit limbs of a 256-bit range endpoint.
+///
+/// Kept private to the engine: range arithmetic for the split must not depend
+/// on the scalar field (chunk boundaries may equal or approach `2^256`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Split([u64; 4]);
+
+impl Split {
+    fn from_u256(value: &U256) -> Self {
+        let mut limbs = [0u64; 4];
+        for (index, limb) in limbs.iter_mut().enumerate() {
+            let start = (3 - index) * 8;
+            *limb = u64::from_be_bytes(value.0[start..start + 8].try_into().expect("eight bytes"));
+        }
+        Self(limbs)
+    }
+
+    fn to_scalar(self) -> Option<Scalar> {
+        let mut bytes = [0u8; 32];
+        for (index, limb) in self.0.iter().enumerate() {
+            let start = (3 - index) * 8;
+            bytes[start..start + 8].copy_from_slice(&limb.to_be_bytes());
+        }
+        Scalar::from_bytes_be(&bytes)
+    }
+
+    fn add(self, other: Self) -> (Self, bool) {
+        let mut out = [0u64; 4];
+        let mut carry = false;
+        for index in 0..4 {
+            let (partial, first) = self.0[index].overflowing_add(other.0[index]);
+            let (sum, second) = partial.overflowing_add(u64::from(carry));
+            out[index] = sum;
+            carry = first || second;
+        }
+        (Self(out), carry)
+    }
+
+    fn from_u64(value: u64) -> Self {
+        Self([value, 0, 0, 0])
+    }
+
+    fn add_u64(self, value: u64) -> Self {
+        self.add(Self::from_u64(value)).0
+    }
+
+    fn sub(self, other: Self) -> Self {
+        let mut out = [0u64; 4];
+        let mut borrow = false;
+        for index in 0..4 {
+            let (partial, first) = self.0[index].overflowing_sub(other.0[index]);
+            let (difference, second) = partial.overflowing_sub(u64::from(borrow));
+            out[index] = difference;
+            borrow = first || second;
+        }
+        Self(out)
+    }
+
+    fn sub_u64(self, value: u64) -> Self {
+        self.sub(Self([value, 0, 0, 0]))
+    }
+
+    /// Low 256 bits of the product; exact for every value the split produces.
+    fn mul_u64(self, value: u64) -> Self {
+        let mut out = [0u64; 4];
+        let mut carry = 0u128;
+        for index in 0..4 {
+            let product = u128::from(self.0[index]) * u128::from(value) + carry;
+            out[index] = product as u64;
+            carry = product >> 64;
+        }
+        Self(out)
+    }
+
+    fn div_u64(self, value: u64) -> (Self, u64) {
+        debug_assert!(value != 0);
+        let divisor = u128::from(value);
+        let mut quotient = [0u64; 4];
+        let mut remainder = 0u128;
+        for index in (0..4).rev() {
+            let current = (remainder << 64) | u128::from(self.0[index]);
+            quotient[index] = (current / divisor) as u64;
+            remainder = current % divisor;
+        }
+        (Self(quotient), remainder as u64)
+    }
+
+    fn bit_length(self) -> u32 {
+        for index in (0..4).rev() {
+            if self.0[index] != 0 {
+                return index as u32 * 64 + (64 - self.0[index].leading_zeros());
+            }
+        }
+        0
+    }
+
+    /// Uppercase hexadecimal without leading zeros (`Int::GetBase16`).
+    fn to_hex(self) -> String {
+        match self.0.iter().rposition(|&limb| limb != 0) {
+            None => "0".to_owned(),
+            Some(top) => {
+                let mut out = String::with_capacity(64);
+                let _ = write!(out, "{:X}", self.0[top]);
+                for limb in self.0[..top].iter().rev() {
+                    let _ = write!(out, "{limb:016X}");
+                }
+                out
+            }
+        }
+    }
+
+    fn to_f64(self) -> f64 {
+        let mut value = 0.0;
+        for limb in self.0.iter().rev() {
+            value = value * 18_446_744_073_709_551_616.0 + *limb as f64;
+        }
+        value
+    }
+}
+
+impl Ord for Split {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for index in (0..4).rev() {
+            if self.0[index] != other.0[index] {
+                return self.0[index].cmp(&other.0[index]);
+            }
+        }
+        Ordering::Equal
+    }
+}
+
+impl PartialOrd for Split {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Splits the inclusive `[start, end]` range into at most `threads`
+/// contiguous, non-overlapping chunks of `ceil(total / threads)` keys.
+fn split_range(start: Split, end: Split, threads: usize) -> Vec<(Split, Split)> {
+    let total = end.sub(start).add_u64(1);
+    let divisor = threads.max(1) as u64;
+    let (quotient, remainder) = total.div_u64(divisor);
+    let chunk = quotient.add_u64(u64::from(remainder != 0));
+
+    let mut chunks = Vec::new();
+    let mut current = start;
+    for index in 1..=divisor {
+        if current > end {
+            break;
+        }
+        let (next_start, carry) = start.add(chunk.mul_u64(index));
+        let chunk_end = if carry || next_start > end {
+            end
+        } else {
+            next_start.sub_u64(1)
+        };
+        chunks.push((current, chunk_end));
+        if carry {
+            break;
+        }
+        current = next_start;
+    }
+    chunks
+}
+
+fn scalar_low_u64(value: &Scalar) -> u64 {
+    let bytes = value.to_bytes_be();
+    u64::from_be_bytes(bytes[24..32].try_into().expect("eight bytes"))
+}
+
+/// Uppercase hexadecimal without leading zeros (`Int::GetBase16`).
+fn scalar_hex_trimmed(key: &Scalar) -> String {
+    let bytes = key.to_bytes_be();
+    match bytes.iter().position(|&byte| byte != 0) {
+        None => "0".to_owned(),
+        Some(first) => {
+            let mut out = String::with_capacity(64);
+            let _ = write!(out, "{:X}", bytes[first]);
+            for byte in &bytes[first + 1..] {
+                let _ = write!(out, "{byte:02X}");
+            }
+            out
+        }
+    }
+}
+
+fn hex_upper(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(out, "{byte:02X}");
+    }
+    out
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+/// `HH:MM:SS` elapsed time, as `toTimeStr` in the C++ code.
+fn to_time_str(seconds: f64) -> String {
+    let total = seconds as u64;
+    format!(
+        "{:02}:{:02}:{:02}",
+        total / 3600,
+        (total % 3600) / 60,
+        total % 60
+    )
+}
+
+/// Comma thousands separators, as `formatThousands` in the C++ code.
+fn format_thousands(value: u64) -> String {
+    let digits = value.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(digit);
+    }
+    out
+}
+
+/// UTC start time in the `ctime` layout used by `Rotor.cpp:211`.
+fn start_time_string() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let days = (seconds / 86_400) as i64;
+    let rem = seconds % 86_400;
+    let (year, month, day) = civil_from_days(days);
+    let weekdays = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+    let months = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    format!(
+        "{} {} {:02} {:02}:{:02}:{:02} {}",
+        weekdays[days.rem_euclid(7) as usize],
+        months[(month - 1) as usize],
+        day,
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60,
+        year
+    )
+}
+
+/// Howard Hinnant's `civil_from_days`: days since 1970-01-01 to (y, m, d).
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let shifted = days + 719_468;
+    let era = if shifted >= 0 {
+        shifted
+    } else {
+        shifted - 146_096
+    } / 146_097;
+    let day_of_era = (shifted - era * 146_097) as u64;
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year = year_of_era as i64 + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = (day_of_year - (153 * month_prime + 2) / 5 + 1) as u32;
+    let month = if month_prime < 10 {
+        month_prime + 3
+    } else {
+        month_prime - 9
+    } as u32;
+    (if month <= 2 { year + 1 } else { year }, month, day)
+}
+
+#[cfg(test)]
+mod random_start_tests {
+    use super::*;
+
+    fn key_bit_length(key: &Scalar) -> u32 {
+        let bytes = key.to_bytes_be();
+        match bytes.iter().position(|&byte| byte != 0) {
+            None => 0,
+            Some(first) => (32 - first) as u32 * 8 - bytes[first].leading_zeros(),
+        }
+    }
+
+    #[test]
+    fn range_start_keys_stay_inside_the_range() {
+        let low = 0x100u64;
+        let high = 0x1FFu64;
+        let spec = RandomSpec {
+            range: Some((
+                Split::from_u256(&U256::from_u64(low)),
+                Split::from_u256(&U256::from_u64(high)),
+            )),
+            next: 0,
+            zet: 0,
+        };
+        let mut rng = SplitMix64::new(0x1234_5678_9ABC_DEF0);
+        let low = Scalar::from_u64(low);
+        let high = Scalar::from_u64(high);
+        for _ in 0..256 {
+            let key = random_start_key(&spec, &mut rng);
+            assert!(key >= low, "key {key:?} is below the range start");
+            assert!(key <= high, "key {key:?} is above the range end");
+        }
+    }
+
+    #[test]
+    fn bit_range_start_keys_respect_the_width() {
+        let spec = RandomSpec {
+            range: None,
+            next: 71,
+            zet: 74,
+        };
+        let mut rng = SplitMix64::new(0x0BAD_F00D_DEAD_BEEF);
+        for _ in 0..256 {
+            let key = random_start_key(&spec, &mut rng);
+            assert!(
+                key_bit_length(&key) <= 74,
+                "key {key:?} exceeds the 74-bit ceiling"
+            );
+        }
+    }
+
+    #[test]
+    fn full_width_start_keys_stay_below_the_curve_order() {
+        let spec = RandomSpec {
+            range: None,
+            next: 0,
+            zet: 0,
+        };
+        let mut rng = SplitMix64::new(0xFEED_FACE_CAFE_BEEF);
+        for _ in 0..64 {
+            let key = random_start_key(&spec, &mut rng);
+            assert!(
+                Scalar::from_bytes_be(&key.to_bytes_be()).is_some(),
+                "helper produced a non-canonical scalar"
+            );
+        }
+    }
+
+    #[test]
+    fn random_spec_rejects_bad_bit_bounds() {
+        let config = Config {
+            next: 300,
+            ..Config::default()
+        };
+        let err = RandomSpec::from_config(&config).expect_err("next above 256 must fail");
+        assert!(err.contains("256"), "unexpected error: {err}");
+
+        let config = Config {
+            next: 71,
+            zet: 71,
+            ..Config::default()
+        };
+        let err = RandomSpec::from_config(&config).expect_err("zet <= next must fail");
+        assert_eq!(err, "ROTOR Random: -n start must be less than -z end");
+    }
+}

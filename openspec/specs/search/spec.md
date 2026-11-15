@@ -41,3 +41,45 @@ Sequential BSGS MUST persist a checkpoint that identifies table/filter/range and
 
 ### Requirement: random recovery safety
 Random BSGS MUST NOT claim resumability until table identity and random-state restoration are tested. Until then, CLI MUST either disable random recovery or clearly mark it non-resumable.
+
+## Rust CPU implementation (v2, 2026-11-15)
+
+The CPU search engine, address/xpoint/ETH modes, CPU-BSGS and checkpoint files are
+implemented in the Rust crate at the repository root (`cargo build --release`).
+The CUDA kernels remain in `Rotor-Cuda/` and are not part of this requirement set.
+
+### Requirement: CLI compatibility
+The Rust binary MUST accept every option documented in `Main.cpp` usage with the same
+meaning and C++-compatible exit codes (0 for success/found, non-zero for errors).
+
+#### Scenario: GPU unavailable
+- GIVEN a build without the GPU feature
+- WHEN `-g` is passed
+- THEN the process reports that GPU code is not compiled and exits non-zero
+  (deliberate deviation from the C++ no-op).
+
+### Requirement: CPU search parity
+For a bounded scalar range and a target address/xpoint/ETH hash, the Rust CPU engine
+MUST find the same scalar as the C++ engine and MUST write a `Found.txt` block of the
+same shape (`PubAddress`, `Priv (WIF)` for BTC, `Priv (HEX)`, `PubK (HEX)`, 86-`=`
+separator), and it MUST NOT report a member of a loaded `.bin` set as absent.
+
+### Requirement: BSGS parity
+CPU-BSGS MUST recover the scalar for a known public key inside `--range`, with the
+same canonical uppercase hex output as C++, and MUST re-verify every candidate with
+`k*G == target` so a fold collision cannot yield a wrong key.
+
+### Requirement: input format compatibility
+`.bin` inputs MUST be read as headerless records of 20 bytes (hash160/keccak) or
+32 bytes (xpoint); a length that is not a positive multiple of the record size MUST
+fail loudly. Records are sorted internally (the C++ binary requires a pre-sorted file).
+
+### Requirement: no silent fallbacks
+If the requested backend or target cannot be honored (GPU not compiled, invalid public
+key, unsupported mode/coin pair, malformed range or file), the process MUST fail with
+a non-zero exit code instead of switching backends.
+
+### Requirement: checkpoint compatibility
+Sequential runs with `-n` MUST write `Rotor-Cuda_Continue.bat` in the C++ layout and
+resume by shifting the start by the stored count; `Rotor-Cuda_START.bat` MUST be
+written when no checkpoint exists. Random mode (`-r`) MUST NOT resume from checkpoints.
