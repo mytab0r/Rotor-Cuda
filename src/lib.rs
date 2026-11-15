@@ -2,6 +2,7 @@ pub mod base58;
 pub mod bsgs;
 pub mod checkpoint;
 pub mod cli;
+pub mod coordinator;
 pub mod engine;
 pub mod field;
 pub mod filter;

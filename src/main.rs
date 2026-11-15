@@ -135,7 +135,12 @@ fn main() {
                         }
                     }
                 }
-                if let Err(err) = engine::run(&config) {
+                let outcome = if config.coordinator.is_some() {
+                    engine::run_coordinator(&config)
+                } else {
+                    engine::run(&config)
+                };
+                if let Err(err) = outcome {
                     eprintln!("  Error: {err}");
                     std::process::exit(1);
                 }
