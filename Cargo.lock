@@ -138,6 +138,7 @@ dependencies = [
  "ripemd",
  "sha2",
  "sha3",
+ "windows-sys",
 ]
 
 [[package]]

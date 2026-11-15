@@ -321,11 +321,14 @@ Implemented in Rust:
 - `-m bsgs -g` GPU-BSGS behind `--features gpu` (`-l` lists CUDA devices)
 - `-r` random mode with `-n`/`-z` bit-range selection
 - `-n` checkpoint files (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`)
+- `--check-update` / `--update` self-update on Windows (WinHTTP + SHA-256,
+  assets `rotor.exe` / `rotor-gpu.exe` and their `.sha256`)
 - headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
 - `Found.txt` block format and progress line of the C++ binary
 
-Not implemented yet (use the C++ binary): `--update` self-update. GPU address
-search is single-GPU and rejects `-r`/`-n` loudly; multi-GPU scheduling is deferred.
+Remaining gap: GPU address/xpoint search is single-GPU and rejects `-r`/`-n`
+loudly; multi-GPU scheduling is deferred. The C++ binary still covers GPU
+multi-GPU runs.
 
 Known deviations from the C++ binary:
 
@@ -343,6 +346,9 @@ Known deviations from the C++ binary:
   them only in the bit-range branch).
 - Random-mode banner lines (`ROTOR Random`, `Base Key`) are not reproduced; the
   progress line uses the same `[R: n]` field.
+- Self-update is Windows-only and only accepts the Rust assets (`rotor.exe`,
+  `rotor-gpu.exe`); the C++ `Rotor-Cuda.exe` is never used. It also fixes the C++
+  asset-URL scan that never matched a download URL.
 
 Rough CPU throughput on a 4-thread release build (compressed address hashing):
 ~5.3 Mk/s total (~1.3 Mk/s per core). CPU-BSGS solves a 2^31-wide range in ~0.13 s.

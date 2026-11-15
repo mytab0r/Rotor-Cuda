@@ -2,6 +2,9 @@ use rotor::cli::{self, Coin, SearchMode, USAGE, VERSION_LINE};
 use rotor::engine;
 
 fn main() {
+    #[cfg(windows)]
+    rotor::selfupdate::cleanup_old();
+
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     if args.is_empty() {
@@ -64,8 +67,43 @@ fn main() {
     }
 
     if config.check_update || config.update {
-        println!("  self-update is not supported in this build");
-        std::process::exit(2);
+        #[cfg(windows)]
+        {
+            let current = rotor::selfupdate::VERSION;
+            match rotor::selfupdate::check_latest("mytab0r/Rotor-Cuda", current) {
+                Ok(info) => {
+                    if config.check_update {
+                        let status = if info.available {
+                            "UPDATE AVAILABLE (run --update)"
+                        } else {
+                            "up to date"
+                        };
+                        println!(" current: {current}  latest: {}  ->  {status}", info.latest);
+                        return;
+                    }
+                    if !info.available {
+                        println!(" already up to date ({current})");
+                        return;
+                    }
+                    println!(" updating {current} -> {} ...", info.latest);
+                    let update_args: Vec<String> = std::env::args().skip(1).collect();
+                    if let Err(err) = rotor::selfupdate::apply_update(&info, &update_args, true) {
+                        println!(" update failed: {err}");
+                        std::process::exit(1);
+                    }
+                    return;
+                }
+                Err(err) => {
+                    println!(" update check failed: {err}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            println!(" self-update is not supported on this platform");
+            std::process::exit(2);
+        }
     }
 
     if config.gpu && !cfg!(feature = "gpu") {
