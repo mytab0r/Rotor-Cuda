@@ -41,14 +41,16 @@ jobs:
   rust-gpu-build:
     runs-on: windows-2022
     env:
-      ROTOR_CUDA_ARCHS: '75'
+      # Release parity: the same arch set the GPU release workflow publishes.
+      # sm_120 needs CUDA 12.8+; sm_100 is Blackwell datacenter.
+      ROTOR_CUDA_ARCHS: '52,75,80,86,89,90,100,120'
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
-          cuda: '12.5.1'
+          cuda: '12.8.1'
           method: network
           sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
 
@@ -72,15 +74,38 @@ jobs:
       # NVCC_CCBIN is set per step: the `steps` context is not available in a
       # job-level `env:` block, so the output of the cl.exe locator above is
       # passed explicitly to every cargo invocation that runs build.rs.
-      - name: Build with gpu feature
+      - name: Build with gpu feature (release, static cudart)
         env:
           NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
-        run: cargo build --features gpu --verbose
+        run: cargo build --release --features gpu --verbose
 
       - name: Run gpu tests (device tests skip on hosted runners)
         env:
           NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
         run: cargo test --features gpu --verbose
+
+      - name: Release smoke (hosted runner has no GPU)
+        shell: pwsh
+        env:
+          CLBIN: ${{ steps.cl.outputs.clbin }}
+        run: |
+          $exe = "target/release/rotor.exe"
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed with exit code $LASTEXITCODE" }
+
+          # -l without a device must fail loudly (exit 2) rather than crash.
+          $out = (& $exe -l 2>&1 | Out-String)
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($code -ne 2) { throw "-l expected exit code 2 without a GPU, got $code" }
+          if ($out -notmatch 'Error') { throw "-l printed no Error line: $out" }
+
+          # Self-contained: static cudart leaves no cudart DLL import behind.
+          $deps = & (Join-Path $env:CLBIN "dumpbin.exe") /dependents $exe | Out-String
+          if ($deps -match '(?i)cudart') {
+            throw "rotor-gpu.exe still imports a cudart DLL`n$deps"
+          }
+          Write-Host "no cudart DLL imports"
 
       - name: Build default features
         run: cargo build --verbose

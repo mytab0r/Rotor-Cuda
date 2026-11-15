@@ -39,12 +39,14 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 ```
 ./Rotor --mode bsgs -g --gpui 0 --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
 ```
-The Rust build needs the CUDA Toolkit (nvcc): `cargo build --release --features gpu`
-(on Windows use the MSVC Rust toolchain — CUDA ships `cudart.lib`; Linux/WSL uses
-`lib64/libcudart.so`).
-`ROTOR_CUDA_ARCHS` selects the target architecture (default `75` = sm_75 cubin plus
-PTX so newer GPUs JIT; use `120` for RTX 50xx). `-g` selects GPU-BSGS with `--gpui`
-and GPU address/xpoint search with `--gpui`/`--gpux`.
+Building with the GPU backend needs the CUDA Toolkit (nvcc): `cargo build --release
+--features gpu` (on Windows use the MSVC Rust toolchain). The build links the CUDA
+runtime statically (`cudart_static`), so the resulting binary runs on a machine with
+only the NVIDIA driver — no CUDA Toolkit and no `cudart` DLL on PATH.
+`ROTOR_CUDA_ARCHS` selects the target architectures (default `75` = sm_75 cubin plus
+PTX so newer GPUs JIT; use `120` for RTX 50xx). Release builds ship cubins for
+`52,75,80,86,89,90,100,120`; building sm_120 needs CUDA 12.8+.
+`-g` selects GPU-BSGS with `--gpui` and GPU address/xpoint search with `--gpui`/`--gpux`.
 The GPU search path fails loudly on invalid devices, unsupported options, or
 output truncation; it never falls back to CPU. On an NVIDIA host,
 `cargo test --features gpu` runs the CPU==GPU fixtures for BSGS and for
@@ -310,6 +312,10 @@ Build (no GMP, no CUDA, no MSBuild needed):
 cargo build --release
 ./target/release/rotor --help
 ```
+
+Release assets: `rotor.exe` is the CPU build; `rotor-gpu.exe` is the GPU build
+(static CUDA runtime, so only the NVIDIA driver is required). Each ships with a
+`.sha256` file in `<lowercase hash>  <name>` format, which is what `--update` verifies.
 
 Implemented in Rust:
 

@@ -150,7 +150,15 @@ fn main() {
         println!("cargo:rustc-link-arg-tests={}", obj.display());
     }
     println!("cargo:rustc-link-search=native={}", cudart_dir.display());
-    println!("cargo:rustc-link-lib=dylib=cudart");
+    // Static CUDA runtime: the release exe must run with only the NVIDIA driver
+    // installed, without the CUDA Toolkit's cudart DLL being on PATH.
+    println!("cargo:rustc-link-lib=static=cudart_static");
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        // Host-side dependencies of libcudart_static that rustc does not add.
+        for lib in ["pthread", "dl", "rt"] {
+            println!("cargo:rustc-link-lib=dylib={lib}");
+        }
+    }
     // nvcc compiles the host side with g++, so the objects need the C++ runtime
     // that rustc does not link by default. MSVC objects carry the default-lib
     // directives themselves.
