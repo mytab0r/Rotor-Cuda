@@ -28,7 +28,29 @@ fn main() {
     }
 
     if config.list {
-        println!("  GPU code not compiled, use -DWITHGPU when compiling.");
+        #[cfg(feature = "gpu")]
+        {
+            match rotor::gpu::device_count() {
+                Ok(count) => {
+                    println!("  CUDA devices: {count}");
+                    for index in 0..count {
+                        match rotor::gpu::device_name(index) {
+                            Ok(name) => println!("  GPU #{index}: {name}"),
+                            Err(err) => {
+                                eprintln!("  Error: {err}");
+                                std::process::exit(2);
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("  Error: {err}");
+                    std::process::exit(2);
+                }
+            }
+        }
+        #[cfg(not(feature = "gpu"))]
+        println!("  GPU support is not compiled into this binary; rebuild with --features gpu.");
         return;
     }
 
@@ -46,8 +68,10 @@ fn main() {
         std::process::exit(2);
     }
 
-    if config.gpu {
-        println!("  GPU code not compiled, use -DWITHGPU when compiling.");
+    if config.gpu && !cfg!(feature = "gpu") {
+        eprintln!(
+            "  Error: GPU support is not compiled into this binary; rebuild with --features gpu"
+        );
         std::process::exit(2);
     }
 
@@ -63,6 +87,12 @@ fn main() {
                 Coin::Btc,
             )
             | (Some(SearchMode::Address | SearchMode::Addresses), Coin::Eth) => {
+                if config.gpu {
+                    eprintln!(
+                        "  Error: GPU address search is not implemented in the Rust build; use -m bsgs with -g, or drop -g"
+                    );
+                    std::process::exit(2);
+                }
                 if let Err(err) = engine::run(&config) {
                     eprintln!("  Error: {err}");
                     std::process::exit(1);
