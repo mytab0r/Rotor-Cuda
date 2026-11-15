@@ -34,9 +34,14 @@ enum CoinType { COIN_BTC = 1, COIN_ETH = 2 };
 
 // GPUEngine.h
 constexpr uint32_t kStepSize = 1024 * 2;
-constexpr uint32_t kItemSizeA = 28;
-constexpr uint32_t kItemSizeX = 40;
 constexpr uint32_t kGrpSize = 1024 * 2; // GPUMath.h
+
+// GPUEngine.h defines these and GPUCompute.h needs them, but GPUEngine.h also
+// pulls the GMP-based SECP256k1 core, which this TU deliberately avoids.
+#define ITEM_SIZE_A 28
+#define ITEM_SIZE_A32 (ITEM_SIZE_A / 4)
+#define ITEM_SIZE_X 40
+#define ITEM_SIZE_X32 (ITEM_SIZE_X / 4)
 
 // ---------------------------------------------------------------------------
 // Kernel wrappers (copy of GPUEngine.cu:49-129)
@@ -291,8 +296,8 @@ int rotor_addr_gpu_create(int device_index, int thread_groups, int threads_per_g
     e->comp_mode = comp_mode;
     e->coin_type = coin_type;
     e->max_found = max_found;
-    e->item_size = search_mode == SEARCH_MODE_MX || search_mode == SEARCH_MODE_SX ? kItemSizeX
-                                                                                : kItemSizeA;
+    e->item_size = search_mode == SEARCH_MODE_MX || search_mode == SEARCH_MODE_SX ? ITEM_SIZE_X
+                                                                                : ITEM_SIZE_A;
     e->item_size32 = e->item_size / 4;
     e->hash_len = search_mode == SEARCH_MODE_MX || search_mode == SEARCH_MODE_SX ? 32 : 20;
     e->output_size = max_found * e->item_size + 4;
