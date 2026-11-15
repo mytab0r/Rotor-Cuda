@@ -17,12 +17,10 @@
 #include <cstring>
 #include <string>
 
-#include "GPUMath.h"
-#include "GPUHash.h"
-#include "GPUCompute.h"
-
-namespace {
-
+// GPUCompute.h expects the search/compression ids and the hit-item sizes that
+// GPUEngine.h defines. GPUEngine.h also pulls the GMP-based SECP256k1 core,
+// which this TU deliberately avoids, so mirror just these here -- and before
+// the header that uses them.
 enum SearchMode {
     SEARCH_MODE_MA = 1, // multiple addresses
     SEARCH_MODE_SA = 2, // single address
@@ -32,16 +30,20 @@ enum SearchMode {
 enum CompMode { SEARCH_COMPRESSED = 0, SEARCH_UNCOMPRESSED = 1, SEARCH_BOTH = 2 };
 enum CoinType { COIN_BTC = 1, COIN_ETH = 2 };
 
-// GPUEngine.h
-constexpr uint32_t kStepSize = 1024 * 2;
-constexpr uint32_t kGrpSize = 1024 * 2; // GPUMath.h
-
-// GPUEngine.h defines these and GPUCompute.h needs them, but GPUEngine.h also
-// pulls the GMP-based SECP256k1 core, which this TU deliberately avoids.
 #define ITEM_SIZE_A 28
 #define ITEM_SIZE_A32 (ITEM_SIZE_A / 4)
 #define ITEM_SIZE_X 40
 #define ITEM_SIZE_X32 (ITEM_SIZE_X / 4)
+
+#include "GPUMath.h"
+#include "GPUHash.h"
+#include "GPUCompute.h"
+
+namespace {
+
+// GPUEngine.h
+constexpr uint32_t kStepSize = 1024 * 2;
+constexpr uint32_t kGrpSize = 1024 * 2; // GPUMath.h
 
 // ---------------------------------------------------------------------------
 // Kernel wrappers (copy of GPUEngine.cu:49-129)
@@ -264,7 +266,15 @@ int rotor_addr_gpu_create(int device_index, int thread_groups, int threads_per_g
     }
 
     int device_count = 0;
-    if (!cuda_ok(cudaGetDeviceCount(&device_count), "cudaGetDeviceCount", err, err_len)) return 1;
+    cudaError_t count_status = cudaGetDeviceCount(&device_count);
+    if (count_status != cudaSuccess) {
+        // Always name the device: the raw driver message ("insufficient driver
+        // version") would otherwise hide what actually failed.
+        std::string message =
+            std::string("no usable CUDA device: ") + cudaGetErrorString(count_status);
+        set_err(err, err_len, message.c_str());
+        return 1;
+    }
     if (device_count <= 0) {
         set_err(err, err_len, "no CUDA device available");
         return 1;
