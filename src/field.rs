@@ -52,6 +52,11 @@ impl Fe {
         Fe([value, 0, 0, 0])
     }
 
+    /// Canonical little-endian limbs, as the CUDA kernels expect them.
+    pub fn to_limbs(&self) -> [u64; 4] {
+        self.0
+    }
+
     /// Parse at most 64 hexadecimal digits; rejects values greater than or
     /// equal to p.
     pub fn from_hex(text: &str) -> Option<Fe> {
