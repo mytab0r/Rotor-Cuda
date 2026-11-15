@@ -13,6 +13,11 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
   shared baby table, canonical-X folding, exhaustive `dpBits=0` output, and
   final EC re-verification. No silent CPU fallback; multi-GPU scheduling is
   deferred.
+- **GPU address/xpoint search `-g`** — the CUDA kernels from `GPU/` run behind
+  `--features gpu` for `-m address|addresses|xpoint|xpoints` (BTC and ETH):
+  range split into one chunk per GPU thread, bloom/target prefilter on device,
+  exact target lookup and EC re-verification on the host. One GPU per run;
+  random mode (`-r`) and checkpoints (`-n`) are rejected loudly.
 - **GPU BSGS batch inversion** — W independent walks share Montgomery inversion;
   verified on RTX 5070 (`sm_120`) against GMP ground truth. See
   `bsgs/BATCH_INVERT.md`.
@@ -38,9 +43,12 @@ The Rust build needs the CUDA Toolkit (nvcc): `cargo build --release --features 
 (on Windows use the MSVC Rust toolchain — CUDA ships `cudart.lib`; Linux/WSL uses
 `lib64/libcudart.so`).
 `ROTOR_CUDA_ARCHS` selects the target architecture (default `75` = sm_75 cubin plus
-PTX so newer GPUs JIT; use `120` for RTX 50xx). `-g` selects GPU-BSGS with `--gpui`;
-`-g` on address/xpoint modes is an error (GPU address search is not ported).
-GPU-BSGS fails loudly on invalid device or output truncation; it never falls back to CPU.
+PTX so newer GPUs JIT; use `120` for RTX 50xx). `-g` selects GPU-BSGS with `--gpui`
+and GPU address/xpoint search with `--gpui`/`--gpux`.
+The GPU search path fails loudly on invalid devices, unsupported options, or
+output truncation; it never falls back to CPU. On an NVIDIA host,
+`cargo test --features gpu` runs the CPU==GPU fixtures for BSGS and for
+address/xpoint search (they print a skip line when no device is present).
 
 ## Changes (upstream v2) :
 - Default Random 95% (252-256) bit + 5% (248-252) bit
@@ -316,8 +324,8 @@ Implemented in Rust:
 - headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
 - `Found.txt` block format and progress line of the C++ binary
 
-Not implemented yet (use the C++ binary): `--update` self-update and GPU
-address/xpoint search (`-g` with those modes is a loud error).
+Not implemented yet (use the C++ binary): `--update` self-update. GPU address
+search is single-GPU and rejects `-r`/`-n` loudly; multi-GPU scheduling is deferred.
 
 Known deviations from the C++ binary:
 

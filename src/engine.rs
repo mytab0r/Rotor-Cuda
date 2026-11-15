@@ -38,6 +38,24 @@ static STOP: AtomicBool = AtomicBool::new(false);
 /// `ctrlc::set_handler` can only be installed once per process.
 static HANDLER: Once = Once::new();
 
+/// Clears the stop flag and installs the Ctrl-C handler (idempotent).
+pub(crate) fn prepare_ctrl_c() {
+    STOP.store(false, AtomicOrdering::SeqCst);
+    HANDLER.call_once(|| {
+        // Never fail the run if the handler cannot be installed; Ctrl-C then
+        // keeps the platform default instead of breaking the search.
+        let _ = ctrlc::set_handler(|| {
+            STOP.store(true, AtomicOrdering::SeqCst);
+        });
+    });
+}
+
+/// True once Ctrl-C was pressed.
+#[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+pub(crate) fn stop_requested() -> bool {
+    STOP.load(AtomicOrdering::SeqCst)
+}
+
 /// Result counters returned by [`run`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SearchOutcome {
@@ -175,7 +193,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
         .open(&config.output_file)
         .map_err(|err| format!("failed to open {} for writing: {err}", config.output_file))?;
 
-    print_banner(config, mode, start, end);
+    print_banner(config, mode, start, end, "CPU");
 
     let modes: &[bool] = if config.coin == Coin::Eth {
         // ETH is always uncompressed, whatever the CLI default says.
@@ -208,14 +226,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
     let started = Instant::now();
     let total = end.sub(start).add_u64(1);
 
-    STOP.store(false, AtomicOrdering::SeqCst);
-    HANDLER.call_once(|| {
-        // Never fail the run if the handler cannot be installed; Ctrl-C then
-        // keeps the platform default instead of breaking the search.
-        let _ = ctrlc::set_handler(|| {
-            STOP.store(true, AtomicOrdering::SeqCst);
-        });
-    });
+    prepare_ctrl_c();
 
     thread::scope(|scope| {
         let mut workers = Vec::with_capacity(chunks.len().max(threads));
@@ -299,7 +310,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
 }
 
 /// Builds the search target for the requested coin/mode pair.
-fn build_target(config: &Config, mode: SearchMode) -> Result<Target, String> {
+pub(crate) fn build_target(config: &Config, mode: SearchMode) -> Result<Target, String> {
     Ok(match (config.coin, mode) {
         (Coin::Btc, SearchMode::Address) => Target::Hash(parse_btc_address(config)?),
         (Coin::Btc, SearchMode::Addresses) => {
@@ -316,7 +327,7 @@ fn build_target(config: &Config, mode: SearchMode) -> Result<Target, String> {
 }
 
 /// Search target: a single hash160/X, or a loaded `.bin` record set.
-enum Target {
+pub(crate) enum Target {
     Hash([u8; 20]),
     Hashes(TargetSet),
     X([u8; 32]),
@@ -324,7 +335,7 @@ enum Target {
 }
 
 impl Target {
-    fn matches(&self, needle: &[u8]) -> bool {
+    pub(crate) fn matches(&self, needle: &[u8]) -> bool {
         match self {
             Target::Hash(target) => target.as_slice() == needle,
             Target::X(target) => target.as_slice() == needle,
@@ -332,16 +343,34 @@ impl Target {
         }
     }
 
-    fn is_xpoint(&self) -> bool {
+    pub(crate) fn is_xpoint(&self) -> bool {
         matches!(self, Target::X(_) | Target::Xs(_))
     }
 
     /// Number of hits that ends the search: one for single targets, the loaded
     /// record count for multi modes (`Rotor.cpp:3266`).
-    fn stop_after(&self) -> u64 {
+    pub(crate) fn stop_after(&self) -> u64 {
         match self {
             Target::Hash(_) | Target::X(_) => 1,
             Target::Hashes(set) | Target::Xs(set) => set.len() as u64,
+        }
+    }
+
+    /// Exact target record length in bytes (20 for hash160/ETH, 32 for X).
+    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+    pub(crate) fn record_len(&self) -> usize {
+        match self {
+            Target::Hash(_) | Target::Hashes(_) => 20,
+            Target::X(_) | Target::Xs(_) => 32,
+        }
+    }
+
+    /// Bloom prefilter for the multi-target modes.
+    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+    pub(crate) fn target_set(&self) -> Option<&TargetSet> {
+        match self {
+            Target::Hashes(set) | Target::Xs(set) => Some(set),
+            _ => None,
         }
     }
 }
@@ -735,6 +764,24 @@ fn record_random_key(shared: &Shared, key: &Scalar) {
 /// Appends the C++ hit block to `config.output_file` and duplicates it on
 /// stdout with a two-space indent (`Rotor.cpp:344-369`).
 fn emit(shared: &Shared, key: &Scalar, point: &Affine, compressed: bool, coin: Coin) {
+    let mut file = shared.output.lock().expect("output mutex");
+    if let Err(err) = emit_hit(&mut file, key, point, compressed, coin) {
+        let mut slot = shared.error.lock().expect("error mutex");
+        if slot.is_none() {
+            *slot = Some(format!("failed to write the output file: {err}"));
+        }
+    }
+}
+
+/// Writes one hit block to `file` and prints it. Shared by the CPU and GPU
+/// search paths so both produce identical Found.txt contents.
+pub(crate) fn emit_hit(
+    file: &mut File,
+    key: &Scalar,
+    point: &Affine,
+    compressed: bool,
+    coin: Coin,
+) -> io::Result<()> {
     let private_hex = scalar_hex_trimmed(key);
     let (address, wif, public_hex) = match coin {
         Coin::Btc => (
@@ -756,20 +803,7 @@ fn emit(shared: &Shared, key: &Scalar, point: &Affine, compressed: bool, coin: C
         }
     };
 
-    let mut file = shared.output.lock().expect("output mutex");
-    let result = write_block(
-        &mut file,
-        &address,
-        wif.as_deref(),
-        &private_hex,
-        &public_hex,
-    );
-    if let Err(err) = result {
-        let mut slot = shared.error.lock().expect("error mutex");
-        if slot.is_none() {
-            *slot = Some(format!("failed to write the output file: {err}"));
-        }
-    }
+    write_block(file, &address, wif.as_deref(), &private_hex, &public_hex)?;
 
     print!("\n  {}\n", "=".repeat(96));
     println!("  PubAddress: {address}");
@@ -780,6 +814,7 @@ fn emit(shared: &Shared, key: &Scalar, point: &Affine, compressed: bool, coin: C
     println!("  PubK (HEX): {public_hex}");
     println!();
     let _ = io::stdout().flush();
+    Ok(())
 }
 
 fn write_block(
@@ -943,7 +978,13 @@ fn shift_chunk(low: Split, high: Split, offset: u64, end: Split) -> Option<(Spli
 
 /// Startup banner: field names and layout from `Main.cpp:638-705` and the
 /// `Global start/end/range` block from `Rotor.cpp:280-282`.
-fn print_banner(config: &Config, mode: SearchMode, start: Split, end: Split) {
+pub(crate) fn print_banner(
+    config: &Config,
+    mode: SearchMode,
+    start: Split,
+    end: Split,
+    device: &str,
+) {
     let comp = match config.comp_mode {
         CompMode::Compressed => "COMPRESSED",
         CompMode::Uncompressed => "UNCOMPRESSED",
@@ -973,7 +1014,7 @@ fn print_banner(config: &Config, mode: SearchMode, start: Split, end: Split) {
         }
     );
     println!("  SEARCH MODE  : {search}");
-    println!("  DEVICE       : CPU");
+    println!("  DEVICE       : {device}");
     match (config.coin, mode) {
         (Coin::Btc, SearchMode::Address) => {
             println!("  BTC ADDRESS  : {}", config.operands[0]);
@@ -1023,10 +1064,10 @@ fn print_banner(config: &Config, mode: SearchMode, start: Split, end: Split) {
 /// Kept private to the engine: range arithmetic for the split must not depend
 /// on the scalar field (chunk boundaries may equal or approach `2^256`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Split([u64; 4]);
+pub(crate) struct Split([u64; 4]);
 
 impl Split {
-    fn from_u256(value: &U256) -> Self {
+    pub(crate) fn from_u256(value: &U256) -> Self {
         let mut limbs = [0u64; 4];
         for (index, limb) in limbs.iter_mut().enumerate() {
             let start = (3 - index) * 8;
@@ -1035,7 +1076,7 @@ impl Split {
         Self(limbs)
     }
 
-    fn to_scalar(self) -> Option<Scalar> {
+    pub(crate) fn to_scalar(self) -> Option<Scalar> {
         let mut bytes = [0u8; 32];
         for (index, limb) in self.0.iter().enumerate() {
             let start = (3 - index) * 8;
@@ -1044,7 +1085,7 @@ impl Split {
         Scalar::from_bytes_be(&bytes)
     }
 
-    fn add(self, other: Self) -> (Self, bool) {
+    pub(crate) fn add(self, other: Self) -> (Self, bool) {
         let mut out = [0u64; 4];
         let mut carry = false;
         for index in 0..4 {
@@ -1056,15 +1097,21 @@ impl Split {
         (Self(out), carry)
     }
 
-    fn from_u64(value: u64) -> Self {
+    pub(crate) fn from_u64(value: u64) -> Self {
         Self([value, 0, 0, 0])
     }
 
-    fn add_u64(self, value: u64) -> Self {
+    pub(crate) fn add_u64(self, value: u64) -> Self {
         self.add(Self::from_u64(value)).0
     }
 
-    fn sub(self, other: Self) -> Self {
+    /// Low 64 bits; only for spans known to fit (GPU batch windows).
+    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+    pub(crate) fn low_u64(self) -> u64 {
+        self.0[0]
+    }
+
+    pub(crate) fn sub(self, other: Self) -> Self {
         let mut out = [0u64; 4];
         let mut borrow = false;
         for index in 0..4 {
@@ -1076,7 +1123,7 @@ impl Split {
         Self(out)
     }
 
-    fn sub_u64(self, value: u64) -> Self {
+    pub(crate) fn sub_u64(self, value: u64) -> Self {
         self.sub(Self([value, 0, 0, 0]))
     }
 
@@ -1105,7 +1152,7 @@ impl Split {
         (Self(quotient), remainder as u64)
     }
 
-    fn bit_length(self) -> u32 {
+    pub(crate) fn bit_length(self) -> u32 {
         for index in (0..4).rev() {
             if self.0[index] != 0 {
                 return index as u32 * 64 + (64 - self.0[index].leading_zeros());
@@ -1115,7 +1162,7 @@ impl Split {
     }
 
     /// Uppercase hexadecimal without leading zeros (`Int::GetBase16`).
-    fn to_hex(self) -> String {
+    pub(crate) fn to_hex(self) -> String {
         match self.0.iter().rposition(|&limb| limb != 0) {
             None => "0".to_owned(),
             Some(top) => {
@@ -1157,7 +1204,7 @@ impl PartialOrd for Split {
 
 /// Splits the inclusive `[start, end]` range into at most `threads`
 /// contiguous, non-overlapping chunks of `ceil(total / threads)` keys.
-fn split_range(start: Split, end: Split, threads: usize) -> Vec<(Split, Split)> {
+pub(crate) fn split_range(start: Split, end: Split, threads: usize) -> Vec<(Split, Split)> {
     let total = end.sub(start).add_u64(1);
     let divisor = threads.max(1) as u64;
     let (quotient, remainder) = total.div_u64(divisor);
@@ -1222,7 +1269,7 @@ fn hex_lower(bytes: &[u8]) -> String {
 }
 
 /// `HH:MM:SS` elapsed time, as `toTimeStr` in the C++ code.
-fn to_time_str(seconds: f64) -> String {
+pub(crate) fn to_time_str(seconds: f64) -> String {
     let total = seconds as u64;
     format!(
         "{:02}:{:02}:{:02}",
@@ -1233,7 +1280,7 @@ fn to_time_str(seconds: f64) -> String {
 }
 
 /// Comma thousands separators, as `formatThousands` in the C++ code.
-fn format_thousands(value: u64) -> String {
+pub(crate) fn format_thousands(value: u64) -> String {
     let digits = value.to_string();
     let mut out = String::with_capacity(digits.len() + digits.len() / 3);
     for (index, digit) in digits.chars().enumerate() {

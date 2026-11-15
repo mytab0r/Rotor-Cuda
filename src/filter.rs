@@ -98,6 +98,21 @@ impl Bloom {
         (a, b)
     }
 
+    /// Number of bits in the filter (`BLOOM_BITS` on the CUDA side).
+    pub fn bits(&self) -> u64 {
+        self.bits
+    }
+
+    /// Number of hash probes per element (`BLOOM_HASHES`).
+    pub fn hashes(&self) -> u8 {
+        self.hashes
+    }
+
+    /// Raw bit array uploaded to the device.
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
     /// Double hashing with wrapping 32-bit arithmetic, as in `Bloom.cpp:256-284`.
     fn bit_index(a: u32, b: u32, i: u32, bits: u64) -> u64 {
         (a.wrapping_add(b.wrapping_mul(i)) as u64) % bits
@@ -187,5 +202,10 @@ impl TargetSet {
     /// The sorted records.
     pub fn records(&self) -> &[Vec<u8>] {
         &self.records
+    }
+
+    /// Bloom prefilter parameters and bits, for the CUDA search kernel.
+    pub fn bloom(&self) -> &Bloom {
+        &self.bloom
     }
 }

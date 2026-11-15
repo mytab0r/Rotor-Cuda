@@ -87,11 +87,15 @@ fn main() {
                 Coin::Btc,
             )
             | (Some(SearchMode::Address | SearchMode::Addresses), Coin::Eth) => {
+                #[cfg(feature = "gpu")]
                 if config.gpu {
-                    eprintln!(
-                        "  Error: GPU address search is not implemented in the Rust build; use -m bsgs with -g, or drop -g"
-                    );
-                    std::process::exit(2);
+                    match rotor::gpu_search::run(&config) {
+                        Ok(_) => std::process::exit(0),
+                        Err(err) => {
+                            eprintln!("  Error: {err}");
+                            std::process::exit(1);
+                        }
+                    }
                 }
                 if let Err(err) = engine::run(&config) {
                     eprintln!("  Error: {err}");

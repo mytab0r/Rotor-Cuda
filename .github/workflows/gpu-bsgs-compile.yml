@@ -14,11 +14,23 @@ on:
       - 'Cargo.lock'
       - 'build.rs'
       - 'src/gpu.rs'
+      - 'src/gpu_search.rs'
+      - 'src/gpu_plan.rs'
+      - 'src/filter.rs'
+      - 'src/engine.rs'
+      - 'src/lib.rs'
+      - 'src/main.rs'
+      - 'src/cli.rs'
       - 'src/bsgs.rs'
+      - 'tests/gpu_address.rs'
+      - 'tests/gpu_bsgs.rs'
       - 'Rotor-Cuda/bsgs/BsgsGpu.cu'
       - 'Rotor-Cuda/bsgs/BsgsGpuAbi.cu'
       - 'Rotor-Cuda/bsgs/BsgsGpu.h'
+      - 'Rotor-Cuda/GPU/GpuAddressAbi.cu'
       - 'Rotor-Cuda/GPU/GPUMath.h'
+      - 'Rotor-Cuda/GPU/GPUCompute.h'
+      - 'Rotor-Cuda/GPU/GPUHash.h'
       - '.github/workflows/gpu-bsgs-compile.yml'
 
 # GitHub-hosted runners have NO GPU, so this job proves the real build path:
@@ -65,10 +77,10 @@ jobs:
           NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
         run: cargo build --features gpu --verbose
 
-      - name: Compile gpu tests
+      - name: Run gpu tests (device tests skip on hosted runners)
         env:
           NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
-        run: cargo test --features gpu --no-run --verbose
+        run: cargo test --features gpu --verbose
 
       - name: Build default features
         run: cargo build --verbose

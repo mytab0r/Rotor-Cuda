@@ -9,8 +9,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// One device translation unit only: GPUMath/GPUCompute declare non-inline
+// `__device__` globals, so GpuAddressAbi.cu unity-includes bsgs/BsgsGpu.cu
+// (the same pattern GPUEngine.cu uses). BsgsGpuAbi.cu is host-only.
 const CU_SOURCES: [&str; 2] = [
-    "Rotor-Cuda/bsgs/BsgsGpu.cu",
+    "Rotor-Cuda/GPU/GpuAddressAbi.cu",
     "Rotor-Cuda/bsgs/BsgsGpuAbi.cu",
 ];
 
@@ -20,7 +23,10 @@ fn main() {
         "Rotor-Cuda/bsgs/BsgsGpu.cu",
         "Rotor-Cuda/bsgs/BsgsGpuAbi.cu",
         "Rotor-Cuda/bsgs/BsgsGpu.h",
+        "Rotor-Cuda/GPU/GpuAddressAbi.cu",
         "Rotor-Cuda/GPU/GPUMath.h",
+        "Rotor-Cuda/GPU/GPUCompute.h",
+        "Rotor-Cuda/GPU/GPUHash.h",
     ] {
         println!("cargo:rerun-if-changed={rel}");
     }
