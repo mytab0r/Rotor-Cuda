@@ -16,3 +16,4 @@ pub mod point;
 pub mod scalar;
 pub mod secp;
 pub mod selfcheck;
+pub mod selfupdate;
