@@ -25,6 +25,17 @@ printed, so the device path actually executed).
 `tests/gpu_address.rs` takes ~22 s on this GPU (it launches the real kernels);
 the rest are host-side tests.
 
+## CLI smoke
+
+```bash
+./target/release/rotor -l
+./target/release/rotor -g -m bsgs --range 0:4 0279BE667E...F81798
+```
+
+Output: `GPU #0: NVIDIA GeForce RTX 5070`, `BACKEND : GPU-BSGS`,
+`=====> KEY FOUND: 1`, exit code 0, and `Found.txt` contains
+`0279BE667E...F81798 1`.
+
 ## Other gates
 
 - Windows CI job `gpu-bsgs-compile` compiles both CUDA translation units with
