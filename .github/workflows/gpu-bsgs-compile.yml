@@ -6,31 +6,51 @@ concurrency:
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
-    branches: [ ci/windows-build ]
+    branches: [main, feat/rust-port]
     paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'src/gpu.rs'
+      - 'src/gpu_search.rs'
+      - 'src/gpu_plan.rs'
+      - 'src/filter.rs'
+      - 'src/engine.rs'
+      - 'src/lib.rs'
+      - 'src/main.rs'
+      - 'src/cli.rs'
+      - 'src/bsgs.rs'
+      - 'tests/gpu_address.rs'
+      - 'tests/gpu_bsgs.rs'
       - 'Rotor-Cuda/bsgs/BsgsGpu.cu'
-      - 'Rotor-Cuda/bsgs/gpu_smoke.cu'
-      - 'Rotor-Cuda/bsgs/gpu_smoke_kangaroo.cu'
-      - 'Rotor-Cuda/bsgs/bsgs_gpu_selftest.cpp'
+      - 'Rotor-Cuda/bsgs/BsgsGpuAbi.cu'
+      - 'Rotor-Cuda/bsgs/BsgsGpu.h'
+      - 'Rotor-Cuda/GPU/GpuAddressAbi.cu'
       - 'Rotor-Cuda/GPU/GPUMath.h'
+      - 'Rotor-Cuda/GPU/GPUCompute.h'
+      - 'Rotor-Cuda/GPU/GPUHash.h'
       - '.github/workflows/gpu-bsgs-compile.yml'
 
-# nvcc-compile-only: proves the giant-step kernel builds against real CUDA + the
-# fork's device math. Hosted runners have NO GPU, so device EXECUTION stays
-# UNVERIFIED until a self-hosted NVIDIA runner is wired. Compilation is the gate.
+# GitHub-hosted runners have NO GPU, so this job proves the real build path:
+# build.rs locates nvcc, compiles the CUDA translation units, and the Rust
+# binaries/tests link them against cudart. Device EXECUTION is verified on an
+# NVIDIA host (the opt-in self-hosted `device-run` job below).
 jobs:
-  nvcc-compile:
+  rust-gpu-build:
     runs-on: windows-2022
+    env:
+      # Release parity: the same arch set the GPU release workflow publishes.
+      # sm_120 needs CUDA 12.8+; sm_100 is Blackwell datacenter.
+      ROTOR_CUDA_ARCHS: '52,75,80,86,89,90,100,120'
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ci/windows-build
 
       - name: Setup CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.19
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
-          cuda: '12.5.1'
+          cuda: '12.8.1'
           method: network
           sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
 
@@ -49,19 +69,49 @@ jobs:
           "clbin=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "cl.exe dir: $bin"
 
-      - name: nvcc compile-only (device code, no link, no run)
+      - uses: dtolnay/rust-toolchain@stable
+
+      # NVCC_CCBIN is set per step: the `steps` context is not available in a
+      # job-level `env:` block, so the output of the cl.exe locator above is
+      # passed explicitly to every cargo invocation that runs build.rs.
+      - name: Build with gpu feature (release, static cudart)
+        env:
+          NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
+        run: cargo build --release --features gpu --verbose
+
+      - name: Run gpu tests (device tests skip on hosted runners)
+        env:
+          NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
+        run: cargo test --features gpu --verbose
+
+      - name: Release smoke (hosted runner has no GPU)
         shell: pwsh
-        working-directory: Rotor-Cuda
+        env:
+          CLBIN: ${{ steps.cl.outputs.clbin }}
         run: |
-          nvcc -c bsgs/BsgsGpu.cu -o BsgsGpu.obj `
-            -ccbin "${{ steps.cl.outputs.clbin }}" `
-            -gencode arch=compute_75,code=sm_75 `
-            -std=c++14 -I. --Wno-deprecated-gpu-targets
-          if ($LASTEXITCODE -ne 0) { throw "nvcc compile failed ($LASTEXITCODE)" }
-          if (-not (Test-Path BsgsGpu.obj) -or (Get-Item BsgsGpu.obj).Length -le 0) {
-            throw "BsgsGpu.obj missing or empty"
+          $exe = "target/release/rotor.exe"
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed with exit code $LASTEXITCODE" }
+
+          # -l without a device must fail loudly (exit 2) rather than crash.
+          $out = (& $exe -l 2>&1 | Out-String)
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($code -ne 2) { throw "-l expected exit code 2 without a GPU, got $code" }
+          if ($out -notmatch 'Error') { throw "-l printed no Error line: $out" }
+
+          # Self-contained: static cudart leaves no cudart DLL import behind.
+          $deps = & (Join-Path $env:CLBIN "dumpbin.exe") /dependents $exe | Out-String
+          if ($deps -match '(?i)cudart') {
+            throw "rotor-gpu.exe still imports a cudart DLL`n$deps"
           }
-          Write-Host "OK: BsgsGpu.obj = $((Get-Item BsgsGpu.obj).Length) bytes"
+          Write-Host "no cudart DLL imports"
+
+      - name: Build default features
+        run: cargo build --verbose
+
+      - name: Test default features
+        run: cargo test --verbose
 
   device-run:
     # Opt-in: only runs on a self-hosted runner labelled 'gpu'. On GitHub-hosted
@@ -72,8 +122,6 @@ jobs:
     if: ${{ false }}  # flip to vars.HAS_GPU_RUNNER once a runner is registered
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ci/windows-build
       - name: Install GMP
         run: sudo apt-get update && sudo apt-get install -y libgmp-dev
       - name: Build + run GPU BSGS device smoke

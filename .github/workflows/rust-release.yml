@@ -1,0 +1,126 @@
+name: rust-release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust binary
+        env:
+          ROTOR_VERSION: ${{ github.ref_name }}
+        run: cargo build --release
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          ./target/release/rotor.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed with exit code $LASTEXITCODE" }
+          ./target/release/rotor.exe --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "--help failed with exit code $LASTEXITCODE" }
+
+      - name: Package for self-update
+        shell: pwsh
+        run: |
+          Copy-Item target/release/rotor.exe rotor.exe -Force
+          $hash = (Get-FileHash rotor.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  rotor.exe" | Set-Content rotor.exe.sha256
+          Get-Content rotor.exe.sha256
+
+      - name: Publish GitHub Release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            rotor.exe
+            rotor.exe.sha256
+
+  release-gpu:
+    # Static cudart (build.rs) makes rotor-gpu.exe independent of the CUDA
+    # Toolkit: only the NVIDIA driver is needed at runtime. Published under the
+    # names src/selfupdate.rs expects for a --features gpu build.
+    needs: release
+    runs-on: windows-2022
+    env:
+      ROTOR_CUDA_ARCHS: '52,75,80,86,89,90,100,120'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: '12.8.1'
+          method: network
+          sub-packages: '["nvcc", "cudart", "visual_studio_integration"]'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Locate MSVC cl.exe
+        id: cl
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $cl = Get-ChildItem "$vs\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $bin = Join-Path $cl.FullName "bin\Hostx64\x64"
+          if (-not (Test-Path (Join-Path $bin "cl.exe"))) { throw "cl.exe not found under $bin" }
+          "clbin=$bin" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "cl.exe dir: $bin"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build with gpu feature
+        env:
+          NVCC_CCBIN: ${{ steps.cl.outputs.clbin }}
+          ROTOR_VERSION: ${{ github.ref_name }}
+        run: cargo build --release --features gpu
+
+      - name: Smoke test
+        shell: pwsh
+        env:
+          CLBIN: ${{ steps.cl.outputs.clbin }}
+        run: |
+          $exe = "target/release/rotor.exe"
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed with exit code $LASTEXITCODE" }
+
+          # No GPU on the runner: -l must report a device error (exit 2), not crash.
+          $out = (& $exe -l 2>&1 | Out-String)
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($code -ne 2) { throw "-l expected exit code 2 without a GPU, got $code" }
+          if ($out -notmatch 'Error') { throw "-l printed no Error line: $out" }
+
+          # Self-contained: static cudart leaves no cudart DLL import behind.
+          $deps = & (Join-Path $env:CLBIN "dumpbin.exe") /dependents $exe | Out-String
+          if ($deps -match '(?i)cudart') {
+            throw "rotor-gpu.exe still imports a cudart DLL`n$deps"
+          }
+          Write-Host "no cudart DLL imports"
+
+      - name: Package for self-update
+        shell: pwsh
+        run: |
+          Copy-Item target/release/rotor.exe rotor-gpu.exe -Force
+          $hash = (Get-FileHash rotor-gpu.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  rotor-gpu.exe" | Set-Content rotor-gpu.exe.sha256
+          Get-Content rotor-gpu.exe.sha256
+
+      - name: Publish GitHub Release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            rotor-gpu.exe
+            rotor-gpu.exe.sha256
