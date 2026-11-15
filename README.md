@@ -13,6 +13,11 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
   shared baby table, canonical-X folding, exhaustive `dpBits=0` output, and
   final EC re-verification. No silent CPU fallback; multi-GPU scheduling is
   deferred.
+- **GPU address/xpoint search `-g`** — the CUDA kernels from `GPU/` run behind
+  `--features gpu` for `-m address|addresses|xpoint|xpoints` (BTC and ETH):
+  range split into one chunk per GPU thread, bloom/target prefilter on device,
+  exact target lookup and EC re-verification on the host. One GPU per run;
+  random mode (`-r`) and checkpoints (`-n`) are rejected loudly.
 - **GPU BSGS batch inversion** — W independent walks share Montgomery inversion;
   verified on RTX 5070 (`sm_120`) against GMP ground truth. See
   `bsgs/BATCH_INVERT.md`.
@@ -34,7 +39,18 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 ```
 ./Rotor --mode bsgs -g --gpui 0 --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
 ```
-`-g` requires one selected NVIDIA GPU. GPU-BSGS fails loudly on invalid device or output truncation; it never falls back to CPU.
+Building with the GPU backend needs the CUDA Toolkit (nvcc): `cargo build --release
+--features gpu` (on Windows use the MSVC Rust toolchain). The build links the CUDA
+runtime statically (`cudart_static`), so the resulting binary runs on a machine with
+only the NVIDIA driver — no CUDA Toolkit and no `cudart` DLL on PATH.
+`ROTOR_CUDA_ARCHS` selects the target architectures (default `75` = sm_75 cubin plus
+PTX so newer GPUs JIT; use `120` for RTX 50xx). Release builds ship cubins for
+`52,75,80,86,89,90,100,120`; building sm_120 needs CUDA 12.8+.
+`-g` selects GPU-BSGS with `--gpui` and GPU address/xpoint search with `--gpui`/`--gpux`.
+The GPU search path fails loudly on invalid devices, unsupported options, or
+output truncation; it never falls back to CPU. On an NVIDIA host,
+`cargo test --features gpu` runs the CPU==GPU fixtures for BSGS and for
+address/xpoint search (they print a skip line when no device is present).
 
 ## Changes (upstream v2) :
 - Default Random 95% (252-256) bit + 5% (248-252) bit
@@ -284,6 +300,64 @@ sudo apt install -y libgmp-dev
    make gpu=1 CCAP=100 all   [SM_100]
 
   ```
+
+## Rust CPU port
+
+The CPU side of Rotor-Cuda is being ported to Rust (GPLv3, same licence). The CUDA
+tree under `Rotor-Cuda/` is unchanged and remains the reference for the GPU backend.
+
+Build (no GMP, no CUDA, no MSBuild needed):
+
+```sh
+cargo build --release
+./target/release/rotor --help
+```
+
+Release assets: `rotor.exe` is the CPU build; `rotor-gpu.exe` is the GPU build
+(static CUDA runtime, so only the NVIDIA driver is required). Each ships with a
+`.sha256` file in `<lowercase hash>  <name>` format, which is what `--update` verifies.
+
+Implemented in Rust:
+
+- `-c/--check` self-check (secp256k1 vectors, address/WIF pairs)
+- `-m address` / `-m addresses` for BTC (compressed/uncompressed/both), multi-threaded
+- `-m xpoint` / `-m xpoints` (32-byte X targets)
+- `-m address` / `-m addresses` for Ethereum (keccak160)
+- `-m bsgs` CPU baby-step/giant-step (pubkey → scalar), manifest identity
+- `-m bsgs -g` GPU-BSGS behind `--features gpu` (`-l` lists CUDA devices)
+- `-r` random mode with `-n`/`-z` bit-range selection
+- `-n` checkpoint files (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`)
+- `--check-update` / `--update` self-update on Windows (WinHTTP + SHA-256,
+  assets `rotor.exe` / `rotor-gpu.exe` and their `.sha256`)
+- headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
+- `Found.txt` block format and progress line of the C++ binary
+
+Remaining gap: GPU address/xpoint search is single-GPU and rejects `-r`/`-n`
+loudly; multi-GPU scheduling is deferred. The C++ binary still covers GPU
+multi-GPU runs.
+
+Known deviations from the C++ binary:
+
+- `-g` without a GPU build exits with code 2 (C++ prints the same message but continues).
+- `.bin` inputs are sorted internally; the C++ binary requires a pre-sorted file.
+- CPU-BSGS uses the full 256-bit range span and rejects spans above `u128`.
+- BinaryFuse acceleration is not ported (results are unchanged).
+- The `Priv (WIF)` string printed in the C++ README example is not a valid WIF;
+  the Rust binary prints the canonical one.
+- Timestamps in the banner and checkpoint files are UTC (the C++ binary uses local time).
+- BTC addresses are validated with Base58Check; the C++ binary does not verify the
+  checksum and would accept a corrupted address.
+- On resume, the banner shows the shifted start key that is actually scanned.
+- `-n`/`-z` are validated against 0..256 even when `--range` is given (C++ checks
+  them only in the bit-range branch).
+- Random-mode banner lines (`ROTOR Random`, `Base Key`) are not reproduced; the
+  progress line uses the same `[R: n]` field.
+- Self-update is Windows-only and only accepts the Rust assets (`rotor.exe`,
+  `rotor-gpu.exe`); the C++ `Rotor-Cuda.exe` is never used. It also fixes the C++
+  asset-URL scan that never matched a download URL.
+
+Rough CPU throughput on a 4-thread release build (compressed address hashing):
+~5.3 Mk/s total (~1.3 Mk/s per core). CPU-BSGS solves a 2^31-wide range in ~0.13 s.
 
 ## License
 - Rotor-Cuda is licensed under GPLv3.0

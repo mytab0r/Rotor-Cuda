@@ -1,0 +1,41 @@
+name: rust
+
+on:
+  push:
+    branches: ["main", "feat/rust-port"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", ".github/workflows/rust.yml"]
+  pull_request:
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", ".github/workflows/rust.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build-test-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --release
+      - run: cargo build --release
+      - name: CLI smoke
+        shell: bash
+        run: |
+          ./target/release/rotor --version
+          ./target/release/rotor --help > /dev/null
+        if: runner.os != 'Windows'
+      - name: CLI smoke (Windows)
+        shell: pwsh
+        run: |
+          ./target/release/rotor.exe --version
+          ./target/release/rotor.exe --help | Out-Null
+        if: runner.os == 'Windows'

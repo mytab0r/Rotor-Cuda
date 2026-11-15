@@ -41,3 +41,146 @@ Sequential BSGS MUST persist a checkpoint that identifies table/filter/range and
 
 ### Requirement: random recovery safety
 Random BSGS MUST NOT claim resumability until table identity and random-state restoration are tested. Until then, CLI MUST either disable random recovery or clearly mark it non-resumable.
+
+## Rust CPU implementation (v2, 2026-11-15)
+
+The CPU search engine, address/xpoint/ETH modes, CPU-BSGS and checkpoint files are
+implemented in the Rust crate at the repository root (`cargo build --release`).
+The CUDA kernels remain in `Rotor-Cuda/` and are not part of this requirement set.
+
+### Requirement: CLI compatibility
+The Rust binary MUST accept every option documented in `Main.cpp` usage with the same
+meaning and C++-compatible exit codes (0 for success/found, non-zero for errors).
+
+#### Scenario: GPU unavailable
+- GIVEN a build without the GPU feature
+- WHEN `-g` is passed
+- THEN the process reports that GPU code is not compiled and exits non-zero
+  (deliberate deviation from the C++ no-op).
+
+### Requirement: CPU search parity
+For a bounded scalar range and a target address/xpoint/ETH hash, the Rust CPU engine
+MUST find the same scalar as the C++ engine and MUST write a `Found.txt` block of the
+same shape (`PubAddress`, `Priv (WIF)` for BTC, `Priv (HEX)`, `PubK (HEX)`, 86-`=`
+separator), and it MUST NOT report a member of a loaded `.bin` set as absent.
+
+### Requirement: BSGS parity
+CPU-BSGS MUST recover the scalar for a known public key inside `--range`, with the
+same canonical uppercase hex output as C++, and MUST re-verify every candidate with
+`k*G == target` so a fold collision cannot yield a wrong key.
+
+### Requirement: input format compatibility
+`.bin` inputs MUST be read as headerless records of 20 bytes (hash160/keccak) or
+32 bytes (xpoint); a length that is not a positive multiple of the record size MUST
+fail loudly. Records are sorted internally (the C++ binary requires a pre-sorted file).
+
+### Requirement: no silent fallbacks
+If the requested backend or target cannot be honored (GPU not compiled, invalid public
+key, unsupported mode/coin pair, malformed range or file), the process MUST fail with
+a non-zero exit code instead of switching backends.
+
+### Requirement: checkpoint compatibility
+Sequential runs with `-n` MUST write `Rotor-Cuda_Continue.bat` in the C++ layout and
+resume without skipping keys: the checkpoint carries per-worker counts (an extension
+after the C++ lines) and each range chunk resumes from its own offset; a checkpoint
+without the extension falls back to the C++ `count / threads` model.
+`Rotor-Cuda_START.bat` MUST be written when no checkpoint exists. Random mode (`-r`)
+MUST NOT resume from checkpoints.
+
+## Rust GPU backend (`--features gpu`)
+
+### Requirement: GPU-BSGS in the Rust binary
+A build with the `gpu` feature MUST execute BSGS giant steps on the selected CUDA
+device and MUST NOT fall back to the CPU on any GPU error.
+
+#### Scenario: CPU/GPU equivalence on a fixture
+- GIVEN a fixed secp256k1 scalar, its public key, and a bounded range
+- WHEN `--mode bsgs` runs on the CPU and with `-g` on the GPU
+- THEN both report the same scalar, or both report not-found
+
+#### Scenario: no device
+- GIVEN a `gpu` build with no usable CUDA device
+- WHEN `-g` is passed
+- THEN the process reports the launcher error and exits non-zero
+
+#### Scenario: truncation
+- GIVEN a GPU batch whose emitted points exceed the launcher limit
+- WHEN the batch runs
+- THEN the process reports an error and exits non-zero; no CPU retry
+
+### Requirement: GPU address/xpoint search in the Rust binary
+A build with the `gpu` feature MUST execute `-m address|addresses|xpoint|xpoints`
+(BTC and ETH) on the selected CUDA device and MUST NOT fall back to the CPU on
+any GPU error.
+
+#### Scenario: CPU/GPU equivalence on a fixture
+- GIVEN a fixed secp256k1 scalar and its BTC or ETH address inside a bounded range
+- WHEN the same search runs on the CPU and with `-g` on the GPU
+- THEN both write the same private key block to the output file
+
+#### Scenario: compression modes
+- GIVEN a compressed address, an uncompressed address, or `-b`
+- WHEN the GPU search runs
+- THEN the kernel checks the requested mode(s) and the host emits the matching
+  address/WIF
+
+#### Scenario: false positive
+- GIVEN a bloom/target candidate that is not an exact target
+- WHEN the batch is processed
+- THEN the host rejects it and writes nothing
+
+#### Scenario: key outside the thread slice
+- GIVEN a kernel group that overruns a short chunk or the range end
+- WHEN the hit is processed
+- THEN the host discards it; no key outside the requested range is reported
+
+#### Scenario: no device or invalid device
+- GIVEN a `gpu` build with no usable CUDA device or an invalid `--gpui` id
+- WHEN `-g` is passed
+- THEN the process reports the launcher error and exits non-zero
+
+#### Scenario: truncated output
+- GIVEN more candidates than the output buffer holds
+- WHEN the batch is read back
+- THEN the process reports an error and exits non-zero; no silent loss
+
+#### Scenario: unsupported options
+- GIVEN `-r`, `-n`, or more than one `--gpui` id
+- WHEN `-g` runs an address/xpoint search
+- THEN the process rejects the combination before scanning
+
+### Requirement: loud GPU gating
+#### Scenario: feature absent
+- GIVEN a build without the `gpu` feature
+- WHEN `-g` is passed
+- THEN the process reports that GPU support is not compiled and exits non-zero
+
+#### Scenario: address mode with GPU
+- GIVEN a `gpu` build with the CUDA Toolkit
+- WHEN `-g` is passed with an address/xpoint mode
+- THEN the search runs on the GPU; an unsupported option combination or a
+  runtime failure is reported loudly and MUST NOT silently run the CPU engine
+
+### Requirement: CUDA compilation gate
+CI MUST compile the CUDA translation units and the Rust wrapper (`cargo build
+--features gpu`) on a Windows runner with the CUDA Toolkit installed; the default
+build MUST NOT require CUDA.
+
+## Self-update
+
+### Requirement: checksum-verified self-update
+The Windows binary MUST support `--check-update` and `--update`, downloading the
+release asset for its build variant (`rotor.exe`, or `rotor-gpu.exe` with the
+`gpu` feature) together with its `.sha256`, and MUST verify the checksum before
+replacing the running executable. The C++ `Rotor-Cuda.exe` asset MUST NOT be used.
+
+#### Scenario: checksum mismatch
+- GIVEN a release asset whose downloaded bytes do not match the published sha256
+- WHEN `--update` runs
+- THEN the process exits non-zero, the current executable is left untouched, and
+  no `.new` file remains.
+
+#### Scenario: unsupported platform
+- GIVEN a non-Windows build
+- WHEN `--check-update` or `--update` is passed
+- THEN the process reports that self-update is not supported and exits non-zero.
