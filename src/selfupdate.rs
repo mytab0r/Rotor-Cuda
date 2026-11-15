@@ -90,7 +90,7 @@ pub fn check_latest(repo: &str, current: &str) -> Result<UpdateInfo, String> {
     #[cfg(not(windows))]
     {
         let _ = (repo, current);
-        return Err(NOT_SUPPORTED.to_string());
+        Err(NOT_SUPPORTED.to_string())
     }
 
     #[cfg(windows)]
@@ -112,7 +112,7 @@ pub fn apply_update(info: &UpdateInfo, args: &[String], restart: bool) -> Result
     #[cfg(not(windows))]
     {
         let _ = (info, args, restart);
-        return Err(NOT_SUPPORTED.to_string());
+        Err(NOT_SUPPORTED.to_string())
     }
 
     #[cfg(windows)]
