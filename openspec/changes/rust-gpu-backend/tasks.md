@@ -12,3 +12,5 @@
 - [x] README: build instructions, arch override, `-g` limits.
 - [x] Verify: `cargo build` / `cargo test` unchanged; feature code type-checks and its unit
       tests run locally with a stub ABI (no CUDA on this machine).
+- [x] Device verification (CPU==GPU fixture): see
+      `../rust-gpu-address-search/evidence.md`.

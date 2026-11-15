@@ -22,8 +22,9 @@
 - [x] CLI/feature behavior: `-g` without the feature still exits 2; `-l`
       unchanged.
 - [x] README GPU section and CI path filter.
-- [ ] Verify on an NVIDIA host: `ROTOR_CUDA_ARCHS=120 cargo test --features gpu`
+- [x] Verify on an NVIDIA host: `ROTOR_CUDA_ARCHS=120 cargo test --features gpu`
       (device execution cannot run on the local machine — no CUDA Toolkit).
+      Evidence: `evidence.md` (RTX 5070, 95 tests, 0 skipped).
 - [x] Verify locally: default `cargo build` / `cargo test` / `cargo clippy` /
       `cargo fmt` green; `--features gpu --all-targets` type-checks with a stub
       nvcc; CI compiles the real CUDA translation unit.
