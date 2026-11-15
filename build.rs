@@ -151,6 +151,14 @@ fn main() {
     }
     println!("cargo:rustc-link-search=native={}", cudart_dir.display());
     println!("cargo:rustc-link-lib=dylib=cudart");
+    // nvcc compiles the host side with g++, so the objects need the C++ runtime
+    // that rustc does not link by default. MSVC objects carry the default-lib
+    // directives themselves.
+    match env::var("CARGO_CFG_TARGET_OS").as_deref() {
+        Ok("linux") => println!("cargo:rustc-link-lib=dylib=stdc++"),
+        Ok("macos") => println!("cargo:rustc-link-lib=dylib=c++"),
+        _ => {}
+    }
 }
 
 fn nvcc_file_name() -> &'static str {
