@@ -255,6 +255,151 @@ fn action_flags_return_before_semantic_validation() {
     assert!(config.gpu);
 }
 
+#[test]
+fn coordinator_flags_parse() {
+    let config = parse(&[
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "--client-id",
+        "rig-1",
+        "14iXhn8bGajVWegZHJ18vJLHhntcpL4dex",
+    ]);
+    assert_eq!(config.coordinator.as_deref(), Some("http://127.0.0.1:7878"));
+    assert_eq!(config.token.as_deref(), Some("secret"));
+    assert_eq!(config.client_id.as_deref(), Some("rig-1"));
+
+    let defaults = parse_from_empty();
+    assert!(defaults.coordinator.is_none());
+    assert!(defaults.token.is_none());
+    assert!(defaults.client_id.is_none());
+}
+
+#[test]
+fn coordinator_validations() {
+    let addr = "14iXhn8bGajVWegZHJ18vJLHhntcpL4dex";
+
+    let err = parse_err(&[
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        addr,
+    ]);
+    assert_eq!(err.message(), "coordinator mode requires -m MODE");
+
+    let err = parse_err(&[
+        "-m",
+        "address",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        addr,
+    ]);
+    assert_eq!(err.message(), "coordinator mode requires --range START:END");
+
+    let err = parse_err(&[
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "-g",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        addr,
+    ]);
+    assert_eq!(
+        err.message(),
+        "GPU mode is not supported with --coordinator"
+    );
+
+    let err = parse_err(&[
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "-r",
+        "5",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        addr,
+    ]);
+    assert_eq!(
+        err.message(),
+        "random start (-r) is not supported with --coordinator"
+    );
+
+    let err = parse_err(&[
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "-n",
+        "1",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        addr,
+    ]);
+    assert_eq!(
+        err.message(),
+        "checkpoints (-n) are not supported with --coordinator"
+    );
+
+    let err = parse_err(&["-m", "address", "--range", "1:2", "--token", "secret", addr]);
+    assert_eq!(
+        err.message(),
+        "--token and --client-id require --coordinator"
+    );
+
+    // `--client-id` alone is rejected the same way.
+    let err = parse_err(&[
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "--client-id",
+        "rig-1",
+        addr,
+    ]);
+    assert_eq!(
+        err.message(),
+        "--token and --client-id require --coordinator"
+    );
+}
+
+#[test]
+fn coordinator_without_a_token_fails_in_the_binary() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rotor"))
+        .args([
+            "-m",
+            "address",
+            "--range",
+            "1:2",
+            "--coordinator",
+            "http://127.0.0.1:1",
+            "14iXhn8bGajVWegZHJ18vJLHhntcpL4dex",
+        ])
+        .env_remove("ROTOR_COORD_TOKEN")
+        .output()
+        .expect("binary should run");
+
+    assert_eq!(output.status.code(), Some(1), "status: {:?}", output.status);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("requires --token"), "stderr: {stderr}");
+}
+
 #[cfg(not(feature = "gpu"))]
 #[test]
 fn gpu_flag_without_feature_fails_loudly() {

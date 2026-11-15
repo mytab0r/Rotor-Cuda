@@ -26,9 +26,9 @@ and would add a C dependency (rusqlite).
 - Lease: pick the first chunk not `done` and not leased (or whose lease
   expired), mark it leased to `client_id` with `expires_at`.
 - Heartbeat: `client_id`, `scanned`, `rate`; refreshes the lease.
-- Result: `client_id`, `key`, `pubkey` — the coordinator verifies
-  `key*G == job.target` (pubkey jobs) or derives and compares the address/hash
-  (other modes) before recording; invalid proofs are rejected 400.
+- Result: `client_id`, `key` — the point is derived from the key and checked
+  against `job.target` (pubkey jobs) or its address/hash (other modes) before
+  recording; invalid proofs are rejected 400.
 - When all chunks are done or found, `lease` returns 204.
 
 ## D5. Client loop

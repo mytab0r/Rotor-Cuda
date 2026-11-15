@@ -26,6 +26,7 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 - **GPU Pollard kangaroo baseline** — internal and not CLI-exposed. SOTA K≈1.15,
   persistent walks, and multi-GPU remain follow-up work. See `bsgs/KANGAROO.md`.
 - **Filter catalog** — binary-fuse filter alongside the classic bloom for large hash160 sets (lower false-positive at similar memory).
+- **Distributed coordinator `rotor-coord`** — token-protected HTTP/JSON server plus an embedded dashboard; several CPU clients lease disjoint key chunks of one job, BSGS giant-walk progress is stored remotely and resumed, and found keys are re-verified with `k*G == target` before they are accepted.
 - **Self-update** — SHA-256 verified binary self-replace via WinHTTP + MoveFileEx rename-trick (Windows).
 - **Cloud CI/CD** — full Windows build (MSBuild + CUDA) and Release pipeline run entirely on GitHub Actions; no local toolchain needed.
 - Only for **authorized public puzzle events** (known addresses, known bit ranges, official rewards). Not for mass scanning or de-anonymization.
@@ -51,6 +52,98 @@ The GPU search path fails loudly on invalid devices, unsupported options, or
 output truncation; it never falls back to CPU. On an NVIDIA host,
 `cargo test --features gpu` runs the CPU==GPU fixtures for BSGS and for
 address/xpoint search (they print a skip line when no device is present).
+
+## Distributed coordinator (`rotor-coord`)
+
+A second binary in the same crate lets several CPU machines work one range without manual
+splitting: `rotor-coord` leases disjoint key chunks, keeps progress in one JSON file, and
+serves a dashboard. CPU search only.
+
+### Quick start
+
+Build both binaries (`target/release/rotor[.exe]` and `rotor-coord[.exe]`), then start
+the coordinator (token from `--token` or `ROTOR_COORD_TOKEN`):
+
+```sh
+cargo build --release --bins
+./target/release/rotor-coord --token my-secret --state coordinator.json      # Linux
+target\release\rotor-coord.exe --token my-secret --state coordinator.json   # Windows
+```
+
+It listens on `http://127.0.0.1:7878` (`--bind ADDR` overrides) and serves the dashboard
+at `http://127.0.0.1:7878/`. Create one job there (paste the token first), or with curl:
+
+```sh
+curl -s -H "Authorization: Bearer my-secret" -H "Content-Type: application/json" -d '{"mode":"address","coin":"btc","comp_mode":"compressed","target":"1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU","start":"400000000000000000","end":"7fffffffffffffffff"}' http://127.0.0.1:7878/api/v1/jobs
+```
+
+Run two clients (the second with `--client-id machine-b`) on the same target and range:
+
+```sh
+./target/release/rotor -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+  --coordinator http://127.0.0.1:7878 --token my-secret --client-id machine-a \
+  1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
+```
+
+Each client leases the next free chunk (width `0x10000000`, TTL 600 s), heartbeats every
+5 s and re-leases on completion, so slices never overlap. An unrefreshed lease returns to
+the pool; once all chunks are done leases answer 204 and clients stop. `Found.txt` is
+written locally; the found key is also POSTed, and the coordinator verifies `k*G` against
+the job target before accepting and marking the job found on the dashboard.
+
+### BSGS resume
+
+A `bsgs` job is searched as one giant walk, not chunk by chunk. Create it with the
+public key (66 or 130 hex chars) as target:
+
+```sh
+curl -s -H "Authorization: Bearer my-secret" -H "Content-Type: application/json" -d '{"mode":"bsgs","start":"400000000000000000","end":"7fffffffffffffffff","target":"02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630"}' http://127.0.0.1:7878/api/v1/jobs
+```
+
+Then run the client with the same public key and range:
+
+```sh
+./target/release/rotor -m bsgs --coordinator http://127.0.0.1:7878 --token my-secret \
+  --range 400000000000000000:7fffffffffffffffff \
+  02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
+```
+
+The client rebuilds the baby table deterministically, fetches `{manifest, giant_index}`, and continues the giant walk from that index when `TableManifest::compatible` accepts it. Progress is posted every 5 s and once on exit, so a restarted client resumes where it stopped; a different table identity is rejected with `409 manifest mismatch`.
+
+### API
+
+`/api/v1/*` requires `Authorization: Bearer <token>` (401 otherwise); `GET /` serves the dashboard without a token, and the dashboard polls `GET /api/v1/status` every 2 s.
+
+| Route | Method | Purpose |
+|---|---|---|
+| `/` | GET | dashboard HTML/JS |
+| `/api/v1/jobs` | GET / POST | list jobs / create a job (201) |
+| `/api/v1/lease` | POST | lease the next free chunk (200; 204 when exhausted) |
+| `/api/v1/heartbeat` | POST | refresh a lease; 409 when the lease was lost |
+| `/api/v1/result` | POST | submit a found key; the proof is checked first |
+| `/api/v1/status` | GET | jobs, active clients, results, BSGS checkpoints |
+| `/api/v1/bsgs/state` | GET / POST | read (`?job_id=...`) / store `{manifest, giant_index}` |
+
+### Security
+
+- The token is mandatory (`--token` or `ROTOR_COORD_TOKEN`, coordinator and clients) and
+  compared in constant time.
+- The coordinator binds `127.0.0.1:7878` by default and warns when bound elsewhere.
+  There is no TLS: put it behind a TLS-terminating reverse proxy for remote clients.
+- The dashboard keeps the token in `localStorage`; state is one JSON file (`--state`,
+  default `coordinator.json`) rewritten atomically (`tmp` + rename), one process per file.
+
+### Limitations
+
+- CPU search only: `-g`/GPU modes, `-r` (random) and `-n` (checkpoints) are rejected with `--coordinator`.
+- No accounts, roles or quotas — one shared token.
+- Multi-target jobs (`addresses`/`xpoints`) stop at the first confirmed key: the job is
+  marked found and the remaining targets in that job are not searched.
+- An expired lease can be re-leased while its owner scans the chunk's tail, so that
+  slice may be scanned twice (the client aborts the chunk on the first failed heartbeat).
+- Coordinator BSGS is one giant walk per job; there is no multi-GPU scheduling.
+- The whole JSON state is rewritten on every mutation; it targets a handful of clients,
+  not thousands.
 
 ## Changes (upstream v2) :
 - Default Random 95% (252-256) bit + 5% (248-252) bit

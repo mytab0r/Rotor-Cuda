@@ -41,8 +41,10 @@ across local threads and checkpoints locally.
 - Two client processes lease different chunks of one job and both progress; a
   killed client's chunk is re-leased after TTL.
 - Restarting the coordinator keeps jobs, leases and results (JSON state).
-- BSGS progress survives a client restart via the coordinator and resumes
-  without rebuilding a table it already has.
+- BSGS progress survives a client restart via the coordinator: the client
+  deterministically rebuilds the baby table, checks `TableManifest::compatible`,
+  and continues the giant walk from the saved `giant_index` without repeating
+  completed steps.
 - A found key is accepted only with a valid `k*G == target` proof and is shown
   on the dashboard and written to the client's `Found.txt`.
 - `cargo test` covers lease allocation/exhaustion/TTL, state reload, auth
