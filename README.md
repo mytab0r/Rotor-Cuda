@@ -34,7 +34,13 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 ```
 ./Rotor --mode bsgs -g --gpui 0 --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
 ```
-`-g` requires one selected NVIDIA GPU. GPU-BSGS fails loudly on invalid device or output truncation; it never falls back to CPU.
+The Rust build needs the CUDA Toolkit (nvcc): `cargo build --release --features gpu`
+(on Windows use the MSVC Rust toolchain — CUDA ships `cudart.lib`; Linux/WSL uses
+`lib64/libcudart.so`).
+`ROTOR_CUDA_ARCHS` selects the target architecture (default `75` = sm_75 cubin plus
+PTX so newer GPUs JIT; use `120` for RTX 50xx). `-g` selects GPU-BSGS with `--gpui`;
+`-g` on address/xpoint modes is an error (GPU address search is not ported).
+GPU-BSGS fails loudly on invalid device or output truncation; it never falls back to CPU.
 
 ## Changes (upstream v2) :
 - Default Random 95% (252-256) bit + 5% (248-252) bit
@@ -304,13 +310,14 @@ Implemented in Rust:
 - `-m xpoint` / `-m xpoints` (32-byte X targets)
 - `-m address` / `-m addresses` for Ethereum (keccak160)
 - `-m bsgs` CPU baby-step/giant-step (pubkey → scalar), manifest identity
+- `-m bsgs -g` GPU-BSGS behind `--features gpu` (`-l` lists CUDA devices)
 - `-r` random mode with `-n`/`-z` bit-range selection
 - `-n` checkpoint files (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`)
 - headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
 - `Found.txt` block format and progress line of the C++ binary
 
-Not implemented yet (use the C++ binary): `-g` GPU execution and `--update`
-self-update.
+Not implemented yet (use the C++ binary): `--update` self-update and GPU
+address/xpoint search (`-g` with those modes is a loud error).
 
 Known deviations from the C++ binary:
 

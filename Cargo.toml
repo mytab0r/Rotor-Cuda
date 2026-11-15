@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "rotor"
 path = "src/main.rs"
 
+[features]
+default = []
+gpu = []
+
 [dependencies]
 ctrlc = "3"
 sha2 = "0.11"

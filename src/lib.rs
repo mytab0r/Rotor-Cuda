@@ -5,6 +5,8 @@ pub mod cli;
 pub mod engine;
 pub mod field;
 pub mod filter;
+#[cfg(feature = "gpu")]
+pub mod gpu;
 pub mod hashes;
 pub mod point;
 pub mod scalar;

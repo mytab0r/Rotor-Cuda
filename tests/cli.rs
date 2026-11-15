@@ -255,6 +255,23 @@ fn action_flags_return_before_semantic_validation() {
     assert!(config.gpu);
 }
 
+#[cfg(not(feature = "gpu"))]
+#[test]
+fn gpu_flag_without_feature_fails_loudly() {
+    let pubkey = compressed_pubkey();
+    let output = Command::new(env!("CARGO_BIN_EXE_rotor"))
+        .args(["-g", "-m", "bsgs", "--range", "1:100", &pubkey])
+        .output()
+        .expect("binary should run");
+
+    assert_eq!(output.status.code(), Some(2), "status: {:?}", output.status);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("GPU support is not compiled"),
+        "stderr: {stderr}"
+    );
+}
+
 #[test]
 fn binary_version_and_help() {
     let version = Command::new(env!("CARGO_BIN_EXE_rotor"))
