@@ -40,6 +40,9 @@ on:
 jobs:
   rust-gpu-build:
     runs-on: windows-2022
+    # A wedged hosted runner previously sat in one step for over 20 minutes;
+    # fail the job instead of holding a PR for hours.
+    timeout-minutes: 45
     env:
       # Release parity: the same arch set the GPU release workflow publishes.
       # sm_120 needs CUDA 12.8+; sm_100 is Blackwell datacenter.
