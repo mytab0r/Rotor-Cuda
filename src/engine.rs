@@ -51,6 +51,11 @@ pub(crate) fn prepare_ctrl_c() {
     });
 }
 
+/// Sets the stop flag, ending every worker at its next batch boundary.
+pub(crate) fn request_stop() {
+    STOP.store(true, AtomicOrdering::SeqCst);
+}
+
 /// True once Ctrl-C was pressed.
 #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
 pub(crate) fn stop_requested() -> bool {
@@ -71,6 +76,21 @@ pub struct SearchOutcome {
 /// honor (unsupported coin/mode pair, missing/invalid range, bad target).
 pub fn run(config: &Config) -> Result<SearchOutcome, String> {
     run_in(config, None)
+}
+
+/// Like [`run`], but stops the search after `duration` (used by the benchmark).
+///
+/// A timer thread is started before [`run`], which clears the stop flag at
+/// startup, so the timer must start first. Durations below ~50 ms are not a
+/// supported use: the flag could be cleared after the timer already fired.
+pub fn run_for(config: &Config, duration: Duration) -> Result<SearchOutcome, String> {
+    let timer = thread::spawn(move || {
+        thread::sleep(duration);
+        request_stop();
+    });
+    let outcome = run(config);
+    let _ = timer.join();
+    outcome
 }
 
 /// Like [`run`], but reads and writes checkpoints in `checkpoint_dir`
@@ -1503,6 +1523,11 @@ pub(crate) fn print_banner(
     end: Split,
     device: &str,
 ) {
+    // `-d 0` disables all informers; the benchmark relies on this to keep
+    // stdout clean for `--benchmark-json`.
+    if config.display == 0 {
+        return;
+    }
     let comp = match config.comp_mode {
         CompMode::Compressed => "COMPRESSED",
         CompMode::Uncompressed => "UNCOMPRESSED",

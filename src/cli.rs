@@ -50,7 +50,10 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 --token TOKEN                      : Coordinator API token (or ROTOR_COORD_TOKEN)
 --client-id ID                     : Coordinator client id, default is hostname + pid
 --bsgs-work FILE                   : CPU-BSGS work file: save the table/position and resume from it
---bsgs-work-reset                  : Overwrite a mismatched or stale --bsgs-work file and start over"#,
+--bsgs-work-reset                  : Overwrite a mismatched or stale --bsgs-work file and start over
+--benchmark                        : Measure the backend key rate on a synthetic miss range
+--benchmark-seconds N              : Benchmark duration in seconds, default is 5
+--benchmark-json                   : Print the benchmark result as one JSON object"#,
     " \n",
 );
 
@@ -170,7 +173,7 @@ pub struct Range {
     pub end: U256,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub help: bool,
     pub check: bool,
@@ -198,6 +201,9 @@ pub struct Config {
     pub client_id: Option<String>,
     pub bsgs_work: Option<String>,
     pub bsgs_work_reset: bool,
+    pub benchmark: bool,
+    pub benchmark_seconds: f64,
+    pub benchmark_json: bool,
     pub operands: Vec<String>,
 }
 
@@ -232,6 +238,9 @@ impl Default for Config {
             client_id: None,
             bsgs_work: None,
             bsgs_work_reset: false,
+            benchmark: false,
+            benchmark_seconds: 5.0,
+            benchmark_json: false,
             operands: Vec::new(),
         }
     }
@@ -265,6 +274,9 @@ enum Opt {
     ClientId,
     BsgsWork,
     BsgsWorkReset,
+    Benchmark,
+    BenchmarkSeconds,
+    BenchmarkJson,
 }
 
 /// Exact-token option table: `(token, option, takes_argument)`.
@@ -310,6 +322,9 @@ const OPTIONS: &[(&str, Opt, bool)] = &[
     ("--client-id", Opt::ClientId, true),
     ("--bsgs-work", Opt::BsgsWork, true),
     ("--bsgs-work-reset", Opt::BsgsWorkReset, false),
+    ("--benchmark", Opt::Benchmark, false),
+    ("--benchmark-seconds", Opt::BenchmarkSeconds, true),
+    ("--benchmark-json", Opt::BenchmarkJson, false),
 ];
 
 fn lookup(token: &str) -> Option<(Opt, bool)> {
@@ -351,6 +366,7 @@ pub fn parse_from<I: IntoIterator<Item = String>>(args: I) -> Result<Config, Cli
     }
 
     let mut config = Config::default();
+    let mut benchmark_seconds_given = false;
     for token in tokens {
         match token {
             Token::Operand(value) => config.operands.push(value),
@@ -362,8 +378,20 @@ pub fn parse_from<I: IntoIterator<Item = String>>(args: I) -> Result<Config, Cli
                     return Ok(config);
                 }
             }
-            Token::Value(opt, value) => apply_value(&mut config, opt, value)?,
+            Token::Value(opt, value) => {
+                if opt == Opt::BenchmarkSeconds {
+                    benchmark_seconds_given = true;
+                }
+                apply_value(&mut config, opt, value)?;
+            }
         }
+    }
+
+    // `--benchmark-seconds`/`--benchmark-json` only make sense with the flag.
+    if !config.benchmark && (benchmark_seconds_given || config.benchmark_json) {
+        return Err(CliError::new(
+            "--benchmark-seconds and --benchmark-json require --benchmark",
+        ));
     }
 
     validate(&mut config)?;
@@ -382,6 +410,8 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         Opt::CheckUpdate => config.check_update = true,
         Opt::Update => config.update = true,
         Opt::BsgsWorkReset => config.bsgs_work_reset = true,
+        Opt::Benchmark => config.benchmark = true,
+        Opt::BenchmarkJson => config.benchmark_json = true,
         Opt::GpuIds
         | Opt::GpuGrid
         | Opt::Thread
@@ -397,7 +427,8 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         | Opt::Coordinator
         | Opt::Token
         | Opt::ClientId
-        | Opt::BsgsWork => {
+        | Opt::BsgsWork
+        | Opt::BenchmarkSeconds => {
             // These options always arrive as Token::Value.
         }
     }
@@ -430,6 +461,11 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         Opt::Token => config.token = Some(value),
         Opt::ClientId => config.client_id = Some(value),
         Opt::BsgsWork => config.bsgs_work = Some(value),
+        Opt::BenchmarkSeconds => {
+            config.benchmark_seconds = value.parse::<f64>().map_err(|_| {
+                CliError::new("Invalid --benchmark-seconds argument, number expected")
+            })?;
+        }
         Opt::Help
         | Opt::Check
         | Opt::List
@@ -439,7 +475,9 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         | Opt::Version
         | Opt::CheckUpdate
         | Opt::Update
-        | Opt::BsgsWorkReset => {
+        | Opt::BsgsWorkReset
+        | Opt::Benchmark
+        | Opt::BenchmarkJson => {
             // These options never take a value.
         }
     }
