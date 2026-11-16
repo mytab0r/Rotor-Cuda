@@ -137,8 +137,10 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
         .map_err(|err| format!("failed to open {} for writing: {err}", config.output_file))?;
 
     engine::print_banner(config, mode, start, end, "GPU");
-    println!("  GPU Mode     : {}", engine.name());
-    println!();
+    if config.display != 0 {
+        println!("  GPU Mode     : {}", engine.name());
+        println!();
+    }
 
     engine::prepare_ctrl_c();
     engine.set_keys(&plan.points)?;
