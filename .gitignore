@@ -4,3 +4,6 @@
 /Rotor-Cuda_Start.bat
 /Rotor-Cuda_START.bat
 /Rotor-Cuda_Continue.bat
+
+# Local agent tooling (Impeccable skills, hooks, worktrees, scratch)
+/.claude/
