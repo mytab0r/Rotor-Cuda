@@ -231,8 +231,19 @@ fn unsupported_gpu_options_are_rejected() {
     );
 
     config.next = 0;
-    config.gpu_ids = vec![0, 1];
-    assert!(gpu_search::run(&config).unwrap_err().contains("one GPU"));
+    config.gpu_ids = vec![0, 0];
+    assert!(
+        gpu_search::run(&config)
+            .unwrap_err()
+            .contains("duplicate GPU id 0")
+    );
+
+    config.gpu_ids = vec![0, -1];
+    assert!(
+        gpu_search::run(&config)
+            .unwrap_err()
+            .contains("non-negative")
+    );
     let _ = std::fs::remove_file(&output);
 }
 
