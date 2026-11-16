@@ -17,4 +17,5 @@
 
 ## 3. Docs and close-out
 - [x] README: work-file flags, format version, mismatch behavior.
-- [ ] `cargo test`/clippy/fmt green (debug + release); archive change; PR.
+- [x] `cargo test`/clippy/fmt green (debug + release); archive change; PR.
+      PR #6 merged; CI green (ubuntu, windows, rust-gpu-build).
