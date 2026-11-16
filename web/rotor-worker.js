@@ -9,10 +9,18 @@
   'use strict';
 
   var WASM_URL = '/rotor_wasm.wasm';
-  var SLICE_KEYS = 262144;
-  var PROGRESS_MS = 5000;
+  // One slice is sized for roughly SLICE_TARGET_SECONDS of work so a progress
+  // heartbeat is not delayed by a long scan on a slow phone. The next size is
+  // re-derived from the measured per-slice rate after every call.
+  var SLICE_START_KEYS = 65536;
+  var SLICE_MIN_KEYS = 16384;
+  var SLICE_MAX_KEYS = 262144;
+  var SLICE_STEP_KEYS = 2048;
+  var SLICE_TARGET_SECONDS = 2;
+  var PROGRESS_MS = 2000;
   var MAX_TARGETS = 50000;
   var LEASE_RETRY_MS = 3000;
+  var NO_JOB_RETRY_MS = 10000;
   var RATE_LIMIT_MS = 5000;
   var NETWORK_RETRY_MS = 2000;
   var MAX_NETWORK_RETRIES = 4;
@@ -156,7 +164,7 @@
         module = await WebAssembly.instantiate(bytes, {});
       }
       var exports = module.instance ? module.instance.exports : module.exports;
-      var required = ['alloc', 'set_job', 'scan', 'samples', 'result_ptr', 'result_len', 'error_ptr', 'error_len'];
+      var required = ['alloc', 'dealloc', 'set_job', 'scan', 'samples', 'result_ptr', 'result_len', 'error_ptr', 'error_len'];
       for (var i = 0; i < required.length; i++) {
         if (typeof exports[required[i]] !== 'function') {
           throw new Error('wasm artifact is missing the "' + required[i] + '" export');
@@ -171,7 +179,10 @@
   }
 
   function wasmAlloc(length) {
-    return wasm.alloc(length) >>> 0;
+    var ptr = wasm.alloc(length) >>> 0;
+    // A zero pointer means the wasm allocator failed; address 0 holds statics.
+    if (!ptr) throw new Error('wasm memory exhausted (requested ' + length + ' bytes)');
+    return ptr;
   }
 
   function writeBytes(ptr, bytes) {
@@ -265,6 +276,12 @@
     if (targets.length > MAX_TARGETS) {
       return targets.length + ' targets (the browser limit is ' + MAX_TARGETS + ')';
     }
+    var width = entry.chunk_width === undefined || entry.chunk_width === null
+      ? NaN
+      : Number(entry.chunk_width);
+    if (!isFinite(width) || width <= 0) return 'job has no usable chunk width';
+    // A single lease wider than 2^32 keys cannot be scanned before it expires.
+    if (width > 4294967296) return 'chunk width ' + width + ' is too wide for a browser';
     return '';
   }
 
@@ -315,11 +332,34 @@
     var bytes = new TextEncoder().encode(text);
     var ptr = wasmAlloc(bytes.length);
     writeBytes(ptr, bytes);
-    checkStatus(wasm.set_job(mode, comp, ptr, bytes.length), 'wasm set_job');
+    try {
+      checkStatus(wasm.set_job(mode, comp, ptr, bytes.length), 'wasm set_job');
+    } finally {
+      wasm.dealloc(ptr, bytes.length);
+    }
     configKey = key;
   }
 
   /* ------------------------------------------------------------------- HTTP */
+
+  /* `Retry-After` is either delta-seconds or an HTTP date. The coordinator
+   * sends seconds; anything unparsable falls back to the normal rate-limit
+   * wait, and zero is raised to one second so a retry loop cannot spin. */
+  function retryAfterMs(response) {
+    var value = null;
+    try {
+      if (response && response.headers && typeof response.headers.get === 'function') {
+        value = response.headers.get('Retry-After');
+      }
+    } catch (err) {
+      value = null;
+    }
+    if (value !== null && value !== undefined && String(value).trim() !== '') {
+      var seconds = Number(value);
+      if (isFinite(seconds) && seconds >= 0) return Math.max(1000, Math.round(seconds * 1000));
+    }
+    return RATE_LIMIT_MS;
+  }
 
   async function api(path, options) {
     var settings = options || {};
@@ -348,6 +388,15 @@
         }
         postState('retrying', { message: 'network error, retrying (' + attempts + '/' + MAX_NETWORK_RETRIES + ')' });
         await sleep(NETWORK_RETRY_MS * attempts);
+        continue;
+      }
+
+      if (response.status === 429 && settings.retry429) {
+        var delayMs = retryAfterMs(response);
+        postState('retrying', {
+          message: 'rate limited; retrying in ' + Math.round(delayMs / 1000) + ' s'
+        });
+        await sleep(delayMs);
         continue;
       }
 
@@ -399,7 +448,7 @@
 
   async function pickJob() {
     postState('loading-jobs');
-    var res = await api('/api/v1/jobs', { method: 'GET' });
+    var res = await api('/api/v1/jobs', { method: 'GET', retry429: true });
     if (res.status === 401 || res.status === 403) throw new Error(authMessage(res.status));
     if (res.status !== 200) throw new Error('cannot list jobs: ' + describe(res));
 
@@ -453,8 +502,17 @@
       if (!rawId) throw new Error('lease response has no lease_id');
       return { lease: merge(merge({}, res.data), { lease_id_text: rawId }) };
     }
-    if (res.status === 204 || res.status === 404) {
+    if (res.status === 204) {
       return { retry: true, delay: LEASE_RETRY_MS, message: 'no chunk available; retrying' };
+    }
+    if (res.status === 404) {
+      // No job matches this mode/coin/range. Retrying every 3 s would hammer
+      // the coordinator, so back off and point at the likely operator fix.
+      return {
+        retry: true,
+        delay: NO_JOB_RETRY_MS,
+        message: 'no matching job; check the job mode/target with the operator'
+      };
     }
     if (res.status === 401 || res.status === 403) throw new Error(authMessage(res.status));
     if (res.status === 429) {
@@ -494,6 +552,7 @@
       startBig: startBig,
       span: Number(spanBig),
       scanned: 0,
+      sliceKeys: SLICE_START_KEYS,
       lastHeartbeat: nowMs(),
       activeMs: 0,
       segmentStart: nowMs()
@@ -553,13 +612,15 @@
     var remaining = chunk.span - chunk.scanned;
     if (remaining <= 0) throw new Error('scan requested on a completed chunk');
 
-    var size = Math.min(SLICE_KEYS, remaining);
+    var size = Math.min(chunk.sliceKeys, remaining);
     var sliceStart = chunk.startBig + BigInt(chunk.scanned);
     var sliceEnd = sliceStart + BigInt(size);
     writeScalar(scalarStartPtr, hexFromBig(sliceStart));
     writeScalar(scalarEndPtr, hexFromBig(sliceEnd));
 
+    var sliceStarted = nowMs();
     checkStatus(wasm.scan(scalarStartPtr, scalarEndPtr), 'wasm scan');
+    var sliceMs = nowMs() - sliceStarted;
     var result = readScanResult();
     if (result.scanned < 0 || result.scanned > size) {
       throw new Error('wasm scan reported ' + result.scanned + ' keys for a ' + size + '-key slice');
@@ -568,7 +629,28 @@
 
     chunk.scanned += result.scanned;
     if (chunk.scanned > chunk.span) throw new Error('wasm scan advanced past the lease end');
+    chunk.sliceKeys = nextSliceKeys(result.scanned, sliceMs);
     return result;
+  }
+
+  /* Size the next slice for roughly SLICE_TARGET_SECONDS of measured work,
+   * rounded down to a multiple of SLICE_STEP_KEYS, and clamped for both a slow
+   * phone and a fast desktop. */
+  function sliceKeysForRate(rate) {
+    if (!isFinite(rate) || rate <= 0) return SLICE_START_KEYS;
+    var keys = Math.floor((rate * SLICE_TARGET_SECONDS) / SLICE_STEP_KEYS) * SLICE_STEP_KEYS;
+    if (keys < SLICE_MIN_KEYS) return SLICE_MIN_KEYS;
+    if (keys > SLICE_MAX_KEYS) return SLICE_MAX_KEYS;
+    return keys;
+  }
+
+  function nextSliceKeys(keys, elapsedMs) {
+    if (keys > 0 && elapsedMs > 0) return sliceKeysForRate(keys / (elapsedMs / 1000));
+    // A coarse clock may report no time for a short slice; fall back to the
+    // chunk-wide measured rate, and keep the current size if even that is 0.
+    var rate = currentRate();
+    if (rate > 0) return sliceKeysForRate(rate);
+    return SLICE_START_KEYS;
   }
 
   function buildSamples() {
@@ -581,7 +663,11 @@
       view.setUint32(ptr + i * 4, offsets[i] >>> 0, true);
     }
 
-    checkStatus(wasm.samples(scalarChunkPtr, ptr, offsets.length), 'wasm samples');
+    try {
+      checkStatus(wasm.samples(scalarChunkPtr, ptr, offsets.length), 'wasm samples');
+    } finally {
+      wasm.dealloc(ptr, offsets.length * 4);
+    }
     var resultPtr = wasm.result_ptr() >>> 0;
     var resultLen = wasm.result_len() >>> 0;
     var rview = new DataView(wasm.memory.buffer);
@@ -792,14 +878,17 @@
       if (lease.expires_at - now <= 5) {
         var refreshed = await sendHeartbeat(false, [], { abortable: false });
         ensureRunning();
-        if (refreshed === 'lost') {
+        // A 429 means the coordinator is busy, not that the lease is gone;
+        // keep retrying the same lease until it actually expires.
+        while (refreshed === 'busy' && nowSec() < lease.expires_at) {
+          await sleep(RATE_LIMIT_MS);
+          ensureRunning();
+          refreshed = await sendHeartbeat(false, [], { abortable: false });
+          ensureRunning();
+        }
+        if (refreshed !== 'ok') {
           log('lease lost while refreshing; re-leasing');
           dropLease();
-          continue;
-        }
-        if (refreshed === 'busy') {
-          dropLease();
-          await sleep(RATE_LIMIT_MS);
           continue;
         }
       }
@@ -828,14 +917,16 @@
       if (nowMs() - chunk.lastHeartbeat >= PROGRESS_MS) {
         var progress = await sendHeartbeat(false, []);
         ensureRunning();
-        if (progress === 'lost') {
+        // Same as the refresh path: a 429 backs off, it does not end the lease.
+        while (progress === 'busy' && nowSec() < lease.expires_at) {
+          await sleep(RATE_LIMIT_MS);
+          ensureRunning();
+          progress = await sendHeartbeat(false, []);
+          ensureRunning();
+        }
+        if (progress !== 'ok') {
           log('lease lost; re-leasing');
           dropLease();
-          continue;
-        }
-        if (progress === 'busy') {
-          dropLease();
-          await sleep(RATE_LIMIT_MS);
           continue;
         }
       }

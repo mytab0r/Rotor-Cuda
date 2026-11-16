@@ -53,3 +53,5 @@ jobs:
       - run: cargo test -p rotor-wasm
       - name: Node smoke test
         run: node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
+      - name: Worker protocol test
+        run: node web/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
