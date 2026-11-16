@@ -122,7 +122,7 @@ UI, docs and marketing MUST NOT claim detection of leaked keys, theft
 prevention, guaranteed protection or fund recovery. They MUST state that
 derivation and idle compromise are not observable and that alerts may be late
 or missed. A build test MUST fail on forbidden phrases in user-facing
-surfaces (`web/*.html`, shipped docs and marketing copy; OpenSpec files and the
+surfaces (`apps/site/*.html`, shipped docs and marketing copy; OpenSpec files and the
 test fixtures themselves are excluded). Source: design D10.
 
 #### Scenario: wording gate

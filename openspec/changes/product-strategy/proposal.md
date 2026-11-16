@@ -28,12 +28,12 @@ in `design.md`; execution is split in `tasks.md`.
 ## Problem / motivation
 
 - `/key` is read-only and deliberately custody-free (`README.md:254-274`,
-  `web/docs.html:84-95`). It is a good trust anchor but a weak business: a
+  `apps/site/docs.html:84-95`). It is a good trust anchor but a weak business: a
   one-visit calculator with no account, no return reason and no revenue.
 - Accounts are contributor tokens only — no e-mail, password, OAuth, payments or
   per-account quotas (`src/coordinator/state.rs:126-145`,
   `README.md:366-368`). There is no customer identity to attach a paid service to.
-- The only money path is a donation card (`web/landing.html:95-104`) plus a
+- The only money path is a donation card (`apps/site/landing.html:95-104`) plus a
   receive-only `pay.pxbt.app` link that cannot manage subscriptions or confirm
   payments to the server (recorded in `key-leak-monitor/design.md` D9).
 - Two implementation-ready changes exist — `key-leak-monitor` (watchlists,
@@ -173,10 +173,10 @@ before a testnet alert proves the full path.
   32 concurrent requests, 20 req/s per token.
 - `src/coordinator/state.rs:126-145` — `ClientRecord` (no e-mail/password/plan);
   `:461-470` — whole-file state rewrite.
-- `web/landing.html:95-104` — donation-only monetisation.
-- `web/key.html:22-27` — funded-key warning; `web/key.js:742,787,823` — direct
+- `apps/site/landing.html:95-104` — donation-only monetisation.
+- `apps/site/key.html:22-27` — funded-key warning; `apps/site/key.js:742,787,823` — direct
   opt-in balance calls to mempool.space / public EVM RPC / Tronscan.
-- `web/docs.html:84-95` — read-only, no-signing, no-storage claims.
+- `apps/site/docs.html:84-95` — read-only, no-signing, no-storage claims.
 - `openspec/changes/key-explorer/proposal.md` — `/key` v1 scope.
 - `openspec/changes/key-leak-monitor/{proposal.md,design.md}` — watchlist,
   cost model D5.2, billing D9, pricing D11.

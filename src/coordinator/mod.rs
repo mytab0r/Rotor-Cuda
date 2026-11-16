@@ -28,17 +28,17 @@ use state::{
 };
 
 /// The public site is embedded so the binary stays a single file.
-const LANDING: &str = include_str!("../../web/landing.html");
-const APP_PAGE: &str = include_str!("../../web/app.html");
-const ME_PAGE: &str = include_str!("../../web/me.html");
-const DOCS_PAGE: &str = include_str!("../../web/docs.html");
-const SITE_CSS: &str = include_str!("../../web/site.css");
-const SITE_JS: &str = include_str!("../../web/site.js");
-const RUN_PAGE: &str = include_str!("../../web/run.html");
-const KEY_PAGE: &str = include_str!("../../web/key.html");
-const KEY_JS: &str = include_str!("../../web/key.js");
-const ROTOR_WORKER: &str = include_str!("../../web/rotor-worker.js");
-const ROTOR_WASM: &[u8] = include_bytes!("../../web/rotor_wasm.wasm");
+const LANDING: &str = include_str!("../../apps/site/landing.html");
+const APP_PAGE: &str = include_str!("../../apps/site/app.html");
+const ME_PAGE: &str = include_str!("../../apps/site/me.html");
+const DOCS_PAGE: &str = include_str!("../../apps/site/docs.html");
+const SITE_CSS: &str = include_str!("../../apps/site/site.css");
+const SITE_JS: &str = include_str!("../../apps/site/site.js");
+const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
+const KEY_PAGE: &str = include_str!("../../apps/site/key.html");
+const KEY_JS: &str = include_str!("../../apps/site/key.js");
+const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
+const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
 /// Largest request body the coordinator buffers (JSON commands are tiny).
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// Requests handled concurrently; the rest are rejected with 503.

@@ -11,7 +11,7 @@ and the final raw transaction are explicitly allowed. The coordinator MUST NOT
 expose an endpoint that accepts a private key or a signed transaction. The key
 MUST be handed to a dedicated signer worker or an equally bounded lifetime, zeroed after use, and the worker
 or wasm instance MUST be discarded on "Clear" or `pagehide`. Source:
-`web/key.js:2,90-100,992-996`, `src/coordinator/mod.rs:31-41,490-505`.
+`apps/site/key.js:2,90-100,992-996`, `src/coordinator/mod.rs:31-41,490-505`.
 
 #### Scenario: derive and sign without leakage
 - GIVEN a known test key is entered and a transaction is signed

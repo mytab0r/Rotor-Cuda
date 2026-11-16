@@ -1,6 +1,6 @@
-// Protocol test for web/rotor-worker.js.
+// Protocol test for apps/site/rotor-worker.js.
 //
-// Usage: node web/worker-test.mjs [path/to/rotor_wasm.wasm]
+// Usage: node apps/site/worker-test.mjs [path/to/rotor_wasm.wasm]
 //
 // The worker is loaded in a `node:vm` context with a fake `self`, a mocked
 // `fetch` and a deterministic clock. The real wasm artifact is scanned; no
@@ -17,7 +17,7 @@ import vm from "node:vm";
 const WORKER_PATH = fileURLToPath(
   new URL("./rotor-worker.js", import.meta.url),
 );
-const WASM_PATH = process.argv[2] ?? "web/rotor_wasm.wasm";
+const WASM_PATH = process.argv[2] ?? "apps/site/rotor_wasm.wasm";
 
 const workerSource = readFileSync(WORKER_PATH, "utf8");
 const wasmBytes = readFileSync(WASM_PATH);

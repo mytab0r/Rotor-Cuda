@@ -9,11 +9,11 @@ Status: proposal-level design. No product code in this change.
 | All pages are compile-time strings | `src/coordinator/mod.rs:31-41` |
 | Router is exact-match; unknown non-API GET returns landing with 200 | `:488-506`, `:410-416` |
 | Every static response is `Cache-Control: no-cache` | `:404-407` |
-| No description/canonical/OG on any page | audit of `web/*.html`: 0 matches |
-| No `robots.txt` or `sitemap.xml` | `web/` contains neither |
-| HTML assets partly versioned with `?v=` | `web/landing.html:7`, `web/key.html:124` |
-| Worker and wasm requested unversioned | `web/run.html:413`, `web/key.js:6`, `web/rotor-worker.js:11` |
-| Key never enters URL/history/storage | `web/key.js` has no location/history API use; key-explorer spec |
+| No description/canonical/OG on any page | audit of `apps/site/*.html`: 0 matches |
+| No `robots.txt` or `sitemap.xml` | `apps/site/` contains neither |
+| HTML assets partly versioned with `?v=` | `apps/site/landing.html:7`, `apps/site/key.html:124` |
+| Worker and wasm requested unversioned | `apps/site/run.html:413`, `apps/site/key.js:6`, `apps/site/rotor-worker.js:11` |
+| Key never enters URL/history/storage | `apps/site/key.js` has no location/history API use; key-explorer spec |
 | Public host and CDN | `deploy/README.md:109` (`rotor.pxbt.app`), `:117-119` (Cloudflare) |
 
 Consequences: soft-404 duplicates, no CDN caching, no crawl metadata, no

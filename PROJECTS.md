@@ -5,7 +5,7 @@ owned by exactly one area; the most-specific glob wins.
 
 | Area | Owner | Owns | Build | Test |
 |---|---|---|---|---|
-| `site` | site-ui | `web/**` | `node --check web/*.js` | `node web/worker-test.mjs web/rotor_wasm.wasm` |
+| `site` | site-ui | `apps/site/**` | `node --check apps/site/*.js` | `node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm` |
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
 | `wasm-core` | wasm-core | `crates/rotor-wasm/**` | `sh scripts/build-wasm.sh` | `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
 | `desktop` | desktop-tools | remaining `src/**` and `tests/**`, `Rotor-Cuda/**`, legacy trees, `build.rs`, `Cargo.toml` | `cargo build --release [--features gpu]` | `cargo test --release [--features gpu]` |
@@ -14,16 +14,16 @@ owned by exactly one area; the most-specific glob wins.
 ## Cross-area contracts
 
 - **Site -> coordinator (compile time).** `src/coordinator/mod.rs:31-41`
-  embeds `web/*.html`, `site.css`, `site.js`, `key.js`, `rotor-worker.js` with
+  embeds `apps/site/*.html`, `site.css`, `site.js`, `key.js`, `rotor-worker.js` with
   `include_str!`/`include_bytes!`. The coordinator cannot build if a site file
   is missing or renamed.
-- **Wasm -> site -> coordinator.** `web/rotor_wasm.wasm` is a committed
+- **Wasm -> site -> coordinator.** `apps/site/rotor_wasm.wasm` is a committed
   artifact rebuilt by `scripts/build-wasm.sh` from `crates/rotor-wasm`, then
   embedded by the coordinator. The `Dockerfile` rebuilds it during the image
   build. After any `crates/rotor-wasm` change, rebuild, run
-  `crates/rotor-wasm/smoke.mjs` and `web/worker-test.mjs`, and commit the
+  `crates/rotor-wasm/smoke.mjs` and `apps/site/worker-test.mjs`, and commit the
   artifact.
-- **Asset cache busting.** Bump `?v=` in every `web/*.html` when `site.css`,
+- **Asset cache busting.** Bump `?v=` in every `apps/site/*.html` when `site.css`,
   `site.js` or `key.js` changes. `projects.json.asset_version` tracks the
   current value; Phase 1 will make it single-source.
 - **Routes.** `/`, `/app`, `/run`, `/me`, `/docs`, `/key` and the static asset

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build the browser client's wasm core and embed it into the coordinator's
-# static assets (web/rotor_wasm.wasm).
+# static assets (apps/site/rotor_wasm.wasm).
 #
 # Requires the wasm target once: rustup target add wasm32-unknown-unknown
 set -eu
@@ -24,5 +24,5 @@ if [ ! -f "$out" ]; then
     exit 1
 fi
 
-cp "$out" web/rotor_wasm.wasm
-echo "copied $out -> web/rotor_wasm.wasm"
+cp "$out" apps/site/rotor_wasm.wasm
+echo "copied $out -> apps/site/rotor_wasm.wasm"
