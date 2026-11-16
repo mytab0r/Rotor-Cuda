@@ -36,6 +36,31 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 ./Rotor --mode bsgs --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
 ```
 
+### BSGS work files (offline resume)
+CPU-BSGS can persist the baby table and the giant-walk position in a binary work
+file, so a restarted run resumes without rebuilding the table (no baby-step EC):
+
+```sh
+./target/release/rotor -m bsgs --range 400000000000000000:7fffffffffffffffff \
+  --bsgs-work bsgs-job.rwork \
+  02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
+```
+
+`--bsgs-work FILE` writes the file at startup and then at most once every 30 s
+when the giant index advanced, plus once when the walk stops (found, exhausted
+or Ctrl-C). Saves are atomic (`FILE.tmp` + rename); a failed save is reported and
+exits non-zero instead of looking successful.
+
+On restart the file is loaded and validated against the run: format version,
+curve, `--range`, target public key, baby size and the table checksum. Any
+mismatch (or a corrupted/truncated file) fails loudly, names the differing
+field and exits non-zero; a foreign table is never silently reused. Pass
+`--bsgs-work-reset` to overwrite a mismatched or stale file and start again from
+giant index 0. The file format is version 1 (`RBWF` magic, little-endian header,
+ordered folds and a SHA-256 trailer). Work files are CPU-BSGS only; in
+coordinator mode the remote state decides the resume index, while a requested
+local work file is still written.
+
 ### BSGS usage (GPU) :
 ```
 ./Rotor --mode bsgs -g --gpui 0 --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
@@ -417,6 +442,7 @@ Implemented in Rust:
 - `-m xpoint` / `-m xpoints` (32-byte X targets)
 - `-m address` / `-m addresses` for Ethereum (keccak160)
 - `-m bsgs` CPU baby-step/giant-step (pubkey → scalar), manifest identity
+- `--bsgs-work` CPU-BSGS work files (offline resume of the table and giant index)
 - `-m bsgs -g` GPU-BSGS behind `--features gpu` (`-l` lists CUDA devices)
 - `-r` random mode with `-n`/`-z` bit-range selection
 - `-n` checkpoint files (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`)
