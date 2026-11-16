@@ -329,6 +329,24 @@ fn bsgs_state_round_trips_and_rejects_a_mismatched_manifest() {
 }
 
 #[test]
+fn oversized_request_bodies_are_rejected_with_413() {
+    let temp = TempState::new("oversized");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    // One byte over the 1 MiB cap; the body is not parsed.
+    let body = "x".repeat(1024 * 1024 + 1);
+    let (status, _, response) = raw(addr, "POST", "/api/v1/jobs", Some(TOKEN), Some(&body));
+    assert_eq!(status, 413, "body: {response}");
+
+    // The server keeps working after a rejected body.
+    let (status, _, _) = raw(addr, "GET", "/api/v1/status", Some(TOKEN), None);
+    assert_eq!(status, 200);
+
+    handle.shutdown();
+}
+
+#[test]
 fn state_survives_a_coordinator_restart() {
     let temp = TempState::new("restart");
     let target = secp::mul_g(&Scalar::from_u64(11)).x.to_hex();

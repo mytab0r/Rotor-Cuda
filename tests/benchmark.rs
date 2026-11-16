@@ -1,8 +1,12 @@
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use rotor::benchmark::{self, Measurement};
 use rotor::cli::{self, Coin, Config, Range, SearchMode, U256};
 use rotor::engine;
+
+/// The stop flag is process-wide, so engine-touching tests must not overlap.
+static ENGINE: Mutex<()> = Mutex::new(());
 
 fn bench_config() -> Config {
     Config {
@@ -33,6 +37,9 @@ fn hex(value: &str) -> U256 {
 /// so two concurrent timed runs could cut each other short.
 #[test]
 fn run_for_stops_near_the_duration_and_measure_reports_a_rate() {
+    let _guard = ENGINE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let output = temp_path("run_for");
     let mut run_config = bench_config();
     run_config.operands = vec!["1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH".to_owned()];
@@ -69,6 +76,32 @@ fn run_for_stops_near_the_duration_and_measure_reports_a_rate() {
         "benchmark rate must be positive"
     );
     assert!(measurement.seconds > 0.0);
+}
+
+#[test]
+fn measure_seconds_reflect_the_wall_clock() {
+    let _guard = ENGINE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let duration = Duration::from_millis(200);
+    let measurement = benchmark::measure(&bench_config(), duration).expect("benchmark runs");
+
+    assert!(measurement.scanned > 0, "benchmark scanned nothing");
+    assert!(measurement.seconds > 0.0, "seconds must be positive");
+    // A truthful wall-clock measurement is far below this bound; a duration
+    // taken from the timer (or inflated by joining it after an early return)
+    // would not be.
+    assert!(
+        measurement.seconds < duration.as_secs_f64() * 10.0,
+        "seconds {} is not a plausible scan time for {duration:?}",
+        measurement.seconds
+    );
+    let rate = measurement.scanned as f64 / measurement.seconds;
+    assert!(
+        (rate - measurement.keys_per_second).abs() / rate.max(1.0) < 0.01,
+        "keys_per_second {} must match scanned/seconds {rate}",
+        measurement.keys_per_second
+    );
 }
 
 #[test]

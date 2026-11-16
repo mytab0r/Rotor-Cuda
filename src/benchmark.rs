@@ -2,11 +2,13 @@
 //! guaranteed-miss range so users can compare hardware.
 //!
 //! The synthetic target is key 1 (or the generator X for `-m xpoint`) while the
-//! scanned range starts at `0x100000000`, so a hit is impossible. The search
-//! itself is the normal engine/GPU path; only the stop flag is driven by a
-//! timer ([`crate::engine::run_for`]).
+//! scanned range starts at `0x100000000` and ends at `0xFFFFFFFFFFFFFFFFFFFFFFFF`
+//! (2^96 - 1, still below the curve order), so a hit is impossible and no
+//! backend can exhaust the range during a benchmark. The search itself is the
+//! normal engine/GPU path; only the stop flag is driven by a timer
+//! ([`crate::engine::run_for_timed`]).
 
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
@@ -67,17 +69,17 @@ pub fn measure(config: &Config, duration: Duration) -> Result<Measurement, Strin
     let synthetic = synthetic_config(config, mode);
     let backend = if config.gpu { "GPU" } else { "CPU" };
 
-    let started = Instant::now();
-    let outcome = if config.gpu {
+    let result = if config.gpu {
         run_gpu(&synthetic, duration)
     } else {
-        engine::run_for(&synthetic, duration)
+        engine::run_for_timed(&synthetic, duration)
     };
-    let elapsed = started.elapsed();
     // The engine creates the file; never leave it behind.
     let _ = std::fs::remove_file(&synthetic.output_file);
 
-    let outcome = outcome?;
+    // Measured up to the moment the scan returned, so an early-exhausting
+    // backend reports its true rate instead of the requested duration.
+    let (outcome, elapsed) = result?;
     let seconds = elapsed.as_secs_f64();
     Ok(Measurement {
         backend,
@@ -127,7 +129,10 @@ fn synthetic_config(config: &Config, mode: SearchMode) -> Config {
     // Key 1 is far below the start, so the synthetic target never matches.
     synthetic.range = Some(Range {
         start: U256::from_hex("100000000").expect("static benchmark range is valid hex"),
-        end: U256::from_hex("1FFFFFFFF").expect("static benchmark range is valid hex"),
+        // 2^96 - 1: astronomically far from the start and below the curve
+        // order, so no backend can exhaust it during a benchmark run.
+        end: U256::from_hex("FFFFFFFFFFFFFFFFFFFFFFFF")
+            .expect("static benchmark range is valid hex"),
     });
     synthetic.display = 0;
     synthetic.output_file = temp_output_path();
@@ -166,20 +171,29 @@ fn temp_output_path() -> String {
         .into_owned()
 }
 
-/// Bounds the GPU path with the same stop timer the CPU path uses.
+/// Bounds the GPU path with the same stop timer the CPU path uses and reports
+/// how long the scan itself ran (before joining the timer).
 #[cfg(feature = "gpu")]
-fn run_gpu(config: &Config, duration: Duration) -> Result<crate::engine::SearchOutcome, String> {
+fn run_gpu(
+    config: &Config,
+    duration: Duration,
+) -> Result<(crate::engine::SearchOutcome, Duration), String> {
     let timer = std::thread::spawn(move || {
         std::thread::sleep(duration);
         engine::request_stop();
     });
+    let started = std::time::Instant::now();
     let outcome = crate::gpu_search::run(config);
+    let elapsed = started.elapsed();
     let _ = timer.join();
-    outcome
+    outcome.map(|outcome| (outcome, elapsed))
 }
 
 #[cfg(not(feature = "gpu"))]
-fn run_gpu(_config: &Config, _duration: Duration) -> Result<crate::engine::SearchOutcome, String> {
+fn run_gpu(
+    _config: &Config,
+    _duration: Duration,
+) -> Result<(crate::engine::SearchOutcome, Duration), String> {
     Err("GPU support is not compiled into this binary; rebuild with --features gpu.".to_owned())
 }
 

@@ -846,7 +846,10 @@ fn run_coordinator_search(
         }
         if last_put.elapsed() >= Duration::from_secs(5) {
             last_put = Instant::now();
-            if let Err(err) = client.bsgs_put(&job.id, manifest, index as u64) {
+            // The server accepts indices only up to the last giant; the walk's
+            // final "next unprocessed" index (giants + 1) means it is done.
+            let resume = index.min(giants);
+            if let Err(err) = client.bsgs_put(&job.id, manifest, resume as u64) {
                 eprintln!("  Coordinator: cannot save BSGS state: {err}");
             }
         }
@@ -856,7 +859,9 @@ fn run_coordinator_search(
     let result = solve_with_table(target, start, end, &table, start_index, &mut progress);
 
     // Always leave the latest resume point on the server, even for a short run.
-    if let Err(err) = client.bsgs_put(&job.id, &table.manifest, last_index.get() as u64) {
+    // Clamp the final "next unprocessed" index to the last giant step.
+    let final_index = last_index.get().min(giants);
+    if let Err(err) = client.bsgs_put(&job.id, &table.manifest, final_index as u64) {
         eprintln!("  Coordinator: cannot save BSGS state: {err}");
     }
 
