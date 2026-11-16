@@ -5,7 +5,7 @@
 //! file atomically (`<path>.tmp` then rename), so a crash never leaves a
 //! half-written file behind.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::base58;
 use crate::bsgs::TableManifest;
+use crate::cli::U256;
+use crate::engine::{Split, SplitMix64, thread_seed};
 use crate::field::Fe;
 use crate::point::Affine;
 use crate::scalar::Scalar;
@@ -26,6 +28,8 @@ pub const DEFAULT_CHUNK_WIDTH: u64 = 0x1000_0000;
 pub const DEFAULT_LEASE_TTL: u64 = 600;
 /// Refuse jobs that would need more chunks than this.
 pub const MAX_CHUNKS: usize = 1_000_000;
+/// On-disk state format written by this coordinator.
+pub const STATE_VERSION: u32 = 2;
 
 /// Error text used across the state, HTTP and client layers.
 pub const ERR_JOB_NOT_FOUND: &str = "job not found";
@@ -33,20 +37,11 @@ pub const ERR_LEASE_LOST: &str = "lease lost";
 pub const ERR_INVALID_PROOF: &str = "invalid proof";
 pub const ERR_MANIFEST_MISMATCH: &str = "manifest mismatch";
 
-/// One slice `[start, end]` (inclusive, hex) of a job's key range.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Chunk {
-    pub index: u64,
-    pub start: String,
-    pub end: String,
-    pub done: bool,
-    /// Keys covered by the latest scan of this chunk; kept after completion so
-    /// the job total does not collapse when the lease disappears.
-    #[serde(default)]
-    pub scanned: u64,
-}
-
 /// A search job. Range endpoints are canonical 64-digit lowercase hex.
+///
+/// Chunk ranges are derived from the job range, width and index; completed
+/// chunks are packed into `done_bits` (`ceil(chunks_total / 8)` bytes, lowercase
+/// hex, bit `i % 8` of byte `i / 8`). No per-chunk record is stored.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Job {
     pub id: String,
@@ -60,7 +55,16 @@ pub struct Job {
     pub chunk_width: u64,
     pub lease_ttl: u64,
     pub created_at: u64,
-    pub chunks: Vec<Chunk>,
+    pub chunks_total: u64,
+    pub done_bits: String,
+    /// Keys covered by completed chunk scans, aggregated over the job.
+    pub scanned: u64,
+    /// Full-cycle permutation `(order_seed + cursor * order_step) % chunks_total`
+    /// with `gcd(order_step, chunks_total) == 1`; the cursor is persisted so the
+    /// scattered order continues across restarts.
+    pub order_seed: u64,
+    pub order_step: u64,
+    pub order_cursor: u64,
     pub done: bool,
     pub found: bool,
     pub found_key: Option<String>,
@@ -231,8 +235,10 @@ pub struct LeaseView {
     pub expires_at: u64,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+/// The persisted state file. `version` rejects old/foreign formats loudly.
+#[derive(Debug, Serialize, Deserialize)]
 struct Data {
+    version: u32,
     #[serde(default)]
     jobs: Vec<Job>,
     #[serde(default)]
@@ -241,6 +247,26 @@ struct Data {
     results: Vec<ResultRecord>,
     #[serde(default)]
     bsgs: HashMap<String, BsgsEntry>,
+}
+
+impl Default for Data {
+    fn default() -> Self {
+        Self {
+            version: STATE_VERSION,
+            jobs: Vec::new(),
+            leases: Vec::new(),
+            results: Vec::new(),
+            bsgs: HashMap::new(),
+        }
+    }
+}
+
+/// Reads only the format version, so an old file fails with a clear message
+/// before its obsolete job records are parsed.
+#[derive(Deserialize)]
+struct VersionProbe {
+    #[serde(default)]
+    version: Option<u32>,
 }
 
 /// The coordinator's in-memory state plus the path it is persisted to.
@@ -252,11 +278,35 @@ pub struct State {
 
 impl State {
     /// Load the state file at `path`; a missing file is an empty state.
+    ///
+    /// A state file with no version or a version other than [`STATE_VERSION`] is
+    /// rejected with an operator-facing message; there is no silent migration.
     pub fn open(path: impl AsRef<Path>) -> Result<State, String> {
         let path = path.as_ref().to_path_buf();
         let data = match fs::read(&path) {
-            Ok(bytes) => serde_json::from_slice(&bytes)
-                .map_err(|err| format!("cannot parse {}: {err}", path.display()))?,
+            Ok(bytes) => {
+                let probe: VersionProbe = serde_json::from_slice(&bytes)
+                    .map_err(|err| format!("cannot parse {}: {err}", path.display()))?;
+                match probe.version {
+                    Some(version) if version == STATE_VERSION => {}
+                    Some(version) => {
+                        return Err(format!(
+                            "{}: unsupported coordinator state version {version}; this build expects version {STATE_VERSION}. Move or delete the old state file to start fresh.",
+                            path.display()
+                        ));
+                    }
+                    None => {
+                        return Err(format!(
+                            "{}: coordinator state has no version; this build expects version {STATE_VERSION}. Move or delete the old state file to start fresh.",
+                            path.display()
+                        ));
+                    }
+                }
+                let data: Data = serde_json::from_slice(&bytes)
+                    .map_err(|err| format!("cannot parse {}: {err}", path.display()))?;
+                validate_loaded(&path, &data)?;
+                data
+            }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Data::default(),
             Err(err) => return Err(format!("cannot read {}: {err}", path.display())),
         };
@@ -330,36 +380,19 @@ impl State {
             return Err("lease_ttl must be positive".to_string());
         }
 
-        let span = scalar_to_u128(&end.sub(&start))
-            .ok_or_else(|| "range is too wide; use a smaller range".to_string())?;
-        let count = span / u128::from(chunk_width) + 1;
-        if count > MAX_CHUNKS as u128 {
+        let span = split_from_scalar(&end).sub(split_from_scalar(&start));
+        let (chunk_count, _remainder) = span.div_u64(chunk_width);
+        let (chunk_count, carry) = chunk_count.add(Split::from_u64(1));
+        if carry {
+            return Err("range needs too many chunks; increase chunk_width".to_string());
+        }
+        if chunk_count > Split::from_u64(MAX_CHUNKS as u64) {
             return Err(format!(
-                "range needs {count} chunks; increase chunk_width (limit {MAX_CHUNKS})"
+                "range needs more than {MAX_CHUNKS} chunks; increase chunk_width (limit {MAX_CHUNKS})"
             ));
         }
-
-        let mut chunks = Vec::with_capacity(count as usize);
-        let mut position = start;
-        for index in 0..count as u64 {
-            let candidate = position.add_u64(chunk_width - 1);
-            let chunk_end = if candidate < position || candidate > end {
-                end
-            } else {
-                candidate
-            };
-            chunks.push(Chunk {
-                index,
-                start: position.to_hex(),
-                end: chunk_end.to_hex(),
-                done: false,
-                scanned: 0,
-            });
-            if chunk_end == end {
-                break;
-            }
-            position = chunk_end.add_u64(1);
-        }
+        let chunks_total = chunk_count.low_u64();
+        let (order_seed, order_step) = choose_order(chunks_total);
 
         let created_at = now_secs();
         let id = self.next_job_id(created_at);
@@ -375,7 +408,12 @@ impl State {
             chunk_width,
             lease_ttl,
             created_at,
-            chunks,
+            chunks_total,
+            done_bits: hex_encode(&vec![0u8; done_byte_len(chunks_total)]),
+            scanned: 0,
+            order_seed,
+            order_step,
+            order_cursor: 0,
             done: false,
             found: false,
             found_key: None,
@@ -445,43 +483,51 @@ impl State {
                 .ok_or_else(|| ERR_JOB_NOT_FOUND.to_string())?,
         };
 
+        let leased: HashSet<u64> = {
+            let job_id = &self.data.jobs[job_index].id;
+            self.data
+                .leases
+                .iter()
+                .filter(|lease| lease.expires_at > now && lease.job_id == *job_id)
+                .map(|lease| lease.chunk_index)
+                .collect()
+        };
+
         let (job_id, lease_ttl, chunk_index, chunk_start, chunk_end) = {
-            let job = &self.data.jobs[job_index];
+            let job = &mut self.data.jobs[job_index];
             if job.found || job.done {
                 return Ok(None);
             }
-            let chosen = job.chunks.iter().find(|chunk| {
-                !chunk.done
-                    && !self.data.leases.iter().any(|lease| {
-                        lease.job_id == job.id
-                            && lease.chunk_index == chunk.index
-                            && lease.expires_at > now
-                    })
-            });
-            let Some(chunk) = chosen else {
+            let total = job.chunks_total;
+            if total == 0 {
+                return Ok(None);
+            }
+            let bits = hex_decode(&job.done_bits)
+                .map_err(|err| format!("job {}: invalid done bitmap: {err}", job.id))?;
+            let mut cursor = job.order_cursor % total;
+            let mut chosen = None;
+            // One full cycle over the permutation; the cursor wraps modulo the
+            // chunk count, so every index is visited exactly once.
+            for _ in 0..total {
+                let index = order_index(job.order_seed, job.order_step, cursor, total);
+                cursor = (cursor + 1) % total;
+                if !is_done(&bits, index) && !leased.contains(&index) {
+                    chosen = Some(index);
+                    break;
+                }
+            }
+            job.order_cursor = cursor;
+            let Some(index) = chosen else {
                 return Ok(None);
             };
-            (
-                job.id.clone(),
-                job.lease_ttl,
-                chunk.index,
-                chunk.start.clone(),
-                chunk.end.clone(),
-            )
+            let (start, end) = chunk_bounds(job, index)?;
+            (job.id.clone(), job.lease_ttl, index, start, end)
         };
 
         let expires_at = now.saturating_add(lease_ttl);
         self.data
             .leases
             .retain(|lease| !(lease.job_id == job_id && lease.chunk_index == chunk_index));
-        if let Some(chunk) = self.data.jobs[job_index]
-            .chunks
-            .iter_mut()
-            .find(|chunk| chunk.index == chunk_index)
-        {
-            // A fresh lease rescans the chunk from its start.
-            chunk.scanned = 0;
-        }
         self.data.leases.push(Lease {
             client_id,
             job_id: job_id.clone(),
@@ -539,21 +585,20 @@ impl State {
             lease.rate = rate;
             lease.expires_at = expires_at;
         }
-        if let Some(job) = self.data.jobs.iter_mut().find(|job| job.id == job_id) {
-            if let Some(chunk) = job
-                .chunks
-                .iter_mut()
-                .find(|chunk| chunk.index == chunk_index)
-            {
-                // Keep the high-water mark: the done heartbeat carries the same
-                // count, and the chunk outlives the lease that reported it.
-                chunk.scanned = chunk.scanned.max(scanned);
-                if done {
-                    chunk.done = true;
+        if let Some(job) = self.data.jobs.iter_mut().find(|job| job.id == job_id)
+            && done
+        {
+            // The bit is set once: a completed chunk can never be leased
+            // again, so its scanned count is added to the aggregate once.
+            let mut bits = hex_decode(&job.done_bits)
+                .map_err(|err| format!("job {}: invalid done bitmap: {err}", job.id))?;
+            if !is_done(&bits, chunk_index) {
+                mark_done(&mut bits, chunk_index);
+                job.done_bits = hex_encode(&bits);
+                job.scanned = job.scanned.saturating_add(scanned);
+                if count_done(&bits) == job.chunks_total {
+                    job.done = true;
                 }
-            }
-            if done && job.chunks.iter().all(|chunk| chunk.done) {
-                job.done = true;
             }
         }
         if done {
@@ -732,8 +777,11 @@ impl State {
     }
 
     fn job_view(&self, job: &Job, now: u64) -> JobView {
-        let chunks_total = job.chunks.len();
-        let chunks_done = job.chunks.iter().filter(|chunk| chunk.done).count();
+        let chunks_total = job.chunks_total as usize;
+        let chunks_done = hex_decode(&job.done_bits)
+            .map(|bits| count_done(&bits) as usize)
+            .unwrap_or(0)
+            .min(chunks_total);
         let leases: Vec<&Lease> = self
             .data
             .leases
@@ -741,10 +789,6 @@ impl State {
             .filter(|lease| lease.job_id == job.id)
             .collect();
         let chunks_leased = leases.iter().filter(|lease| lease.expires_at > now).count();
-        let scanned = job
-            .chunks
-            .iter()
-            .fold(0u64, |acc, chunk| acc.saturating_add(chunk.scanned));
         JobView {
             id: job.id.clone(),
             target: job.target.clone(),
@@ -760,12 +804,228 @@ impl State {
             chunks_total,
             chunks_done,
             chunks_leased,
-            scanned,
+            scanned: job.scanned,
             done: job.done,
             found: job.found,
             found_key: job.found_key.clone(),
         }
     }
+}
+
+/// Reject a loaded state whose version-2 invariants do not hold, before it can
+/// be served. The version itself was checked by [`State::open`].
+fn validate_loaded(path: &Path, data: &Data) -> Result<(), String> {
+    for job in &data.jobs {
+        if job.chunks_total == 0 {
+            return Err(format!(
+                "{}: job {} has zero chunks",
+                path.display(),
+                job.id
+            ));
+        }
+        if job.chunk_width == 0 {
+            return Err(format!(
+                "{}: job {} has zero chunk_width",
+                path.display(),
+                job.id
+            ));
+        }
+        if job.order_step == 0 {
+            return Err(format!(
+                "{}: job {} has a zero order_step",
+                path.display(),
+                job.id
+            ));
+        }
+        if job.order_cursor >= job.chunks_total {
+            return Err(format!(
+                "{}: job {} has order_cursor {} outside 0..{}",
+                path.display(),
+                job.id,
+                job.order_cursor,
+                job.chunks_total
+            ));
+        }
+        let bits = hex_decode(&job.done_bits).map_err(|err| {
+            format!(
+                "{}: job {}: invalid done bitmap: {err}",
+                path.display(),
+                job.id
+            )
+        })?;
+        let needed = done_byte_len(job.chunks_total);
+        if bits.len() != needed {
+            return Err(format!(
+                "{}: job {}: done bitmap is {} bytes; {} chunks need {needed}",
+                path.display(),
+                job.id,
+                bits.len(),
+                job.chunks_total
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Bytes in a bitmap that covers `chunks_total` bits.
+fn done_byte_len(chunks_total: u64) -> usize {
+    chunks_total.div_ceil(8) as usize
+}
+
+fn is_done(bits: &[u8], index: u64) -> bool {
+    let byte = (index / 8) as usize;
+    let mask = 1u8 << (index % 8);
+    bits.get(byte).is_some_and(|value| value & mask != 0)
+}
+
+/// Set a chunk's bit, growing the bitmap to the byte that holds it.
+fn mark_done(bits: &mut Vec<u8>, index: u64) {
+    let byte = (index / 8) as usize;
+    if bits.len() <= byte {
+        bits.resize(byte + 1, 0);
+    }
+    bits[byte] |= 1u8 << (index % 8);
+}
+
+fn count_done(bits: &[u8]) -> u64 {
+    bits.iter().map(|byte| u64::from(byte.count_ones())).sum()
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+fn hex_decode(text: &str) -> Result<Vec<u8>, String> {
+    if !text.len().is_multiple_of(2) {
+        return Err("odd number of hex digits".to_string());
+    }
+    let mut out = Vec::with_capacity(text.len() / 2);
+    for pair in text.as_bytes().as_chunks::<2>().0 {
+        let high =
+            hex_digit(pair[0]).ok_or_else(|| format!("invalid hex digit: {}", pair[0] as char))?;
+        let low =
+            hex_digit(pair[1]).ok_or_else(|| format!("invalid hex digit: {}", pair[1] as char))?;
+        out.push((high << 4) | low);
+    }
+    Ok(out)
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn split_from_scalar(value: &Scalar) -> Split {
+    Split::from_u256(&U256(value.to_bytes_be()))
+}
+
+/// Inclusive `[start, end]` of chunk `index`, derived from the job range and
+/// width with 256-bit arithmetic.
+fn chunk_bounds(job: &Job, index: u64) -> Result<(String, String), String> {
+    if index >= job.chunks_total {
+        return Err(format!(
+            "chunk index {index} is outside job {} ({} chunks)",
+            job.id, job.chunks_total
+        ));
+    }
+    let start = parse_scalar_hex(&job.start)
+        .ok_or_else(|| format!("job {} has an invalid start", job.id))?;
+    let end =
+        parse_scalar_hex(&job.end).ok_or_else(|| format!("job {} has an invalid end", job.id))?;
+    let start = split_from_scalar(&start);
+    let end = split_from_scalar(&end);
+
+    let offset = (u128::from(index))
+        .checked_mul(u128::from(job.chunk_width))
+        .ok_or_else(|| format!("job {}: chunk {index} offset overflows", job.id))?;
+    let offset_end = (u128::from(index) + 1)
+        .checked_mul(u128::from(job.chunk_width))
+        .ok_or_else(|| format!("job {}: chunk {index} offset overflows", job.id))?;
+
+    let (chunk_start, carry) = start.add(Split::from_u128(offset));
+    if carry {
+        return Err(format!("job {}: chunk {index} overflows 256 bits", job.id));
+    }
+    let (candidate, carry) = start.add(Split::from_u128(offset_end));
+    let chunk_end = if carry || candidate > end {
+        end
+    } else {
+        candidate.sub_u64(1)
+    };
+
+    Ok((split_to_hex(chunk_start)?, split_to_hex(chunk_end)?))
+}
+
+fn split_to_hex(value: Split) -> Result<String, String> {
+    value
+        .to_scalar()
+        .map(|value| value.to_hex())
+        .ok_or_else(|| "chunk bound is outside the curve order".to_string())
+}
+
+/// Pick a random seed and a step coprime with `chunks_total`, so
+/// `(seed + cursor * step) % chunks_total` visits every chunk exactly once.
+fn choose_order(chunks_total: u64) -> (u64, u64) {
+    let mut rng = SplitMix64::new(thread_seed(0));
+    let seed = rng.next_u64();
+    let hint = rng.next_u64();
+    (seed, choose_order_step(chunks_total, hint))
+}
+
+fn choose_order_step(chunks_total: u64, hint: u64) -> u64 {
+    if chunks_total <= 1 {
+        return 1;
+    }
+    let mut step = hint % chunks_total;
+    if step == 0 {
+        step = 1;
+    }
+    if step.is_multiple_of(2) {
+        step = if step + 1 < chunks_total {
+            step + 1
+        } else {
+            step - 1
+        };
+    }
+    // `step` is odd (and in `1..chunks_total`) after the adjustment above.
+    let first = step;
+    loop {
+        if gcd_u128(u128::from(step), u128::from(chunks_total)) == 1 {
+            return step;
+        }
+        step += 2;
+        if step >= chunks_total {
+            step = 1;
+        }
+        if step == first {
+            // 1 is always coprime; treated as a defensive fallback.
+            return 1;
+        }
+    }
+}
+
+fn gcd_u128(mut left: u128, mut right: u128) -> u128 {
+    while right != 0 {
+        let remainder = left % right;
+        left = right;
+        right = remainder;
+    }
+    left
+}
+
+/// `index(cursor) = (seed + cursor * step) % chunks_total` in `u128`.
+fn order_index(seed: u64, step: u64, cursor: u64, chunks_total: u64) -> u64 {
+    let position =
+        (u128::from(seed) + u128::from(cursor) * u128::from(step)) % u128::from(chunks_total);
+    position as u64
 }
 
 /// Unix time in seconds.
@@ -1117,6 +1377,8 @@ mod tests {
         }
 
         assert_eq!(leases.len(), 2, "the range needs two 0x100-wide chunks");
+        // Leases come in scattered order; chunk ranges are derived per index.
+        leases.sort_by_key(|lease| lease.chunk_index);
         assert_eq!(leases[0].start, hex(0x100));
         assert_eq!(leases[0].end, hex(0x1ff));
         assert_eq!(leases[1].start, hex(0x200));
@@ -1570,5 +1832,281 @@ mod tests {
         for key in ["job_id", "client_id", "key", "found_at"] {
             assert!(result.get(key).is_some(), "result view misses {key}");
         }
+    }
+
+    #[test]
+    fn scattered_order_is_a_full_cycle_permutation() {
+        for total in [1u64, 7, 1000] {
+            let step = choose_order_step(total, 0x1234_5678_9abc_def0);
+            assert_eq!(
+                gcd_u128(u128::from(step), u128::from(total)),
+                1,
+                "step {step} is not coprime with {total}"
+            );
+            let seed = 0xdead_beef_cafe_babe;
+            let mut seen = vec![false; total as usize];
+            for cursor in 0..total {
+                let index = order_index(seed, step, cursor, total);
+                assert!((index as usize) < seen.len());
+                assert!(!seen[index as usize], "index {index} visited twice");
+                seen[index as usize] = true;
+            }
+            assert!(seen.iter().all(|&visited| visited));
+        }
+    }
+
+    #[test]
+    fn bitmap_round_trips_a_million_chunks_within_size_limit() {
+        const TOTAL: u64 = 1_000_000;
+        let temp = TempState::new("bitmap-million");
+        let (job_id, expected) = {
+            let mut state = State::open(temp.path()).expect("open");
+            let job = xpoint_job(&mut state, 7, 0, TOTAL - 1, 1);
+            assert_eq!(job.chunks_total as u64, TOTAL);
+
+            // Mark a pseudo-random subset through the same bitmap path the
+            // heartbeat uses, then save once instead of once per chunk.
+            let mut rng = SplitMix64::new(0x1234_5678_9abc_def0);
+            let mut expected = 0u64;
+            for _ in 0..TOTAL {
+                if rng.next_u64().is_multiple_of(3) {
+                    continue;
+                }
+                expected += 1;
+            }
+            let mut bits = vec![0u8; done_byte_len(TOTAL)];
+            let mut rng = SplitMix64::new(0x1234_5678_9abc_def0);
+            for index in 0..TOTAL {
+                if !rng.next_u64().is_multiple_of(3) {
+                    mark_done(&mut bits, index);
+                }
+            }
+            state.data.jobs[0].done_bits = hex_encode(&bits);
+            state.save().expect("save");
+
+            let length = fs::metadata(temp.path()).expect("metadata").len();
+            assert!(length < 400 * 1024, "state file is {length} bytes");
+            (job.id, expected)
+        };
+
+        let mut state = State::open(temp.path()).expect("reload");
+        let job = state
+            .data
+            .jobs
+            .iter()
+            .find(|job| job.id == job_id)
+            .expect("job");
+        let bits = hex_decode(&job.done_bits).expect("decode");
+        assert_eq!(bits.len(), done_byte_len(TOTAL));
+        assert_eq!(count_done(&bits), expected);
+
+        // Every bit survived the round trip; the free chunks are still free.
+        let mut rng = SplitMix64::new(0x1234_5678_9abc_def0);
+        for index in 0..TOTAL {
+            let free = rng.next_u64().is_multiple_of(3);
+            assert_eq!(is_done(&bits, index), !free, "bit {index} changed");
+        }
+
+        let mut leased = Vec::new();
+        for client in ["a", "b", "c"] {
+            let lease = state
+                .lease(lease_request(&job_id, client, 0, TOTAL - 1), 1_000)
+                .expect("lease")
+                .expect("a free chunk remains");
+            assert!(!is_done(&bits, lease.chunk_index));
+            assert!(!leased.contains(&lease.chunk_index));
+            leased.push(lease.chunk_index);
+        }
+    }
+
+    #[test]
+    fn lease_skips_done_and_leased_chunks_and_wraps() {
+        let temp = TempState::new("scatter-skip");
+        let mut state = State::open(temp.path()).expect("open");
+        let job = xpoint_job(&mut state, 7, 1, 5, 1);
+        assert_eq!(job.chunks_total, 5);
+
+        let first = state
+            .lease(lease_request(&job.id, "a", 1, 5), 1_000)
+            .expect("lease")
+            .expect("chunk");
+        state
+            .heartbeat("a", &job.id, first.chunk_index, 1, 1.0, true, 1_010)
+            .expect("finish chunk");
+
+        let mut leased = vec![first.chunk_index];
+        for index in 0..4 {
+            let lease = state
+                .lease(lease_request(&job.id, &format!("c{index}"), 1, 5), 1_100)
+                .expect("lease")
+                .expect("free chunk");
+            assert_ne!(lease.chunk_index, first.chunk_index, "done chunk re-leased");
+            assert!(
+                !leased.contains(&lease.chunk_index),
+                "chunk {} leased twice",
+                lease.chunk_index
+            );
+            leased.push(lease.chunk_index);
+        }
+        leased.sort_unstable();
+        assert_eq!(leased, vec![0, 1, 2, 3, 4]);
+        assert!(
+            state
+                .lease(lease_request(&job.id, "z", 1, 5), 1_150)
+                .expect("lease")
+                .is_none(),
+            "a full cycle over done/leased chunks returns nothing"
+        );
+    }
+
+    #[test]
+    fn restart_reload_leases_the_remaining_chunks() {
+        let temp = TempState::new("restart-remaining");
+        let job_id = {
+            let mut state = State::open(temp.path()).expect("open");
+            let job = xpoint_job(&mut state, 7, 1, 6, 1);
+            assert_eq!(job.chunks_total, 6);
+            for (client, now) in [("a", 1_000u64), ("b", 1_020)] {
+                let lease = state
+                    .lease(lease_request(&job.id, client, 1, 6), now)
+                    .expect("lease")
+                    .expect("chunk");
+                state
+                    .heartbeat(client, &job.id, lease.chunk_index, 2, 1.0, true, now + 10)
+                    .expect("finish chunk");
+            }
+            job.id.clone()
+        };
+
+        let mut state = State::open(temp.path()).expect("reload");
+        let mut seen = HashSet::new();
+        for index in 0..4 {
+            let lease = state
+                .lease(lease_request(&job_id, &format!("c{index}"), 1, 6), 1_050)
+                .expect("lease")
+                .expect("remaining chunk");
+            assert!(seen.insert(lease.chunk_index), "duplicate lease");
+        }
+        assert_eq!(seen.len(), 4);
+        assert!(
+            state
+                .lease(lease_request(&job_id, "z", 1, 6), 1_055)
+                .expect("lease")
+                .is_none()
+        );
+        let view = state
+            .list_jobs()
+            .into_iter()
+            .find(|view| view.id == job_id)
+            .expect("job view");
+        assert_eq!(view.chunks_total, 6);
+        assert_eq!(view.chunks_done, 2);
+        assert_eq!(view.scanned, 4);
+    }
+
+    #[test]
+    fn scanned_aggregates_once_per_completed_chunk() {
+        let temp = TempState::new("aggregate");
+        let mut state = State::open(temp.path()).expect("open");
+        let job = xpoint_job(&mut state, 7, 1, 3, 1);
+        assert_eq!(job.chunks_total, 3);
+
+        let mut expected = 0u64;
+        let mut completed = Vec::new();
+        for (index, scanned) in [10u64, 7, 5].into_iter().enumerate() {
+            let client = format!("c{index}");
+            let now = 1_000 + index as u64 * 10;
+            let lease = state
+                .lease(lease_request(&job.id, &client, 1, 3), now)
+                .expect("lease")
+                .expect("chunk");
+            state
+                .heartbeat(
+                    &client,
+                    &job.id,
+                    lease.chunk_index,
+                    scanned,
+                    1.0,
+                    false,
+                    now + 1,
+                )
+                .expect("progress");
+            assert_eq!(
+                state.list_jobs()[0].scanned,
+                expected,
+                "a progress heartbeat must not add to the aggregate"
+            );
+            state
+                .heartbeat(
+                    &client,
+                    &job.id,
+                    lease.chunk_index,
+                    scanned,
+                    1.0,
+                    true,
+                    now + 2,
+                )
+                .expect("finish chunk");
+            expected += scanned;
+            assert_eq!(state.list_jobs()[0].scanned, expected);
+            completed.push((client, lease.chunk_index, scanned));
+        }
+
+        let view = state.list_jobs().into_iter().next().expect("job view");
+        assert_eq!(view.scanned, 22);
+        assert_eq!(view.chunks_done, 3);
+        assert!(view.done);
+
+        // A repeated done heartbeat is rejected and cannot double count.
+        let (client, chunk_index, scanned) = &completed[0];
+        assert_eq!(
+            state.heartbeat(client, &job.id, *chunk_index, *scanned, 1.0, true, 2_000),
+            Err(ERR_LEASE_LOST.to_string())
+        );
+        assert_eq!(state.list_jobs()[0].scanned, 22);
+    }
+
+    #[test]
+    fn oversized_ranges_fail_loudly() {
+        let temp = TempState::new("oversized-range");
+        let mut state = State::open(temp.path()).expect("open");
+        // A span far above u128; 256-bit chunk math must report the chunk cap,
+        // not an unrelated "range is too wide" error.
+        let err = state
+            .create_job(NewJob {
+                target: Some(xpoint_target(7)),
+                targets: Vec::new(),
+                mode: "xpoint".to_string(),
+                coin: None,
+                comp_mode: None,
+                start: "f000000000000000000000000000000000000000000000000000000000000000"
+                    .to_string(),
+                end: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140".to_string(),
+                chunk_width: Some(u64::MAX),
+                lease_ttl: Some(60),
+            })
+            .expect_err("an oversized range must be rejected");
+        assert!(err.contains("chunks"), "unexpected error: {err}");
+        assert!(state.list_jobs().is_empty());
+    }
+
+    #[test]
+    fn old_state_versions_are_rejected() {
+        let temp = TempState::new("version");
+        fs::write(
+            temp.path(),
+            br#"{"jobs":[],"leases":[],"results":[],"bsgs":{}}"#,
+        )
+        .expect("write versionless state");
+        let err = State::open(temp.path()).expect_err("a versionless state must be rejected");
+        assert!(err.contains("no version"), "unexpected error: {err}");
+
+        fs::write(
+            temp.path(),
+            br#"{"version":1,"jobs":[],"leases":[],"results":[],"bsgs":{}}"#,
+        )
+        .expect("write old state");
+        let err = State::open(temp.path()).expect_err("version 1 must be rejected");
+        assert!(err.contains("version 1"), "unexpected error: {err}");
     }
 }

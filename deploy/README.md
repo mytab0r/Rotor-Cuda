@@ -51,10 +51,15 @@ directly.
 ## State and backups
 
 - File: `/opt/rotor-coord/data/coordinator.json` (atomic tmp+rename).
+- Format version 2 (packed bitmap). A state file from an older version is
+  rejected with an explicit error; there is no migration yet — move the old file
+  aside and start a new one.
 - Size: completed chunks are a bitmap — about 2 hex characters per byte of
   bitmap; 1M chunks is roughly 250 KiB plus a small lease list.
 - Backup: copy the file (it is always a complete JSON); restore by putting it
   back and restarting.
+- Chunks are leased in a scattered (seeded full-cycle permutation) order, so
+  progress is spread across the range while every chunk is covered exactly once.
 
 ## Security
 
