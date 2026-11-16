@@ -248,6 +248,9 @@ artifact is committed and rebuilt by CI and the Docker image; the coordinator
 embeds it and serves `/run`, `/rotor-worker.js` and `/rotor_wasm.wasm`.
 Requires `rustup target add wasm32-unknown-unknown` once.
 
+Web UI changes go through [`web/UI-CHECKLIST.md`](web/UI-CHECKLIST.md): states,
+375/768/1280 layouts, focus/keyboard, reduced motion and the browser checks.
+
 ### BSGS resume
 
 A `bsgs` job is searched as one giant walk, not chunk by chunk. Create it with the
