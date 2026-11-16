@@ -179,7 +179,12 @@ fn found_key_is_submitted_with_a_valid_proof() {
     let (mut scanner, _) = StubScanner::new(Some(Scalar::from_u64(3)), Duration::ZERO);
     let client = CoordinatorClient::new(&url, TOKEN, "gpu");
     let (scanned, found) = run_leases(&client, &request, &mut scanner).expect("run leases");
-    assert_eq!(scanned, 4, "both chunks must be scanned");
+    // Chunks are leased in scattered order: the chunk holding key 3 may come
+    // first (2 keys scanned) or second (4 keys scanned).
+    assert!(
+        matches!(scanned, 2 | 4),
+        "the leased chunks must be scanned before the key is found; scanned {scanned}"
+    );
     assert_eq!(found, Some(Scalar::from_u64(3)));
 
     let setup = CoordinatorClient::new(&url, TOKEN, "setup");

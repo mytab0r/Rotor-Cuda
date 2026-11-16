@@ -1035,7 +1035,7 @@ impl SplitMix64 {
         Self { state: seed }
     }
 
-    fn next_u64(&mut self) -> u64 {
+    pub(crate) fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
         let mut z = self.state;
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -1683,6 +1683,10 @@ impl Split {
         Self([value, 0, 0, 0])
     }
 
+    pub(crate) fn from_u128(value: u128) -> Self {
+        Self([value as u64, (value >> 64) as u64, 0, 0])
+    }
+
     pub(crate) fn add_u64(self, value: u64) -> Self {
         self.add(Self::from_u64(value)).0
     }
@@ -1721,7 +1725,7 @@ impl Split {
         Self(out)
     }
 
-    fn div_u64(self, value: u64) -> (Self, u64) {
+    pub(crate) fn div_u64(self, value: u64) -> (Self, u64) {
         debug_assert!(value != 0);
         let divisor = u128::from(value);
         let mut quotient = [0u64; 4];
