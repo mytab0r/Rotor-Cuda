@@ -1,0 +1,25 @@
+services:
+  rotor-coord:
+    image: ghcr.io/mytab0r/rotor-coord:latest
+    container_name: rotor-coord
+    restart: unless-stopped
+    env_file:
+      - .env
+    command:
+      - --bind
+      - 0.0.0.0:7878
+      - --state
+      - /data/coordinator.json
+    volumes:
+      - ./data:/data
+    networks:
+      - edge
+    labels:
+      # Watchtower on the host runs with --label-enable and restarts this
+      # container when :latest changes.
+      com.centurylinklabs.watchtower.enable: "true"
+
+networks:
+  edge:
+    external: true
+    name: stack_edge
