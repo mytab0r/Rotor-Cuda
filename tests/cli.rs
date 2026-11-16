@@ -324,19 +324,19 @@ fn coordinator_validations() {
 
     let err = parse_err(&[
         "-m",
-        "address",
+        "bsgs",
         "--range",
-        "1:2",
+        "1:10",
         "-g",
         "--coordinator",
         "http://127.0.0.1:7878",
         "--token",
         "secret",
-        addr,
+        &compressed_pubkey(),
     ]);
     assert_eq!(
         err.message(),
-        "GPU mode is not supported with --coordinator"
+        "CPU coordinator BSGS is the supported path; drop -g"
     );
 
     let err = parse_err(&[
@@ -395,6 +395,85 @@ fn coordinator_validations() {
         err.message(),
         "--token and --client-id require --coordinator"
     );
+}
+
+#[test]
+fn gpu_coordinator_is_allowed_for_address_and_xpoint_modes() {
+    let config = parse(&[
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "-g",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "14iXhn8bGajVWegZHJ18vJLHhntcpL4dex",
+    ]);
+    assert!(config.gpu);
+    assert_eq!(config.mode, Some(SearchMode::Address));
+
+    let addresses = parse(&[
+        "-m",
+        "addresses",
+        "--range",
+        "1:2",
+        "-g",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "-i",
+        "targets.bin",
+    ]);
+    assert_eq!(addresses.mode, Some(SearchMode::Addresses));
+
+    let xpoint = parse(&[
+        "-m",
+        "xpoint",
+        "--range",
+        "1:2",
+        "-g",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        &"ab".repeat(32),
+    ]);
+    assert_eq!(xpoint.mode, Some(SearchMode::XPoint));
+
+    let xpoints = parse(&[
+        "-m",
+        "xpoints",
+        "--range",
+        "1:2",
+        "-g",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "-i",
+        "targets.bin",
+    ]);
+    assert_eq!(xpoints.mode, Some(SearchMode::XPoints));
+
+    let eth = parse(&[
+        "-m",
+        "address",
+        "--coin",
+        "eth",
+        "--range",
+        "1:2",
+        "-g",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "0xfda5c442e76a95f96c09782f1a15d3b58e32404f",
+    ]);
+    assert_eq!(eth.coin, Coin::Eth);
+    assert!(eth.gpu);
 }
 
 #[test]

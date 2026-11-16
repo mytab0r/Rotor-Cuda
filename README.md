@@ -26,7 +26,7 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 - **GPU Pollard kangaroo baseline** — internal and not CLI-exposed. SOTA K≈1.15,
   persistent walks, and multi-GPU remain follow-up work. See `bsgs/KANGAROO.md`.
 - **Filter catalog** — binary-fuse filter alongside the classic bloom for large hash160 sets (lower false-positive at similar memory).
-- **Distributed coordinator `rotor-coord`** — token-protected HTTP/JSON server plus an embedded dashboard; several CPU clients lease disjoint key chunks of one job, BSGS giant-walk progress is stored remotely and resumed, and found keys are re-verified with `k*G == target` before they are accepted.
+- **Distributed coordinator `rotor-coord`** — token-protected HTTP/JSON server plus an embedded dashboard; several clients (CPU or one-GPU) lease disjoint key chunks of one job, BSGS giant-walk progress is stored remotely and resumed, and found keys are re-verified with `k*G == target` before they are accepted.
 - **Self-update** — SHA-256 verified binary self-replace via WinHTTP + MoveFileEx rename-trick (Windows).
 - **Cloud CI/CD** — full Windows build (MSBuild + CUDA) and Release pipeline run entirely on GitHub Actions; no local toolchain needed.
 - Only for **authorized public puzzle events** (known addresses, known bit ranges, official rewards). Not for mass scanning or de-anonymization.
@@ -80,9 +80,9 @@ address/xpoint search (they print a skip line when no device is present).
 
 ## Distributed coordinator (`rotor-coord`)
 
-A second binary in the same crate lets several CPU machines work one range without manual
+A second binary in the same crate lets several machines work one range without manual
 splitting: `rotor-coord` leases disjoint key chunks, keeps progress in one JSON file, and
-serves a dashboard. CPU search only.
+serves a dashboard. Clients may be CPU workers or a single-GPU `--features gpu` build.
 
 ### Quick start
 
@@ -115,6 +115,25 @@ Each client leases the next free chunk (width `0x10000000`, TTL 600 s), heartbea
 the pool; once all chunks are done leases answer 204 and clients stop. `Found.txt` is
 written locally; the found key is also POSTed, and the coordinator verifies `k*G` against
 the job target before accepting and marking the job found on the dashboard.
+
+### GPU clients
+
+A `--features gpu` build leases chunks exactly like the CPU client and scans each lease
+on the device. Build with the CUDA Toolkit as described above, then add `-g` to the same
+command (one GPU per client, `--gpui` selects it):
+
+```sh
+./target/release/rotor -g --gpui 0 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+  --coordinator http://127.0.0.1:7878 --token my-secret --client-id rig-a \
+  1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
+```
+
+The engine and its generator table are created once and reused across leases; each lease
+only rebuilds the key plan, uploads its starting points and scans the window. Supported
+modes are `address|addresses|xpoint|xpoints` for BTC and `address|addresses` for ETH,
+with the same proof submission and `Found.txt` output as the CPU path. `-r`, `-n` and
+`--gpux` follow the normal GPU limits. `-m bsgs -g` is rejected with `--coordinator`:
+coordinator BSGS runs on the CPU (drop `-g`). Multi-GPU scheduling remains deferred.
 
 ### BSGS resume
 
@@ -160,7 +179,9 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
 
 ### Limitations
 
-- CPU search only: `-g`/GPU modes, `-r` (random) and `-n` (checkpoints) are rejected with `--coordinator`.
+- Address/xpoint GPU clients (`-g --coordinator`) are supported; GPU BSGS (`-m bsgs -g`)
+  is rejected because coordinator BSGS is the CPU path. `-r` (random) and `-n`
+  (checkpoints) are rejected with `--coordinator`, and one GPU per client is used.
 - No accounts, roles or quotas — one shared token.
 - Multi-target jobs (`addresses`/`xpoints`) stop at the first confirmed key: the job is
   marked found and the remaining targets in that job are not searched.
