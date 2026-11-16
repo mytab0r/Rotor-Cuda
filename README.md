@@ -273,6 +273,22 @@ the same WASM artifact the worker uses; the coordinator only serves the page.
   funds should be handled offline on an air-gapped machine, never typed into an
   online page.
 
+
+### Public key pages and the cabinet
+
+`/keys` and `/keys/<chain>` are indexable hubs with breadcrumbs, JSON-LD and
+links to deterministic example keys. `/key/<64hex>` renders the derivation page
+for that key with per-key metadata; the page is `noindex,follow` (thin-content
+and safety policy), while the hubs are indexed and listed in `/sitemap.xml`.
+The key is in the URL, so the coordinator already knows the requested key; the
+page also shows a notice and sends only the derived addresses to the registry
+check so a registered owner can be warned. Type a key locally on `/key`
+without a URL and no check happens unless you tick the opt-in box.
+
+The personal area moved to `/cabinet`, reachable only after wallet
+authentication; `/monitor` redirects there. `/me` remains the legacy
+contributor-token cabinet but is no longer in the navigation.
+
 ### Address monitor
 
 `/monitor` is a watch-only service for addresses you control. Connect an
