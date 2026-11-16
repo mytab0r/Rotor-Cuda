@@ -36,3 +36,7 @@ bip39 = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Networking_WinHttp"] }
+
+[workspace]
+members = ["crates/rotor-wasm"]
+resolver = "3"

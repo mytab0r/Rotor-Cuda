@@ -1,0 +1,15 @@
+[package]
+name = "rotor-wasm"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "WebAssembly scan core for Rotor-Cuda"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sha2 = "0.11"
+ripemd = "0.2"
+sha3 = "0.11"
+bs58 = "0.5"
