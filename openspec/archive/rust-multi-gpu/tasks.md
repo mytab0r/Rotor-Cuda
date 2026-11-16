@@ -21,4 +21,4 @@
       type-checked with a stub nvcc (no CUDA Toolkit locally).
 - [ ] `--features gpu` real nvcc build/CI run and a multi-GPU device run
       (pending a multi-GPU host).
-- [ ] archive; PR.
+- [x] archive; PR #12 merged; real nvcc build green in CI.
