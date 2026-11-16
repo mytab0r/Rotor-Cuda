@@ -1,21 +1,23 @@
 //! `rotor-coord`: run the distributed coordinator.
 //!
-//! The token comes from `--token` or `ROTOR_COORD_TOKEN`; the state file is a
-//! single atomically written JSON document. TLS is not implemented — bind to
-//! loopback and use a reverse proxy for remote clients.
+//! The admin token comes from `--token` or `ROTOR_COORD_TOKEN`; `--clients`
+//! maps client ids to SHA-256 token hashes. The state file is a single
+//! atomically written JSON document. TLS is not implemented — bind to loopback
+//! and use a reverse proxy for remote clients.
 
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use rotor::coordinator;
+use rotor::coordinator::{self, Clients};
 
 const USAGE: &str = "\
 rotor-coord - distributed rotor coordinator
 
 Usage: rotor-coord [OPTIONS]
   --bind ADDR     listen address (default 127.0.0.1:7878)
-  --token TOKEN   API token (or ROTOR_COORD_TOKEN)
+  --token TOKEN   admin API token (or ROTOR_COORD_TOKEN)
+  --clients FILE  client token map { \"client-id\": \"<sha256 hex>\" }
   --state PATH    state file (default coordinator.json)
   -h, --help      show this help
 ";
@@ -23,6 +25,7 @@ Usage: rotor-coord [OPTIONS]
 struct Options {
     bind: String,
     token: String,
+    clients: Option<PathBuf>,
     state: PathBuf,
 }
 
@@ -44,6 +47,7 @@ fn main() -> ExitCode {
 fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let mut bind = "127.0.0.1:7878".to_string();
     let mut token = None;
+    let mut clients = None;
     let mut state = PathBuf::from("coordinator.json");
 
     let mut index = 0;
@@ -68,6 +72,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
             "-h" | "--help" => return Ok(None),
             "--bind" => bind = value(&mut index)?,
             "--token" => token = Some(value(&mut index)?),
+            "--clients" => clients = Some(PathBuf::from(value(&mut index)?)),
             "--state" => state = PathBuf::from(value(&mut index)?),
             other => return Err(format!("unknown argument: {other}\n\n{USAGE}")),
         }
@@ -79,7 +84,12 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         _ => return Err("--token or ROTOR_COORD_TOKEN is required".to_string()),
     };
 
-    Ok(Some(Options { bind, token, state }))
+    Ok(Some(Options {
+        bind,
+        token,
+        clients,
+        state,
+    }))
 }
 
 fn run(options: Options) -> ExitCode {
@@ -89,7 +99,22 @@ fn run(options: Options) -> ExitCode {
             options.bind
         );
     }
-    match coordinator::spawn(&options.bind, &options.state, options.token) {
+    let clients = match options.clients.as_deref() {
+        Some(path) => match Clients::load(path) {
+            Ok(clients) => clients,
+            Err(message) => {
+                eprintln!("rotor-coord: {message}");
+                return ExitCode::from(1);
+            }
+        },
+        None => Clients::default(),
+    };
+    if clients.is_empty() {
+        eprintln!("WARNING: single-token mode; clients are not individually authenticated");
+    } else {
+        println!("clients: {}", clients.len());
+    }
+    match coordinator::spawn_with_clients(&options.bind, &options.state, options.token, clients) {
         Ok(handle) => {
             println!("rotor-coord listening on http://{}", handle.addr);
             println!("state: {}", options.state.display());

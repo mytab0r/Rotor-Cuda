@@ -363,6 +363,8 @@ struct CoordinatorContext<'a> {
     shared: &'a Shared,
     mode_text: &'a str,
     coin_text: &'a str,
+    /// Compression the job accepts (`compressed`, `uncompressed`, `both`).
+    comp_mode: &'a str,
     /// Single-target modes pass the operand so the server can match the job.
     lease_target: Option<&'a str>,
     start_text: &'a str,
@@ -470,6 +472,15 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
     } else {
         "btc"
     };
+    let comp_mode_text = if config.coin == Coin::Eth {
+        "compressed"
+    } else {
+        match config.comp_mode {
+            CompMode::Compressed => "compressed",
+            CompMode::Uncompressed => "uncompressed",
+            CompMode::Both => "both",
+        }
+    };
     let lease_target = match mode {
         SearchMode::Address | SearchMode::XPoint => config.operands.first().map(String::as_str),
         _ => None,
@@ -484,6 +495,7 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
         shared: &shared,
         mode_text,
         coin_text,
+        comp_mode: comp_mode_text,
         lease_target,
         start_text: &start_text,
         end_text: &end_text,
@@ -633,7 +645,15 @@ fn coordinator_worker(thread_index: u64, context: &CoordinatorContext<'_>) {
                 return true;
             }
             let rate = scanned as f64 / lease_started.elapsed().as_secs_f64().max(1e-9);
-            match client.heartbeat(&lease.job_id, lease.chunk_index, scanned, rate, false) {
+            match client.heartbeat(
+                &lease.job_id,
+                lease.chunk_index,
+                lease.lease_id,
+                scanned,
+                rate,
+                false,
+                &[],
+            ) {
                 Ok(_) => {
                     *last = Instant::now();
                     true
@@ -646,9 +666,11 @@ fn coordinator_worker(thread_index: u64, context: &CoordinatorContext<'_>) {
                 }
             }
         };
-        let on_hit = |key: &Scalar, _point: &Affine, _compressed: bool| match client
-            .submit_result(&lease.job_id, &key.to_hex())
-        {
+        let on_hit = |key: &Scalar, _point: &Affine, _compressed: bool| match client.submit_result(
+            &lease.job_id,
+            lease.lease_id,
+            &key.to_hex(),
+        ) {
             Ok(()) => accepted.store(true, AtomicOrdering::SeqCst),
             Err(err) => eprintln!("  Coordinator: cannot submit the found key: {err}"),
         };
@@ -672,9 +694,28 @@ fn coordinator_worker(thread_index: u64, context: &CoordinatorContext<'_>) {
             && !stop_requested()
         {
             let rate = scanned as f64 / lease_started.elapsed().as_secs_f64().max(1e-9);
-            if let Err(err) =
-                client.heartbeat(&lease.job_id, lease.chunk_index, scanned, rate, true)
-            {
+            let samples = match crate::coordinator::state::challenge_samples(
+                context.mode_text,
+                context.coin_text,
+                context.comp_mode,
+                &start,
+                &lease.challenge_offsets,
+            ) {
+                Ok(samples) => samples,
+                Err(err) => {
+                    set_error(context.shared, &err);
+                    break;
+                }
+            };
+            if let Err(err) = client.heartbeat(
+                &lease.job_id,
+                lease.chunk_index,
+                lease.lease_id,
+                scanned,
+                rate,
+                true,
+                &samples,
+            ) {
                 eprintln!("  Coordinator: cannot finish the leased chunk: {err}");
             }
         }

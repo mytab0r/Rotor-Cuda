@@ -1,0 +1,8 @@
+# Caddy reverse proxy for rotor-coord.
+#
+# Replace rotor.example.com with the public host name. Caddy obtains and renews
+# the certificate automatically; the coordinator itself stays on loopback and
+# speaks plain HTTP, so the client uses https:// with the same path.
+rotor.example.com {
+    reverse_proxy 127.0.0.1:7878
+}

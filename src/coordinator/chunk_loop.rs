@@ -16,7 +16,8 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::coordinator::client::{CoordinatorClient, JobInfo};
+use crate::coordinator::client::{CoordinatorClient, JobInfo, Lease};
+use crate::coordinator::state::challenge_samples;
 use crate::engine;
 use crate::scalar::Scalar;
 
@@ -33,6 +34,10 @@ pub struct ScanOutcome {
 /// [`crate::engine::stop_requested`] becomes true.
 pub trait ChunkScanner {
     fn scan(&mut self, start: &Scalar, end: &Scalar) -> Result<ScanOutcome, String>;
+
+    /// Called with the lease before its scan, so a scanner that submits a key
+    /// itself can echo the lease nonce.
+    fn on_lease(&mut self, _lease: &Lease) {}
 }
 
 /// The job fields `POST /api/v1/lease` matches on.
@@ -40,6 +45,8 @@ pub trait ChunkScanner {
 pub struct LeaseJob {
     pub mode: String,
     pub coin: String,
+    /// Compression accepted by the job (`compressed`, `uncompressed`, `both`).
+    pub comp_mode: String,
     /// Single-target modes pass the operand so the server can match the job;
     /// multi-target modes leave it `None`.
     pub target: Option<String>,
@@ -100,13 +107,14 @@ pub fn run_leases(
         }
 
         let started = Instant::now();
+        scanner.on_lease(&lease);
         let outcome = scanner.scan(&start, &end)?;
         total_scanned = total_scanned.saturating_add(outcome.scanned);
         let rate = outcome.scanned as f64 / started.elapsed().as_secs_f64().max(1e-9);
 
         if let Some(key) = outcome.found {
             client
-                .submit_result(&lease.job_id, &key.to_hex())
+                .submit_result(&lease.job_id, lease.lease_id, &key.to_hex())
                 .map_err(|err| format!("coordinator rejected the found key: {err}"))?;
             return Ok((total_scanned, Some(key)));
         }
@@ -122,21 +130,39 @@ pub fn run_leases(
                 job,
                 &lease.job_id,
                 lease.chunk_index,
+                lease.lease_id,
                 outcome.scanned,
                 rate,
                 false,
+                &[],
             )?
         {
             break;
         }
+        // Completion proves the chunk window: hash the keys at the lease's
+        // challenge offsets (BSGS leases have no key window and are exempt).
+        let samples = if job.mode == "bsgs" {
+            Vec::new()
+        } else {
+            challenge_samples(
+                &job.mode,
+                &job.coin,
+                &job.comp_mode,
+                &start,
+                &lease.challenge_offsets,
+            )
+            .map_err(|err| format!("cannot build completion samples: {err}"))?
+        };
         if !heartbeat(
             client,
             job,
             &lease.job_id,
             lease.chunk_index,
+            lease.lease_id,
             outcome.scanned,
             rate,
             true,
+            &samples,
         )? {
             break;
         }
@@ -157,11 +183,13 @@ fn heartbeat(
     job: &LeaseJob,
     job_id: &str,
     chunk_index: u64,
+    lease_id: u64,
     scanned: u64,
     rate: f64,
     done: bool,
+    samples: &[Vec<u8>],
 ) -> Result<bool, String> {
-    match client.heartbeat(job_id, chunk_index, scanned, rate, done) {
+    match client.heartbeat(job_id, chunk_index, lease_id, scanned, rate, done, samples) {
         Ok(_) => Ok(true),
         Err(err) => {
             if job_is_finished(client, job)? {

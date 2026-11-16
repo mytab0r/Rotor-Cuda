@@ -574,7 +574,7 @@ pub fn run_cli(config: &Config) -> Result<i32, String> {
 
     let key = hex_trim(&result.key);
     if let Some((client, job_id)) = &remote
-        && let Err(err) = client.submit_result(job_id, &result.key.to_hex())
+        && let Err(err) = client.submit_result(job_id, 0, &result.key.to_hex())
     {
         eprintln!("  Coordinator: cannot submit the found key: {err}");
     }
