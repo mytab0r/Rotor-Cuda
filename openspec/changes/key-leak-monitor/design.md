@@ -14,8 +14,8 @@ fetched on 2026-11-16; anything not checked is marked **not verified**.
   (`state.rs:125-145`). Registration returns the token once
   (`state.rs:531-561`, `mod.rs:563-598`).
 - The cabinet is a static page that stores the bearer token in localStorage
-  and polls `/api/v1/me` every 2 s (`web/me.html:24-31`, `:73-184`,
-  `web/site.js:5-20`, `:49-61`).
+  and polls `/api/v1/me` every 2 s (`apps/site/me.html:24-31`, `:73-184`,
+  `apps/site/site.js:5-20`, `:49-61`).
 - Outbound HTTP already exists via `ureq` + native-tls (`Cargo.toml:33`,
   `src/coordinator/client.rs:1-11`), so provider calls and Telegram/email
   webhooks need no new runtime.

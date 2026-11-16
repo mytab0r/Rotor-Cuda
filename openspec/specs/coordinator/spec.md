@@ -17,7 +17,7 @@ with `text/html; charset=utf-8`, `application/javascript; charset=utf-8` and
   equal to the embedded artifact
 
 #### Scenario: missing artifact
-- GIVEN `web/rotor_wasm.wasm` is absent at compile time
+- GIVEN `apps/site/rotor_wasm.wasm` is absent at compile time
 - WHEN the coordinator is built
 - THEN the build fails loudly (`include_bytes!`); it MUST NOT serve a redirect,
   a 404 or a stale inline stub
@@ -37,7 +37,7 @@ endpoint is added by this change. Source: `src/coordinator/mod.rs:452-479`.
 Documentation MUST state that the default `chunk_width` (0x10000000) is sized
 for native clients, and that browser-oriented jobs SHOULD use 2^20–2^22 with
 `lease_ttl` 120–300. Source: `src/coordinator/state.rs:27-30`,
-`web/app.html:88-91`.
+`apps/site/app.html:88-91`.
 
 #### Scenario: operator creates a browser job
 - GIVEN an operator creates a job for browser participation

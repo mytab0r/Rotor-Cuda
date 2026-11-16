@@ -54,6 +54,31 @@ Not observable, and must not be claimed:
 Consequence: alerts limit damage; they do not prevent it. "We detect leaked
 keys" is false and is rejected in UI, docs and marketing.
 
+## Ethics and disclosure boundary
+
+Two tempting shortcuts are explicitly rejected, even though they would make the
+product feel more powerful:
+
+- **Covert reporting of derived addresses.** The key explorer must not quietly
+  transmit addresses to the backend, disguised as image/skeleton requests or
+  otherwise, to compare them with registered users. That contradicts the page's
+  privacy promise, hides data collection, and links a person to their
+  addresses. Any server-side exposure check must be visible, opt-in, and
+  explained before it happens. A privacy-preserving alternative is a
+  client-side membership check against a rotating, HMAC-keyed filter of
+  registered address hashes, triggered by an explicit user action; it tells the
+  visitor "this address belongs to a registered user" without reporting them.
+- **Sweeping funds "for safekeeping".** Moving a balance from an address the
+  service does not control is unauthorized access and theft in most
+  jurisdictions, regardless of the intent to return it later. The service never
+  takes custody, never signs, and never moves user funds. On a positive balance
+  it may only alert the verified owner and show recovery guidance; the owner
+  moves the funds themselves.
+
+The only automated notification path is a consent-based watchlist: the user
+proves control of an address and asks to be alerted about its activity and about
+membership in published leak datasets.
+
 ## Scope
 
 In (MVP):
@@ -169,8 +194,8 @@ Out:
   60 s throttle, token returned once.
 - `src/coordinator/mod.rs:31-41`, `:487-506` - embedded pages/assets.
 - `src/coordinator/mod.rs:42-50` - 1 MiB body cap, 20 req/s per token.
-- `web/me.html:24-31`, `:73-184` - cabinet token login, 2 s polling.
-- `web/site.js:5-20`, `:49-61` - token in localStorage, bearer fetch.
+- `apps/site/me.html:24-31`, `:73-184` - cabinet token login, 2 s polling.
+- `apps/site/site.js:5-20`, `:49-61` - token in localStorage, bearer fetch.
 - `Cargo.toml:33` - `ureq` with native-tls; `src/coordinator/client.rs:1-11`
   - existing outbound HTTP client.
 - `openspec/changes/key-explorer/proposal.md` - sibling `/key` page: local

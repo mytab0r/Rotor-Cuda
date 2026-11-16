@@ -5,19 +5,19 @@
       "id": "site",
       "title": "Browser site and wasm client UI",
       "owner": "site-ui",
-      "paths": ["web/**"],
+      "paths": ["apps/site/**"],
       "build": [
-        "node --check web/site.js",
-        "node --check web/key.js",
-        "node --check web/rotor-worker.js"
+        "node --check apps/site/site.js",
+        "node --check apps/site/key.js",
+        "node --check apps/site/rotor-worker.js"
       ],
-      "test": ["node web/worker-test.mjs web/rotor_wasm.wasm"],
+      "test": ["node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm"],
       "consumes": ["wasm-core"],
       "contracts": [
         "coordinator-embeds-web-assets-at-compile-time",
         "asset-version-?v=-bump-when-site.css-site.js-key.js-change",
         "served-routes-are-fixed",
-        "web/rotor_wasm.wasm-is-rebuilt-by-wasm-core"
+        "apps/site/rotor_wasm.wasm-is-rebuilt-by-wasm-core"
       ]
     },
     {
@@ -54,12 +54,12 @@
       "test": [
         "cargo test -p rotor-wasm",
         "node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm",
-        "node web/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm"
+        "node apps/site/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm"
       ],
       "consumes": [],
       "contracts": [
-        "wasm-exports-consumed-by-web/key.js-and-web/rotor-worker.js",
-        "committed-artifact-web/rotor_wasm.wasm-must-be-fresh"
+        "wasm-exports-consumed-by-apps/site/key.js-and-apps/site/rotor-worker.js",
+        "committed-artifact-apps/site/rotor_wasm.wasm-must-be-fresh"
       ]
     },
     {
@@ -114,7 +114,7 @@
       "consumes": [],
       "contracts": [
         "ci-path-filters-cover-all-areas",
-        "docker-rebuilds-web/rotor_wasm.wasm",
+        "docker-rebuilds-apps/site/rotor_wasm.wasm",
         "deploy-secrets-by-name-only",
         "new-root-files-must-join-an-area"
       ]
