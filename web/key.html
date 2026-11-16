@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - private key explorer</title>
+<link rel="stylesheet" href="/site.css?v=20261116c">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/run" id="nav-run">Run</a>
+    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+    <a href="/key" class="active" id="nav-key">Keys</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Private-key explorer</h1>
+    <p>Every private key is a number. See what yours opens — all derivation happens in this browser.</p>
+    <p class="notice key-warning" role="note">Use only keys you control. If a key holds funds, do not type it into an online page — prefer an offline or air-gapped machine. This page never asks for a seed phrase.</p>
+    <p class="muted key-help">Nothing is sent anywhere unless you turn on balance lookups and press "Check balances". The private key itself never leaves this page.</p>
+  </section>
+
+  <section class="card">
+    <h2>Key input</h2>
+    <form id="key-form" class="key-form" autocomplete="off">
+      <label class="key-input-label">Private key
+        <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
+               autocomplete="new-password" spellcheck="false" autocapitalize="off"
+               data-lpignore="true" data-1p-ignore="true" aria-describedby="key-format">
+      </label>
+      <label>Curve
+        <select id="curve">
+          <option value="0">secp256k1</option>
+          <option value="1">ed25519</option>
+        </select>
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="derive-btn">Calculate</button>
+        <button type="button" id="step-down" title="Decrease the key by one">−1</button>
+        <button type="button" id="step-up" title="Increase the key by one">+1</button>
+        <button type="button" id="random-btn" title="Generate a random key">Generate</button>
+        <button type="button" id="clear-btn" title="Clear the key and results">Clear</button>
+      </div>
+    </form>
+    <p id="key-format" class="muted key-help">Accepts 64 hex characters with an optional 0x prefix, a decimal integer, or a Bitcoin WIF. The key stays in memory only: it is not written to the URL, history or storage, and it is cleared when you leave the page.</p>
+    <p id="key-error" class="error key-error" role="alert" hidden></p>
+  </section>
+
+  <section class="card">
+    <h2>Wallet presets and curve</h2>
+    <div class="key-explore-grid">
+      <div class="key-preset-panel">
+        <h3 class="key-group-title">Presets</h3>
+        <div class="key-presets" role="group" aria-label="Wallet presets">
+          <div class="key-preset-item">
+            <button type="button" data-preset="all" aria-pressed="true">All</button>
+            <p class="key-preset-note">Every address row for the selected curve.</p>
+          </div>
+          <div class="key-preset-item">
+            <button type="button" data-preset="ledger" aria-pressed="false">Ledger / Trezor</button>
+            <p class="key-preset-note">BTC rows: P2PKH m/44'/0'/0'/0/0, P2SH-P2WPKH m/49'/0'/0'/0/0, P2WPKH m/84'/0'/0'/0/0, P2TR m/86'/0'/0'/0/0.</p>
+          </div>
+          <div class="key-preset-item">
+            <button type="button" data-preset="metamask" aria-pressed="false">MetaMask</button>
+            <p class="key-preset-note">EVM · m/44'/60'/0'/0/0.</p>
+          </div>
+          <div class="key-preset-item">
+            <button type="button" data-preset="safepal" aria-pressed="false">SafePal</button>
+            <p class="key-preset-note">All secp256k1 rows.</p>
+          </div>
+          <div class="key-preset-item">
+            <button type="button" data-preset="tronlink" aria-pressed="false">TronLink</button>
+            <p class="key-preset-note">TRON · m/44'/195'/0'/0/0.</p>
+          </div>
+          <div class="key-preset-item">
+            <button type="button" data-preset="phantom" aria-pressed="false">Phantom</button>
+            <p class="key-preset-note">Solana · ed25519 seed.</p>
+          </div>
+        </div>
+        <p class="muted key-preset-foot">The paths are the standard wallet defaults for seed-derived keys; this page takes the final key, so the path line is informational.</p>
+      </div>
+      <div class="key-plot-panel">
+        <h3 class="key-group-title">Curve shape</h3>
+        <div class="key-plot" id="curve-plot"></div>
+        <label class="key-slider" for="curve-slider">Move the illustrative point
+          <input type="range" id="curve-slider" min="1" max="100" value="50">
+        </label>
+        <p class="muted key-help" id="curve-caption">Real-valued illustration. Actual key arithmetic is over a finite field.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Key summary</h2>
+    <div class="key-summary" id="summary">
+      <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Addresses</h2>
+    <div class="key-toolbar">
+      <div class="key-balance-controls">
+        <label class="key-toggle">Online balance lookups
+          <input type="checkbox" id="online-toggle">
+        </label>
+        <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
+      </div>
+    </div>
+    <p class="muted key-help" id="balance-help">Offline by default. When an online check is requested, only the derived addresses currently shown are sent: BTC to mempool.space, EVM to public Ethereum JSON-RPC providers (publicnode, dRPC, 1rpc; tried in order), TRON to Tronscan. Solana has no provider in v1.</p>
+    <div id="addr-rows" class="key-rows">
+      <p class="muted key-empty">Derive a key to see its addresses.</p>
+    </div>
+    <p id="preset-empty" class="muted key-empty" hidden>No address rows for this wallet on the selected curve.</p>
+  </section>
+</main>
+
+<script src="/key.js?v=20261116"></script>
+</body>
+</html>
