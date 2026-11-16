@@ -37,6 +37,8 @@ const SITE_JS: &str = include_str!("../../apps/site/site.js");
 const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
 const KEY_PAGE: &str = include_str!("../../apps/site/key.html");
 const KEY_JS: &str = include_str!("../../apps/site/key.js");
+const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
+const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
 const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
 /// Largest request body the coordinator buffers (JSON commands are tiny).
@@ -187,6 +189,13 @@ struct App {
     rate: RateLimiter,
     register: RegisterLimiter,
     open_registration: bool,
+    /// Address monitor, when `rotor-coord` started it. `None` keeps ordinary
+    /// coordinator-only servers (tests, embedders) from serving monitor routes.
+    monitor: Option<Arc<crate::monitor::store::MonitorStore>>,
+    /// Server-configured SIWE domain, never taken from the request.
+    monitor_domain: String,
+    /// Trust reverse-proxy client-IP headers for rate limiting.
+    trust_proxy: bool,
 }
 
 impl App {
@@ -300,6 +309,28 @@ pub fn spawn_with_clients(
     spawn_with_options(bind, state_path, token, clients, false)
 }
 
+/// Runtime options shared by the coordinator and the monitor.
+#[derive(Clone, Debug)]
+pub struct ServerOptions {
+    /// Enable public `POST /api/v1/register`.
+    pub open_registration: bool,
+    /// Trust `CF-Connecting-IP` / the first `X-Forwarded-For` hop for rate
+    /// limits. Only enable this when a reverse proxy sets those headers.
+    pub trust_proxy: bool,
+    /// Fixed SIWE domain shown in monitor challenges (never the Host header).
+    pub monitor_domain: String,
+}
+
+impl Default for ServerOptions {
+    fn default() -> Self {
+        Self {
+            open_registration: false,
+            trust_proxy: false,
+            monitor_domain: "localhost".to_string(),
+        }
+    }
+}
+
 /// Bind and serve with accounts, tokens and optional open registration.
 ///
 /// `open_registration` enables `POST /api/v1/register`. The `clients` map is
@@ -311,9 +342,67 @@ pub fn spawn_with_options(
     clients: Clients,
     open_registration: bool,
 ) -> Result<ServerHandle, String> {
+    spawn_inner(
+        bind,
+        state_path,
+        token,
+        clients,
+        ServerOptions {
+            open_registration,
+            ..ServerOptions::default()
+        },
+        None,
+    )
+}
+
+/// Coordinator-only variant that also controls reverse-proxy trust.
+pub fn spawn_with_options_trust_proxy(
+    bind: &str,
+    state_path: &Path,
+    token: String,
+    clients: Clients,
+    open_registration: bool,
+    trust_proxy: bool,
+) -> Result<ServerHandle, String> {
+    spawn_inner(
+        bind,
+        state_path,
+        token,
+        clients,
+        ServerOptions {
+            open_registration,
+            trust_proxy,
+            ..ServerOptions::default()
+        },
+        None,
+    )
+}
+
+/// Bind and serve with the address monitor mounted under
+/// `/api/v1/monitor/*`. The monitor store is independent of coordinator state.
+pub fn spawn_with_monitor_options(
+    bind: &str,
+    state_path: &Path,
+    token: String,
+    clients: Clients,
+    options: ServerOptions,
+    monitor: Arc<crate::monitor::store::MonitorStore>,
+) -> Result<ServerHandle, String> {
+    spawn_inner(bind, state_path, token, clients, options, Some(monitor))
+}
+
+fn spawn_inner(
+    bind: &str,
+    state_path: &Path,
+    token: String,
+    clients: Clients,
+    options: ServerOptions,
+    monitor: Option<Arc<crate::monitor::store::MonitorStore>>,
+) -> Result<ServerHandle, String> {
     if token.is_empty() {
         return Err("the coordinator token must not be empty".to_string());
     }
+    let monitor_domain = crate::monitor::auth::normalize_domain(&options.monitor_domain)?;
     let mut state = state::State::open(state_path)?;
     if !clients.is_empty() {
         let entries = clients
@@ -333,7 +422,10 @@ pub fn spawn_with_options(
         admin_token: token,
         rate: RateLimiter::default(),
         register: RegisterLimiter::default(),
-        open_registration,
+        open_registration: options.open_registration,
+        monitor,
+        monitor_domain,
+        trust_proxy: options.trust_proxy,
     });
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -421,6 +513,24 @@ fn handle(app: Arc<App>, request: Request) {
         return;
     }
 
+    // The address monitor has its own store, sessions and rate limits; its
+    // routes never enter the coordinator token matrix below.
+    if path.starts_with("/api/v1/monitor/") {
+        match app.monitor.as_ref() {
+            Some(store) => crate::monitor::api::handle(
+                store,
+                &app.monitor_domain,
+                app.trust_proxy,
+                request,
+                &method,
+                path,
+                query,
+            ),
+            None => respond_json(request, 404, &json!({"error": "not found"})),
+        }
+        return;
+    }
+
     // Public aggregate snapshot for the landing page: no secrets, no auth.
     if method == Method::Get && path == "/api/v1/summary" {
         let response = app.lock().summary(state::now_secs());
@@ -494,6 +604,11 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/monitor" => Some((MONITOR_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/monitor.js" => Some((
+            MONITOR_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/site.css" => Some((SITE_CSS.as_bytes(), "text/css; charset=utf-8")),
         "/site.js" => Some((SITE_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/rotor-worker.js" => Some((
@@ -565,10 +680,7 @@ fn register(app: &App, mut request: Request) {
     if !app.open_registration {
         return respond_json(request, 403, &json!({ "error": "registration is closed" }));
     }
-    let ip = request
-        .remote_addr()
-        .map(|addr| addr.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+    let ip = client_ip(&request, app.trust_proxy);
     let now = state::now_secs();
     if !app.register.allow(&ip, now) {
         return respond_json(request, 429, &json!({ "error": "rate limit exceeded" }));
@@ -828,12 +940,12 @@ fn bsgs_put(app: &App, mut request: Request) {
 }
 
 /// Why a request body could not be read.
-enum BodyError {
+pub(crate) enum BodyError {
     TooLarge,
     Io(String),
 }
 
-fn read_body(request: &mut Request) -> Result<String, BodyError> {
+pub(crate) fn read_body(request: &mut Request) -> Result<String, BodyError> {
     if request
         .body_length()
         .is_some_and(|length| length > MAX_BODY_BYTES)
@@ -852,7 +964,7 @@ fn read_body(request: &mut Request) -> Result<String, BodyError> {
     Ok(body)
 }
 
-fn respond_body_error(request: Request, error: BodyError) {
+pub(crate) fn respond_body_error(request: Request, error: BodyError) {
     match error {
         BodyError::TooLarge => respond_json(
             request,
@@ -863,7 +975,7 @@ fn respond_body_error(request: Request, error: BodyError) {
     }
 }
 
-fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+pub(crate) fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
     query.split('&').find_map(|pair| {
         let (name, value) = pair.split_once('=')?;
         (name == key).then_some(value)
@@ -876,6 +988,67 @@ fn bearer(request: &Request) -> Option<&str> {
         .iter()
         .find(|header| header.field.equiv("Authorization"))
         .and_then(|header| header.value.as_str().strip_prefix("Bearer "))
+}
+
+/// Client IP used as a rate-limit key.
+///
+/// `trust_proxy` is opt-in: without it the socket peer is authoritative even
+/// when proxy headers are present. With it, `CF-Connecting-IP` wins, then the
+/// first hop of `X-Forwarded-For`, then the socket address.
+pub(crate) fn client_ip(request: &Request, trust_proxy: bool) -> String {
+    client_ip_from(
+        header_value(request, "CF-Connecting-IP"),
+        header_value(request, "X-Forwarded-For"),
+        request.remote_addr().map(|addr| addr.ip().to_string()),
+        trust_proxy,
+    )
+}
+
+fn header_value<'a>(request: &'a Request, name: &'static str) -> Option<&'a str> {
+    request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv(name))
+        .map(|header| header.value.as_str())
+}
+
+fn client_ip_from(
+    cloudflare: Option<&str>,
+    forwarded_for: Option<&str>,
+    socket: Option<String>,
+    trust_proxy: bool,
+) -> String {
+    if trust_proxy {
+        if let Some(ip) = cloudflare.and_then(parse_forwarded_ip) {
+            return ip;
+        }
+        if let Some(ip) = forwarded_for
+            .and_then(|value| value.split(',').next())
+            .and_then(parse_forwarded_ip)
+        {
+            return ip;
+        }
+    }
+    socket.unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Parse one proxy-supplied address: bare IP, `ip:port`, or `[v6]:port`.
+fn parse_forwarded_ip(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(rest) = value.strip_prefix('[') {
+        let (ip, _) = rest.split_once(']')?;
+        return ip.parse::<std::net::IpAddr>().ok().map(|ip| ip.to_string());
+    }
+    if let Ok(ip) = value.parse::<std::net::IpAddr>() {
+        return Some(ip.to_string());
+    }
+    value
+        .parse::<std::net::SocketAddr>()
+        .ok()
+        .map(|addr| addr.ip().to_string())
 }
 
 /// Constant-time equality over the byte strings (length is not secret).
@@ -936,7 +1109,7 @@ fn header(name: &str, value: &str) -> Header {
     Header::from_bytes(name.as_bytes(), value.as_bytes()).expect("static header is ASCII")
 }
 
-fn respond_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
+pub(crate) fn respond_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
     let body = serde_json::to_string(value)
         .unwrap_or_else(|_| "{\"error\":\"serialization failed\"}".to_string());
     let response = Response::from_string(body)
@@ -993,6 +1166,14 @@ mod tests {
         let (body, content_type) = static_asset("/key.js").expect("/key.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         assert!(!body.is_empty());
+
+        let (body, content_type) = static_asset("/monitor").expect("/monitor is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(!body.is_empty());
+
+        let (body, content_type) = static_asset("/monitor.js").expect("/monitor.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
     }
 
     #[test]
@@ -1006,5 +1187,71 @@ mod tests {
         assert!(Clients::parse(r#"{"":""}"#).is_err());
         assert!(Clients::parse(&format!(r#"{{"alpha":"{hash}","beta":"{hash}"}}"#)).is_err());
         assert!(Clients::parse("not json").is_err());
+    }
+
+    #[test]
+    fn embedded_copy_makes_no_forbidden_claims() {
+        let surfaces = [
+            ("landing", LANDING),
+            ("app", APP_PAGE),
+            ("me", ME_PAGE),
+            ("docs", DOCS_PAGE),
+            ("run", RUN_PAGE),
+            ("key", KEY_PAGE),
+            ("site.js", SITE_JS),
+            ("key.js", KEY_JS),
+            ("monitor", MONITOR_PAGE),
+            ("monitor.js", MONITOR_JS),
+        ];
+        let forbidden = [
+            "we detect leaked keys",
+            "detect leaked keys",
+            "guaranteed",
+            "we can recover your funds",
+            "prevent theft",
+        ];
+        for (name, text) in surfaces {
+            let lower = text.to_ascii_lowercase();
+            for claim in forbidden {
+                assert!(
+                    !lower.contains(claim),
+                    "{name} contains forbidden claim: {claim:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn proxy_headers_are_only_used_when_trusted() {
+        let socket = || Some("127.0.0.1".to_string());
+        assert_eq!(
+            client_ip_from(Some("1.1.1.1"), Some("2.2.2.2"), socket(), false),
+            "127.0.0.1"
+        );
+        assert_eq!(
+            client_ip_from(Some("1.1.1.1"), Some("2.2.2.2"), socket(), true),
+            "1.1.1.1"
+        );
+        assert_eq!(
+            client_ip_from(None, Some("2.2.2.2, 3.3.3.3"), socket(), true),
+            "2.2.2.2"
+        );
+        assert_eq!(
+            client_ip_from(Some("not-an-ip"), Some("2.2.2.2"), socket(), true),
+            "2.2.2.2"
+        );
+        assert_eq!(
+            client_ip_from(Some("not-an-ip"), Some("also-bad"), socket(), true),
+            "127.0.0.1"
+        );
+        assert_eq!(client_ip_from(None, None, None, true), "unknown");
+        assert_eq!(
+            client_ip_from(None, Some("[2001:db8::1]:443, 10.0.0.1"), socket(), true),
+            "2001:db8::1"
+        );
+        assert_eq!(
+            client_ip_from(None, Some("1.2.3.4:5678"), socket(), true),
+            "1.2.3.4"
+        );
     }
 }

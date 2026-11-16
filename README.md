@@ -273,6 +273,31 @@ the same WASM artifact the worker uses; the coordinator only serves the page.
   funds should be handled offline on an air-gapped machine, never typed into an
   online page.
 
+### Address monitor
+
+`/monitor` is a watch-only service for addresses you control. Connect an
+injected EVM wallet, sign the one-time SIWE challenge, and the coordinator
+stores the wallet's EVM accounts as watches. The watcher polls each address
+(`eth_getBalance` / `eth_getTransactionCount` by default) and adds an event to
+your cabinet feed when the balance or nonce changes. It never asks for a
+private key, WIF or seed phrase, and never signs for you.
+
+- The address that signed the login is `verified`; other imported accounts are
+  stored as `unverified`. BTC addresses can be added manually (checksum is
+  validated) but remain unverified until a chain-specific signature flow ships.
+- `/key` has an unchecked "Check these addresses against the Rotor registry"
+  box. When enabled, it sends the derived addresses (never the key) to
+  `POST /api/v1/monitor/exposure`; the coordinator returns only a match count
+  and records a "lookup" event for the owner. With the box off, no request is
+  made.
+- `recovery_opt_in` in the cabinet is consent to be contacted about recovery
+  help; it is not an instruction to move funds, and the service never takes
+  custody or sweeps balances.
+- Operator flags: `--monitor-state /data/monitor.json`,
+  `--monitor-domain <public host>` (fixed SIWE domain), `--monitor-interval`
+  (seconds, default 300), `--monitor-rpc <EVM JSON-RPC>`, and `--trust-proxy`
+  when running behind the reverse proxy so rate limits use the real client IP.
+
 ### BSGS resume
 
 A `bsgs` job is searched as one giant walk, not chunk by chunk. Create it with the

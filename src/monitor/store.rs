@@ -1,0 +1,1204 @@
+//! Independent persistence for the address monitor.
+//!
+//! The store owns its own mutex and its own JSON file so that the monitor's
+//! higher-frequency writes never rewrite the coordinator state file. Every
+//! mutation rewrites the file atomically (`<path>.tmp` then rename).
+
+use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
+
+use serde::{Deserialize, Serialize};
+
+use crate::coordinator::state::now_secs;
+use crate::hashes::sha256;
+
+/// On-disk schema version (refuse to guess at a future format).
+pub const STORE_VERSION: u32 = 1;
+/// Hard per-account watch limit for the MVP.
+pub const MAX_WATCHES_PER_USER: usize = 50;
+/// How long an identical event is suppressed, in seconds.
+pub const EVENT_DEDUPE_WINDOW_SECS: u64 = 60;
+/// Bearer session lifetime: 30 days.
+pub const SESSION_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+/// Events older than this are dropped on the next write.
+const EVENT_RETENTION_SECS: u64 = 90 * 24 * 60 * 60;
+/// Upper bound on retained events, newest kept.
+const MAX_EVENTS: usize = 5000;
+/// Maximum retained error text in the watcher health record.
+const MAX_ERROR_LEN: usize = 300;
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct Data {
+    #[serde(default = "default_version")]
+    version: u32,
+    #[serde(default)]
+    users: HashMap<String, User>,
+    #[serde(default)]
+    challenges: HashMap<String, Challenge>,
+    #[serde(default)]
+    sessions: HashMap<String, Session>,
+    #[serde(default)]
+    watches: Vec<Watch>,
+    #[serde(default)]
+    events: Vec<Event>,
+    #[serde(default = "default_next_event_id")]
+    next_event_id: u64,
+    #[serde(default)]
+    watcher: WatcherHealth,
+}
+
+fn default_version() -> u32 {
+    STORE_VERSION
+}
+
+fn default_next_event_id() -> u64 {
+    1
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Per-account notification settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Settings {
+    #[serde(default)]
+    pub recovery_opt_in: bool,
+    #[serde(default = "default_true")]
+    pub alerts_enabled: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            recovery_opt_in: false,
+            alerts_enabled: true,
+        }
+    }
+}
+
+/// A monitor account. It is separate from the coordinator's `ClientRecord`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: String,
+    pub address: String,
+    pub created_at: u64,
+    #[serde(default)]
+    pub settings: Settings,
+}
+
+/// A single-use SIWE challenge.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Challenge {
+    pub nonce: String,
+    pub address: String,
+    pub message: String,
+    pub expires_at: u64,
+}
+
+/// A bearer session. Only the SHA-256 of the token is persisted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub token_hash: String,
+    pub user_id: String,
+    pub created_at: u64,
+}
+
+/// A watched address and its last observed EVM counters.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Watch {
+    pub user_id: String,
+    pub chain: String,
+    pub address: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default)]
+    pub verified: bool,
+    /// Last observed balance as a normalized `0x` quantity (EVM only).
+    #[serde(default)]
+    pub last_balance: Option<String>,
+    /// Last observed transaction count (EVM only).
+    #[serde(default)]
+    pub last_nonce: Option<u64>,
+    #[serde(default)]
+    pub last_seen_at: Option<u64>,
+}
+
+/// A feed entry for one user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Event {
+    pub id: u64,
+    pub user_id: String,
+    pub chain: String,
+    pub address: String,
+    pub kind: String,
+    pub severity: String,
+    pub detail: String,
+    pub at: u64,
+    #[serde(default)]
+    pub seen: bool,
+}
+
+/// Watcher liveness, kept in the same file so a restart does not look healthy
+/// after a failure.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct WatcherHealth {
+    #[serde(default)]
+    last_ok_at: u64,
+    #[serde(default)]
+    last_error_at: u64,
+    #[serde(default)]
+    last_error: String,
+}
+
+/// New watch requested over the API.
+#[derive(Debug, Clone)]
+pub struct NewWatch {
+    pub chain: String,
+    pub address: String,
+    pub label: Option<String>,
+    pub verified: bool,
+}
+
+/// One EVM observation produced by the watcher.
+#[derive(Debug, Clone)]
+pub struct Observation {
+    pub address: String,
+    /// Normalized `0x` balance quantity.
+    pub balance: String,
+    pub nonce: u64,
+}
+
+/// The `/me` cabinet snapshot.
+#[derive(Debug, Clone, Serialize)]
+pub struct MeView {
+    pub user: User,
+    pub settings: Settings,
+    pub watches: Vec<Watch>,
+    pub events: Vec<Event>,
+}
+
+/// Monitor data with its own lock and file.
+pub struct MonitorStore {
+    path: PathBuf,
+    data: Mutex<Data>,
+}
+
+impl MonitorStore {
+    /// Open (or create) the monitor store at `path`.
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, String> {
+        let path = path.as_ref().to_path_buf();
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+            && !parent.is_dir()
+        {
+            return Err(format!(
+                "monitor state directory does not exist: {}",
+                parent.display()
+            ));
+        }
+        let data = match fs::read(&path) {
+            Ok(bytes) => {
+                let data: Data = serde_json::from_slice(&bytes)
+                    .map_err(|err| format!("cannot parse {}: {err}", path.display()))?;
+                if data.version != STORE_VERSION {
+                    return Err(format!(
+                        "{}: unsupported monitor state version {}; this build expects version {STORE_VERSION}",
+                        path.display(),
+                        data.version
+                    ));
+                }
+                data
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Data {
+                version: STORE_VERSION,
+                next_event_id: default_next_event_id(),
+                ..Data::default()
+            },
+            Err(err) => return Err(format!("cannot read {}: {err}", path.display())),
+        };
+        Ok(Self {
+            path,
+            data: Mutex::new(data),
+        })
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Data> {
+        self.data
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Atomically rewrite the store file (`tmp` + rename). Expired challenges
+    /// and sessions are pruned here so the file cannot grow forever.
+    fn save_locked(&self, data: &mut Data) -> Result<(), String> {
+        let now = now_secs();
+        data.challenges
+            .retain(|_, challenge| challenge.expires_at > now);
+        data.sessions
+            .retain(|_, session| now.saturating_sub(session.created_at) <= SESSION_TTL_SECS);
+        let json = serde_json::to_vec_pretty(data)
+            .map_err(|err| format!("cannot serialize monitor state: {err}"))?;
+        let mut tmp = self.path.as_os_str().to_owned();
+        tmp.push(".tmp");
+        let tmp = PathBuf::from(tmp);
+        fs::write(&tmp, json).map_err(|err| format!("cannot write {}: {err}", tmp.display()))?;
+        fs::rename(&tmp, &self.path)
+            .map_err(|err| format!("cannot replace {}: {err}", self.path.display()))
+    }
+
+    /// Find a user by wallet address or create one.
+    pub fn upsert_user(&self, address: &str) -> Result<User, String> {
+        let address = canonicalize_evm(address)?;
+        let mut data = self.lock();
+        if let Some(user) = data.users.values().find(|user| user.address == address) {
+            return Ok(user.clone());
+        }
+        let user = User {
+            id: format!("u_{}", random_hex(8)?),
+            address,
+            created_at: now_secs(),
+            settings: Settings::default(),
+        };
+        data.users.insert(user.id.clone(), user.clone());
+        self.save_locked(&mut data)?;
+        Ok(user)
+    }
+
+    /// Generate an opaque challenge nonce (16 random bytes, hex).
+    pub fn new_nonce(&self) -> Result<String, String> {
+        random_hex(16)
+    }
+
+    /// Store a challenge, dropping expired ones first.
+    pub fn put_challenge(
+        &self,
+        nonce: &str,
+        address: &str,
+        message: &str,
+        expires_at: u64,
+    ) -> Result<(), String> {
+        let now = now_secs();
+        let mut data = self.lock();
+        data.challenges
+            .retain(|_, challenge| challenge.expires_at > now);
+        data.challenges.insert(
+            nonce.to_string(),
+            Challenge {
+                nonce: nonce.to_string(),
+                address: address.to_string(),
+                message: message.to_string(),
+                expires_at,
+            },
+        );
+        self.save_locked(&mut data)
+    }
+
+    /// Look up a challenge without consuming it.
+    pub fn challenge(&self, nonce: &str) -> Option<Challenge> {
+        let data = self.lock();
+        data.challenges.get(nonce).cloned()
+    }
+
+    /// Remove and return a challenge after successful verification.
+    pub fn consume_challenge(&self, nonce: &str) -> Result<Option<Challenge>, String> {
+        let mut data = self.lock();
+        let Some(challenge) = data.challenges.remove(nonce) else {
+            return Ok(None);
+        };
+        self.save_locked(&mut data)?;
+        Ok(Some(challenge))
+    }
+
+    /// Create a session and return the plaintext token once.
+    pub fn create_session(&self, user_id: &str) -> Result<String, String> {
+        let token = random_hex(32)?;
+        let token_hash = hex_encode(&sha256(token.as_bytes()));
+        let mut data = self.lock();
+        data.sessions.insert(
+            token_hash.clone(),
+            Session {
+                token_hash,
+                user_id: user_id.to_string(),
+                created_at: now_secs(),
+            },
+        );
+        self.save_locked(&mut data)?;
+        Ok(token)
+    }
+
+    /// Resolve a bearer token to its user id, rejecting expired sessions.
+    pub fn resolve_session(&self, token: &str) -> Option<String> {
+        let token_hash = hex_encode(&sha256(token.as_bytes()));
+        let mut data = self.lock();
+        let (created_at, user_id) = {
+            let session = data.sessions.get(&token_hash)?;
+            (session.created_at, session.user_id.clone())
+        };
+        if now_secs().saturating_sub(created_at) > SESSION_TTL_SECS {
+            data.sessions.remove(&token_hash);
+            let _ = self.save_locked(&mut data);
+            return None;
+        }
+        Some(user_id)
+    }
+
+    /// Revoke a bearer session.
+    pub fn delete_session(&self, token: &str) -> Result<bool, String> {
+        let token_hash = hex_encode(&sha256(token.as_bytes()));
+        let mut data = self.lock();
+        let removed = data.sessions.remove(&token_hash).is_some();
+        if removed {
+            self.save_locked(&mut data)?;
+        }
+        Ok(removed)
+    }
+
+    /// Fetch a user record.
+    pub fn user(&self, user_id: &str) -> Option<User> {
+        let data = self.lock();
+        data.users.get(user_id).cloned()
+    }
+
+    /// Add watches for one user; existing `(chain, address)` pairs are kept
+    /// and only their label/verification state is refreshed.
+    pub fn add_watches(&self, user_id: &str, watches: Vec<NewWatch>) -> Result<Vec<Watch>, String> {
+        let mut data = self.lock();
+        let existing: HashSet<(String, String)> = data
+            .watches
+            .iter()
+            .filter(|watch| watch.user_id == user_id)
+            .map(|watch| (watch.chain.clone(), watch.address.clone()))
+            .collect();
+        let current = existing.len();
+        let mut incoming: HashSet<(String, String)> = HashSet::new();
+        for watch in &watches {
+            incoming.insert((watch.chain.clone(), watch.address.clone()));
+        }
+        let new_count = incoming.difference(&existing).count();
+        if current + new_count > MAX_WATCHES_PER_USER {
+            return Err(format!(
+                "address limit reached: {MAX_WATCHES_PER_USER} watches per account"
+            ));
+        }
+        for new_watch in watches {
+            match data.watches.iter_mut().find(|watch| {
+                watch.user_id == user_id
+                    && watch.chain == new_watch.chain
+                    && watch.address == new_watch.address
+            }) {
+                Some(watch) => {
+                    watch.verified |= new_watch.verified;
+                    if let Some(label) = new_watch.label {
+                        watch.label = Some(label);
+                    }
+                }
+                None => data.watches.push(Watch {
+                    user_id: user_id.to_string(),
+                    chain: new_watch.chain,
+                    address: new_watch.address,
+                    label: new_watch.label,
+                    verified: new_watch.verified,
+                    last_balance: None,
+                    last_nonce: None,
+                    last_seen_at: None,
+                }),
+            }
+        }
+        self.save_locked(&mut data)?;
+        Ok(watches_for(&data, user_id))
+    }
+
+    /// Remove one watch. Returns false when the user does not own it.
+    pub fn delete_watch(&self, user_id: &str, chain: &str, address: &str) -> Result<bool, String> {
+        let mut data = self.lock();
+        let before = data.watches.len();
+        data.watches.retain(|watch| {
+            !(watch.user_id == user_id && watch.chain == chain && watch.address == address)
+        });
+        let removed = data.watches.len() != before;
+        if removed {
+            self.save_locked(&mut data)?;
+        }
+        Ok(removed)
+    }
+
+    /// Full cabinet snapshot (`/me`).
+    pub fn me(&self, user_id: &str) -> Option<MeView> {
+        let data = self.lock();
+        let user = data.users.get(user_id)?.clone();
+        let mut events: Vec<Event> = data
+            .events
+            .iter()
+            .filter(|event| event.user_id == user_id)
+            .cloned()
+            .collect();
+        let start = events.len().saturating_sub(100);
+        events.drain(..start);
+        Some(MeView {
+            settings: user.settings.clone(),
+            user,
+            watches: watches_for(&data, user_id),
+            events,
+        })
+    }
+
+    /// Events for one user newer than `since` (by event id), newest 100.
+    pub fn feed(&self, user_id: &str, since: Option<u64>) -> Vec<Event> {
+        let data = self.lock();
+        let since = since.unwrap_or(0);
+        let mut events: Vec<Event> = data
+            .events
+            .iter()
+            .filter(|event| event.user_id == user_id && event.id > since)
+            .cloned()
+            .collect();
+        let start = events.len().saturating_sub(100);
+        events.drain(..start);
+        events
+    }
+
+    /// Update notification settings; `None` means "leave unchanged".
+    pub fn update_settings(
+        &self,
+        user_id: &str,
+        recovery_opt_in: Option<bool>,
+        alerts_enabled: Option<bool>,
+    ) -> Result<Option<Settings>, String> {
+        let mut data = self.lock();
+        let Some(user) = data.users.get_mut(user_id) else {
+            return Ok(None);
+        };
+        if let Some(value) = recovery_opt_in {
+            user.settings.recovery_opt_in = value;
+        }
+        if let Some(value) = alerts_enabled {
+            user.settings.alerts_enabled = value;
+        }
+        let settings = user.settings.clone();
+        self.save_locked(&mut data)?;
+        Ok(Some(settings))
+    }
+
+    /// Record an event unless an identical one landed within the dedupe
+    /// window. Returns the stored event, or `None` when suppressed.
+    pub fn record_event(
+        &self,
+        user_id: &str,
+        chain: &str,
+        address: &str,
+        kind: &str,
+        severity: &str,
+        detail: &str,
+    ) -> Result<Option<Event>, String> {
+        let now = now_secs();
+        let mut data = self.lock();
+        let event = record_event_locked(
+            &mut data,
+            EventInput {
+                user_id,
+                chain,
+                address,
+                kind,
+                severity,
+                detail,
+            },
+            now,
+        );
+        self.save_locked(&mut data)?;
+        Ok(event)
+    }
+
+    /// Owner user ids whose watches match any of the given canonical pairs.
+    pub fn exposure_matches(&self, pairs: &[(String, String)]) -> Vec<String> {
+        let wanted: HashSet<(&str, &str)> = pairs
+            .iter()
+            .map(|(chain, address)| (chain.as_str(), address.as_str()))
+            .collect();
+        let data = self.lock();
+        let mut owners: Vec<String> = data
+            .watches
+            .iter()
+            .filter(|watch| wanted.contains(&(watch.chain.as_str(), watch.address.as_str())))
+            .map(|watch| watch.user_id.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        owners.sort();
+        owners
+    }
+
+    /// Compare public lookup addresses with every watch. Returns the number of
+    /// distinct matched `(chain, address)` pairs and records one `lookup`
+    /// event per matched owner (deduplicated within the window).
+    pub fn record_exposure(&self, pairs: &[(String, String)]) -> Result<usize, String> {
+        let wanted: HashSet<(&str, &str)> = pairs
+            .iter()
+            .map(|(chain, address)| (chain.as_str(), address.as_str()))
+            .collect();
+        let now = now_secs();
+        let mut data = self.lock();
+        let matches: Vec<(String, String, String)> = data
+            .watches
+            .iter()
+            .filter(|watch| wanted.contains(&(watch.chain.as_str(), watch.address.as_str())))
+            .map(|watch| {
+                (
+                    watch.user_id.clone(),
+                    watch.chain.clone(),
+                    watch.address.clone(),
+                )
+            })
+            .collect();
+        let mut matched: HashSet<(String, String)> = HashSet::new();
+        for (user_id, chain, address) in matches {
+            matched.insert((chain.clone(), address.clone()));
+            record_event_locked(
+                &mut data,
+                EventInput {
+                    user_id: &user_id,
+                    chain: &chain,
+                    address: &address,
+                    kind: "lookup",
+                    severity: "high",
+                    detail: "address looked up on /key",
+                },
+                now,
+            );
+        }
+        if !matched.is_empty() {
+            self.save_locked(&mut data)?;
+        }
+        Ok(matched.len())
+    }
+
+    /// Unique EVM addresses to poll.
+    pub fn evm_watch_addresses(&self) -> Vec<String> {
+        let data = self.lock();
+        let mut addresses: Vec<String> = data
+            .watches
+            .iter()
+            .filter(|watch| watch.chain == "evm")
+            .map(|watch| watch.address.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        addresses.sort();
+        addresses
+    }
+
+    /// Apply one poll result: the first observation sets the baseline, later
+    /// changes produce per-owner events. Returns the newly recorded events.
+    pub fn apply_evm_observations(
+        &self,
+        observations: &[Observation],
+    ) -> Result<Vec<Event>, String> {
+        let now = now_secs();
+        let by_address: HashMap<&str, &Observation> = observations
+            .iter()
+            .map(|observation| (observation.address.as_str(), observation))
+            .collect();
+        let mut data = self.lock();
+        data.watcher.last_ok_at = now;
+        let mut created = Vec::new();
+        for index in 0..data.watches.len() {
+            let watch = &data.watches[index];
+            if watch.chain != "evm" {
+                continue;
+            }
+            let Some(observation) = by_address.get(watch.address.as_str()) else {
+                continue;
+            };
+            let balance = observation.balance.clone();
+            let nonce = observation.nonce;
+            let mut changes: Vec<(&'static str, &'static str, String)> = Vec::new();
+            if let Some(old) = &watch.last_balance
+                && old != &balance
+            {
+                changes.push(("balance", "high", format!("balance {old} -> {balance}")));
+            }
+            if let Some(old) = watch.last_nonce
+                && old != nonce
+            {
+                changes.push(("nonce", "critical", format!("nonce {old} -> {nonce}")));
+            }
+            let user_id = watch.user_id.clone();
+            let chain = watch.chain.clone();
+            let address = watch.address.clone();
+            let watch = &mut data.watches[index];
+            watch.last_balance = Some(balance);
+            watch.last_nonce = Some(nonce);
+            watch.last_seen_at = Some(now);
+            for (kind, severity, detail) in changes {
+                if let Some(event) = record_event_locked(
+                    &mut data,
+                    EventInput {
+                        user_id: &user_id,
+                        chain: &chain,
+                        address: &address,
+                        kind,
+                        severity,
+                        detail: &detail,
+                    },
+                    now,
+                ) {
+                    created.push(event);
+                }
+            }
+        }
+        self.save_locked(&mut data)?;
+        Ok(created)
+    }
+
+    /// Remember a watcher failure without losing the last success time.
+    pub fn record_watcher_error(&self, message: &str) {
+        let mut data = self.lock();
+        data.watcher.last_error_at = now_secs();
+        data.watcher.last_error = truncate(message, MAX_ERROR_LEN);
+        let _ = self.save_locked(&mut data);
+    }
+
+    /// `(last_ok_at, last_error_at, last_error)` for diagnostics.
+    pub fn watcher_health(&self) -> (u64, u64, String) {
+        let data = self.lock();
+        (
+            data.watcher.last_ok_at,
+            data.watcher.last_error_at,
+            data.watcher.last_error.clone(),
+        )
+    }
+}
+
+fn watches_for(data: &Data, user_id: &str) -> Vec<Watch> {
+    let mut watches: Vec<Watch> = data
+        .watches
+        .iter()
+        .filter(|watch| watch.user_id == user_id)
+        .cloned()
+        .collect();
+    watches.sort_by(|left, right| {
+        (left.chain.as_str(), left.address.as_str())
+            .cmp(&(right.chain.as_str(), right.address.as_str()))
+    });
+    watches
+}
+
+struct EventInput<'a> {
+    user_id: &'a str,
+    chain: &'a str,
+    address: &'a str,
+    kind: &'a str,
+    severity: &'a str,
+    detail: &'a str,
+}
+
+fn record_event_locked(data: &mut Data, input: EventInput<'_>, now: u64) -> Option<Event> {
+    let EventInput {
+        user_id,
+        chain,
+        address,
+        kind,
+        severity,
+        detail,
+    } = input;
+    let duplicate = data.events.iter().rev().take(200).any(|event| {
+        event.user_id == user_id
+            && event.chain == chain
+            && event.address == address
+            && event.kind == kind
+            && event.detail == detail
+            && now.saturating_sub(event.at) <= EVENT_DEDUPE_WINDOW_SECS
+    });
+    if duplicate {
+        return None;
+    }
+    let id = data.next_event_id.max(1);
+    data.next_event_id = id.saturating_add(1);
+    let event = Event {
+        id,
+        user_id: user_id.to_string(),
+        chain: chain.to_string(),
+        address: address.to_string(),
+        kind: kind.to_string(),
+        severity: severity.to_string(),
+        detail: detail.to_string(),
+        at: now,
+        seen: false,
+    };
+    data.events.push(event.clone());
+    data.events
+        .retain(|event| now.saturating_sub(event.at) <= EVENT_RETENTION_SECS);
+    let excess = data.events.len().saturating_sub(MAX_EVENTS);
+    if excess > 0 {
+        data.events.drain(..excess);
+    }
+    Some(event)
+}
+
+/// Map a client-supplied chain name to its canonical key.
+pub fn canonical_chain(chain: &str) -> Result<&'static str, String> {
+    match chain.trim().to_ascii_lowercase().as_str() {
+        "evm" | "ethereum" | "eth" => Ok("evm"),
+        "btc" | "bitcoin" => Ok("btc"),
+        other => Err(format!(
+            "unsupported chain: {other}; MVP supports evm and btc"
+        )),
+    }
+}
+
+/// Canonicalize an EVM address to `0x` + 40 lowercase hex digits.
+pub fn canonicalize_evm(address: &str) -> Result<String, String> {
+    let trimmed = address.trim();
+    let hex = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .ok_or_else(|| "EVM address must start with 0x".to_string())?;
+    if hex.len() != 40 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("EVM address must be 0x followed by 40 hex digits".to_string());
+    }
+    Ok(format!("0x{}", hex.to_ascii_lowercase()))
+}
+
+/// BTC address check: Base58Check checksum, or full BIP173/BIP350 bech32
+/// checksum and witness-program validation.
+pub fn canonicalize_btc(address: &str) -> Result<String, String> {
+    let trimmed = address.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let is_bech32 = ["bc1", "tb1", "bcrt1"]
+        .iter()
+        .any(|prefix| lower.starts_with(prefix));
+    if is_bech32 {
+        if trimmed != lower {
+            return Err("bech32 addresses must be lowercase".to_string());
+        }
+        validate_bech32(&lower)?;
+        return Ok(lower);
+    }
+    let payload = crate::base58::decode_check(trimmed)?;
+    if payload.len() != 21 {
+        return Err("invalid Base58Check address length".to_string());
+    }
+    match payload[0] {
+        0x00 | 0x05 => Ok(trimmed.to_string()),
+        version => Err(format!("unsupported Base58Check version: 0x{version:02x}")),
+    }
+}
+
+const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+fn bech32_polymod(values: &[u8]) -> u32 {
+    const GENERATOR: [u32; 5] = [
+        0x3b6a_57b2,
+        0x2650_8e6d,
+        0x1ea1_19fa,
+        0x3d42_33dd,
+        0x2a14_62b3,
+    ];
+    let mut checksum = 1u32;
+    for value in values {
+        let top = checksum >> 25;
+        checksum = ((checksum & 0x01ff_ffff) << 5) ^ u32::from(*value);
+        for (index, generator) in GENERATOR.iter().enumerate() {
+            if (top >> index) & 1 == 1 {
+                checksum ^= generator;
+            }
+        }
+    }
+    checksum
+}
+
+fn bech32_hrp_expand(hrp: &str) -> Vec<u8> {
+    let mut out = Vec::with_capacity(hrp.len() * 2 + 1);
+    out.extend(hrp.bytes().map(|byte| byte >> 5));
+    out.push(0);
+    out.extend(hrp.bytes().map(|byte| byte & 31));
+    out
+}
+
+/// Convert 5-bit groups to bytes, rejecting non-zero padding.
+fn convert_5_to_8(data: &[u8]) -> Result<Vec<u8>, String> {
+    let mut accumulator = 0u32;
+    let mut bits = 0u32;
+    let mut out = Vec::new();
+    for value in data {
+        accumulator = (accumulator << 5) | u32::from(*value);
+        bits += 5;
+        while bits >= 8 {
+            bits -= 8;
+            out.push(((accumulator >> bits) & 0xff) as u8);
+        }
+    }
+    if bits >= 5 || ((accumulator << (8 - bits)) & 0xff) != 0 {
+        return Err("invalid bech32 padding".to_string());
+    }
+    Ok(out)
+}
+
+/// Verify a BIP173/BIP350 bech32 or bech32m checksum and witness program.
+fn validate_bech32(address: &str) -> Result<(), String> {
+    if address.len() > 90 {
+        return Err("bech32 address is too long".to_string());
+    }
+    let Some((hrp, payload)) = address.rsplit_once('1') else {
+        return Err("invalid bech32 address".to_string());
+    };
+    if !matches!(hrp, "bc" | "tb" | "bcrt") {
+        return Err("unsupported bech32 prefix".to_string());
+    }
+    let mut data = Vec::with_capacity(payload.len());
+    for byte in payload.bytes() {
+        let position = BECH32_CHARSET
+            .iter()
+            .position(|candidate| *candidate == byte)
+            .ok_or_else(|| "invalid bech32 character".to_string())?;
+        data.push(position as u8);
+    }
+    if data.len() < 7 {
+        return Err("invalid bech32 payload length".to_string());
+    }
+    let mut values = bech32_hrp_expand(hrp);
+    values.extend_from_slice(&data);
+    let checksum = bech32_polymod(&values);
+    let (payload, _checksum) = data.split_at(data.len() - 6);
+    let witness_version = *payload
+        .first()
+        .ok_or_else(|| "bech32 witness version is missing".to_string())?;
+    if witness_version > 16 {
+        return Err("invalid bech32 witness version".to_string());
+    }
+    let expected = if witness_version == 0 { 1 } else { 0x2bc8_30a3 };
+    if checksum != expected {
+        return Err("invalid bech32 checksum".to_string());
+    }
+    let program = convert_5_to_8(&payload[1..])?;
+    if program.len() < 2 || program.len() > 40 {
+        return Err("invalid bech32 witness program length".to_string());
+    }
+    if witness_version == 0 && !matches!(program.len(), 20 | 32) {
+        return Err("invalid v0 witness program length".to_string());
+    }
+    Ok(())
+}
+
+/// Canonicalize a `(chain, address)` pair.
+pub fn canonicalize_address(chain: &str, address: &str) -> Result<(String, String), String> {
+    let chain = canonical_chain(chain)?;
+    let address = match chain {
+        "evm" => canonicalize_evm(address)?,
+        "btc" => canonicalize_btc(address)?,
+        _ => return Err(format!("unsupported chain: {chain}")),
+    };
+    Ok((chain.to_string(), address))
+}
+
+fn random_hex(bytes: usize) -> Result<String, String> {
+    let mut buffer = vec![0u8; bytes];
+    getrandom::getrandom(&mut buffer)
+        .map_err(|err| format!("cannot obtain random bytes: {err}"))?;
+    Ok(hex_encode(&buffer))
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+fn truncate(text: &str, max: usize) -> String {
+    let mut out = text.to_string();
+    if out.len() > max {
+        out.truncate(max);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempStore {
+        path: PathBuf,
+        store: MonitorStore,
+    }
+
+    impl TempStore {
+        fn new(tag: &str) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_nanos())
+                .unwrap_or(0);
+            let path = std::env::temp_dir().join(format!(
+                "rotor-monitor-store-{}-{nanos}-{tag}.json",
+                std::process::id()
+            ));
+            let store = MonitorStore::open(&path).expect("open store");
+            Self { path, store }
+        }
+    }
+
+    impl Drop for TempStore {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.path);
+            let _ = fs::remove_file(format!("{}.tmp", self.path.display()));
+        }
+    }
+
+    const ADDRESS: &str = "0x1111111111111111111111111111111111111111";
+    const OTHER: &str = "0x2222222222222222222222222222222222222222";
+
+    fn new_watch(chain: &str, address: &str, verified: bool) -> NewWatch {
+        NewWatch {
+            chain: chain.to_string(),
+            address: address.to_string(),
+            label: None,
+            verified,
+        }
+    }
+
+    #[test]
+    fn addresses_are_canonicalized_and_validated() {
+        assert_eq!(
+            canonicalize_evm("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA").unwrap(),
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        );
+        assert!(canonicalize_evm("1111111111111111111111111111111111111111").is_err());
+        assert!(canonicalize_evm("0x1234").is_err());
+        assert_eq!(canonical_chain("Ethereum").unwrap(), "evm");
+        assert!(canonical_chain("solana").is_err());
+        assert!(canonical_chain("tron").unwrap_err().contains("evm and btc"));
+        // Base58Check: the genesis P2PKH address has a valid checksum.
+        assert_eq!(
+            canonicalize_btc("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
+            "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+        );
+        assert!(canonicalize_btc("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNb").is_err());
+        // BIP173 bech32 (v0) and BIP350 bech32m (v1) checksums.
+        assert_eq!(
+            canonicalize_btc("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4").unwrap(),
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+        );
+        assert!(canonicalize_btc("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5").is_err());
+        assert!(canonicalize_btc("BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4").is_err());
+        assert_eq!(
+            canonicalize_btc("bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0")
+                .unwrap(),
+            "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0"
+        );
+    }
+
+    #[test]
+    fn expired_challenges_are_pruned() {
+        let temp = TempStore::new("prune");
+        let now = now_secs();
+        temp.store
+            .put_challenge("stale", ADDRESS, "message", now.saturating_sub(1))
+            .expect("put challenge");
+        assert!(temp.store.challenge("stale").is_none());
+    }
+
+    #[test]
+    fn add_delete_and_limit() {
+        let temp = TempStore::new("add-delete");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        assert_eq!(user.address, ADDRESS);
+        let watches = temp
+            .store
+            .add_watches(&user.id, vec![new_watch("evm", ADDRESS, true)])
+            .expect("add");
+        assert_eq!(watches.len(), 1);
+        assert!(watches[0].verified);
+
+        // Idempotent re-add keeps a single row.
+        let watches = temp
+            .store
+            .add_watches(&user.id, vec![new_watch("evm", ADDRESS, true)])
+            .expect("re-add");
+        assert_eq!(watches.len(), 1);
+
+        assert!(
+            temp.store
+                .delete_watch(&user.id, "evm", ADDRESS)
+                .expect("delete")
+        );
+        assert!(
+            !temp
+                .store
+                .delete_watch(&user.id, "evm", ADDRESS)
+                .expect("delete again")
+        );
+
+        let many: Vec<NewWatch> = (1..=MAX_WATCHES_PER_USER + 1)
+            .map(|index| new_watch("evm", &format!("0x{index:040x}"), true))
+            .collect();
+        assert!(temp.store.add_watches(&user.id, many).is_err());
+    }
+
+    #[test]
+    fn expired_sessions_are_rejected() {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!(
+            "rotor-monitor-store-{}-{nanos}-session.json",
+            std::process::id()
+        ));
+        let now = now_secs();
+        let old_token = "expired-token";
+        let fresh_token = "fresh-token";
+        let old_hash = hex_encode(&sha256(old_token.as_bytes()));
+        let fresh_hash = hex_encode(&sha256(fresh_token.as_bytes()));
+        let data = serde_json::json!({
+            "version": STORE_VERSION,
+            "sessions": {
+                (old_hash.clone()): {
+                    "token_hash": old_hash,
+                    "user_id": "u_old",
+                    "created_at": now.saturating_sub(SESSION_TTL_SECS + 1),
+                },
+                (fresh_hash.clone()): {
+                    "token_hash": fresh_hash,
+                    "user_id": "u_fresh",
+                    "created_at": now,
+                },
+            },
+        });
+        fs::write(&path, data.to_string()).expect("write monitor state");
+        let store = MonitorStore::open(&path).expect("open store");
+        assert!(store.resolve_session(old_token).is_none());
+        assert_eq!(
+            store.resolve_session(fresh_token).as_deref(),
+            Some("u_fresh")
+        );
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_file(format!("{}.tmp", path.display()));
+    }
+
+    #[test]
+    fn events_deduplicate_within_the_window() {
+        let temp = TempStore::new("dedupe");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        let first = temp
+            .store
+            .record_event(
+                &user.id,
+                "evm",
+                ADDRESS,
+                "nonce",
+                "critical",
+                "nonce 1 -> 2",
+            )
+            .expect("record");
+        assert!(first.is_some());
+        let second = temp
+            .store
+            .record_event(
+                &user.id,
+                "evm",
+                ADDRESS,
+                "nonce",
+                "critical",
+                "nonce 1 -> 2",
+            )
+            .expect("record");
+        assert!(second.is_none());
+        assert_eq!(temp.store.feed(&user.id, None).len(), 1);
+
+        // A different detail is a different event.
+        let third = temp
+            .store
+            .record_event(
+                &user.id,
+                "evm",
+                ADDRESS,
+                "nonce",
+                "critical",
+                "nonce 2 -> 3",
+            )
+            .expect("record");
+        assert!(third.is_some());
+    }
+
+    #[test]
+    fn exposure_matches_once_and_records_one_lookup() {
+        let temp = TempStore::new("exposure");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        temp.store
+            .add_watches(&user.id, vec![new_watch("evm", ADDRESS, true)])
+            .expect("add");
+        let pairs = vec![("evm".to_string(), ADDRESS.to_string())];
+        assert_eq!(temp.store.exposure_matches(&pairs), vec![user.id.clone()]);
+        assert_eq!(temp.store.record_exposure(&pairs).expect("expose"), 1);
+        assert_eq!(temp.store.record_exposure(&pairs).expect("expose"), 1);
+        let events = temp.store.feed(&user.id, None);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "lookup");
+        assert_eq!(events[0].severity, "high");
+
+        // Unwatched and non-canonical input never matches.
+        let unmatched = vec![
+            ("evm".to_string(), OTHER.to_string()),
+            ("btc".to_string(), OTHER.to_string()),
+        ];
+        assert_eq!(temp.store.record_exposure(&unmatched).expect("expose"), 0);
+    }
+
+    #[test]
+    fn observations_baseline_then_emit_changes() {
+        let temp = TempStore::new("observations");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        temp.store
+            .add_watches(&user.id, vec![new_watch("evm", ADDRESS, true)])
+            .expect("add");
+
+        let baseline = temp
+            .store
+            .apply_evm_observations(&[Observation {
+                address: ADDRESS.to_string(),
+                balance: "0x10".to_string(),
+                nonce: 1,
+            }])
+            .expect("baseline");
+        assert!(baseline.is_empty());
+        assert!(temp.store.feed(&user.id, None).is_empty());
+
+        let changes = temp
+            .store
+            .apply_evm_observations(&[Observation {
+                address: ADDRESS.to_string(),
+                balance: "0x0".to_string(),
+                nonce: 2,
+            }])
+            .expect("change");
+        assert_eq!(changes.len(), 2);
+        let kinds: HashSet<&str> = changes.iter().map(|event| event.kind.as_str()).collect();
+        assert!(kinds.contains("balance"));
+        assert!(kinds.contains("nonce"));
+    }
+
+    #[test]
+    fn settings_round_trip() {
+        let temp = TempStore::new("settings");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        let settings = temp
+            .store
+            .update_settings(&user.id, Some(true), None)
+            .expect("update")
+            .expect("user exists");
+        assert!(settings.recovery_opt_in);
+        assert!(settings.alerts_enabled);
+        let settings = temp
+            .store
+            .update_settings(&user.id, None, Some(false))
+            .expect("update")
+            .expect("user exists");
+        assert!(settings.recovery_opt_in);
+        assert!(!settings.alerts_enabled);
+    }
+}

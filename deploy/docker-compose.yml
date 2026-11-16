@@ -12,6 +12,12 @@ services:
       - /data/coordinator.json
       - --clients
       - /data/clients.json
+      - --monitor-state
+      - /data/monitor.json
+      - --monitor-domain
+      - ${ROTOR_MONITOR_DOMAIN:-rotor.pxbt.app}
+      # Behind Zoraxy/Cloudflare: trust CF-Connecting-IP / X-Forwarded-For.
+      - --trust-proxy
       # Uncomment to allow public signup (one registration per IP per minute).
       # - --open-registration
     volumes:

@@ -20,6 +20,7 @@ pub(crate) mod gpu_random;
 pub mod gpu_search;
 pub mod hashes;
 pub mod mnemonic;
+pub mod monitor;
 pub mod point;
 pub mod scalar;
 pub mod secp;

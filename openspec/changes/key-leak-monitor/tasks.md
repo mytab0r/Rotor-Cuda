@@ -105,3 +105,14 @@ before the watcher proves an end-to-end alert on testnet.
 - Custody, key/seed intake, sweeping, recovery, guaranteed SLAs.
 - Self-hosted indexer, full-chain indexing, Solana/TRON, xpub watch,
   web push, mobile apps (phase 2 or later).
+
+## MVP status (2026-11-16)
+- Done: monitor store with own file, EVM+SIWE login, session TTL/logout,
+  EVM watch import (login address verified, others unverified), BTC address
+  validation for manual watches, EVM watcher with baseline/balance/nonce
+  events, in-app feed, `/monitor` page, `/key` opt-in exposure check,
+  challenge/login/add IP+account rate limits, trust-proxy client IP,
+  custody-shape guard, wording test.
+- Deferred: email/Telegram/webhook delivery, BTC activity provider, xpub,
+  leak lists, approvals/ERC-20 classification, billing/trial, account
+  deletion/export, BIP322/BTC login, EIP-1271, xpub watch, SQLite.
