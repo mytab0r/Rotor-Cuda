@@ -22,4 +22,4 @@
       (host suites green).
 - [x] Manual 3-user run (global vs personal, leaderboard, disabled token);
       README/deploy updated.
-- [ ] Archive and PR (left to the orchestrator; no commit requested here).
+- [x] Archive; PR #16 merged; CI green.
