@@ -123,6 +123,31 @@ fn main() {
         }
     }
 
+    if config.mnemonic_derive || config.mnemonic_from_entropy.is_some() || config.mnemonic_audit {
+        let outcome = if config.mnemonic_audit {
+            rotor::mnemonic::run_audit(&config)
+        } else if let Some(hex) = config.mnemonic_from_entropy.as_deref() {
+            rotor::mnemonic::run_from_entropy(hex)
+        } else {
+            rotor::mnemonic::run_derive(
+                config
+                    .mnemonic
+                    .as_deref()
+                    .expect("--mnemonic-derive was validated"),
+                &config.mnemonic_passphrase,
+                config
+                    .mnemonic_path
+                    .as_deref()
+                    .unwrap_or(rotor::mnemonic::DEFAULT_PATH),
+            )
+        };
+        if let Err(err) = outcome {
+            eprintln!("  Error: {err}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
     if config.mode.is_some() || !config.operands.is_empty() {
         match (config.mode, config.coin) {
             (
