@@ -3,9 +3,9 @@ name: rust
 on:
   push:
     branches: ["main", "feat/rust-port"]
-    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "apps/site/**", "scripts/**", "projects.json", "PROJECTS.md", "AGENTS.md", ".github/workflows/rust.yml"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "apps/site/**", "scripts/**", "projects.json", "PROJECTS.md", "AGENTS.md", ".github/workflows/**", "Rotor-Cuda/**"]
   pull_request:
-    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "apps/site/**", "scripts/**", "projects.json", "PROJECTS.md", "AGENTS.md", ".github/workflows/rust.yml"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "apps/site/**", "scripts/**", "projects.json", "PROJECTS.md", "AGENTS.md", ".github/workflows/**", "Rotor-Cuda/**"]
 
 permissions:
   contents: read
