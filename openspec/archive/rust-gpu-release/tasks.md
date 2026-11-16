@@ -11,8 +11,11 @@
       9m37s): release build with CUDA 12.8.1 and all 8 cubins, `--version` OK,
       `-l` exited 2 with `Error: CUDA driver version is insufficient ...`,
       `dumpbin /dependents` showed no cudart DLL.
-- [ ] CI: `workflow_dispatch` run of `rust-release` (blocked: the workflow file is
-      not on the default branch, so GitHub does not register it for dispatch;
-      the job body is the green gate's build + smoke + the existing packaging step).
-- [ ] Post-merge: tag `v*` publishes `rotor-gpu.exe`; verify `--update` on a GPU
-      machine (needs a real release asset and an NVIDIA host).
+- [x] CI: `workflow_dispatch` run of `rust-release` on `main`
+      ([run 43776881561](https://github.com/mytab0r/Rotor-Cuda/actions/runs/43776881561),
+      success): CPU `release` and GPU `release-gpu` jobs built and packaged
+      successfully; publishing is tag-gated and was skipped as intended.
+- [ ] Post-release (release ops, not code): push a `v*` tag to publish
+      `rotor.exe`/`rotor-gpu.exe` and verify `--update` on a GPU machine. Deferred
+      because tagging is a product release decision; the jobs are verified by the
+      dispatch run above.
