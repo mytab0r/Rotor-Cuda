@@ -316,7 +316,7 @@ p { text-wrap: pretty; }
 .key-plot .key-curve { fill: none; stroke: var(--accent); stroke-width: 2.2; }
 .key-plot .key-marker { fill: var(--ok); stroke: var(--bg); stroke-width: 2; }
 .key-plot .key-marker-ring { fill: none; stroke: var(--ok); stroke-width: 1.5; opacity: .55; }
-.key-plot text { fill: var(--muted); font-size: 10px; font-family: "Cascadia Code", Consolas, monospace; }
+.key-plot text { fill: var(--muted); font-size: 11px; font-family: "Cascadia Code", Consolas, monospace; }
 .key-slider { margin-top: 8px; }
 .key-slider input { width: 100%; padding: 0; border: 0; background: none; accent-color: var(--accent); }
 .key-plot-panel .key-help { min-height: 3.2em; }
@@ -420,7 +420,7 @@ p { text-wrap: pretty; }
 .key-selected { margin: 10px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .key-balance-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .key-balance-card { min-width: 0; padding: 9px 11px; border: 1px solid var(--key-border); border-radius: 8px; background: var(--key-panel-2); }
-.key-balance-label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+.key-balance-label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
 .key-balance-value { display: block; margin-top: 3px; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .key-balance-value.empty { color: var(--muted); font-weight: 600; }
 .key-balance-card:nth-child(1) .key-balance-value:not(.empty) { color: var(--key-btc); }
