@@ -1796,6 +1796,17 @@ pub(crate) fn split_range(start: Split, end: Split, threads: usize) -> Vec<(Spli
     chunks
 }
 
+/// Partitions the inclusive `[start, end]` range into one contiguous chunk per
+/// device (`ceil(total / devices)` keys each, the last clipped at `end`; fewer
+/// chunks when the range is shorter than the device count).
+///
+/// `devices == 1` returns the whole range unchanged. The chunks cover every key
+/// exactly once and in ascending order.
+#[cfg_attr(not(feature = "gpu"), allow(dead_code))]
+pub(crate) fn split_ranges(start: Split, end: Split, devices: usize) -> Vec<(Split, Split)> {
+    split_range(start, end, devices)
+}
+
 fn scalar_low_u64(value: &Scalar) -> u64 {
     let bytes = value.to_bytes_be();
     u64::from_be_bytes(bytes[24..32].try_into().expect("eight bytes"))
@@ -1989,5 +2000,76 @@ mod random_start_tests {
         };
         let err = RandomSpec::from_config(&config).expect_err("zet <= next must fail");
         assert_eq!(err, "ROTOR Random: -n start must be less than -z end");
+    }
+}
+
+#[cfg(test)]
+mod split_ranges_tests {
+    use super::*;
+
+    fn split(value: u64) -> Split {
+        Split::from_u256(&U256::from_u64(value))
+    }
+
+    /// Asserts exact-once, ascending, contiguous coverage of `[start, end]`.
+    fn assert_exact_once(start: Split, end: Split, devices: usize) {
+        let chunks = split_ranges(start, end, devices);
+        assert!(!chunks.is_empty(), "a non-empty range must yield a chunk");
+        assert_eq!(chunks[0].0, start, "first chunk must start at START");
+        assert_eq!(
+            chunks.last().expect("chunks").1,
+            end,
+            "last chunk must end at END"
+        );
+        assert!(chunks.len() <= devices.max(1));
+
+        let mut covered = Split::from_u64(0);
+        for (index, (low, high)) in chunks.iter().enumerate() {
+            assert!(low <= high, "chunk {index} is inverted");
+            covered = covered.add(high.sub(*low).add_u64(1)).0;
+            if let Some((next_low, _)) = chunks.get(index + 1) {
+                assert_eq!(high.add_u64(1), *next_low, "chunks must be adjacent");
+            }
+        }
+        assert_eq!(covered, end.sub(start).add_u64(1), "every key exactly once");
+    }
+
+    #[test]
+    fn one_device_returns_the_whole_range() {
+        assert_eq!(
+            split_ranges(split(10), split(20), 1),
+            vec![(split(10), split(20))]
+        );
+    }
+
+    #[test]
+    fn several_spans_and_device_counts_cover_exactly_once() {
+        for (low, high, devices) in [
+            (0u64, 0u64, 1usize),
+            (0, 0, 4),
+            (1, 10, 3),
+            (5, 6, 2),
+            (7, 7, 8),
+            (0, 1023, 4),
+            (0x1000, 0x11FF, 4),
+            (100, 1099, 7),
+            (0x1F2E_3D4C_5A00, 0x1F2E_3D4C_5A00 + 0x800, 3),
+        ] {
+            assert_exact_once(split(low), split(high), devices);
+        }
+    }
+
+    #[test]
+    fn last_chunk_is_clipped() {
+        // 4 keys over 3 devices -> ceil(4/3) = 2: [10,11], [12,13].
+        assert_eq!(
+            split_ranges(split(10), split(13), 3),
+            vec![(split(10), split(11)), (split(12), split(13))]
+        );
+        // The range is shorter than the device count: only real keys remain.
+        assert_eq!(
+            split_ranges(split(7), split(7), 8),
+            vec![(split(7), split(7))]
+        );
     }
 }
