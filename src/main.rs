@@ -113,6 +113,16 @@ fn main() {
         std::process::exit(2);
     }
 
+    if config.benchmark {
+        match rotor::benchmark::run(&config) {
+            Ok(code) => std::process::exit(code),
+            Err(err) => {
+                eprintln!("  Error: {err}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     if config.mode.is_some() || !config.operands.is_empty() {
         match (config.mode, config.coin) {
             (
