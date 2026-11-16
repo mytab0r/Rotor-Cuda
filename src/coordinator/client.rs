@@ -74,11 +74,16 @@ pub struct CoordinatorClient {
 impl CoordinatorClient {
     /// `base` may be `host:port`, `http://host:port` or `https://host:port`.
     pub fn new(base: &str, token: &str, client_id: &str) -> Self {
-        let agent = ureq::AgentBuilder::new()
+        let mut builder = ureq::AgentBuilder::new()
             .timeout_connect(Duration::from_secs(10))
             .timeout_read(Duration::from_secs(10))
-            .timeout_write(Duration::from_secs(10))
-            .build();
+            .timeout_write(Duration::from_secs(10));
+        // ureq never enables native-tls through its convenience API; attach the
+        // SChannel/OpenSSL connector explicitly so https:// URLs work.
+        if let Ok(connector) = ureq::native_tls::TlsConnector::new() {
+            builder = builder.tls_connector(std::sync::Arc::new(connector));
+        }
+        let agent = builder.build();
         Self {
             base: base.trim().trim_end_matches('/').to_string(),
             token: token.to_string(),
