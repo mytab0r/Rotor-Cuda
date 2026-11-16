@@ -14,6 +14,8 @@ pub mod gpu;
 pub(crate) mod gpu_driver;
 #[cfg(any(feature = "gpu", test))]
 pub(crate) mod gpu_plan;
+#[cfg(any(feature = "gpu", test))]
+pub(crate) mod gpu_random;
 #[cfg(feature = "gpu")]
 pub mod gpu_search;
 pub mod hashes;

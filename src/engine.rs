@@ -6,8 +6,8 @@
 //! `Rotor-Cuda/Main.cpp`.
 //!
 //! Checkpoints (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`) are
-//! written and read through [`crate::checkpoint`]; GPU search belongs to a
-//! later milestone.
+//! written and read through [`crate::checkpoint`]; the GPU search path reuses
+//! the same helpers for resumable range runs.
 
 #![allow(clippy::needless_range_loop)] // fixed-size limb loops read better with indices
 
@@ -168,8 +168,8 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
     // run keeps its progress on the server, so local checkpoints are off.
     let checkpoint_mode = config.next > 0 && config.rkey == 0 && config.coordinator.is_none();
     let checkpoint_dir = checkpoint_dir.unwrap_or_else(|| Path::new("."));
-    let continue_path = checkpoint_dir.join("Rotor-Cuda_Continue.bat");
-    let start_path = checkpoint_dir.join("Rotor-Cuda_START.bat");
+    let continue_path = checkpoint_dir.join(checkpoint::CONTINUE_FILE);
+    let start_path = checkpoint_dir.join(checkpoint::START_FILE);
 
     let resume = if checkpoint_mode {
         match checkpoint::read_continue(&continue_path).filter(|saved| saved.count > 0) {
@@ -910,7 +910,7 @@ fn load_target_set(config: &Config, record_len: usize, what: &str) -> Result<Tar
 
 /// Random-start parameters derived from `-r`, `-n`, `-z` and `--range`
 /// (`Rotor.cpp:636-722`).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct RandomSpec {
     /// Inclusive `[start, end]` range, when it spans more than one key.
     range: Option<(Split, Split)>,
@@ -1052,12 +1052,17 @@ impl SplitMix64 {
     }
 }
 
-fn thread_rng(thread_index: u64) -> SplitMix64 {
+/// Clock-and-thread-index seed shared by the CPU and GPU random workers.
+pub(crate) fn thread_seed(thread_index: u64) -> u64 {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos() as u64)
         .unwrap_or(0);
-    SplitMix64::new(nanos ^ thread_index.wrapping_mul(0x9E37_79B9_7F4A_7C15))
+    nanos ^ thread_index.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+}
+
+fn thread_rng(thread_index: u64) -> SplitMix64 {
+    SplitMix64::new(thread_seed(thread_index))
 }
 
 /// Scans one inclusive chunk (sequential mode) or an endless random walk
@@ -1516,7 +1521,12 @@ fn checkpoint_loop(
 
 /// Per-worker resume offsets: the exact `chunks:` extension when it matches the
 /// current chunk layout, otherwise the C++ fallback `count / threads`.
-fn resume_offsets(resume: Option<&checkpoint::Checkpoint>, chunk_count: usize) -> Vec<u64> {
+///
+/// Shared with the GPU checkpoint path.
+pub(crate) fn resume_offsets(
+    resume: Option<&checkpoint::Checkpoint>,
+    chunk_count: usize,
+) -> Vec<u64> {
     let Some(saved) = resume else {
         return vec![0; chunk_count];
     };
@@ -1530,7 +1540,14 @@ fn resume_offsets(resume: Option<&checkpoint::Checkpoint>, chunk_count: usize) -
 
 /// Slides one chunk window forward by `offset` and clips it at the range end;
 /// `None` means the whole window was scanned already.
-fn shift_chunk(low: Split, high: Split, offset: u64, end: Split) -> Option<(Split, Split)> {
+///
+/// Shared with the GPU checkpoint path.
+pub(crate) fn shift_chunk(
+    low: Split,
+    high: Split,
+    offset: u64,
+    end: Split,
+) -> Option<(Split, Split)> {
     let (low, low_carry) = low.add(Split::from_u64(offset));
     let (high, high_carry) = high.add(Split::from_u64(offset));
     let high = if high_carry || high > end { end } else { high };

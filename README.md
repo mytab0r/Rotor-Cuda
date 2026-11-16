@@ -17,8 +17,9 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
   `--features gpu` for `-m address|addresses|xpoint|xpoints` (BTC and ETH):
   range split into one chunk per GPU thread, bloom/target prefilter on device,
   exact target lookup and EC re-verification on the host. `--gpui 0,1,...` scans
-  disjoint slices on several devices with shared output; random mode (`-r`) and
-  checkpoints (`-n`) are rejected loudly.
+  disjoint slices on several devices with shared output; `-r` rotates random
+  start keys and `-n` persists/resumes runs through the same
+  `Rotor-Cuda_Continue.bat`/`START.bat` files as the CPU engine.
 - **GPU BSGS batch inversion** — W independent walks share Montgomery inversion;
   verified on RTX 5070 (`sm_120`) against GMP ground truth. See
   `bsgs/BATCH_INVERT.md`.
@@ -111,6 +112,32 @@ error. The single-id path is unchanged.
 Real multi-GPU execution is not yet verified on hardware: this repository's
 device evidence is single-GPU (one RTX 5070), so the host orchestration is
 covered by unit tests and the multi-device run is pending a multi-GPU host.
+
+### GPU random mode and checkpoints (`-r`, `-n`)
+
+`-r N` draws a fresh random start key on every device once the *global* scanned
+counter crosses another `N * 1_000_000_000` keys. The start is uniform in
+`--range`, or below `2^-n` bits, or inside the `-n..-z` band when `-r > 0`
+(in that mode `-n` is the bit width, not a checkpoint period). Each device scans
+upward from its start in short windows until the target set is found, Ctrl-C,
+or the process is stopped. Progress switches to the CPU random form with the GPU
+rate:
+
+```
+[time] [R: rotations] [KEY] [F: found] [GPU #0: rate] [T: scanned]
+```
+
+`-n M` *without* `-r` enables checkpoints: before scanning, the run reads
+`Rotor-Cuda_Continue.bat` and shifts every device range by its saved count (the
+`threads:`/`chunks:` extension; a mismatched device count falls back to
+`count / devices`). Without a usable file it writes `Rotor-Cuda_START.bat`. The
+checkpoint is rewritten every `M * 55` seconds and once on exit, with the total
+and the per-device cumulative counts.
+
+Random runs are not resumable, so `-r` and `-n` checkpoints are mutually
+exclusive; both stay rejected with `--coordinator` because progress lives on the
+server. Random and checkpoint *device execution* is host-tested and pending a
+working CUDA host (no local toolkit); CI compiles the `gpu` feature.
 
 ## Distributed coordinator (`rotor-coord`)
 

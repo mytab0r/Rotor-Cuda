@@ -10,6 +10,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Name of the resumable checkpoint file, written while a search runs.
+pub const CONTINUE_FILE: &str = "Rotor-Cuda_Continue.bat";
+/// Name of the startup file written when no checkpoint exists.
+pub const START_FILE: &str = "Rotor-Cuda_START.bat";
+
 /// Checkpoint restored from `Rotor-Cuda_Continue.bat`.
 pub struct Checkpoint {
     /// Line 2: executable name plus all arguments, space-separated.

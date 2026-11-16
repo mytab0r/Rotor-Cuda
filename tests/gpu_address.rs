@@ -202,7 +202,7 @@ fn unavailable_device_is_a_loud_error() {
 }
 
 #[test]
-fn unsupported_gpu_options_are_rejected() {
+fn invalid_gpu_ids_are_rejected() {
     let k = Scalar::from_u64(0x1F2E_3D4C_5B6A);
     let hash = secp::hash160(&secp::mul_g(&k), true);
     let address = base58::address_from_hash160(&hash, true);
@@ -215,22 +215,6 @@ fn unsupported_gpu_options_are_rejected() {
         &output,
     );
 
-    config.rkey = 10;
-    assert!(
-        gpu_search::run(&config)
-            .unwrap_err()
-            .contains("random mode")
-    );
-
-    config.rkey = 0;
-    config.next = 5;
-    assert!(
-        gpu_search::run(&config)
-            .unwrap_err()
-            .contains("checkpoint mode")
-    );
-
-    config.next = 0;
     config.gpu_ids = vec![0, 0];
     assert!(
         gpu_search::run(&config)
