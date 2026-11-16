@@ -20,6 +20,7 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 --gpux gridsize: g0x,g0y,g1x,g1y,...     : Specify GPU(s) kernel gridsize, default is 8*(Device MP count),128
 -t, --thread N                            : Specify number of CPU thread, default is number of core
 -i, --in FILE                                : Read rmd160 hashes or xpoints from FILE, should be in binary format with  .bin
+--targets-text FILE                        : Read targets from a text FILE, one per line (- = stdin); needs -m addresses|xpoints
 -o, --out FILE                            : Write keys to FILE, default: Found.txt
 -m, --mode MODE                   : Specify search mode where MODE is
                                                       Address  : for single address
@@ -188,6 +189,7 @@ pub struct Config {
     pub threads: usize,
     pub thread_specified: bool,
     pub input_file: Option<String>,
+    pub targets_text: Option<String>,
     pub output_file: String,
     pub mode: Option<SearchMode>,
     pub coin: Coin,
@@ -225,6 +227,7 @@ impl Default for Config {
                 .unwrap_or(1),
             thread_specified: false,
             input_file: None,
+            targets_text: None,
             output_file: "Found.txt".to_owned(),
             mode: None,
             coin: Coin::Btc,
@@ -258,6 +261,7 @@ enum Opt {
     GpuGrid,
     Thread,
     In,
+    TargetsText,
     Out,
     Mode,
     Coin,
@@ -299,6 +303,7 @@ const OPTIONS: &[(&str, Opt, bool)] = &[
     ("--thread", Opt::Thread, true),
     ("-i", Opt::In, true),
     ("--in", Opt::In, true),
+    ("--targets-text", Opt::TargetsText, true),
     ("-o", Opt::Out, true),
     ("--out", Opt::Out, true),
     ("-m", Opt::Mode, true),
@@ -416,6 +421,7 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         | Opt::GpuGrid
         | Opt::Thread
         | Opt::In
+        | Opt::TargetsText
         | Opt::Out
         | Opt::Mode
         | Opt::Coin
@@ -445,6 +451,7 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
             config.thread_specified = true;
         }
         Opt::In => config.input_file = Some(value),
+        Opt::TargetsText => config.targets_text = Some(value),
         Opt::Out => config.output_file = value,
         Opt::Mode => config.mode = Some(parse_mode(&value)?),
         Opt::Coin => config.coin = parse_coin(&value)?,
@@ -562,6 +569,22 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
     }
     if config.coin == Coin::Eth {
         config.comp_mode = CompMode::Uncompressed;
+    }
+
+    if config.targets_text.is_some() {
+        if config.input_file.is_some() {
+            return Err(CliError::new(
+                "--targets-text and -i are mutually exclusive",
+            ));
+        }
+        if !matches!(
+            config.mode,
+            Some(SearchMode::Addresses | SearchMode::XPoints)
+        ) {
+            return Err(CliError::new(
+                "--targets-text requires -m addresses or -m xpoints",
+            ));
+        }
     }
 
     if config.mode == Some(SearchMode::Bsgs) {

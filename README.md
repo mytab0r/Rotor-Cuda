@@ -248,6 +248,26 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
 
 ****Do not use non-standard grid sizes; dimensions must be multiples of 32.**
 
+### Text target lists (`--targets-text`)
+
+`-m addresses` and `-m xpoints` also accept a plain-text list instead of a
+pre-sorted `.bin`: one target per line, decoded and sorted internally.
+
+- BTC (`addresses`): P2PKH addresses, e.g. `1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH`
+- ETH (addresses, `--coin eth`): `0x` + 40 hex chars
+- `xpoints`: 64 hex chars (the X coordinate)
+- Blank lines and `#` comments are skipped; surrounding whitespace and CRLF are
+  tolerated; a malformed line aborts with `line N: <reason>`.
+
+```sh
+./Rotor -m addresses --coin BTC --range 400000000:7ffffffff --targets-text Btc-h160.txt
+cat Btc-h160.txt | ./Rotor -m addresses --coin BTC --range 400000000:7ffffffff --targets-text -
+```
+
+`--targets-text -` reads stdin. The option is mutually exclusive with `-i` and
+requires `-m addresses` or `-m xpoints`; it feeds the same target set as the
+`.bin` path, so the CPU and GPU engines behave identically.
+
    |      GPU Model     |     Scanning Speed     |    Grid Size    |
    |-------------------|:--------------:|:------------------:|
    |    Tesla  T4    |   600 Mkeys   |     128×256     |
@@ -486,6 +506,8 @@ Implemented in Rust:
 - `--check-update` / `--update` self-update on Windows (WinHTTP + SHA-256,
   assets `rotor.exe` / `rotor-gpu.exe` and their `.sha256`)
 - headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
+- `--targets-text FILE` text/stdin lists (BTC/ETH addresses, xpoints; sorted and
+  decoded internally)
 - `Found.txt` block format and progress line of the C++ binary
 - `--benchmark` key-rate measurement of the selected backend (human or JSON)
 
