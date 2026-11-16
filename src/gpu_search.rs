@@ -882,6 +882,12 @@ fn lease_job(config: &Config, mode: SearchMode, start: Split, end: Split) -> Lea
         } else {
             "btc".to_owned()
         },
+        comp_mode: match config.comp_mode {
+            CompMode::Compressed => "compressed",
+            CompMode::Uncompressed => "uncompressed",
+            CompMode::Both => "both",
+        }
+        .to_owned(),
         target: match mode {
             SearchMode::Address | SearchMode::XPoint => config.operands.first().cloned(),
             _ => None,

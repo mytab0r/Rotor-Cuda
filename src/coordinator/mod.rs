@@ -9,18 +9,21 @@ pub mod chunk_loop;
 pub mod client;
 pub mod state;
 
+use std::collections::HashMap;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
+use std::time::Instant;
 
 use serde::Deserialize;
 use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
-use state::{ERR_JOB_NOT_FOUND, ERR_MANIFEST_MISMATCH};
+use crate::hashes::sha256;
+use state::{ERR_INVALID_SAMPLE, ERR_JOB_NOT_FOUND, ERR_LEASE_LOST, ERR_MANIFEST_MISMATCH};
 
 /// The dashboard is embedded so the binary stays a single file.
 const DASHBOARD: &str = include_str!("../../web/index.html");
@@ -28,13 +31,133 @@ const DASHBOARD: &str = include_str!("../../web/index.html");
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// Requests handled concurrently; the rest are rejected with 503.
 const MAX_CONCURRENT_REQUESTS: usize = 32;
+/// Per-token rate limit: requests per second and the bucket depth.
+const RATE_PER_SECOND: f64 = 20.0;
+const RATE_BURST: f64 = 40.0;
 
 /// Number of request handlers currently running.
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
+/// The `--clients` map: client id -> SHA-256 of its bearer token.
+#[derive(Clone, Debug, Default)]
+pub struct Clients {
+    tokens: HashMap<String, [u8; 32]>,
+}
+
+impl Clients {
+    /// Parse the JSON `{ "client-id": "<sha256 hex>", ... }` form.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let raw: HashMap<String, String> = serde_json::from_str(text)
+            .map_err(|err| format!("cannot parse clients JSON: {err}"))?;
+        let mut tokens = HashMap::with_capacity(raw.len());
+        for (id, hash) in raw {
+            let id = id.trim().to_string();
+            if id.is_empty() {
+                return Err("clients file contains a blank client id".to_string());
+            }
+            if tokens.contains_key(&id) {
+                return Err(format!("clients file contains duplicate client id {id}"));
+            }
+            let digest = decode_hash(hash.trim())?;
+            if tokens.values().any(|existing| existing == &digest) {
+                return Err(format!(
+                    "clients file gives client {id} a duplicate token hash"
+                ));
+            }
+            tokens.insert(id, digest);
+        }
+        Ok(Self { tokens })
+    }
+
+    /// Read and parse a clients file.
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, String> {
+        let path = path.as_ref();
+        let text = std::fs::read_to_string(path)
+            .map_err(|err| format!("cannot read {}: {err}", path.display()))?;
+        Self::parse(&text)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.tokens.len()
+    }
+
+    /// Client id whose stored hash matches the presented token, if any.
+    ///
+    /// Every entry is compared in constant time and the iteration never exits
+    /// early on a match, so timing does not reveal which client matched.
+    fn identify(&self, token: &str) -> Option<String> {
+        let digest = sha256(token.as_bytes());
+        let mut found = None;
+        for (id, stored) in &self.tokens {
+            if constant_time_eq(&digest, stored) {
+                found = Some(id.clone());
+            }
+        }
+        found
+    }
+}
+
+/// Accepted identity for one request.
+#[derive(Clone)]
+enum Identity {
+    /// The admin token (`--token`/`ROTOR_COORD_TOKEN`).
+    Admin,
+    /// A client from the `--clients` map.
+    Client(String),
+}
+
+impl Identity {
+    fn rate_key(&self) -> String {
+        match self {
+            Identity::Admin => "admin".to_string(),
+            Identity::Client(id) => id.clone(),
+        }
+    }
+}
+
+/// Per-token token bucket. In memory only; reset on restart.
+#[derive(Default)]
+struct RateLimiter {
+    buckets: Mutex<HashMap<String, Bucket>>,
+}
+
+struct Bucket {
+    tokens: f64,
+    last: Instant,
+}
+
+impl RateLimiter {
+    fn allow(&self, key: &str) -> bool {
+        let now = Instant::now();
+        let mut buckets = self
+            .buckets
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let bucket = buckets.entry(key.to_string()).or_insert_with(|| Bucket {
+            tokens: RATE_BURST,
+            last: now,
+        });
+        let elapsed = now.saturating_duration_since(bucket.last).as_secs_f64();
+        bucket.tokens = (bucket.tokens + elapsed * RATE_PER_SECOND).min(RATE_BURST);
+        bucket.last = now;
+        if bucket.tokens >= 1.0 {
+            bucket.tokens -= 1.0;
+            true
+        } else {
+            false
+        }
+    }
+}
+
 struct App {
     state: Mutex<state::State>,
-    token: String,
+    admin_token: String,
+    clients: Clients,
+    rate: RateLimiter,
 }
 
 impl App {
@@ -42,6 +165,46 @@ impl App {
         self.state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// True when no `--clients` file was given: the single admin token is
+    /// accepted for every endpoint (legacy mode).
+    fn legacy(&self) -> bool {
+        self.clients.is_empty()
+    }
+
+    fn identity(&self, request: &Request) -> Option<Identity> {
+        let presented = bearer(request)?;
+        if constant_time_eq(presented.as_bytes(), self.admin_token.as_bytes()) {
+            return Some(Identity::Admin);
+        }
+        self.clients.identify(presented).map(Identity::Client)
+    }
+
+    /// Endpoint permission for an authenticated identity. Unknown paths pass
+    /// through so the dispatcher can answer 404.
+    fn allowed(&self, role: &Identity, method: &Method, path: &str) -> bool {
+        if self.legacy() {
+            return true;
+        }
+        if method == &Method::Get && (path == "/api/v1/status" || path == "/api/v1/jobs") {
+            return true;
+        }
+        if method == &Method::Post && path == "/api/v1/jobs" {
+            return matches!(role, Identity::Admin);
+        }
+        if method == &Method::Post
+            && matches!(
+                path,
+                "/api/v1/lease" | "/api/v1/heartbeat" | "/api/v1/result"
+            )
+        {
+            return matches!(role, Identity::Client(_));
+        }
+        if path == "/api/v1/bsgs/state" && (method == &Method::Get || method == &Method::Post) {
+            return matches!(role, Identity::Client(_));
+        }
+        true
     }
 }
 
@@ -72,8 +235,24 @@ impl Drop for ServerHandle {
     }
 }
 
-/// Bind and serve. `bind` may use port `0`; the real address is in [`ServerHandle::addr`].
+/// Bind and serve in legacy single-token mode.
+///
+/// `bind` may use port `0`; the real address is in [`ServerHandle::addr`].
 pub fn spawn(bind: &str, state_path: &Path, token: String) -> Result<ServerHandle, String> {
+    spawn_with_clients(bind, state_path, token, Clients::default())
+}
+
+/// Bind and serve with the given per-client token map.
+///
+/// An empty map keeps the legacy single-token behavior (the admin token works
+/// on every endpoint). With a map, lease/heartbeat/result require a client
+/// token and job creation requires the admin token.
+pub fn spawn_with_clients(
+    bind: &str,
+    state_path: &Path,
+    token: String,
+    clients: Clients,
+) -> Result<ServerHandle, String> {
     if token.is_empty() {
         return Err("the coordinator token must not be empty".to_string());
     }
@@ -86,7 +265,9 @@ pub fn spawn(bind: &str, state_path: &Path, token: String) -> Result<ServerHandl
     let server = Arc::new(server);
     let app = Arc::new(App {
         state: Mutex::new(state),
-        token,
+        admin_token: token,
+        clients,
+        rate: RateLimiter::default(),
     });
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -126,7 +307,7 @@ impl Drop for ActiveSlot {
 fn reject_over_capacity(app: &App, request: Request) {
     let url = request.url().to_string();
     let path = url.split_once('?').map_or(url.as_str(), |(path, _)| path);
-    let status = capacity_rejection_status(path, authorized(&request, &app.token));
+    let status = capacity_rejection_status(path, app.identity(&request).is_some());
     let error = if status == 401 {
         "unauthorized"
     } else {
@@ -160,8 +341,18 @@ fn handle(app: Arc<App>, request: Request) {
         return;
     }
 
-    if !authorized(&request, &app.token) {
+    let Some(role) = app.identity(&request) else {
         respond_json(request, 401, &json!({"error": "unauthorized"}));
+        return;
+    };
+
+    if !app.rate.allow(&role.rate_key()) {
+        respond_rate_limited(request);
+        return;
+    }
+
+    if !app.allowed(&role, &method, path) {
+        respond_json(request, 403, &json!({"error": "forbidden"}));
         return;
     }
 
@@ -171,9 +362,9 @@ fn handle(app: Arc<App>, request: Request) {
             respond_json(request, 200, &json!({ "jobs": jobs }));
         }
         (Method::Post, "/api/v1/jobs") => create_job(&app, request),
-        (Method::Post, "/api/v1/lease") => lease(&app, request),
-        (Method::Post, "/api/v1/heartbeat") => heartbeat(&app, request),
-        (Method::Post, "/api/v1/result") => submit_result(&app, request),
+        (Method::Post, "/api/v1/lease") => lease(&app, request, &role),
+        (Method::Post, "/api/v1/heartbeat") => heartbeat(&app, request, &role),
+        (Method::Post, "/api/v1/result") => submit_result(&app, request, &role),
         (Method::Get, "/api/v1/status") => {
             let now = state::now_secs();
             let status = app.lock().status(now);
@@ -207,12 +398,12 @@ fn create_job(app: &App, mut request: Request) {
     }
 }
 
-fn lease(app: &App, mut request: Request) {
+fn lease(app: &App, mut request: Request, role: &Identity) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
         Err(error) => return respond_body_error(request, error),
     };
-    let lease_request: state::LeaseRequest = match serde_json::from_str(&body) {
+    let mut lease_request: state::LeaseRequest = match serde_json::from_str(&body) {
         Ok(lease_request) => lease_request,
         Err(err) => {
             return respond_json(
@@ -222,6 +413,11 @@ fn lease(app: &App, mut request: Request) {
             );
         }
     };
+    // With client tokens the server owns the identity: a body `client_id` is
+    // ignored (it can only claim the token's own id).
+    if let Identity::Client(id) = role {
+        lease_request.client_id = id.clone();
+    }
     let now = state::now_secs();
     let result = app.lock().lease(lease_request, now);
     match result {
@@ -236,18 +432,22 @@ fn lease(app: &App, mut request: Request) {
 
 #[derive(Deserialize)]
 struct HeartbeatRequest {
-    client_id: String,
+    #[serde(default)]
+    client_id: Option<String>,
     job_id: String,
     chunk_index: u64,
+    lease_id: u64,
     #[serde(default)]
     scanned: u64,
     #[serde(default)]
     rate: f64,
     #[serde(default)]
     done: bool,
+    #[serde(default)]
+    samples: Vec<Vec<u8>>,
 }
 
-fn heartbeat(app: &App, mut request: Request) {
+fn heartbeat(app: &App, mut request: Request, role: &Identity) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
         Err(error) => return respond_body_error(request, error),
@@ -262,30 +462,38 @@ fn heartbeat(app: &App, mut request: Request) {
             );
         }
     };
+    let client_id = effective_client_id(role, heartbeat.client_id.as_deref());
     let now = state::now_secs();
     let result = app.lock().heartbeat(
-        &heartbeat.client_id,
+        client_id,
         &heartbeat.job_id,
         heartbeat.chunk_index,
+        heartbeat.lease_id,
         heartbeat.scanned,
         heartbeat.rate,
         heartbeat.done,
+        &heartbeat.samples,
         now,
     );
     match result {
         Ok(expires_at) => respond_json(request, 200, &json!({ "expires_at": expires_at })),
+        Err(message) if message == ERR_INVALID_SAMPLE => {
+            respond_json(request, 400, &json!({ "error": message }))
+        }
         Err(message) => respond_json(request, 409, &json!({ "error": message })),
     }
 }
 
 #[derive(Deserialize)]
 struct ResultRequest {
-    client_id: String,
+    #[serde(default)]
+    client_id: Option<String>,
     job_id: String,
+    lease_id: u64,
     key: String,
 }
 
-fn submit_result(app: &App, mut request: Request) {
+fn submit_result(app: &App, mut request: Request, role: &Identity) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
         Err(error) => return respond_body_error(request, error),
@@ -300,9 +508,11 @@ fn submit_result(app: &App, mut request: Request) {
             );
         }
     };
+    let client_id = effective_client_id(role, result_request.client_id.as_deref());
     let result = app.lock().submit_result(
-        &result_request.client_id,
+        client_id,
         &result_request.job_id,
+        result_request.lease_id,
         &result_request.key,
     );
     match result {
@@ -310,7 +520,19 @@ fn submit_result(app: &App, mut request: Request) {
         Err(message) if message == ERR_JOB_NOT_FOUND => {
             respond_json(request, 404, &json!({ "error": message }))
         }
+        Err(message) if message == ERR_LEASE_LOST => {
+            respond_json(request, 409, &json!({ "error": message }))
+        }
         Err(message) => respond_json(request, 400, &json!({ "error": message })),
+    }
+}
+
+/// Client identity from the token; the legacy admin token falls back to the
+/// body (the body is authoritative only in single-token mode).
+fn effective_client_id<'a>(role: &'a Identity, body: Option<&'a str>) -> &'a str {
+    match role {
+        Identity::Client(id) => id,
+        Identity::Admin => body.unwrap_or(""),
     }
 }
 
@@ -413,13 +635,12 @@ fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
     })
 }
 
-fn authorized(request: &Request, token: &str) -> bool {
+fn bearer(request: &Request) -> Option<&str> {
     request
         .headers()
         .iter()
         .find(|header| header.field.equiv("Authorization"))
         .and_then(|header| header.value.as_str().strip_prefix("Bearer "))
-        .is_some_and(|presented| constant_time_eq(presented.as_bytes(), token.as_bytes()))
 }
 
 /// Constant-time equality over the byte strings (length is not secret).
@@ -434,6 +655,48 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     difference == 0
 }
 
+/// Decode one SHA-256 hex digest from the clients file.
+fn decode_hash(text: &str) -> Result<[u8; 32], String> {
+    if text.len() != 64 {
+        return Err(format!(
+            "client token hash must be 64 hex digits, got {}",
+            text.len()
+        ));
+    }
+    let mut out = [0u8; 32];
+    for (chunk, slot) in text
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .zip(out.iter_mut())
+    {
+        let high = hex_digit(chunk[0]).ok_or_else(|| {
+            format!(
+                "invalid hex digit in client token hash: {}",
+                chunk[0] as char
+            )
+        })?;
+        let low = hex_digit(chunk[1]).ok_or_else(|| {
+            format!(
+                "invalid hex digit in client token hash: {}",
+                chunk[1] as char
+            )
+        })?;
+        *slot = (high << 4) | low;
+    }
+    Ok(out)
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 fn header(name: &str, value: &str) -> Header {
     Header::from_bytes(name.as_bytes(), value.as_bytes()).expect("static header is ASCII")
 }
@@ -444,6 +707,15 @@ fn respond_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
     let response = Response::from_string(body)
         .with_status_code(StatusCode(status))
         .with_header(header("Content-Type", "application/json"));
+    let _ = request.respond(response);
+}
+
+fn respond_rate_limited(request: Request) {
+    let body = json!({ "error": "rate limit exceeded" }).to_string();
+    let response = Response::from_string(body)
+        .with_status_code(StatusCode(429))
+        .with_header(header("Content-Type", "application/json"))
+        .with_header(header("Retry-After", "1"));
     let _ = request.respond(response);
 }
 
@@ -460,5 +732,18 @@ mod tests {
         assert_eq!(capacity_rejection_status("/api/v1/status", false), 401);
         assert_eq!(capacity_rejection_status("/api/v1/status", true), 503);
         assert_eq!(capacity_rejection_status("/", false), 503);
+    }
+
+    #[test]
+    fn client_hashes_are_validated() {
+        let hash = "0".repeat(64);
+        let clients = Clients::parse(&format!(r#"{{"alpha":"{hash}"}}"#)).expect("parse");
+        assert_eq!(clients.len(), 1);
+        assert!(!clients.is_empty());
+
+        assert!(Clients::parse(r#"{"alpha":"abcd"}"#).is_err());
+        assert!(Clients::parse(r#"{"":""}"#).is_err());
+        assert!(Clients::parse(&format!(r#"{{"alpha":"{hash}","beta":"{hash}"}}"#)).is_err());
+        assert!(Clients::parse("not json").is_err());
     }
 }

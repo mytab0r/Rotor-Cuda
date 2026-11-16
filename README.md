@@ -148,7 +148,8 @@ serves a dashboard. Clients may be CPU workers or a GPU `--features gpu` build.
 ### Quick start
 
 Build both binaries (`target/release/rotor[.exe]` and `rotor-coord[.exe]`), then start
-the coordinator (token from `--token` or `ROTOR_COORD_TOKEN`):
+the coordinator (admin token from `--token` or `ROTOR_COORD_TOKEN`; optional per-client
+token map from `--clients`, see Security below):
 
 ```sh
 cargo build --release --bins
@@ -157,7 +158,7 @@ target\release\rotor-coord.exe --token my-secret --state coordinator.json   # Wi
 ```
 
 It listens on `http://127.0.0.1:7878` (`--bind ADDR` overrides) and serves the dashboard
-at `http://127.0.0.1:7878/`. Create one job there (paste the token first), or with curl:
+at `http://127.0.0.1:7878/`. Create one job there (paste the admin token first), or with curl:
 
 ```sh
 curl -s -H "Authorization: Bearer my-secret" -H "Content-Type: application/json" -d '{"mode":"address","coin":"btc","comp_mode":"compressed","target":"1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU","start":"400000000000000000","end":"7fffffffffffffffff"}' http://127.0.0.1:7878/api/v1/jobs
@@ -241,26 +242,47 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
 | Route | Method | Purpose |
 |---|---|---|
 | `/` | GET | dashboard HTML/JS |
-| `/api/v1/jobs` | GET / POST | list jobs / create a job (201) |
-| `/api/v1/lease` | POST | lease the next free chunk (200; 204 when exhausted) |
-| `/api/v1/heartbeat` | POST | refresh a lease; 409 when the lease was lost |
-| `/api/v1/result` | POST | submit a found key; the proof is checked first |
+| `/api/v1/jobs` | GET / POST | list jobs / create a job (201, admin token) |
+| `/api/v1/lease` | POST | lease the next free chunk (200; 204 when exhausted); returns `lease_id` + `challenge_offsets` |
+| `/api/v1/heartbeat` | POST | refresh a lease or finish it (echo `lease_id`, `done` needs `samples`); 409 when the lease was lost |
+| `/api/v1/result` | POST | submit a found key (echo `lease_id`); the proof is checked first |
 | `/api/v1/status` | GET | jobs, active clients, results, BSGS checkpoints |
 | `/api/v1/bsgs/state` | GET / POST | read (`?job_id=...`) / store `{manifest, giant_index}` |
 
 ### Security
 
-- The token is mandatory (`--token` or `ROTOR_COORD_TOKEN`, coordinator and clients) and
-  compared in constant time.
-- The coordinator binds `127.0.0.1:7878` by default and warns when bound elsewhere.
-  There is no TLS: put it behind a TLS-terminating reverse proxy for remote clients.
+- The admin token is mandatory (`--token` or `ROTOR_COORD_TOKEN`). It creates and
+  lists jobs and reads the dashboard; it cannot lease, heartbeat or submit
+  results.
+- Per-client tokens: `--clients FILE` is a JSON map `{ "client-id": "<sha256 hex
+  of the token>" }`. Lease/heartbeat/result require a client token, and the
+  server derives the client id from the token (a body `client_id` is ignored in
+  that mode). Comparison is constant-time over the SHA-256 values. A client may
+  read status and jobs but cannot create jobs; unknown or blank tokens get 401,
+  and an authenticated token on the wrong endpoint gets 403.
+- Without `--clients` the legacy single-token mode still works and prints
+  `WARNING: single-token mode; clients are not individually authenticated`.
+- Lease binding: the lease response carries `lease_id` and 16 `challenge_offsets`
+  inside the chunk. Heartbeat and result must echo `lease_id`; a stale or
+  foreign nonce is rejected with 409.
+- Completion challenge: a `done` heartbeat must include `samples`, one per
+  offset — the hash160 of `k = start + offset` (compressed or uncompressed per
+  the job, keccak address for ETH, the 32-byte X for xpoint modes). The server
+  derives the keys independently and requires exact equality; a missing or
+  wrong sample is 400 and the chunk stays leased. BSGS jobs are exempt: their
+  found key is self-verifying and progress lives in the BSGS state.
+- Rate limit: 20 requests/s per token with a burst of 40; excess requests get
+  429 with `Retry-After: 1`.
+- The coordinator binds `127.0.0.1:7878` by default and warns when bound
+  elsewhere. There is no server-side TLS: terminate it in a reverse proxy. The
+  *client* supports `https://` natively (`ureq` + native TLS: SChannel on
+  Windows, OpenSSL on Linux), so clients can reach a public coordinator without
+  an SSH tunnel; plain `http://` stays supported for localhost.
 - The dashboard keeps the token in `localStorage`; state is one JSON file (`--state`,
   default `coordinator.json`) rewritten atomically (`tmp` + rename), one process per file.
-- Heartbeat `scanned`/`done` values are trusted from any holder of the shared token: the
-  protocol is single-tenant and has no per-client attestation beyond the token. A client
-  can therefore mark its leased chunk done without proving the scan.
 - Request bodies are capped at 1 MiB (413 beyond it) and concurrent request handlers at
   32 (503 beyond it); an API request with a missing/wrong token still gets 401.
+  Samples raise the forgery bar but are not a proof of full chunk coverage.
 
 ### Limitations
 

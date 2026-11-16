@@ -1,17 +1,17 @@
-//! Blocking HTTP client for the coordinator API, used by the client engine.
+//! Blocking HTTP(S) client for the coordinator API, used by the client engine.
 //!
-//! Plain HTTP/1.1 over [`std::net::TcpStream`]: one request per connection,
-//! `Connection: close`, 10 s timeouts. TLS is intentionally unsupported; put a
-//! reverse proxy in front of the coordinator when it leaves loopback.
+//! One request per call over [`ureq`] with the `native-tls` backend (SChannel
+//! on Windows, OpenSSL on Linux), so both `http://` and `https://` base URLs
+//! work. A bare `host:port` base defaults to plain HTTP, which keeps localhost
+//! tests and the in-process coordinator simple.
 
-use std::io::{Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use serde::Deserialize;
+use ureq::Agent;
 
 use crate::bsgs::TableManifest;
-use crate::coordinator::state::ManifestJson;
+use crate::coordinator::state::{CHALLENGE_SAMPLES, ManifestJson};
 
 /// A chunk granted by the coordinator.
 #[derive(Clone, Debug, Deserialize)]
@@ -21,6 +21,10 @@ pub struct Lease {
     pub start: String,
     pub end: String,
     pub expires_at: u64,
+    /// Nonce that binds heartbeats and results to this lease.
+    pub lease_id: u64,
+    /// Key offsets inside the chunk whose hashes complete the lease.
+    pub challenge_offsets: [u32; CHALLENGE_SAMPLES],
 }
 
 /// A job as returned by `GET /api/v1/jobs`.
@@ -64,15 +68,22 @@ pub struct CoordinatorClient {
     base: String,
     token: String,
     client_id: String,
+    agent: Agent,
 }
 
 impl CoordinatorClient {
-    /// `base` may be `host:port` or `http://host:port`.
+    /// `base` may be `host:port`, `http://host:port` or `https://host:port`.
     pub fn new(base: &str, token: &str, client_id: &str) -> Self {
+        let agent = ureq::AgentBuilder::new()
+            .timeout_connect(Duration::from_secs(10))
+            .timeout_read(Duration::from_secs(10))
+            .timeout_write(Duration::from_secs(10))
+            .build();
         Self {
             base: base.trim().trim_end_matches('/').to_string(),
             token: token.to_string(),
             client_id: client_id.to_string(),
+            agent,
         }
     }
 
@@ -111,21 +122,29 @@ impl CoordinatorClient {
     }
 
     /// Refresh a lease; returns the new expiry.
+    ///
+    /// `samples` is required when `done` is true (16 hashes of the keys at the
+    /// lease's challenge offsets) and ignored for progress heartbeats.
+    #[allow(clippy::too_many_arguments)]
     pub fn heartbeat(
         &self,
         job_id: &str,
         chunk_index: u64,
+        lease_id: u64,
         scanned: u64,
         rate: f64,
         done: bool,
+        samples: &[Vec<u8>],
     ) -> Result<u64, String> {
         let payload = serde_json::json!({
             "client_id": self.client_id,
             "job_id": job_id,
             "chunk_index": chunk_index,
+            "lease_id": lease_id,
             "scanned": scanned,
             "rate": rate,
             "done": done,
+            "samples": samples,
         })
         .to_string();
         let (status, body) = self.request("POST", "/api/v1/heartbeat", Some(&payload))?;
@@ -141,10 +160,11 @@ impl CoordinatorClient {
     }
 
     /// Submit a found key; the coordinator verifies the proof before accepting.
-    pub fn submit_result(&self, job_id: &str, key_hex: &str) -> Result<(), String> {
+    pub fn submit_result(&self, job_id: &str, lease_id: u64, key_hex: &str) -> Result<(), String> {
         let payload = serde_json::json!({
             "client_id": self.client_id,
             "job_id": job_id,
+            "lease_id": lease_id,
             "key": key_hex,
         })
         .to_string();
@@ -219,37 +239,42 @@ impl CoordinatorClient {
         path: &str,
         body: Option<&str>,
     ) -> Result<(u16, String), String> {
-        // The token is interpolated into the request head verbatim; a control
-        // byte (CR/LF/NUL) would corrupt it, so reject it before connecting.
+        // A control byte (CR/LF/NUL) in the token would corrupt the header, so
+        // reject it before any connection attempt.
         if self.token.bytes().any(|byte| byte.is_ascii_control()) {
             return Err(
                 "coordinator token contains a control character (CR, LF and other control bytes are not allowed)"
                     .to_string(),
             );
         }
-        let host = normalize_base(&self.base)?;
-        let mut stream = connect(&host)?;
-        let payload = body.unwrap_or("");
-        let mut request = format!(
-            "{method} {path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: Bearer {}\r\nConnection: close\r\n",
-            self.token
-        );
-        if body.is_some() {
-            request.push_str("Content-Type: application/json\r\n");
+        let base = normalize_base(&self.base)?;
+        let url = format!("{base}{path}");
+        let request = match method {
+            "GET" => self.agent.get(&url),
+            "POST" => self.agent.post(&url),
+            other => return Err(format!("unsupported HTTP method: {other}")),
         }
-        request.push_str(&format!("Content-Length: {}\r\n\r\n", payload.len()));
-        request.push_str(payload);
-        stream
-            .write_all(request.as_bytes())
-            .map_err(|err| format!("cannot send request to {host}: {err}"))?;
-        stream
-            .flush()
-            .map_err(|err| format!("cannot flush request to {host}: {err}"))?;
-        let mut response = Vec::new();
-        stream
-            .read_to_end(&mut response)
-            .map_err(|err| format!("cannot read response from {host}: {err}"))?;
-        parse_response(&response)
+        .set("Authorization", &format!("Bearer {}", self.token));
+        let outcome = match body {
+            Some(payload) => request
+                .set("Content-Type", "application/json")
+                .send_string(payload),
+            None => request.call(),
+        };
+        match outcome {
+            Ok(response) => {
+                let status = response.status();
+                let body = response
+                    .into_string()
+                    .map_err(|err| format!("cannot read response from {url}: {err}"))?;
+                Ok((status, body))
+            }
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response.into_string().unwrap_or_default();
+                Ok((status, body))
+            }
+            Err(ureq::Error::Transport(err)) => Err(format!("cannot reach {url}: {err}")),
+        }
     }
 }
 
@@ -264,114 +289,16 @@ struct BsgsResponse {
     giant_index: u64,
 }
 
-/// Strip `http://` and a trailing slash; reject `https://`.
+/// Accept `http://` and `https://` bases; a bare `host:port` means plain HTTP.
 fn normalize_base(base: &str) -> Result<String, String> {
     let base = base.trim().trim_end_matches('/');
-    if base.starts_with("https://") {
-        return Err(
-            "https is not supported by the coordinator client; terminate TLS at a reverse proxy and use http://"
-                .to_string(),
-        );
-    }
-    let base = base.strip_prefix("http://").unwrap_or(base);
     if base.is_empty() {
         return Err("coordinator base URL is empty".to_string());
     }
-    Ok(base.to_string())
-}
-
-fn connect(host: &str) -> Result<TcpStream, String> {
-    let addresses = host
-        .to_socket_addrs()
-        .map_err(|err| format!("cannot resolve {host}: {err}"))?;
-    let mut last_error = None;
-    for address in addresses {
-        match TcpStream::connect_timeout(&address, Duration::from_secs(10)) {
-            Ok(stream) => {
-                stream
-                    .set_read_timeout(Some(Duration::from_secs(10)))
-                    .map_err(|err| format!("cannot set read timeout: {err}"))?;
-                stream
-                    .set_write_timeout(Some(Duration::from_secs(10)))
-                    .map_err(|err| format!("cannot set write timeout: {err}"))?;
-                return Ok(stream);
-            }
-            Err(err) => last_error = Some(err),
-        }
+    if base.starts_with("http://") || base.starts_with("https://") {
+        return Ok(base.to_string());
     }
-    Err(match last_error {
-        Some(err) => format!("cannot connect to {host}: {err}"),
-        None => format!("cannot connect to {host}: no addresses"),
-    })
-}
-
-fn parse_response(raw: &[u8]) -> Result<(u16, String), String> {
-    let split = raw
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .ok_or_else(|| "malformed HTTP response: no header terminator".to_string())?;
-    let headers = String::from_utf8_lossy(&raw[..split]);
-    let mut lines = headers.split("\r\n");
-    let status_line = lines
-        .next()
-        .ok_or_else(|| "malformed HTTP response: no status line".to_string())?;
-    let status = status_line
-        .split_whitespace()
-        .nth(1)
-        .ok_or_else(|| format!("malformed HTTP status line: {status_line}"))?
-        .parse::<u16>()
-        .map_err(|err| format!("malformed HTTP status code: {err}"))?;
-
-    let mut content_length = None;
-    let mut chunked = false;
-    for line in lines {
-        if let Some((name, value)) = line.split_once(':') {
-            let name = name.trim();
-            let value = value.trim();
-            if name.eq_ignore_ascii_case("content-length") {
-                content_length = value.parse::<usize>().ok();
-            } else if name.eq_ignore_ascii_case("transfer-encoding")
-                && value.eq_ignore_ascii_case("chunked")
-            {
-                chunked = true;
-            }
-        }
-    }
-
-    let body = &raw[split + 4..];
-    let decoded = if chunked {
-        decode_chunked(body)?
-    } else if let Some(length) = content_length {
-        body[..length.min(body.len())].to_vec()
-    } else {
-        body.to_vec()
-    };
-    Ok((status, String::from_utf8_lossy(&decoded).into_owned()))
-}
-
-fn decode_chunked(mut data: &[u8]) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
-    loop {
-        let line_end = data
-            .windows(2)
-            .position(|window| window == b"\r\n")
-            .ok_or_else(|| "malformed chunked body: missing size line".to_string())?;
-        let size_text = std::str::from_utf8(&data[..line_end])
-            .map_err(|err| format!("malformed chunk size: {err}"))?;
-        let size_text = size_text.split(';').next().unwrap_or("").trim();
-        let size = usize::from_str_radix(size_text, 16)
-            .map_err(|err| format!("malformed chunk size: {err}"))?;
-        data = &data[line_end + 2..];
-        if size == 0 {
-            break;
-        }
-        if data.len() < size + 2 {
-            return Err("truncated chunked body".to_string());
-        }
-        out.extend_from_slice(&data[..size]);
-        data = &data[size + 2..];
-    }
-    Ok(out)
+    Ok(format!("http://{base}"))
 }
 
 fn api_error(status: u16, body: &str) -> String {
@@ -387,6 +314,13 @@ fn api_error(status: u16, body: &str) -> String {
         body.to_string()
     }
 }
+
+/// Hashes of the keys at `offsets` inside a leased chunk, in wire form.
+///
+/// The coordinator recomputes the same bytes from `start + offset` and rejects
+/// a completion whose samples do not match. BSGS jobs are exempt (offsets there
+/// are giant-table indices, not keys) and return no samples.
+pub use crate::coordinator::state::challenge_samples;
 
 #[cfg(test)]
 mod tests {
@@ -405,5 +339,27 @@ mod tests {
 
         let client = CoordinatorClient::new("127.0.0.1:9", "good\0token", "client-1");
         assert!(client.jobs().is_err());
+    }
+
+    #[test]
+    fn https_urls_are_accepted_by_the_parser() {
+        // No network: only the URL normalization is exercised.
+        assert_eq!(
+            normalize_base("https://rotor.example").expect("https base"),
+            "https://rotor.example"
+        );
+        assert_eq!(
+            normalize_base(" https://rotor.example/ ").expect("https base with slash"),
+            "https://rotor.example"
+        );
+        assert_eq!(
+            normalize_base("http://127.0.0.1:7878").expect("http base"),
+            "http://127.0.0.1:7878"
+        );
+        assert_eq!(
+            normalize_base("127.0.0.1:7878").expect("bare base"),
+            "http://127.0.0.1:7878"
+        );
+        assert!(normalize_base("  ").is_err());
     }
 }
