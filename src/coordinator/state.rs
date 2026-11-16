@@ -30,11 +30,14 @@ pub const DEFAULT_LEASE_TTL: u64 = 600;
 pub const MAX_CHUNKS: usize = 1_000_000;
 /// On-disk state format written by this coordinator.
 pub const STATE_VERSION: u32 = 2;
+/// Completion samples required for a non-BSGS chunk.
+pub const CHALLENGE_SAMPLES: usize = 16;
 
 /// Error text used across the state, HTTP and client layers.
 pub const ERR_JOB_NOT_FOUND: &str = "job not found";
 pub const ERR_LEASE_LOST: &str = "lease lost";
 pub const ERR_INVALID_PROOF: &str = "invalid proof";
+pub const ERR_INVALID_SAMPLE: &str = "invalid completion sample";
 pub const ERR_MANIFEST_MISMATCH: &str = "manifest mismatch";
 
 /// A search job. Range endpoints are canonical 64-digit lowercase hex.
@@ -80,6 +83,13 @@ pub struct Lease {
     pub scanned: u64,
     pub rate: f64,
     pub started_at: u64,
+    /// Nonce binding heartbeats/results to this reservation.
+    #[serde(default)]
+    pub lease_id: u64,
+    /// Key offsets inside the chunk whose hashes complete the lease. Empty for
+    /// leases persisted before the challenge existed; those must be re-leased.
+    #[serde(default)]
+    pub offsets: Vec<u32>,
 }
 
 /// An accepted proof, kept for the dashboard.
@@ -162,6 +172,8 @@ pub struct NewJob {
 /// Request body for [`State::lease`]; also the `POST /api/v1/lease` body.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LeaseRequest {
+    /// Ignored when the coordinator authenticates per-client tokens.
+    #[serde(default)]
     pub client_id: String,
     #[serde(default)]
     pub job_id: Option<String>,
@@ -233,6 +245,8 @@ pub struct LeaseView {
     pub start: String,
     pub end: String,
     pub expires_at: u64,
+    pub lease_id: u64,
+    pub challenge_offsets: [u32; CHALLENGE_SAMPLES],
 }
 
 /// The persisted state file. `version` rejects old/foreign formats loudly.
@@ -525,6 +539,20 @@ impl State {
         };
 
         let expires_at = now.saturating_add(lease_ttl);
+        // Seeded from the clock and the chunk, then bumped past any collision so
+        // a nonce is unique among live leases.
+        let mut rng = SplitMix64::new(thread_seed(now ^ chunk_index));
+        let challenge_offsets = challenge_offsets(&mut rng, &chunk_start, &chunk_end)
+            .ok_or_else(|| "cannot derive challenge offsets for the chunk".to_string())?;
+        let mut lease_id = rng.next_u64();
+        while self
+            .data
+            .leases
+            .iter()
+            .any(|lease| lease.lease_id == lease_id)
+        {
+            lease_id = rng.next_u64();
+        }
         self.data
             .leases
             .retain(|lease| !(lease.job_id == job_id && lease.chunk_index == chunk_index));
@@ -536,6 +564,8 @@ impl State {
             scanned: 0,
             rate: 0.0,
             started_at: now,
+            lease_id,
+            offsets: challenge_offsets.to_vec(),
         });
         self.save()?;
         Ok(Some(LeaseView {
@@ -544,20 +574,29 @@ impl State {
             start: chunk_start,
             end: chunk_end,
             expires_at,
+            lease_id,
+            challenge_offsets,
         }))
     }
 
     /// Refresh a lease and optionally finish its chunk. Returns the new expiry.
-    // The signature is part of the documented state API.
+    ///
+    /// `lease_id` must match the stored nonce; a stale or foreign one is
+    /// rejected as [`ERR_LEASE_LOST`]. A `done` heartbeat for a non-BSGS job
+    /// must carry one sample per challenge offset; a missing or wrong sample
+    /// returns [`ERR_INVALID_SAMPLE`] and leaves the lease (and the bitmap)
+    /// untouched.
     #[allow(clippy::too_many_arguments)]
     pub fn heartbeat(
         &mut self,
         client_id: &str,
         job_id: &str,
         chunk_index: u64,
+        lease_id: u64,
         scanned: u64,
         rate: f64,
         done: bool,
+        samples: &[Vec<u8>],
         now: u64,
     ) -> Result<u64, String> {
         let position = self
@@ -567,16 +606,19 @@ impl State {
             .position(|lease| lease.job_id == job_id && lease.chunk_index == chunk_index)
             .ok_or_else(|| ERR_LEASE_LOST.to_string())?;
         let lease = &self.data.leases[position];
-        if lease.client_id != client_id || now >= lease.expires_at {
+        if lease.client_id != client_id || lease.lease_id != lease_id || now >= lease.expires_at {
             return Err(ERR_LEASE_LOST.to_string());
         }
-        let lease_ttl = self
+        let job_index = self
             .data
             .jobs
             .iter()
-            .find(|job| job.id == job_id)
-            .map(|job| job.lease_ttl)
+            .position(|job| job.id == job_id)
             .ok_or_else(|| ERR_LEASE_LOST.to_string())?;
+        if done {
+            verify_completion(&self.data.jobs[job_index], lease, samples)?;
+        }
+        let lease_ttl = self.data.jobs[job_index].lease_ttl;
         let expires_at = now.saturating_add(lease_ttl);
         let rate = if rate.is_finite() { rate.max(0.0) } else { 0.0 };
         {
@@ -585,11 +627,10 @@ impl State {
             lease.rate = rate;
             lease.expires_at = expires_at;
         }
-        if let Some(job) = self.data.jobs.iter_mut().find(|job| job.id == job_id)
-            && done
-        {
+        if done {
             // The bit is set once: a completed chunk can never be leased
             // again, so its scanned count is added to the aggregate once.
+            let job = &mut self.data.jobs[job_index];
             let mut bits = hex_decode(&job.done_bits)
                 .map_err(|err| format!("job {}: invalid done bitmap: {err}", job.id))?;
             if !is_done(&bits, chunk_index) {
@@ -600,8 +641,6 @@ impl State {
                     job.done = true;
                 }
             }
-        }
-        if done {
             self.data
                 .leases
                 .retain(|lease| !(lease.job_id == job_id && lease.chunk_index == chunk_index));
@@ -611,10 +650,16 @@ impl State {
     }
 
     /// Verify and record a found key; invalid proofs are rejected.
+    ///
+    /// The result must echo a live `lease_id` belonging to this client and
+    /// job; anything else is a stale/foreign nonce ([`ERR_LEASE_LOST`]). BSGS
+    /// jobs are exempt: their found key is self-verifying (`k*G == target`) and
+    /// they keep progress in the BSGS state, not in a leased chunk.
     pub fn submit_result(
         &mut self,
         client_id: &str,
         job_id: &str,
+        lease_id: u64,
         key_hex: &str,
     ) -> Result<(), String> {
         let key = {
@@ -624,6 +669,17 @@ impl State {
                 .iter()
                 .find(|job| job.id == job_id)
                 .ok_or_else(|| ERR_JOB_NOT_FOUND.to_string())?;
+            if job.mode != "bsgs" {
+                let lease = self
+                    .data
+                    .leases
+                    .iter()
+                    .find(|lease| lease.job_id == job_id && lease.lease_id == lease_id)
+                    .ok_or_else(|| ERR_LEASE_LOST.to_string())?;
+                if lease.client_id != client_id {
+                    return Err(ERR_LEASE_LOST.to_string());
+                }
+            }
             verify_result(job, key_hex)?
         };
         let key_text = key.to_hex();
@@ -962,6 +1018,110 @@ fn chunk_bounds(job: &Job, index: u64) -> Result<(String, String), String> {
     };
 
     Ok((split_to_hex(chunk_start)?, split_to_hex(chunk_end)?))
+}
+
+/// Random key offsets inside an inclusive chunk range.
+///
+/// Offsets are serialized as `u32`, so a chunk wider than `u32::MAX` is
+/// sampled in its first `u32::MAX` keys; ordinary chunk widths are uniform.
+fn challenge_offsets(
+    rng: &mut SplitMix64,
+    start: &str,
+    end: &str,
+) -> Option<[u32; CHALLENGE_SAMPLES]> {
+    let start = parse_scalar_hex(start)?;
+    let end = parse_scalar_hex(end)?;
+    if end < start {
+        return None;
+    }
+    let span = scalar_to_u128(&end.sub(&start))?
+        .saturating_add(1)
+        .min(u128::from(u32::MAX)) as u64;
+    let mut offsets = [0u32; CHALLENGE_SAMPLES];
+    for slot in &mut offsets {
+        *slot = if span <= 1 {
+            0
+        } else {
+            (rng.next_u64() % span) as u32
+        };
+    }
+    Some(offsets)
+}
+
+/// Check a completion's samples against the keys at the lease offsets.
+///
+/// BSGS jobs are exempt: their leases protect a giant walk, not a key window.
+fn verify_completion(job: &Job, lease: &Lease, samples: &[Vec<u8>]) -> Result<(), String> {
+    if job.mode == "bsgs" {
+        return Ok(());
+    }
+    if lease.offsets.len() != CHALLENGE_SAMPLES {
+        // Persisted before the challenge existed: force a fresh lease.
+        return Err(ERR_LEASE_LOST.to_string());
+    }
+    if samples.len() != lease.offsets.len() {
+        return Err(ERR_INVALID_SAMPLE.to_string());
+    }
+    let (start, _) = chunk_bounds(job, lease.chunk_index)?;
+    let start = parse_scalar_hex(&start).ok_or_else(|| ERR_INVALID_SAMPLE.to_string())?;
+    for (&offset, sample) in lease.offsets.iter().zip(samples) {
+        let point = secp::mul_g(&start.add_u64(u64::from(offset)));
+        let matched = sample_variants(job, &point)
+            .iter()
+            .any(|expected| expected.as_slice() == sample.as_slice());
+        if !matched {
+            return Err(ERR_INVALID_SAMPLE.to_string());
+        }
+    }
+    Ok(())
+}
+
+/// Accepted byte forms of one key for the job's mode, coin and compression.
+fn sample_variants(job: &Job, point: &Affine) -> Vec<Vec<u8>> {
+    match job.mode.as_str() {
+        "xpoint" | "xpoints" => vec![point.x.to_bytes_be().to_vec()],
+        "address" | "addresses" if job.coin == "eth" => {
+            vec![secp::eth_address(point).to_vec()]
+        }
+        "address" | "addresses" => comp_flags(&job.comp_mode, &job.coin)
+            .iter()
+            .map(|&compressed| secp::hash160(point, compressed).to_vec())
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Client-side samples for a completion heartbeat.
+///
+/// Mirrors [`sample_variants`]: for `comp_mode = "both"` the compressed form is
+/// sent (the server accepts either). BSGS leases return no samples.
+pub fn challenge_samples(
+    mode: &str,
+    coin: &str,
+    comp_mode: &str,
+    start: &Scalar,
+    offsets: &[u32],
+) -> Result<Vec<Vec<u8>>, String> {
+    if mode == "bsgs" {
+        return Ok(Vec::new());
+    }
+    let coin = coin.trim().to_ascii_lowercase();
+    let mut samples = Vec::with_capacity(offsets.len());
+    for &offset in offsets {
+        let point = secp::mul_g(&start.add_u64(u64::from(offset)));
+        let sample = match mode {
+            "xpoint" | "xpoints" => point.x.to_bytes_be().to_vec(),
+            "address" | "addresses" if coin == "eth" => secp::eth_address(&point).to_vec(),
+            "address" | "addresses" => {
+                let compressed = !comp_mode.trim().eq_ignore_ascii_case("uncompressed");
+                secp::hash160(&point, compressed).to_vec()
+            }
+            "bsgs" => Vec::new(),
+            other => return Err(format!("unsupported challenge mode: {other}")),
+        };
+        samples.push(sample);
+    }
+    Ok(samples)
 }
 
 fn split_to_hex(value: Split) -> Result<String, String> {
@@ -1361,6 +1521,19 @@ mod tests {
         }
     }
 
+    /// Correct xpoint completion samples for a leased chunk.
+    fn xpoint_samples(lease: &LeaseView) -> Vec<Vec<u8>> {
+        let start = parse_scalar_hex(&lease.start).expect("chunk start");
+        challenge_samples(
+            "xpoint",
+            "btc",
+            "compressed",
+            &start,
+            &lease.challenge_offsets,
+        )
+        .expect("samples")
+    }
+
     #[test]
     fn chunks_tile_the_range_without_overlap() {
         let temp = TempState::new("tiling");
@@ -1420,24 +1593,54 @@ mod tests {
         let mut state = State::open(temp.path()).expect("open");
         let job = xpoint_job(&mut state, 7, 1, 0xff, 0x100);
 
-        state
+        let lease = state
             .lease(lease_request(&job.id, "a", 1, 0xff), 1_000)
             .expect("lease")
             .expect("chunk");
 
         let refreshed = state
-            .heartbeat("a", &job.id, 0, 512, 100.0, false, 1_030)
+            .heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                512,
+                100.0,
+                false,
+                &[],
+                1_030,
+            )
             .expect("heartbeat");
         assert_eq!(refreshed, 1_090);
 
         assert_eq!(
-            state.heartbeat("b", &job.id, 0, 0, 0.0, false, 1_030),
+            state.heartbeat(
+                "b",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                0,
+                0.0,
+                false,
+                &[],
+                1_030
+            ),
             Err(ERR_LEASE_LOST.to_string())
         );
 
         // Past the refreshed expiry the lease is lost even for its owner.
         assert_eq!(
-            state.heartbeat("a", &job.id, 0, 0, 0.0, false, 1_090),
+            state.heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                0,
+                0.0,
+                false,
+                &[],
+                1_090
+            ),
             Err(ERR_LEASE_LOST.to_string())
         );
 
@@ -1447,7 +1650,17 @@ mod tests {
             .expect("lease b")
             .expect("expired chunk");
         assert_eq!(
-            state.heartbeat("a", &job.id, 0, 0, 0.0, false, 1_201),
+            state.heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                0,
+                0.0,
+                false,
+                &[],
+                1_201
+            ),
             Err(ERR_LEASE_LOST.to_string())
         );
     }
@@ -1458,12 +1671,22 @@ mod tests {
         let mut state = State::open(temp.path()).expect("open");
         let job = xpoint_job(&mut state, 7, 1, 0xff, 0x100);
 
-        state
+        let lease = state
             .lease(lease_request(&job.id, "a", 1, 0xff), 1_000)
             .expect("lease")
             .expect("chunk");
         state
-            .heartbeat("a", &job.id, 0, 256, 10.0, true, 1_010)
+            .heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                256,
+                10.0,
+                true,
+                &xpoint_samples(&lease),
+                1_010,
+            )
             .expect("finish chunk");
 
         let jobs = state.list_jobs();
@@ -1475,6 +1698,157 @@ mod tests {
                 .expect("lease")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn completion_requires_matching_samples_and_keeps_the_lease_on_failure() {
+        let temp = TempState::new("challenge");
+        let mut state = State::open(temp.path()).expect("open");
+        let job = xpoint_job(&mut state, 7, 1, 0xff, 0x100);
+        let lease = state
+            .lease(lease_request(&job.id, "a", 1, 0xff), 1_000)
+            .expect("lease")
+            .expect("chunk");
+
+        // Missing and wrong samples are rejected and leave the chunk leased.
+        assert_eq!(
+            state.heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                0,
+                1.0,
+                true,
+                &[],
+                1_010
+            ),
+            Err(ERR_INVALID_SAMPLE.to_string())
+        );
+        let wrong = vec![vec![0u8; 32]; CHALLENGE_SAMPLES];
+        assert_eq!(
+            state.heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                0,
+                1.0,
+                true,
+                &wrong,
+                1_011
+            ),
+            Err(ERR_INVALID_SAMPLE.to_string())
+        );
+        let view = &state.status(1_012).jobs[0];
+        assert_eq!(view.chunks_done, 0, "a failed sample must not set a bit");
+        assert_eq!(view.chunks_leased, 1, "a failed sample keeps the lease");
+
+        // A stale nonce is a lost lease.
+        assert_eq!(
+            state.heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id.wrapping_add(1),
+                0,
+                1.0,
+                false,
+                &[],
+                1_012
+            ),
+            Err(ERR_LEASE_LOST.to_string())
+        );
+
+        let samples = xpoint_samples(&lease);
+        state
+            .heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                256,
+                10.0,
+                true,
+                &samples,
+                1_020,
+            )
+            .expect("valid samples finish the chunk");
+        assert_eq!(state.status(1_021).jobs[0].chunks_done, 1);
+
+        // Replaying the completed completion is rejected (bit set exactly once).
+        assert_eq!(
+            state.heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                256,
+                10.0,
+                true,
+                &samples,
+                1_030
+            ),
+            Err(ERR_LEASE_LOST.to_string())
+        );
+        assert_eq!(state.status(1_031).jobs[0].chunks_done, 1);
+    }
+
+    #[test]
+    fn bsgs_completion_needs_no_samples() {
+        let temp = TempState::new("bsgs-challenge");
+        let mut state = State::open(temp.path()).expect("open");
+        let target = hex_bytes(&secp::compress(&secp::mul_g(&Scalar::from_u64(1))));
+        let job = state
+            .create_job(NewJob {
+                target: Some(target),
+                targets: Vec::new(),
+                mode: "bsgs".to_string(),
+                coin: None,
+                comp_mode: None,
+                start: hex(1),
+                end: hex(0xff),
+                chunk_width: Some(0x100),
+                lease_ttl: Some(60),
+            })
+            .expect("bsgs job");
+        let lease = state
+            .lease(
+                LeaseRequest {
+                    client_id: "a".to_string(),
+                    job_id: Some(job.id.clone()),
+                    target: None,
+                    mode: "bsgs".to_string(),
+                    coin: None,
+                    start: hex(1),
+                    end: hex(0xff),
+                },
+                1_000,
+            )
+            .expect("lease")
+            .expect("chunk");
+
+        state
+            .heartbeat(
+                "a",
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                1,
+                1.0,
+                true,
+                &[],
+                1_010,
+            )
+            .expect("BSGS completion is exempt from samples");
+        let view = state
+            .status(1_010)
+            .jobs
+            .into_iter()
+            .find(|view| view.id == job.id)
+            .expect("job");
+        assert!(view.done);
+        assert_eq!(view.chunks_done, 1);
     }
 
     #[test]
@@ -1509,12 +1883,12 @@ mod tests {
                 .bsgs_put(&bsgs_job.id, manifest, 3)
                 .expect("store bsgs state");
 
-            state
+            let lease = state
                 .lease(lease_request(&job.id, "a", 1, 0xff), 1_000)
                 .expect("lease")
                 .expect("chunk");
             state
-                .submit_result("a", &job.id, &Scalar::from_u64(42).to_hex())
+                .submit_result("a", &job.id, lease.lease_id, &Scalar::from_u64(42).to_hex())
                 .expect("valid proof");
             job.id.clone()
         };
@@ -1540,23 +1914,27 @@ mod tests {
         let temp = TempState::new("invalid");
         let mut state = State::open(temp.path()).expect("open");
         let job = xpoint_job(&mut state, 7, 1, 0xff, 0x100);
+        let lease = state
+            .lease(lease_request(&job.id, "a", 1, 0xff), 1_000)
+            .expect("lease")
+            .expect("chunk");
 
         assert_eq!(
-            state.submit_result("a", &job.id, &Scalar::from_u64(8).to_hex()),
+            state.submit_result("a", &job.id, lease.lease_id, &Scalar::from_u64(8).to_hex()),
             Err(ERR_INVALID_PROOF.to_string())
         );
         assert_eq!(
-            state.submit_result("a", &job.id, &Scalar::ZERO.to_hex()),
+            state.submit_result("a", &job.id, lease.lease_id, &Scalar::ZERO.to_hex()),
             Err(ERR_INVALID_PROOF.to_string())
         );
         assert_eq!(
-            state.submit_result("a", &job.id, "not-hex"),
+            state.submit_result("a", &job.id, lease.lease_id, "not-hex"),
             Err(ERR_INVALID_PROOF.to_string())
         );
         assert!(!state.list_jobs()[0].found);
 
         state
-            .submit_result("a", &job.id, &Scalar::from_u64(7).to_hex())
+            .submit_result("a", &job.id, lease.lease_id, &Scalar::from_u64(7).to_hex())
             .expect("valid xpoint proof");
         assert!(state.list_jobs()[0].found);
     }
@@ -1581,14 +1959,34 @@ mod tests {
                 lease_ttl: Some(60),
             })
             .expect("address job");
+        let lease = state
+            .lease(
+                LeaseRequest {
+                    client_id: "a".to_string(),
+                    job_id: Some(job.id.clone()),
+                    target: None,
+                    mode: "address".to_string(),
+                    coin: Some("btc".to_string()),
+                    start: hex(1),
+                    end: hex(0xffff),
+                },
+                1_000,
+            )
+            .expect("lease")
+            .expect("chunk");
 
-        state
-            .submit_result("a", &job.id, &key.to_hex())
-            .expect("valid address proof");
         assert_eq!(
-            state.submit_result("a", &job.id, &Scalar::from_u64(778).to_hex()),
+            state.submit_result(
+                "a",
+                &job.id,
+                lease.lease_id,
+                &Scalar::from_u64(778).to_hex()
+            ),
             Err(ERR_INVALID_PROOF.to_string())
         );
+        state
+            .submit_result("a", &job.id, lease.lease_id, &key.to_hex())
+            .expect("valid address proof");
     }
 
     #[test]
@@ -1639,15 +2037,35 @@ mod tests {
         let job = {
             let mut state = State::open(temp.path()).expect("open");
             let job = xpoint_job(&mut state, 7, 1, 0xff, 0x100);
-            state
+            let lease = state
                 .lease(lease_request(&job.id, "a", 1, 0xff), 1_000)
                 .expect("lease")
                 .expect("chunk");
             state
-                .heartbeat("a", &job.id, 0, 64, 10.0, false, 1_010)
+                .heartbeat(
+                    "a",
+                    &job.id,
+                    lease.chunk_index,
+                    lease.lease_id,
+                    64,
+                    10.0,
+                    false,
+                    &[],
+                    1_010,
+                )
                 .expect("progress");
             state
-                .heartbeat("a", &job.id, 0, 64, 10.0, true, 1_020)
+                .heartbeat(
+                    "a",
+                    &job.id,
+                    lease.chunk_index,
+                    lease.lease_id,
+                    64,
+                    10.0,
+                    true,
+                    &xpoint_samples(&lease),
+                    1_020,
+                )
                 .expect("finish chunk");
             let status = state.status(1_030);
             assert!(
@@ -1791,12 +2209,17 @@ mod tests {
         let temp = TempState::new("snapshot");
         let mut state = State::open(temp.path()).expect("open");
         let job = xpoint_job(&mut state, 5, 1, 0x1ff, 0x100);
-        state
+        let lease = state
             .lease(lease_request(&job.id, "client-a", 1, 0x1ff), 1_000)
             .expect("lease")
             .expect("chunk");
         state
-            .submit_result("client-a", &job.id, &Scalar::from_u64(5).to_hex())
+            .submit_result(
+                "client-a",
+                &job.id,
+                lease.lease_id,
+                &Scalar::from_u64(5).to_hex(),
+            )
             .expect("valid proof");
 
         let value: serde_json::Value =
@@ -1931,7 +2354,17 @@ mod tests {
             .expect("lease")
             .expect("chunk");
         state
-            .heartbeat("a", &job.id, first.chunk_index, 1, 1.0, true, 1_010)
+            .heartbeat(
+                "a",
+                &job.id,
+                first.chunk_index,
+                first.lease_id,
+                1,
+                1.0,
+                true,
+                &xpoint_samples(&first),
+                1_010,
+            )
             .expect("finish chunk");
 
         let mut leased = vec![first.chunk_index];
@@ -1972,7 +2405,17 @@ mod tests {
                     .expect("lease")
                     .expect("chunk");
                 state
-                    .heartbeat(client, &job.id, lease.chunk_index, 2, 1.0, true, now + 10)
+                    .heartbeat(
+                        client,
+                        &job.id,
+                        lease.chunk_index,
+                        lease.lease_id,
+                        2,
+                        1.0,
+                        true,
+                        &xpoint_samples(&lease),
+                        now + 10,
+                    )
                     .expect("finish chunk");
             }
             job.id.clone()
@@ -2025,9 +2468,11 @@ mod tests {
                     &client,
                     &job.id,
                     lease.chunk_index,
+                    lease.lease_id,
                     scanned,
                     1.0,
                     false,
+                    &[],
                     now + 1,
                 )
                 .expect("progress");
@@ -2041,15 +2486,17 @@ mod tests {
                     &client,
                     &job.id,
                     lease.chunk_index,
+                    lease.lease_id,
                     scanned,
                     1.0,
                     true,
+                    &xpoint_samples(&lease),
                     now + 2,
                 )
                 .expect("finish chunk");
             expected += scanned;
             assert_eq!(state.list_jobs()[0].scanned, expected);
-            completed.push((client, lease.chunk_index, scanned));
+            completed.push((client, lease.chunk_index, lease.lease_id, scanned));
         }
 
         let view = state.list_jobs().into_iter().next().expect("job view");
@@ -2058,9 +2505,19 @@ mod tests {
         assert!(view.done);
 
         // A repeated done heartbeat is rejected and cannot double count.
-        let (client, chunk_index, scanned) = &completed[0];
+        let (client, chunk_index, lease_id, scanned) = &completed[0];
         assert_eq!(
-            state.heartbeat(client, &job.id, *chunk_index, *scanned, 1.0, true, 2_000),
+            state.heartbeat(
+                client,
+                &job.id,
+                *chunk_index,
+                *lease_id,
+                *scanned,
+                1.0,
+                true,
+                &[],
+                2_000
+            ),
             Err(ERR_LEASE_LOST.to_string())
         );
         assert_eq!(state.list_jobs()[0].scanned, 22);

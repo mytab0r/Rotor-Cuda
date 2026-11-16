@@ -53,6 +53,18 @@ fn xpoint(key: u64) -> String {
     secp::mul_g(&Scalar::from_u64(key)).x.to_hex()
 }
 
+fn xpoint_samples(lease: &rotor::coordinator::client::Lease) -> Vec<Vec<u8>> {
+    let start = Scalar::from_hex(&lease.start).expect("chunk start");
+    rotor::coordinator::state::challenge_samples(
+        "xpoint",
+        "btc",
+        "compressed",
+        &start,
+        &lease.challenge_offsets,
+    )
+    .expect("samples")
+}
+
 fn low_u64(value: &Scalar) -> u64 {
     let bytes = value.to_bytes_be();
     u64::from_be_bytes(bytes[24..32].try_into().expect("eight bytes"))
@@ -62,6 +74,7 @@ fn lease_job(target: Option<String>, start: u64, end: u64) -> LeaseJob {
     LeaseJob {
         mode: "xpoint".to_owned(),
         coin: "btc".to_owned(),
+        comp_mode: "compressed".to_owned(),
         target,
         start: scalar_hex(start),
         end: scalar_hex(end),
@@ -271,7 +284,15 @@ fn exhausted_job_ends_normally() {
         .expect("lease")
         .expect("chunk");
     setup
-        .heartbeat(&job.id, lease.chunk_index, 2, 1.0, true)
+        .heartbeat(
+            &job.id,
+            lease.chunk_index,
+            lease.lease_id,
+            2,
+            1.0,
+            true,
+            &xpoint_samples(&lease),
+        )
         .expect("finish chunk");
 
     let request = lease_job(Some(target), 1, 2);
@@ -337,17 +358,23 @@ fn lost_lease_after_the_job_was_found_stops_normally() {
         client: CoordinatorClient,
         job_id: String,
         key: Scalar,
+        lease_id: Option<u64>,
     }
 
     impl ChunkScanner for SubmitDuringScan {
         fn scan(&mut self, _start: &Scalar, _end: &Scalar) -> Result<ScanOutcome, String> {
+            let lease_id = self.lease_id.expect("on_lease ran before the scan");
             self.client
-                .submit_result(&self.job_id, &self.key.to_hex())
+                .submit_result(&self.job_id, lease_id, &self.key.to_hex())
                 .map_err(|err| format!("submit during scan: {err}"))?;
             Ok(ScanOutcome {
                 scanned: 1,
                 found: None,
             })
+        }
+
+        fn on_lease(&mut self, lease: &rotor::coordinator::client::Lease) {
+            self.lease_id = Some(lease.lease_id);
         }
     }
 
@@ -357,6 +384,7 @@ fn lost_lease_after_the_job_was_found_stops_normally() {
         client: client.clone(),
         job_id: job.id.clone(),
         key,
+        lease_id: None,
     };
     let (scanned, found) =
         run_leases(&client, &request, &mut scanner).expect("a found job is a normal stop");
