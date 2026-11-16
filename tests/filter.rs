@@ -108,3 +108,63 @@ fn murmurhash2_is_deterministic_and_seed_sensitive() {
     assert_ne!(first, murmurhash2(&data, 0));
     assert_ne!(first, murmurhash2(&data, 0xdead_beef));
 }
+
+/// Deterministic synthetic 20-byte records from a 64-bit LCG (no `rand`).
+fn synthetic_records(count: usize, seed: u64) -> Vec<Vec<u8>> {
+    let mut state = seed;
+    let mut records = Vec::with_capacity(count);
+    for _ in 0..count {
+        let mut record = [0u8; 20];
+        for chunk in record.chunks_mut(8) {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            let bytes = state.to_le_bytes();
+            chunk.copy_from_slice(&bytes[..chunk.len()]);
+        }
+        records.push(record.to_vec());
+    }
+    records
+}
+
+#[test]
+fn large_set_uses_fuse_without_false_negatives() {
+    let records = synthetic_records(100_000, 0x9e37_79b9_7f4a_7c15);
+    let set = TargetSet::from_records(&records, 20);
+
+    assert_eq!(set.prefilter_kind(), "fuse");
+    assert_eq!(set.len(), 100_000);
+    for record in &records {
+        assert!(set.contains(record), "false negative for {record:02x?}");
+    }
+
+    let mut mutated = records[12_345].clone();
+    mutated[7] ^= 0xff;
+    assert!(!set.contains(&mutated), "mutated record must not match");
+}
+
+#[test]
+fn fuse_may_false_positive_but_contains_never_does() {
+    let records = synthetic_records(100_000, 0x9e37_79b9_7f4a_7c15);
+    let set = TargetSet::from_records(&records, 20);
+    let non_members = synthetic_records(1_000, 0x0123_4567_89ab_cdef);
+
+    for candidate in &non_members {
+        // `may_contain` may pass on a fuse false positive; `contains` must not.
+        assert!(
+            !set.contains(candidate),
+            "non-member reported as contained: {candidate:02x?}"
+        );
+    }
+}
+
+#[test]
+fn small_set_keeps_the_bloom_prefilter() {
+    let records: Vec<Vec<u8>> = (0..10u8).map(|i| vec![i; 20]).collect();
+    let set = TargetSet::from_records(&records, 20);
+
+    assert_eq!(set.prefilter_kind(), "bloom");
+    for record in &records {
+        assert!(set.contains(record), "missing {record:02x?}");
+    }
+}
