@@ -7,9 +7,7 @@ concurrency:
 on:
   workflow_dispatch:
   pull_request:
-  push:
-    branches: [main, feat/rust-port]
-    paths:
+    paths: &gpu-paths
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.rs'
@@ -32,6 +30,9 @@ on:
       - 'Rotor-Cuda/GPU/GPUCompute.h'
       - 'Rotor-Cuda/GPU/GPUHash.h'
       - '.github/workflows/gpu-bsgs-compile.yml'
+  push:
+    branches: [main, feat/rust-port]
+    paths: *gpu-paths
 
 # GitHub-hosted runners have NO GPU, so this job proves the real build path:
 # build.rs locates nvcc, compiles the CUDA translation units, and the Rust
