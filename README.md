@@ -531,7 +531,8 @@ Known deviations from the C++ binary:
 - `-g` without a GPU build exits with code 2 (C++ prints the same message but continues).
 - `.bin` inputs are sorted internally; the C++ binary requires a pre-sorted file.
 - CPU-BSGS uses the full 256-bit range span and rejects spans above `u128`.
-- BinaryFuse acceleration is not ported (results are unchanged).
+- The CPU target prefilter is a binary fuse8 at ≥1024 records and the classic
+  Bloom below that; the exact binary search always decides membership.
 - The `Priv (WIF)` string printed in the C++ README example is not a valid WIF;
   the Rust binary prints the canonical one.
 - Timestamps in the banner and checkpoint files are UTC (the C++ binary uses local time).
