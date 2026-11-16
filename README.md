@@ -172,10 +172,20 @@ Run two clients (the second with `--client-id machine-b`) on the same target and
 ```
 
 Each client leases the next free chunk (width `0x10000000`, TTL 600 s), heartbeats every
-5 s and re-leases on completion, so slices never overlap. An unrefreshed lease returns to
-the pool; once all chunks are done leases answer 204 and clients stop. `Found.txt` is
+5 s and re-leases on completion, so slices never overlap. Chunks are handed out in a
+scattered but complete order: a per-job full-cycle permutation
+`(seed + cursor × step) mod chunks_total` with `gcd(step, chunks_total) = 1`, and the
+cursor is persisted so the scatter continues after a restart. An unrefreshed lease returns
+to the pool; once all chunks are done leases answer 204 and clients stop. `Found.txt` is
 written locally; the found key is also POSTed, and the coordinator verifies `k*G` against
 the job target before accepting and marking the job found on the dashboard.
+
+The state file is compact: completed chunks are a packed bitmap serialized as lowercase
+hex (`ceil(chunks_total / 8)` bytes, bit `i % 8` of byte `i / 8`) and `scanned` is
+aggregated per job, so a 1,000,000-chunk job needs about 250 KiB instead of one record
+per chunk. The file carries `"version": 2`; a state file with a missing or older version
+is rejected with a clear message and must be moved or deleted to start fresh (there is no
+silent migration).
 
 ### GPU clients
 
