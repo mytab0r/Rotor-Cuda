@@ -363,3 +363,27 @@ MVP sequence: store + SIWE login + EVM address import + EVM watcher + in-app
 feed + exposure endpoint + `/monitor` page + `/key` checkbox. Telegram/email
 delivery, BTC/BIP322 linking, billing and leak lists follow after the first
 end-to-end alert is proven.
+
+
+## D13 Public key pages and the warning path
+
+The public site follows the privatekeyfinder model: SEO hub pages per chain
+(`/keys`, `/keys/<chain>`) and URL-addressable key pages (`/key/<64hex>`,
+later `/range/<start>/<count>`). The key is in the URL, so the coordinator
+already learns which key or range is requested without any hidden beacon.
+Two equivalent ways to warn owners:
+
+1. The server derives the addresses for the requested key (bounded: one key,
+   or a capped range) with the Rust crypto core and checks them against the
+   watchlist. No frontend data is required and nothing can be forged by the
+   client. This is the preferred long-term path.
+2. The URL page posts its derived addresses to `/api/v1/monitor/exposure`
+   once, with a visible notice on the page ("this key is in the URL; its
+   addresses are checked against the registry"). This is what the MVP does
+   until the native derivation is wired into the coordinator.
+
+Either way the notice is explicit, the key itself is never sent, the exposure
+endpoint returns only a count, and a match records a `lookup` event for the
+owner ("someone opened a public page containing your address"). Interactive
+local input on `/key` without a URL can only be checked through the existing
+opt-in checkbox; there is no covert reporting.

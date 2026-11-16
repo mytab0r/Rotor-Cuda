@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - docs</title>
-<link rel="stylesheet" href="/site.css?v=20261116i">
+<link rel="stylesheet" href="/site.css?v=20261117c">
 </head>
 <body>
 <header class="site-nav">
@@ -12,10 +12,9 @@
   <nav>
     <a href="/app" id="nav-app">App</a>
     <a href="/run" id="nav-run">Run</a>
-    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
     <a href="/docs" class="active" id="nav-docs">Docs</a>
     <a href="/key" id="nav-key">Keys</a>
-    <a href="/monitor" id="nav-monitor">Monitor</a>
   </nav>
 </header>
 
@@ -96,6 +95,23 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>This is not a wallet: no signing or sweeping. Handle any key that holds funds offline on an air-gapped machine, never on an online page.</li>
     </ul>
 
+    <h2>Public key pages</h2>
+    <p>
+      <a href="/keys">/keys</a> and <code>/keys/&lt;chain&gt;</code> are the
+      public hubs (Bitcoin, Ethereum, TRON, Solana) with breadcrumbs and
+      example key links. A URL such as <code>/key/&lt;64 hex&gt;</code> derives
+      the addresses for that key in your browser. Key pages are
+      <code>noindex,follow</code>; the hubs are indexed and listed in
+      <code>/sitemap.xml</code>.
+    </p>
+    <p>
+      Because the key is in the URL, the coordinator knows which key page was
+      requested. The page shows a notice and checks only the derived addresses
+      against the registry, so a registered owner can be warned that someone
+      opened a page containing their address. Typing a key locally on
+      <a href="/key">/key</a> is checked only if you tick the opt-in box.
+    </p>
+
     <h2>Address monitor</h2>
     <p>
       <a href="/monitor">/monitor</a> watches addresses you control: connect an
@@ -122,6 +138,6 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
   </section>
 </main>
 
-<script src="/site.js?v=20261116i"></script>
+<script src="/site.js?v=20261117c"></script>
 </body>
 </html>

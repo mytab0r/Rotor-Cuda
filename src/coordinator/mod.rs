@@ -41,6 +41,10 @@ const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
 const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
 const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
+/// Canonical public origin for absolute URLs in the SEO surface. It is never
+/// derived from the request `Host` header; override with `ROTOR_PUBLIC_URL`
+/// (the CLI flag lives outside this module's route contract).
+const DEFAULT_PUBLIC_URL: &str = "https://rotor.pxbt.app";
 /// Largest request body the coordinator buffers (JSON commands are tiny).
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// Requests handled concurrently; the rest are rejected with 503.
@@ -196,6 +200,9 @@ struct App {
     monitor_domain: String,
     /// Trust reverse-proxy client-IP headers for rate limiting.
     trust_proxy: bool,
+    /// Canonical public origin (no trailing slash) for canonical links, the
+    /// sitemap and JSON-LD. Fixed at startup, never taken from the request.
+    public_url: String,
 }
 
 impl App {
@@ -426,6 +433,7 @@ fn spawn_inner(
         monitor,
         monitor_domain,
         trust_proxy: options.trust_proxy,
+        public_url: public_url_from_env(),
     });
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -492,6 +500,19 @@ fn handle(app: Arc<App>, request: Request) {
     let (path, query) = url.split_once('?').unwrap_or((&url, ""));
 
     if method == Method::Get {
+        if let Some(location) = redirect_target(path) {
+            respond_redirect(request, location);
+            return;
+        }
+        // Dynamic SEO surface: key pages, chain hubs, robots and sitemap.
+        if let Some((body, content_type, status)) = seo_asset(&app.public_url, path, query) {
+            let response = Response::from_string(body)
+                .with_status_code(StatusCode(status))
+                .with_header(header("Content-Type", content_type))
+                .with_header(header("Cache-Control", "no-cache"));
+            let _ = request.respond(response);
+            return;
+        }
         if let Some((body, content_type)) = static_asset(path) {
             let response = Response::from_data(body)
                 .with_header(header("Content-Type", content_type))
@@ -604,8 +625,8 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
-        "/monitor" => Some((MONITOR_PAGE.as_bytes(), "text/html; charset=utf-8")),
-        "/monitor.js" => Some((
+        "/cabinet" => Some((MONITOR_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/cabinet.js" | "/monitor.js" => Some((
             MONITOR_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
@@ -618,6 +639,497 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/rotor_wasm.wasm" => Some((ROTOR_WASM, "application/wasm")),
         _ => None,
     }
+}
+
+/// `/monitor` was renamed to `/cabinet`; keep the old URL as a permanent
+/// redirect and serve the same assets from both script paths.
+fn redirect_target(path: &str) -> Option<&'static str> {
+    (path == "/monitor").then_some("/cabinet")
+}
+
+fn respond_redirect(request: Request, location: &str) {
+    let response = Response::empty(StatusCode(301)).with_header(header("Location", location));
+    let _ = request.respond(response);
+}
+
+/// Canonical origin for absolute SEO URLs. A trailing slash is trimmed so the
+/// generated links never contain `//`.
+fn public_url_from_env() -> String {
+    let raw = std::env::var("ROTOR_PUBLIC_URL").unwrap_or_else(|_| DEFAULT_PUBLIC_URL.to_string());
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        DEFAULT_PUBLIC_URL.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// One server-rendered chain hub under `/keys/<slug>`.
+struct ChainHub {
+    slug: &'static str,
+    name: &'static str,
+    description: &'static str,
+    intro: &'static str,
+    /// Solana key pages derive on ed25519; the others default to secp256k1.
+    curve_suffix: &'static str,
+}
+
+const CHAINS: [ChainHub; 4] = [
+    ChainHub {
+        slug: "bitcoin",
+        name: "Bitcoin",
+        description: "Bitcoin private key examples with legacy P2PKH, SegWit and Taproot address derivation.",
+        intro: "Every private key maps to Bitcoin addresses. Open an example key to see its P2PKH, SegWit and Taproot addresses derived locally in your browser.",
+        curve_suffix: "",
+    },
+    ChainHub {
+        slug: "ethereum",
+        name: "Ethereum",
+        description: "Ethereum and EVM private key examples derived from secp256k1 keys.",
+        intro: "Ethereum addresses come from the secp256k1 public key. Open an example key to see its EVM address derived locally in your browser.",
+        curve_suffix: "",
+    },
+    ChainHub {
+        slug: "tron",
+        name: "TRON",
+        description: "TRON private key examples with Base58Check address derivation.",
+        intro: "TRON addresses use the same secp256k1 curve as Bitcoin and EVM. Open an example key to see its Base58Check address derived locally in your browser.",
+        curve_suffix: "",
+    },
+    ChainHub {
+        slug: "solana",
+        name: "Solana",
+        description: "Solana private key examples derived on the ed25519 curve.",
+        intro: "Solana accounts use ed25519 keys. Every key page on this hub switches the derivation to ed25519 and runs locally in your browser.",
+        curve_suffix: "?curve=ed25519",
+    },
+];
+
+fn chain_by_slug(slug: &str) -> Option<&'static ChainHub> {
+    CHAINS.iter().find(|chain| chain.slug == slug)
+}
+
+/// Resolve a dynamic SEO route. `None` means the path is not part of this
+/// surface; a returned 404 keeps lookup misses from falling back to the
+/// landing page (which would soft-404 for crawlers).
+fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static str, u16)> {
+    const HTML: &str = "text/html; charset=utf-8";
+    if path == "/robots.txt" {
+        return Some((render_robots(base), "text/plain; charset=utf-8", 200));
+    }
+    if path == "/sitemap.xml" {
+        return Some((render_sitemap(base), "application/xml; charset=utf-8", 200));
+    }
+    if path == "/keys" {
+        return Some((render_keys_hub(base), HTML, 200));
+    }
+    if let Some(slug) = path.strip_prefix("/keys/") {
+        return Some(match chain_by_slug(slug) {
+            Some(chain) => (render_chain_hub(base, chain), HTML, 200),
+            None => (render_seo_not_found(), HTML, 404),
+        });
+    }
+    if let Some(hex) = path.strip_prefix("/key/") {
+        let curve = if query.split('&').any(|pair| pair == "curve=ed25519") {
+            "ed25519"
+        } else {
+            "secp256k1"
+        };
+        return Some(match normalized_key_hex(hex, curve) {
+            Some(key) => (render_key_page(base, &key, curve), HTML, 200),
+            None => (render_seo_not_found(), HTML, 404),
+        });
+    }
+    None
+}
+
+/// Exactly 64 hex digits, non-zero; secp256k1 keys must also be below the
+/// curve order (the existing scalar parser enforces that). Returns lowercase.
+fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let lower = hex.to_ascii_lowercase();
+    if curve == "ed25519" {
+        if lower.bytes().all(|byte| byte == b'0') {
+            return None;
+        }
+    } else if !crate::scalar::Scalar::from_hex(&lower).is_some_and(|value| !value.is_zero()) {
+        return None;
+    }
+    Some(lower)
+}
+
+fn escape_attr(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
+fn breadcrumb_nav(items: &[(&str, Option<&str>)]) -> String {
+    let mut out = String::from("<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">");
+    for (index, (label, href)) in items.iter().enumerate() {
+        if index > 0 {
+            out.push_str(" / ");
+        }
+        match href {
+            Some(href) => out.push_str(&format!(
+                "<a href=\"{}\">{}</a>",
+                escape_attr(href),
+                escape_attr(label)
+            )),
+            None => out.push_str(&format!(
+                "<span aria-current=\"page\">{}</span>",
+                escape_attr(label)
+            )),
+        }
+    }
+    out.push_str("</nav>");
+    out
+}
+
+fn site_header() -> &'static str {
+    "<header class=\"site-nav\">\
+     <a class=\"brand\" href=\"/\">Rotor <span>Coordinator</span></a>\
+     <nav>\
+     <a href=\"/keys\" class=\"active\">Keys</a>\
+     <a href=\"/app\">App</a>\
+     <a href=\"/cabinet\">Cabinet</a>\
+     <a href=\"/docs\">Docs</a>\
+     </nav></header>"
+}
+
+fn html_document(title: &str, head_extra: &str, body: &str) -> String {
+    format!(
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n\
+         <meta charset=\"utf-8\">\n\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
+         <title>{}</title>\n\
+         <link rel=\"stylesheet\" href=\"/site.css\">\n\
+         {head_extra}</head>\n<body>\n{body}</body>\n</html>\n",
+        escape_attr(title)
+    )
+}
+
+fn json_ld(value: &serde_json::Value) -> String {
+    format!("<script type=\"application/ld+json\">{value}</script>\n")
+}
+
+fn render_key_page(base: &str, key: &str, curve: &str) -> String {
+    let first = &key[..8];
+    let last = &key[key.len() - 4..];
+    let short = format!("{first}…{last}");
+    let canonical = format!("{base}/key/{key}");
+    let title = format!("Private key {short} — Bitcoin, EVM, TRON addresses | Rotor");
+    let description = format!(
+        "Derive Bitcoin, EVM and TRON addresses from private key {short} in your browser. Rotor shows public addresses only; the key is never sent to a server."
+    );
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Keys", "item": format!("{base}/keys") },
+            { "@type": "ListItem", "position": 3, "name": format!("Key {short}"), "item": canonical },
+        ],
+    });
+    let head = format!(
+        "<meta name=\"description\" content=\"{}\">\n\
+         <link rel=\"canonical\" href=\"{}\">\n\
+         <meta name=\"robots\" content=\"noindex,follow\">\n\
+         <meta property=\"og:type\" content=\"website\">\n\
+         <meta property=\"og:title\" content=\"{}\">\n\
+         <meta property=\"og:description\" content=\"{}\">\n\
+         <meta property=\"og:url\" content=\"{}\">\n\
+         {}{}",
+        escape_attr(&description),
+        escape_attr(&canonical),
+        escape_attr(&title),
+        escape_attr(&description),
+        escape_attr(&canonical),
+        json_ld(&ld_app),
+        json_ld(&ld_crumbs),
+    );
+
+    let crumb_label = format!("Key {short}");
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Keys", Some("/keys")),
+        (&crumb_label, None),
+    ]);
+    let payload = format!(
+        "<script>window.__ROTOR_KEY__=\"{key}\";window.__ROTOR_CURVE__=\"{curve}\";</script>\n"
+    );
+
+    let mut html = KEY_PAGE.replacen(
+        "<title>Rotor Coordinator - private key explorer</title>",
+        &format!("<title>{}</title>", escape_attr(&title)),
+        1,
+    );
+    html = html.replacen("</head>", &format!("{head}</head>"), 1);
+    html = html.replacen(
+        "<main class=\"key-page\">",
+        &format!("<main class=\"key-page\">{crumbs}"),
+        1,
+    );
+    html.replacen(
+        "<script src=\"/key.js",
+        &format!("{payload}<script src=\"/key.js"),
+        1,
+    )
+}
+
+fn render_keys_hub(base: &str) -> String {
+    let canonical = format!("{base}/keys");
+    let title = "Private key explorer — Bitcoin, Ethereum, TRON, Solana | Rotor";
+    let description = "Browse Rotor's public key hubs for Bitcoin, Ethereum, TRON and Solana. Each hub lists deterministic example private keys and derives addresses locally in your browser.";
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Keys", "item": canonical },
+        ],
+    });
+    let entries: Vec<_> = CHAINS
+        .iter()
+        .enumerate()
+        .map(|(index, chain)| {
+            json!({
+                "@type": "ListItem",
+                "position": index + 1,
+                "name": format!("{} private keys", chain.name),
+                "url": format!("{base}/keys/{}", chain.slug),
+            })
+        })
+        .collect();
+    let ld_items = json!({
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Private key hubs",
+        "numberOfItems": CHAINS.len(),
+        "itemListElement": entries,
+    });
+    let head = hub_head(
+        &canonical,
+        title,
+        description,
+        &[ld_app, ld_crumbs, ld_items],
+    );
+
+    let mut cards = String::new();
+    for chain in &CHAINS {
+        cards.push_str(&format!(
+            "<li><h2><a href=\"/keys/{}\">{}</a></h2><p>{}</p></li>",
+            chain.slug,
+            chain.name,
+            escape_attr(chain.description)
+        ));
+    }
+    let body = format!(
+        "{}{}<main class=\"key-page\">{}<section class=\"hero\"><h1>Private key explorer</h1>\
+         <p>Pick a chain hub to browse deterministic example private keys. Every key page derives public addresses in the browser and never asks for a seed phrase.</p></section>\
+         <section class=\"card\"><h2>Chains</h2><ul class=\"key-chains\">{cards}</ul></section>\
+         <section class=\"card\"><h2>What this page shows</h2>\
+         <p>These pages explain how a private key maps to public addresses on each chain. They list example keys only; no balances, holdings or account values are shown.</p></section>\
+         </main>",
+        site_header(),
+        "",
+        breadcrumb_nav(&[("Home", Some("/")), ("Keys", None)]),
+    );
+    html_document(title, &head, &body)
+}
+
+fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
+    let canonical = format!("{base}/keys/{}", chain.slug);
+    let title = format!(
+        "{} private key explorer — 64 example keys | Rotor",
+        chain.name
+    );
+    let description = format!(
+        "{} Open one of 64 deterministic example private keys to derive public addresses locally in your browser.",
+        chain.description
+    );
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let crumb_label = chain.name;
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Keys", "item": format!("{base}/keys") },
+            { "@type": "ListItem", "position": 3, "name": crumb_label, "item": canonical },
+        ],
+    });
+
+    let mut rows = String::new();
+    let mut entries = Vec::with_capacity(64);
+    for value in 1u8..=64 {
+        let hex = format!("{value:064x}");
+        let short = format!("{}…{}", &hex[..8], &hex[56..]);
+        rows.push_str(&format!(
+            "<tr><td>{value}</td><td><a class=\"mono\" href=\"/key/{hex}{}\">{short}</a></td></tr>",
+            chain.curve_suffix
+        ));
+        entries.push(json!({
+            "@type": "ListItem",
+            "position": value,
+            "url": format!("{base}/key/{hex}{}", chain.curve_suffix),
+        }));
+    }
+    let ld_items = json!({
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": format!("{} example private keys", chain.name),
+        "numberOfItems": 64,
+        "itemListElement": entries,
+    });
+    let head = hub_head(
+        &canonical,
+        &title,
+        &description,
+        &[ld_app, ld_crumbs, ld_items],
+    );
+
+    let mut other_links = String::new();
+    for other in CHAINS.iter().filter(|other| other.slug != chain.slug) {
+        other_links.push_str(&format!(
+            "<li><a href=\"/keys/{}\">{}</a></li>",
+            other.slug, other.name
+        ));
+    }
+    let body = format!(
+        "{}{}<main class=\"key-page\">{}<section class=\"hero\"><h1>{} private key explorer</h1>\
+         <p>{}</p></section>\
+         <section class=\"card\"><h2>Example keys</h2>\
+         <p>The same 64 deterministic keys (1 to 64) appear on every hub. Each link opens the key page for that chain.</p>\
+         <table class=\"keys-table\"><thead><tr><th>#</th><th>Private key</th></tr></thead><tbody>{rows}</tbody></table></section>\
+         <section class=\"card\"><h2>Other chains</h2><ul>{other_links}</ul></section>\
+         <section class=\"card\"><h2>What this page shows</h2>\
+         <p>Each key page derives public addresses from the key locally in your browser. This hub lists no balances, holdings or account values; nothing is fetched until you open a key and request a balance check.</p></section>\
+         </main>",
+        site_header(),
+        "",
+        breadcrumb_nav(&[
+            ("Home", Some("/")),
+            ("Keys", Some("/keys")),
+            (crumb_label, None)
+        ]),
+        chain.name,
+        escape_attr(chain.intro),
+    );
+    html_document(&title, &head, &body)
+}
+
+fn hub_head(
+    canonical: &str,
+    title: &str,
+    description: &str,
+    scripts: &[serde_json::Value],
+) -> String {
+    let mut head = format!(
+        "<meta name=\"description\" content=\"{}\">\n\
+         <link rel=\"canonical\" href=\"{}\">\n\
+         <meta name=\"robots\" content=\"index,follow\">\n\
+         <meta property=\"og:type\" content=\"website\">\n\
+         <meta property=\"og:title\" content=\"{}\">\n\
+         <meta property=\"og:description\" content=\"{}\">\n\
+         <meta property=\"og:url\" content=\"{}\">\n",
+        escape_attr(description),
+        escape_attr(canonical),
+        escape_attr(title),
+        escape_attr(description),
+        escape_attr(canonical),
+    );
+    for script in scripts {
+        head.push_str(&json_ld(script));
+    }
+    head
+}
+
+fn render_robots(base: &str) -> String {
+    format!(
+        "User-agent: *\n\
+         Disallow: /api/\n\
+         Disallow: /cabinet\n\
+         Disallow: /monitor\n\
+         Disallow: /dashboard\n\
+         \n\
+         Sitemap: {base}/sitemap.xml\n"
+    )
+}
+
+fn render_sitemap(base: &str) -> String {
+    let mut urls = String::from("  <url><loc>");
+    urls.push_str(&escape_attr(base));
+    urls.push_str("/</loc></url>\n");
+    urls.push_str(&format!(
+        "  <url><loc>{}/keys</loc></url>\n",
+        escape_attr(base)
+    ));
+    for chain in &CHAINS {
+        urls.push_str(&format!(
+            "  <url><loc>{}/keys/{}</loc></url>\n",
+            escape_attr(base),
+            chain.slug
+        ));
+    }
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n\
+         {urls}</urlset>\n"
+    )
+}
+
+fn render_seo_not_found() -> String {
+    html_document(
+        "Not found | Rotor",
+        "<meta name=\"robots\" content=\"noindex,nofollow\">\n",
+        "<header class=\"site-nav\"><a class=\"brand\" href=\"/\">Rotor <span>Coordinator</span></a></header>\
+         <main class=\"key-page\"><section class=\"hero\"><h1>Page not found</h1>\
+         <p>This key or chain hub does not exist.</p>\
+         <p><a href=\"/keys\">Browse the key hubs</a> or go back to the <a href=\"/\">landing page</a>.</p>\
+         </section></main>",
+    )
 }
 
 fn create_job(app: &App, mut request: Request) {
@@ -1167,13 +1679,109 @@ mod tests {
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         assert!(!body.is_empty());
 
-        let (body, content_type) = static_asset("/monitor").expect("/monitor is embedded");
+        let (body, content_type) = static_asset("/cabinet").expect("/cabinet is embedded");
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(!body.is_empty());
 
-        let (body, content_type) = static_asset("/monitor.js").expect("/monitor.js is embedded");
-        assert_eq!(content_type, "application/javascript; charset=utf-8");
-        assert!(!body.is_empty());
+        for path in ["/cabinet.js", "/monitor.js"] {
+            let (body, content_type) = static_asset(path).expect("monitor JS is embedded");
+            assert_eq!(content_type, "application/javascript; charset=utf-8");
+            assert!(!body.is_empty());
+        }
+        assert!(static_asset("/monitor").is_none());
+    }
+
+    #[test]
+    fn seo_hubs_render_canonical_and_json_ld() {
+        let base = "https://rotor.pxbt.app";
+        let (body, content_type, status) = seo_asset(base, "/keys", "").expect("/keys");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(body.contains("<link rel=\"canonical\" href=\"https://rotor.pxbt.app/keys\">"));
+        assert!(body.contains("application/ld+json"));
+        assert!(body.contains("\"@type\":\"BreadcrumbList\""));
+        assert!(body.contains("\"@type\":\"ItemList\""));
+        assert!(!body.contains("noindex"));
+
+        let (body, _, status) = seo_asset(base, "/keys/bitcoin", "").expect("/keys/bitcoin");
+        assert_eq!(status, 200);
+        assert!(
+            body.contains("<link rel=\"canonical\" href=\"https://rotor.pxbt.app/keys/bitcoin\">")
+        );
+        assert!(body.contains("<table class=\"keys-table\">"));
+        assert!(body.matches("/key/").count() >= 64);
+        assert!(body.contains("robots\" content=\"index,follow"));
+
+        assert_eq!(seo_asset(base, "/keys/unknown", "").unwrap().2, 404);
+    }
+
+    #[test]
+    fn seo_key_page_injects_key_and_noindex() {
+        let base = "https://rotor.pxbt.app";
+        let key = format!("{:064x}", 1);
+        let (body, _, status) = seo_asset(base, &format!("/key/{key}"), "").expect("/key/<hex>");
+        assert_eq!(status, 200);
+        assert!(body.contains(&format!(
+            "window.__ROTOR_KEY__=\"{key}\";window.__ROTOR_CURVE__=\"secp256k1\";"
+        )));
+        assert!(body.contains("robots\" content=\"noindex,follow\""));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/key/{key}\">"
+        )));
+        assert!(body.contains(&format!("Private key {}…{}", &key[..8], &key[60..])));
+        assert!(body.contains("<nav class=\"breadcrumbs\""));
+        assert!(body.contains("\"@type\":\"WebApplication\""));
+
+        let (body, _, status) =
+            seo_asset(base, &format!("/key/{key}"), "curve=ed25519").expect("ed25519 key");
+        assert_eq!(status, 200);
+        assert!(body.contains("window.__ROTOR_CURVE__=\"ed25519\""));
+
+        assert_eq!(
+            seo_asset(base, &format!("/key/{}", "0".repeat(64)), "")
+                .unwrap()
+                .2,
+            404
+        );
+        assert_eq!(
+            seo_asset(base, &format!("/key/{}", "g".repeat(64)), "")
+                .unwrap()
+                .2,
+            404
+        );
+        assert_eq!(seo_asset(base, "/key/short", "").unwrap().2, 404);
+        // Uppercase hex is accepted and normalized in the emitted key.
+        let upper = "A".repeat(63) + "1";
+        let (body, _, status) = seo_asset(base, &format!("/key/{upper}"), "").expect("uppercase");
+        assert_eq!(status, 200);
+        assert!(body.contains(&format!(
+            "window.__ROTOR_KEY__=\"{}\"",
+            upper.to_ascii_lowercase()
+        )));
+    }
+
+    #[test]
+    fn monitor_moved_to_cabinet() {
+        assert_eq!(redirect_target("/monitor"), Some("/cabinet"));
+        assert_eq!(redirect_target("/cabinet"), None);
+        assert_eq!(redirect_target("/monitor.js"), None);
+    }
+
+    #[test]
+    fn robots_and_sitemap_have_expected_content_types() {
+        let base = "https://rotor.pxbt.app";
+        let (robots, content_type, status) = seo_asset(base, "/robots.txt", "").expect("robots");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/plain; charset=utf-8");
+        assert!(robots.contains("Disallow: /api/"));
+        assert!(robots.contains("Disallow: /cabinet"));
+        assert!(robots.contains("Sitemap: https://rotor.pxbt.app/sitemap.xml"));
+
+        let (sitemap, content_type, status) = seo_asset(base, "/sitemap.xml", "").expect("sitemap");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "application/xml; charset=utf-8");
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/keys/bitcoin</loc>"));
+        assert!(!sitemap.contains("/key/"));
     }
 
     #[test]
