@@ -450,6 +450,38 @@ Implemented in Rust:
   assets `rotor.exe` / `rotor-gpu.exe` and their `.sha256`)
 - headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
 - `Found.txt` block format and progress line of the C++ binary
+- `--benchmark` key-rate measurement of the selected backend (human or JSON)
+
+### Benchmark
+
+`--benchmark` measures the selected backend on a synthetic, guaranteed-miss
+range: the target is key 1 while scanning starts at `0x100000000`, so the
+benchmark can never find a key. Backend options (`-g`, `-t`, `-m address|xpoint`,
+`--coin`, `-u/-b`) select what is measured; multi-target, BSGS and coordinator
+modes are rejected.
+
+```sh
+rotor --benchmark                         # CPU, 5 s
+rotor --benchmark --benchmark-seconds 10  # CPU, 10 s
+rotor --benchmark -t 4 --benchmark-json   # JSON on stdout, nothing else
+rotor --benchmark -g                      # GPU build: measures the GPU path
+```
+
+Human output:
+
+```
+BENCHMARK    : CPU
+THREADS      : 8
+DURATION     : 5.02 s
+SCANNED      : 26,589,184
+RATE         : 5.30 Mk/s
+```
+
+`--benchmark-json` prints one object instead:
+
+```json
+{"backend":"CPU","threads":8,"seconds":5.02,"scanned":26589184,"keys_per_second":5296749.0}
+```
 
 Remaining gap: GPU address/xpoint search is single-GPU and rejects `-r`/`-n`
 loudly; multi-GPU scheduling is deferred. The C++ binary still covers GPU
