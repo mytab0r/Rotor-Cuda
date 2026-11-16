@@ -1,0 +1,123 @@
+{
+  "asset_version": "20261116d",
+  "areas": [
+    {
+      "id": "site",
+      "title": "Browser site and wasm client UI",
+      "owner": "site-ui",
+      "paths": ["web/**"],
+      "build": [
+        "node --check web/site.js",
+        "node --check web/key.js",
+        "node --check web/rotor-worker.js"
+      ],
+      "test": ["node web/worker-test.mjs web/rotor_wasm.wasm"],
+      "consumes": ["wasm-core"],
+      "contracts": [
+        "coordinator-embeds-web-assets-at-compile-time",
+        "asset-version-?v=-bump-when-site.css-site.js-key.js-change",
+        "served-routes-are-fixed",
+        "web/rotor_wasm.wasm-is-rebuilt-by-wasm-core"
+      ]
+    },
+    {
+      "id": "coordinator",
+      "title": "Coordinator HTTP server, API, accounts and state",
+      "owner": "coordinator",
+      "paths": [
+        "src/coordinator/**",
+        "src/bin/rotor-coord.rs",
+        "tests/coordinator_api.rs",
+        "tests/coordinator_client.rs"
+      ],
+      "build": ["cargo build --release --bin rotor-coord"],
+      "test": [
+        "cargo test --test coordinator_api --test coordinator_client"
+      ],
+      "consumes": ["site", "wasm-core"],
+      "contracts": [
+        "embeds-web-assets-via-include_str-include_bytes",
+        "api-v1",
+        "state-schema",
+        "served-routes"
+      ]
+    },
+    {
+      "id": "wasm-core",
+      "title": "Browser wasm core",
+      "owner": "wasm-core",
+      "paths": ["crates/rotor-wasm/**"],
+      "build": [
+        "cargo build -p rotor-wasm --target wasm32-unknown-unknown --release",
+        "sh scripts/build-wasm.sh"
+      ],
+      "test": [
+        "cargo test -p rotor-wasm",
+        "node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm",
+        "node web/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm"
+      ],
+      "consumes": [],
+      "contracts": [
+        "wasm-exports-consumed-by-web/key.js-and-web/rotor-worker.js",
+        "committed-artifact-web/rotor_wasm.wasm-must-be-fresh"
+      ]
+    },
+    {
+      "id": "desktop",
+      "title": "Native CLI, search engine, GPU/BSGS and CUDA sources",
+      "owner": "desktop-tools",
+      "paths": [
+        "src/**",
+        "tests/**",
+        "Rotor-Cuda/**",
+        "BinSort/**",
+        "Others/**",
+        "Release/**",
+        "build.rs",
+        "Cargo.toml"
+      ],
+      "build": [
+        "cargo build --release",
+        "cargo build --release --features gpu"
+      ],
+      "test": [
+        "cargo test --release",
+        "cargo test --release --features gpu"
+      ],
+      "consumes": [],
+      "contracts": [
+        "build.rs-compiles-Rotor-Cuda-GPU-sources",
+        "no-silent-cpu-fallback-in-gpu-mode",
+        "shared-lib-src/lib.rs-consumed-by-coordinator-and-wasm",
+        "BinSort-Others-Release-are-archival-no-new-code"
+      ]
+    },
+    {
+      "id": "ops",
+      "title": "CI, deploy, scripts, specs and docs",
+      "owner": "ops/docs",
+      "paths": [
+        ".github/**",
+        "deploy/**",
+        "scripts/**",
+        "openspec/**",
+        "Dockerfile",
+        "README.md",
+        "LICENSE",
+        ".gitignore",
+        "AGENTS.md",
+        "PROJECTS.md",
+        "projects.json"
+      ],
+      "build": ["node scripts/check-projects.mjs"],
+      "test": ["node scripts/check-projects.mjs"],
+      "consumes": [],
+      "contracts": [
+        "ci-path-filters-cover-all-areas",
+        "docker-rebuilds-web/rotor_wasm.wasm",
+        "deploy-secrets-by-name-only",
+        "new-root-files-must-join-an-area"
+      ]
+    }
+  ]
+}

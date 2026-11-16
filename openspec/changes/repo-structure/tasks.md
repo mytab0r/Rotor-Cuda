@@ -23,27 +23,29 @@ listed; the affected-areas script produces the checklist.
 
 ## Phase 0 - coordination layer (this change, no moves)
 
-- [ ] Add `projects.json` with exclusive, overlap-free paths covering every
+- [x] Add `projects.json` with exclusive, overlap-free paths covering every
       `git ls-files` entry. Owner: Lane E.
-- [ ] Add `PROJECTS.md` (area table, contracts, reading order) and `OWNERS.md`
-      (area to agent role to human maintainer). Owner: Lane E.
-- [ ] Add per-area `AGENTS.md` under `web/`, `src/coordinator/`,
-      `crates/rotor-wasm/`, `deploy/`, and at the root. Owner: each lane.
+- [x] Add `PROJECTS.md` (area table, contracts, reading order). Owner: Lane E.
+- [ ] Add `OWNERS.md` (area to agent role to human maintainer). Owner: Lane E.
+- [x] Add per-area `AGENTS.md` under `web/`, `src/coordinator/`,
+      `crates/rotor-wasm/`, and at the root. Owner: each lane.
       Each file states build/test commands, invariants and "what else to check".
-- [ ] Add `scripts/affected-areas.mjs` with `--diff <range>` and `--json`.
+- [ ] Add `deploy/AGENTS.md`. Owner: Lane E.
+- [x] Add `scripts/affected-areas.mjs` with `--diff <range>` and `--json`.
       Owner: Lane E.
-- [ ] Add `scripts/check-projects.mjs` (coverage, exclusivity, legacy warning).
+- [x] Add `scripts/check-projects.mjs` (coverage, exclusivity, legacy warning).
       Owner: Lane E.
 - [ ] Add `.github/PULL_REQUEST_TEMPLATE.md` asking for the affected-areas
       output and the list of touched areas. Owner: Lane E.
 - [ ] Add `.github/workflows/repo-guard.yml` in report-only mode (does not block
-      merges yet). Owner: Lane E.
+      merges yet). Owner: Lane E. (A report-only `projects` job currently lives
+      in `rust.yml`.)
 - [ ] Document in each active openspec change one `Areas:` line
       (`key-leak-monitor`, `product-strategy`, `seo-strategy`,
       `tx-sign-broadcast`). Owner: Lane E.
 - [ ] Register the new spec domain `openspec/specs/repo-structure/spec.md` when
       this change is archived. Owner: Lane E.
-- [ ] Phase 0 sync checkpoint: `node scripts/check-projects.mjs` passes,
+- [x] Phase 0 sync checkpoint: `node scripts/check-projects.mjs` passes,
       `affected-areas.mjs` answers three sample diffs in under 60 seconds, and
       no source or asset file moved.
 
