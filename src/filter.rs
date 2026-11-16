@@ -1,4 +1,8 @@
-//! Target set storage and Bloom filter, ported from `Rotor-Cuda/Bloom.cpp`.
+//! Target set storage and prefilter, ported from `Rotor-Cuda/Bloom.cpp`.
+//!
+//! Large sets (≥ [`FUSE_THRESHOLD`] records) are indexed with a binary fuse8
+//! filter keyed by FNV-1a/64 of the record bytes; smaller sets keep the classic
+//! libbloom parameters. The exact binary search remains the source of truth.
 //!
 //! The `.bin` target format is headerless: raw fixed-size records (20 bytes for
 //! hash160/ETH addresses, 32 bytes for xpoints). The C++ binary requires the
@@ -6,6 +10,21 @@
 //! the records itself and searches them correctly.
 
 use std::path::Path;
+
+use xorf::{BinaryFuse8, Filter};
+
+/// Record count from which the binary fuse prefilter replaces Bloom.
+pub const FUSE_THRESHOLD: usize = 1024;
+
+/// FNV-1a/64, the same fold the C++ `FilterCatalog` uses for fuse keys.
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    for &byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
 
 /// MurmurHash2 (32-bit), by Austin Appleby.
 ///
@@ -119,10 +138,36 @@ impl Bloom {
     }
 }
 
-/// A loaded target set: sorted raw records plus a Bloom prefilter.
+/// The prefilter selected for a target set.
+enum Prefilter {
+    Bloom(Bloom),
+    Fuse(BinaryFuse8),
+}
+
+impl Prefilter {
+    /// Returns `true` if `needle` may be a member.
+    fn may_contain(&self, needle: &[u8]) -> bool {
+        match self {
+            Prefilter::Bloom(bloom) => bloom.check(needle),
+            Prefilter::Fuse(fuse) => fuse.contains(&fnv1a64(needle)),
+        }
+    }
+
+    fn kind(&self) -> &'static str {
+        match self {
+            Prefilter::Bloom(_) => "bloom",
+            Prefilter::Fuse(_) => "fuse",
+        }
+    }
+}
+
+/// A loaded target set: sorted raw records plus a membership prefilter.
 pub struct TargetSet {
     record_len: usize,
     records: Vec<Vec<u8>>,
+    prefilter: Prefilter,
+    /// Classic Bloom filter uploaded to the CUDA search kernel.
+    #[cfg(feature = "gpu")]
     bloom: Bloom,
 }
 
@@ -155,33 +200,60 @@ impl TargetSet {
     pub fn from_records(records: &[Vec<u8>], record_len: usize) -> Self {
         let mut sorted = records.to_vec();
         sorted.sort();
-        let mut bloom = Bloom::new(sorted.len() as u64 * 2, 1e-6); // `Rotor.cpp:92`
-        for record in &sorted {
-            bloom.add(record);
-        }
+        let prefilter = Self::build_prefilter(&sorted);
+        #[cfg(feature = "gpu")]
+        let bloom = Self::build_bloom(&sorted);
         Self {
             record_len,
             records: sorted,
+            prefilter,
+            #[cfg(feature = "gpu")]
             bloom,
         }
     }
 
-    /// Bloom prefilter only: `true` means the needle may be a member.
-    pub fn may_contain(&self, needle: &[u8]) -> bool {
-        self.bloom.check(needle)
+    /// The classic libbloom filter (`Rotor.cpp:92` parameters).
+    fn build_bloom(records: &[Vec<u8>]) -> Bloom {
+        let mut bloom = Bloom::new(records.len() as u64 * 2, 1e-6);
+        for record in records {
+            bloom.add(record);
+        }
+        bloom
     }
 
-    /// Exact membership: Bloom prefilter followed by a binary search.
+    /// Binary fuse8 for large sets, Bloom below the threshold or on failure.
+    fn build_prefilter(records: &[Vec<u8>]) -> Prefilter {
+        if records.len() >= FUSE_THRESHOLD {
+            let keys: Vec<u64> = records.iter().map(|record| fnv1a64(record)).collect();
+            if let Ok(fuse) = BinaryFuse8::try_from(keys.as_slice()) {
+                return Prefilter::Fuse(fuse);
+            }
+        }
+        Prefilter::Bloom(Self::build_bloom(records))
+    }
+
+    /// Prefilter only: `true` means the needle may be a member.
+    pub fn may_contain(&self, needle: &[u8]) -> bool {
+        self.prefilter.may_contain(needle)
+    }
+
+    /// Exact membership: prefilter followed by a binary search.
     ///
     /// A needle whose length differs from [`TargetSet::record_len`] is never a
     /// member.
     pub fn contains(&self, needle: &[u8]) -> bool {
         needle.len() == self.record_len
-            && self.bloom.check(needle)
+            && self.prefilter.may_contain(needle)
             && self
                 .records
                 .binary_search_by(|record| record.as_slice().cmp(needle))
                 .is_ok()
+    }
+
+    /// Which prefilter backs the set: `"fuse"` or `"bloom"`.
+    #[doc(hidden)]
+    pub fn prefilter_kind(&self) -> &'static str {
+        self.prefilter.kind()
     }
 
     /// Number of records in the set.
@@ -205,6 +277,7 @@ impl TargetSet {
     }
 
     /// Bloom prefilter parameters and bits, for the CUDA search kernel.
+    #[cfg(feature = "gpu")]
     pub fn bloom(&self) -> &Bloom {
         &self.bloom
     }
