@@ -318,3 +318,21 @@ replacing the running executable. The C++ `Rotor-Cuda.exe` asset MUST NOT be use
 - GIVEN a non-Windows build
 - WHEN `--check-update` or `--update` is passed
 - THEN the process reports that self-update is not supported and exits non-zero.
+
+## Text target lists
+
+### Requirement: text target input
+Multi-target modes MUST accept `--targets-text FILE` (or `-` for stdin) with one
+BTC/ETH address or 64-hex xpoint per line, skip blank lines and `#` comments,
+and fail with the 1-based line number on a malformed line. It MUST be mutually
+exclusive with `-i`, and CPU and GPU paths MUST share the same decoding.
+
+#### Scenario: malformed line
+- GIVEN a text list whose third line is not a valid target
+- WHEN the run starts
+- THEN it exits non-zero with an error naming line 3.
+
+#### Scenario: stdin
+- GIVEN a target list piped to stdin with `--targets-text -`
+- WHEN the multi-target search runs
+- THEN it finds the same keys as the equivalent `.bin` input.
