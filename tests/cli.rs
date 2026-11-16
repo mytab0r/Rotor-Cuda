@@ -551,6 +551,45 @@ fn gpu_coordinator_is_allowed_for_address_and_xpoint_modes() {
 }
 
 #[test]
+fn gpu_random_and_checkpoint_flags_parse() {
+    let addr = "14iXhn8bGajVWegZHJ18vJLHhntcpL4dex";
+
+    // `-r > 0`: `-n` is the random bit width, not a checkpoint period.
+    let config = parse(&[
+        "-g", "-m", "address", "--range", "1:2", "-r", "5", "-n", "71", addr,
+    ]);
+    assert!(config.gpu);
+    assert_eq!(config.rkey, 5);
+    assert_eq!(config.next, 71);
+
+    // `-r == 0`: `-n` is the checkpoint period in minutes.
+    let config = parse(&["-g", "-m", "address", "--range", "1:2", "-n", "1", addr]);
+    assert!(config.gpu);
+    assert_eq!(config.rkey, 0);
+    assert_eq!(config.next, 1);
+
+    // Coordinator mode keeps rejecting the random start for a GPU client.
+    let err = parse_err(&[
+        "-g",
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "-r",
+        "5",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        addr,
+    ]);
+    assert_eq!(
+        err.message(),
+        "random start (-r) is not supported with --coordinator"
+    );
+}
+
+#[test]
 fn coordinator_without_a_token_fails_in_the_binary() {
     let output = Command::new(env!("CARGO_BIN_EXE_rotor"))
         .args([

@@ -10,34 +10,90 @@
 //! `--gpui 0,1,...` runs one engine per listed device, each on its own
 //! contiguous slice of `[start, end]`, sharing the stop flag, the found counter
 //! and one output sink so blocks never interleave. A single id keeps the
-//! original sequential path. `-r` (random) and `-n` (checkpoints) are rejected
-//! loudly instead of silently doing something else.
+//! original sequential path.
+//!
+//! With `-r` each device draws random start keys with the CPU semantics and
+//! scans upward in short windows, rotating once the shared scanned counter
+//! crosses another `rkey * 1e9` epoch. With `-n` (and no `-r`) the run resumes
+//! from `Rotor-Cuda_Continue.bat`, shifts every device range by its saved
+//! count, and rewrites the checkpoint periodically and on exit.
 //!
 //! With `--coordinator` the same engine leases disjoint chunks from a
 //! `rotor-coord` server and scans each lease with [`scan_window`]; the device
 //! and its generator table are created once and reused across leases. With
 //! several ids, each device runs its own lease loop and client id
-//! (`<base>-gpu<index>`), so chunks stay disjoint server-side.
+//! (`<base>-gpu<index>`), so chunks stay disjoint server-side. Random starts and
+//! local checkpoints stay rejected there (the server owns progress).
 
 use std::io::{self, Write};
-use std::sync::Arc;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
+use crate::checkpoint;
 use crate::cli::{Coin, CompMode, Config, SearchMode, U256};
 use crate::coordinator::chunk_loop::{self, ChunkScanner, LeaseJob, ScanOutcome};
 use crate::coordinator::client::CoordinatorClient;
-use crate::engine::{self, SearchOutcome, Split};
+use crate::engine::{self, RandomSpec, SearchOutcome, Split};
 use crate::gpu::{self, AddrEngine};
 use crate::gpu_driver::{self, DeviceJob, DeviceOutcome, DeviceRunner, OutputSink};
 use crate::gpu_plan::{self, KeyPlan};
+use crate::gpu_random::RandomPlanner;
 use crate::scalar::Scalar;
 use crate::secp;
 
 /// `maxFound` from `Main.cpp:250`.
 const MAX_FOUND: u32 = 1024 * 64;
+
+/// `-n` checkpoint state for a GPU range run: the optional restored file and
+/// the write interval (`next * 55` seconds, as in the CPU engine).
+struct CheckpointPlan {
+    resume: Option<checkpoint::Checkpoint>,
+    interval: Duration,
+}
+
+/// Random-mode progress shared by every device: the global epoch count and the
+/// latest start key, mirroring the CPU monitor fields.
+#[derive(Default)]
+struct RandomState {
+    epoch: AtomicU64,
+    rotations: AtomicU64,
+    key: Mutex<String>,
+}
+
+impl RandomState {
+    /// Counts a new epoch once, no matter how many devices observed it, and
+    /// records the latest start key for the progress line.
+    fn note(&self, epoch: u64, key: &str) {
+        let mut current = self.epoch.load(Ordering::SeqCst);
+        while epoch > current {
+            match self
+                .epoch
+                .compare_exchange(current, epoch, Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(_) => {
+                    self.rotations.fetch_add(1, Ordering::SeqCst);
+                    break;
+                }
+                Err(actual) => current = actual,
+            }
+        }
+        *self.key.lock().expect("random key mutex") = key.to_owned();
+    }
+}
+
+/// Per-batch accounting and random-mode display state for [`scan_window`].
+struct Progress<'a> {
+    /// Receives every batch's covered keys (a checkpoint counter in range mode,
+    /// the shared scanned total in random mode).
+    counter: Option<&'a AtomicU64>,
+    /// `Some` in random mode: [`scan_window`] then leaves progress printing to
+    /// the longer-lived [`scan_random`] loop (`[R: n]` form).
+    random: Option<&'a RandomState>,
+}
 
 /// Runs the GPU search for the configured address/xpoint mode.
 pub fn run(config: &Config) -> Result<SearchOutcome, String> {
@@ -60,18 +116,20 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
     if matches!(mode, SearchMode::Addresses | SearchMode::XPoints) && !config.operands.is_empty() {
         return Err("Wrong search mode provided for multiple addresses or xpoints".to_owned());
     }
-    if config.rkey > 0 {
+    if config.coordinator.is_some() && (config.rkey > 0 || config.next > 0) {
         return Err(
-            "random mode (-r) is not supported with GPU address search; drop -g or -r".to_owned(),
-        );
-    }
-    if config.next > 0 {
-        return Err(
-            "checkpoint mode (-n) is not supported with GPU address search; drop -g or -n"
+            "random start (-r) and checkpoints (-n) are not supported with --coordinator"
                 .to_owned(),
         );
     }
     validate_gpu_ids(&config.gpu_ids)?;
+
+    let random = config.rkey > 0;
+    let random_spec = if random {
+        Some(RandomSpec::from_config(config)?)
+    } else {
+        None
+    };
 
     let range = config
         .range
@@ -138,6 +196,27 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
 
     let sink = Arc::new(OutputSink::open(&config.output_file)?);
 
+    // `-n` with `-r == 0` resumes and rewrites the same checkpoint files the
+    // CPU engine uses. Random runs are not resumable.
+    let checkpoint = if config.next > 0 && !random {
+        let resume = gpu_driver::resume_checkpoint(
+            Path::new(checkpoint::CONTINUE_FILE),
+            Path::new(checkpoint::START_FILE),
+        );
+        if let Some(saved) = &resume {
+            println!(
+                "  Rotor        : Continuing search from BAT file. Checkpoint created: {}\n",
+                saved.created
+            );
+        }
+        Some(CheckpointPlan {
+            resume,
+            interval: Duration::from_secs(config.next as u64 * 55),
+        })
+    } else {
+        None
+    };
+
     engine::print_banner(config, mode, start, end, "GPU");
     if config.display != 0
         && let Some(engine) = &engine
@@ -153,25 +232,92 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
             return run_coordinator(config, mode, start, end, &target, modes, &mut engine, &sink);
         }
 
-        let mut plan = KeyPlan::build(start, end, engine.nb_thread() as usize)?;
+        if let Some(spec) = random_spec {
+            let state = RandomState::default();
+            let scanned = AtomicU64::new(0);
+            let found = AtomicU64::new(0);
+            let stop = AtomicBool::new(false);
+            let planner =
+                RandomPlanner::new(spec, engine::thread_seed(0), engine.nb_thread() as usize);
+            state.note(planner.epoch(), &planner.start().to_hex());
+            let total = scan_random(
+                &mut engine,
+                &sink,
+                &target,
+                modes,
+                config.coin,
+                config.display,
+                None,
+                target.stop_after(),
+                &stop,
+                &found,
+                &scanned,
+                planner,
+                config.rkey.saturating_mul(1_000_000_000),
+                &state,
+            )?;
+            if config.display != 0 {
+                println!();
+            }
+            return Ok(SearchOutcome {
+                found: found.load(Ordering::SeqCst),
+                scanned: total,
+            });
+        }
+
+        let resumed = gpu_driver::resumed_ranges(
+            start,
+            end,
+            1,
+            checkpoint.as_ref().and_then(|plan| plan.resume.as_ref()),
+        );
+        let Some(chunk) = resumed.into_iter().next().filter(|chunk| chunk.runnable) else {
+            if config.display != 0 {
+                println!();
+            }
+            return Ok(SearchOutcome {
+                found: 0,
+                scanned: 0,
+            });
+        };
+
+        let counter = Arc::new(AtomicU64::new(0));
+        let counters = [Arc::clone(&counter)];
+        let baselines = [chunk.baseline];
+        let done = AtomicBool::new(false);
+        let mut plan = KeyPlan::build(chunk.start, chunk.end, engine.nb_thread() as usize)?;
         engine.set_keys(&plan.points)?;
 
         let stop = AtomicBool::new(false);
         let found = AtomicU64::new(0);
-        let outcome = scan_window(
-            &mut engine,
-            &mut plan,
-            &sink,
-            &target,
-            modes,
-            config.coin,
-            end,
-            config.display,
-            None,
-            target.stop_after(),
-            &stop,
-            &found,
-        )?;
+        let outcome = thread::scope(|scope| {
+            let writer = checkpoint
+                .as_ref()
+                .map(|plan| scope.spawn(|| checkpoint_loop(plan, &baselines, &counters, &done)));
+            let outcome = scan_window(
+                &mut engine,
+                &mut plan,
+                &sink,
+                &target,
+                modes,
+                config.coin,
+                chunk.end,
+                config.display,
+                None,
+                target.stop_after(),
+                &stop,
+                &found,
+                &Progress {
+                    counter: Some(&counter),
+                    random: None,
+                },
+            );
+            done.store(true, Ordering::SeqCst);
+            if let Some(handle) = writer {
+                let _ = handle.join();
+            }
+            outcome
+        })?;
 
         if config.display != 0 {
             println!();
@@ -210,6 +356,8 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
         Arc::clone(&gen_x),
         Arc::clone(&gen_y),
         two_gn,
+        random_spec,
+        checkpoint.as_ref(),
     )
 }
 
@@ -308,10 +456,18 @@ struct EngineRunner {
     gen_x: Arc<[u64]>,
     gen_y: Arc<[u64]>,
     two_gn: [u64; 8],
+    /// `Some` in random mode: the CPU random rules, this device's RNG seed and
+    /// the shared epoch threshold/state.
+    random: Option<RandomSpec>,
+    seed: u64,
+    epoch_len: u64,
+    random_state: Option<Arc<RandomState>>,
+    /// Per-device scan counter used by the checkpoint writer.
+    counter: Arc<AtomicU64>,
 }
 
 impl DeviceRunner for EngineRunner {
-    fn run(&mut self, stop: &AtomicBool) -> Result<DeviceOutcome, String> {
+    fn run(&mut self, stop: &AtomicBool, scanned: &AtomicU64) -> Result<DeviceOutcome, String> {
         if stop.load(Ordering::SeqCst) {
             return Ok(DeviceOutcome::default());
         }
@@ -335,6 +491,35 @@ impl DeviceRunner for EngineRunner {
             })?;
         }
 
+        if let Some(spec) = &self.random {
+            let state = self
+                .random_state
+                .as_ref()
+                .expect("random runners always carry the shared state");
+            let planner = RandomPlanner::new(spec.clone(), self.seed, engine.nb_thread() as usize);
+            state.note(planner.epoch(), &planner.start().to_hex());
+            let total = scan_random(
+                &mut engine,
+                &self.sink,
+                &self.target,
+                &self.modes,
+                self.coin,
+                self.display,
+                Some(self.job.device_id),
+                self.stop_after,
+                stop,
+                &self.found,
+                scanned,
+                planner,
+                self.epoch_len,
+                state,
+            )?;
+            return Ok(DeviceOutcome {
+                scanned: total,
+                found: 0,
+            });
+        }
+
         let mut plan = KeyPlan::build(self.job.start, self.job.end, engine.nb_thread() as usize)?;
         engine.set_keys(&plan.points)?;
 
@@ -351,6 +536,10 @@ impl DeviceRunner for EngineRunner {
             self.stop_after,
             stop,
             &self.found,
+            &Progress {
+                counter: Some(&self.counter),
+                random: None,
+            },
         )?;
         Ok(DeviceOutcome {
             scanned: outcome.scanned,
@@ -360,6 +549,10 @@ impl DeviceRunner for EngineRunner {
 }
 
 /// Splits `[start, end]` across the listed devices and drives them in parallel.
+///
+/// Random mode gives every device its own `RandomPlanner` over the shared
+/// scanned counter; range mode keeps one chunk per device, shifted by any
+/// checkpoint counts.
 #[allow(clippy::too_many_arguments)]
 fn run_multi(
     config: &Config,
@@ -373,38 +566,117 @@ fn run_multi(
     gen_x: Arc<[u64]>,
     gen_y: Arc<[u64]>,
     two_gn: [u64; 8],
+    random_spec: Option<RandomSpec>,
+    checkpoint: Option<&CheckpointPlan>,
 ) -> Result<SearchOutcome, String> {
-    let chunks = engine::split_ranges(start, end, config.gpu_ids.len());
     let found = Arc::new(AtomicU64::new(0));
-    let mut runners: Vec<Box<dyn DeviceRunner>> = Vec::with_capacity(chunks.len());
-    for (index, (chunk_start, chunk_end)) in chunks.into_iter().enumerate() {
-        runners.push(Box::new(EngineRunner {
-            job: DeviceJob {
-                device_id: config.gpu_ids[index],
-                start: chunk_start,
-                end: chunk_end,
-            },
-            grid: grids[index],
-            mode,
-            coin: config.coin,
-            comp: config.comp_mode,
-            target: Arc::clone(&target),
-            modes: modes.to_vec(),
-            display: config.display,
-            stop_after: target.stop_after(),
-            sink: Arc::clone(sink),
-            found: Arc::clone(&found),
-            gen_x: Arc::clone(&gen_x),
-            gen_y: Arc::clone(&gen_y),
-            two_gn,
-        }));
+    let mut runners: Vec<Box<dyn DeviceRunner>> = Vec::new();
+    // One counter/baseline per chunk, including chunks already fully scanned,
+    // so a rewritten checkpoint keeps the same per-device layout.
+    let mut counters: Vec<Arc<AtomicU64>> = Vec::new();
+    let mut baselines: Vec<u64> = Vec::new();
+
+    if let Some(spec) = random_spec {
+        let state = Arc::new(RandomState::default());
+        let epoch_len = config.rkey.saturating_mul(1_000_000_000);
+        for index in 0..config.gpu_ids.len() {
+            let counter = Arc::new(AtomicU64::new(0));
+            counters.push(Arc::clone(&counter));
+            baselines.push(0);
+            runners.push(Box::new(EngineRunner {
+                job: DeviceJob {
+                    device_id: config.gpu_ids[index],
+                    start,
+                    end,
+                },
+                grid: grids[index],
+                mode,
+                coin: config.coin,
+                comp: config.comp_mode,
+                target: Arc::clone(&target),
+                modes: modes.to_vec(),
+                display: config.display,
+                stop_after: target.stop_after(),
+                sink: Arc::clone(sink),
+                found: Arc::clone(&found),
+                gen_x: Arc::clone(&gen_x),
+                gen_y: Arc::clone(&gen_y),
+                two_gn,
+                random: Some(spec.clone()),
+                seed: engine::thread_seed(index as u64),
+                epoch_len,
+                random_state: Some(Arc::clone(&state)),
+                counter,
+            }));
+        }
+    } else {
+        let ranges = gpu_driver::resumed_ranges(
+            start,
+            end,
+            config.gpu_ids.len(),
+            checkpoint.and_then(|plan| plan.resume.as_ref()),
+        );
+        for (index, chunk) in ranges.into_iter().enumerate() {
+            let counter = Arc::new(AtomicU64::new(0));
+            counters.push(Arc::clone(&counter));
+            baselines.push(chunk.baseline);
+            if !chunk.runnable {
+                continue;
+            }
+            runners.push(Box::new(EngineRunner {
+                job: DeviceJob {
+                    device_id: config.gpu_ids[index],
+                    start: chunk.start,
+                    end: chunk.end,
+                },
+                grid: grids[index],
+                mode,
+                coin: config.coin,
+                comp: config.comp_mode,
+                target: Arc::clone(&target),
+                modes: modes.to_vec(),
+                display: config.display,
+                stop_after: target.stop_after(),
+                sink: Arc::clone(sink),
+                found: Arc::clone(&found),
+                gen_x: Arc::clone(&gen_x),
+                gen_y: Arc::clone(&gen_y),
+                two_gn,
+                random: None,
+                seed: 0,
+                epoch_len: 0,
+                random_state: None,
+                counter,
+            }));
+        }
+    }
+
+    if runners.is_empty() {
+        // Every chunk was fully scanned before this run.
+        if config.display != 0 {
+            println!();
+        }
+        return Ok(SearchOutcome {
+            found: 0,
+            scanned: 0,
+        });
     }
 
     // The runners publish hits into `found` while scanning (so the first hit
     // stops the others promptly); their `DeviceOutcome.found` is therefore 0
     // and the driver only sums scanned keys.
     let stop = AtomicBool::new(false);
-    let scanned = gpu_driver::drive(runners, &stop, &found, target.stop_after())?;
+    let done = AtomicBool::new(false);
+    let scanned = thread::scope(|scope| {
+        let writer = checkpoint
+            .map(|plan| scope.spawn(|| checkpoint_loop(plan, &baselines, &counters, &done)));
+        let scanned = gpu_driver::drive(runners, &stop, &found, target.stop_after());
+        done.store(true, Ordering::SeqCst);
+        if let Some(handle) = writer {
+            let _ = handle.join();
+        }
+        scanned
+    })?;
 
     if config.display != 0 {
         println!();
@@ -657,6 +929,10 @@ impl ChunkScanner for GpuScanner<'_> {
             1,
             &stop,
             &found,
+            &Progress {
+                counter: None,
+                random: None,
+            },
         )
     }
 }
@@ -667,7 +943,9 @@ impl ChunkScanner for GpuScanner<'_> {
 /// `found` is the shared number of hit blocks emitted so far and `stop` the
 /// shared abort flag. Hits are verified, written under the [`OutputSink`] lock
 /// and printed exactly as in the sequential path; the first found key is
-/// returned for the coordinator.
+/// returned for the coordinator. `progress` adds each batch to a shared counter
+/// (checkpoints in range mode, the live total in random mode); random mode
+/// leaves the `[R: n]` line to [`scan_random`] because its windows are short.
 #[allow(clippy::too_many_arguments)]
 fn scan_window(
     engine: &mut AddrEngine,
@@ -682,6 +960,7 @@ fn scan_window(
     stop_after: u64,
     stop: &AtomicBool,
     found: &AtomicU64,
+    progress: &Progress<'_>,
 ) -> Result<ScanOutcome, String> {
     let step = u64::from(gpu_plan::STEP_SIZE);
     let mut scanned = 0u64;
@@ -761,16 +1040,23 @@ fn scan_window(
 
         plan.advance(step);
         scanned = scanned.saturating_add(batch_covered);
+        if let Some(counter) = progress.counter {
+            counter.fetch_add(batch_covered, Ordering::SeqCst);
+        }
 
         if found.load(Ordering::SeqCst) >= stop_after || plan.exhausted(end) {
             break;
         }
 
-        if display != 0 && last_report.elapsed().as_secs_f64() >= 1.0 {
+        if display != 0 && progress.random.is_none() && last_report.elapsed().as_secs_f64() >= 1.0 {
             last_report = Instant::now();
             let elapsed = started.elapsed().as_secs_f64();
             let rate = scanned as f64 / elapsed.max(1e-9);
             let found = found.load(Ordering::SeqCst);
+            let total = progress
+                .counter
+                .map(|counter| counter.load(Ordering::SeqCst))
+                .unwrap_or(scanned);
             sink.progress(|| {
                 match device {
                     Some(device) => print!(
@@ -779,14 +1065,14 @@ fn scan_window(
                         found,
                         device,
                         rate_text(rate),
-                        engine::format_thousands(scanned)
+                        engine::format_thousands(total)
                     ),
                     None => print!(
                         "\r  [{}] [F: {}] [GPU: {}] [T: {}]  ",
                         engine::to_time_str(elapsed),
                         found,
                         rate_text(rate),
-                        engine::format_thousands(scanned)
+                        engine::format_thousands(total)
                     ),
                 }
                 let _ = io::stdout().flush();
@@ -798,6 +1084,172 @@ fn scan_window(
         scanned,
         found: found_key,
     })
+}
+
+/// Scans a sequence of random windows until Ctrl-C, `found >= stop_after`, or
+/// the shared stop flag. Every batch is added to `scanned` (the live total used
+/// for epoch checks and the `[T: n]` field); the return value is this device's
+/// cumulative scan count.
+#[allow(clippy::too_many_arguments)]
+fn scan_random(
+    engine: &mut AddrEngine,
+    sink: &OutputSink,
+    target: &engine::Target,
+    modes: &[bool],
+    coin: Coin,
+    display: i32,
+    device: Option<i32>,
+    stop_after: u64,
+    stop: &AtomicBool,
+    found: &AtomicU64,
+    scanned: &AtomicU64,
+    mut planner: RandomPlanner,
+    epoch_len: u64,
+    state: &RandomState,
+) -> Result<u64, String> {
+    let mut total = 0u64;
+    let started = Instant::now();
+    let mut last_report = started;
+    loop {
+        if engine::stop_requested() || stop.load(Ordering::SeqCst) {
+            break;
+        }
+
+        if planner.maybe_rotate(scanned.load(Ordering::SeqCst), epoch_len) {
+            state.note(planner.epoch(), &planner.start().to_hex());
+        }
+
+        let (window_start, window_end) = planner.window();
+        let mut plan = KeyPlan::build(window_start, window_end, engine.nb_thread() as usize)?;
+        engine.set_keys(&plan.points)?;
+        let outcome = scan_window(
+            engine,
+            &mut plan,
+            sink,
+            target,
+            modes,
+            coin,
+            window_end,
+            display,
+            device,
+            stop_after,
+            stop,
+            found,
+            &Progress {
+                counter: Some(scanned),
+                random: Some(state),
+            },
+        )?;
+        planner.advance_window();
+        total = total.saturating_add(outcome.scanned);
+
+        // Windows are much shorter than the one-second range-mode report, so
+        // the random progress line is driven here across window boundaries.
+        if display != 0 && last_report.elapsed().as_secs_f64() >= 1.0 {
+            last_report = Instant::now();
+            let elapsed = started.elapsed().as_secs_f64();
+            let rate = total as f64 / elapsed.max(1e-9);
+            print_random_progress(
+                sink,
+                device,
+                state,
+                elapsed,
+                rate,
+                found.load(Ordering::SeqCst),
+                scanned.load(Ordering::SeqCst),
+            )?;
+        }
+
+        if found.load(Ordering::SeqCst) >= stop_after
+            || engine::stop_requested()
+            || stop.load(Ordering::SeqCst)
+        {
+            break;
+        }
+    }
+    Ok(total)
+}
+
+/// `[R: n] [KEY]` progress line with the GPU rate, mirroring the CPU random
+/// format (`Rotor.cpp:1814-1839`).
+#[allow(clippy::too_many_arguments)]
+fn print_random_progress(
+    sink: &OutputSink,
+    device: Option<i32>,
+    state: &RandomState,
+    elapsed: f64,
+    rate: f64,
+    found: u64,
+    total: u64,
+) -> Result<(), String> {
+    let rotations = state.rotations.load(Ordering::SeqCst);
+    let key = state.key.lock().expect("random key mutex").clone();
+    sink.progress(|| {
+        match device {
+            Some(device) => print!(
+                "\r  [{}] [R: {}] [{}] [F: {}] [GPU #{}: {}] [T: {}]  ",
+                engine::to_time_str(elapsed),
+                rotations,
+                key,
+                found,
+                device,
+                rate_text(rate),
+                engine::format_thousands(total)
+            ),
+            None => print!(
+                "\r  [{}] [R: {}] [{}] [F: {}] [GPU: {}] [T: {}]  ",
+                engine::to_time_str(elapsed),
+                rotations,
+                key,
+                found,
+                rate_text(rate),
+                engine::format_thousands(total)
+            ),
+        }
+        let _ = io::stdout().flush();
+    })
+}
+
+/// Writes `Rotor-Cuda_Continue.bat` every `plan.interval` and once at exit.
+///
+/// The writer only reads the per-device counters and never takes the output
+/// lock. The first write error is reported; later ones are dropped so a full
+/// disk does not flood stderr.
+fn checkpoint_loop(
+    plan: &CheckpointPlan,
+    baseline: &[u64],
+    counters: &[Arc<AtomicU64>],
+    done: &AtomicBool,
+) {
+    let mut last_write = Instant::now();
+    let mut reported_error = false;
+    loop {
+        let finished = done.load(Ordering::SeqCst);
+        if !finished && last_write.elapsed() < plan.interval {
+            thread::sleep(Duration::from_millis(100));
+            continue;
+        }
+        let chunks: Vec<u64> = baseline
+            .iter()
+            .zip(counters)
+            .map(|(saved, counter)| saved.saturating_add(counter.load(Ordering::SeqCst)))
+            .collect();
+        let count = chunks.iter().copied().fold(0u64, u64::saturating_add);
+        if let Err(err) = checkpoint::write_continue_with_chunks(
+            Path::new(checkpoint::CONTINUE_FILE),
+            &checkpoint::command_line(),
+            count,
+            &chunks,
+        ) && !reported_error
+        {
+            eprintln!("  Cannot write checkpoint: {err}");
+            reported_error = true;
+        }
+        if finished {
+            break;
+        }
+        last_write = Instant::now();
+    }
 }
 
 /// Counts one hit block and stops every device once `stop_after` is reached.
