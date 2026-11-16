@@ -630,6 +630,8 @@ Implemented in Rust:
   decoded internally)
 - `Found.txt` block format and progress line of the C++ binary
 - `--benchmark` key-rate measurement of the selected backend (human or JSON)
+- `--mnemonic-derive` / `--mnemonic-from-entropy` and the bounded
+  `--mnemonic-audit` entropy sweep (BIP39/BIP32, see below)
 
 ### Benchmark
 
@@ -692,6 +694,59 @@ Known deviations from the C++ binary:
 
 Rough CPU throughput on a 4-thread release build (compressed address hashing):
 ~5.3 Mk/s total (~1.3 Mk/s per core). CPU-BSGS solves a 2^31-wide range in ~0.13 s.
+
+## Mnemonic tools (BIP39/BIP32)
+
+`--mnemonic-derive` validates an English BIP39 phrase and prints the BIP32
+master fingerprint ("seed id"), the derived private key, compressed public key
+and BTC P2PKH address. The path defaults to `m/44'/0'/0'/0/0`:
+
+```sh
+./target/release/rotor --mnemonic-derive \
+  --mnemonic "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+
+./target/release/rotor --mnemonic-derive --mnemonic "<phrase>" \
+  --mnemonic-passphrase "TREZOR" --mnemonic-path "m/0'/1"
+```
+
+`--mnemonic-from-entropy HEX` prints the phrase BIP39 encodes for raw entropy
+(16/20/24/28/32 bytes):
+
+```sh
+./target/release/rotor --mnemonic-from-entropy 00000000000000000000000000000000
+# abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about
+```
+
+`--mnemonic-audit` checks a bounded, user-specified entropy space. For every
+counter in `START:END` (END exclusive) it builds N-bit big-endian entropy with
+the counter in the low bits, derives the phrase, the seed (with the optional
+passphrase and path) and the first address, and checks the target list
+(`--targets-text FILE`, `-` for stdin, or `-i FILE` with 20-byte hash160
+records). Pass `-m xpoints` to match x-only public keys (64 hex chars, 32-byte
+`-i` records) instead:
+
+```sh
+./target/release/rotor --mnemonic-audit --entropy-bits 128 --counter 0x100000:0x100010 \
+  --mnemonic-path "m/44'/0'/0'/0/0" --targets-text targets.txt
+```
+
+Hard limits and honest expectations:
+
+- `--entropy-bits` must be one of 128, 160, 192, 224, 256.
+- One run accepts at most 2^32 candidates (`END - START <= 2^32`, END exclusive).
+- `--mnemonic-audit` requires a target list, `--entropy-bits` and `--counter`.
+  The mnemonic flags are rejected together with `-g`, `-m bsgs`, `--coordinator`,
+  `--benchmark` and `-u`/`-b` (audit derives compressed P2PKH only).
+- Each candidate costs a full PBKDF2-HMAC-SHA512 (2048 rounds) plus a BIP32/EC
+  derivation. The audit is single-threaded and measured about 600 candidates/s
+  in a release build on the development machine; it prints the measured rate and
+  ETA.
+- BIP39 is one-way: a mnemonic cannot be steered into a puzzle bit range, and
+  the entropy ladder (128/160/192/224/256 bits) does not select a smaller key.
+  The audit is for a known-small entropy space (a broken RNG or a short
+  user-chosen counter), not for scanning the puzzle keyspace.
+- Use it only on data you own or are explicitly authorized to audit. Every
+  audit run prints that warning.
 
 ## License
 - Rotor-Cuda is licensed under GPLv3.0

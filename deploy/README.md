@@ -47,6 +47,10 @@ what is presented and looks it up, so the id cannot be spoofed through the
 request body. Without `--clients` and before the first account exists the
 coordinator keeps the legacy single-token mode.
 
+A `--clients` path that does not exist is a startup error, so after wiping the
+state directory create the file first (`printf '{}' | sudo tee data/clients.json`
+with owner `10001:10001`) or drop the flag.
+
 - Admin token (`ROTOR_COORD_TOKEN`): create/list jobs, read the dashboard, list
   and create clients, disable accounts.
 - Client token: lease, heartbeat, result, BSGS progress, status and `/me`; it

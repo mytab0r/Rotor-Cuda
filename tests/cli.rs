@@ -651,3 +651,340 @@ fn binary_version_and_help() {
     );
     assert!(help.stderr.is_empty());
 }
+
+fn run_rotor(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_rotor"))
+        .args(args)
+        .output()
+        .expect("binary should run")
+}
+
+#[test]
+fn counter_range_parses_decimal_and_hex() {
+    let range = cli::parse_counter_range("0:8").expect("decimal range");
+    assert_eq!(range.start, 0);
+    assert_eq!(range.end, 8);
+    assert_eq!(range.count(), 8);
+
+    let range = cli::parse_counter_range("0x10:0X20").expect("hex range");
+    assert_eq!((range.start, range.end), (16, 32));
+
+    // Exactly 2^32 entries is allowed; END is exclusive.
+    let range = cli::parse_counter_range("0:4294967296").expect("max range");
+    assert_eq!(range.count(), 1 << 32);
+}
+
+#[test]
+fn counter_range_rejects_bad_forms() {
+    for bad in [
+        "",
+        "0",
+        "0:",
+        ":8",
+        "8:0",
+        "0:0",
+        "0:4294967297",
+        "0x:8",
+        "x:8",
+        "0:0xzz",
+    ] {
+        assert!(
+            cli::parse_counter_range(bad).is_err(),
+            "range should be rejected: {bad:?}"
+        );
+    }
+}
+
+#[test]
+fn mnemonic_audit_validations() {
+    let err = parse_err(&[
+        "--mnemonic-audit",
+        "--counter",
+        "0:8",
+        "--targets-text",
+        "t.txt",
+    ]);
+    assert_eq!(err.message(), "--mnemonic-audit requires --entropy-bits N");
+
+    let err = parse_err(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "128",
+        "--targets-text",
+        "t.txt",
+    ]);
+    assert_eq!(
+        err.message(),
+        "--mnemonic-audit requires --counter START:END"
+    );
+
+    let err = parse_err(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "128",
+        "--counter",
+        "0:8",
+    ]);
+    assert_eq!(
+        err.message(),
+        "--mnemonic-audit requires a target list (--targets-text FILE or -i FILE)"
+    );
+
+    let err = parse_err(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "129",
+        "--counter",
+        "0:8",
+        "--targets-text",
+        "t.txt",
+    ]);
+    assert!(err.message().contains("128, 160, 192, 224, 256"));
+
+    let config = parse(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "160",
+        "--counter",
+        "0x10:0x20",
+        "-i",
+        "t.bin",
+    ]);
+    assert_eq!(config.entropy_bits, Some(160));
+    assert_eq!(
+        config.counter,
+        Some(cli::CounterRange { start: 16, end: 32 })
+    );
+
+    let err = parse_err(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "128",
+        "--counter",
+        "0:8",
+        "-m",
+        "address",
+        "-i",
+        "t.bin",
+    ]);
+    assert!(err.message().contains("BTC P2PKH hash160"));
+
+    for flag in ["-u", "-b"] {
+        let err = parse_err(&[
+            "--mnemonic-audit",
+            "--entropy-bits",
+            "128",
+            "--counter",
+            "0:8",
+            "--targets-text",
+            "t.txt",
+            flag,
+        ]);
+        assert_eq!(
+            err.message(),
+            "mnemonic tools derive compressed P2PKH addresses only; drop -u/-b"
+        );
+    }
+}
+
+#[test]
+fn mnemonic_flags_conflict_with_search_backends() {
+    let err = parse_err(&["--mnemonic-derive", "--mnemonic", "abandon", "-g"]);
+    assert_eq!(
+        err.message(),
+        "mnemonic flags are not supported with -g/--gpu"
+    );
+
+    let err = parse_err(&[
+        "--mnemonic-from-entropy",
+        "00",
+        "-m",
+        "bsgs",
+        "--range",
+        "1:10",
+        &compressed_pubkey(),
+    ]);
+    assert_eq!(
+        err.message(),
+        "mnemonic flags are not supported with -m bsgs"
+    );
+
+    let err = parse_err(&[
+        "--mnemonic-audit",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "-m",
+        "address",
+        "--range",
+        "1:2",
+        "14iXhn8bGajVWegZHJ18vJLHhntcpL4dex",
+    ]);
+    assert_eq!(
+        err.message(),
+        "mnemonic flags are not supported with --coordinator"
+    );
+
+    let err = parse_err(&["--mnemonic-from-entropy", "00", "-g"]);
+    assert_eq!(
+        err.message(),
+        "mnemonic flags are not supported with -g/--gpu"
+    );
+}
+
+#[test]
+fn mnemonic_derive_validations() {
+    let err = parse_err(&["--mnemonic-derive"]);
+    assert_eq!(
+        err.message(),
+        "--mnemonic-derive requires --mnemonic PHRASE"
+    );
+
+    let err = parse_err(&["--mnemonic", "abandon"]);
+    assert_eq!(err.message(), "--mnemonic requires --mnemonic-derive");
+
+    let err = parse_err(&["--mnemonic-from-entropy", "00", "--mnemonic", "x"]);
+    assert!(err.message().contains("cannot be combined"));
+
+    let err = parse_err(&[
+        "--mnemonic-derive",
+        "--mnemonic",
+        "x",
+        "--mnemonic-from-entropy",
+        "00",
+    ]);
+    assert!(err.message().contains("cannot be combined"));
+
+    let err = parse_err(&["--mnemonic-passphrase", "x"]);
+    assert!(
+        err.message()
+            .contains("require --mnemonic-derive or --mnemonic-audit")
+    );
+
+    let err = parse_err(&["--mnemonic-path", "m/0"]);
+    assert!(
+        err.message()
+            .contains("require --mnemonic-derive or --mnemonic-audit")
+    );
+
+    let err = parse_err(&[
+        "--mnemonic-derive",
+        "--mnemonic",
+        "abandon",
+        "--coin",
+        "eth",
+    ]);
+    assert_eq!(
+        err.message(),
+        "mnemonic tools support BTC P2PKH addresses only"
+    );
+}
+
+#[test]
+fn mnemonic_from_entropy_binary() {
+    let output = run_rotor(&[
+        "--mnemonic-from-entropy",
+        "00000000000000000000000000000000",
+    ]);
+    assert!(output.status.success(), "status: {:?}", output.status);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    );
+}
+
+#[test]
+fn mnemonic_derive_binary() {
+    let output = run_rotor(&[
+        "--mnemonic-derive",
+        "--mnemonic",
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    ]);
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for expected in [
+        "m/44'/0'/0'/0/0",
+        "73c5da0a",
+        "e284129cc0922579a535bbf4d1a3b25773090d28c909bc0fed73b5e0222cc372",
+        "03aaeb52dd7494c361049de67cc680e83ebcbbbdbeb13637d92cd845f70308af5e",
+        "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing {expected:?} in: {stdout}"
+        );
+    }
+}
+
+#[test]
+fn mnemonic_audit_finds_a_known_counter() {
+    let target =
+        std::env::temp_dir().join(format!("rotor-mnemonic-targets-{}.txt", std::process::id()));
+    std::fs::write(&target, "1EfCaguhRK1DzLmvMF5nqSuAVLhv8hPxq8\n")
+        .expect("target file should be written");
+
+    let output = run_rotor(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "128",
+        "--counter",
+        "2:5",
+        "--targets-text",
+        target.to_str().expect("utf-8 temp path"),
+    ]);
+    let _ = std::fs::remove_file(&target);
+
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("MATCH"), "stdout: {stdout}");
+    assert!(stdout.contains("counter : 3"), "stdout: {stdout}");
+    assert!(
+        stdout.contains(
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon alpha"
+        ),
+        "stdout: {stdout}"
+    );
+    assert!(
+        stdout.contains("1EfCaguhRK1DzLmvMF5nqSuAVLhv8hPxq8"),
+        "stdout: {stdout}"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("WARNING"), "stderr: {stderr}");
+    assert!(stderr.contains("authorized"), "stderr: {stderr}");
+}
+
+#[test]
+fn mnemonic_audit_matches_xpoint_targets() {
+    let target =
+        std::env::temp_dir().join(format!("rotor-mnemonic-xpoints-{}.txt", std::process::id()));
+    std::fs::write(
+        &target,
+        "f0b68ab805f64b8106e4ea56ec984662dff70e4d11ba0ef51019c300b648b078\n",
+    )
+    .expect("target file should be written");
+
+    let output = run_rotor(&[
+        "--mnemonic-audit",
+        "--entropy-bits",
+        "128",
+        "--counter",
+        "2:5",
+        "-m",
+        "xpoints",
+        "--targets-text",
+        target.to_str().expect("utf-8 temp path"),
+    ]);
+    let _ = std::fs::remove_file(&target);
+
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("MATCH"), "stdout: {stdout}");
+    assert!(stdout.contains("counter : 3"), "stdout: {stdout}");
+    assert!(
+        stdout
+            .contains("xpoint  : f0b68ab805f64b8106e4ea56ec984662dff70e4d11ba0ef51019c300b648b078"),
+        "stdout: {stdout}"
+    );
+}

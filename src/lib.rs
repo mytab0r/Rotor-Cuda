@@ -19,6 +19,7 @@ pub(crate) mod gpu_random;
 #[cfg(feature = "gpu")]
 pub mod gpu_search;
 pub mod hashes;
+pub mod mnemonic;
 pub mod point;
 pub mod scalar;
 pub mod secp;

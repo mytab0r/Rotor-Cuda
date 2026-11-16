@@ -54,7 +54,15 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 --bsgs-work-reset                  : Overwrite a mismatched or stale --bsgs-work file and start over
 --benchmark                        : Measure the backend key rate on a synthetic miss range
 --benchmark-seconds N              : Benchmark duration in seconds, default is 5
---benchmark-json                   : Print the benchmark result as one JSON object"#,
+--benchmark-json                   : Print the benchmark result as one JSON object
+--mnemonic PHRASE                  : BIP39 phrase for --mnemonic-derive
+--mnemonic-passphrase P            : BIP39 passphrase (default: empty)
+--mnemonic-path PATH               : BIP32 path, default m/44'/0'/0'/0/0
+--mnemonic-derive                  : Print phrase/seed id/key/pubkey/address
+--mnemonic-from-entropy HEX        : Print the BIP39 phrase for raw hex entropy
+--mnemonic-audit                   : Audit a bounded entropy counter space
+--entropy-bits N                   : Audit entropy size: 128/160/192/224/256
+--counter START:END                : Audit counters (decimal or 0x hex; END exclusive)"#,
     " \n",
 );
 
@@ -174,6 +182,64 @@ pub struct Range {
     pub end: U256,
 }
 
+/// Inclusive start / exclusive end counter range for `--mnemonic-audit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CounterRange {
+    pub start: u64,
+    pub end: u64,
+}
+
+impl CounterRange {
+    /// Number of counters in the range.
+    pub fn count(self) -> u64 {
+        self.end - self.start
+    }
+}
+
+/// Largest audit range accepted in one run (`2^32` candidates).
+pub const MAX_AUDIT_CANDIDATES: u64 = 1 << 32;
+
+/// Parses `--counter START:END` (decimal or `0x` hex, END exclusive).
+pub fn parse_counter_range(spec: &str) -> Result<CounterRange, CliError> {
+    let Some((start_text, end_text)) = spec.split_once(':') else {
+        return Err(CliError::new(format!(
+            "Invalid --counter value '{spec}', expected START:END"
+        )));
+    };
+    let start = parse_counter(start_text, spec)?;
+    let end = parse_counter(end_text, spec)?;
+    if end <= start {
+        return Err(CliError::new(format!(
+            "Invalid --counter value '{spec}': END must be greater than START"
+        )));
+    }
+    if end - start > MAX_AUDIT_CANDIDATES {
+        return Err(CliError::new(format!(
+            "Invalid --counter value '{spec}': range is {} entries, at most {MAX_AUDIT_CANDIDATES} are allowed",
+            end - start
+        )));
+    }
+    Ok(CounterRange { start, end })
+}
+
+fn parse_counter(text: &str, spec: &str) -> Result<u64, CliError> {
+    let parsed = if let Some(hex) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+        if hex.is_empty() {
+            return Err(CliError::new(format!(
+                "Invalid --counter value '{spec}': empty hexadecimal number"
+            )));
+        }
+        u64::from_str_radix(hex, 16)
+    } else {
+        text.parse::<u64>()
+    };
+    parsed.map_err(|_| {
+        CliError::new(format!(
+            "Invalid --counter value '{spec}': '{text}' is not a decimal or 0x-hex number"
+        ))
+    })
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub help: bool,
@@ -206,6 +272,14 @@ pub struct Config {
     pub benchmark: bool,
     pub benchmark_seconds: f64,
     pub benchmark_json: bool,
+    pub mnemonic: Option<String>,
+    pub mnemonic_passphrase: String,
+    pub mnemonic_path: Option<String>,
+    pub mnemonic_derive: bool,
+    pub mnemonic_from_entropy: Option<String>,
+    pub mnemonic_audit: bool,
+    pub entropy_bits: Option<u32>,
+    pub counter: Option<CounterRange>,
     pub operands: Vec<String>,
 }
 
@@ -244,6 +318,14 @@ impl Default for Config {
             benchmark: false,
             benchmark_seconds: 5.0,
             benchmark_json: false,
+            mnemonic: None,
+            mnemonic_passphrase: String::new(),
+            mnemonic_path: None,
+            mnemonic_derive: false,
+            mnemonic_from_entropy: None,
+            mnemonic_audit: false,
+            entropy_bits: None,
+            counter: None,
             operands: Vec::new(),
         }
     }
@@ -281,6 +363,14 @@ enum Opt {
     Benchmark,
     BenchmarkSeconds,
     BenchmarkJson,
+    Mnemonic,
+    MnemonicPassphrase,
+    MnemonicPath,
+    MnemonicDerive,
+    MnemonicFromEntropy,
+    MnemonicAudit,
+    EntropyBits,
+    Counter,
 }
 
 /// Exact-token option table: `(token, option, takes_argument)`.
@@ -330,6 +420,14 @@ const OPTIONS: &[(&str, Opt, bool)] = &[
     ("--benchmark", Opt::Benchmark, false),
     ("--benchmark-seconds", Opt::BenchmarkSeconds, true),
     ("--benchmark-json", Opt::BenchmarkJson, false),
+    ("--mnemonic", Opt::Mnemonic, true),
+    ("--mnemonic-passphrase", Opt::MnemonicPassphrase, true),
+    ("--mnemonic-path", Opt::MnemonicPath, true),
+    ("--mnemonic-derive", Opt::MnemonicDerive, false),
+    ("--mnemonic-from-entropy", Opt::MnemonicFromEntropy, true),
+    ("--mnemonic-audit", Opt::MnemonicAudit, false),
+    ("--entropy-bits", Opt::EntropyBits, true),
+    ("--counter", Opt::Counter, true),
 ];
 
 fn lookup(token: &str) -> Option<(Opt, bool)> {
@@ -417,6 +515,8 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         Opt::BsgsWorkReset => config.bsgs_work_reset = true,
         Opt::Benchmark => config.benchmark = true,
         Opt::BenchmarkJson => config.benchmark_json = true,
+        Opt::MnemonicDerive => config.mnemonic_derive = true,
+        Opt::MnemonicAudit => config.mnemonic_audit = true,
         Opt::GpuIds
         | Opt::GpuGrid
         | Opt::Thread
@@ -434,7 +534,13 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         | Opt::Token
         | Opt::ClientId
         | Opt::BsgsWork
-        | Opt::BenchmarkSeconds => {
+        | Opt::BenchmarkSeconds
+        | Opt::Mnemonic
+        | Opt::MnemonicPassphrase
+        | Opt::MnemonicPath
+        | Opt::MnemonicFromEntropy
+        | Opt::EntropyBits
+        | Opt::Counter => {
             // These options always arrive as Token::Value.
         }
     }
@@ -473,6 +579,12 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
                 CliError::new("Invalid --benchmark-seconds argument, number expected")
             })?;
         }
+        Opt::Mnemonic => config.mnemonic = Some(value),
+        Opt::MnemonicPassphrase => config.mnemonic_passphrase = value,
+        Opt::MnemonicPath => config.mnemonic_path = Some(value),
+        Opt::MnemonicFromEntropy => config.mnemonic_from_entropy = Some(value),
+        Opt::EntropyBits => config.entropy_bits = Some(parse_entropy_bits(&value)?),
+        Opt::Counter => config.counter = Some(parse_counter_range(&value)?),
         Opt::Help
         | Opt::Check
         | Opt::List
@@ -484,7 +596,9 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         | Opt::Update
         | Opt::BsgsWorkReset
         | Opt::Benchmark
-        | Opt::BenchmarkJson => {
+        | Opt::BenchmarkJson
+        | Opt::MnemonicDerive
+        | Opt::MnemonicAudit => {
             // These options never take a value.
         }
     }
@@ -505,6 +619,18 @@ fn parse_int_list(name: &str, text: &str) -> Result<Vec<i32>, CliError> {
 fn parse_i32(name: &str, text: &str) -> Result<i32, CliError> {
     text.parse::<i32>()
         .map_err(|_| CliError::new(format!("Invalid {name} argument, number expected")))
+}
+
+fn parse_entropy_bits(value: &str) -> Result<u32, CliError> {
+    let bits = value
+        .parse::<u32>()
+        .map_err(|_| CliError::new("Invalid --entropy-bits argument, number expected"))?;
+    if !matches!(bits, 128 | 160 | 192 | 224 | 256) {
+        return Err(CliError::new(
+            "Invalid --entropy-bits argument, must be one of 128, 160, 192, 224, 256",
+        ));
+    }
+    Ok(bits)
 }
 
 fn parse_mode(value: &str) -> Result<SearchMode, CliError> {
@@ -559,7 +685,118 @@ fn hex_part(value: &str, spec: &str) -> Result<U256, CliError> {
         .map_err(|err| CliError::new(format!("Invalid --range value '{spec}': {}", err.message())))
 }
 
+fn validate_mnemonic(config: &Config) -> Result<(), CliError> {
+    let mnemonic_requested = config.mnemonic_derive
+        || config.mnemonic.is_some()
+        || config.mnemonic_from_entropy.is_some()
+        || config.mnemonic_audit
+        || config.mnemonic_path.is_some()
+        || !config.mnemonic_passphrase.is_empty();
+
+    if mnemonic_requested {
+        if config.gpu {
+            return Err(CliError::new(
+                "mnemonic flags are not supported with -g/--gpu",
+            ));
+        }
+        if config.mode == Some(SearchMode::Bsgs) {
+            return Err(CliError::new(
+                "mnemonic flags are not supported with -m bsgs",
+            ));
+        }
+        if config.coordinator.is_some() {
+            return Err(CliError::new(
+                "mnemonic flags are not supported with --coordinator",
+            ));
+        }
+        if config.benchmark {
+            return Err(CliError::new(
+                "mnemonic flags are not supported with --benchmark",
+            ));
+        }
+        if config.coin == Coin::Eth {
+            return Err(CliError::new(
+                "mnemonic tools support BTC P2PKH addresses only",
+            ));
+        }
+        if config.comp_mode != CompMode::Compressed {
+            return Err(CliError::new(
+                "mnemonic tools derive compressed P2PKH addresses only; drop -u/-b",
+            ));
+        }
+    }
+
+    if config.mnemonic_audit {
+        if config.mnemonic_derive
+            || config.mnemonic_from_entropy.is_some()
+            || config.mnemonic.is_some()
+        {
+            return Err(CliError::new(
+                "--mnemonic-audit cannot be combined with --mnemonic-derive, --mnemonic-from-entropy or --mnemonic",
+            ));
+        }
+        if config.entropy_bits.is_none() {
+            return Err(CliError::new("--mnemonic-audit requires --entropy-bits N"));
+        }
+        if config.counter.is_none() {
+            return Err(CliError::new(
+                "--mnemonic-audit requires --counter START:END",
+            ));
+        }
+        if config.targets_text.is_none() && config.input_file.is_none() {
+            return Err(CliError::new(
+                "--mnemonic-audit requires a target list (--targets-text FILE or -i FILE)",
+            ));
+        }
+        if !matches!(
+            config.mode,
+            None | Some(SearchMode::Addresses | SearchMode::XPoints)
+        ) {
+            return Err(CliError::new(
+                "--mnemonic-audit targets are BTC P2PKH hash160 (-m addresses) or x-only pubkeys (-m xpoints)",
+            ));
+        }
+    } else {
+        if config.entropy_bits.is_some() {
+            return Err(CliError::new("--entropy-bits requires --mnemonic-audit"));
+        }
+        if config.counter.is_some() {
+            return Err(CliError::new("--counter requires --mnemonic-audit"));
+        }
+    }
+
+    if config.mnemonic_derive && config.mnemonic_from_entropy.is_some() {
+        return Err(CliError::new(
+            "--mnemonic-derive cannot be combined with --mnemonic-from-entropy",
+        ));
+    }
+    if config.mnemonic_from_entropy.is_some() && config.mnemonic.is_some() {
+        return Err(CliError::new(
+            "--mnemonic-from-entropy cannot be combined with --mnemonic",
+        ));
+    }
+    if config.mnemonic_derive && config.mnemonic.is_none() {
+        return Err(CliError::new(
+            "--mnemonic-derive requires --mnemonic PHRASE",
+        ));
+    }
+    if config.mnemonic.is_some() && !config.mnemonic_derive {
+        return Err(CliError::new("--mnemonic requires --mnemonic-derive"));
+    }
+    if (config.mnemonic_path.is_some() || !config.mnemonic_passphrase.is_empty())
+        && !(config.mnemonic_derive || config.mnemonic_audit)
+    {
+        return Err(CliError::new(
+            "--mnemonic-passphrase and --mnemonic-path require --mnemonic-derive or --mnemonic-audit",
+        ));
+    }
+
+    Ok(())
+}
+
 fn validate(config: &mut Config) -> Result<(), CliError> {
+    validate_mnemonic(config)?;
+
     if config.coin == Coin::Eth
         && matches!(config.mode, Some(SearchMode::XPoint | SearchMode::XPoints))
     {
@@ -577,10 +814,12 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
                 "--targets-text and -i are mutually exclusive",
             ));
         }
-        if !matches!(
-            config.mode,
-            Some(SearchMode::Addresses | SearchMode::XPoints)
-        ) {
+        if !config.mnemonic_audit
+            && !matches!(
+                config.mode,
+                Some(SearchMode::Addresses | SearchMode::XPoints)
+            )
+        {
             return Err(CliError::new(
                 "--targets-text requires -m addresses or -m xpoints",
             ));
