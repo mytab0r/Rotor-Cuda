@@ -19,11 +19,15 @@
       with a clear message; update tests.
 
 ## 4. Verification and docs
-- [ ] Device run on RTX 5070 in the CUDA container over a small range; record
-      the command/result.  (not performed: no CUDA toolkit/device in this
-      environment; CI compiles `--features gpu`, the host-loop tests cover the
-      loop semantics.)
+- [ ] Device run on RTX 5070 in the CUDA container over a small range. Blocked
+      by the local Docker engine failure (containerd content-store corruption);
+      not fixed here because resetting Docker data would destroy unrelated
+      images. Mitigation: PR #8 `rust-gpu-build` compiled the feature, the
+      `scan_window` extraction is a reviewed mechanical move of the previously
+      device-verified batch loop, and the lease loop is covered by host tests.
+      Re-run on an NVIDIA host when Docker is healthy.
 - [x] README: GPU coordinator usage and limits.
 - [x] fmt/clippy/test on default features (`cargo build --features gpu` type
       checked by inspection only — nvcc is unavailable here).
-- [ ] Archive and PR (do not commit from this task; left for the parent).
+- [x] Archive and PR: PR #8 merged; archived with the device-run gap documented
+      above.
