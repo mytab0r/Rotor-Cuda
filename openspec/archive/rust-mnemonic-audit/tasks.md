@@ -10,4 +10,4 @@
 
 ## 3. Docs and close-out
 - [x] README section (limits, cost, authorized use), fmt/clippy/test.
-- [ ] Merge the PR and archive the change.
+- [x] Merge the PR and archive the change.
