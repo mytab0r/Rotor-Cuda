@@ -530,7 +530,7 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
     })
 }
 
-fn mode_name(mode: SearchMode) -> &'static str {
+pub(crate) fn mode_name(mode: SearchMode) -> &'static str {
     match mode {
         SearchMode::Address => "address",
         SearchMode::Addresses => "addresses",
