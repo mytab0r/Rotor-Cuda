@@ -1130,8 +1130,14 @@ impl State {
     }
 
     /// Clients ordered like the leaderboard: scanned, then chunks, then id.
+    /// Disabled accounts (banned or test leftovers) stay out of the ranking.
     fn ranked_clients(&self) -> Vec<&ClientRecord> {
-        let mut ranked: Vec<&ClientRecord> = self.data.clients.iter().collect();
+        let mut ranked: Vec<&ClientRecord> = self
+            .data
+            .clients
+            .iter()
+            .filter(|client| !client.disabled)
+            .collect();
         ranked.sort_by(|left, right| {
             right
                 .scanned_total
@@ -3439,6 +3445,15 @@ mod tests {
         assert_eq!(summary.leaderboard[1].id, beta.id);
         assert_eq!(state.me(&alpha.id, 1_040).expect("me").rank, 1);
         assert_eq!(state.me(&beta.id, 1_040).expect("me").rank, 2);
+
+        // A disabled account leaves the leaderboard but keeps its history in
+        // the aggregate totals.
+        state.disable_client(&beta.id).expect("disable beta");
+        let after = state.summary(1_050);
+        assert_eq!(after.leaderboard.len(), 1);
+        assert_eq!(after.leaderboard[0].id, alpha.id);
+        assert_eq!(after.totals.scanned, 150);
+        assert!(state.me(&beta.id, 1_050).is_none());
 
         // A legacy state without accounts falls back to completed-chunk counts.
         let legacy_temp = TempState::new("client-summary-legacy");
