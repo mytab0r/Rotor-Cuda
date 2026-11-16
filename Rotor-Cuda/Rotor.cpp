@@ -2032,9 +2032,6 @@ void Rotor::Search(int nbThread, std::vector<int> gpuId, std::vector<int> gridSi
 											toTimeStr(t1, timeStr),
 											rhex.GetBase16().c_str(),
 											nbFoundKey,
-											hours88,
-											minutes88,
-											seconds88,
 											completedPerc,
 											avgGpuKeyRate / 1000000000.0,
 											formatThousands(count).c_str());
