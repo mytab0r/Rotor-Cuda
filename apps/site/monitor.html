@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - address monitor</title>
+<link rel="stylesheet" href="/site.css?v=20261116h">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/run" id="nav-run">Run</a>
+    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+    <a href="/key" id="nav-key">Keys</a>
+    <a href="/monitor" class="active" id="nav-monitor">Monitor</a>
+  </nav>
+</header>
+
+<main class="monitor-page">
+  <section class="hero monitor-hero">
+    <h1>Address monitor</h1>
+    <p class="monitor-tagline">Watch the addresses you control and be warned when something moves without you. This page never asks for a private key, WIF or seed phrase.</p>
+    <p class="notice monitor-warning" role="note">An alert is early warning, not protection. Alerts can be delayed or missed, and an idle stolen key is not observable on-chain.</p>
+  </section>
+
+  <p id="monitor-session-error" class="error monitor-status" role="alert" hidden></p>
+
+  <section class="card monitor-card">
+    <h2>Wallet</h2>
+    <div class="monitor-wallet-bar">
+      <button type="button" class="primary" id="monitor-connect">Connect wallet</button>
+      <button type="button" id="monitor-logout" disabled>Sign out</button>
+      <span id="monitor-wallet-state" class="muted" role="status">No session.</span>
+    </div>
+    <p id="monitor-account-line" class="monitor-account-line" hidden>
+      <span>Account</span>
+      <code class="mono" id="monitor-account"></code>
+      <button type="button" class="key-copy key-copy-sm" id="monitor-copy-account" hidden>Copy</button>
+    </p>
+    <p id="monitor-wallet-error" class="error monitor-status" role="alert" hidden></p>
+    <div id="monitor-no-wallet" class="monitor-no-wallet" hidden>
+      <p>No EVM wallet was detected in this browser. Rotor Monitor signs you in with a Sign-In with Ethereum (EIP-4361) message: the wallet signs a one-time challenge, and the signature proves the address is yours. No private key or seed phrase is ever requested.</p>
+      <p class="muted monitor-note" id="monitor-siwe-note"></p>
+      <button type="button" id="monitor-copy-siwe">Copy sign-in note</button>
+    </div>
+  </section>
+
+  <section class="card monitor-card">
+    <h2>Watchlist</h2>
+    <p id="monitor-watchlist-state" class="muted monitor-empty">Connect a wallet to load your watchlist.</p>
+    <ul id="monitor-watches" class="monitor-watches"></ul>
+    <p id="monitor-watchlist-error" class="error monitor-status" role="alert" hidden></p>
+  </section>
+
+  <section class="card monitor-card">
+    <h2>Add an address</h2>
+    <form id="monitor-add-form" class="monitor-form" autocomplete="off">
+      <label>Chain
+        <select id="monitor-add-chain" disabled>
+          <option value="evm">Ethereum / EVM</option>
+          <option value="btc">Bitcoin</option>
+        </select>
+      </label>
+      <label>Address
+        <input id="monitor-add-address" class="mono" placeholder="paste the address"
+               autocomplete="off" spellcheck="false" autocapitalize="off" disabled>
+      </label>
+      <label class="monitor-wide">Label (optional)
+        <input id="monitor-add-label" placeholder="e.g. cold wallet" maxlength="64" disabled>
+      </label>
+      <button type="submit" class="primary" id="monitor-add-submit" disabled>Add address</button>
+    </form>
+    <p id="monitor-add-error" class="error monitor-status" role="alert" hidden></p>
+    <p id="monitor-add-status" class="muted monitor-status" role="status" hidden></p>
+    <p class="monitor-note monitor-warning-text">Unverified addresses can be watched, but Rotor has not proven that you control them. Only the address used to sign in is marked verified; every other address stays unverified.</p>
+  </section>
+
+  <section class="card monitor-card">
+    <h2>Event feed</h2>
+    <p id="monitor-events-state" class="muted monitor-empty">Sign in to load the event feed.</p>
+    <ul id="monitor-events" class="monitor-events"></ul>
+  </section>
+
+  <section class="card monitor-card">
+    <h2>Settings</h2>
+    <form id="monitor-settings-form" class="monitor-settings-form">
+      <label class="key-toggle monitor-check">
+        <input type="checkbox" id="monitor-recovery-opt-in" disabled>
+        <span>Contact me for recovery help if my address is ever at risk</span>
+      </label>
+      <p class="muted monitor-note">Consent to be contacted only. Rotor never takes custody and cannot recover or move funds for you.</p>
+      <label class="key-toggle monitor-check">
+        <input type="checkbox" id="monitor-alerts-enabled" disabled>
+        <span>Send alerts for activity on these addresses</span>
+      </label>
+      <button type="submit" id="monitor-settings-save" disabled>Save settings</button>
+    </form>
+    <p id="monitor-settings-error" class="error monitor-status" role="alert" hidden></p>
+    <p id="monitor-settings-status" class="muted monitor-status" role="status" hidden></p>
+  </section>
+</main>
+
+<script src="/monitor.js?v=20261116h"></script>
+</body>
+</html>

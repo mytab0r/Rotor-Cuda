@@ -499,3 +499,158 @@ p { text-wrap: pretty; }
   .key-step-list li { grid-template-columns: 26px minmax(0, 1fr); }
   .key-step-value { grid-column: 1 / -1; text-align: left; }
 }
+
+/* Opt-in registry exposure check on the key page */
+.key-exposure {
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--key-border);
+}
+.key-exposure .key-toggle { align-items: flex-start; }
+.key-exposure .key-help { margin-top: 4px; }
+.key-exposure-status { margin: 6px 0 0; font-size: 12px; }
+.key-exposure-status.ok { color: var(--ok); }
+.key-exposure-status.err { color: var(--err); }
+
+/* Address monitor */
+.monitor-page .monitor-tagline { margin: 0 0 10px; font-size: 14px; max-width: 90ch; }
+.monitor-hero { padding: 18px 20px; }
+.monitor-hero h1 { margin: 0 0 4px; font-size: 25px; }
+.monitor-hero .monitor-warning { margin: 0; font-size: 12px; border: 0; border-radius: 0; background: none; padding: 0; color: #e3b341; }
+
+.monitor-wallet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.monitor-wallet-bar #monitor-wallet-state { font-size: 12px; }
+.monitor-account-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.monitor-account-line code {
+  padding: 6px 9px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: #0d1117;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.monitor-no-wallet {
+  margin-top: 12px;
+  padding: 0;
+}
+.monitor-no-wallet p { margin: 0 0 8px; font-size: 13px; color: #c9d1d9; }
+.monitor-no-wallet p:last-of-type { margin-bottom: 10px; }
+.monitor-note { font-size: 12px; color: var(--muted); max-width: 75ch; }
+#monitor-siwe-note { max-width: 62ch; overflow-wrap: anywhere; }
+.monitor-status { margin: 10px 0 0; font-size: 12px; }
+.monitor-status.ok { color: var(--ok); }
+.monitor-status.err { color: var(--err); }
+.monitor-warning-text { margin: 10px 0 0; }
+.monitor-wallet-bar button,
+.monitor-form button,
+.monitor-settings-form button,
+.monitor-no-wallet button,
+.monitor-remove { min-height: 38px; }
+
+.monitor-watches,
+.monitor-events { list-style: none; margin: 8px 0 0; padding: 0; }
+.monitor-watch { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.monitor-watch:first-child { padding-top: 2px; }
+.monitor-watch:last-child { border-bottom: 0; padding-bottom: 2px; }
+.monitor-watch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.monitor-chain {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: .6px;
+  color: var(--muted);
+}
+.monitor-chain-evm { border-color: #8f9eff; color: #8f9eff; }
+.monitor-chain-btc { border-color: #f7931a; color: #f7931a; }
+.monitor-chain-tron { border-color: #ff5c5c; color: #ff5c5c; }
+.monitor-chain-solana { border-color: #14f195; color: #14f195; }
+.monitor-watch-address {
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+}
+.monitor-watch-label { font-size: 12px; color: var(--text); }
+.monitor-verified,
+.monitor-unverified { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+.monitor-verified { color: var(--ok); }
+.monitor-unverified { color: #e3b341; }
+.monitor-watch-meta { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 6px; }
+.monitor-meta-field { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.monitor-meta-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.monitor-meta-value { font-size: 12px; overflow-wrap: anywhere; }
+.monitor-remove {
+  margin-top: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+}
+.monitor-remove:hover { color: var(--err); border-color: var(--err); }
+
+.monitor-event {
+  padding: 10px 0 10px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+}
+.monitor-event:first-child { padding-top: 2px; }
+.monitor-event:last-child { border-bottom: 0; }
+.monitor-event-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.monitor-event-kind { font-size: 13px; font-weight: 600; }
+.monitor-event-severity { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.monitor-event-time { margin-left: auto; font-size: 11px; color: var(--muted); }
+.monitor-event-detail { margin: 6px 0 0; font-size: 13px; color: #c9d1d9; overflow-wrap: anywhere; }
+.monitor-event-who { margin: 4px 0 0; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.monitor-severity-critical { border-left-color: var(--err); }
+.monitor-severity-critical .monitor-event-severity { color: var(--err); }
+.monitor-severity-high { border-left-color: var(--warn); }
+.monitor-severity-high .monitor-event-severity { color: #e3b341; }
+.monitor-severity-medium { border-left-color: var(--warn); }
+.monitor-severity-low,
+.monitor-severity-info { border-left-color: var(--accent-2); }
+
+.monitor-form { grid-template-columns: 150px minmax(0, 1fr); }
+.monitor-form .monitor-wide { grid-column: 1 / -1; }
+.monitor-form button { grid-column: 1 / -1; justify-self: start; }
+.monitor-form input,
+.monitor-form select { padding: 9px 11px; border-radius: 8px; background: var(--panel-2); }
+.monitor-settings-form { grid-template-columns: 1fr; }
+.monitor-settings-form .monitor-check { color: var(--text); font-size: 13px; }
+.monitor-settings-form .monitor-check input { accent-color: var(--accent-2); }
+.monitor-settings-form button { justify-self: start; }
+.monitor-form input:focus-visible,
+.monitor-form select:focus-visible,
+.monitor-settings-form input:focus-visible,
+.monitor-remove:focus-visible,
+.monitor-wallet-bar button:focus-visible,
+.monitor-no-wallet button:focus-visible,
+.monitor-account-line button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .monitor-form { grid-template-columns: 1fr; }
+  .monitor-form .monitor-wide { grid-column: auto; }
+}
+
+@media (max-width: 480px) {
+  .monitor-hero { padding: 15px 14px; }
+  .monitor-hero h1 { font-size: 22px; }
+  .monitor-verified,
+  .monitor-unverified { margin-left: 0; width: 100%; }
+  .monitor-event-time { margin-left: 0; width: 100%; }
+  .monitor-wallet-bar { align-items: stretch; }
+  .monitor-wallet-bar button { flex: 1 1 auto; }
+}
