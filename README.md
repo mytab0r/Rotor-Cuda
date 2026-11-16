@@ -697,7 +697,10 @@ Rough CPU throughput on a 4-thread release build (compressed address hashing):
 - Rotor-Cuda is licensed under GPLv3.0
 
 ## Donation
-- BTC: bc1qdfaj5zyvfkr7wtzaa72vqxzztpl2tz7g5zk5ug
+- BTC: `bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8`
+- USDT (TRC20): `TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f`
+- EVM (Ethereum, BSC, Polygon, Arbitrum, Base): `0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a`
+- All networks and QR codes: https://pay.pxbt.app/u/0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a
 
 ## Disclaimer
   ALL THE CODES, PROGRAM AND INFORMATION ARE FOR EDUCATIONAL PURPOSES ONLY. USE IT AT YOUR OWN RISK. THE         DEVELOPER WILL NOT BE RESPONSIBLE FOR ANY LOSS, DAMAGE OR CLAIM ARISING FROM USING THIS PROGRAM.
