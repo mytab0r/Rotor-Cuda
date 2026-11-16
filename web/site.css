@@ -199,7 +199,7 @@ tr:last-child td { border-bottom: none; }
 .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
 .kv div { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--panel-2); }
 .kv dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
-.kv dd { margin: 4px 0 0; font-size: 15px; font-variant-numeric: tabular-nums; }
+.kv dd { margin: 4px 0 0; font-size: 15px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 .docs h2 { color: var(--text); font-size: 17px; text-transform: none; letter-spacing: 0; margin-top: 4px; }
 .docs h3 { margin-top: 18px; }
