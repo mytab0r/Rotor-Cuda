@@ -9,5 +9,5 @@
       with limits, target check, rate/ETA and disclaimers; CLI tests.
 
 ## 3. Docs and close-out
-- [ ] README section (limits, cost, authorized use), fmt/clippy/test, archive;
-      PR.
+- [x] README section (limits, cost, authorized use), fmt/clippy/test.
+- [ ] Merge the PR and archive the change.
