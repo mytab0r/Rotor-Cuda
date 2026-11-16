@@ -5,7 +5,7 @@
 // The wasm module has no imports. The test scans [1, 2) for the key-1 address
 // fixture and prints the scanned/found values from the result blob.
 
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const defaultPath = fileURLToPath(
@@ -25,6 +25,10 @@ const wasm = instance.exports;
 
 if (!(wasm.memory instanceof WebAssembly.Memory)) {
   throw new Error("wasm does not export memory");
+}
+
+if (typeof wasm.derive_report !== "function") {
+  throw new Error("wasm does not export derive_report");
 }
 
 const encoder = new TextEncoder();
@@ -203,5 +207,147 @@ console.log(
 );
 wasm.dealloc(rateStart, 32);
 wasm.dealloc(rateEnd, 32);
+
+// Derivation report ABI: a private key plus a curve in, UTF-8 JSON out.
+function readJson() {
+  const ptr = wasm.result_ptr();
+  const length = wasm.result_len();
+  const text = decoder.decode(
+    new Uint8Array(wasm.memory.buffer, ptr, length),
+  );
+  return JSON.parse(text);
+}
+
+const key1Ptr = writeScalar(1n);
+const key1Status = wasm.derive_report(key1Ptr, 0);
+if (key1Status !== 0) {
+  fail(key1Status, "derive_report(secp256k1)");
+}
+const key1Report = readJson();
+wasm.dealloc(key1Ptr, 32);
+
+const byId = Object.fromEntries(
+  key1Report.addresses.map((entry) => [entry.id, entry]),
+);
+const expectedAddresses = {
+  btc_p2pkh: KEY1,
+  btc_p2pkh_uncompressed: "1EHNa6Q4Jz2uvNExL497mE43ikXhwF6kZm",
+  btc_p2sh_p2wpkh: "3JvL6Ymt8MVWiCNHC7oWU6nLeHNJKLZGLN",
+  btc_p2wpkh: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+  btc_p2tr: "bc1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5sspknck9",
+  evm: "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+  tron: "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
+  solana: "",
+};
+if (key1Report.curve !== "secp256k1" || key1Report.priv_dec !== "1") {
+  throw new Error(`derive_report: unexpected header ${JSON.stringify(key1Report.curve)}`);
+}
+if (
+  key1Report.wif_compressed !==
+  "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn"
+) {
+  throw new Error("derive_report: unexpected WIF");
+}
+if (key1Report.addresses.length !== Object.keys(expectedAddresses).length) {
+  throw new Error(
+    `derive_report: got ${key1Report.addresses.length} addresses, want 8`,
+  );
+}
+for (const [id, address] of Object.entries(expectedAddresses)) {
+  if (byId[id]?.address !== address) {
+    throw new Error(
+      `derive_report ${id}: got ${byId[id]?.address ?? "missing"}, want ${address}`,
+    );
+  }
+}
+console.log(
+  `derive_report secp256k1: 8 addresses, p2tr=${byId.btc_p2tr.address}`,
+);
+
+// Odd-y public points: BIP341 lifts the internal key to even y before the
+// tweak. Expected addresses cross-checked with bitcoinjs-lib 6.
+for (const [key, expected] of [
+  [
+    6n,
+    {
+      address:
+        "bc1p4rsld9ryjhte00drc0r23r8ngd63xrzh5s4fvmy6q5yt70xzlsdqcuvtzv",
+      parity: "1",
+    },
+  ],
+  [
+    11n,
+    {
+      address:
+        "bc1pxy2wupspts5wl3ctseak4g7j42h6mumaqlq6zzrn6qesraqlqz7qk730p9",
+      parity: "0",
+    },
+  ],
+]) {
+  const ptr = writeScalar(key);
+  const status = wasm.derive_report(ptr, 0);
+  if (status !== 0) {
+    fail(status, `derive_report(key ${key})`);
+  }
+  const report = readJson();
+  wasm.dealloc(ptr, 32);
+  const p2tr = report.addresses.find((entry) => entry.id === "btc_p2tr");
+  if (p2tr?.address !== expected.address || p2tr?.steps?.parity !== expected.parity) {
+    throw new Error(
+      `derive_report key ${key} taproot: ${JSON.stringify(p2tr)}`,
+    );
+  }
+  console.log(
+    `derive_report key ${key} (odd y): p2tr=${p2tr.address} parity=${p2tr.steps.parity}`,
+  );
+}
+
+// ed25519 RFC8032 test vector.
+const edSeed = Uint8Array.from(
+  Buffer.from(
+    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "hex",
+  ),
+);
+const edPtr = wasm.alloc(32);
+memory().set(edSeed, edPtr);
+const edStatus = wasm.derive_report(edPtr, 1);
+if (edStatus !== 0) {
+  fail(edStatus, "derive_report(ed25519)");
+}
+const edReport = readJson();
+wasm.dealloc(edPtr, 32);
+const expectedEdPubkey =
+  "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
+const expectedSolana = "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z";
+if (
+  edReport.curve !== "ed25519" ||
+  edReport.ed_pubkey !== expectedEdPubkey ||
+  edReport.addresses.length !== 1 ||
+  edReport.addresses[0].id !== "solana" ||
+  edReport.addresses[0].address !== expectedSolana
+) {
+  throw new Error("derive_report: unexpected ed25519 report");
+}
+console.log(`derive_report ed25519: solana=${edReport.addresses[0].address}`);
+
+// Invalid keys are rejected with a nonzero status and an error message.
+const zeroPtr = wasm.alloc(32);
+memory().fill(0, zeroPtr, zeroPtr + 32);
+const zeroStatus = wasm.derive_report(zeroPtr, 0);
+if (zeroStatus === 0) {
+  throw new Error("derive_report accepted a zero secp256k1 key");
+}
+const zeroError = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.error_ptr(), wasm.error_len()),
+);
+if (zeroError.length === 0) {
+  throw new Error("derive_report rejection left the error buffer empty");
+}
+wasm.dealloc(zeroPtr, 32);
+console.log(`derive_report rejected zero key: ${zeroError}`);
+
+const artifactSize = (await stat(wasmPath)).size;
+console.log(`artifact=${artifactSize} bytes`);
 
 console.log("smoke ok");

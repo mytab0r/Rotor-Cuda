@@ -11,6 +11,10 @@
 //!
 //! Result blob of [`samples`]: little-endian `u32 count`, then per sample an
 //! `u32 len` and the sample bytes.
+//!
+//! Result blob of [`derive_report`]: the UTF-8 JSON derivation report of one
+//! private key (see [`derive`]); on error the status is nonzero and the error
+//! buffer describes the problem.
 
 #![allow(dead_code)]
 // the included parent modules expose more than this ABI uses
@@ -30,6 +34,9 @@ mod point;
 mod scalar;
 #[path = "../../../src/secp.rs"]
 mod secp;
+
+mod bech32;
+mod derive;
 
 use std::alloc::{Layout, alloc as rust_alloc, dealloc as rust_dealloc};
 use std::cell::UnsafeCell;
@@ -317,6 +324,30 @@ impl Session {
         OK
     }
 
+    /// Derive the full key/address report as UTF-8 JSON.
+    ///
+    /// `curve`: 0 secp256k1, 1 ed25519. On success the report is in `result`;
+    /// on failure `error` explains why and the status is nonzero.
+    pub fn derive_report(&mut self, key: &[u8; 32], curve: u32) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match derive::report(key, curve) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                if curve > 1 {
+                    ERR_UNSUPPORTED
+                } else {
+                    ERR_BAD_TARGET
+                }
+            }
+        }
+    }
+
     fn write_scan_result(&mut self, scanned: u64, found: Option<(Scalar, String)>) {
         let mut out = Vec::with_capacity(128);
         out.extend_from_slice(&scanned.to_le_bytes());
@@ -578,6 +609,23 @@ pub extern "C" fn samples(start_ptr: u32, offsets_ptr: u32, count: u32) -> u32 {
         .map(|chunk| u32::from_le_bytes(*chunk))
         .collect();
     session_mut().samples(&start, &offsets)
+}
+
+/// Derive the JSON key/address report for a 32-byte private key.
+///
+/// `curve`: 0 secp256k1, 1 ed25519. Returns 0 and stores UTF-8 JSON in the
+/// result buffer, or a nonzero status with the error buffer set.
+#[unsafe(no_mangle)]
+pub extern "C" fn derive_report(priv_ptr: u32, curve: u32) -> u32 {
+    let Some(bytes) = read_bytes(priv_ptr, 32) else {
+        session_mut().set_error("invalid private key pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let Ok(key) = <[u8; 32]>::try_from(bytes) else {
+        session_mut().set_error("private key must be 32 bytes");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().derive_report(&key, curve)
 }
 
 #[unsafe(no_mangle)]
@@ -894,5 +942,298 @@ mod tests {
         assert_eq!(samples.len(), 2);
         assert!(samples[0].iter().all(|&byte| byte == 0));
         assert_eq!(hex(&samples[1]), H160_1_CMP);
+    }
+
+    // -----------------------------------------------------------------------
+    // derive_report
+    // -----------------------------------------------------------------------
+
+    const KEY1_BYTES: [u8; 32] = {
+        let mut key = [0u8; 32];
+        key[31] = 1;
+        key
+    };
+
+    const CURVE_N: [u8; 32] = [
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xfe, 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b, 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36,
+        0x41, 0x41,
+    ];
+
+    fn key_bytes(value: u64) -> [u8; 32] {
+        let mut key = [0u8; 32];
+        key[24..].copy_from_slice(&value.to_be_bytes());
+        key
+    }
+
+    fn derive_value(key: &[u8; 32], curve: u32) -> serde_json::Value {
+        let mut session = Session::new();
+        assert_eq!(session.derive_report(key, curve), OK);
+        assert!(session.error.is_empty());
+        serde_json::from_slice(&session.result).expect("derive_report must emit valid JSON")
+    }
+
+    fn address<'a>(value: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
+        value["addresses"]
+            .as_array()
+            .expect("addresses array")
+            .iter()
+            .find(|entry| entry["id"] == id)
+            .unwrap_or_else(|| panic!("missing address entry {id}"))
+    }
+
+    const KEY1_PUB_COMPRESSED: &str =
+        "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+    const KEY1_PUB_UNCOMPRESSED: &str = "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8";
+
+    #[test]
+    fn derive_secp_key_one_matches_published_vectors() {
+        let value = derive_value(&KEY1_BYTES, 0);
+
+        assert_eq!(value["curve"], "secp256k1");
+        assert_eq!(
+            value["priv_hex"],
+            "0000000000000000000000000000000000000000000000000000000000000001"
+        );
+        assert_eq!(value["priv_dec"], "1");
+        assert_eq!(value["priv_bin"], format!("{}1", "0".repeat(255)));
+        assert_eq!(value["pubkey_compressed"], KEY1_PUB_COMPRESSED);
+        assert_eq!(value["pubkey_uncompressed"], KEY1_PUB_UNCOMPRESSED);
+        assert_eq!(
+            value["x"],
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        );
+        assert_eq!(
+            value["y"],
+            "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+        );
+        assert_eq!(value["ed_pubkey"], "");
+        assert_eq!(
+            value["wif_compressed"],
+            "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn"
+        );
+        assert_eq!(
+            value["wif_uncompressed"],
+            "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf"
+        );
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 8);
+
+        let compressed = address(&value, "btc_p2pkh");
+        assert_eq!(compressed["address"], KEY1_ADDR);
+        assert_eq!(compressed["steps"]["pubkey"], KEY1_PUB_COMPRESSED);
+        assert_eq!(compressed["steps"]["hash160"], H160_1_CMP);
+        assert_eq!(compressed["steps"]["payload"], format!("00{H160_1_CMP}"));
+        assert_eq!(compressed["steps"]["checksum"], "510d1634");
+        assert_eq!(compressed["steps"]["base58"], KEY1_ADDR);
+
+        let uncompressed = address(&value, "btc_p2pkh_uncompressed");
+        assert_eq!(uncompressed["address"], KEY1_ADDR_UNC);
+        assert_eq!(uncompressed["steps"]["pubkey"], KEY1_PUB_UNCOMPRESSED);
+        assert_eq!(uncompressed["steps"]["hash160"], H160_1_UNC);
+        assert_eq!(uncompressed["steps"]["payload"], format!("00{H160_1_UNC}"));
+        assert_eq!(uncompressed["steps"]["checksum"], "0074ffe0");
+        assert_eq!(uncompressed["steps"]["base58"], KEY1_ADDR_UNC);
+
+        let p2sh = address(&value, "btc_p2sh_p2wpkh");
+        assert_eq!(p2sh["address"], "3JvL6Ymt8MVWiCNHC7oWU6nLeHNJKLZGLN");
+        assert_eq!(p2sh["steps"]["redeem"], format!("0014{H160_1_CMP}"));
+        assert_eq!(
+            p2sh["steps"]["script_hash"],
+            "bcfeb728b584253d5f3f70bcb780e9ef218a68f4"
+        );
+        assert_eq!(
+            p2sh["steps"]["payload"],
+            "05bcfeb728b584253d5f3f70bcb780e9ef218a68f4"
+        );
+        assert_eq!(p2sh["steps"]["checksum"], "923b88af");
+
+        let p2wpkh = address(&value, "btc_p2wpkh");
+        assert_eq!(
+            p2wpkh["address"],
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+        );
+        assert_eq!(p2wpkh["steps"]["hrp"], "bc");
+        assert_eq!(p2wpkh["steps"]["witness_version"], "0");
+        assert_eq!(p2wpkh["steps"]["program"], H160_1_CMP);
+        assert_eq!(p2wpkh["steps"]["checksum"], "v8f3t4");
+
+        // Taproot key 1, independently reproduced with bitcoinjs-lib.
+        let p2tr = address(&value, "btc_p2tr");
+        assert_eq!(
+            p2tr["address"],
+            "bc1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5sspknck9"
+        );
+        assert_eq!(p2tr["steps"]["internal_x"], value["x"]);
+        assert_eq!(
+            p2tr["steps"]["tweak"],
+            "3cf5216d476a5e637bf0da674e50ddf55c403270dd36494dfcca438132fa30e7"
+        );
+        assert_eq!(
+            p2tr["steps"]["output_x"],
+            "da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d21"
+        );
+        assert_eq!(p2tr["steps"]["parity"], "1");
+        assert_eq!(p2tr["steps"]["program"], p2tr["steps"]["output_x"]);
+        assert_eq!(p2tr["steps"]["checksum"], "pknck9");
+
+        let evm = address(&value, "evm");
+        assert_eq!(evm["address"], "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf");
+        assert_eq!(evm["steps"]["last20"], ETH1);
+        let keccak = evm["steps"]["keccak"].as_str().unwrap();
+        assert_eq!(keccak.len(), 64);
+        assert!(keccak.ends_with(ETH1));
+
+        let tron = address(&value, "tron");
+        assert_eq!(tron["address"], "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC");
+        assert_eq!(tron["steps"]["payload"], format!("41{ETH1}"));
+        assert_eq!(tron["steps"]["checksum"], "b164fb1f");
+        assert_eq!(tron["steps"]["base58"], tron["address"]);
+
+        let solana = address(&value, "solana");
+        assert_eq!(solana["address"], "");
+        assert_eq!(solana["steps"]["pubkey"], "");
+    }
+
+    #[test]
+    fn derive_ed25519_rfc8032_vector() {
+        let seed: [u8; 32] =
+            hex_to_bytes("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60")
+                .unwrap();
+        let value = derive_value(&seed, 1);
+
+        assert_eq!(value["curve"], "ed25519");
+        assert_eq!(
+            value["ed_pubkey"],
+            "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        );
+        assert_eq!(value["pubkey_compressed"], "");
+        assert_eq!(value["pubkey_uncompressed"], "");
+        assert_eq!(value["x"], "");
+        assert_eq!(value["y"], "");
+        assert_eq!(value["wif_compressed"], "");
+        assert_eq!(value["wif_uncompressed"], "");
+        assert_eq!(
+            value["priv_hex"],
+            "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+        );
+
+        let addresses = value["addresses"].as_array().unwrap();
+        assert_eq!(addresses.len(), 1);
+        assert_eq!(addresses[0]["id"], "solana");
+        assert_eq!(addresses[0]["label"], "Solana (ed25519)");
+        assert_eq!(
+            addresses[0]["address"],
+            "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z"
+        );
+        assert_eq!(
+            addresses[0]["steps"]["pubkey"],
+            "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        );
+    }
+
+    #[test]
+    fn derive_taproot_lifts_odd_y_internal_keys() {
+        // Keys 6 and 11 have odd-y public points, so BIP341's lift_x negates
+        // them before the tweak. Expected addresses and outputs were
+        // reproduced independently with bitcoinjs-lib 6.
+        let key6 = derive_value(&key_bytes(6), 0);
+        let p2tr = address(&key6, "btc_p2tr");
+        assert_eq!(
+            p2tr["address"],
+            "bc1p4rsld9ryjhte00drc0r23r8ngd63xrzh5s4fvmy6q5yt70xzlsdqcuvtzv"
+        );
+        assert_eq!(
+            p2tr["steps"]["internal_x"],
+            "fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556"
+        );
+        assert_eq!(
+            p2tr["steps"]["output_x"],
+            "a8e1f6946495d797bda3c3c6a88cf34375130c57a42a966c9a0508bf3cc2fc1a"
+        );
+        assert_eq!(p2tr["steps"]["parity"], "1");
+
+        let key11 = derive_value(&key_bytes(11), 0);
+        let p2tr = address(&key11, "btc_p2tr");
+        assert_eq!(
+            p2tr["address"],
+            "bc1pxy2wupspts5wl3ctseak4g7j42h6mumaqlq6zzrn6qesraqlqz7qk730p9"
+        );
+        assert_eq!(
+            p2tr["steps"]["internal_x"],
+            "774ae7f858a9411e5ef4246b70c65aac5649980be5c17891bbec17895da008cb"
+        );
+        assert_eq!(
+            p2tr["steps"]["output_x"],
+            "3114ee06015c28efc70b867b6aa3d2aaafadf37d07c1a10873d03301f41f00bc"
+        );
+        assert_eq!(p2tr["steps"]["parity"], "0");
+    }
+
+    #[test]
+    fn derive_priv_dec_and_bin_for_a_wide_key() {
+        let key: [u8; 32] =
+            hex_to_bytes("000000000000000000000000000000000123456789abcdef0123456789abcdef")
+                .unwrap();
+        let value = derive_value(&key, 0);
+        assert_eq!(value["priv_dec"], "1512366075204170929049582354406559215");
+        assert_eq!(
+            value["priv_bin"],
+            "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001001000110100010101100111100010011010101111001101111011110000000100100011010001010110011110001001101010111100110111101111"
+        );
+    }
+
+    #[test]
+    fn derive_report_schema_shape() {
+        for (key, curve) in [(KEY1_BYTES, 0), (KEY1_BYTES, 1)] {
+            let value = derive_value(&key, curve);
+            let top = value.as_object().expect("top-level object");
+            assert_eq!(top.len(), 12);
+            for field in [
+                "curve",
+                "priv_hex",
+                "priv_dec",
+                "priv_bin",
+                "pubkey_compressed",
+                "pubkey_uncompressed",
+                "x",
+                "y",
+                "ed_pubkey",
+                "wif_compressed",
+                "wif_uncompressed",
+                "addresses",
+            ] {
+                assert!(top.contains_key(field), "missing top-level field {field}");
+            }
+            for entry in value["addresses"].as_array().unwrap() {
+                let object = entry.as_object().unwrap();
+                assert_eq!(object.len(), 4);
+                for field in ["id", "label", "address", "steps"] {
+                    assert!(object.contains_key(field), "missing address field {field}");
+                }
+                assert!(entry["steps"].is_object());
+            }
+        }
+    }
+
+    #[test]
+    fn derive_rejects_invalid_secp_keys_and_curves() {
+        let mut session = Session::new();
+
+        assert_eq!(session.derive_report(&[0u8; 32], 0), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+
+        assert_eq!(session.derive_report(&CURVE_N, 0), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+
+        let mut n_minus_one = CURVE_N;
+        n_minus_one[31] -= 1;
+        assert_eq!(session.derive_report(&n_minus_one, 0), OK);
+        assert!(session.error.is_empty());
+
+        assert_eq!(session.derive_report(&KEY1_BYTES, 2), ERR_UNSUPPORTED);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
     }
 }
