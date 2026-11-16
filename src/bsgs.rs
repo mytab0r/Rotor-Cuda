@@ -11,12 +11,14 @@
 //! - The span is read in full instead of from its low 64 bits; a span that does
 //!   not fit in `u128` is rejected loudly instead of silently searching garbage.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use crate::cli::Config;
+use crate::cli::{Config, U256};
+use crate::coordinator::client::CoordinatorClient;
 #[cfg(feature = "gpu")]
 use crate::field::Fe;
 use crate::point::{Affine, Jacobian, batch_to_affine};
@@ -76,7 +78,8 @@ pub struct BsgsResult {
     pub found: bool,
     /// Recovered scalar; [`Scalar::ZERO`] unless `found`.
     pub key: Scalar,
-    /// Giant iterations actually performed (`i + 1`, matching the C++ loop).
+    /// Absolute giant index + 1 of the last step examined (resumes count from
+    /// the start index, not from zero).
     pub giant_steps: u64,
     pub baby_size: u64,
     /// Identity of the table this run built.
@@ -86,14 +89,20 @@ pub struct BsgsResult {
 }
 
 /// Baby-step table shared by the CPU and GPU giant-step drivers.
-struct BabyTable {
-    baby_size: u64,
-    map: HashMap<u64, u32>,
-    manifest: TableManifest,
+///
+/// The map and manifest are exposed so a coordinator client can store the
+/// table identity and resume the giant walk without rebuilding it.
+#[derive(Clone, Debug)]
+pub struct BsgsTable {
+    /// Inclusive range span (`k_end - k_start`) as a `u128`.
+    pub span: u128,
+    pub baby_size: u64,
+    pub map: HashMap<u64, u32>,
+    pub manifest: TableManifest,
 }
 
-/// Build the baby table for `[k_start, k_end]` and return the range span.
-fn build_baby(k_start: &Scalar, k_end: &Scalar, m: u64) -> Result<(u128, BabyTable), String> {
+/// Build the baby table for `[k_start, k_end]`.
+pub fn build_table(k_start: &Scalar, k_end: &Scalar, m: u64) -> Result<BsgsTable, String> {
     let span_scalar = k_end.sub(k_start);
     let span =
         scalar_to_u128(&span_scalar).ok_or_else(|| "range too large for CPU-BSGS".to_string())?;
@@ -127,14 +136,12 @@ fn build_baby(k_start: &Scalar, k_end: &Scalar, m: u64) -> Result<(u128, BabyTab
         table_checksum: table_checksum(&folds),
     };
 
-    Ok((
+    Ok(BsgsTable {
         span,
-        BabyTable {
-            baby_size,
-            map,
-            manifest,
-        },
-    ))
+        baby_size,
+        map,
+        manifest,
+    })
 }
 
 /// Solve `target = k*G` for `k` in `[k_start, k_end]` inclusive.
@@ -142,31 +149,54 @@ fn build_baby(k_start: &Scalar, k_end: &Scalar, m: u64) -> Result<(u128, BabyTab
 /// `m` is the baby-step count; `0` selects `isqrt(span + 1) + 1`. Deterministic
 /// and single-threaded. On failure `found` is `false` and `key` is zero.
 pub fn solve(target: &Affine, k_start: &Scalar, k_end: &Scalar, m: u64) -> BsgsResult {
-    // 1-3. Span, baby table, and its versioned identity.
-    let (span, baby) = match build_baby(k_start, k_end, m) {
-        Ok(value) => value,
+    let table = match build_table(k_start, k_end, m) {
+        Ok(table) => table,
         Err(message) => return failure(&message),
     };
-    let baby_size = baby.baby_size;
-    let manifest = baby.manifest;
-    let map = baby.map;
+    solve_with_table(target, k_start, k_end, &table, 0, &mut |_, _| true)
+}
 
-    // 4. Giant walk. Q = target - k_start*G.
-    let generator = secp::g();
-    let stride = secp::mul_g(&Scalar::from_u64(baby_size)); // S = m*G
-    let neg_stride = stride.neg();
-    let start_point = secp::mul(&generator, k_start);
-    let q = match start_point {
-        Some(point) => Jacobian::from_affine(target).add_affine(&point.neg()),
-        None => Jacobian::from_affine(target), // k_start == 0
-    };
+/// Walk the giant steps of an already built table, starting at `start_index`.
+///
+/// `start_index` is the first giant index still to process; values above the
+/// last index are clamped. After every normalization chunk `progress` receives
+/// the table manifest and the next unprocessed index; returning `false` stops
+/// the walk (used to honor a lost coordinator lease). Ctrl-C also stops after
+/// one final `progress` call. `giant_steps` reports the absolute index + 1.
+pub fn solve_with_table(
+    target: &Affine,
+    k_start: &Scalar,
+    _k_end: &Scalar,
+    table: &BsgsTable,
+    start_index: u128,
+    progress: &mut dyn FnMut(&TableManifest, u128) -> bool,
+) -> BsgsResult {
+    let span = table.span;
+    let baby_size = table.baby_size;
+    let manifest = table.manifest.clone();
 
     let giants = match span
         .checked_div(u128::from(baby_size))
         .and_then(|value| value.checked_add(1))
     {
         Some(value) if value < u128::from(u64::MAX) => value,
-        _ => return failure("range too large for CPU-BSGS"),
+        _ => return failure_with_manifest("range too large for CPU-BSGS", manifest),
+    };
+    let mut index = start_index.min(giants);
+
+    // Giant walk. Q = target - (k_start + start_index*baby_size)*G.
+    let generator = secp::g();
+    let stride = secp::mul_g(&Scalar::from_u64(baby_size)); // S = m*G
+    let neg_stride = stride.neg();
+    let offset = match index.checked_mul(u128::from(baby_size)) {
+        Some(value) => add_u128(k_start, value),
+        None => return failure_with_manifest("range too large for CPU-BSGS", manifest),
+    };
+    let q = if offset.is_zero() {
+        Jacobian::from_affine(target)
+    } else {
+        let start_point = secp::mul(&generator, &offset).expect("non-zero offset is finite");
+        Jacobian::from_affine(target).add_affine(&start_point.neg())
     };
 
     let mut result = BsgsResult {
@@ -179,7 +209,6 @@ pub fn solve(target: &Affine, k_start: &Scalar, k_end: &Scalar, m: u64) -> BsgsR
     };
 
     let mut giant_steps = 0u64;
-    let mut index: u128 = 0;
     let mut current = q;
     'walk: while index <= giants {
         // Collect a walk chunk so normalization costs one inversion per chunk.
@@ -211,7 +240,7 @@ pub fn solve(target: &Affine, k_start: &Scalar, k_end: &Scalar, m: u64) -> BsgsR
                 }
                 Some(point) => {
                     let fold = fnv1a64(&point.x.to_bytes_be());
-                    if let Some(&j) = map.get(&fold) {
+                    if let Some(&j) = table.map.get(&fold) {
                         // R ?= j*G -> k' = i*m + j.
                         if let Some(kp) = giant.and_then(|base| base.checked_add(u128::from(j)))
                             && kp <= span
@@ -227,6 +256,13 @@ pub fn solve(target: &Affine, k_start: &Scalar, k_end: &Scalar, m: u64) -> BsgsR
                     }
                 }
             }
+        }
+
+        // Report the next unprocessed index; false (lease lost) or Ctrl-C
+        // stops the walk. The final call doubles as the STOP checkpoint.
+        let keep_going = progress(&table.manifest, index);
+        if !keep_going || crate::engine::stop_requested() {
+            break;
         }
     }
 
@@ -252,12 +288,15 @@ pub fn solve_gpu(
     m: u64,
     device: i32,
 ) -> BsgsResult {
-    let (span, baby) = match build_baby(k_start, k_end, m) {
-        Ok(value) => value,
+    let BsgsTable {
+        span,
+        baby_size,
+        map,
+        manifest,
+    } = match build_table(k_start, k_end, m) {
+        Ok(table) => table,
         Err(message) => return failure(&message),
     };
-    let baby_size = baby.baby_size;
-    let manifest = baby.manifest;
 
     // Q = target - k_start*G, exactly as in `solve`.
     let s = secp::mul_g(&Scalar::from_u64(baby_size)); // S = m*G
@@ -342,7 +381,7 @@ pub fn solve_gpu(
         // GPU limbs are canonical little-endian; rebuild the 32 big-endian
         // bytes the CPU fold expects.
         let x_bytes = x_bytes_from_limbs(&hits.x[index * 4..index * 4 + 4]);
-        let Some(&j) = baby.map.get(&fnv1a64(&x_bytes)) else {
+        let Some(&j) = map.get(&fnv1a64(&x_bytes)) else {
             continue;
         };
 
@@ -453,7 +492,13 @@ pub fn run_cli(config: &Config) -> Result<i32, String> {
     let end = Scalar::from_bytes_be(&range.end.0)
         .ok_or_else(|| "--range must be below the curve order".to_string())?;
 
-    let backend = if config.gpu { "GPU-BSGS" } else { "CPU-BSGS" };
+    let backend = if config.coordinator.is_some() {
+        "COORD-BSGS"
+    } else if config.gpu {
+        "GPU-BSGS"
+    } else {
+        "CPU-BSGS"
+    };
     println!("\n  Rotor-Cuda v{}", crate::cli::RELEASE);
     println!("  SEARCH MODE  : BSGS (pubkey -> scalar)");
     println!("  BACKEND      : {backend}");
@@ -461,25 +506,37 @@ pub fn run_cli(config: &Config) -> Result<i32, String> {
     println!("  RANGE        : {} : {}", hex_trim(&start), hex_trim(&end));
 
     let started = Instant::now();
-    #[cfg(feature = "gpu")]
-    let result = if config.gpu {
-        solve_gpu(
-            &target,
-            &start,
-            &end,
-            0,
-            config.gpu_ids.first().copied().unwrap_or(0),
-        )
+    let (result, remote) = if config.coordinator.is_some() {
+        let (result, job_id, client) = run_coordinator_search(config, &target, &start, &end)?;
+        (result, Some((client, job_id)))
     } else {
-        solve(&target, &start, &end, 0)
-    };
-    #[cfg(not(feature = "gpu"))]
-    let result = if config.gpu {
-        return Err(
-            "GPU support is not compiled into this binary; rebuild with --features gpu".to_string(),
-        );
-    } else {
-        solve(&target, &start, &end, 0)
+        #[cfg(feature = "gpu")]
+        {
+            if config.gpu {
+                (
+                    solve_gpu(
+                        &target,
+                        &start,
+                        &end,
+                        0,
+                        config.gpu_ids.first().copied().unwrap_or(0),
+                    ),
+                    None,
+                )
+            } else {
+                (solve(&target, &start, &end, 0), None)
+            }
+        }
+        #[cfg(not(feature = "gpu"))]
+        {
+            if config.gpu {
+                return Err(
+                    "GPU support is not compiled into this binary; rebuild with --features gpu"
+                        .to_string(),
+                );
+            }
+            (solve(&target, &start, &end, 0), None)
+        }
     };
     println!(
         "  [{backend}] GIANT STEPS: {}   BABY SIZE: {}   ({:.1}s)",
@@ -498,6 +555,11 @@ pub fn run_cli(config: &Config) -> Result<i32, String> {
     }
 
     let key = hex_trim(&result.key);
+    if let Some((client, job_id)) = &remote
+        && let Err(err) = client.submit_result(job_id, &result.key.to_hex())
+    {
+        eprintln!("  Coordinator: cannot submit the found key: {err}");
+    }
     println!("\n  =====> KEY FOUND: {key}");
 
     let output = &config.output_file;
@@ -512,13 +574,109 @@ pub fn run_cli(config: &Config) -> Result<i32, String> {
     Ok(0)
 }
 
+/// Coordinator-backed BSGS: find the matching job, build the table once,
+/// resume from the server's giant index when the manifest is compatible, and
+/// post the resume point every few seconds.
+fn run_coordinator_search(
+    config: &Config,
+    target: &Affine,
+    start: &Scalar,
+    end: &Scalar,
+) -> Result<(BsgsResult, String, CoordinatorClient), String> {
+    let url = config
+        .coordinator
+        .as_deref()
+        .ok_or_else(|| "coordinator mode requires --coordinator URL".to_string())?;
+    let token = config
+        .token
+        .clone()
+        .or_else(|| {
+            std::env::var("ROTOR_COORD_TOKEN")
+                .ok()
+                .filter(|t| !t.is_empty())
+        })
+        .ok_or_else(|| "coordinator mode requires --token or ROTOR_COORD_TOKEN".to_string())?;
+    let client_id = config
+        .client_id
+        .clone()
+        .unwrap_or_else(crate::engine::default_client_id);
+    let client = CoordinatorClient::new(url, &token, &client_id);
+
+    let range = config
+        .range
+        .ok_or_else(|| "BSGS needs --range START:END".to_string())?;
+    let jobs = client.jobs()?;
+    let job = jobs
+        .iter()
+        .find(|job| {
+            job.mode == "bsgs"
+                && U256::from_hex(&job.start).ok() == Some(range.start)
+                && U256::from_hex(&job.end).ok() == Some(range.end)
+                && job.target.as_deref().is_some_and(|text| {
+                    let mut compressed = true;
+                    secp::parse_pubkey_hex(text, &mut compressed)
+                        .is_ok_and(|point| point == *target)
+                })
+        })
+        .ok_or_else(|| {
+            "no matching coordinator job for this target/range; create it via the API or dashboard"
+                .to_string()
+        })?;
+
+    let table = build_table(start, end, 0)?;
+    let giants = table
+        .span
+        .checked_div(u128::from(table.baby_size))
+        .and_then(|value| value.checked_add(1))
+        .unwrap_or(u128::MAX);
+
+    let start_index = match client.bsgs_get(&job.id) {
+        Ok(Some(remote)) if remote.manifest.compatible(&table.manifest) => {
+            u128::from(remote.giant_index).min(giants)
+        }
+        Ok(_) => 0,
+        Err(err) => {
+            eprintln!("  Coordinator: cannot read BSGS state: {err}");
+            0
+        }
+    };
+
+    crate::engine::prepare_ctrl_c();
+
+    let mut last_put = Instant::now();
+    let last_index = Cell::new(start_index);
+    let mut progress = |manifest: &TableManifest, index: u128| -> bool {
+        last_index.set(index);
+        if last_put.elapsed() >= Duration::from_secs(5) {
+            last_put = Instant::now();
+            if let Err(err) = client.bsgs_put(&job.id, manifest, index as u64) {
+                eprintln!("  Coordinator: cannot save BSGS state: {err}");
+            }
+        }
+        !crate::engine::stop_requested()
+    };
+
+    let result = solve_with_table(target, start, end, &table, start_index, &mut progress);
+
+    // Always leave the latest resume point on the server, even for a short run.
+    if let Err(err) = client.bsgs_put(&job.id, &table.manifest, last_index.get() as u64) {
+        eprintln!("  Coordinator: cannot save BSGS state: {err}");
+    }
+
+    Ok((result, job.id.clone(), client))
+}
+
 fn failure(message: &str) -> BsgsResult {
+    failure_with_manifest(message, TableManifest::default())
+}
+
+fn failure_with_manifest(message: &str, manifest: TableManifest) -> BsgsResult {
     BsgsResult {
         found: false,
         key: Scalar::ZERO,
         giant_steps: 0,
-        baby_size: 0,
-        manifest: TableManifest::default(),
+        baby_size: manifest.baby_size,
+        manifest,
         error: Some(message.to_string()),
     }
 }

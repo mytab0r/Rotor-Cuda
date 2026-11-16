@@ -24,6 +24,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use crate::base58;
 use crate::checkpoint;
 use crate::cli::{self, Coin, CompMode, Config, SearchMode, U256};
+use crate::coordinator::client::{CoordinatorClient, JobInfo};
 use crate::filter::TargetSet;
 use crate::point::{Affine, Jacobian, batch_to_affine};
 use crate::scalar::Scalar;
@@ -128,8 +129,9 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
     let target = build_target(config, mode)?;
 
     // `Rotor.cpp:213-255`: sequential runs with `-n` resume from the stored
-    // per-worker counts and otherwise leave a START.bat behind.
-    let checkpoint_mode = config.next > 0 && config.rkey == 0;
+    // per-worker counts and otherwise leave a START.bat behind. A coordinator
+    // run keeps its progress on the server, so local checkpoints are off.
+    let checkpoint_mode = config.next > 0 && config.rkey == 0 && config.coordinator.is_none();
     let checkpoint_dir = checkpoint_dir.unwrap_or_else(|| Path::new("."));
     let continue_path = checkpoint_dir.join("Rotor-Cuda_Continue.bat");
     let start_path = checkpoint_dir.join("Rotor-Cuda_START.bat");
@@ -263,7 +265,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
             let shared = &shared;
             let done = &done;
             Some(scope.spawn(move || {
-                monitor(shared, started, start, total, threads, done, random);
+                monitor(shared, started, start, total, threads, done, random, false);
             }))
         } else {
             None
@@ -307,6 +309,407 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
         found: shared.found.load(AtomicOrdering::SeqCst),
         scanned: shared.scanned.load(AtomicOrdering::SeqCst),
     })
+}
+
+/// Default coordinator client id: the machine name plus the process id.
+pub(crate) fn default_client_id() -> String {
+    let host = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "rotor".to_owned());
+    format!("{host}-{}", std::process::id())
+}
+
+/// The coordinator job description every worker matches against.
+struct CoordinatorContext<'a> {
+    client: &'a CoordinatorClient,
+    target: &'a Target,
+    modes: &'a [bool],
+    coin: Coin,
+    shared: &'a Shared,
+    mode_text: &'a str,
+    coin_text: &'a str,
+    /// Single-target modes pass the operand so the server can match the job.
+    lease_target: Option<&'a str>,
+    start_text: &'a str,
+    end_text: &'a str,
+    range_start: U256,
+    range_end: U256,
+}
+
+/// Like [`run`], but leases disjoint key chunks from a coordinator instead of
+/// splitting the range locally. Progress lives on the server, so checkpoints
+/// (`-n`) are not written.
+pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
+    let mode = config.mode.ok_or_else(|| {
+        "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
+    })?;
+    let supported = matches!(
+        (config.coin, mode),
+        (
+            Coin::Btc,
+            SearchMode::Address | SearchMode::Addresses | SearchMode::XPoint | SearchMode::XPoints
+        ) | (Coin::Eth, SearchMode::Address | SearchMode::Addresses)
+    );
+    if !supported {
+        return Err(match config.coin {
+            Coin::Eth => "xpoint modes are not supported for ETH".to_owned(),
+            Coin::Btc => "unsupported search mode for the CPU engine".to_owned(),
+        });
+    }
+    if matches!(mode, SearchMode::Addresses | SearchMode::XPoints) && !config.operands.is_empty() {
+        return Err("Wrong search mode provided for multiple addresses or xpoints".to_owned());
+    }
+    if config.threads == 0 {
+        return Err("no CPU threads requested".to_owned());
+    }
+
+    let range = config
+        .range
+        .ok_or_else(|| "--range START:END is required for search modes".to_owned())?;
+    let start = Split::from_u256(&range.start);
+    let end = Split::from_u256(&range.end);
+    if end < start {
+        return Err("--range END must be >= START".to_owned());
+    }
+    if Scalar::from_bytes_be(&range.end.0).is_none() {
+        return Err("--range END must be below the secp256k1 curve order n".to_owned());
+    }
+
+    let target = build_target(config, mode)?;
+
+    let url = config
+        .coordinator
+        .as_deref()
+        .ok_or_else(|| "coordinator mode requires --coordinator URL".to_owned())?;
+    let token = config
+        .token
+        .clone()
+        .or_else(|| {
+            std::env::var("ROTOR_COORD_TOKEN")
+                .ok()
+                .filter(|t| !t.is_empty())
+        })
+        .ok_or_else(|| "coordinator mode requires --token or ROTOR_COORD_TOKEN".to_owned())?;
+    let client_id = config.client_id.clone().unwrap_or_else(default_client_id);
+    let client = CoordinatorClient::new(url, &token, &client_id);
+
+    let file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&config.output_file)
+        .map_err(|err| format!("failed to open {} for writing: {err}", config.output_file))?;
+
+    print_banner(config, mode, start, end, "CPU");
+
+    let modes: &[bool] = if config.coin == Coin::Eth {
+        &[false]
+    } else {
+        match config.comp_mode {
+            CompMode::Compressed => &[true],
+            CompMode::Uncompressed => &[false],
+            CompMode::Both => &[true, false],
+        }
+    };
+
+    let threads = config.threads.max(1);
+    let shared = Shared {
+        output: Mutex::new(file),
+        found: AtomicU64::new(0),
+        scanned: AtomicU64::new(0),
+        // Exit only when the job is found/done or Ctrl-C stops us: a re-leased
+        // chunk must not trip the local hit counter.
+        stop_after: u64::MAX,
+        counters: (0..threads).map(|_| AtomicU64::new(0)).collect(),
+        error: Mutex::new(None),
+        epoch: AtomicU64::new(0),
+        rotations: AtomicU64::new(0),
+        random_key: Mutex::new("0".to_owned()),
+        epoch_len: 0,
+    };
+    let done = AtomicBool::new(false);
+    let started = Instant::now();
+
+    let mode_text = mode_name(mode);
+    let coin_text = if config.coin == Coin::Eth {
+        "eth"
+    } else {
+        "btc"
+    };
+    let lease_target = match mode {
+        SearchMode::Address | SearchMode::XPoint => config.operands.first().map(String::as_str),
+        _ => None,
+    };
+    let start_text = start.to_hex();
+    let end_text = end.to_hex();
+    let context = CoordinatorContext {
+        client: &client,
+        target: &target,
+        modes,
+        coin: config.coin,
+        shared: &shared,
+        mode_text,
+        coin_text,
+        lease_target,
+        start_text: &start_text,
+        end_text: &end_text,
+        range_start: range.start,
+        range_end: range.end,
+    };
+
+    prepare_ctrl_c();
+
+    thread::scope(|scope| {
+        let mut workers = Vec::with_capacity(threads);
+        for index in 0..threads {
+            let context = &context;
+            workers.push(scope.spawn(move || {
+                coordinator_worker(index as u64, context);
+            }));
+        }
+
+        let monitor = if config.display != 0 {
+            let shared = &shared;
+            let done = &done;
+            Some(scope.spawn(move || {
+                monitor(
+                    shared,
+                    started,
+                    Split::from_u64(0),
+                    Split::from_u64(0),
+                    threads,
+                    done,
+                    false,
+                    true,
+                );
+            }))
+        } else {
+            None
+        };
+
+        for handle in workers {
+            let _ = handle.join();
+        }
+        done.store(true, AtomicOrdering::SeqCst);
+        if let Some(handle) = monitor {
+            let _ = handle.join();
+        }
+    });
+
+    if config.display != 0 {
+        let _guard = shared.output.lock().expect("output mutex");
+        println!();
+    }
+
+    if let Some(error) = shared.error.lock().expect("error mutex").take() {
+        return Err(error);
+    }
+
+    Ok(SearchOutcome {
+        found: shared.found.load(AtomicOrdering::SeqCst),
+        scanned: shared.scanned.load(AtomicOrdering::SeqCst),
+    })
+}
+
+fn mode_name(mode: SearchMode) -> &'static str {
+    match mode {
+        SearchMode::Address => "address",
+        SearchMode::Addresses => "addresses",
+        SearchMode::XPoint => "xpoint",
+        SearchMode::XPoints => "xpoints",
+        SearchMode::Bsgs => "bsgs",
+    }
+}
+
+/// One coordinator client: lease a chunk, scan it, heartbeat, re-lease.
+fn coordinator_worker(thread_index: u64, context: &CoordinatorContext<'_>) {
+    let client = context.client;
+    let mut failures = 0u32;
+
+    loop {
+        if stop_requested() {
+            break;
+        }
+
+        let lease = match client.lease(
+            None,
+            context.lease_target,
+            context.mode_text,
+            context.coin_text,
+            context.start_text,
+            context.end_text,
+        ) {
+            Ok(Some(lease)) => {
+                failures = 0;
+                lease
+            }
+            Ok(None) => match client.jobs() {
+                Ok(jobs) => match jobs.iter().find(|job| job_matches(job, context)) {
+                    Some(job) if job.found || job.done => break,
+                    Some(_) => {
+                        // The job exists but every chunk is leased or done.
+                        thread::sleep(Duration::from_secs(2));
+                        continue;
+                    }
+                    None => {
+                        set_error(
+                            context.shared,
+                            "no matching coordinator job; create it first",
+                        );
+                        break;
+                    }
+                },
+                Err(err) => {
+                    if !record_failure(context.shared, &mut failures, &err) {
+                        break;
+                    }
+                    continue;
+                }
+            },
+            Err(err) => {
+                if !record_failure(context.shared, &mut failures, &err) {
+                    break;
+                }
+                continue;
+            }
+        };
+
+        let (Some(start), Some(end)) =
+            (Scalar::from_hex(&lease.start), Scalar::from_hex(&lease.end))
+        else {
+            set_error(
+                context.shared,
+                "coordinator lease returned a range outside the curve order",
+            );
+            break;
+        };
+        if end < start {
+            set_error(context.shared, "coordinator lease returned END below START");
+            break;
+        }
+
+        let lease_started = Instant::now();
+        let last_heartbeat = Mutex::new(Instant::now());
+        let aborted = AtomicBool::new(false);
+        let accepted = AtomicBool::new(false);
+
+        let on_batch = |scanned: u64| -> bool {
+            let mut last = last_heartbeat.lock().expect("heartbeat mutex");
+            if last.elapsed() < Duration::from_secs(5) {
+                return true;
+            }
+            let rate = scanned as f64 / lease_started.elapsed().as_secs_f64().max(1e-9);
+            match client.heartbeat(&lease.job_id, lease.chunk_index, scanned, rate, false) {
+                Ok(_) => {
+                    *last = Instant::now();
+                    true
+                }
+                Err(err) => {
+                    // The lease is gone (TTL or another client); re-lease.
+                    eprintln!("  Coordinator: heartbeat failed ({err}); requesting a new lease");
+                    aborted.store(true, AtomicOrdering::SeqCst);
+                    false
+                }
+            }
+        };
+        let on_hit = |key: &Scalar, _point: &Affine, _compressed: bool| match client
+            .submit_result(&lease.job_id, &key.to_hex())
+        {
+            Ok(()) => accepted.store(true, AtomicOrdering::SeqCst),
+            Err(err) => eprintln!("  Coordinator: cannot submit the found key: {err}"),
+        };
+
+        let scanned = scan_chunk(
+            &start,
+            &end,
+            thread_index,
+            context.target,
+            context.modes,
+            context.coin,
+            context.shared,
+            Some(&on_hit),
+            Some(&on_batch),
+        );
+
+        // An accepted result closes the job and drops its leases server-side, so
+        // a done-heartbeat would only report a false "lease lost".
+        if !accepted.load(AtomicOrdering::SeqCst)
+            && !aborted.load(AtomicOrdering::SeqCst)
+            && !stop_requested()
+        {
+            let rate = scanned as f64 / lease_started.elapsed().as_secs_f64().max(1e-9);
+            if let Err(err) =
+                client.heartbeat(&lease.job_id, lease.chunk_index, scanned, rate, true)
+            {
+                eprintln!("  Coordinator: cannot finish the leased chunk: {err}");
+            }
+        }
+        // The accepted result closed the job; leasing again could only fail.
+        if accepted.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+    }
+}
+
+fn job_matches(job: &JobInfo, context: &CoordinatorContext<'_>) -> bool {
+    job.mode == context.mode_text
+        && job.coin == context.coin_text
+        && U256::from_hex(&job.start).ok() == Some(context.range_start)
+        && U256::from_hex(&job.end).ok() == Some(context.range_end)
+        && match context.lease_target {
+            Some(wanted) => target_matches(
+                context.mode_text,
+                context.coin_text,
+                job.target.as_deref(),
+                wanted,
+            ),
+            None => true,
+        }
+}
+
+/// Compares a job target with the requested one, canonicalizing hex forms
+/// (the server stores X coordinates and ETH addresses as padded lowercase hex).
+fn target_matches(mode: &str, coin: &str, stored: Option<&str>, wanted: &str) -> bool {
+    let Some(stored) = stored else {
+        return false;
+    };
+    match (mode, coin) {
+        ("xpoint", _) | ("address", "eth") => normalize_hex(stored) == normalize_hex(wanted),
+        _ => stored.trim() == wanted.trim(),
+    }
+}
+
+fn normalize_hex(text: &str) -> String {
+    let text = text.trim();
+    let text = text
+        .strip_prefix("0x")
+        .or_else(|| text.strip_prefix("0X"))
+        .unwrap_or(text);
+    let text = text.trim_start_matches('0');
+    if text.is_empty() {
+        "0".to_owned()
+    } else {
+        text.to_ascii_lowercase()
+    }
+}
+
+fn record_failure(shared: &Shared, failures: &mut u32, err: &str) -> bool {
+    *failures += 1;
+    if *failures >= 5 {
+        set_error(
+            shared,
+            &format!("coordinator request failed after 5 attempts: {err}"),
+        );
+        return false;
+    }
+    thread::sleep(Duration::from_secs(u64::from(*failures)));
+    true
+}
+
+fn set_error(shared: &Shared, message: &str) {
+    let mut slot = shared.error.lock().expect("error mutex");
+    if slot.is_none() {
+        *slot = Some(message.to_owned());
+    }
 }
 
 /// Builds the search target for the requested coin/mode pair.
@@ -624,7 +1027,6 @@ fn worker(
     coin: Coin,
     shared: &Shared,
 ) {
-    let generator = secp::g();
     let batch_scalar = Scalar::from_u64(BATCH_SIZE as u64);
 
     let mut rng = thread_rng(thread_index);
@@ -668,47 +1070,7 @@ fn worker(
         };
         let count = remaining.unwrap_or(BATCH_SIZE as u64) as usize;
 
-        let mut points = Vec::with_capacity(count);
-        let mut next_point = point;
-        for _ in 0..count {
-            points.push(next_point);
-            next_point = next_point.add_affine(&generator);
-        }
-
-        for (offset, maybe_point) in batch_to_affine(&points).iter().enumerate() {
-            let Some(affine) = maybe_point else {
-                // Key 0 has no affine form; the C++ search never yields it.
-                continue;
-            };
-            let point_key = key.add_u64(offset as u64);
-
-            if target.is_xpoint() {
-                // `GetXBytes` compares the 32-byte big-endian X for both
-                // compression modes; emit one block per configured mode.
-                let x = affine.x.to_bytes_be();
-                if !target.matches(&x) {
-                    continue;
-                }
-                for &compressed in modes {
-                    shared.found.fetch_add(1, AtomicOrdering::SeqCst);
-                    emit(shared, &point_key, affine, compressed, coin);
-                }
-                continue;
-            }
-
-            for &compressed in modes {
-                let needle = if coin == Coin::Eth {
-                    secp::eth_address(affine)
-                } else {
-                    secp::hash160(affine, compressed)
-                };
-                if !target.matches(&needle) {
-                    continue;
-                }
-                shared.found.fetch_add(1, AtomicOrdering::SeqCst);
-                emit(shared, &point_key, affine, compressed, coin);
-            }
-        }
+        let next_point = scan_batch(&key, &point, count, target, modes, coin, shared, None);
 
         shared
             .scanned
@@ -728,6 +1090,148 @@ fn worker(
         key = key.add_u64(count as u64);
         point = next_point;
     }
+}
+
+/// Called for every emitted hit: key, point and compression mode.
+type HitCallback<'a> = &'a (dyn Fn(&Scalar, &Affine, bool) + Sync);
+/// Called after every batch with the keys scanned so far; `false` abandons the
+/// chunk (used when a coordinator lease is lost).
+type BatchCallback<'a> = &'a (dyn Fn(u64) -> bool + Sync);
+
+/// Scans one batch of `count` successive keys starting at `key`/`point`.
+///
+/// Generates the points, normalizes them with one batch inversion, checks every
+/// configured target mode, appends hits to the output file and calls `on_hit`
+/// for each emitted hit (used by the coordinator to POST results). Returns the
+/// point that follows the last scanned key so callers can chain batches.
+#[allow(clippy::too_many_arguments)]
+fn scan_batch(
+    key: &Scalar,
+    point: &Jacobian,
+    count: usize,
+    target: &Target,
+    modes: &[bool],
+    coin: Coin,
+    shared: &Shared,
+    on_hit: Option<HitCallback<'_>>,
+) -> Jacobian {
+    let generator = secp::g();
+    let mut points = Vec::with_capacity(count);
+    let mut next_point = *point;
+    for _ in 0..count {
+        points.push(next_point);
+        next_point = next_point.add_affine(&generator);
+    }
+
+    for (offset, maybe_point) in batch_to_affine(&points).iter().enumerate() {
+        let Some(affine) = maybe_point else {
+            // Key 0 has no affine form; the C++ search never yields it.
+            continue;
+        };
+        let point_key = key.add_u64(offset as u64);
+
+        if target.is_xpoint() {
+            // `GetXBytes` compares the 32-byte big-endian X for both
+            // compression modes; emit one block per configured mode.
+            let x = affine.x.to_bytes_be();
+            if !target.matches(&x) {
+                continue;
+            }
+            for &compressed in modes {
+                shared.found.fetch_add(1, AtomicOrdering::SeqCst);
+                emit(shared, &point_key, affine, compressed, coin);
+                if let Some(on_hit) = on_hit {
+                    on_hit(&point_key, affine, compressed);
+                }
+            }
+            continue;
+        }
+
+        for &compressed in modes {
+            let needle = if coin == Coin::Eth {
+                secp::eth_address(affine)
+            } else {
+                secp::hash160(affine, compressed)
+            };
+            if !target.matches(&needle) {
+                continue;
+            }
+            shared.found.fetch_add(1, AtomicOrdering::SeqCst);
+            emit(shared, &point_key, affine, compressed, coin);
+            if let Some(on_hit) = on_hit {
+                on_hit(&point_key, affine, compressed);
+            }
+        }
+    }
+
+    next_point
+}
+
+/// Scans the inclusive `[start, end]` chunk in batches, sharing the hit output
+/// with the other workers. `on_batch` runs after every batch (with the number
+/// of keys scanned so far in this chunk) and may return `false` to abandon the
+/// chunk, e.g. when the coordinator lease is lost.
+///
+/// Returns the number of keys actually scanned here.
+#[allow(clippy::too_many_arguments)]
+fn scan_chunk(
+    start: &Scalar,
+    end: &Scalar,
+    thread_index: u64,
+    target: &Target,
+    modes: &[bool],
+    coin: Coin,
+    shared: &Shared,
+    on_hit: Option<HitCallback<'_>>,
+    on_batch: Option<BatchCallback<'_>>,
+) -> u64 {
+    let batch_scalar = Scalar::from_u64(BATCH_SIZE as u64);
+    let mut key = *start;
+    let mut point = starting_point(&key);
+    let mut scanned = 0u64;
+
+    loop {
+        if STOP.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+
+        let difference = end.sub(&key);
+        let remaining = if difference < batch_scalar {
+            Some(scalar_low_u64(&difference) + 1)
+        } else {
+            None
+        };
+        let count = remaining.unwrap_or(BATCH_SIZE as u64) as usize;
+
+        let next_point = scan_batch(&key, &point, count, target, modes, coin, shared, on_hit);
+
+        shared
+            .scanned
+            .fetch_add(count as u64, AtomicOrdering::SeqCst);
+        if let Some(counter) = shared.counters.get(thread_index as usize) {
+            counter.fetch_add(count as u64, AtomicOrdering::SeqCst);
+        }
+        scanned += count as u64;
+
+        if let Some(on_batch) = on_batch
+            && !on_batch(scanned)
+        {
+            break;
+        }
+
+        // `Rotor.cpp:3266`: stop every worker once enough targets were found.
+        if shared.found.load(AtomicOrdering::SeqCst) >= shared.stop_after {
+            break;
+        }
+
+        if remaining.is_some() {
+            break;
+        }
+        key = key.add_u64(count as u64);
+        point = next_point;
+    }
+
+    scanned
 }
 
 fn starting_point(key: &Scalar) -> Jacobian {
@@ -835,6 +1339,7 @@ fn write_block(
 }
 
 /// Prints the progress line once per second while workers are alive.
+#[allow(clippy::too_many_arguments)]
 fn monitor(
     shared: &Shared,
     started: Instant,
@@ -843,6 +1348,7 @@ fn monitor(
     threads: usize,
     done: &AtomicBool,
     random: bool,
+    coordinator: bool,
 ) {
     let total = total.to_f64();
     let mut last = Instant::now();
@@ -880,6 +1386,18 @@ fn monitor(
                 to_time_str(elapsed),
                 rotations,
                 key,
+                found,
+                threads,
+                rate_text,
+                format_thousands(scanned),
+            );
+        } else if coordinator {
+            // Leased chunks are not contiguous from the local start, so there
+            // is no meaningful percentage or key to show.
+            let _guard = shared.output.lock().expect("output mutex");
+            print!(
+                "\r  [{}] [F: {}] [CPU {}: {}] [T: {}]  ",
+                to_time_str(elapsed),
                 found,
                 threads,
                 rate_text,
