@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261116i">
+<link rel="stylesheet" href="/site.css?v=20261117c">
 </head>
 <body>
 <header class="site-nav">
@@ -12,10 +12,9 @@
   <nav>
     <a href="/app" id="nav-app">App</a>
     <a href="/run" id="nav-run">Run</a>
-    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
     <a href="/docs" id="nav-docs">Docs</a>
     <a href="/key" class="active" id="nav-key">Keys</a>
-    <a href="/monitor" id="nav-monitor">Monitor</a>
   </nav>
 </header>
 
@@ -28,6 +27,7 @@
 
   <section class="card">
     <h2>Key input</h2>
+    <p id="key-url-notice" class="notice key-url-notice" role="note" hidden>This key is in the page URL. The derived addresses are checked against the Rotor registry so a registered owner can be warned; the key itself stays in this browser.</p>
     <form id="key-form" class="key-form" autocomplete="off">
       <label class="key-input-label">Private key
         <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
@@ -163,6 +163,6 @@
   </section>
 </main>
 
-<script src="/key.js?v=20261116i"></script>
+<script src="/key.js?v=20261117c"></script>
 </body>
 </html>

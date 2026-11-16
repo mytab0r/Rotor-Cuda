@@ -5,6 +5,7 @@
 
   var WASM_URL = '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
+  var URL_KEY_RE = /^\/key\/([0-9a-fA-F]{64})$/;
   var EVM_RPC_URLS = [
     'https://ethereum-rpc.publicnode.com',
     'https://eth.drpc.org',
@@ -103,7 +104,9 @@
     controllers: [],
     exposureTimer: null,
     exposureController: null,
-    exposurePostedGeneration: -1
+    exposurePostedGeneration: -1,
+    urlKey: null,
+    urlExposurePosted: false
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -136,6 +139,7 @@
   var btcHint = byId('btc-summary-hint');
   var exposureToggle = byId('exposure-toggle');
   var exposureStatus = byId('exposure-status');
+  var urlNotice = byId('key-url-notice');
 
   /* ------------------------------------------------------------ key parsing */
 
@@ -454,7 +458,8 @@
     renderAddresses(report);
     checkBtn.textContent = 'Check balances';
     checkBtn.disabled = !onlineToggle.checked || state.checking;
-    if (exposureToggle && exposureToggle.checked) scheduleExposure(report);
+    if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
+    else if (exposureToggle && exposureToggle.checked) scheduleExposure(report, false);
     else hideExposureStatus();
   }
 
@@ -1133,23 +1138,31 @@
     return out;
   }
 
-  function scheduleExposure(report) {
-    if (!exposureToggle || !exposureToggle.checked || !report) return;
+  function scheduleExposure(report, auto) {
+    if (!report) return;
     var generation = state.generation;
-    /* One request per derive: re-checking the box for the same report does
-     * not send a second list. */
-    if (state.exposurePostedGeneration === generation) return;
+    if (auto) {
+      /* One request per key: the URL key derives once even if the page is
+       * re-rendered by later interaction. */
+      if (state.urlExposurePosted || state.exposurePostedGeneration === generation) return;
+      state.urlExposurePosted = true;
+    } else {
+      if (!exposureToggle || !exposureToggle.checked) return;
+      /* One request per derive: re-checking the box for the same report does
+       * not send a second list. */
+      if (state.exposurePostedGeneration === generation) return;
+    }
     state.exposurePostedGeneration = generation;
     cancelExposure(false);
     hideExposureStatus();
     state.exposureTimer = window.setTimeout(function () {
       state.exposureTimer = null;
-      postExposure(report, generation);
+      postExposure(report, generation, auto);
     }, 350);
   }
 
-  async function postExposure(report, generation) {
-    if (generation !== state.generation || !exposureToggle.checked) return;
+  async function postExposure(report, generation, auto) {
+    if (generation !== state.generation || (!auto && !exposureToggle.checked)) return;
     var addresses = exposureAddresses(report).slice(0, 50);
     if (!addresses.length) return;
 
@@ -1173,7 +1186,7 @@
       var matched = data && typeof data.matched === 'number' ? data.matched : 0;
       showExposureStatus(matched + ' registered address(es) matched; their owners were warned.', 'ok');
     } catch (err) {
-      if (generation !== state.generation || !exposureToggle.checked) return;
+      if (generation !== state.generation || (!auto && !exposureToggle.checked)) return;
       if (err && err.name === 'AbortError') {
         showExposureStatus('Exposure check timed out.', 'err');
         return;
@@ -1287,6 +1300,22 @@
       '. Actual key arithmetic is over a finite field, not over the reals.';
   }
 
+  /* -------------------------------------------------------------- URL key */
+  /* A key in the path is already exposed to the browser history and any
+   * server logs, so derive it on load and run the registry check without an
+   * opt-in. Only the derived addresses leave this page. */
+  function initUrlKey() {
+    var match = URL_KEY_RE.exec(window.location.pathname);
+    if (!match) return;
+    state.urlKey = match[1].toLowerCase();
+    input.value = state.urlKey;
+    var curveParam = new URLSearchParams(window.location.search).get('curve');
+    curveSelect.value = curveParam === 'ed25519' ? '1' : '0';
+    renderCurve();
+    if (urlNotice) urlNotice.hidden = false;
+    deriveFromInput();
+  }
+
   /* ------------------------------------------------------------------ events */
 
   byId('key-form').addEventListener('submit', function (event) {
@@ -1343,7 +1372,7 @@
         cancelExposure(true);
         return;
       }
-      if (state.report) scheduleExposure(state.report);
+      if (state.report) scheduleExposure(state.report, false);
     });
   }
 
@@ -1360,4 +1389,5 @@
   summaryPlaceholder();
   rowsPlaceholder();
   renderCurve();
+  initUrlKey();
 })();
