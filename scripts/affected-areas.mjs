@@ -111,18 +111,18 @@ const hasPath = (predicate) => paths.some(predicate);
 const checklist = [];
 if (
   hasArea("site") &&
-  hasPath((p) => ["web/site.css", "web/site.js", "web/key.js"].includes(p))
+  hasPath((p) => ["apps/site/site.css", "apps/site/site.js", "apps/site/key.js"].includes(p))
 ) {
-  checklist.push("Site assets changed: bump ?v= in every web/*.html.");
+  checklist.push("Site assets changed: bump ?v= in every apps/site/*.html.");
 }
-if (hasArea("wasm-core") || hasPath((p) => p === "web/rotor_wasm.wasm")) {
+if (hasArea("wasm-core") || hasPath((p) => p === "apps/site/rotor_wasm.wasm")) {
   checklist.push(
-    "Wasm changed: run sh scripts/build-wasm.sh, both JS tests, and commit web/rotor_wasm.wasm.",
+    "Wasm changed: run sh scripts/build-wasm.sh, both JS tests, and commit apps/site/rotor_wasm.wasm.",
   );
 }
 if (hasArea("coordinator")) {
   checklist.push(
-    "Coordinator embeds web/** at compile time: run cargo build --release --bin rotor-coord and check served routes.",
+    "Coordinator embeds apps/site/** at compile time: run cargo build --release --bin rotor-coord and check served routes.",
   );
 }
 if (hasPath((p) => p === "build.rs" || p.startsWith("Rotor-Cuda/"))) {

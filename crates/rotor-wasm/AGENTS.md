@@ -9,15 +9,15 @@ cargo build -p rotor-wasm --target wasm32-unknown-unknown --release
 sh scripts/build-wasm.sh
 cargo test -p rotor-wasm
 node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
-node web/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
+node apps/site/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
 ```
 
 ## Gotchas
 
-- `scripts/build-wasm.sh` copies the artifact to `web/rotor_wasm.wasm`. That
+- `scripts/build-wasm.sh` copies the artifact to `apps/site/rotor_wasm.wasm`. That
   committed file is embedded by the coordinator and served to the browser, so
   rebuild and commit it in the same change.
-- Imports/exports are consumed by `web/key.js` and `web/rotor-worker.js`; keep
+- Imports/exports are consumed by `apps/site/key.js` and `apps/site/rotor-worker.js`; keep
   the protocol stable or coordinate with the site area.
 - Byte-level reproducibility of the committed wasm is not verified. Freshness
   is checked functionally: run both JS tests against the fresh artifact and the

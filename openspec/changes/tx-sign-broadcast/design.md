@@ -3,12 +3,12 @@
 ## D1. Architecture
 
 ```
-web/key.html (read-only explorer, unchanged default)
+apps/site/key.html (read-only explorer, unchanged default)
   + "Build and sign" tab (explicit gate, network selector, outputs, review)
         |
         |  postMessage (key + binary plan)
         v
-web/key-signer.js  (dedicated worker; holds the key while the tab lives)
+apps/site/key-signer.js  (dedicated worker; holds the key while the tab lives)
         |
         |  wasm ABI (no imports, no clock, sequential)
         v
@@ -185,7 +185,7 @@ the size/CFI cost is acceptable, use it for signing and keep the existing
 scanning path. If not, the hand-rolled path is acceptable only with the full
 vector suite, independent review, local verification and a documented
 limitation. The current wasm artifact is about 232 KiB
-(`web/rotor_wasm.wasm`), so there is some headroom, but `k256` can add
+(`apps/site/rotor_wasm.wasm`), so there is some headroom, but `k256` can add
 hundreds of KiB.
 
 ## D6. Address and script handling
@@ -368,8 +368,8 @@ Key custody:
 
 - The page never writes the key to the URL, history, `localStorage`,
   `sessionStorage`, IndexedDB, cookies, console or any request. This restates
-  `web/key.js:2` and extends it to the signing flow.
-- Recommended: a dedicated worker (`web/key-signer.js`) receives the 32-byte
+  `apps/site/key.js:2` and extends it to the signing flow.
+- Recommended: a dedicated worker (`apps/site/key-signer.js`) receives the 32-byte
   key once via `postMessage`, derives the public address report, and keeps the
   key only in worker memory. The page clears the password input and its own
   copy immediately after the handoff. The worker exposes only "derive" and
@@ -390,9 +390,9 @@ Key custody:
   broadcast calls, and none of them includes the key.
 - The password input uses `autocomplete="off"`, `spellcheck="false"`; the page
   refuses to run in an insecure context (WebCrypto requirement, already the
-  pattern in `web/key.js:183-185`).
+  pattern in `apps/site/key.js:183-185`).
 
-Why a worker rather than the existing in-page state: `web/key.js:90-100,351,413,992-996`
+Why a worker rather than the existing in-page state: `apps/site/key.js:90-100,351,413,992-996`
 keeps `state.keyBytes` in the page heap and only nulls it. A worker gives a
 clear lifetime boundary and a terminate operation; it is not a cryptographic
 guarantee, but it is materially better than a long-lived page global.
@@ -491,7 +491,7 @@ local decoder is.
   faucet, and the key is clearly labeled as worthless.
 - Prominent warning: "Signing on an online page is for test keys and learning.
   If this key holds real funds, stop and use a hardware or air-gapped signer."
-  This is stronger than the current `web/key.html:25` warning because signing
+  This is stronger than the current `apps/site/key.html:25` warning because signing
   now exists.
 - No sweep, no "send max", no automatic selection of all UTXOs into one output,
   no automatic signing, no automatic broadcast, no retry loops.
@@ -536,7 +536,7 @@ Mitigations in this change:
   base-uri 'none'; form-action 'none'; frame-ancestors 'none'; worker-src 'self'
   ```
 
-  The connect list mirrors the existing balance providers in `web/key.js:9-11,723,794`
+  The connect list mirrors the existing balance providers in `apps/site/key.js:9-11,723,794`
   plus the broadcast hosts. A stricter list per sign mode is possible later.
 - `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff` on
   `/key`; no third-party scripts, fonts, analytics or service worker.
@@ -573,7 +573,7 @@ Mitigations in this change:
 
 - `cargo test -p rotor-wasm` plus the existing Node smoke
   (`crates/rotor-wasm/smoke.mjs`) and worker test
-  (`web/worker-test.mjs`), extended with `sign_p2wpkh`/`decode_tx` cases.
+  (`apps/site/worker-test.mjs`), extended with `sign_p2wpkh`/`decode_tx` cases.
 - The existing CI job builds wasm and runs these (`.github/workflows/rust.yml:43-57`);
   add the new tests there.
 

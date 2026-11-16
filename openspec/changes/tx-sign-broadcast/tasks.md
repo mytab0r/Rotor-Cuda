@@ -84,7 +84,7 @@ half-finished ABI.
 
 ## 5. Page and safety UX (blocked by: T1, T4; developer + designer)
 
-- [ ] Add a "Build and sign" tab/section to `web/key.html`/`web/key.js`; keep
+- [ ] Add a "Build and sign" tab/section to `apps/site/key.html`/`apps/site/key.js`; keep
       the default explorer read-only.
 - [ ] Network selector (testnet default for signing, mainnet explicit) and the
       corresponding address/WIF rows.
@@ -106,7 +106,7 @@ half-finished ABI.
 
 ## 6. Key handling and worker (blocked by: T1, T5; developer)
 
-- [ ] Add `web/key-signer.js` worker: receives the key once, derives the
+- [ ] Add `apps/site/key-signer.js` worker: receives the key once, derives the
       report, signs on request, never fetches, zeroes buffers, terminates on
       clear/pagehide (design D10).
 - [ ] Remove the long-lived page copy of the key where possible; clear the
@@ -139,7 +139,7 @@ half-finished ABI.
 - [ ] Add the CSP, `Referrer-Policy: no-referrer` and
       `X-Content-Type-Options: nosniff` for `/key` (design D14); verify the
       balance and broadcast origins are allowed.
-- [ ] Update `web/docs.html:86,95` and `README.md:256,272`: remove "read-only/
+- [ ] Update `apps/site/docs.html:86,95` and `README.md:256,272`: remove "read-only/
       no signing"; describe the signing tab, providers, testnet-first, and the
       trust boundary.
 - [ ] Add a short "not a wallet" section that explains hardware/air-gapped

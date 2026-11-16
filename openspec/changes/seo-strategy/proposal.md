@@ -18,7 +18,7 @@ into v1/v2/v3 tasks and is not part of this change.
 Measured against the current tree (2026-11-16):
 
 - Every HTML page has only `<title>`; no `meta description`, `link rel=canonical`
-  or Open Graph. Audit of `web/*.html` returned zero matches for all three.
+  or Open Graph. Audit of `apps/site/*.html` returned zero matches for all three.
 - `static_asset` matches exact paths only and any unknown non-API GET falls back
   to the landing page with `200` (`src/coordinator/mod.rs:488-506`, `:410-416`).
   That is a soft-404 generator and a duplicate-content source.
@@ -27,14 +27,14 @@ Measured against the current tree (2026-11-16):
   origin (`deploy/README.md:117-119`, host `rotor.pxbt.app` at `:109`) cannot
   cache pages or the 232 KB wasm artifact.
 - Asset URLs are partly versioned in HTML (`?v=20261116`, e.g.
-  `web/landing.html:7`, `web/key.html:124`) but `/rotor-worker.js` and
-  `/rotor_wasm.wasm` are requested unversioned from JS (`web/run.html:413`,
-  `web/key.js:6`, `web/rotor-worker.js:11`). Long-lived caching is therefore
+  `apps/site/landing.html:7`, `apps/site/key.html:124`) but `/rotor-worker.js` and
+  `/rotor_wasm.wasm` are requested unversioned from JS (`apps/site/run.html:413`,
+  `apps/site/key.js:6`, `apps/site/rotor-worker.js:11`). Long-lived caching is therefore
   unsafe until those references are versioned.
-- There is no `/robots.txt` or `/sitemap.xml` (`web/` listing).
-- The nav is duplicated per page (`web/landing.html:10-18` and every other
+- There is no `/robots.txt` or `/sitemap.xml` (`apps/site/` listing).
+- The nav is duplicated per page (`apps/site/landing.html:10-18` and every other
   page); there is no breadcrumb and no hub linking model.
-- `/key` deliberately keeps the key out of the URL: `web/key.js` contains no
+- `/key` deliberately keeps the key out of the URL: `apps/site/key.js` contains no
   `location`, `history` or `pushState` use, and the key-explorer change
   specifies memory-only handling.
 
@@ -127,8 +127,8 @@ vectors, not keys.
   sitemap/robots, caching, analytics.
 - `coordinator`: route table, 404/301 behavior, cache headers, sitemap/robots
   routes (`src/coordinator/mod.rs:397-506`).
-- `browser-client`: asset version references (`web/run.html:413`,
-  `web/key.js:6`, `web/rotor-worker.js:11`).
+- `browser-client`: asset version references (`apps/site/run.html:413`,
+  `apps/site/key.js:6`, `apps/site/rotor-worker.js:11`).
 - `docs`/site: page copy, titles/descriptions, internal links.
 - Deployment/ops: Cloudflare cache rules, analytics, Search Console.
 - `tx-signing`: `/tx` page inherits this scheme when it lands.
@@ -193,8 +193,8 @@ Each is checkable with a command or a review checklist.
 
 - `src/coordinator/mod.rs:31-41` embedded pages/assets; `:397-506` routing,
   fallback and `Cache-Control: no-cache`.
-- `web/landing.html:10-18` nav; `:7` versioned CSS; `web/key.html:124`
-  versioned key.js; `web/key.js:6` wasm URL; `web/run.html:413` worker URL.
+- `apps/site/landing.html:10-18` nav; `:7` versioned CSS; `apps/site/key.html:124`
+  versioned key.js; `apps/site/key.js:6` wasm URL; `apps/site/run.html:413` worker URL.
 - `openspec/changes/key-explorer/proposal.md` memory-only key handling;
   `openspec/changes/key-explorer/specs/key-explorer/spec.md` no URL/history.
 - `openspec/changes/tx-sign-broadcast/` for the planned `/tx` surface.

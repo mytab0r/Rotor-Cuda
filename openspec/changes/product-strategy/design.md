@@ -11,8 +11,8 @@ are dated and marked **not verified** where they could not be re-checked.
 | Coordinator runtime | `src/coordinator/mod.rs:1-7`, `:42-50` | `tiny_http`, one `Mutex<State>`, one thread per request, 1 MiB body, 32 concurrent, 20 req/s per token |
 | State | `src/coordinator/state.rs:461-470` | Whole-file JSON rewrite per mutation; targets dozens of clients, not thousands (`README.md:376-378`) |
 | Accounts | `src/coordinator/state.rs:126-145` | Contributor token only: name, token hash, stats; no e-mail, password, plan |
-| Monetisation | `web/landing.html:95-104` | Donation addresses and a `pay.pxbt.app` link |
-| Key explorer | `web/key.html:22-27`, `web/key.js:742,787,823` | Client-side WASM derivation; opt-in balance calls direct from browser |
+| Monetisation | `apps/site/landing.html:95-104` | Donation addresses and a `pay.pxbt.app` link |
+| Key explorer | `apps/site/key.html:22-27`, `apps/site/key.js:742,787,823` | Client-side WASM derivation; opt-in balance calls direct from browser |
 | Browser worker | `README.md:226-249` | ~300-400k keys/s per tab, leases chunks from the coordinator |
 | Puzzle engine | `README.md:8-34` | CPU/GPU/BSGS search for authorised public puzzles |
 | Licence | `Cargo.toml:5`, `README.md:801-802` | GPL-3.0-only |

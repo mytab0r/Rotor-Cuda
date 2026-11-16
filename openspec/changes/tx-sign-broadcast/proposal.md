@@ -12,9 +12,9 @@ P2WPKH address, no sweeping, no automatic signing, no automatic broadcast**.
 
 ## Problem / motivation
 
-`/key` is currently a read-only explorer. `web/docs.html:86,95` and
+`/key` is currently a read-only explorer. `apps/site/docs.html:86,95` and
 `README.md:256,272` state that it offers "no signing or sweeping"; the page
-warning at `web/key.html:25-26` tells users not to type funded keys into an
+warning at `apps/site/key.html:25-26` tells users not to type funded keys into an
 online page. The owner wants the next step: transaction building and signing
 like the reference page, with broadcast through public pools and links to
 decode/preview the transaction, while keeping the private key client-side.
@@ -164,7 +164,7 @@ would multiply the risky surface without strengthening the Bitcoin path.
   and key handling.
 - `coordinator`: static asset embedding and a Content-Security-Policy for
   `/key`; no new API that touches keys.
-- Docs: `README.md`, `web/docs.html`, page warnings.
+- Docs: `README.md`, `apps/site/docs.html`, page warnings.
 
 ## Acceptance criteria
 
@@ -208,7 +208,7 @@ would multiply the risky surface without strengthening the Bitcoin path.
 9. **CI discipline:** `cargo fmt`, `clippy`, unit tests, wasm build, Node ABI
    smoke and the regtest integration test pass; no CI job broadcasts to
    mainnet; network-facing unit tests use mocks.
-10. **Honest docs:** `README.md` and `web/docs.html` no longer claim "no
+10. **Honest docs:** `README.md` and `apps/site/docs.html` no longer claim "no
     signing"; they describe what is signed, which providers are contacted, and
     that client-side signing does not protect a key on a compromised host.
 
@@ -274,12 +274,12 @@ Unknowns / not verified (to be checked during implementation):
 - `src/hashes.rs:7,13,23,27` (sha256, sha256d, hash160, keccak256).
 - `src/base58.rs:12,28,38,68,75` (Base58Check/WIF; mainnet constants at
   `:7-9`).
-- `web/key.js:2,6,90-100,231-289,992-996` (client-only key state, WASM load,
+- `apps/site/key.js:2,6,90-100,231-289,992-996` (client-only key state, WASM load,
   derive call, pagehide cleanup).
-- `web/key.html:25-26` (current warning), `:145` (script include).
+- `apps/site/key.html:25-26` (current warning), `:145` (script include).
 - `src/coordinator/mod.rs:31-41` (embedded pages/WASM), `:490-505`
   (`static_asset`; no CSP today), `:989-996` (asset tests).
-- `web/docs.html:86,95`; `README.md:256,272` (read-only/no-signing claims).
+- `apps/site/docs.html:86,95`; `README.md:256,272` (read-only/no-signing claims).
 - `.github/workflows/rust.yml:43-57` (wasm build/test/smoke job).
 - Reference page: `https://ref-site-b/transaction_to_bitcoin_address_p2pkh`
   (fetched 2026-11-16; form lines 551-615, submit lines 818-826, change warning

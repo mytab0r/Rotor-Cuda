@@ -55,8 +55,8 @@ Verify: `curl` sitemap, loop over `<loc>` values, compare with the table.
 
 - [ ] 4a Back: add a build version constant; append `?v=<build>` to
       `/key.js`, `/rotor-worker.js` and `/rotor_wasm.wasm` references
-      (`web/key.html:124`, `web/run.html:413`, `web/key.js:6`,
-      `web/rotor-worker.js:11`). Until then use short `max-age`.
+      (`apps/site/key.html:124`, `apps/site/run.html:413`, `apps/site/key.js:6`,
+      `apps/site/rotor-worker.js:11`). Until then use short `max-age`.
 - [ ] Back: HTML `public, max-age=0, must-revalidate` + `ETag`; versioned
       assets `public, max-age=31536000, immutable`; `/api/*` `no-store`.
 - [ ] Back: lazy-load the 232 KB wasm on first derive, not on page load;
