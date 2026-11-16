@@ -9,12 +9,18 @@
 //!
 //! Device execution is single-GPU and sequential: `-r` (random) and `-n`
 //! (checkpoints) are rejected loudly instead of silently doing something else.
+//!
+//! With `--coordinator` the same engine leases disjoint chunks from a
+//! `rotor-coord` server and scans each lease with [`scan_window`]; the device
+//! and its generator table are created once and reused across leases.
 
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::time::Instant;
 
-use crate::cli::{Coin, CompMode, Config, SearchMode};
+use crate::cli::{Coin, CompMode, Config, SearchMode, U256};
+use crate::coordinator::chunk_loop::{self, ChunkScanner, LeaseJob, ScanOutcome};
+use crate::coordinator::client::CoordinatorClient;
 use crate::engine::{self, SearchOutcome, Split};
 use crate::gpu::{self, AddrEngine};
 use crate::gpu_plan::{self, KeyPlan};
@@ -128,8 +134,6 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
         &two_gn,
     )?;
 
-    let mut plan = KeyPlan::build(start, end, engine.nb_thread() as usize)?;
-
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -143,11 +147,172 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
     }
 
     engine::prepare_ctrl_c();
+
+    if config.coordinator.is_some() {
+        return run_coordinator(
+            config,
+            mode,
+            start,
+            end,
+            &target,
+            modes,
+            &mut engine,
+            &mut file,
+        );
+    }
+
+    let mut plan = KeyPlan::build(start, end, engine.nb_thread() as usize)?;
     engine.set_keys(&plan.points)?;
 
+    let mut found = 0u64;
+    let outcome = scan_window(
+        &mut engine,
+        &mut plan,
+        &mut file,
+        &target,
+        modes,
+        config.coin,
+        end,
+        config.display,
+        target.stop_after(),
+        &mut found,
+    )?;
+
+    if config.display != 0 {
+        println!();
+    }
+    Ok(SearchOutcome {
+        found,
+        scanned: outcome.scanned,
+    })
+}
+
+/// Leases chunks from `config.coordinator` and scans them on the already
+/// created GPU engine, mirroring [`crate::engine::run_coordinator`].
+#[allow(clippy::too_many_arguments)]
+fn run_coordinator(
+    config: &Config,
+    mode: SearchMode,
+    start: Split,
+    end: Split,
+    target: &engine::Target,
+    modes: &[bool],
+    engine: &mut AddrEngine,
+    file: &mut File,
+) -> Result<SearchOutcome, String> {
+    let url = config
+        .coordinator
+        .as_deref()
+        .ok_or_else(|| "coordinator mode requires --coordinator URL".to_owned())?;
+    let token = config
+        .token
+        .clone()
+        .or_else(|| {
+            std::env::var("ROTOR_COORD_TOKEN")
+                .ok()
+                .filter(|token| !token.is_empty())
+        })
+        .ok_or_else(|| "coordinator mode requires --token or ROTOR_COORD_TOKEN".to_owned())?;
+    let client_id = config
+        .client_id
+        .clone()
+        .unwrap_or_else(engine::default_client_id);
+    let client = CoordinatorClient::new(url, &token, &client_id);
+
+    let job = LeaseJob {
+        mode: engine::mode_name(mode).to_owned(),
+        coin: if config.coin == Coin::Eth {
+            "eth".to_owned()
+        } else {
+            "btc".to_owned()
+        },
+        target: match mode {
+            SearchMode::Address | SearchMode::XPoint => config.operands.first().cloned(),
+            _ => None,
+        },
+        start: start.to_hex(),
+        end: end.to_hex(),
+    };
+
+    let mut scanner = GpuScanner {
+        engine,
+        file,
+        target,
+        modes,
+        coin: config.coin,
+        display: config.display,
+    };
+    let (scanned, found) = chunk_loop::run_leases(&client, &job, &mut scanner)?;
+
+    if config.display != 0 {
+        println!();
+    }
+    Ok(SearchOutcome {
+        found: u64::from(found.is_some()),
+        scanned,
+    })
+}
+
+/// Adapts one reusable [`AddrEngine`] to the generic coordinator chunk loop.
+struct GpuScanner<'a> {
+    engine: &'a mut AddrEngine,
+    file: &'a mut File,
+    target: &'a engine::Target,
+    modes: &'a [bool],
+    coin: Coin,
+    display: i32,
+}
+
+impl ChunkScanner for GpuScanner<'_> {
+    fn scan(&mut self, start: &Scalar, end: &Scalar) -> Result<ScanOutcome, String> {
+        // A lease only rebuilds the key plan and uploads new starting points;
+        // the device and its generator table were created once in `run`.
+        let start = Split::from_u256(&U256(start.to_bytes_be()));
+        let end = Split::from_u256(&U256(end.to_bytes_be()));
+        let mut plan = KeyPlan::build(start, end, self.engine.nb_thread() as usize)?;
+        self.engine.set_keys(&plan.points)?;
+
+        // The coordinator submits one key and the server closes the job, so the
+        // window stops at the first hit instead of hunting every target.
+        let mut found = 0u64;
+        scan_window(
+            self.engine,
+            &mut plan,
+            self.file,
+            self.target,
+            self.modes,
+            self.coin,
+            end,
+            self.display,
+            1,
+            &mut found,
+        )
+    }
+}
+
+/// Scans the inclusive `[start, end]` window one kernel batch at a time.
+///
+/// `end` is the window end (`plan` already holds the window's chunk layout);
+/// `found` is the total number of hit blocks emitted so far, extended by this
+/// window and used for the `stop_after` check. Hits are verified, written to
+/// `Found.txt` and printed exactly as in the sequential path; the first found
+/// key is returned for the coordinator.
+#[allow(clippy::too_many_arguments)]
+fn scan_window(
+    engine: &mut AddrEngine,
+    plan: &mut KeyPlan,
+    file: &mut File,
+    target: &engine::Target,
+    modes: &[bool],
+    coin: Coin,
+    end: Split,
+    display: i32,
+    stop_after: u64,
+    found: &mut u64,
+) -> Result<ScanOutcome, String> {
     let step = u64::from(gpu_plan::STEP_SIZE);
     let mut scanned = 0u64;
-    let mut found = 0u64;
+    let mut found_key = None;
     let started = Instant::now();
     let mut last_report = Instant::now();
 
@@ -194,14 +359,14 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
                     ));
                 }
                 for &compressed in modes {
-                    emit(&mut file, &scalar, &point, compressed, config.coin)?;
-                    found += 1;
+                    emit(file, &scalar, &point, compressed, coin)?;
+                    *found += 1;
                 }
             } else {
                 // The kernel sets bit 15 for the compressed hash
                 // (`GPUCompute.h`: CHECK_POINT_SEARCH_MODE_MA(..., true)).
-                let compressed = config.coin != Coin::Eth && hits.mode[index] != 0;
-                let needle = if config.coin == Coin::Eth {
+                let compressed = coin != Coin::Eth && hits.mode[index] != 0;
+                let needle = if coin == Coin::Eth {
                     secp::eth_address(&point)
                 } else {
                     secp::hash160(&point, compressed)
@@ -212,26 +377,30 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
                         key.to_hex()
                     ));
                 }
-                emit(&mut file, &scalar, &point, compressed, config.coin)?;
-                found += 1;
+                emit(file, &scalar, &point, compressed, coin)?;
+                *found += 1;
+            }
+
+            if found_key.is_none() {
+                found_key = Some(scalar);
             }
         }
 
         plan.advance(step);
         scanned = scanned.saturating_add(batch_covered);
 
-        if found >= target.stop_after() || plan.exhausted(end) {
+        if *found >= stop_after || plan.exhausted(end) {
             break;
         }
 
-        if config.display != 0 && last_report.elapsed().as_secs_f64() >= 1.0 {
+        if display != 0 && last_report.elapsed().as_secs_f64() >= 1.0 {
             last_report = Instant::now();
             let elapsed = started.elapsed().as_secs_f64();
             let rate = scanned as f64 / elapsed.max(1e-9);
             print!(
                 "\r  [{}] [F: {}] [GPU: {}] [T: {}]  ",
                 engine::to_time_str(elapsed),
-                found,
+                *found,
                 rate_text(rate),
                 engine::format_thousands(scanned)
             );
@@ -239,10 +408,10 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
         }
     }
 
-    if config.display != 0 {
-        println!();
-    }
-    Ok(SearchOutcome { found, scanned })
+    Ok(ScanOutcome {
+        scanned,
+        found: found_key,
+    })
 }
 
 fn emit(

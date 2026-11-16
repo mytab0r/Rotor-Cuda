@@ -606,9 +606,11 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
         if config.range.is_none() {
             return Err(CliError::new("coordinator mode requires --range START:END"));
         }
-        if config.gpu {
+        // GPU address/xpoint/ETH clients lease chunks like the CPU path; GPU
+        // BSGS is not wired to the coordinator protocol's giant-walk state.
+        if config.gpu && config.mode == Some(SearchMode::Bsgs) {
             return Err(CliError::new(
-                "GPU mode is not supported with --coordinator",
+                "CPU coordinator BSGS is the supported path; drop -g",
             ));
         }
         if config.rkey != 0 {

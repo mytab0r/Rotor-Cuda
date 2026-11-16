@@ -5,6 +5,7 @@
 //! lives behind a single mutex. No async runtime, no TLS (terminate it in a
 //! reverse proxy).
 
+pub mod chunk_loop;
 pub mod client;
 pub mod state;
 
