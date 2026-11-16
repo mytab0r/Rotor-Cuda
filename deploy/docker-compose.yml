@@ -10,6 +10,8 @@ services:
       - 0.0.0.0:7878
       - --state
       - /data/coordinator.json
+      - --clients
+      - /data/clients.json
     volumes:
       - ./data:/data
     networks:
