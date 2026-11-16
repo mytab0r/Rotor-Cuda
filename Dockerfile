@@ -3,6 +3,7 @@ FROM rust:1-slim-bookworm AS build
 WORKDIR /src
 COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
+COPY web ./web
 RUN cargo build --release --bin rotor-coord
 
 FROM debian:bookworm-slim
