@@ -69,9 +69,7 @@ main {
   padding: 34px 26px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background:
-    radial-gradient(900px 220px at 15% -20%, rgba(31, 111, 235, .28), transparent 60%),
-    var(--panel);
+  background: var(--panel);
 }
 .hero h1 { margin: 0 0 10px; font-size: 30px; line-height: 1.2; letter-spacing: .2px; }
 .hero p { max-width: 70ch; margin: 0 0 16px; color: var(--muted); font-size: 15px; }
@@ -98,7 +96,6 @@ main {
   gap: 12px;
 }
 .stat {
-  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
   background: var(--panel-2);
@@ -115,11 +112,12 @@ input, select, textarea, button {
   border-radius: 6px;
   padding: 7px 9px;
 }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 textarea { resize: vertical; }
 button { background: #21262d; cursor: pointer; }
 button:hover { border-color: var(--accent); }
 button.primary, a.button.primary { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
-button.primary:hover, a.button.primary:hover { background: #2f81f7; }
+button.primary:hover, a.button.primary:hover { background: #0969da; }
 a.button {
   display: inline-block;
   padding: 7px 13px;
@@ -197,12 +195,12 @@ tr:last-child td { border-bottom: none; }
 .sparkline .dot { fill: var(--accent); }
 
 .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
-.kv div { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--panel-2); }
+.kv div { border-radius: 8px; padding: 10px 12px; background: var(--panel-2); }
 .kv dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
 .kv dd { margin: 4px 0 0; font-size: 15px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
-.docs h2 { color: var(--text); font-size: 17px; text-transform: none; letter-spacing: 0; margin-top: 4px; }
-.docs h3 { margin-top: 18px; }
+.docs h2 { color: var(--text); font-size: 23px; text-transform: none; letter-spacing: 0; margin-top: 4px; }
+.docs h3 { font-size: 18px; margin-top: 18px; }
 .docs p, .docs li { color: #c9d1d9; }
 .docs code { background: #0d1117; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
 .docs pre {
