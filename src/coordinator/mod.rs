@@ -399,8 +399,9 @@ fn handle(app: Arc<App>, request: Request) {
 
     if method == Method::Get {
         if let Some((body, content_type)) = static_asset(path) {
-            let response =
-                Response::from_data(body).with_header(header("Content-Type", content_type));
+            let response = Response::from_data(body)
+                .with_header(header("Content-Type", content_type))
+                .with_header(header("Cache-Control", "no-cache"));
             let _ = request.respond(response);
             return;
         }
