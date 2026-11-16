@@ -3,9 +3,9 @@ name: rust
 on:
   push:
     branches: ["main", "feat/rust-port"]
-    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", ".github/workflows/rust.yml"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "web/**", "scripts/**", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", ".github/workflows/rust.yml"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "web/**", "scripts/**", ".github/workflows/rust.yml"]
 
 permissions:
   contents: read
@@ -23,8 +23,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --release
       - run: cargo build --release
       - name: CLI smoke
@@ -39,3 +39,19 @@ jobs:
           ./target/release/rotor.exe --version
           ./target/release/rotor.exe --help | Out-Null
         if: runner.os == 'Windows'
+
+  wasm:
+    name: wasm-build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cargo build -p rotor-wasm --target wasm32-unknown-unknown --release
+      - name: Check wasm artifact
+        run: test -f target/wasm32-unknown-unknown/release/rotor_wasm.wasm
+      - run: cargo test -p rotor-wasm
+      - name: Node smoke test
+        run: node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
+      - name: Worker protocol test
+        run: node web/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm

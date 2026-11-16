@@ -223,6 +223,31 @@ Because a chunk is scanned synchronously, a chunk wider than `lease_ttl × devic
 cannot be refreshed mid-scan; its lease may expire and the chunk may be handed to
 another client (and scanned twice).
 
+### Browser client (WebAssembly)
+
+`rotor-coord` also serves a browser client at `/run`: open
+`https://<coordinator>/run` (or `http://localhost:<port>/run` locally), paste a
+client token from the cabinet, and press Start. The tab runs the WASM scan core
+on the CPU, leases the same chunks and submits the same completion proofs as the
+native client.
+
+- Measured on the development machine: **~300–400k keys/s per tab**. The page
+  shows its own measured rate; treat that number as the real one.
+- Jobs for browsers should use `chunk_width` 2^20–2^22 and `lease_ttl` 120–300
+  seconds, so one tab can finish and heartbeat a chunk inside its lease.
+- The page requires HTTPS or localhost (browsers restrict the APIs it needs on
+  plain-HTTP remote origins).
+- The token is stored in this browser's `localStorage` and sent only in the
+  `Authorization` header.
+- It only leases jobs the operator already created (authorized puzzle jobs
+  only); a client token cannot create jobs.
+
+`scripts/build-wasm.sh` builds `crates/rotor-wasm` for
+`wasm32-unknown-unknown` and copies the result to `web/rotor_wasm.wasm`. That
+artifact is committed and rebuilt by CI and the Docker image; the coordinator
+embeds it and serves `/run`, `/rotor-worker.js` and `/rotor_wasm.wasm`.
+Requires `rustup target add wasm32-unknown-unknown` once.
+
 ### BSGS resume
 
 A `bsgs` job is searched as one giant walk, not chunk by chunk. Create it with the
