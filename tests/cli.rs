@@ -256,6 +256,57 @@ fn action_flags_return_before_semantic_validation() {
 }
 
 #[test]
+fn targets_text_flag_parses() {
+    let config = parse(&["-m", "addresses", "--targets-text", "targets.txt"]);
+    assert_eq!(config.targets_text.as_deref(), Some("targets.txt"));
+    assert!(config.input_file.is_none());
+
+    let config = parse(&["-m", "xpoints", "--targets-text", "-"]);
+    assert_eq!(config.targets_text.as_deref(), Some("-"));
+
+    let defaults = parse_from_empty();
+    assert!(defaults.targets_text.is_none());
+
+    let err = parse_err(&["--targets-text"]);
+    assert_eq!(err.message(), "'--targets-text' requires an argument");
+}
+
+#[test]
+fn targets_text_validations() {
+    let err = parse_err(&["-m", "addresses", "--targets-text", "t.txt", "-i", "t.bin"]);
+    assert_eq!(
+        err.message(),
+        "--targets-text and -i are mutually exclusive"
+    );
+
+    let err = parse_err(&["--targets-text", "t.txt"]);
+    assert_eq!(
+        err.message(),
+        "--targets-text requires -m addresses or -m xpoints"
+    );
+
+    let err = parse_err(&["-m", "address", "--targets-text", "t.txt"]);
+    assert_eq!(
+        err.message(),
+        "--targets-text requires -m addresses or -m xpoints"
+    );
+
+    let err = parse_err(&[
+        "-m",
+        "bsgs",
+        "--range",
+        "1:10",
+        "--targets-text",
+        "t.txt",
+        &compressed_pubkey(),
+    ]);
+    assert_eq!(
+        err.message(),
+        "--targets-text requires -m addresses or -m xpoints"
+    );
+}
+
+#[test]
 fn bsgs_work_flags_parse() {
     let config = parse(&["--bsgs-work", "job.rwork"]);
     assert_eq!(config.bsgs_work.as_deref(), Some("job.rwork"));
