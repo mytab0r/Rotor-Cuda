@@ -14,4 +14,4 @@
 
 ## 3. Docs and close-out
 - [x] README usage; fmt/clippy/test
-- [ ] archive; PR
+- [x] archive; PR #11 merged, CI green.
