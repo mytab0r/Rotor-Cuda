@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - cabinet</title>
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/me" class="active" id="nav-me">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+  </nav>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Your cabinet</h2>
+    <form class="compact" id="me-auth-form">
+      <label>Client token
+        <input id="me-token" type="password" placeholder="paste your token" autocomplete="off" spellcheck="false">
+      </label>
+      <button id="me-connect" type="submit" class="primary">Connect</button>
+      <span id="me-state" class="muted">disconnected</span>
+    </form>
+    <p class="muted">The token is kept in this browser's localStorage. It is your only credential: treat it as a secret.</p>
+  </section>
+
+  <p id="me-error" class="error" hidden></p>
+
+  <section class="card">
+    <h2>Identity</h2>
+    <dl class="kv">
+      <div><dt>Name</dt><dd id="me-name">-</dd></div>
+      <div><dt>Client id</dt><dd id="me-id" class="mono">-</dd></div>
+      <div><dt>Rank</dt><dd id="me-rank">-</dd></div>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Your stats</h2>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">Keys scanned</span><span class="stat-value" id="me-scanned">0</span></div>
+      <div class="stat"><span class="stat-label">Chunks done</span><span class="stat-value" id="me-chunks">0</span></div>
+      <div class="stat"><span class="stat-label">Found</span><span class="stat-value" id="me-found">0</span></div>
+      <div class="stat"><span class="stat-label">Rate</span><span class="stat-value small" id="me-rate">0/s</span></div>
+    </div>
+    <div class="sparkline" id="sparkline"><p class="muted">not enough history yet</p></div>
+    <p class="muted" id="me-last-seen"></p>
+  </section>
+
+  <section class="card">
+    <h2>Active lease</h2>
+    <div id="me-lease"><p class="muted">no active lease</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Recent results</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Job</th><th>Key</th><th>Found</th></tr></thead>
+        <tbody id="me-results"><tr><td colspan="3" class="muted">no results yet</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.Rotor;
+  var byId = function (id) { return document.getElementById(id); };
+  var pollTimer = null;
+
+  function setError(message) {
+    var box = byId('me-error');
+    box.hidden = !message;
+    box.textContent = message || '';
+  }
+
+  function render(me) {
+    var client = me.client || {};
+    byId('me-name').textContent = client.name || '-';
+    byId('me-id').textContent = client.id || '-';
+    byId('me-rank').textContent = me.rank ? ('#' + me.rank) : '-';
+    byId('me-scanned').textContent = R.formatNumber(client.scanned_total);
+    byId('me-chunks').textContent = R.formatNumber(client.chunks_done);
+    byId('me-found').textContent = R.formatNumber(client.found);
+    byId('me-rate').textContent = R.formatNumber(Math.round(client.rate || 0)) + '/s';
+    byId('me-last-seen').textContent = client.last_seen
+      ? 'last seen ' + new Date(client.last_seen * 1000).toLocaleString()
+      : 'no heartbeat yet';
+    byId('sparkline').innerHTML = R.sparkline(client.history || []);
+
+    var leaseBox = byId('me-lease');
+    if (me.lease) {
+      var lease = me.lease;
+      var job = me.job;
+      var progress = '';
+      if (job && job.chunks_total) {
+        var percent = Math.round(((job.chunks_done || 0) / job.chunks_total) * 100);
+        progress = '<div class="progress"><div class="bar" style="width:' + percent + '%"></div></div>' +
+          '<div class="meta"><span>' + (job.chunks_done || 0) + '/' + job.chunks_total + ' chunks</span>' +
+          '<span>' + R.formatNumber(job.scanned) + ' scanned</span></div>';
+      }
+      leaseBox.innerHTML =
+        '<div class="job-head"><span class="mono">' + R.escapeHtml(lease.job_id) + '</span>' +
+        '<span class="badge">chunk ' + lease.chunk_index + '</span>' +
+        '<span class="state">' + R.relativeTime(lease.expires_at) + '</span></div>' +
+        progress;
+    } else {
+      leaseBox.innerHTML = '<p class="muted">no active lease</p>';
+    }
+
+    var results = me.results || [];
+    var body = byId('me-results');
+    if (!results.length) {
+      body.innerHTML = '<tr><td colspan="3" class="muted">no results yet</td></tr>';
+    } else {
+      body.innerHTML = results.map(function (result) {
+        return '<tr>' +
+          '<td class="mono">' + R.escapeHtml(result.job_id) + '</td>' +
+          '<td class="mono key wrap">' + R.escapeHtml(result.key) + '</td>' +
+          '<td>' + new Date(result.found_at * 1000).toLocaleString() + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  }
+
+  async function refresh() {
+    if (!R.token()) return;
+    try {
+      var me = await R.request('/api/v1/me');
+      byId('me-state').textContent = 'connected';
+      setError('');
+      render(me);
+    } catch (err) {
+      if (err.status === 401) {
+        byId('me-state').textContent = 'invalid token';
+        setError('This token is invalid, disabled, or has no account. Paste a valid client token.');
+        stopPolling();
+        return;
+      }
+      byId('me-state').textContent = 'disconnected';
+      setError(err.message);
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer !== null) return;
+    pollTimer = window.setInterval(refresh, 2000);
+  }
+
+  function stopPolling() {
+    if (pollTimer === null) return;
+    window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  byId('me-auth-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = byId('me-token').value.trim();
+    if (!value) {
+      setError('paste your client token');
+      return;
+    }
+    R.setToken(value);
+    startPolling();
+    refresh();
+  });
+
+  var saved = R.token();
+  if (saved) {
+    byId('me-token').value = saved;
+    startPolling();
+    refresh();
+  }
+})();
+</script>
+</body>
+</html>

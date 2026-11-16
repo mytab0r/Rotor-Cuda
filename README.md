@@ -143,7 +143,8 @@ working CUDA host (no local toolkit); CI compiles the `gpu` feature.
 
 A second binary in the same crate lets several machines work one range without manual
 splitting: `rotor-coord` leases disjoint key chunks, keeps progress in one JSON file, and
-serves a dashboard. Clients may be CPU workers or a GPU `--features gpu` build.
+serves a public site plus a dashboard. Clients may be CPU workers or a GPU
+`--features gpu` build.
 
 ### Quick start
 
@@ -157,8 +158,12 @@ cargo build --release --bins
 target\release\rotor-coord.exe --token my-secret --state coordinator.json   # Windows
 ```
 
-It listens on `http://127.0.0.1:7878` (`--bind ADDR` overrides) and serves the dashboard
-at `http://127.0.0.1:7878/`. Create one job there (paste the admin token first), or with curl:
+It listens on `http://127.0.0.1:7878` (`--bind ADDR` overrides) and serves a public
+site: the landing page with live totals at `/`, the operator dashboard at `/app`, a
+personal cabinet at `/me` and the docs at `/docs`. Client accounts can be created by the
+admin (`POST /api/v1/clients`), imported once from a `--clients` file, or self-registered
+with `--open-registration`. Create one job in the dashboard (paste the admin token first),
+or with curl:
 
 ```sh
 curl -s -H "Authorization: Bearer my-secret" -H "Content-Type: application/json" -d '{"mode":"address","coin":"btc","comp_mode":"compressed","target":"1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU","start":"400000000000000000","end":"7fffffffffffffffff"}' http://127.0.0.1:7878/api/v1/jobs
@@ -184,9 +189,11 @@ the job target before accepting and marking the job found on the dashboard.
 The state file is compact: completed chunks are a packed bitmap serialized as lowercase
 hex (`ceil(chunks_total / 8)` bytes, bit `i % 8` of byte `i / 8`) and `scanned` is
 aggregated per job, so a 1,000,000-chunk job needs about 250 KiB instead of one record
-per chunk. The file carries `"version": 2`; a state file with a missing or older version
-is rejected with a clear message and must be moved or deleted to start fresh (there is no
-silent migration).
+per chunk. Client accounts, their stats and a bounded history (240 points) live in the
+same file; the token is stored only as a SHA-256 hash. The file carries `"version": 2`;
+a state file with a missing or older version is rejected with a clear message and must be
+moved or deleted to start fresh (there is no silent migration). A version-2 file written
+before accounts existed still loads with an empty client list.
 
 ### GPU clients
 
@@ -237,16 +244,25 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
 
 ### API
 
-`/api/v1/*` requires `Authorization: Bearer <token>` (401 otherwise); `GET /` serves the dashboard without a token, and the dashboard polls `GET /api/v1/status` every 2 s.
+`/api/v1/*` requires `Authorization: Bearer <token>` (401 otherwise), except the static
+site and the public `GET /api/v1/summary` (aggregate totals and top-10 leaderboard) and
+`POST /api/v1/register` (when `--open-registration` is set). The pages poll every 2 s:
+the landing uses `/api/v1/summary`, the dashboard `/api/v1/status`, the cabinet `/api/v1/me`.
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/` | GET | dashboard HTML/JS |
+| `/`, `/app`, `/me`, `/docs` | GET | landing, dashboard, cabinet and docs HTML |
+| `/site.css`, `/site.js` | GET | shared static assets |
+| `/api/v1/summary` | GET | public totals + leaderboard + `registration_open` |
+| `/api/v1/register` | POST | self-service `{name}` -> `{id, token}` when enabled; 403 otherwise |
+| `/api/v1/clients` | GET / POST | list accounts / create one (admin); returns the token once |
+| `/api/v1/clients/{id}/disable` | POST | disable an account and release its leases (admin) |
+| `/api/v1/me` | GET | own record, rank, active lease, job progress, recent results (client) |
 | `/api/v1/jobs` | GET / POST | list jobs / create a job (201, admin token) |
 | `/api/v1/lease` | POST | lease the next free chunk (200; 204 when exhausted); returns `lease_id` + `challenge_offsets` |
 | `/api/v1/heartbeat` | POST | refresh a lease or finish it (echo `lease_id`, `done` needs `samples`); 409 when the lease was lost |
 | `/api/v1/result` | POST | submit a found key (echo `lease_id`); the proof is checked first |
-| `/api/v1/status` | GET | jobs, active clients, results, BSGS checkpoints |
+| `/api/v1/status` | GET | jobs, active clients, results, BSGS checkpoints, totals, leaderboard |
 | `/api/v1/bsgs/state` | GET / POST | read (`?job_id=...`) / store `{manifest, giant_index}` |
 
 ### Security
@@ -254,14 +270,21 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
 - The admin token is mandatory (`--token` or `ROTOR_COORD_TOKEN`). It creates and
   lists jobs and reads the dashboard; it cannot lease, heartbeat or submit
   results.
-- Per-client tokens: `--clients FILE` is a JSON map `{ "client-id": "<sha256 hex
-  of the token>" }`. Lease/heartbeat/result require a client token, and the
-  server derives the client id from the token (a body `client_id` is ignored in
-  that mode). Comparison is constant-time over the SHA-256 values. A client may
-  read status and jobs but cannot create jobs; unknown or blank tokens get 401,
-  and an authenticated token on the wrong endpoint gets 403.
-- Without `--clients` the legacy single-token mode still works and prints
-  `WARNING: single-token mode; clients are not individually authenticated`.
+- Client accounts live in the state. `--clients FILE` is a JSON map
+  `{ "client-id": "<sha256 hex of the token>" }` imported on the first start;
+  afterwards the state is authoritative. Accounts can also be created with the
+  admin API or, with `--open-registration`, through `POST /api/v1/register`
+  (one registration per remote IP per minute, name trimmed to 64 characters).
+  Lease/heartbeat/result require a client token, and the server derives the
+  client id from the token (a body `client_id` is ignored in that mode).
+  Comparison is constant-time over the SHA-256 values. A client may read status,
+  jobs and its own `/me` but cannot create jobs or manage accounts; unknown,
+  blank or disabled tokens get 401, and an authenticated token on the wrong
+  endpoint gets 403. Disabling an account releases its active leases.
+- The state holds no plaintext tokens and never returns a token hash: a new
+  token is shown exactly once by the create/register response.
+- Without `--clients` and before the first account exists, the legacy
+  single-token mode still works (the admin token covers every endpoint).
 - Lease binding: the lease response carries `lease_id` and 16 `challenge_offsets`
   inside the chunk. Heartbeat and result must echo `lease_id`; a stale or
   foreign nonce is rejected with 409.
@@ -290,7 +313,8 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
   is rejected because coordinator BSGS is the CPU path. `-r` (random) and `-n`
   (checkpoints) are rejected with `--coordinator`. Several `--gpui` ids run one lease
   loop each (`<client-id>-gpu<index>`); coordinator BSGS stays one device.
-- No accounts, roles or quotas — one shared token.
+- Accounts are token-only: no passwords, OAuth, e-mail verification, payments or
+  per-account quotas. A token is the sole credential; treat it as a secret.
 - Multi-target jobs (`addresses`/`xpoints`) stop at the first confirmed key: the job is
   marked found and the remaining targets in that job are not searched.
 - An expired lease can be re-leased while its owner scans the chunk's tail, so that

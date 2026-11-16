@@ -22,11 +22,18 @@ use serde::Deserialize;
 use serde_json::json;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
-use crate::hashes::sha256;
-use state::{ERR_INVALID_SAMPLE, ERR_JOB_NOT_FOUND, ERR_LEASE_LOST, ERR_MANIFEST_MISMATCH};
+use state::{
+    ERR_CLIENT_NOT_FOUND, ERR_INVALID_SAMPLE, ERR_JOB_NOT_FOUND, ERR_LEASE_LOST,
+    ERR_MANIFEST_MISMATCH,
+};
 
-/// The dashboard is embedded so the binary stays a single file.
-const DASHBOARD: &str = include_str!("../../web/index.html");
+/// The public site is embedded so the binary stays a single file.
+const LANDING: &str = include_str!("../../web/landing.html");
+const APP_PAGE: &str = include_str!("../../web/app.html");
+const ME_PAGE: &str = include_str!("../../web/me.html");
+const DOCS_PAGE: &str = include_str!("../../web/docs.html");
+const SITE_CSS: &str = include_str!("../../web/site.css");
+const SITE_JS: &str = include_str!("../../web/site.js");
 /// Largest request body the coordinator buffers (JSON commands are tiny).
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// Requests handled concurrently; the rest are rejected with 503.
@@ -34,7 +41,8 @@ const MAX_CONCURRENT_REQUESTS: usize = 32;
 /// Per-token rate limit: requests per second and the bucket depth.
 const RATE_PER_SECOND: f64 = 20.0;
 const RATE_BURST: f64 = 40.0;
-
+/// Minimum seconds between two self-service registrations from one remote IP.
+const REGISTER_WINDOW_SECS: u64 = 60;
 /// Number of request handlers currently running.
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
@@ -85,19 +93,9 @@ impl Clients {
         self.tokens.len()
     }
 
-    /// Client id whose stored hash matches the presented token, if any.
-    ///
-    /// Every entry is compared in constant time and the iteration never exits
-    /// early on a match, so timing does not reveal which client matched.
-    fn identify(&self, token: &str) -> Option<String> {
-        let digest = sha256(token.as_bytes());
-        let mut found = None;
-        for (id, stored) in &self.tokens {
-            if constant_time_eq(&digest, stored) {
-                found = Some(id.clone());
-            }
-        }
-        found
+    /// Import entries as `(client id, SHA-256 of its token)` pairs.
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &[u8; 32])> {
+        self.tokens.iter().map(|(id, hash)| (id.as_str(), hash))
     }
 }
 
@@ -106,7 +104,7 @@ impl Clients {
 enum Identity {
     /// The admin token (`--token`/`ROTOR_COORD_TOKEN`).
     Admin,
-    /// A client from the `--clients` map.
+    /// A registered client (state account or an imported `--clients` entry).
     Client(String),
 }
 
@@ -153,11 +151,37 @@ impl RateLimiter {
     }
 }
 
+/// Self-service registration throttled to one request per IP per window.
+/// In memory only; reset on restart.
+#[derive(Default)]
+struct RegisterLimiter {
+    last: Mutex<HashMap<String, u64>>,
+}
+
+impl RegisterLimiter {
+    fn allow(&self, ip: &str, now: u64) -> bool {
+        let mut last = self
+            .last
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        last.retain(|_, at| now.saturating_sub(*at) < REGISTER_WINDOW_SECS);
+        if last
+            .get(ip)
+            .is_some_and(|at| now.saturating_sub(*at) < REGISTER_WINDOW_SECS)
+        {
+            return false;
+        }
+        last.insert(ip.to_string(), now);
+        true
+    }
+}
+
 struct App {
     state: Mutex<state::State>,
     admin_token: String,
-    clients: Clients,
     rate: RateLimiter,
+    register: RegisterLimiter,
+    open_registration: bool,
 }
 
 impl App {
@@ -167,10 +191,11 @@ impl App {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// True when no `--clients` file was given: the single admin token is
-    /// accepted for every endpoint (legacy mode).
+    /// True while the state holds no accounts: the single admin token is
+    /// accepted for every endpoint (legacy mode). Creating or importing the
+    /// first client switches the coordinator to the per-client matrix.
     fn legacy(&self) -> bool {
-        self.clients.is_empty()
+        !self.lock().has_clients()
     }
 
     fn identity(&self, request: &Request) -> Option<Identity> {
@@ -178,7 +203,7 @@ impl App {
         if constant_time_eq(presented.as_bytes(), self.admin_token.as_bytes()) {
             return Some(Identity::Admin);
         }
-        self.clients.identify(presented).map(Identity::Client)
+        self.lock().identify_client(presented).map(Identity::Client)
     }
 
     /// Endpoint permission for an authenticated identity. Unknown paths pass
@@ -190,7 +215,20 @@ impl App {
         if method == &Method::Get && (path == "/api/v1/status" || path == "/api/v1/jobs") {
             return true;
         }
+        if method == &Method::Get && path == "/api/v1/me" {
+            return matches!(role, Identity::Client(_));
+        }
         if method == &Method::Post && path == "/api/v1/jobs" {
+            return matches!(role, Identity::Admin);
+        }
+        if (method == &Method::Get || method == &Method::Post) && path == "/api/v1/clients" {
+            return matches!(role, Identity::Admin);
+        }
+        if method == &Method::Post
+            && path
+                .strip_prefix("/api/v1/clients/")
+                .is_some_and(|rest| rest.ends_with("/disable"))
+        {
             return matches!(role, Identity::Admin);
         }
         if method == &Method::Post
@@ -239,24 +277,46 @@ impl Drop for ServerHandle {
 ///
 /// `bind` may use port `0`; the real address is in [`ServerHandle::addr`].
 pub fn spawn(bind: &str, state_path: &Path, token: String) -> Result<ServerHandle, String> {
-    spawn_with_clients(bind, state_path, token, Clients::default())
+    spawn_with_options(bind, state_path, token, Clients::default(), false)
 }
 
 /// Bind and serve with the given per-client token map.
 ///
 /// An empty map keeps the legacy single-token behavior (the admin token works
 /// on every endpoint). With a map, lease/heartbeat/result require a client
-/// token and job creation requires the admin token.
+/// token and job creation requires the admin token. The map is imported into
+/// the state on the first start; afterwards the state is authoritative.
 pub fn spawn_with_clients(
     bind: &str,
     state_path: &Path,
     token: String,
     clients: Clients,
 ) -> Result<ServerHandle, String> {
+    spawn_with_options(bind, state_path, token, clients, false)
+}
+
+/// Bind and serve with accounts, tokens and optional open registration.
+///
+/// `open_registration` enables `POST /api/v1/register`. The `clients` map is
+/// imported into the state only when the state has no accounts yet.
+pub fn spawn_with_options(
+    bind: &str,
+    state_path: &Path,
+    token: String,
+    clients: Clients,
+    open_registration: bool,
+) -> Result<ServerHandle, String> {
     if token.is_empty() {
         return Err("the coordinator token must not be empty".to_string());
     }
-    let state = state::State::open(state_path)?;
+    let mut state = state::State::open(state_path)?;
+    if !clients.is_empty() {
+        let entries = clients
+            .entries()
+            .map(|(id, hash)| (id.to_string(), *hash))
+            .collect();
+        state.import_clients(entries)?;
+    }
     let server = Server::http(bind).map_err(|err| format!("cannot bind {bind}: {err}"))?;
     let addr = server
         .server_addr()
@@ -266,8 +326,9 @@ pub fn spawn_with_clients(
     let app = Arc::new(App {
         state: Mutex::new(state),
         admin_token: token,
-        clients,
         rate: RateLimiter::default(),
+        register: RegisterLimiter::default(),
+        open_registration,
     });
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -317,6 +378,10 @@ fn reject_over_capacity(app: &App, request: Request) {
 }
 
 fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
+    // Public endpoints never answer 401; capacity is the only failure.
+    if path == "/api/v1/summary" || path == "/api/v1/register" {
+        return 503;
+    }
     if path.starts_with("/api/v1/") && !authorized {
         401
     } else {
@@ -329,16 +394,44 @@ fn handle(app: Arc<App>, request: Request) {
     let url = request.url().to_string();
     let (path, query) = url.split_once('?').unwrap_or((&url, ""));
 
-    if method == Method::Get && path == "/" {
-        let response = Response::from_string(DASHBOARD)
-            .with_header(header("Content-Type", "text/html; charset=utf-8"));
-        let _ = request.respond(response);
-        return;
+    if method == Method::Get {
+        if let Some((body, content_type)) = static_asset(path) {
+            let response =
+                Response::from_string(body).with_header(header("Content-Type", content_type));
+            let _ = request.respond(response);
+            return;
+        }
+        if !path.starts_with("/api/v1/") {
+            // Unknown non-API paths fall back to the landing page.
+            let response = Response::from_string(LANDING)
+                .with_header(header("Content-Type", "text/html; charset=utf-8"));
+            let _ = request.respond(response);
+            return;
+        }
     }
 
     if !path.starts_with("/api/v1/") {
         respond_json(request, 404, &json!({"error": "not found"}));
         return;
+    }
+
+    // Public aggregate snapshot for the landing page: no secrets, no auth.
+    if method == Method::Get && path == "/api/v1/summary" {
+        let response = app.lock().summary(state::now_secs());
+        return respond_json(
+            request,
+            200,
+            &json!({
+                "totals": response.totals,
+                "leaderboard": response.leaderboard,
+                "registration_open": app.open_registration,
+            }),
+        );
+    }
+
+    // Self-service registration is public; the flag decides 403 vs 201.
+    if method == Method::Post && path == "/api/v1/register" {
+        return register(&app, request);
     }
 
     let Some(role) = app.identity(&request) else {
@@ -370,9 +463,31 @@ fn handle(app: Arc<App>, request: Request) {
             let status = app.lock().status(now);
             respond_json(request, 200, &status);
         }
+        (Method::Get, "/api/v1/me") => me(&app, request, &role),
+        (Method::Get, "/api/v1/clients") => {
+            let clients = app.lock().list_clients();
+            respond_json(request, 200, &json!({ "clients": clients }));
+        }
+        (Method::Post, "/api/v1/clients") => create_client(&app, request),
+        (Method::Post, _) if path.starts_with("/api/v1/clients/") => {
+            disable_client(&app, request, path)
+        }
         (Method::Get, "/api/v1/bsgs/state") => bsgs_get(&app, request, query),
         (Method::Post, "/api/v1/bsgs/state") => bsgs_put(&app, request),
         _ => respond_json(request, 404, &json!({"error": "not found"})),
+    }
+}
+
+/// Static assets served before the API auth check.
+fn static_asset(path: &str) -> Option<(&'static str, &'static str)> {
+    match path {
+        "/" => Some((LANDING, "text/html; charset=utf-8")),
+        "/app" => Some((APP_PAGE, "text/html; charset=utf-8")),
+        "/me" => Some((ME_PAGE, "text/html; charset=utf-8")),
+        "/docs" => Some((DOCS_PAGE, "text/html; charset=utf-8")),
+        "/site.css" => Some((SITE_CSS, "text/css; charset=utf-8")),
+        "/site.js" => Some((SITE_JS, "application/javascript; charset=utf-8")),
+        _ => None,
     }
 }
 
@@ -395,6 +510,112 @@ fn create_job(app: &App, mut request: Request) {
     match result {
         Ok(view) => respond_json(request, 201, &view),
         Err(message) => respond_json(request, 400, &json!({ "error": message })),
+    }
+}
+
+#[derive(Deserialize)]
+struct NameRequest {
+    #[serde(default)]
+    name: String,
+}
+
+/// Admin: create a client account and return its token once.
+fn create_client(app: &App, mut request: Request) {
+    let body = match read_body(&mut request) {
+        Ok(body) => body,
+        Err(error) => return respond_body_error(request, error),
+    };
+    let name: NameRequest = match serde_json::from_str(&body) {
+        Ok(name) => name,
+        Err(err) => {
+            return respond_json(
+                request,
+                400,
+                &json!({ "error": format!("invalid JSON: {err}") }),
+            );
+        }
+    };
+    let now = state::now_secs();
+    match app.lock().create_client(&name.name, now) {
+        Ok(client) => respond_json(
+            request,
+            201,
+            &json!({ "id": client.id, "name": client.name, "token": client.token }),
+        ),
+        Err(message) => respond_json(request, 400, &json!({ "error": message })),
+    }
+}
+
+/// Public self-service registration when `--open-registration` is set.
+fn register(app: &App, mut request: Request) {
+    if !app.open_registration {
+        return respond_json(request, 403, &json!({ "error": "registration is closed" }));
+    }
+    let ip = request
+        .remote_addr()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    let now = state::now_secs();
+    if !app.register.allow(&ip, now) {
+        return respond_json(request, 429, &json!({ "error": "rate limit exceeded" }));
+    }
+    let body = match read_body(&mut request) {
+        Ok(body) => body,
+        Err(error) => return respond_body_error(request, error),
+    };
+    let name: NameRequest = match serde_json::from_str(&body) {
+        Ok(name) => name,
+        Err(err) => {
+            return respond_json(
+                request,
+                400,
+                &json!({ "error": format!("invalid JSON: {err}") }),
+            );
+        }
+    };
+    match app.lock().create_client(&name.name, now) {
+        Ok(client) => respond_json(
+            request,
+            201,
+            &json!({ "id": client.id, "token": client.token }),
+        ),
+        Err(message) => respond_json(request, 400, &json!({ "error": message })),
+    }
+}
+
+/// Admin: disable a client (its token stops working, leases are released).
+fn disable_client(app: &App, request: Request, path: &str) {
+    let Some(id) = path
+        .strip_prefix("/api/v1/clients/")
+        .and_then(|rest| rest.strip_suffix("/disable"))
+    else {
+        return respond_json(request, 404, &json!({ "error": "not found" }));
+    };
+    if id.is_empty() || id.contains('/') {
+        return respond_json(request, 404, &json!({ "error": "not found" }));
+    }
+    match app.lock().disable_client(id) {
+        Ok(()) => respond_json(request, 200, &json!({ "ok": true })),
+        Err(message) if message == ERR_CLIENT_NOT_FOUND => {
+            respond_json(request, 404, &json!({ "error": message }))
+        }
+        Err(message) => respond_json(request, 400, &json!({ "error": message })),
+    }
+}
+
+/// Cabinet snapshot for the authenticated client token.
+fn me(app: &App, request: Request, role: &Identity) {
+    let Identity::Client(id) = role else {
+        return respond_json(
+            request,
+            400,
+            &json!({ "error": "a client token is required" }),
+        );
+    };
+    let view = app.lock().me(id, state::now_secs());
+    match view {
+        Some(view) => respond_json(request, 200, &view),
+        None => respond_json(request, 404, &json!({ "error": ERR_CLIENT_NOT_FOUND })),
     }
 }
 
