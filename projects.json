@@ -5,14 +5,20 @@
       "id": "site",
       "title": "Browser site and wasm client UI",
       "owner": "site-ui",
-      "paths": ["apps/site/**"],
+      "paths": [
+        "apps/site/**"
+      ],
       "build": [
         "node --check apps/site/site.js",
         "node --check apps/site/key.js",
         "node --check apps/site/rotor-worker.js"
       ],
-      "test": ["node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm"],
-      "consumes": ["wasm-core"],
+      "test": [
+        "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm"
+      ],
+      "consumes": [
+        "wasm-core"
+      ],
       "contracts": [
         "coordinator-embeds-web-assets-at-compile-time",
         "asset-version-?v=-bump-when-site.css-site.js-key.js-change",
@@ -30,11 +36,16 @@
         "tests/coordinator_api.rs",
         "tests/coordinator_client.rs"
       ],
-      "build": ["cargo build --release --bin rotor-coord"],
+      "build": [
+        "cargo build --release --bin rotor-coord"
+      ],
       "test": [
         "cargo test --test coordinator_api --test coordinator_client"
       ],
-      "consumes": ["site", "wasm-core"],
+      "consumes": [
+        "site",
+        "wasm-core"
+      ],
       "contracts": [
         "embeds-web-assets-via-include_str-include_bytes",
         "api-v1",
@@ -46,7 +57,9 @@
       "id": "wasm-core",
       "title": "Browser wasm core",
       "owner": "wasm-core",
-      "paths": ["crates/rotor-wasm/**"],
+      "paths": [
+        "crates/rotor-wasm/**"
+      ],
       "build": [
         "cargo build -p rotor-wasm --target wasm32-unknown-unknown --release",
         "sh scripts/build-wasm.sh"
@@ -107,10 +120,15 @@
         ".gitignore",
         "AGENTS.md",
         "PROJECTS.md",
-        "projects.json"
+        "projects.json",
+        "SECURITY.md"
       ],
-      "build": ["node scripts/check-projects.mjs"],
-      "test": ["node scripts/check-projects.mjs"],
+      "build": [
+        "node scripts/check-projects.mjs"
+      ],
+      "test": [
+        "node scripts/check-projects.mjs"
+      ],
       "consumes": [],
       "contracts": [
         "ci-path-filters-cover-all-areas",
