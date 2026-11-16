@@ -8,12 +8,12 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
 COPY crates ./crates
-COPY web ./web
+COPY apps ./apps
 # The coordinator embeds the browser client, so the wasm artifact must exist
 # before the root build runs.
 RUN rustup target add wasm32-unknown-unknown \
     && cargo build -p rotor-wasm --target wasm32-unknown-unknown --release \
-    && cp target/wasm32-unknown-unknown/release/rotor_wasm.wasm web/rotor_wasm.wasm
+    && cp target/wasm32-unknown-unknown/release/rotor_wasm.wasm apps/site/rotor_wasm.wasm
 RUN cargo build --release --bin rotor-coord
 
 FROM debian:bookworm-slim

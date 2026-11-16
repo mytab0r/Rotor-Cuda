@@ -7,9 +7,9 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
   both areas in one PR/commit. Cross-area changes are not "someone else's
   problem".
 - Site change to `site.css`, `site.js` or `key.js`: bump `?v=` in every
-  `web/*.html`.
+  `apps/site/*.html`.
 - `crates/rotor-wasm` change: run `sh scripts/build-wasm.sh`, run both JS
-  tests, commit `web/rotor_wasm.wasm`.
+  tests, commit `apps/site/rotor_wasm.wasm`.
 - Run the area test commands from `projects.json`; then
   `node scripts/check-projects.mjs`.
 - Parallel writers: use a worktree under `.claude/worktrees/` per area/change.

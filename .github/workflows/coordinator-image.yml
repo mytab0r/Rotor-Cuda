@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
     paths:
-      ["Dockerfile", "Cargo.toml", "Cargo.lock", "build.rs", "src/**", "web/**", "crates/**", "scripts/**", ".github/workflows/coordinator-image.yml"]
+      ["Dockerfile", "Cargo.toml", "Cargo.lock", "build.rs", "src/**", "apps/site/**", "crates/**", "scripts/**", ".github/workflows/coordinator-image.yml"]
   workflow_dispatch:
 
 permissions:

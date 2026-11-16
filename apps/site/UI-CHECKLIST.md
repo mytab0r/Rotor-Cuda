@@ -1,6 +1,6 @@
 # UI checklist (gate for web changes)
 
-The site has no build step: plain HTML/CSS/JS in `web/`, served by the
+The site has no build step: plain HTML/CSS/JS in `apps/site/`, served by the
 coordinator. Before calling a UI change done, walk this list and keep the
 evidence (a screenshot or the DOM check below).
 
@@ -33,7 +33,7 @@ evidence (a screenshot or the DOM check below).
 ## Verification
 - [ ] Open the page in the Browser pane at mobile and desktop sizes, check the
       console for errors, and re-read the empty state.
-- [ ] For the browser worker: `node web/worker-test.mjs` and a real lease on a
+- [ ] For the browser worker: `node apps/site/worker-test.mjs` and a real lease on a
       local coordinator (done only after the full chunk).
 - [ ] Changed `site.css` or `site.js`? Bump the `?v=` query in every page
       (`site.css?v=...`, `site.js?v=...`): Cloudflare caches those URLs for

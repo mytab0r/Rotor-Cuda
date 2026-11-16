@@ -91,7 +91,7 @@ time or a rate comparable to the GPU path. Source: `README.md:696`,
 The worker MUST send the bearer token only in the `Authorization` header to
 same-origin relative API paths. The token MUST NOT appear in a URL, log, DOM
 text or error message. The page MUST refuse to start on an insecure
-non-localhost context. Source: `web/site.js:5-65`,
+non-localhost context. Source: `apps/site/site.js:5-65`,
 `src/bin/rotor-coord.rs:5-6`.
 
 #### Scenario: insecure origin
