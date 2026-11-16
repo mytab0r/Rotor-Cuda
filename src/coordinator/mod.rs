@@ -9,8 +9,10 @@ pub mod chunk_loop;
 pub mod client;
 pub mod state;
 
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 
@@ -22,6 +24,13 @@ use state::{ERR_JOB_NOT_FOUND, ERR_MANIFEST_MISMATCH};
 
 /// The dashboard is embedded so the binary stays a single file.
 const DASHBOARD: &str = include_str!("../../web/index.html");
+/// Largest request body the coordinator buffers (JSON commands are tiny).
+const MAX_BODY_BYTES: usize = 1024 * 1024;
+/// Requests handled concurrently; the rest are rejected with 503.
+const MAX_CONCURRENT_REQUESTS: usize = 32;
+
+/// Number of request handlers currently running.
+static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
 struct App {
     state: Mutex<state::State>,
@@ -82,8 +91,16 @@ pub fn spawn(bind: &str, state_path: &Path, token: String) -> Result<ServerHandl
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
         for request in listener.incoming_requests() {
+            if ACTIVE_REQUESTS.fetch_add(1, Ordering::SeqCst) >= MAX_CONCURRENT_REQUESTS {
+                ACTIVE_REQUESTS.fetch_sub(1, Ordering::SeqCst);
+                reject_over_capacity(&app, request);
+                continue;
+            }
             let app = Arc::clone(&app);
-            thread::spawn(move || handle(app, request));
+            thread::spawn(move || {
+                let _slot = ActiveSlot;
+                handle(app, request);
+            });
         }
     });
     Ok(ServerHandle {
@@ -91,6 +108,39 @@ pub fn spawn(bind: &str, state_path: &Path, token: String) -> Result<ServerHandl
         server,
         join: Some(join),
     })
+}
+
+/// Releases the concurrency slot when a request handler finishes.
+struct ActiveSlot;
+
+impl Drop for ActiveSlot {
+    fn drop(&mut self) {
+        ACTIVE_REQUESTS.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+/// Rejects a request that arrived while the handler cap was reached.
+///
+/// An API request with a missing or wrong token still gets 401, so the auth
+/// check wins over the capacity limit where it can be decided cheaply.
+fn reject_over_capacity(app: &App, request: Request) {
+    let url = request.url().to_string();
+    let path = url.split_once('?').map_or(url.as_str(), |(path, _)| path);
+    let status = capacity_rejection_status(path, authorized(&request, &app.token));
+    let error = if status == 401 {
+        "unauthorized"
+    } else {
+        "server busy"
+    };
+    respond_json(request, status, &json!({ "error": error }));
+}
+
+fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
+    if path.starts_with("/api/v1/") && !authorized {
+        401
+    } else {
+        503
+    }
 }
 
 fn handle(app: Arc<App>, request: Request) {
@@ -138,7 +188,7 @@ fn handle(app: Arc<App>, request: Request) {
 fn create_job(app: &App, mut request: Request) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
-        Err(message) => return respond_json(request, 400, &json!({ "error": message })),
+        Err(error) => return respond_body_error(request, error),
     };
     let new_job: state::NewJob = match serde_json::from_str(&body) {
         Ok(new_job) => new_job,
@@ -160,7 +210,7 @@ fn create_job(app: &App, mut request: Request) {
 fn lease(app: &App, mut request: Request) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
-        Err(message) => return respond_json(request, 400, &json!({ "error": message })),
+        Err(error) => return respond_body_error(request, error),
     };
     let lease_request: state::LeaseRequest = match serde_json::from_str(&body) {
         Ok(lease_request) => lease_request,
@@ -200,7 +250,7 @@ struct HeartbeatRequest {
 fn heartbeat(app: &App, mut request: Request) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
-        Err(message) => return respond_json(request, 400, &json!({ "error": message })),
+        Err(error) => return respond_body_error(request, error),
     };
     let heartbeat: HeartbeatRequest = match serde_json::from_str(&body) {
         Ok(heartbeat) => heartbeat,
@@ -238,7 +288,7 @@ struct ResultRequest {
 fn submit_result(app: &App, mut request: Request) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
-        Err(message) => return respond_json(request, 400, &json!({ "error": message })),
+        Err(error) => return respond_body_error(request, error),
     };
     let result_request: ResultRequest = match serde_json::from_str(&body) {
         Ok(result_request) => result_request,
@@ -293,7 +343,7 @@ struct BsgsPutRequest {
 fn bsgs_put(app: &App, mut request: Request) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
-        Err(message) => return respond_json(request, 400, &json!({ "error": message })),
+        Err(error) => return respond_body_error(request, error),
     };
     let put: BsgsPutRequest = match serde_json::from_str(&body) {
         Ok(put) => put,
@@ -320,13 +370,40 @@ fn bsgs_put(app: &App, mut request: Request) {
     }
 }
 
-fn read_body(request: &mut Request) -> Result<String, String> {
+/// Why a request body could not be read.
+enum BodyError {
+    TooLarge,
+    Io(String),
+}
+
+fn read_body(request: &mut Request) -> Result<String, BodyError> {
+    if request
+        .body_length()
+        .is_some_and(|length| length > MAX_BODY_BYTES)
+    {
+        return Err(BodyError::TooLarge);
+    }
     let mut body = String::new();
     request
         .as_reader()
+        .take(MAX_BODY_BYTES as u64 + 1)
         .read_to_string(&mut body)
-        .map_err(|err| format!("cannot read request body: {err}"))?;
+        .map_err(|err| BodyError::Io(format!("cannot read request body: {err}")))?;
+    if body.len() > MAX_BODY_BYTES {
+        return Err(BodyError::TooLarge);
+    }
     Ok(body)
+}
+
+fn respond_body_error(request: Request, error: BodyError) {
+    match error {
+        BodyError::TooLarge => respond_json(
+            request,
+            413,
+            &json!({ "error": "request body exceeds 1 MiB" }),
+        ),
+        BodyError::Io(message) => respond_json(request, 400, &json!({ "error": message })),
+    }
 }
 
 fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
@@ -372,4 +449,16 @@ fn respond_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
 
 fn respond_empty(request: Request, status: u16) {
     let _ = request.respond(Response::empty(StatusCode(status)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capacity_rejection_keeps_auth_precedence() {
+        assert_eq!(capacity_rejection_status("/api/v1/status", false), 401);
+        assert_eq!(capacity_rejection_status("/api/v1/status", true), 503);
+        assert_eq!(capacity_rejection_status("/", false), 503);
+    }
 }

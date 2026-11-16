@@ -219,6 +219,14 @@ impl CoordinatorClient {
         path: &str,
         body: Option<&str>,
     ) -> Result<(u16, String), String> {
+        // The token is interpolated into the request head verbatim; a control
+        // byte (CR/LF/NUL) would corrupt it, so reject it before connecting.
+        if self.token.bytes().any(|byte| byte.is_ascii_control()) {
+            return Err(
+                "coordinator token contains a control character (CR, LF and other control bytes are not allowed)"
+                    .to_string(),
+            );
+        }
         let host = normalize_base(&self.base)?;
         let mut stream = connect(&host)?;
         let payload = body.unwrap_or("");
@@ -377,5 +385,25 @@ fn api_error(status: u16, body: &str) -> String {
         format!("HTTP {status}")
     } else {
         body.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tokens_with_control_characters_are_rejected_before_connecting() {
+        // Port 9 is unreachable, so a connection attempt would fail with a
+        // different error; this proves the token check runs first.
+        let client = CoordinatorClient::new("127.0.0.1:9", "good\r\nX-Injected: 1", "client-1");
+        let err = client.jobs().expect_err("CRLF token must be rejected");
+        assert!(err.contains("control character"), "unexpected error: {err}");
+
+        let client = CoordinatorClient::new("127.0.0.1:9", "good\ntoken", "client-1");
+        assert!(client.jobs().is_err());
+
+        let client = CoordinatorClient::new("127.0.0.1:9", "good\0token", "client-1");
+        assert!(client.jobs().is_err());
     }
 }

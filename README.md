@@ -118,9 +118,15 @@ the job target before accepting and marking the job found on the dashboard.
 
 ### GPU clients
 
-A `--features gpu` build leases chunks exactly like the CPU client and scans each lease
-on the device. Build with the CUDA Toolkit as described above, then add `-g` to the same
-command (one GPU per client, `--gpui` selects it):
+A `--features gpu` build uses the same lease/heartbeat protocol as the CPU client, but
+it scans one leased window at a time synchronously on the device: heartbeats are sent
+between chunks and at the end of each chunk, never during a scan. The engine and its
+generator table are created once and reused across leases; each lease only rebuilds the
+key plan, uploads its starting points and scans the window. If a heartbeat is lost
+because another client already submitted the found key (the job is found/done), the GPU
+client stops normally; a lost lease on a still-active job aborts. Build with the CUDA
+Toolkit as described above, then add `-g` to the same command (one GPU per client,
+`--gpui` selects it):
 
 ```sh
 ./target/release/rotor -g --gpui 0 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
@@ -128,12 +134,13 @@ command (one GPU per client, `--gpui` selects it):
   1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
 ```
 
-The engine and its generator table are created once and reused across leases; each lease
-only rebuilds the key plan, uploads its starting points and scans the window. Supported
-modes are `address|addresses|xpoint|xpoints` for BTC and `address|addresses` for ETH,
-with the same proof submission and `Found.txt` output as the CPU path. `-r`, `-n` and
-`--gpux` follow the normal GPU limits. `-m bsgs -g` is rejected with `--coordinator`:
+Supported modes are `address|addresses|xpoint|xpoints` for BTC and `address|addresses` for
+ETH, with the same proof submission and `Found.txt` output as the CPU path. `-r`, `-n`
+and `--gpux` follow the normal GPU limits. `-m bsgs -g` is rejected with `--coordinator`:
 coordinator BSGS runs on the CPU (drop `-g`). Multi-GPU scheduling remains deferred.
+Because a chunk is scanned synchronously, a chunk wider than `lease_ttl × device rate`
+cannot be refreshed mid-scan; its lease may expire and the chunk may be handed to
+another client (and scanned twice).
 
 ### BSGS resume
 
@@ -176,6 +183,11 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
   There is no TLS: put it behind a TLS-terminating reverse proxy for remote clients.
 - The dashboard keeps the token in `localStorage`; state is one JSON file (`--state`,
   default `coordinator.json`) rewritten atomically (`tmp` + rename), one process per file.
+- Heartbeat `scanned`/`done` values are trusted from any holder of the shared token: the
+  protocol is single-tenant and has no per-client attestation beyond the token. A client
+  can therefore mark its leased chunk done without proving the scan.
+- Request bodies are capped at 1 MiB (413 beyond it) and concurrent request handlers at
+  32 (503 beyond it); an API request with a missing/wrong token still gets 401.
 
 ### Limitations
 
@@ -187,6 +199,10 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
   marked found and the remaining targets in that job are not searched.
 - An expired lease can be re-leased while its owner scans the chunk's tail, so that
   slice may be scanned twice (the client aborts the chunk on the first failed heartbeat).
+  For GPU clients the limit is `lease_ttl × device rate` per chunk: a wider chunk cannot
+  be heartbeated mid-scan and may livelock around an expiring lease.
+- BSGS `giant_index` is monotonic and bounded by the job's last giant step; an
+  out-of-range index is rejected instead of marking the job done.
 - Coordinator BSGS is one giant walk per job; there is no multi-GPU scheduling.
 - The whole JSON state is rewritten on every mutation; it targets a handful of clients,
   not thousands.
@@ -476,10 +492,12 @@ Implemented in Rust:
 ### Benchmark
 
 `--benchmark` measures the selected backend on a synthetic, guaranteed-miss
-range: the target is key 1 while scanning starts at `0x100000000`, so the
-benchmark can never find a key. Backend options (`-g`, `-t`, `-m address|xpoint`,
-`--coin`, `-u/-b`) select what is measured; multi-target, BSGS and coordinator
-modes are rejected.
+range: the target is key 1 while scanning starts at `0x100000000` and ends at
+`0xFFFFFFFFFFFFFFFFFFFFFFFF` (2^96 - 1, below the curve order), so the benchmark
+can never find a key and no backend can exhaust the range before the timer.
+`seconds` is the actual scan wall clock, not the requested duration. Backend
+options (`-g`, `-t`, `-m address|xpoint`, `--coin`, `-u/-b`) select what is
+measured; multi-target, BSGS and coordinator modes are rejected.
 
 ```sh
 rotor --benchmark                         # CPU, 5 s

@@ -7,7 +7,11 @@
 //!
 //! A scan is synchronous, so heartbeats happen between chunks and at the end of
 //! each chunk; a chunk scan longer than the lease TTL cannot be refreshed while
-//! it runs. `No CPU fallback`: every coordinator or proof error aborts the run.
+//! it runs, so its lease may expire and the chunk may be handed to another
+//! client (keep the chunk width below `lease_ttl * device rate`). A heartbeat
+//! that is lost because the job is already found/done is a normal stop; a lost
+//! lease on a still-active job aborts. `No CPU fallback`: every coordinator or
+//! proof error aborts the run.
 
 use std::thread;
 use std::time::{Duration, Instant};
@@ -112,29 +116,61 @@ pub fn run_leases(
             break;
         }
 
-        if started.elapsed() >= HEARTBEAT_INTERVAL {
-            client
-                .heartbeat(
-                    &lease.job_id,
-                    lease.chunk_index,
-                    outcome.scanned,
-                    rate,
-                    false,
-                )
-                .map_err(|err| format!("coordinator heartbeat failed (lease lost?): {err}"))?;
-        }
-        client
-            .heartbeat(
+        if started.elapsed() >= HEARTBEAT_INTERVAL
+            && !heartbeat(
+                client,
+                job,
                 &lease.job_id,
                 lease.chunk_index,
                 outcome.scanned,
                 rate,
-                true,
-            )
-            .map_err(|err| format!("coordinator heartbeat failed (lease lost?): {err}"))?;
+                false,
+            )?
+        {
+            break;
+        }
+        if !heartbeat(
+            client,
+            job,
+            &lease.job_id,
+            lease.chunk_index,
+            outcome.scanned,
+            rate,
+            true,
+        )? {
+            break;
+        }
     }
 
     Ok((total_scanned, None))
+}
+
+/// Sends one heartbeat and classifies its failure.
+///
+/// Returns `Ok(true)` when the lease was refreshed, `Ok(false)` when it was
+/// lost because the job is already found/done (a normal stop), and an error
+/// when the job is still active or its state cannot be read.
+// The signature mirrors [`CoordinatorClient::heartbeat`].
+#[allow(clippy::too_many_arguments)]
+fn heartbeat(
+    client: &CoordinatorClient,
+    job: &LeaseJob,
+    job_id: &str,
+    chunk_index: u64,
+    scanned: u64,
+    rate: f64,
+    done: bool,
+) -> Result<bool, String> {
+    match client.heartbeat(job_id, chunk_index, scanned, rate, done) {
+        Ok(_) => Ok(true),
+        Err(err) => {
+            if job_is_finished(client, job)? {
+                Ok(false)
+            } else {
+                Err(format!("coordinator heartbeat failed (lease lost?): {err}"))
+            }
+        }
+    }
 }
 
 /// True when the matching job is found/done; errors when no job matches.
