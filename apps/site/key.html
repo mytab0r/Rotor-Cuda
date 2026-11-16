@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261116e">
+<link rel="stylesheet" href="/site.css?v=20261116h">
 </head>
 <body>
 <header class="site-nav">
@@ -15,6 +15,7 @@
     <a href="/me" id="nav-me">Cabinet</a>
     <a href="/docs" id="nav-docs">Docs</a>
     <a href="/key" class="active" id="nav-key">Keys</a>
+    <a href="/monitor" id="nav-monitor">Monitor</a>
   </nav>
 </header>
 
@@ -119,6 +120,14 @@
         <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
       </div>
     </div>
+    <div class="key-exposure">
+      <label class="key-toggle key-exposure-toggle">
+        <input type="checkbox" id="exposure-toggle">
+        Check these addresses against the Rotor registry
+      </label>
+      <p class="muted key-help" id="exposure-help">Sends the derived addresses (never the key) to the coordinator so a registered owner can be warned that someone looked them up.</p>
+      <p class="key-exposure-status" id="exposure-status" role="status" hidden></p>
+    </div>
     <p class="muted key-help" id="balance-help">Offline by default. When an online check is requested, only the derived addresses currently shown are sent: BTC to mempool.space, EVM to public Ethereum JSON-RPC providers (publicnode, dRPC, 1rpc; tried in order), TRON to Tronscan. Solana has no provider in v1.</p>
 
     <div class="key-btc-panel" id="btc-panel" hidden>
@@ -154,6 +163,6 @@
   </section>
 </main>
 
-<script src="/key.js?v=20261116e"></script>
+<script src="/key.js?v=20261116h"></script>
 </body>
 </html>

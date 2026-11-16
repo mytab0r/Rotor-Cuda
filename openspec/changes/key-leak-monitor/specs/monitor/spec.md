@@ -2,6 +2,26 @@
 
 ## Requirements
 
+### Requirement: MVP scope
+The MVP MUST support EVM and BTC watchlists only. An add request naming TRON
+or Solana MUST return 400 naming the supported chains and MUST NOT create a
+watch. Billing, plans, trial entitlement and out-of-app alert delivery
+(Telegram/email/webhook) are deferred: the MVP ships wallet login, the
+watchlist, baseline EVM polling (`eth_getBalance`/`eth_getTransactionCount`),
+the in-app event feed, session expiry/revocation and the transparent `/key`
+exposure check. Source: design D12.
+
+#### Scenario: unsupported chain
+- GIVEN a signed-in user submits a TRON or Solana address
+- WHEN the add request is handled
+- THEN the response is 400 stating that only `evm` and `btc` are supported
+- AND no watch is created
+
+#### Scenario: no plan gate in MVP
+- GIVEN a signed-in account below the 50-address hard cap
+- WHEN it adds an address
+- THEN no trial or paid-plan check is applied (billing is deferred)
+
 ### Requirement: verified watchlist
 An address MUST be watched only after a valid signature over a server-issued,
 single-use nonce bound to the account, domain, chain, address and an expiry.
@@ -82,8 +102,10 @@ or report healthy status with a stale `last_ok_at`. Source: design D5.4.
 - THEN degraded status is stored, an ops alert fires, and no event is lost
   silently
 
-### Requirement: entitlement gating
-Watchlist size MUST be limited by the account plan. Trial accounts MUST be
+### Requirement: entitlement gating (deferred from MVP)
+This requirement is deferred together with billing. The MVP applies only the
+50-address hard cap and stores no plan or trial state. When billing lands,
+watchlist size MUST be limited by the account plan. Trial accounts MUST be
 limited to 3 addresses and MUST NOT exceed that on add. Expired subscriptions
 MUST pause alerts, keep data for 30 days and allow reactivation. Source:
 design D9.
