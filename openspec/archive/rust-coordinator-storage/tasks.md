@@ -13,4 +13,4 @@
 ## 3. Size/persistence acceptance
 - [x] 1M-chunk simulation: mark/save/load; file < 400 KiB; lease remaining.
 - [x] fmt/clippy/test; README note on state size.
-- [ ] archive; PR.
+- [x] archive; PR #14 merged; CI green.
