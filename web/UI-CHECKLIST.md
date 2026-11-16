@@ -35,3 +35,6 @@ evidence (a screenshot or the DOM check below).
       console for errors, and re-read the empty state.
 - [ ] For the browser worker: `node web/worker-test.mjs` and a real lease on a
       local coordinator (done only after the full chunk).
+- [ ] Changed `site.css` or `site.js`? Bump the `?v=` query in every page
+      (`site.css?v=...`, `site.js?v=...`): Cloudflare caches those URLs for
+      four hours regardless of the origin `Cache-Control`.
