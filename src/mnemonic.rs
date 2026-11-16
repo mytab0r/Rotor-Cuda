@@ -638,6 +638,16 @@ mod tests {
     }
 
     #[test]
+    fn counter_entropy_lengths_follow_bits() {
+        for (bits, len) in [(128, 16), (160, 20), (192, 24), (224, 28), (256, 32)] {
+            let entropy = entropy_for_counter(1, bits).expect("valid bits");
+            assert_eq!(entropy.len(), len, "{bits} bits");
+            assert_eq!(entropy[len - 1], 1);
+            assert!(entropy[..len - 1].iter().all(|byte| *byte == 0));
+        }
+    }
+
+    #[test]
     fn counter_fixture_matches_independent_address() {
         let (phrase, derived) = derive_counter(3, 128, "", DEFAULT_PATH).expect("counter derives");
         assert_eq!(
