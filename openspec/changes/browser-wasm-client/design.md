@@ -123,9 +123,10 @@ exact Number arithmetic and because challenge offsets are `u32` (`src/coordinato
 - `addresses`: 40-hex hash160 records; `xpoints`: 64-hex records. The server
   already normalizes both (`src/coordinator/state.rs:1787-1791`,
   `:1807-1810`), so the worker passes `job.targets` verbatim.
-- `TargetSet::from_records(records, record_len)` (`src/filter.rs:200-213`)
-  supplies `contains` (`:244-251`). V1 accepts at most 50,000 records;
-  larger jobs are skipped with an explicit message.
+- `set_job` builds a `HashSet<[u8; 20]>` / `HashSet<[u8; 32]>` and `check`
+  does an exact membership test; `filter::TargetSet` (with `xorf`) is not used
+  on the browser path. The worker skips jobs with more than 50,000 records and
+  reports why.
 
 The scanned range is inclusive `[start, end]`, exactly like the native client
 (`src/engine.rs:620-635`, `:1200-1260`). JS owns the span arithmetic with
@@ -367,7 +368,7 @@ range follow `src/engine.rs:1219-1222` and `:620-635`.
 
 | Risk | Mitigation |
 |---|---|
-| wasm build fails on `xorf`/`bs58`/std APIs | wasm CI job from task 1; fallback local membership set behind `TargetSet`; no protocol change |
+| wasm build fails on `bs58`/std APIs | wasm CI job (`wasm-build-test`) builds the artifact on every PR and runs the Node smoke/protocol tests; the matcher is a local `HashSet`, so `xorf` is never in the browser path |
 | Unconditional native deps break the target | target-gated `ctrlc`/`tiny_http`/`ureq`/`bip39`; cfg-gated modules (D2) |
 | `Instant`/timers unavailable | no clock in wasm; JS `performance.now()` and in-loop deadlines (D4) |
 | Throughput disappoints users | measured-rate UI, honest docs, browser-sized chunk guidance, GPU comparison |
