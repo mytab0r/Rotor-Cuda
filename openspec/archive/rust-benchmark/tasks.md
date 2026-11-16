@@ -20,5 +20,5 @@
 ## 4. Docs and close-out
 - [x] README: usage, JSON example, what is measured (synthetic miss range).
 - [x] fmt/clippy/test green.
-- [ ] Archive change; PR.
+- [x] Archive change; PR. PR #7 merged; CI green (ubuntu, windows, rust-gpu-build).
 
