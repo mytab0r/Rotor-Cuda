@@ -34,6 +34,9 @@ const ME_PAGE: &str = include_str!("../../web/me.html");
 const DOCS_PAGE: &str = include_str!("../../web/docs.html");
 const SITE_CSS: &str = include_str!("../../web/site.css");
 const SITE_JS: &str = include_str!("../../web/site.js");
+const RUN_PAGE: &str = include_str!("../../web/run.html");
+const ROTOR_WORKER: &str = include_str!("../../web/rotor-worker.js");
+const ROTOR_WASM: &[u8] = include_bytes!("../../web/rotor_wasm.wasm");
 /// Largest request body the coordinator buffers (JSON commands are tiny).
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// Requests handled concurrently; the rest are rejected with 503.
@@ -397,7 +400,7 @@ fn handle(app: Arc<App>, request: Request) {
     if method == Method::Get {
         if let Some((body, content_type)) = static_asset(path) {
             let response =
-                Response::from_string(body).with_header(header("Content-Type", content_type));
+                Response::from_data(body).with_header(header("Content-Type", content_type));
             let _ = request.respond(response);
             return;
         }
@@ -479,14 +482,20 @@ fn handle(app: Arc<App>, request: Request) {
 }
 
 /// Static assets served before the API auth check.
-fn static_asset(path: &str) -> Option<(&'static str, &'static str)> {
+fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
     match path {
-        "/" => Some((LANDING, "text/html; charset=utf-8")),
-        "/app" => Some((APP_PAGE, "text/html; charset=utf-8")),
-        "/me" => Some((ME_PAGE, "text/html; charset=utf-8")),
-        "/docs" => Some((DOCS_PAGE, "text/html; charset=utf-8")),
-        "/site.css" => Some((SITE_CSS, "text/css; charset=utf-8")),
-        "/site.js" => Some((SITE_JS, "application/javascript; charset=utf-8")),
+        "/" => Some((LANDING.as_bytes(), "text/html; charset=utf-8")),
+        "/app" => Some((APP_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/run" => Some((RUN_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/me" => Some((ME_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/site.css" => Some((SITE_CSS.as_bytes(), "text/css; charset=utf-8")),
+        "/site.js" => Some((SITE_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/rotor-worker.js" => Some((
+            ROTOR_WORKER.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/rotor_wasm.wasm" => Some((ROTOR_WASM, "application/wasm")),
         _ => None,
     }
 }
@@ -953,6 +962,24 @@ mod tests {
         assert_eq!(capacity_rejection_status("/api/v1/status", false), 401);
         assert_eq!(capacity_rejection_status("/api/v1/status", true), 503);
         assert_eq!(capacity_rejection_status("/", false), 503);
+    }
+
+    #[test]
+    fn browser_client_assets_are_served() {
+        let (body, content_type) = static_asset("/run").expect("/run is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(!body.is_empty());
+
+        let (body, content_type) =
+            static_asset("/rotor-worker.js").expect("/rotor-worker.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
+
+        let (body, content_type) =
+            static_asset("/rotor_wasm.wasm").expect("/rotor_wasm.wasm is embedded");
+        assert_eq!(content_type, "application/wasm");
+        assert_eq!(body.len(), ROTOR_WASM.len());
+        assert!(body.len() > 1024);
     }
 
     #[test]
