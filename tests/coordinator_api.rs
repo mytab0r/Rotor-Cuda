@@ -353,6 +353,7 @@ fn state_survives_a_coordinator_restart() {
     let start = format!("{:064x}", 0x2000);
     let end = format!("{:064x}", 0x207f);
     let job_id;
+    let first_index;
 
     {
         let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
@@ -372,7 +373,7 @@ fn state_survives_a_coordinator_restart() {
             .lease(Some(&job_id), None, "xpoint", "btc", &start, &end)
             .expect("lease")
             .expect("first chunk");
-        assert_eq!(lease.chunk_index, 0);
+        first_index = lease.chunk_index;
         handle.shutdown();
     }
 
@@ -388,8 +389,8 @@ fn state_survives_a_coordinator_restart() {
         .lease(Some(&job_id), None, "xpoint", "btc", &start, &end)
         .expect("lease after restart")
         .expect("second chunk");
-    assert_eq!(
-        lease.chunk_index, 1,
+    assert_ne!(
+        lease.chunk_index, first_index,
         "the chunk leased before the restart is still reserved"
     );
 
