@@ -94,6 +94,9 @@
     keyBytes: null,
     report: null,
     preset: 'all',
+    chain: 'all',
+    focusId: null,
+    balances: {},
     checking: false,
     deriving: false,
     generation: 0,
@@ -119,6 +122,15 @@
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
   var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-presets button'));
+  var chainButtons = Array.prototype.slice.call(document.querySelectorAll('.key-chain'));
+  var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
+  var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.key-type'));
+  var btcPanel = byId('btc-panel');
+  var btcSelected = byId('btc-selected');
+  var btcBalance = byId('btc-balance');
+  var btcReceived = byId('btc-received');
+  var btcTx = byId('btc-tx');
+  var btcHint = byId('btc-summary-hint');
 
   /* ------------------------------------------------------------ key parsing */
 
@@ -320,17 +332,22 @@
 
   function cancelBalances() {
     state.generation += 1;
+    state.balances = {};
     state.controllers.forEach(function (controller) {
       try { controller.abort(); } catch (err) { /* already aborted */ }
     });
     state.controllers = [];
+    renderBalanceCards();
   }
 
   function clearResults() {
     cancelBalances();
     state.report = null;
+    state.focusId = null;
     summaryPlaceholder();
     rowsPlaceholder();
+    syncSelection(false, false);
+    syncBitcoinPanel();
     presetEmpty.hidden = true;
     checkBtn.disabled = true;
     checkBtn.textContent = 'Check balances';
@@ -426,10 +443,11 @@
 
   function renderReport(report) {
     state.report = report;
+    state.balances = {};
     renderSummary(report);
     renderAddresses(report);
     checkBtn.textContent = 'Check balances';
-    checkBtn.disabled = !onlineToggle.checked;
+    checkBtn.disabled = !onlineToggle.checked || state.checking;
   }
 
   function summaryFields(report) {
@@ -507,11 +525,14 @@
     rowsEl.textContent = '';
     var addresses = Array.isArray(report.addresses) ? report.addresses : [];
     if (!addresses.length) {
+      state.focusId = null;
       var note = document.createElement('p');
       note.className = 'muted key-empty';
       note.textContent = 'The derivation core returned no address rows.';
       rowsEl.appendChild(note);
       presetEmpty.hidden = true;
+      syncSelection(false, false);
+      syncBitcoinPanel();
       return;
     }
     addresses.forEach(function (addr) {
@@ -519,7 +540,10 @@
       rowsEl.appendChild(buildRow(addr));
     });
     resetBalanceBadges();
-    applyPreset();
+    ensureBtcFocus();
+    applyFilters();
+    syncSelection(false, false);
+    syncBitcoinPanel();
   }
 
   function orderedSteps(id, steps) {
@@ -652,17 +676,51 @@
     }
   }
 
-  /* ---------------------------------------------------------------- presets */
+  /* ------------------------------------------------------- filters/selection */
 
-  function applyPreset() {
+  function btcRowIds() {
+    var ids = [];
+    Array.prototype.forEach.call(rowsEl.children, function (row) {
+      var id = row.getAttribute('data-id');
+      if (id && id.indexOf('btc_') === 0) ids.push(id);
+    });
+    return ids;
+  }
+
+  function findRow(id) {
+    return Array.prototype.filter.call(rowsEl.children, function (row) {
+      return row.getAttribute('data-id') === id;
+    })[0] || null;
+  }
+
+  function ensureBtcFocus() {
+    var ids = btcRowIds();
+    if (!ids.length) {
+      state.focusId = null;
+      return;
+    }
+    if (state.focusId === 'summary') return;
+    if (!state.focusId || ids.indexOf(state.focusId) < 0) {
+      state.focusId = ids.indexOf('btc_p2pkh') >= 0 ? 'btc_p2pkh' : ids[0];
+    }
+  }
+
+  function rowMatches(id) {
+    var preset = PRESETS[state.preset];
+    if (preset && preset.indexOf(id) < 0) return false;
+    if (state.chain === 'all') return true;
+    if (state.chain === 'btc') return id.indexOf('btc_') === 0;
+    return id === state.chain;
+  }
+
+  function applyFilters() {
     if (!state.report) {
       presetEmpty.hidden = true;
       return;
     }
-    var allowed = PRESETS[state.preset];
     var visible = 0;
     Array.prototype.forEach.call(rowsEl.children, function (row) {
-      var show = !allowed || allowed.indexOf(row.getAttribute('data-id')) >= 0;
+      var show = rowMatches(row.getAttribute('data-id'));
       row.classList.toggle('hidden', !show);
       if (show) visible++;
     });
@@ -674,7 +732,124 @@
     presetButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
-    applyPreset();
+    applyFilters();
+    syncBitcoinPanel();
+  }
+
+  function selectChain(button) {
+    state.chain = button.getAttribute('data-chain');
+    chainButtons.forEach(function (other) {
+      other.setAttribute('aria-pressed', String(other === button));
+    });
+    applyFilters();
+    syncBitcoinPanel();
+  }
+
+  function scrollBehavior() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'auto';
+    return 'smooth';
+  }
+
+  function syncSelection(open, scroll) {
+    pathChips.forEach(function (chip) {
+      chip.setAttribute('aria-pressed', String(chip.getAttribute('data-row') === state.focusId));
+    });
+    typeTiles.forEach(function (tile) {
+      tile.setAttribute('aria-pressed', String(tile.getAttribute('data-row') === state.focusId));
+    });
+    Array.prototype.forEach.call(rowsEl.children, function (row) {
+      row.classList.toggle('key-row-focus', !!state.focusId && row.getAttribute('data-id') === state.focusId);
+    });
+    summaryEl.classList.toggle('key-focus', state.focusId === 'summary');
+    if (!state.focusId) return;
+    if (state.focusId === 'summary') {
+      if (scroll) summaryEl.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+      return;
+    }
+    var row = findRow(state.focusId);
+    if (!row) return;
+    if (open) {
+      var details = row.querySelector('details');
+      if (details) details.open = true;
+    }
+    if (scroll) row.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+  }
+
+  function focusTarget(id) {
+    if (!id) return;
+    state.focusId = id;
+    if (id !== 'summary') {
+      state.preset = 'all';
+      presetButtons.forEach(function (button) {
+        button.setAttribute('aria-pressed', String(button.getAttribute('data-preset') === 'all'));
+      });
+      if (id.indexOf('btc_') === 0) {
+        state.chain = 'btc';
+        chainButtons.forEach(function (button) {
+          button.setAttribute('aria-pressed', String(button.getAttribute('data-chain') === 'btc'));
+        });
+      }
+      applyFilters();
+    }
+    syncSelection(true, true);
+    syncBitcoinPanel();
+  }
+
+  function selectedBtcId() {
+    var ids = btcRowIds();
+    if (state.focusId && ids.indexOf(state.focusId) >= 0) return state.focusId;
+    if (ids.indexOf('btc_p2pkh') >= 0) return 'btc_p2pkh';
+    return ids[0] || null;
+  }
+
+  function formatBtc(sats) {
+    var unit = 100000000n;
+    var whole = sats / unit;
+    var fraction = (sats % unit).toString().padStart(8, '0').replace(/0+$/, '');
+    return fraction ? whole.toString() + '.' + fraction : whole.toString();
+  }
+
+  function setCardValue(el, text) {
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('empty', text === '—');
+  }
+
+  function renderBalanceCards() {
+    if (!btcBalance || !btcPanel || btcPanel.hidden) return;
+    var id = selectedBtcId();
+    var summary = id ? state.balances[id] : null;
+    var row = id ? findRow(id) : null;
+    if (btcSelected) {
+      if (row) {
+        var title = row.querySelector('.key-row-title');
+        var addr = row.querySelector('.key-addr');
+        btcSelected.textContent = (title ? title.textContent : id) + (addr ? ' · ' + addr.textContent : '');
+      } else {
+        btcSelected.textContent = '';
+      }
+    }
+    if (summary) {
+      setCardValue(btcBalance, formatBtc(summary.balanceSat) + ' BTC');
+      setCardValue(btcReceived, summary.receivedSat.toLocaleString('en-US') + ' sat');
+      setCardValue(btcTx, String(summary.txs));
+      btcHint.textContent = 'Balance, received and transaction count come from mempool.space for the selected Bitcoin address.';
+    } else {
+      setCardValue(btcBalance, '—');
+      setCardValue(btcReceived, '—');
+      setCardValue(btcTx, '—');
+      btcHint.textContent = 'Enable online lookups and press Check balances to fill these values for the selected Bitcoin address.';
+    }
+  }
+
+  function syncBitcoinPanel() {
+    if (!btcPanel) return;
+    var hasVisibleBtc = Array.prototype.some.call(rowsEl.children, function (row) {
+      var id = row.getAttribute('data-id');
+      return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
+    });
+    btcPanel.hidden = !hasVisibleBtc;
+    renderBalanceCards();
   }
 
   /* --------------------------------------------------------------- balances */
@@ -745,13 +920,17 @@
     var data = await response.json();
     var chain = data.chain_stats || {};
     var mempool = data.mempool_stats || {};
-    var sats = BigInt(Math.trunc(numberOrZero(chain.funded_txo_sum))) -
-      BigInt(Math.trunc(numberOrZero(chain.spent_txo_sum))) +
-      BigInt(Math.trunc(numberOrZero(mempool.funded_txo_sum))) -
+    var funded = BigInt(Math.trunc(numberOrZero(chain.funded_txo_sum))) +
+      BigInt(Math.trunc(numberOrZero(mempool.funded_txo_sum)));
+    var spent = BigInt(Math.trunc(numberOrZero(chain.spent_txo_sum))) +
       BigInt(Math.trunc(numberOrZero(mempool.spent_txo_sum)));
+    var sats = funded - spent;
     if (sats < 0n) sats = 0n;
     var txs = numberOrZero(chain.tx_count) + numberOrZero(mempool.tx_count);
-    return sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx';
+    return {
+      text: sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx',
+      summary: { balanceSat: sats, receivedSat: funded, txs: txs }
+    };
   }
 
   async function evmBatch(address, url, signal) {
@@ -849,13 +1028,15 @@
     }
     setBalance(badge, 'loading', 'checking…');
     try {
-      var text;
-      if (id.indexOf('btc_') === 0) text = await fetchBtc(address, signal);
-      else if (id === 'evm') text = await fetchEvm(address, signal);
-      else if (id === 'tron') text = await fetchTron(address, signal);
+      var result;
+      if (id.indexOf('btc_') === 0) result = await fetchBtc(address, signal);
+      else if (id === 'evm') result = await fetchEvm(address, signal);
+      else if (id === 'tron') result = await fetchTron(address, signal);
       else throw new Error('no provider in v1');
       if (generation !== state.generation || signal.aborted) return;
-      setBalance(badge, 'ok', text);
+      if (result && result.summary) state.balances[id] = result.summary;
+      setBalance(badge, 'ok', typeof result === 'string' ? result : result.text);
+      if (result && result.summary) renderBalanceCards();
     } catch (err) {
       if (generation !== state.generation || signal.aborted) return;
       var message = err && err.name === 'AbortError'
@@ -1023,6 +1204,18 @@
 
   presetButtons.forEach(function (button) {
     button.addEventListener('click', function () { selectPreset(button); });
+  });
+
+  chainButtons.forEach(function (button) {
+    button.addEventListener('click', function () { selectChain(button); });
+  });
+
+  pathChips.forEach(function (chip) {
+    chip.addEventListener('click', function () { focusTarget(chip.getAttribute('data-row')); });
+  });
+
+  typeTiles.forEach(function (tile) {
+    tile.addEventListener('click', function () { focusTarget(tile.getAttribute('data-row')); });
   });
 
   onlineToggle.addEventListener('change', function () {
