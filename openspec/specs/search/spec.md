@@ -166,6 +166,140 @@ CI MUST compile the CUDA translation units and the Rust wrapper (`cargo build
 --features gpu`) on a Windows runner with the CUDA Toolkit installed; the default
 build MUST NOT require CUDA.
 
+## Coordinator (`rotor-coord`, 2026-11-16)
+
+### Requirement: token authentication
+Every `/api/v1/*` request MUST present `Authorization: Bearer <token>` compared in
+constant time; a missing or wrong token MUST get 401. `GET /` MAY serve the dashboard
+without a token. The coordinator MUST refuse to start with an empty token.
+
+#### Scenario: missing token
+- GIVEN a running coordinator and no Authorization header
+- WHEN a client calls `GET /api/v1/status`
+- THEN the response is 401 and contains `unauthorized`
+
+### Requirement: lease and TTL semantics
+`POST /api/v1/lease` MUST hand out only chunks that are not done and not covered by a
+live lease, and MUST answer 204 when the matching job is found/done or every chunk is
+leased. A lease MUST expire after the job's `lease_ttl`; an expired lease MUST be
+reclaimable without an explicit release. A heartbeat from a non-owner or after expiry
+MUST fail with 409.
+
+#### Scenario: disjoint leases
+- GIVEN one job tiled into N chunks
+- WHEN N clients lease concurrently
+- THEN each receives a distinct chunk and further leases answer 204 while all are held
+
+#### Scenario: expired lease is reclaimed
+- GIVEN a lease whose TTL has elapsed
+- WHEN another client leases
+- THEN it may receive the same chunk
+
+### Requirement: verified results and durable state
+`POST /api/v1/result` MUST verify the submitted scalar with `k*G == target` (or the
+target address/hash) before accepting; an invalid proof MUST be rejected with 400 and
+MUST NOT mark the job found. An accepted result marks the job found/done and drops its
+leases. Jobs, chunks, leases, results and BSGS checkpoints MUST persist in one JSON
+file rewritten atomically (`tmp` + rename) and MUST reload on restart.
+
+#### Scenario: invalid proof
+- GIVEN a job for a known public key
+- WHEN a client submits a different scalar
+- THEN the request fails with `invalid proof` and the job stays unfound
+
+#### Scenario: restart
+- GIVEN a coordinator that granted a lease and stopped
+- WHEN it is restarted on the same state file
+- THEN the job and the live lease are visible and the leased chunk is not re-handed out
+
+### Requirement: request hardening
+The coordinator MUST cap request bodies at 1 MiB (413 beyond it) and concurrent
+request handlers at a fixed small number (503 beyond it) without new dependencies.
+An API request with a missing or wrong token MUST still get 401 rather than 503.
+
+#### Scenario: oversized body
+- GIVEN an authenticated request body larger than 1 MiB
+- WHEN it is posted
+- THEN the coordinator answers 413 and does not parse it
+
+## Benchmark command
+
+### Requirement: synthetic-rate measurement
+`--benchmark` MUST measure the selected backend (CPU or GPU) for the requested
+duration on a synthetic, guaranteed-miss range and report `backend`, `threads`,
+wall-clock `seconds`, `scanned` and `keys_per_second = scanned / seconds`, in human
+text or as one JSON object with `--benchmark-json`. Multi-target, BSGS, work-file and
+coordinator configurations MUST be rejected before scanning.
+
+#### Scenario: early range exhaustion
+- GIVEN a backend that exhausts the synthetic range before the requested duration
+- WHEN the benchmark runs
+- THEN `seconds` is the actual scan wall clock and the reported rate is not diluted by
+  the remaining timer
+
+#### Scenario: JSON purity
+- GIVEN `--benchmark-json`
+- WHEN the benchmark runs
+- THEN stdout contains exactly one JSON object and no banner or progress lines
+
+## BSGS work files (`--bsgs-work`)
+
+### Requirement: work-file identity
+A BSGS work file MUST identify table format, curve, baby size, range and table
+checksum, and MUST be written atomically. Loading MUST validate length, header
+offsets, digest/checksum and identity; a mismatched or foreign work file MUST be
+rejected with the offending field named instead of being reused.
+
+#### Scenario: foreign table
+- GIVEN a work file whose table checksum differs from the rebuilt table
+- WHEN the job resumes
+- THEN it fails loudly and does not overwrite the file
+
+#### Scenario: resume
+- GIVEN a valid work file at giant index i
+- WHEN the same job restarts
+- THEN the walk resumes at i without repeating completed steps
+
+### Requirement: coordinator BSGS progress
+A BSGS job's stored `giant_index` MUST be monotonic and MUST NOT exceed the job's
+last giant step (`span / baby_size + 1`); an oversized index MUST be rejected rather
+than marking the job done. A resume index at the last giant step marks the job done.
+
+#### Scenario: oversized index
+- GIVEN a BSGS job and an authenticated client
+- WHEN it posts a `giant_index` past the last giant step
+- THEN the request is rejected and the job is not marked done
+
+## GPU coordinator clients
+
+### Requirement: host chunk loop
+A GPU `--coordinator` client MUST lease one chunk at a time and scan it with the
+device engine, heartbeating between chunks and at the end of each chunk. The engine
+and table MUST be created once and reused across leases. A heartbeat lost because the
+job is already found/done MUST stop the client normally; a lost lease on a still-active
+job MUST abort.
+
+#### Scenario: lease lost after another client finishes
+- GIVEN a GPU client scanning a chunk while another client submits the found key
+- WHEN the GPU client's next heartbeat fails with `lease lost`
+- THEN the client stops normally and reports no error
+
+#### Scenario: synchronous scan limit
+- GIVEN a chunk wider than `lease_ttl × device rate`
+- WHEN the GPU client scans it
+- THEN it cannot refresh the lease mid-scan, so the chunk may be re-leased and rescanned
+
+### Requirement: device verification policy
+On a GPU build, coordinator address/xpoint hits MUST be re-verified by the host
+(`k*G` against the target) before submission, and kernel candidates that fail MUST be
+discarded. `-m bsgs -g --coordinator` MUST be rejected because coordinator BSGS uses
+the CPU path.
+
+#### Scenario: false positive from the device
+- GIVEN a device candidate that is not the exact target
+- WHEN the host processes the hit
+- THEN nothing is submitted and the scan continues
+
 ## Self-update
 
 ### Requirement: checksum-verified self-update

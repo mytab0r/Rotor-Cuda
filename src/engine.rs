@@ -84,13 +84,27 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
 /// startup, so the timer must start first. Durations below ~50 ms are not a
 /// supported use: the flag could be cleared after the timer already fired.
 pub fn run_for(config: &Config, duration: Duration) -> Result<SearchOutcome, String> {
+    run_for_timed(config, duration).map(|(outcome, _)| outcome)
+}
+
+/// Like [`run_for`], but also returns how long the scan actually ran.
+///
+/// The duration is captured when [`run`] returns, before the stop timer is
+/// joined, so a range that exhausts early reports its true scan time instead
+/// of the requested duration.
+pub fn run_for_timed(
+    config: &Config,
+    duration: Duration,
+) -> Result<(SearchOutcome, Duration), String> {
     let timer = thread::spawn(move || {
         thread::sleep(duration);
         request_stop();
     });
+    let started = Instant::now();
     let outcome = run(config);
+    let elapsed = started.elapsed();
     let _ = timer.join();
-    outcome
+    outcome.map(|outcome| (outcome, elapsed))
 }
 
 /// Like [`run`], but reads and writes checkpoints in `checkpoint_dir`

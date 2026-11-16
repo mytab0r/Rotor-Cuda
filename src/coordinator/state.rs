@@ -653,15 +653,17 @@ impl State {
 
     /// Store a BSGS resume point; a different table for the same job conflicts.
     ///
-    /// A `giant_index` past the last giant step of the job's range means the
-    /// client walked the whole range, so the job is marked done.
+    /// The stored index is monotonic: a lower index never rewinds the resume
+    /// point. An index past the job's last giant step is rejected, so a client
+    /// cannot force a job done by reporting an out-of-range walk; a stored
+    /// index at (or past) the last giant step marks the job done.
     pub fn bsgs_put(
         &mut self,
         job_id: &str,
         manifest: TableManifest,
         giant_index: u64,
     ) -> Result<(), String> {
-        let giants = {
+        let (giants, existing) = {
             let job = self
                 .data
                 .jobs
@@ -671,13 +673,25 @@ impl State {
             if job.mode != "bsgs" {
                 return Err("job is not bsgs".to_string());
             }
-            if let Some(stored) = self.data.bsgs.get(job_id)
-                && !stored.manifest.to_manifest().compatible(&manifest)
-            {
-                return Err(ERR_MANIFEST_MISMATCH.to_string());
-            }
-            bsgs_giant_count(job, manifest.baby_size)
+            let existing = match self.data.bsgs.get(job_id) {
+                Some(stored) => {
+                    if !stored.manifest.to_manifest().compatible(&manifest) {
+                        return Err(ERR_MANIFEST_MISMATCH.to_string());
+                    }
+                    Some(stored.giant_index)
+                }
+                None => None,
+            };
+            (bsgs_giant_count(job, manifest.baby_size), existing)
         };
+        if let Some(giants) = giants
+            && u128::from(giant_index) > giants
+        {
+            return Err(format!(
+                "giant_index {giant_index} is beyond the last giant index {giants}"
+            ));
+        }
+        let giant_index = existing.map_or(giant_index, |stored| stored.max(giant_index));
         self.data.bsgs.insert(
             job_id.to_string(),
             BsgsEntry {
@@ -686,7 +700,7 @@ impl State {
             },
         );
         if let Some(giants) = giants
-            && u128::from(giant_index) > giants
+            && u128::from(giant_index) >= giants
             && let Some(job) = self.data.jobs.iter_mut().find(|job| job.id == job_id)
         {
             job.done = true;
@@ -1424,7 +1438,7 @@ mod tests {
             range_id: "1:ff".to_string(),
             table_checksum: 7,
         };
-        // span = 0xfe, giants = 0xfe / 16 + 1 = 16; index 17 is past the walk.
+        // span = 0xfe, giants = 0xfe / 16 + 1 = 16; index 16 is the last giant.
         let giants = (0xfeu128 / 16) + 1;
 
         let unfinished = new_job(&mut state);
@@ -1433,7 +1447,7 @@ mod tests {
             .expect("store the resume point");
         let finished = new_job(&mut state);
         state
-            .bsgs_put(&finished.id, manifest, giants as u64 + 1)
+            .bsgs_put(&finished.id, manifest, giants as u64)
             .expect("store the final resume point");
 
         let status = state.status(1_100);
@@ -1448,8 +1462,66 @@ mod tests {
         assert!(!view(&finished.id).found);
         assert!(
             view(&finished.id).done,
-            "a pass past the last index finishes"
+            "the last giant index finishes the walk"
         );
+    }
+
+    #[test]
+    fn bsgs_put_keeps_the_index_monotonic_and_rejects_an_oversized_index() {
+        let temp = TempState::new("bsgs-monotonic");
+        let mut state = State::open(temp.path()).expect("open");
+        let target = hex_bytes(&secp::compress(&secp::mul_g(&Scalar::from_u64(1))));
+        let job = state
+            .create_job(NewJob {
+                target: Some(target),
+                targets: Vec::new(),
+                mode: "bsgs".to_string(),
+                coin: None,
+                comp_mode: None,
+                start: hex(1),
+                end: hex(0xff),
+                chunk_width: Some(0x100),
+                lease_ttl: Some(60),
+            })
+            .expect("bsgs job");
+        let manifest = TableManifest {
+            format_version: 1,
+            curve: "secp256k1".to_string(),
+            baby_size: 16,
+            range_id: "1:ff".to_string(),
+            table_checksum: 7,
+        };
+        // span = 0xfe, giants = 0xfe / 16 + 1 = 16.
+        let giants = (0xfeu64 / 16) + 1;
+
+        state
+            .bsgs_put(&job.id, manifest.clone(), 10)
+            .expect("store a resume point");
+        state
+            .bsgs_put(&job.id, manifest.clone(), 4)
+            .expect("a lower index is accepted but must not rewind");
+        assert_eq!(
+            state.bsgs_get(&job.id).expect("stored").giant_index,
+            10,
+            "the stored index must stay at its high-water mark"
+        );
+
+        let err = state
+            .bsgs_put(&job.id, manifest, giants + 1)
+            .expect_err("an index past the last giant must be rejected");
+        assert!(err.contains("last giant index"), "unexpected error: {err}");
+        assert_eq!(
+            state.bsgs_get(&job.id).expect("stored").giant_index,
+            10,
+            "a rejected index must not be stored"
+        );
+        let status = state.status(1_100);
+        let view = status
+            .jobs
+            .iter()
+            .find(|view| view.id == job.id)
+            .expect("job");
+        assert!(!view.done, "a rejected index must not mark the job done");
     }
 
     #[test]

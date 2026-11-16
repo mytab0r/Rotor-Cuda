@@ -307,6 +307,70 @@ fn lost_lease_aborts() {
     handle.shutdown();
 }
 
+#[test]
+fn lost_lease_after_the_job_was_found_stops_normally() {
+    let state = TempPath::new("found_during_scan", "json");
+    let handle = spawn("127.0.0.1:0", state.path(), TOKEN.to_string()).expect("spawn");
+    let url = format!("http://{}", handle.addr);
+
+    let key = Scalar::from_u64(1);
+    let target = xpoint(1);
+    let job = CoordinatorClient::new(&url, TOKEN, "setup")
+        .create_job(json!({
+            "mode": "xpoint",
+            "target": target,
+            "start": scalar_hex(1),
+            "end": scalar_hex(1),
+            "chunk_width": 1,
+            "lease_ttl": 600,
+        }))
+        .expect("create job");
+
+    // The scan submits the key itself, so the closing heartbeat sees the job
+    // found and a lease that no longer exists.
+    struct SubmitDuringScan {
+        client: CoordinatorClient,
+        job_id: String,
+        key: Scalar,
+    }
+
+    impl ChunkScanner for SubmitDuringScan {
+        fn scan(&mut self, _start: &Scalar, _end: &Scalar) -> Result<ScanOutcome, String> {
+            self.client
+                .submit_result(&self.job_id, &self.key.to_hex())
+                .map_err(|err| format!("submit during scan: {err}"))?;
+            Ok(ScanOutcome {
+                scanned: 1,
+                found: None,
+            })
+        }
+    }
+
+    let request = lease_job(Some(target), 1, 1);
+    let client = CoordinatorClient::new(&url, TOKEN, "gpu");
+    let mut scanner = SubmitDuringScan {
+        client: client.clone(),
+        job_id: job.id.clone(),
+        key,
+    };
+    let (scanned, found) =
+        run_leases(&client, &request, &mut scanner).expect("a found job is a normal stop");
+    assert_eq!((scanned, found), (1, None));
+
+    let stored = CoordinatorClient::new(&url, TOKEN, "setup")
+        .jobs()
+        .expect("jobs")
+        .into_iter()
+        .find(|entry| entry.id == job.id)
+        .expect("job");
+    assert!(
+        stored.found,
+        "the key submitted during the scan was accepted"
+    );
+
+    handle.shutdown();
+}
+
 #[cfg(feature = "gpu")]
 mod device {
     use super::*;
