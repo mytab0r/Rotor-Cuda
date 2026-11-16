@@ -666,6 +666,19 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
         ));
     }
 
+    for (index, id) in config.gpu_ids.iter().enumerate() {
+        if *id < 0 {
+            return Err(CliError::new(format!(
+                "Invalid --gpui argument, GPU ids must be non-negative (got {id})"
+            )));
+        }
+        if config.gpu_ids[..index].contains(id) {
+            return Err(CliError::new(format!(
+                "Invalid --gpui argument, duplicate GPU id {id}"
+            )));
+        }
+    }
+
     if !config.grid_size.is_empty() && config.grid_size.len() != config.gpu_ids.len() * 2 {
         return Err(CliError::new(
             "Invalid --gpux argument, must specify exactly 2 integers per GPU id",

@@ -16,8 +16,9 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 - **GPU address/xpoint search `-g`** — the CUDA kernels from `GPU/` run behind
   `--features gpu` for `-m address|addresses|xpoint|xpoints` (BTC and ETH):
   range split into one chunk per GPU thread, bloom/target prefilter on device,
-  exact target lookup and EC re-verification on the host. One GPU per run;
-  random mode (`-r`) and checkpoints (`-n`) are rejected loudly.
+  exact target lookup and EC re-verification on the host. `--gpui 0,1,...` scans
+  disjoint slices on several devices with shared output; random mode (`-r`) and
+  checkpoints (`-n`) are rejected loudly.
 - **GPU BSGS batch inversion** — W independent walks share Montgomery inversion;
   verified on RTX 5070 (`sm_120`) against GMP ground truth. See
   `bsgs/BATCH_INVERT.md`.
@@ -26,7 +27,7 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 - **GPU Pollard kangaroo baseline** — internal and not CLI-exposed. SOTA K≈1.15,
   persistent walks, and multi-GPU remain follow-up work. See `bsgs/KANGAROO.md`.
 - **Filter catalog** — binary-fuse filter alongside the classic bloom for large hash160 sets (lower false-positive at similar memory).
-- **Distributed coordinator `rotor-coord`** — token-protected HTTP/JSON server plus an embedded dashboard; several clients (CPU or one-GPU) lease disjoint key chunks of one job, BSGS giant-walk progress is stored remotely and resumed, and found keys are re-verified with `k*G == target` before they are accepted.
+- **Distributed coordinator `rotor-coord`** — token-protected HTTP/JSON server plus an embedded dashboard; several clients (CPU or GPU, one or more devices per client) lease disjoint key chunks of one job, BSGS giant-walk progress is stored remotely and resumed, and found keys are re-verified with `k*G == target` before they are accepted.
 - **Self-update** — SHA-256 verified binary self-replace via WinHTTP + MoveFileEx rename-trick (Windows).
 - **Cloud CI/CD** — full Windows build (MSBuild + CUDA) and Release pipeline run entirely on GitHub Actions; no local toolchain needed.
 - Only for **authorized public puzzle events** (known addresses, known bit ranges, official rewards). Not for mass scanning or de-anonymization.
@@ -78,11 +79,44 @@ output truncation; it never falls back to CPU. On an NVIDIA host,
 `cargo test --features gpu` runs the CPU==GPU fixtures for BSGS and for
 address/xpoint search (they print a skip line when no device is present).
 
+### GPU address/xpoint search on multiple devices
+
+List every device after `--gpui`; `--gpux` takes two grid values per id (omit it
+to use the default `8 * SM count, 128` per device):
+
+```sh
+./target/release/rotor -g --gpui 0,1 --gpux 2,128,2,128 \
+  -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+  1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
+```
+
+The inclusive range is partitioned into one contiguous, disjoint chunk per id
+(ceil chunk size, the last clipped at `--range END`) and each device scans its
+own chunk. What is shared:
+
+- one Ctrl-C stop flag, so stopping the process ends every device at its next
+  kernel batch;
+- the found counter: a single-target hit (or the whole requested set in
+  `addresses`/`xpoints`) stops the other devices at their next batch;
+- one output sink behind a mutex, so `Found.txt` blocks and progress lines never
+  interleave. Multi-device progress lines name the device (`GPU #0`, `GPU #1`).
+
+With `--coordinator`, every device runs its own lease loop and client id
+(`<client-id>-gpu<index>`), so the server keeps chunks disjoint. A found key
+ends that device's loop; the other devices see the job as done and stop with
+204. Duplicate or negative `--gpui` ids are rejected before any engine starts;
+an id outside the visible device count keeps the launcher's invalid-device
+error. The single-id path is unchanged.
+
+Real multi-GPU execution is not yet verified on hardware: this repository's
+device evidence is single-GPU (one RTX 5070), so the host orchestration is
+covered by unit tests and the multi-device run is pending a multi-GPU host.
+
 ## Distributed coordinator (`rotor-coord`)
 
 A second binary in the same crate lets several machines work one range without manual
 splitting: `rotor-coord` leases disjoint key chunks, keeps progress in one JSON file, and
-serves a dashboard. Clients may be CPU workers or a single-GPU `--features gpu` build.
+serves a dashboard. Clients may be CPU workers or a GPU `--features gpu` build.
 
 ### Quick start
 
@@ -125,8 +159,9 @@ generator table are created once and reused across leases; each lease only rebui
 key plan, uploads its starting points and scans the window. If a heartbeat is lost
 because another client already submitted the found key (the job is found/done), the GPU
 client stops normally; a lost lease on a still-active job aborts. Build with the CUDA
-Toolkit as described above, then add `-g` to the same command (one GPU per client,
-`--gpui` selects it):
+Toolkit as described above, then add `-g` to the same command (`--gpui` selects one or
+more devices; with several ids each device gets an independent lease loop and client id
+`<client-id>-gpu<index>`):
 
 ```sh
 ./target/release/rotor -g --gpui 0 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
@@ -137,7 +172,8 @@ Toolkit as described above, then add `-g` to the same command (one GPU per clien
 Supported modes are `address|addresses|xpoint|xpoints` for BTC and `address|addresses` for
 ETH, with the same proof submission and `Found.txt` output as the CPU path. `-r`, `-n`
 and `--gpux` follow the normal GPU limits. `-m bsgs -g` is rejected with `--coordinator`:
-coordinator BSGS runs on the CPU (drop `-g`). Multi-GPU scheduling remains deferred.
+coordinator BSGS runs on the CPU (drop `-g`). Multiple `--gpui` ids run one lease loop per
+device in a coordinator client; coordinator BSGS remains one device.
 Because a chunk is scanned synchronously, a chunk wider than `lease_ttl × device rate`
 cannot be refreshed mid-scan; its lease may expire and the chunk may be handed to
 another client (and scanned twice).
@@ -193,7 +229,8 @@ The client rebuilds the baby table deterministically, fetches `{manifest, giant_
 
 - Address/xpoint GPU clients (`-g --coordinator`) are supported; GPU BSGS (`-m bsgs -g`)
   is rejected because coordinator BSGS is the CPU path. `-r` (random) and `-n`
-  (checkpoints) are rejected with `--coordinator`, and one GPU per client is used.
+  (checkpoints) are rejected with `--coordinator`. Several `--gpui` ids run one lease
+  loop each (`<client-id>-gpu<index>`); coordinator BSGS stays one device.
 - No accounts, roles or quotas — one shared token.
 - Multi-target jobs (`addresses`/`xpoints`) stop at the first confirmed key: the job is
   marked found and the remaining targets in that job are not searched.
@@ -544,9 +581,10 @@ RATE         : 5.30 Mk/s
 {"backend":"CPU","threads":8,"seconds":5.02,"scanned":26589184,"keys_per_second":5296749.0}
 ```
 
-Remaining gap: GPU address/xpoint search is single-GPU and rejects `-r`/`-n`
-loudly; multi-GPU scheduling is deferred. The C++ binary still covers GPU
-multi-GPU runs.
+Remaining gap: GPU BSGS is single-GPU and GPU address/xpoint search rejects `-r`/`-n`
+loudly. Address/xpoint search accepts several `--gpui` ids and documents multi-GPU
+orchestration, but real multi-GPU execution is pending a multi-GPU host: all device
+evidence here is single-GPU (one RTX 5070). The C++ binary still covers multi-GPU BSGS.
 
 Known deviations from the C++ binary:
 

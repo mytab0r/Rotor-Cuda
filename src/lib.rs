@@ -11,6 +11,8 @@ pub mod filter;
 #[cfg(feature = "gpu")]
 pub mod gpu;
 #[cfg(any(feature = "gpu", test))]
+pub(crate) mod gpu_driver;
+#[cfg(any(feature = "gpu", test))]
 pub(crate) mod gpu_plan;
 #[cfg(feature = "gpu")]
 pub mod gpu_search;

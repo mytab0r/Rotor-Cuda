@@ -224,6 +224,29 @@ fn gpux_needs_two_ints_per_gpu_id() {
 }
 
 #[test]
+fn gpu_ids_accept_multiple_and_reject_duplicates_or_negatives() {
+    let config = parse(&["--gpui", "0,1"]);
+    assert_eq!(config.gpu_ids, vec![0, 1]);
+
+    let config = parse(&["--gpui", "0,1", "--gpux", "1,2,3,4"]);
+    assert_eq!(config.gpu_ids, vec![0, 1]);
+
+    let err = parse_err(&["--gpui", "0,0"]);
+    assert!(
+        err.message().contains("duplicate GPU id 0"),
+        "unexpected error: {}",
+        err.message()
+    );
+
+    let err = parse_err(&["--gpui", "0,-1"]);
+    assert!(
+        err.message().contains("non-negative"),
+        "unexpected error: {}",
+        err.message()
+    );
+}
+
+#[test]
 fn gpu_rejects_explicit_positive_thread_count() {
     let err = parse_err(&["-g", "-t", "2"]);
     assert_eq!(
