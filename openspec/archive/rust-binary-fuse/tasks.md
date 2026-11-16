@@ -9,4 +9,4 @@
 
 ## 2. Docs and close-out
 - [x] README: replace the "BinaryFuse not ported" note with the new behavior.
-- [ ] fmt/clippy/test green; archive; PR.
+- [x] fmt/clippy/test green; archive; PR #10 merged, CI green.
