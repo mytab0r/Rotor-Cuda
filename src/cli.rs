@@ -45,7 +45,10 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 -n, --next                                    : Range mode GPU save checkpoints every -n ? minutes (1-10000) Default: false
 -n, --next                                    : Random mode: What bit range to randomize? -n 1-256 Example -n 252 Default: 252-256 bit
 -z, --zet                                       : Random mode: End range for random. Example -n 71 -z 74 (random in puzzles 71,72,73,74 bit) Default: false
--d, --display                               : Disable all informers, compact version for many GPUs. Use -d 0 Default -d 1 (display all)"#,
+-d, --display                               : Disable all informers, compact version for many GPUs. Use -d 0 Default -d 1 (display all)
+--coordinator URL                  : Lease disjoint key chunks from a rotor-coord server
+--token TOKEN                      : Coordinator API token (or ROTOR_COORD_TOKEN)
+--client-id ID                     : Coordinator client id, default is hostname + pid"#,
     " \n",
 );
 
@@ -188,6 +191,9 @@ pub struct Config {
     pub next: i32,
     pub zet: i32,
     pub display: i32,
+    pub coordinator: Option<String>,
+    pub token: Option<String>,
+    pub client_id: Option<String>,
     pub operands: Vec<String>,
 }
 
@@ -217,6 +223,9 @@ impl Default for Config {
             next: 0,
             zet: 0,
             display: 1,
+            coordinator: None,
+            token: None,
+            client_id: None,
             operands: Vec::new(),
         }
     }
@@ -245,6 +254,9 @@ enum Opt {
     Next,
     Zet,
     Display,
+    Coordinator,
+    Token,
+    ClientId,
 }
 
 /// Exact-token option table: `(token, option, takes_argument)`.
@@ -285,6 +297,9 @@ const OPTIONS: &[(&str, Opt, bool)] = &[
     ("--zet", Opt::Zet, true),
     ("-d", Opt::Display, true),
     ("--display", Opt::Display, true),
+    ("--coordinator", Opt::Coordinator, true),
+    ("--token", Opt::Token, true),
+    ("--client-id", Opt::ClientId, true),
 ];
 
 fn lookup(token: &str) -> Option<(Opt, bool)> {
@@ -367,7 +382,10 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         | Opt::Rkey
         | Opt::Next
         | Opt::Zet
-        | Opt::Display => {
+        | Opt::Display
+        | Opt::Coordinator
+        | Opt::Token
+        | Opt::ClientId => {
             // These options always arrive as Token::Value.
         }
     }
@@ -396,6 +414,9 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         Opt::Next => config.next = parse_i32("--next", &value)?,
         Opt::Zet => config.zet = parse_i32("--zet", &value)?,
         Opt::Display => config.display = parse_i32("--display", &value)?,
+        Opt::Coordinator => config.coordinator = Some(value),
+        Opt::Token => config.token = Some(value),
+        Opt::ClientId => config.client_id = Some(value),
         Opt::Help
         | Opt::Check
         | Opt::List
@@ -524,6 +545,48 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
                 "random BSGS (-r) is non-resumable and unsupported; run sequential BSGS instead",
             ));
         }
+    }
+
+    if config.coordinator.is_some() {
+        if config.mode.is_none() {
+            return Err(CliError::new("coordinator mode requires -m MODE"));
+        }
+        if config.range.is_none() {
+            return Err(CliError::new("coordinator mode requires --range START:END"));
+        }
+        if config.gpu {
+            return Err(CliError::new(
+                "GPU mode is not supported with --coordinator",
+            ));
+        }
+        if config.rkey != 0 {
+            return Err(CliError::new(
+                "random start (-r) is not supported with --coordinator",
+            ));
+        }
+        if config.next > 0 {
+            return Err(CliError::new(
+                "checkpoints (-n) are not supported with --coordinator",
+            ));
+        }
+        let has_token = config
+            .token
+            .as_deref()
+            .is_some_and(|token| !token.trim().is_empty());
+        if !has_token {
+            match std::env::var("ROTOR_COORD_TOKEN") {
+                Ok(token) if !token.trim().is_empty() => config.token = Some(token),
+                _ => {
+                    return Err(CliError::new(
+                        "coordinator mode requires --token or ROTOR_COORD_TOKEN",
+                    ));
+                }
+            }
+        }
+    } else if config.token.is_some() || config.client_id.is_some() {
+        return Err(CliError::new(
+            "--token and --client-id require --coordinator",
+        ));
     }
 
     if !config.grid_size.is_empty() && config.grid_size.len() != config.gpu_ids.len() * 2 {
