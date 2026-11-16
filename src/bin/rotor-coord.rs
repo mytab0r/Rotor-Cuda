@@ -15,17 +15,19 @@ const USAGE: &str = "\
 rotor-coord - distributed rotor coordinator
 
 Usage: rotor-coord [OPTIONS]
-  --bind ADDR     listen address (default 127.0.0.1:7878)
-  --token TOKEN   admin API token (or ROTOR_COORD_TOKEN)
-  --clients FILE  client token map { \"client-id\": \"<sha256 hex>\" }
-  --state PATH    state file (default coordinator.json)
-  -h, --help      show this help
+  --bind ADDR            listen address (default 127.0.0.1:7878)
+  --token TOKEN          admin API token (or ROTOR_COORD_TOKEN)
+  --clients FILE         client token map { \"client-id\": \"<sha256 hex>\" }
+  --open-registration    allow public POST /api/v1/register (1/min per IP)
+  --state PATH           state file (default coordinator.json)
+  -h, --help             show this help
 ";
 
 struct Options {
     bind: String,
     token: String,
     clients: Option<PathBuf>,
+    open_registration: bool,
     state: PathBuf,
 }
 
@@ -48,6 +50,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let mut bind = "127.0.0.1:7878".to_string();
     let mut token = None;
     let mut clients = None;
+    let mut open_registration = false;
     let mut state = PathBuf::from("coordinator.json");
 
     let mut index = 0;
@@ -73,6 +76,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
             "--bind" => bind = value(&mut index)?,
             "--token" => token = Some(value(&mut index)?),
             "--clients" => clients = Some(PathBuf::from(value(&mut index)?)),
+            "--open-registration" => open_registration = true,
             "--state" => state = PathBuf::from(value(&mut index)?),
             other => return Err(format!("unknown argument: {other}\n\n{USAGE}")),
         }
@@ -88,6 +92,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         bind,
         token,
         clients,
+        open_registration,
         state,
     }))
 }
@@ -110,11 +115,25 @@ fn run(options: Options) -> ExitCode {
         None => Clients::default(),
     };
     if clients.is_empty() {
-        eprintln!("WARNING: single-token mode; clients are not individually authenticated");
+        println!(
+            "clients: none imported; accounts come from the state file (single-token legacy mode only while it has no accounts)"
+        );
     } else {
-        println!("clients: {}", clients.len());
+        println!(
+            "clients: {} imported from the file on first start",
+            clients.len()
+        );
     }
-    match coordinator::spawn_with_clients(&options.bind, &options.state, options.token, clients) {
+    if options.open_registration {
+        println!("open registration: enabled (1/min per IP)");
+    }
+    match coordinator::spawn_with_options(
+        &options.bind,
+        &options.state,
+        options.token,
+        clients,
+        options.open_registration,
+    ) {
         Ok(handle) => {
             println!("rotor-coord listening on http://{}", handle.addr);
             println!("state: {}", options.state.display());

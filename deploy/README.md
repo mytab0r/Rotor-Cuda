@@ -1,8 +1,9 @@
 # Rotor coordinator deployment
 
 The coordinator is a single Rust binary (`rotor-coord`) that serves the JSON API
-and the dashboard. It has no database: state is one atomically rewritten JSON
-file in `/data`.
+and the public site (`/`, `/app`, `/me`, `/docs` with shared `/site.css` and
+`/site.js`). It has no database and no build step for the site: the pages are
+embedded in the binary. State is one atomically rewritten JSON file in `/data`.
 
 ## Linux binary (systemd)
 
@@ -18,11 +19,19 @@ sudo install -m 0640 -o root -g rotor deploy/rotor-coord.env.example /etc/rotor/
 # edit /etc/rotor/rotor-coord.env: ROTOR_COORD_TOKEN=<openssl rand -hex 32>
 ```
 
-### Client tokens
+### Client accounts and tokens
 
-With `--clients FILE` every client gets its own bearer token; the file maps the
-client id to the SHA-256 of that token (lowercase hex). The token itself never
-lives on the server, only its hash:
+Client accounts live in the coordinator state. Two ways to create them:
+
+- `POST /api/v1/clients { "name": "..." }` with the admin token returns
+  `{ "id": ..., "token": ... }`; the token is shown once.
+- `--open-registration` enables public `POST /api/v1/register { "name": "..." }`
+  on the landing page (one registration per remote IP per minute).
+
+The legacy `--clients FILE` map is imported into the state on the first start
+only; afterwards the state is authoritative and the file is ignored. In that
+file each client id maps to the SHA-256 of its token (lowercase hex). The token
+itself never lives on the server, only its hash:
 
 ```sh
 mkdir -p /etc/rotor
@@ -35,18 +44,21 @@ sudo chmod 0640 /etc/rotor/clients.json
 
 Run the client with the raw secret (`--token rig-a-secret`); the server hashes
 what is presented and looks it up, so the id cannot be spoofed through the
-request body. Without `--clients`, the coordinator keeps the legacy single-token
-mode and prints `WARNING: single-token mode; clients are not individually
-authenticated` at startup.
+request body. Without `--clients` and before the first account exists the
+coordinator keeps the legacy single-token mode.
 
-- Admin token (`ROTOR_COORD_TOKEN`): create/list jobs and read the dashboard.
-- Client token: lease, heartbeat, result, BSGS progress and status; it cannot
-  create jobs, and the admin token cannot lease.
+- Admin token (`ROTOR_COORD_TOKEN`): create/list jobs, read the dashboard, list
+  and create clients, disable accounts.
+- Client token: lease, heartbeat, result, BSGS progress, status and `/me`; it
+  cannot create jobs or manage accounts.
+- A disabled account gets `401` on every authenticated call and its active
+  leases are released.
 
 ```sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now rotor-coord
 curl -s -H "Authorization: Bearer $ADMIN" http://127.0.0.1:7878/api/v1/status
+curl -s http://127.0.0.1:7878/api/v1/summary   # public totals + leaderboard
 ```
 
 The unit binds `127.0.0.1:7878`; terminate TLS in front of it (Caddy example
@@ -106,11 +118,14 @@ directly.
 ## State and backups
 
 - File: `/opt/rotor-coord/data/coordinator.json` (atomic tmp+rename).
-- Format version 2 (packed bitmap). A state file from an older version is
-  rejected with an explicit error; there is no migration yet — move the old file
-  aside and start a new one.
+- Format version 2 (packed bitmap). It now also carries client accounts, their
+  stats and a bounded history. A version-2 file written before accounts existed
+  loads with an empty client list; an older version is rejected with an explicit
+  error, and there is no migration yet — move the old file aside and start a new
+  one.
 - Size: completed chunks are a bitmap — about 2 hex characters per byte of
-  bitmap; 1M chunks is roughly 250 KiB plus a small lease list.
+  bitmap; 1M chunks is roughly 250 KiB plus a small lease list. Each client adds
+  at most 240 history points.
 - Backup: copy the file (it is always a complete JSON); restore by putting it
   back and restarting.
 - Chunks are leased in a scattered (seeded full-cycle permutation) order, so
@@ -121,9 +136,16 @@ directly.
 - Bind is `0.0.0.0` inside the container; the compose port is not published to
   the host, so only the proxy network reaches it. The systemd unit binds
   `127.0.0.1` directly.
-- Per-client tokens (`--clients`): the server stores only SHA-256 hashes and
-  compares them in constant time; an unknown token gets 401. The admin token can
-  manage jobs but cannot lease, and a client token cannot create jobs.
+- Client accounts (`--clients` import, admin API, or open registration): the
+  server stores only SHA-256 hashes and compares them in constant time; an
+  unknown or disabled token gets 401. The admin token can manage jobs and
+  accounts but cannot lease, and a client token cannot create jobs.
+- Public endpoints are the static pages and `GET /api/v1/summary` (aggregate
+  totals and the top-10 leaderboard only). `GET /api/v1/status` and everything
+  else still requires a token.
+- Open registration (`--open-registration`) is throttled to one attempt per
+  remote IP per minute; names are trimmed, capped at 64 characters and reject
+  control/HTML characters.
 - Each lease carries `lease_id` and 16 challenge offsets. A `done` heartbeat
   must include the hashes of the keys at those offsets; wrong or missing samples
   return 400 and the chunk stays leased (BSGS is exempt). Leases and results

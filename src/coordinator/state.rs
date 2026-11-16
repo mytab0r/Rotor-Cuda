@@ -5,10 +5,11 @@
 //! file atomically (`<path>.tmp` then rename), so a crash never leaves a
 //! half-written file behind.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ use crate::bsgs::TableManifest;
 use crate::cli::U256;
 use crate::engine::{Split, SplitMix64, thread_seed};
 use crate::field::Fe;
+use crate::hashes::sha256;
 use crate::point::Affine;
 use crate::scalar::Scalar;
 use crate::secp;
@@ -32,6 +34,12 @@ pub const MAX_CHUNKS: usize = 1_000_000;
 pub const STATE_VERSION: u32 = 2;
 /// Completion samples required for a non-BSGS chunk.
 pub const CHALLENGE_SAMPLES: usize = 16;
+/// Most history points kept per client (about 40 minutes at 10 s spacing).
+pub const MAX_CLIENT_HISTORY: usize = 240;
+/// Minimum spacing between two client history points, in seconds.
+pub const HISTORY_SPACING_SECS: u64 = 5;
+/// Longest accepted client display name, in characters.
+pub const MAX_CLIENT_NAME_LEN: usize = 64;
 
 /// Error text used across the state, HTTP and client layers.
 pub const ERR_JOB_NOT_FOUND: &str = "job not found";
@@ -39,6 +47,7 @@ pub const ERR_LEASE_LOST: &str = "lease lost";
 pub const ERR_INVALID_PROOF: &str = "invalid proof";
 pub const ERR_INVALID_SAMPLE: &str = "invalid completion sample";
 pub const ERR_MANIFEST_MISMATCH: &str = "manifest mismatch";
+pub const ERR_CLIENT_NOT_FOUND: &str = "client not found";
 
 /// A search job. Range endpoints are canonical 64-digit lowercase hex.
 ///
@@ -99,6 +108,117 @@ pub struct ResultRecord {
     pub client_id: String,
     pub key: String,
     pub found_at: u64,
+}
+
+/// One point of a client's scanned-key history, used by the cabinet sparkline.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HistoryPoint {
+    pub at: u64,
+    pub scanned: u64,
+    pub rate: f64,
+}
+
+/// A registered contributor, persisted in the coordinator state.
+///
+/// The bearer token itself is never stored: only its SHA-256 hex digest. Stats
+/// are updated from heartbeats and accepted results and survive restarts.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ClientRecord {
+    pub id: String,
+    pub name: String,
+    pub token_hash: String,
+    pub created_at: u64,
+    #[serde(default)]
+    pub disabled: bool,
+    #[serde(default)]
+    pub scanned_total: u64,
+    #[serde(default)]
+    pub chunks_done: u64,
+    #[serde(default)]
+    pub found: u64,
+    #[serde(default)]
+    pub last_seen: u64,
+    #[serde(default)]
+    pub rate: f64,
+    #[serde(default)]
+    pub history: VecDeque<HistoryPoint>,
+}
+
+impl ClientRecord {
+    /// Public projection: everything except the token hash.
+    pub fn view(&self) -> ClientRecordView {
+        ClientRecordView {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            created_at: self.created_at,
+            disabled: self.disabled,
+            scanned_total: self.scanned_total,
+            chunks_done: self.chunks_done,
+            found: self.found,
+            last_seen: self.last_seen,
+            rate: self.rate,
+            history: self.history.iter().cloned().collect(),
+        }
+    }
+}
+
+/// A client record as served by the API (no token hash).
+#[derive(Clone, Debug, Serialize)]
+pub struct ClientRecordView {
+    pub id: String,
+    pub name: String,
+    pub created_at: u64,
+    pub disabled: bool,
+    pub scanned_total: u64,
+    pub chunks_done: u64,
+    pub found: u64,
+    pub last_seen: u64,
+    pub rate: f64,
+    pub history: Vec<HistoryPoint>,
+}
+
+/// A freshly created client; `token` is returned to the caller exactly once.
+#[derive(Clone, Debug)]
+pub struct NewClient {
+    pub id: String,
+    pub name: String,
+    pub token: String,
+}
+
+/// One leaderboard row (top 10 by scanned keys).
+#[derive(Clone, Debug, Serialize)]
+pub struct LeaderboardEntry {
+    pub id: String,
+    pub name: String,
+    pub scanned: u64,
+    pub chunks_done: u64,
+    pub found: u64,
+}
+
+/// Global counters shown on the landing and app pages.
+#[derive(Clone, Debug, Serialize)]
+pub struct TotalsView {
+    pub scanned: u64,
+    pub clients_active: usize,
+    pub results: usize,
+    pub jobs: usize,
+}
+
+/// Public aggregate snapshot: safe to serve without authentication.
+#[derive(Clone, Debug, Serialize)]
+pub struct SummaryView {
+    pub totals: TotalsView,
+    pub leaderboard: Vec<LeaderboardEntry>,
+}
+
+/// A cabinet snapshot returned by `GET /api/v1/me`.
+#[derive(Clone, Debug, Serialize)]
+pub struct MeView {
+    pub client: ClientRecordView,
+    pub rank: usize,
+    pub lease: Option<ClientView>,
+    pub job: Option<JobView>,
+    pub results: Vec<ResultRecord>,
 }
 
 /// BSGS table identity in its JSON form.
@@ -235,6 +355,8 @@ pub struct StatusView {
     pub clients: Vec<ClientView>,
     pub results: Vec<ResultRecord>,
     pub bsgs: Vec<BsgsView>,
+    pub totals: TotalsView,
+    pub leaderboard: Vec<LeaderboardEntry>,
 }
 
 /// A granted chunk, as served by `POST /api/v1/lease`.
@@ -261,6 +383,8 @@ struct Data {
     results: Vec<ResultRecord>,
     #[serde(default)]
     bsgs: HashMap<String, BsgsEntry>,
+    #[serde(default)]
+    clients: Vec<ClientRecord>,
 }
 
 impl Default for Data {
@@ -271,6 +395,7 @@ impl Default for Data {
             leases: Vec::new(),
             results: Vec::new(),
             bsgs: HashMap::new(),
+            clients: Vec::new(),
         }
     }
 }
@@ -342,6 +467,132 @@ impl State {
         fs::write(&tmp, json).map_err(|err| format!("cannot write {}: {err}", tmp.display()))?;
         fs::rename(&tmp, &self.path)
             .map_err(|err| format!("cannot replace {}: {err}", self.path.display()))
+    }
+
+    /// True when the state holds at least one client account.
+    ///
+    /// Legacy single-token mode is only active while there are no accounts; as
+    /// soon as one is imported or created, the per-client permission matrix
+    /// takes over.
+    pub fn has_clients(&self) -> bool {
+        !self.data.clients.is_empty()
+    }
+
+    /// Import a legacy `--clients` map on the first start.
+    ///
+    /// Once the state has any account it is authoritative and later imports are
+    /// ignored (returns 0). Names default to the client ids.
+    pub fn import_clients(&mut self, entries: Vec<(String, [u8; 32])>) -> Result<usize, String> {
+        if !self.data.clients.is_empty() || entries.is_empty() {
+            return Ok(0);
+        }
+        let now = now_secs();
+        let mut imported = 0usize;
+        for (id, digest) in entries {
+            let id = id.trim().to_string();
+            if id.is_empty() {
+                return Err("clients file contains a blank client id".to_string());
+            }
+            let token_hash = hex_encode(&digest);
+            if self
+                .data
+                .clients
+                .iter()
+                .any(|client| client.token_hash == token_hash)
+            {
+                return Err(format!(
+                    "clients file gives client {id} a duplicate token hash"
+                ));
+            }
+            self.data.clients.push(ClientRecord {
+                id: id.clone(),
+                name: id,
+                token_hash,
+                created_at: now,
+                disabled: false,
+                scanned_total: 0,
+                chunks_done: 0,
+                found: 0,
+                last_seen: 0,
+                rate: 0.0,
+                history: VecDeque::new(),
+            });
+            imported += 1;
+        }
+        self.save()?;
+        Ok(imported)
+    }
+
+    /// Create a client account and return its bearer token exactly once.
+    ///
+    /// Only the SHA-256 hash of the token is stored. The name is trimmed and
+    /// rejected when empty, longer than [`MAX_CLIENT_NAME_LEN`] characters, or
+    /// carrying control/HTML characters.
+    pub fn create_client(&mut self, name: &str, now: u64) -> Result<NewClient, String> {
+        let name = validate_client_name(name)?;
+        let (token, token_hash) = loop {
+            let token = random_token();
+            let token_hash = hex_encode(&sha256(token.as_bytes()));
+            if !self
+                .data
+                .clients
+                .iter()
+                .any(|client| client.token_hash == token_hash)
+            {
+                break (token, token_hash);
+            }
+        };
+        let id = self.next_client_id(now);
+        self.data.clients.push(ClientRecord {
+            id: id.clone(),
+            name: name.clone(),
+            token_hash,
+            created_at: now,
+            disabled: false,
+            scanned_total: 0,
+            chunks_done: 0,
+            found: 0,
+            last_seen: 0,
+            rate: 0.0,
+            history: VecDeque::new(),
+        });
+        self.save()?;
+        Ok(NewClient { id, name, token })
+    }
+
+    /// Client views sorted by id, for the admin client list.
+    pub fn list_clients(&self) -> Vec<ClientRecordView> {
+        let mut records: Vec<&ClientRecord> = self.data.clients.iter().collect();
+        records.sort_by(|left, right| left.id.cmp(&right.id));
+        records.into_iter().map(ClientRecord::view).collect()
+    }
+
+    /// Disable a client; its token stops working immediately and any active
+    /// leases are released so other clients can pick the chunks up.
+    pub fn disable_client(&mut self, id: &str) -> Result<(), String> {
+        let record = self
+            .data
+            .clients
+            .iter_mut()
+            .find(|client| client.id == id)
+            .ok_or_else(|| ERR_CLIENT_NOT_FOUND.to_string())?;
+        record.disabled = true;
+        self.data.leases.retain(|lease| lease.client_id != id);
+        self.save()
+    }
+
+    /// Client id whose token matches an enabled record, compared in constant
+    /// time over every record. Disabled accounts never match.
+    pub fn identify_client(&self, token: &str) -> Option<String> {
+        let digest = hex_encode(&sha256(token.as_bytes()));
+        let mut found = None;
+        for client in &self.data.clients {
+            if !client.disabled && constant_time_eq(digest.as_bytes(), client.token_hash.as_bytes())
+            {
+                found = Some(client.id.clone());
+            }
+        }
+        found
     }
 
     /// Validate and store a new job, slicing its range into disjoint chunks.
@@ -621,11 +872,27 @@ impl State {
         let lease_ttl = self.data.jobs[job_index].lease_ttl;
         let expires_at = now.saturating_add(lease_ttl);
         let rate = if rate.is_finite() { rate.max(0.0) } else { 0.0 };
+        // The lease carries a monotonic scanned watermark; only its growth is
+        // credited to the client, so repeated heartbeats never double count.
+        let previous_scanned = self.data.leases[position].scanned;
+        let watermark = previous_scanned.max(scanned);
+        let delta = watermark - previous_scanned;
         {
             let lease = &mut self.data.leases[position];
-            lease.scanned = scanned;
+            lease.scanned = watermark;
             lease.rate = rate;
             lease.expires_at = expires_at;
+        }
+        if let Some(client) = self
+            .data
+            .clients
+            .iter_mut()
+            .find(|client| client.id == client_id)
+        {
+            client.scanned_total = client.scanned_total.saturating_add(delta);
+            client.rate = rate;
+            client.last_seen = now;
+            push_history(client, now);
         }
         if done {
             // The bit is set once: a completed chunk can never be leased
@@ -636,9 +903,17 @@ impl State {
             if !is_done(&bits, chunk_index) {
                 mark_done(&mut bits, chunk_index);
                 job.done_bits = hex_encode(&bits);
-                job.scanned = job.scanned.saturating_add(scanned);
+                job.scanned = job.scanned.saturating_add(watermark);
                 if count_done(&bits) == job.chunks_total {
                     job.done = true;
+                }
+                if let Some(client) = self
+                    .data
+                    .clients
+                    .iter_mut()
+                    .find(|client| client.id == client_id)
+                {
+                    client.chunks_done = client.chunks_done.saturating_add(1);
                 }
             }
             self.data
@@ -683,6 +958,7 @@ impl State {
             verify_result(job, key_hex)?
         };
         let key_text = key.to_hex();
+        let now = now_secs();
         if !self
             .data
             .results
@@ -693,8 +969,17 @@ impl State {
                 job_id: job_id.to_string(),
                 client_id: client_id.to_string(),
                 key: key_text.clone(),
-                found_at: now_secs(),
+                found_at: now,
             });
+            if let Some(client) = self
+                .data
+                .clients
+                .iter_mut()
+                .find(|client| client.id == client_id)
+            {
+                client.found = client.found.saturating_add(1);
+                client.last_seen = now;
+            }
         }
         if let Some(job) = self.data.jobs.iter_mut().find(|job| job.id == job_id) {
             job.found = true;
@@ -737,12 +1022,124 @@ impl State {
             })
             .collect();
         bsgs.sort_by(|left, right| left.job_id.cmp(&right.job_id));
+        let SummaryView {
+            totals,
+            leaderboard,
+        } = self.summary(now);
         StatusView {
             jobs,
             clients,
             results: self.data.results.clone(),
             bsgs,
+            totals,
+            leaderboard,
         }
+    }
+
+    /// Public aggregates: no job targets, client ids with results or keys.
+    pub fn summary(&self, now: u64) -> SummaryView {
+        let active: HashSet<&str> = self
+            .data
+            .leases
+            .iter()
+            .filter(|lease| lease.expires_at > now)
+            .map(|lease| lease.client_id.as_str())
+            .collect();
+        // With accounts, the per-client watermarks cover work still in flight.
+        // Legacy states without accounts fall back to completed-chunk totals.
+        let scanned = if self.data.clients.is_empty() {
+            self.data.jobs.iter().map(|job| job.scanned).sum()
+        } else {
+            self.data
+                .clients
+                .iter()
+                .map(|client| client.scanned_total)
+                .sum()
+        };
+        let leaderboard = self
+            .ranked_clients()
+            .into_iter()
+            .take(10)
+            .map(|client| LeaderboardEntry {
+                id: client.id.clone(),
+                name: client.name.clone(),
+                scanned: client.scanned_total,
+                chunks_done: client.chunks_done,
+                found: client.found,
+            })
+            .collect();
+        SummaryView {
+            totals: TotalsView {
+                scanned,
+                clients_active: active.len(),
+                results: self.data.results.len(),
+                jobs: self.data.jobs.len(),
+            },
+            leaderboard,
+        }
+    }
+
+    /// Cabinet snapshot for one client, scoped to its own record and results.
+    pub fn me(&self, client_id: &str, now: u64) -> Option<MeView> {
+        let record = self
+            .data
+            .clients
+            .iter()
+            .find(|client| client.id == client_id)?;
+        let rank = self
+            .ranked_clients()
+            .iter()
+            .position(|client| client.id == client_id)?
+            + 1;
+        let lease = self
+            .data
+            .leases
+            .iter()
+            .filter(|lease| lease.client_id == client_id && lease.expires_at > now)
+            .max_by_key(|lease| lease.started_at);
+        let lease_view = lease.map(|lease| ClientView {
+            client_id: lease.client_id.clone(),
+            job_id: lease.job_id.clone(),
+            chunk_index: lease.chunk_index,
+            scanned: lease.scanned,
+            rate: lease.rate,
+            expires_at: lease.expires_at,
+        });
+        let job = lease.and_then(|lease| self.job_view_by_id(&lease.job_id, now));
+        let mut results: Vec<ResultRecord> = self
+            .data
+            .results
+            .iter()
+            .filter(|result| result.client_id == client_id)
+            .cloned()
+            .collect();
+        results.sort_by(|left, right| {
+            right
+                .found_at
+                .cmp(&left.found_at)
+                .then_with(|| right.job_id.cmp(&left.job_id))
+        });
+        results.truncate(10);
+        Some(MeView {
+            client: record.view(),
+            rank,
+            lease: lease_view,
+            job,
+            results,
+        })
+    }
+
+    /// Clients ordered like the leaderboard: scanned, then chunks, then id.
+    fn ranked_clients(&self) -> Vec<&ClientRecord> {
+        let mut ranked: Vec<&ClientRecord> = self.data.clients.iter().collect();
+        ranked.sort_by(|left, right| {
+            right
+                .scanned_total
+                .cmp(&left.scanned_total)
+                .then_with(|| right.chunks_done.cmp(&left.chunks_done))
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        ranked
     }
 
     pub fn bsgs_get(&self, job_id: &str) -> Option<BsgsState> {
@@ -807,6 +1204,21 @@ impl State {
             job.done = true;
         }
         self.save()
+    }
+
+    fn next_client_id(&self, now: u64) -> String {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.subsec_nanos())
+            .unwrap_or(0);
+        let mut attempt = 0u64;
+        loop {
+            let id = format!("c{now:016x}{nanos:08x}{attempt:04x}");
+            if !self.data.clients.iter().any(|client| client.id == id) {
+                return id;
+            }
+            attempt += 1;
+        }
     }
 
     fn next_job_id(&self, now: u64) -> String {
@@ -917,6 +1329,31 @@ fn validate_loaded(path: &Path, data: &Data) -> Result<(), String> {
                 job.id,
                 bits.len(),
                 job.chunks_total
+            ));
+        }
+    }
+    for client in &data.clients {
+        if client.id.trim().is_empty() {
+            return Err(format!("{}: client with a blank id", path.display()));
+        }
+        if client.token_hash.len() != 64
+            || !client
+                .token_hash
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(format!(
+                "{}: client {} has an invalid token hash",
+                path.display(),
+                client.id
+            ));
+        }
+        if client.history.len() > MAX_CLIENT_HISTORY {
+            return Err(format!(
+                "{}: client {} has {} history points (limit {MAX_CLIENT_HISTORY})",
+                path.display(),
+                client.id,
+                client.history.len()
             ));
         }
     }
@@ -1194,6 +1631,80 @@ pub fn now_secs() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
         .unwrap_or(0)
+}
+
+/// Counter mixed into the token input so two calls in the same tick differ.
+static TOKEN_SEED: AtomicU64 = AtomicU64::new(0);
+
+/// 32 random bytes as lowercase hex, used as a client bearer token.
+///
+/// `RandomState` is seeded from the operating system, so no extra dependency is
+/// needed for unpredictable tokens. Only the SHA-256 hash is persisted.
+fn random_token() -> String {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hasher};
+
+    let mut bytes = [0u8; 32];
+    for (index, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
+        let state = RandomState::new();
+        let mut hasher = state.build_hasher();
+        hasher.write_u64(TOKEN_SEED.fetch_add(1, Ordering::Relaxed) ^ index as u64);
+        chunk.copy_from_slice(&hasher.finish().to_le_bytes());
+    }
+    hex_encode(&bytes)
+}
+
+/// Trim and validate a display name; reject empty, overlong or unsafe text.
+fn validate_client_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("name is required".to_string());
+    }
+    if name.chars().count() > MAX_CLIENT_NAME_LEN {
+        return Err(format!(
+            "name must be at most {MAX_CLIENT_NAME_LEN} characters"
+        ));
+    }
+    if name.chars().any(char::is_control) {
+        return Err("name must not contain control characters".to_string());
+    }
+    if name.contains(['<', '>', '&']) {
+        return Err("name must not contain HTML characters".to_string());
+    }
+    Ok(name.to_string())
+}
+
+/// Append a history point, replacing the last one when less than
+/// [`HISTORY_SPACING_SECS`] has passed, and cap the deque at
+/// [`MAX_CLIENT_HISTORY`] points.
+fn push_history(client: &mut ClientRecord, now: u64) {
+    let point = HistoryPoint {
+        at: now,
+        scanned: client.scanned_total,
+        rate: client.rate,
+    };
+    if let Some(last) = client.history.back_mut()
+        && now.saturating_sub(last.at) < HISTORY_SPACING_SECS
+    {
+        *last = point;
+        return;
+    }
+    client.history.push_back(point);
+    while client.history.len() > MAX_CLIENT_HISTORY {
+        client.history.pop_front();
+    }
+}
+
+/// Constant-time equality over byte strings (length is not secret).
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut difference = 0u8;
+    for (left, right) in left.iter().zip(right) {
+        difference |= left ^ right;
+    }
+    difference == 0
 }
 
 /// Verify `key_hex * G` against the job's target; returns the scalar.
@@ -2565,5 +3076,374 @@ mod tests {
         .expect("write old state");
         let err = State::open(temp.path()).expect_err("version 1 must be rejected");
         assert!(err.contains("version 1"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn client_stats_count_work_once() {
+        let temp = TempState::new("client-stats");
+        let mut state = State::open(temp.path()).expect("open");
+        let alpha = state.create_client("Alice", 900).expect("client");
+        let job = xpoint_job(&mut state, 7, 1, 3, 1);
+        let lease = state
+            .lease(lease_request(&job.id, &alpha.id, 1, 3), 1_000)
+            .expect("lease")
+            .expect("chunk");
+
+        // Only the growth of the lease watermark is credited.
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                40,
+                10.0,
+                false,
+                &[],
+                1_010,
+            )
+            .expect("first heartbeat");
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                100,
+                20.0,
+                false,
+                &[],
+                1_020,
+            )
+            .expect("second heartbeat");
+        // A lower report must not subtract earlier work.
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                90,
+                20.0,
+                false,
+                &[],
+                1_030,
+            )
+            .expect("regressing heartbeat");
+        let me = state.me(&alpha.id, 1_031).expect("me");
+        assert_eq!(me.client.scanned_total, 100);
+        assert_eq!(me.client.rate, 20.0);
+        assert_eq!(me.lease.as_ref().map(|lease| lease.scanned), Some(100));
+
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                120,
+                20.0,
+                true,
+                &xpoint_samples(&lease),
+                1_040,
+            )
+            .expect("finish chunk");
+        let me = state.me(&alpha.id, 1_041).expect("me");
+        assert_eq!(me.client.scanned_total, 120);
+        assert_eq!(me.client.chunks_done, 1);
+        assert!(me.lease.is_none(), "the done heartbeat drops the lease");
+
+        // Replaying the completion is a lost lease and changes nothing.
+        assert_eq!(
+            state.heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                200,
+                20.0,
+                true,
+                &xpoint_samples(&lease),
+                1_050,
+            ),
+            Err(ERR_LEASE_LOST.to_string())
+        );
+        assert_eq!(
+            state.me(&alpha.id, 1_051).expect("me").client.scanned_total,
+            120
+        );
+
+        // An invalid proof never increments `found`; a valid one does, once.
+        let second = state
+            .lease(lease_request(&job.id, &alpha.id, 1, 3), 1_100)
+            .expect("lease")
+            .expect("chunk");
+        assert!(matches!(
+            state.submit_result(
+                &alpha.id,
+                &job.id,
+                second.lease_id,
+                &Scalar::from_u64(8).to_hex()
+            ),
+            Err(message) if message == ERR_INVALID_PROOF
+        ));
+        assert_eq!(state.me(&alpha.id, 1_110).expect("me").client.found, 0);
+        state
+            .submit_result(
+                &alpha.id,
+                &job.id,
+                second.lease_id,
+                &Scalar::from_u64(7).to_hex(),
+            )
+            .expect("valid proof");
+        let me = state.me(&alpha.id, 1_120).expect("me");
+        assert_eq!(me.client.found, 1);
+        assert_eq!(me.results.len(), 1);
+    }
+
+    #[test]
+    fn client_history_is_spaced_and_bounded() {
+        let temp = TempState::new("client-history");
+        let mut state = State::open(temp.path()).expect("open");
+        let alpha = state.create_client("historian", 1_000).expect("client");
+        let job = xpoint_job(&mut state, 7, 1, 1, 1);
+        let lease = state
+            .lease(lease_request(&job.id, &alpha.id, 1, 1), 1_000)
+            .expect("lease")
+            .expect("chunk");
+
+        let mut watermark = 1u64;
+        let mut now = 1_000u64;
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                watermark,
+                1.0,
+                false,
+                &[],
+                now,
+            )
+            .expect("heartbeat");
+        now += 2;
+        watermark += 1;
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                watermark,
+                1.0,
+                false,
+                &[],
+                now,
+            )
+            .expect("heartbeat");
+        let me = state.me(&alpha.id, now).expect("me");
+        assert_eq!(me.client.history.len(), 1, "points inside 5 s collapse");
+        assert_eq!(me.client.history[0].scanned, 2);
+
+        now += 6;
+        watermark += 1;
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                lease.chunk_index,
+                lease.lease_id,
+                watermark,
+                1.0,
+                false,
+                &[],
+                now,
+            )
+            .expect("heartbeat");
+        assert_eq!(
+            state.me(&alpha.id, now).expect("me").client.history.len(),
+            2
+        );
+
+        for _ in 0..MAX_CLIENT_HISTORY + 40 {
+            now += 10;
+            watermark += 10;
+            state
+                .heartbeat(
+                    &alpha.id,
+                    &job.id,
+                    lease.chunk_index,
+                    lease.lease_id,
+                    watermark,
+                    1.0,
+                    false,
+                    &[],
+                    now,
+                )
+                .expect("heartbeat");
+        }
+        let history = state.me(&alpha.id, now).expect("me").client.history;
+        assert_eq!(history.len(), MAX_CLIENT_HISTORY);
+        assert!(
+            history
+                .windows(2)
+                .all(|pair| pair[1].at - pair[0].at >= HISTORY_SPACING_SECS),
+            "history points must be at least {HISTORY_SPACING_SECS} s apart"
+        );
+    }
+
+    #[test]
+    fn disabling_a_client_revokes_its_token_and_releases_leases() {
+        let temp = TempState::new("client-disable");
+        let mut state = State::open(temp.path()).expect("open");
+        let alpha = state.create_client("Alpha", 1_000).expect("client");
+        let job = xpoint_job(&mut state, 7, 1, 2, 1);
+        state
+            .lease(lease_request(&job.id, &alpha.id, 1, 2), 1_010)
+            .expect("lease")
+            .expect("chunk");
+        assert_eq!(state.identify_client(&alpha.token), Some(alpha.id.clone()));
+
+        state.disable_client(&alpha.id).expect("disable");
+        assert_eq!(state.identify_client(&alpha.token), None);
+        assert!(
+            state.status(1_020).clients.is_empty(),
+            "the disabled client's lease must be released"
+        );
+        assert!(state.list_clients()[0].disabled);
+        // The chunk is free again: two leases now exist for the freed slot.
+        let beta = state.create_client("Beta", 1_030).expect("client");
+        let first = state
+            .lease(lease_request(&job.id, &beta.id, 1, 2), 1_040)
+            .expect("lease")
+            .expect("a chunk is free");
+        let second = state
+            .lease(lease_request(&job.id, &beta.id, 1, 2), 1_041)
+            .expect("lease")
+            .expect("both chunks are free after the disable");
+        assert_ne!(first.chunk_index, second.chunk_index);
+        assert_eq!(
+            state.disable_client("missing"),
+            Err(ERR_CLIENT_NOT_FOUND.to_string())
+        );
+    }
+
+    #[test]
+    fn clients_are_imported_once_and_the_state_wins() {
+        let temp = TempState::new("client-import");
+        {
+            let mut state = State::open(temp.path()).expect("open");
+            let imported = state
+                .import_clients(vec![("alpha".to_string(), sha256(b"alpha-secret"))])
+                .expect("import");
+            assert_eq!(imported, 1);
+            assert!(state.has_clients());
+            let clients = state.list_clients();
+            assert_eq!(clients.len(), 1);
+            assert_eq!(clients[0].name, "alpha");
+            assert_eq!(
+                state.identify_client("alpha-secret"),
+                Some("alpha".to_string())
+            );
+        }
+
+        let mut state = State::open(temp.path()).expect("reopen");
+        let later = state
+            .import_clients(vec![("beta".to_string(), sha256(b"beta-secret"))])
+            .expect("second import");
+        assert_eq!(later, 0, "the state is authoritative after the first start");
+        assert_eq!(state.list_clients().len(), 1);
+        assert_eq!(state.identify_client("beta-secret"), None);
+    }
+
+    #[test]
+    fn client_names_and_tokens_are_validated() {
+        let temp = TempState::new("client-names");
+        let mut state = State::open(temp.path()).expect("open");
+        let client = state.create_client("  Alice  ", 1_000).expect("client");
+        assert_eq!(client.name, "Alice");
+        assert_eq!(client.token.len(), 64);
+        assert!(client.token.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert_eq!(
+            state.identify_client(&client.token),
+            Some(client.id.clone())
+        );
+
+        assert!(state.create_client("", 1_010).is_err());
+        assert!(state.create_client("   ", 1_010).is_err());
+        assert!(
+            state
+                .create_client(&"a".repeat(MAX_CLIENT_NAME_LEN + 1), 1_010)
+                .is_err()
+        );
+        assert!(state.create_client("bad<script>", 1_010).is_err());
+        assert!(state.create_client("line\nbreak", 1_010).is_err());
+        // The same name is allowed twice; ids and tokens stay distinct.
+        let other = state.create_client("Alice", 1_020).expect("duplicate name");
+        assert_ne!(client.id, other.id);
+        assert_ne!(client.token, other.token);
+    }
+
+    #[test]
+    fn summary_ranks_clients_and_totals_their_work() {
+        let temp = TempState::new("client-summary");
+        let mut state = State::open(temp.path()).expect("open");
+        let alpha = state.create_client("Alpha", 900).expect("alpha");
+        let beta = state.create_client("Beta", 901).expect("beta");
+        let job = xpoint_job(&mut state, 7, 1, 2, 1);
+
+        let alpha_lease = state
+            .lease(lease_request(&job.id, &alpha.id, 1, 2), 1_000)
+            .expect("lease")
+            .expect("chunk");
+        state
+            .heartbeat(
+                &alpha.id,
+                &job.id,
+                alpha_lease.chunk_index,
+                alpha_lease.lease_id,
+                100,
+                10.0,
+                false,
+                &[],
+                1_010,
+            )
+            .expect("alpha heartbeat");
+        let beta_lease = state
+            .lease(lease_request(&job.id, &beta.id, 1, 2), 1_020)
+            .expect("lease")
+            .expect("chunk");
+        state
+            .heartbeat(
+                &beta.id,
+                &job.id,
+                beta_lease.chunk_index,
+                beta_lease.lease_id,
+                50,
+                5.0,
+                false,
+                &[],
+                1_030,
+            )
+            .expect("beta heartbeat");
+
+        let summary = state.summary(1_040);
+        assert_eq!(summary.totals.scanned, 150);
+        assert_eq!(summary.totals.clients_active, 2);
+        assert_eq!(summary.totals.results, 0);
+        assert_eq!(summary.totals.jobs, 1);
+        assert_eq!(summary.leaderboard.len(), 2);
+        assert_eq!(summary.leaderboard[0].id, alpha.id);
+        assert_eq!(summary.leaderboard[0].scanned, 100);
+        assert_eq!(summary.leaderboard[1].id, beta.id);
+        assert_eq!(state.me(&alpha.id, 1_040).expect("me").rank, 1);
+        assert_eq!(state.me(&beta.id, 1_040).expect("me").rank, 2);
+
+        // A legacy state without accounts falls back to completed-chunk counts.
+        let legacy_temp = TempState::new("client-summary-legacy");
+        let legacy = State::open(legacy_temp.path()).expect("open legacy");
+        assert!(!legacy.has_clients());
+        assert_eq!(legacy.summary(1_040).totals.scanned, 0);
     }
 }

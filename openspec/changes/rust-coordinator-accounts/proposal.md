@@ -1,45 +1,52 @@
-# Coordinator accounts, per-user stats and personal cabinet
+# Public site, accounts, per-user stats and cabinet
 
 ## Goal
 
-Make the coordinator multi-user friendly: individual client tokens (from the
-auth change) become lightweight accounts with personalized statistics, a
-personal cabinet page, and shared global stats on the dashboard.
+Turn the coordinator dashboard into a proper public resource like
+ref-site-b: a landing page, an app section with live global stats, a
+leaderboard, self-service registration (admin-issued tokens or open signup), and
+a personal cabinet with each user's contribution.
 
 ## Why
 
-The dashboard currently shows only aggregate job/client tables. Users want to
-see their own contribution (scanned keys, chunks, results, rate history) next to
-the global picture, and operators want to issue/revoke access per user.
+The current page is an operator console. To let many people contribute to
+puzzle solving, users need their own identity, their own stats and a clear entry
+point; the operator needs aggregated global information and user management.
 
 ## Scope
 
-- Client records: `id`, `name`, `token_hash`, `created_at`, `disabled`,
-  `scanned_total`, `chunks_done`, `found`, `last_seen`, `rate`, and a bounded
-  history ring (last 240 heartbeats: timestamp, scanned, rate).
-- Stats update on heartbeat, chunk completion and accepted results; aggregates
-  are persisted in the state file.
-- Admin API (admin token): `GET /api/v1/clients` (list with stats),
-  `POST /api/v1/clients` (create, returns the token once), `POST
-  /api/v1/clients/{id}/disable`; the clients file is replaced by state-managed
-  clients (migration: an existing `--clients` file is imported on first start).
-- Personal API: `GET /api/v1/me` (client token) → own stats, history, leases,
-  results, current job progress.
-- Dashboard: global stats header (total scanned, active clients, results, jobs),
-  clients table with per-user columns, and a cabinet page `web/me.html` with a
-  token login, personal cards, a scanned-over-time sparkline and recent results.
-- Test with 3 clients on short jobs: totals, per-user stats and each cabinet are
-  correct; disabling a client rejects its token.
+- Static site served by the coordinator (no build step, embedded files):
+  - `/` landing: what it is, how it works, live global counters, join CTA,
+    links to app/docs/cabinet.
+  - `/app` the existing dashboard: jobs, active clients, results, leaderboard,
+    global stats.
+  - `/me` personal cabinet: token login, personal scanned/chunks/found/rate,
+    history sparkline, current lease, recent results, leaderboard rank.
+  - `/docs` short FAQ: registration, running a client (CPU/GPU/coordinator),
+    security notes, puzzle-only disclaimer.
+  - Shared `site.css`/`site.js`; responsive layout.
+- Accounts:
+  - `ClientRecord` (id, name, token hash, created_at, disabled, stats, bounded
+    history).
+  - Admin API: list/create/disable clients; `POST /api/v1/register` for
+    self-service when `--open-registration` is set (rate-limited, returns the
+    token once); disabled clients get 401.
+  - Stats update on heartbeat/completion/result without double counting.
+- API: `GET /api/v1/me`, `GET /api/v1/clients` (admin), status adds global
+  totals and a leaderboard; existing fields stay.
+- Multi-user verification: three clients with distinct tokens, global and
+  personal numbers, leaderboard order, disabled token rejected.
 
 ## Out of scope
 
-- Passwords/registration/OAuth, payments, multi-tenant quotas.
-- Public anonymous access; the operator still issues tokens.
+- Passwords/OAuth/email verification, payments, invite-only quotas.
+- Mobile/browser compute clients (separate change).
 
 ## Acceptance
 
-- `cargo test` covers stats aggregation, client creation/disable, `/me`
-  authorization, history bounds and the status payload.
-- Manual: three clients with different tokens scan a small job; global and
-  personal pages show the expected numbers; disabled tokens get 401.
-- No protocol break for existing clients; the admin dashboard keeps working.
+- Pages render at `/`, `/app`, `/me`, `/docs`; navigation works; the landing
+  shows live totals.
+- Registration (when enabled) returns a token that can immediately lease; the
+  cabinet shows that user's stats; disabling it rejects the token.
+- `cargo test` covers stats, register, `/me` scoping, leaderboard, disabled
+  tokens, page availability; manual 3-user run recorded.

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - docs</title>
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/docs" class="active" id="nav-docs">Docs</a>
+  </nav>
+</header>
+
+<main>
+  <section class="card docs">
+    <h2>Getting a token</h2>
+    <p>
+      A client token identifies you to the coordinator and ties heartbeats and
+      accepted results to your cabinet and leaderboard entry.
+    </p>
+    <ul>
+      <li><strong>Open registration:</strong> use the form on the <a href="/">landing page</a>. The token is shown once; copy it immediately.</li>
+      <li><strong>Closed registration:</strong> ask the operator to create an account for you. The operator can issue a token from the admin API.</li>
+    </ul>
+    <p class="muted">Paste the token into the <a href="/me">cabinet</a> to see your personal stats.</p>
+
+    <h2>Running a client</h2>
+    <p>The client leases disjoint key ranges; point it at this coordinator and pass your token.</p>
+    <pre><code>rotor -m addresses --coin BTC --range 400000000000000000:7fffffffffffffffff \
+  --coordinator https://your-coordinator.example --token &lt;client-token&gt; \
+  --client-id my-machine --targets targets.txt</code></pre>
+    <p>
+      Use <code>--client-id</code> to name the machine. When the coordinator
+      authenticates per-client tokens, the server owns the identity: the token
+      decides which account receives the work and stats.
+    </p>
+    <p>Admin-only commands create jobs and manage accounts; a client token cannot create jobs.</p>
+    <pre><code># create a job (admin token)
+rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.1:7878</code></pre>
+
+    <h3>CPU</h3>
+    <p>Without <code>-g</code> the client scans on the CPU. CPU is the supported path for coordinator mode with every search mode.</p>
+
+    <h3>GPU</h3>
+    <p>
+      Add <code>-g</code> and select devices with <code>--gpui</code>; address and
+      xpoint searches also accept <code>--gpux</code> for the grid. Each selected
+      device runs its own lease loop.
+    </p>
+    <pre><code>rotor -g --gpui 0 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+  --coordinator https://your-coordinator.example --token &lt;client-token&gt; --client-id rig-a \
+  GXtpBqxw3xwZ61zZ3f3uWk2dNq6M6j4K6w6yY1R1cGxY...</code></pre>
+
+    <h3>BSGS</h3>
+    <p>
+      BSGS jobs store a resumable giant-step checkpoint on the coordinator.
+      CPU BSGS is the supported coordinator path; <code>-m bsgs -g</code> is
+      rejected with <code>--coordinator</code> because the giant walk lives on
+      the coordinator.
+    </p>
+
+    <h2>Security and disclaimer</h2>
+    <ul>
+      <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
+      <li>Use HTTPS: put the coordinator behind a TLS-terminating reverse proxy. Never send a token over plain HTTP to a remote host.</li>
+      <li>A disabled account gets <code>401</code> on every authenticated call and its active leases are released.</li>
+      <li>This is a puzzle-only tool. Search only keys and ranges you are authorized to search; do not target live wallets or funds you do not own.</li>
+      <li>Progress and results are public aggregates. Job targets and found keys are visible to authenticated clients and the operator.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

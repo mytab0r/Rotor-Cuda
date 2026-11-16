@@ -9,7 +9,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rotor::base58;
 use rotor::bsgs::TableManifest;
 use rotor::coordinator::client::CoordinatorClient;
-use rotor::coordinator::{Clients, spawn, spawn_with_clients};
+use rotor::coordinator::{Clients, spawn, spawn_with_clients, spawn_with_options};
 use rotor::scalar::Scalar;
 use rotor::secp;
 use serde_json::json;
@@ -677,6 +677,388 @@ fn state_survives_a_coordinator_restart() {
         clients.iter().any(|client| client["client_id"] == "alpha"),
         "the pre-restart lease survived: {body}"
     );
+
+    handle.shutdown();
+}
+
+fn create_client_as(addr: SocketAddr, admin: &str, name: &str) -> (String, String) {
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/clients",
+        Some(admin),
+        Some(&json!({ "name": name }).to_string()),
+    );
+    assert_eq!(status, 201, "create client failed: {body}");
+    let value: serde_json::Value = serde_json::from_str(&body).expect("client JSON");
+    assert_eq!(value["name"], name);
+    let id = value["id"].as_str().expect("client id").to_string();
+    let token = value["token"].as_str().expect("client token").to_string();
+    assert_eq!(token.len(), 64, "token must be 32 bytes of hex");
+    (id, token)
+}
+
+fn xpoint_job_body(target: &str, start: &str, end: &str) -> serde_json::Value {
+    json!({
+        "mode": "xpoint",
+        "target": target,
+        "start": start,
+        "end": end,
+        "chunk_width": 8,
+        "lease_ttl": 600,
+    })
+}
+
+#[test]
+fn admin_account_endpoints_and_disabled_tokens() {
+    let temp = TempState::new("accounts");
+    let handle = spawn_with_options(
+        "127.0.0.1:0",
+        temp.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        false,
+    )
+    .expect("spawn");
+    let addr = handle.addr;
+
+    // Registration is closed by default.
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/register",
+        None,
+        Some(&json!({ "name": "Eve" }).to_string()),
+    );
+    assert_eq!(status, 403, "closed registration: {body}");
+
+    // The admin creates an account and receives the token once.
+    let (alpha_id, alpha_token) = create_client_as(addr, TOKEN, "Alpha");
+
+    // The list is admin-only and never leaks the token hash.
+    let (status, _, body) = raw(addr, "GET", "/api/v1/clients", Some(TOKEN), None);
+    assert_eq!(status, 200);
+    let value: serde_json::Value = serde_json::from_str(&body).expect("clients JSON");
+    let clients = value["clients"].as_array().expect("clients");
+    assert_eq!(clients.len(), 1);
+    assert_eq!(clients[0]["id"], alpha_id.as_str());
+    assert_eq!(clients[0]["name"], "Alpha");
+    assert!(clients[0].get("token_hash").is_none(), "hash must not leak");
+    assert!(clients[0]["history"].is_array());
+
+    // A client token cannot use admin endpoints.
+    let (status, _, _) = raw(addr, "GET", "/api/v1/clients", Some(&alpha_token), None);
+    assert_eq!(status, 403);
+    let (status, _, _) = raw(
+        addr,
+        "POST",
+        "/api/v1/clients",
+        Some(&alpha_token),
+        Some(&json!({ "name": "Sneaky" }).to_string()),
+    );
+    assert_eq!(status, 403);
+
+    // Admin creates the job; the client leases it.
+    let target = secp::mul_g(&Scalar::from_u64(7)).x.to_hex();
+    let job_id = create_job_as(addr, TOKEN, xpoint_job_body(&target, "1", "8"));
+    let client = CoordinatorClient::new(&format!("http://{addr}"), &alpha_token, "alpha");
+    let lease = client
+        .lease(Some(&job_id), None, "xpoint", "btc", "1", "8")
+        .expect("lease")
+        .expect("chunk");
+    assert!(
+        client
+            .heartbeat(
+                &job_id,
+                lease.chunk_index,
+                lease.lease_id,
+                64,
+                10.0,
+                false,
+                &[]
+            )
+            .is_ok()
+    );
+
+    // The cabinet is scoped to the token; the admin has no record.
+    let (status, _, body) = raw(addr, "GET", "/api/v1/me", Some(&alpha_token), None);
+    assert_eq!(status, 200, "me failed: {body}");
+    let me: serde_json::Value = serde_json::from_str(&body).expect("me JSON");
+    assert_eq!(me["client"]["id"], alpha_id.as_str());
+    assert_eq!(me["rank"], 1);
+    assert_eq!(me["lease"]["job_id"], job_id.as_str());
+    assert_eq!(me["client"]["scanned_total"], 64);
+    let (status, _, _) = raw(addr, "GET", "/api/v1/me", Some(TOKEN), None);
+    assert_eq!(status, 403, "the admin has no personal cabinet");
+
+    // Disabling revokes the token and releases its lease.
+    let disable_path = format!("/api/v1/clients/{alpha_id}/disable");
+    let (status, _, body) = raw(addr, "POST", &disable_path, Some(TOKEN), None);
+    assert_eq!(status, 200, "disable failed: {body}");
+    let (status, _, _) = raw(addr, "GET", "/api/v1/me", Some(&alpha_token), None);
+    assert_eq!(status, 401, "a disabled token must be unauthorized");
+    let (status, _, _) = raw(addr, "GET", "/api/v1/status", Some(&alpha_token), None);
+    assert_eq!(status, 401);
+    let (status, _, body) = raw(addr, "GET", "/api/v1/status", Some(TOKEN), None);
+    assert_eq!(status, 200);
+    let status: serde_json::Value = serde_json::from_str(&body).expect("status JSON");
+    assert!(
+        status["clients"].as_array().expect("clients").is_empty(),
+        "the disabled client's lease must be released: {body}"
+    );
+    let (status, _, _) = raw(
+        addr,
+        "POST",
+        "/api/v1/clients/missing/disable",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 404);
+
+    handle.shutdown();
+}
+
+#[test]
+fn registration_is_flag_gated_and_rate_limited() {
+    let temp = TempState::new("register");
+    let handle = spawn_with_options(
+        "127.0.0.1:0",
+        temp.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        true,
+    )
+    .expect("spawn");
+    let addr = handle.addr;
+
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/register",
+        None,
+        Some(&json!({ "name": "Eve" }).to_string()),
+    );
+    assert_eq!(status, 201, "registration failed: {body}");
+    let created: serde_json::Value = serde_json::from_str(&body).expect("register JSON");
+    let token = created["token"].as_str().expect("token").to_string();
+    assert_eq!(token.len(), 64);
+
+    // A second registration from the same IP inside the window is throttled.
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/register",
+        None,
+        Some(&json!({ "name": "Mallory" }).to_string()),
+    );
+    assert_eq!(status, 429, "second registration: {body}");
+
+    // The new token can immediately lease a job created by the admin.
+    let target = secp::mul_g(&Scalar::from_u64(7)).x.to_hex();
+    let job_id = create_job_as(addr, TOKEN, xpoint_job_body(&target, "1", "8"));
+    let client = CoordinatorClient::new(&format!("http://{addr}"), &token, "eve");
+    let lease = client
+        .lease(Some(&job_id), None, "xpoint", "btc", "1", "8")
+        .expect("lease")
+        .expect("chunk");
+    assert!(lease.chunk_index < 8);
+
+    // The public summary reports the flag and counts the account.
+    let (status, _, body) = raw(addr, "GET", "/api/v1/summary", None, None);
+    assert_eq!(status, 200);
+    let summary: serde_json::Value = serde_json::from_str(&body).expect("summary JSON");
+    assert_eq!(summary["registration_open"], true);
+    assert_eq!(summary["totals"]["jobs"], 1);
+    assert_eq!(summary["leaderboard"][0]["name"], "Eve");
+
+    // A bad name is rejected before an account is created.
+    let temp2 = TempState::new("register-invalid");
+    let handle2 = spawn_with_options(
+        "127.0.0.1:0",
+        temp2.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        true,
+    )
+    .expect("spawn");
+    let (status, _, body) = raw(
+        handle2.addr,
+        "POST",
+        "/api/v1/register",
+        None,
+        Some(&json!({ "name": "<script>" }).to_string()),
+    );
+    assert_eq!(status, 400, "html name: {body}");
+    handle2.shutdown();
+
+    handle.shutdown();
+}
+
+#[test]
+fn cabinet_is_scoped_and_the_leaderboard_is_ordered() {
+    let temp = TempState::new("cabinet");
+    let handle = spawn_with_options(
+        "127.0.0.1:0",
+        temp.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        false,
+    )
+    .expect("spawn");
+    let addr = handle.addr;
+
+    let (alpha_id, alpha_token) = create_client_as(addr, TOKEN, "Alpha");
+    let (beta_id, beta_token) = create_client_as(addr, TOKEN, "Beta");
+    let target = secp::mul_g(&Scalar::from_u64(7)).x.to_hex();
+    let job_id = create_job_as(addr, TOKEN, xpoint_job_body(&target, "1", "10"));
+
+    let alpha = CoordinatorClient::new(&format!("http://{addr}"), &alpha_token, "alpha");
+    let beta = CoordinatorClient::new(&format!("http://{addr}"), &beta_token, "beta");
+    let alpha_lease = alpha
+        .lease(Some(&job_id), None, "xpoint", "btc", "1", "10")
+        .expect("lease")
+        .expect("chunk");
+    let beta_lease = beta
+        .lease(Some(&job_id), None, "xpoint", "btc", "1", "10")
+        .expect("lease")
+        .expect("chunk");
+    assert_ne!(alpha_lease.chunk_index, beta_lease.chunk_index);
+    alpha
+        .heartbeat(
+            &job_id,
+            alpha_lease.chunk_index,
+            alpha_lease.lease_id,
+            100,
+            10.0,
+            false,
+            &[],
+        )
+        .expect("alpha heartbeat");
+    beta.heartbeat(
+        &job_id,
+        beta_lease.chunk_index,
+        beta_lease.lease_id,
+        50,
+        5.0,
+        false,
+        &[],
+    )
+    .expect("beta heartbeat");
+
+    // A heartbeat cannot borrow another client's lease.
+    beta.heartbeat(
+        &job_id,
+        alpha_lease.chunk_index,
+        alpha_lease.lease_id,
+        100,
+        1.0,
+        false,
+        &[],
+    )
+    .expect_err("a foreign lease nonce is rejected");
+
+    let (status, _, body) = raw(addr, "GET", "/api/v1/summary", None, None);
+    assert_eq!(status, 200);
+    let summary: serde_json::Value = serde_json::from_str(&body).expect("summary JSON");
+    assert_eq!(summary["totals"]["scanned"], 150);
+    assert_eq!(summary["totals"]["clients_active"], 2);
+    assert_eq!(summary["totals"]["jobs"], 1);
+    assert_eq!(summary["leaderboard"][0]["id"], alpha_id.as_str());
+    assert_eq!(summary["leaderboard"][1]["id"], beta_id.as_str());
+
+    let (status, _, body) = raw(addr, "GET", "/api/v1/me", Some(&alpha_token), None);
+    assert_eq!(status, 200);
+    let me: serde_json::Value = serde_json::from_str(&body).expect("me JSON");
+    assert_eq!(me["client"]["id"], alpha_id.as_str());
+    assert_eq!(me["rank"], 1);
+    assert_eq!(me["lease"]["job_id"], job_id.as_str());
+    assert_eq!(me["job"]["id"], job_id.as_str());
+
+    // An accepted result is credited only to the submitting client.
+    alpha
+        .submit_result(&job_id, alpha_lease.lease_id, &Scalar::from_u64(7).to_hex())
+        .expect("valid proof");
+    let (status, _, body) = raw(addr, "GET", "/api/v1/me", Some(&alpha_token), None);
+    assert_eq!(status, 200);
+    let me: serde_json::Value = serde_json::from_str(&body).expect("me JSON");
+    assert_eq!(me["client"]["found"], 1);
+    assert_eq!(me["results"].as_array().expect("results").len(), 1);
+    assert!(me["lease"].is_null(), "the found job drops its leases");
+    let (status, _, body) = raw(addr, "GET", "/api/v1/me", Some(&beta_token), None);
+    assert_eq!(status, 200);
+    let me: serde_json::Value = serde_json::from_str(&body).expect("me JSON");
+    assert_eq!(me["client"]["found"], 0);
+    assert!(me["results"].as_array().expect("results").is_empty());
+
+    let (status, _, body) = raw(addr, "GET", "/api/v1/summary", None, None);
+    assert_eq!(status, 200);
+    let summary: serde_json::Value = serde_json::from_str(&body).expect("summary JSON");
+    assert_eq!(summary["totals"]["results"], 1);
+    assert_eq!(summary["leaderboard"][0]["found"], 1);
+
+    handle.shutdown();
+}
+
+#[test]
+fn public_pages_and_assets_are_served() {
+    let temp = TempState::new("pages");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let checks: [(&str, &[&str]); 6] = [
+        (
+            "/",
+            &[
+                "Rotor Coordinator",
+                "id=\"totals-scanned\"",
+                "id=\"join-form\"",
+                "href=\"/app\"",
+                "href=\"/me\"",
+                "href=\"/docs\"",
+            ],
+        ),
+        (
+            "/app",
+            &[
+                "id=\"jobs\"",
+                "id=\"leaderboard-body\"",
+                "/api/v1/status",
+                "id=\"global-scanned\"",
+            ],
+        ),
+        (
+            "/me",
+            &["id=\"sparkline\"", "/api/v1/me", "id=\"me-token\""],
+        ),
+        (
+            "/docs",
+            &["--coordinator", "--token", "-m addresses", "--client-id"],
+        ),
+        ("/site.css", &[":root", "--bg", "@media"]),
+        ("/site.js", &["window.Rotor", "sparkline", "TOKEN_KEY"]),
+    ];
+    for (path, needles) in checks {
+        let (status, headers, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        if path.ends_with(".css") {
+            assert!(
+                headers.to_ascii_lowercase().contains("text/css"),
+                "{path}: {headers}"
+            );
+        }
+        for needle in needles {
+            assert!(body.contains(needle), "{path} misses {needle}");
+        }
+    }
+
+    // Unknown non-API paths fall back to the landing page.
+    let (status, _, body) = raw(addr, "GET", "/anything", None, None);
+    assert_eq!(status, 200);
+    assert!(body.contains("Rotor Coordinator"));
+
+    // The authenticated API is still protected.
+    let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);
+    assert_eq!(status, 401);
 
     handle.shutdown();
 }
