@@ -20,3 +20,4 @@ pub mod scalar;
 pub mod secp;
 pub mod selfcheck;
 pub mod selfupdate;
+pub mod targets_text;

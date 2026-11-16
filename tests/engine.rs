@@ -5,7 +5,7 @@ use rotor::cli::{Coin, CompMode, Config, Range, SearchMode, U256};
 use rotor::engine;
 use rotor::filter::TargetSet;
 use rotor::scalar::Scalar;
-use rotor::{secp, secp::mul_g};
+use rotor::{base58, secp, secp::mul_g};
 
 fn temp_path(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -180,6 +180,42 @@ fn multi_address_mode_finds_key_five_from_bin_file() {
     assert!(
         text.contains("PubAddress: 17Vu7st1U1KwymUKU4jJheHHGRVNqrcfLD"),
         "missing multi-address block:\n{text}"
+    );
+}
+
+/// Compressed BTC P2PKH address for a private key.
+fn btc_address(key: u64) -> String {
+    let hash = secp::hash160(&mul_g(&Scalar::from_u64(key)), true);
+    base58::address_from_hash160(&hash, true)
+}
+
+#[test]
+fn multi_address_mode_reads_text_target_list() {
+    let targets = temp_path("addresses_txt");
+    let list = format!("{}\n{}\n", btc_address(5), btc_address(7));
+    std::fs::write(&targets, list).expect("write text target file");
+
+    let output = temp_path("multi_text");
+    let mut config = config();
+    config.mode = Some(SearchMode::Addresses);
+    config.targets_text = Some(targets.to_string_lossy().into_owned());
+    config.range = Some(range("4", "8"));
+    config.output_file = output.to_string_lossy().into_owned();
+
+    let outcome = engine::run(&config).expect("search should run");
+    let text = output_text(&output);
+    let _ = std::fs::remove_file(&output);
+    let _ = std::fs::remove_file(&targets);
+
+    assert_eq!(outcome.found, 2);
+    assert_eq!(outcome.scanned, 5);
+    assert!(
+        text.contains("Priv (HEX): 5\n"),
+        "missing key 5 block:\n{text}"
+    );
+    assert!(
+        text.contains("Priv (HEX): 7\n"),
+        "missing key 7 block:\n{text}"
     );
 }
 

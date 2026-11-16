@@ -29,6 +29,7 @@ use crate::filter::TargetSet;
 use crate::point::{Affine, Jacobian, batch_to_affine};
 use crate::scalar::Scalar;
 use crate::secp;
+use crate::targets_text;
 
 /// Number of keys generated and normalized per batch (`CPU_GRP_SIZE` in C++).
 const BATCH_SIZE: usize = 2048;
@@ -876,7 +877,7 @@ fn parse_xpoint(config: &Config) -> Result<[u8; 32], String> {
 }
 
 /// Decodes exactly `len` bytes worth of hexadecimal digits.
-fn parse_hex_bytes(text: &str, len: usize) -> Option<Vec<u8>> {
+pub(crate) fn parse_hex_bytes(text: &str, len: usize) -> Option<Vec<u8>> {
     if text.len() != len * 2 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return None;
     }
@@ -889,6 +890,17 @@ fn parse_hex_bytes(text: &str, len: usize) -> Option<Vec<u8>> {
 }
 
 fn load_target_set(config: &Config, record_len: usize, what: &str) -> Result<TargetSet, String> {
+    if let Some(source) = config.targets_text.as_deref() {
+        let mode = config
+            .mode
+            .ok_or_else(|| "--targets-text requires -m addresses or -m xpoints".to_owned())?;
+        if source == "-" {
+            let stdin = io::stdin();
+            return targets_text::load(stdin.lock(), config.coin, mode);
+        }
+        let file = File::open(source).map_err(|err| format!("failed to read {source}: {err}"))?;
+        return targets_text::load(io::BufReader::new(file), config.coin, mode);
+    }
     let path = config
         .input_file
         .as_deref()
@@ -1572,28 +1584,24 @@ pub(crate) fn print_banner(
     );
     println!("  SEARCH MODE  : {search}");
     println!("  DEVICE       : {device}");
+    let target_source = config
+        .targets_text
+        .as_deref()
+        .or(config.input_file.as_deref())
+        .unwrap_or("");
     match (config.coin, mode) {
         (Coin::Btc, SearchMode::Address) => {
             println!("  BTC ADDRESS  : {}", config.operands[0]);
         }
-        (Coin::Btc, SearchMode::Addresses) => println!(
-            "  BTC HASH160s : {}",
-            config.input_file.as_deref().unwrap_or("")
-        ),
+        (Coin::Btc, SearchMode::Addresses) => println!("  BTC HASH160s : {target_source}"),
         (Coin::Btc, SearchMode::XPoint) => {
             println!("  BTC XPOINT   : {}", config.operands[0]);
         }
-        (Coin::Btc, SearchMode::XPoints) => println!(
-            "  BTC XPOINTS  : {}",
-            config.input_file.as_deref().unwrap_or("")
-        ),
+        (Coin::Btc, SearchMode::XPoints) => println!("  BTC XPOINTS  : {target_source}"),
         (Coin::Eth, SearchMode::Address) => {
             println!("  ETH ADDRESS  : {}", config.operands[0]);
         }
-        (Coin::Eth, SearchMode::Addresses) => println!(
-            "  ETH ADDRESS  : {}",
-            config.input_file.as_deref().unwrap_or("")
-        ),
+        (Coin::Eth, SearchMode::Addresses) => println!("  ETH ADDRESS  : {target_source}"),
         _ => {}
     }
     println!("  OUTPUT FILE  : {}", config.output_file);
