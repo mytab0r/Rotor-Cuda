@@ -10,7 +10,7 @@ web/rotor-worker.js (Web Worker)
   |  fetch /api/v1/jobs, /lease, /heartbeat, /result (same origin)
   v ptr+len ABI
 rotor_wasm.wasm (crates/rotor-wasm, cdylib)
-  field + scalar + point + secp + hashes + base58 + filter::TargetSet
+  field + scalar + point + secp + hashes + base58 + HashSet matcher
   scan(start..end), challenge_samples(offsets), found key
 ```
 
@@ -21,8 +21,11 @@ worker once and never writes it to the DOM.
 Components:
 
 - `crates/rotor-wasm`: new workspace member, `crate-type = ["cdylib"]`,
-  `[dependencies] rotor = { path = "../..", default-features = false }`.
-  Neither wasm-bindgen nor any other new crate is added.
+  reusing `field`, `scalar`, `point`, `secp`, `hashes` and `base58` through
+  `#[path = "../../../src/<module>.rs"]` includes instead of linking the
+  native `rotor` library. Only sha2/ripemd/sha3/bs58 are dependencies; the
+  target matcher is a local `HashSet`. Neither wasm-bindgen nor any other new
+  crate is added, and the native crate and its dependencies are untouched.
 - `web/rotor-worker.js`: protocol state machine and wasm glue.
 - `web/run.html` + `/run` route: contributor page (nav link added next to
   `/app` and `/me`, cf. `web/app.html:13-17`).
@@ -52,36 +55,31 @@ build claim is unproven until CI runs it):
 (`build.rs:43-44`), so a wasm build never invokes `nvcc`. The `gpu` feature is
 not enabled for the wasm crate.
 
-Gating plan:
+Reuse mechanism (implemented):
 
-- `src/lib.rs`: add `#[cfg(not(target_arch = "wasm32"))]` to every module the
-  browser does not need (`benchmark`, `bsgs`, `bsgs_workfile`, `checkpoint`,
-  `cli`, `coordinator`, `engine`, `mnemonic`, `selfcheck`, `selfupdate`,
-  `targets_text`; keep the `gpu*` gating). This also removes `state.rs`'s import
-  of `engine::{SplitMix64, thread_seed}` (`src/coordinator/state.rs:20`) from
-  the wasm build.
-- `Cargo.toml`: move `ctrlc`, `tiny_http`, `ureq` and `bip39` under
-  `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]`
-  (`Cargo.toml:24-35`). Cargo compiles unconditional dependencies even when the
-  modules using them are cfg'd out, so this move is mandatory.
-- Keep `sha2`, `ripemd`, `sha3`, `bs58`, `serde`, `serde_json`, `xorf`
-  universal. `serde_json` is not needed by the wasm crate itself, but stays for
-  the native lib.
-- Bins are not part of the wasm build: CI uses `cargo build -p rotor-wasm
-  --target wasm32-unknown-unknown --release`.
+- `crates/rotor-wasm/src/lib.rs` declares the six pure modules with
+  `#[path = "../../../src/<module>.rs"] mod <module>;`. Their internal
+  `crate::field` / `crate::scalar` / `crate::secp` imports resolve because the
+  wasm crate mirrors the same module names, so the native sources compile
+  unchanged in both crates.
+- The wasm crate does not link the native `rotor` library, so
+  `ctrlc`/`tiny_http`/`ureq`/`bip39` and `filter::load` never enter the wasm
+  build. `Cargo.toml` in the native crate keeps its dependencies unchanged.
+- The target matcher is a local `HashSet<[u8; 20]>` / `HashSet<[u8; 32]>`
+  built in `set_job`; `filter::TargetSet` (and `xorf`) is not used in the
+  browser path. V1 still caps the target list at 50,000 records in the worker.
+- `build.rs` is not invoked for the wasm crate (it belongs to the root
+  package), and the `gpu` feature is never enabled there.
 
-Why `cfg(target_arch)` plus a separate crate, not a Cargo feature:
+Why a separate crate with `#[path]` includes, not a Cargo feature:
 
 - A feature would have to be threaded through every build command and could be
-  combined accidentally with `gpu`; the target triple is already the exact
-  discriminator.
+  combined accidentally with `gpu`; `cargo build -p rotor-wasm --target
+  wasm32-unknown-unknown` is already the exact discriminator.
 - The separate cdylib keeps the export surface and `crate-type` out of the
   native library and gives host-side tests a normal `rlib` target.
-
-Residual portability risk: `xorf::BinaryFuse8` (used by `TargetSet`,
-`src/filter.rs:228`) and `bs58` must compile for wasm; CI proves it. If `xorf`
-fails, the fallback is a local open-addressing set behind the same
-`TargetSet` API, not a protocol change.
+- The native crate and its dependency list are untouched, so the change cannot
+  regress the existing CPU/GPU builds.
 
 ## D3. WASM boundary
 
@@ -92,18 +90,24 @@ exports need `#[unsafe(no_mangle)]`. The shell build script passes
 `RUSTFLAGS=-C panic=abort` for the wasm command so the artifact has no unwinding
 imports; the native profile is untouched.
 
-Export surface (names indicative):
+Export surface (implemented in `crates/rotor-wasm/src/lib.rs`):
 
 | Export | Purpose |
 |---|---|
-| `alloc(len) -> ptr`, `dealloc(ptr, len)` | JS uploads mode/coin/comp/targets/hex strings |
-| `init(mode_ptr, mode_len, coin_ptr, coin_len, comp_ptr, comp_len, targets_ptr, targets_len) -> i32` | Parse config and build the target matcher; newline-separated targets |
-| `begin(start_hex_ptr, start_len) -> i32` | Reset the cursor to a leased chunk start |
-| `scan(max_keys: u32) -> u32` | Scan at most `max_keys`, advance the internal cursor; returns keys scanned now |
-| `scanned() -> u64` | Cumulative keys scanned in the current chunk (watermark sent to the coordinator) |
-| `found(ptr, cap) -> i32` | Write the found key as 64 lowercase hex chars; 0 when none |
-| `samples(offsets_ptr, count, out_ptr, out_cap) -> i32` | Write `count` fixed-stride samples; `sample_len()` gives the stride |
-| `last_error(ptr, cap) -> i32` | Copy the last error string |
+| `alloc(len) -> ptr`, `dealloc(ptr, len)` | JS uploads targets, scalars and offsets |
+| `set_job(mode, comp, targets_ptr, targets_len) -> u32` | 0 ok; modes 0 BTC address, 1 BTC xpoint, 2 ETH address; comp 0/1/2; newline-separated targets |
+| `scan(start_ptr, end_ptr) -> u32` | Scan `[start, end)` (32-byte big-endian scalars), stop at the first hit; result blob: `u64 scanned`, `u32 found`, then key/address lengths and bytes |
+| `samples(start_ptr, offsets_ptr, count) -> u32` | Result blob: `u32 count`, then per sample `u32 len` + bytes |
+| `result_ptr() -> u32`, `result_len() -> u32` | Last result blob in wasm memory |
+| `error_ptr() -> u32`, `error_len() -> u32` | Last error text |
+
+The worker owns span arithmetic and slicing: it calls `scan` on 2^18-key
+windows of the leased chunk, so a huge chunk never blocks the worker and the
+`u64 scanned` counter stays a Number-safe value. The coordinator's lease `end`
+is inclusive (`src/coordinator/state.rs:1457-1463`), so the worker's span is
+`end - start + 1`. `set_job` accepts a BTC P2PKH address or a 40-hex hash160
+line in mode 0, because the server normalizes `addresses` jobs to 40-hex
+(`src/coordinator/state.rs:1787-1791`).
 
 The wasm exports that return `u64` surface in JS as `BigInt`; the glue converts
 them where a Number is safe (chunk spans are far below 2^53 when browser jobs
