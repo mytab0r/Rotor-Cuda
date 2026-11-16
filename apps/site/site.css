@@ -251,10 +251,8 @@ p { text-wrap: pretty; }
 .key-warning {
   margin: 0 0 14px;
   border: 0;
-  border-left: 3px solid var(--warn);
-  border-radius: 0;
   background: none;
-  padding: 2px 0 2px 12px;
+  padding: 0;
   color: #e3b341;
 }
 .key-help { margin: 8px 0 0; font-size: 12px; }
@@ -600,9 +598,8 @@ p { text-wrap: pretty; }
 .monitor-remove:hover { color: var(--err); border-color: var(--err); }
 
 .monitor-event {
-  padding: 10px 0 10px 12px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
-  border-left: 3px solid var(--border);
 }
 .monitor-event:first-child { padding-top: 2px; }
 .monitor-event:last-child { border-bottom: 0; }
@@ -612,13 +609,11 @@ p { text-wrap: pretty; }
 .monitor-event-time { margin-left: auto; font-size: 11px; color: var(--muted); }
 .monitor-event-detail { margin: 6px 0 0; font-size: 13px; color: #c9d1d9; overflow-wrap: anywhere; }
 .monitor-event-who { margin: 4px 0 0; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
-.monitor-severity-critical { border-left-color: var(--err); }
 .monitor-severity-critical .monitor-event-severity { color: var(--err); }
-.monitor-severity-high { border-left-color: var(--warn); }
-.monitor-severity-high .monitor-event-severity { color: #e3b341; }
-.monitor-severity-medium { border-left-color: var(--warn); }
-.monitor-severity-low,
-.monitor-severity-info { border-left-color: var(--accent-2); }
+.monitor-severity-high .monitor-event-severity { color: var(--warn); }
+.monitor-severity-medium .monitor-event-severity { color: var(--warn); }
+.monitor-severity-low .monitor-event-severity,
+.monitor-severity-info .monitor-event-severity { color: var(--accent-2); }
 
 .monitor-form { grid-template-columns: 150px minmax(0, 1fr); }
 .monitor-form .monitor-wide { grid-column: 1 / -1; }
