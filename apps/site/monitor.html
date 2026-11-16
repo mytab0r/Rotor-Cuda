@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rotor Coordinator - address monitor</title>
-<link rel="stylesheet" href="/site.css?v=20261116i">
+<title>Rotor Coordinator - cabinet</title>
+<link rel="stylesheet" href="/site.css?v=20261117c">
 </head>
 <body>
 <header class="site-nav">
@@ -12,16 +12,15 @@
   <nav>
     <a href="/app" id="nav-app">App</a>
     <a href="/run" id="nav-run">Run</a>
-    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/cabinet" class="active" id="nav-cabinet">Cabinet</a>
     <a href="/docs" id="nav-docs">Docs</a>
     <a href="/key" id="nav-key">Keys</a>
-    <a href="/monitor" class="active" id="nav-monitor">Monitor</a>
   </nav>
 </header>
 
 <main class="monitor-page">
   <section class="hero monitor-hero">
-    <h1>Address monitor</h1>
+    <h1>Cabinet</h1>
     <p class="monitor-tagline">Watch the addresses you control and be warned when something moves without you. This page never asks for a private key, WIF or seed phrase.</p>
     <p class="notice monitor-warning" role="note">An alert is early warning, not protection. Alerts can be delayed or missed, and an idle stolen key is not observable on-chain.</p>
   </section>
@@ -42,7 +41,7 @@
     </p>
     <p id="monitor-wallet-error" class="error monitor-status" role="alert" hidden></p>
     <div id="monitor-no-wallet" class="monitor-no-wallet" hidden>
-      <p>No EVM wallet was detected in this browser. Rotor Monitor signs you in with a Sign-In with Ethereum (EIP-4361) message: the wallet signs a one-time challenge, and the signature proves the address is yours. No private key or seed phrase is ever requested.</p>
+      <p>No EVM wallet was detected in this browser. Rotor Cabinet signs you in with a Sign-In with Ethereum (EIP-4361) message: the wallet signs a one-time challenge, and the signature proves the address is yours. No private key or seed phrase is ever requested.</p>
       <p class="muted monitor-note" id="monitor-siwe-note"></p>
       <button type="button" id="monitor-copy-siwe">Copy sign-in note</button>
     </div>
@@ -103,6 +102,6 @@
   </section>
 </main>
 
-<script src="/monitor.js?v=20261116i"></script>
+<script src="/cabinet.js?v=20261117c"></script>
 </body>
 </html>
