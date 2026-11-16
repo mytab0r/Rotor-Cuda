@@ -3,14 +3,30 @@ name: rust
 on:
   push:
     branches: ["main", "feat/rust-port"]
-    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "web/**", "scripts/**", ".github/workflows/rust.yml"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "web/**", "scripts/**", "projects.json", "PROJECTS.md", "AGENTS.md", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "web/**", "scripts/**", ".github/workflows/rust.yml"]
+    paths: ["Cargo.toml", "Cargo.lock", "src/**", "tests/**", "crates/**", "web/**", "scripts/**", "projects.json", "PROJECTS.md", "AGENTS.md", ".github/workflows/rust.yml"]
 
 permissions:
   contents: read
 
 jobs:
+  projects:
+    name: projects-map
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check-projects.mjs
+      - name: Affected areas (report only)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: node scripts/affected-areas.mjs
+
   build:
     name: build-test-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
