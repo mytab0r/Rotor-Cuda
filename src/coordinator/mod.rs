@@ -35,6 +35,8 @@ const DOCS_PAGE: &str = include_str!("../../web/docs.html");
 const SITE_CSS: &str = include_str!("../../web/site.css");
 const SITE_JS: &str = include_str!("../../web/site.js");
 const RUN_PAGE: &str = include_str!("../../web/run.html");
+const KEY_PAGE: &str = include_str!("../../web/key.html");
+const KEY_JS: &str = include_str!("../../web/key.js");
 const ROTOR_WORKER: &str = include_str!("../../web/rotor-worker.js");
 const ROTOR_WASM: &[u8] = include_bytes!("../../web/rotor_wasm.wasm");
 /// Largest request body the coordinator buffers (JSON commands are tiny).
@@ -490,6 +492,8 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/run" => Some((RUN_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/me" => Some((ME_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/site.css" => Some((SITE_CSS.as_bytes(), "text/css; charset=utf-8")),
         "/site.js" => Some((SITE_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/rotor-worker.js" => Some((
@@ -981,6 +985,14 @@ mod tests {
         assert_eq!(content_type, "application/wasm");
         assert_eq!(body.len(), ROTOR_WASM.len());
         assert!(body.len() > 1024);
+
+        let (body, content_type) = static_asset("/key").expect("/key is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(!body.is_empty());
+
+        let (body, content_type) = static_asset("/key.js").expect("/key.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
     }
 
     #[test]
