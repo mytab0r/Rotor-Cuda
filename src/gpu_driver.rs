@@ -7,11 +7,13 @@
 #![cfg_attr(not(feature = "gpu"), allow(dead_code))]
 
 use std::fs::{File, OpenOptions};
+use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::thread;
 
+use crate::checkpoint::{self, Checkpoint};
 use crate::cli::Coin;
 use crate::engine::{self, Split};
 use crate::point::Affine;
@@ -87,7 +89,10 @@ pub struct DeviceOutcome {
 /// A device scan driven by [`drive`].
 pub trait DeviceRunner: Send {
     /// Scans until the slice is exhausted, `stop` is set, or an error occurs.
-    fn run(&mut self, stop: &AtomicBool) -> Result<DeviceOutcome, String>;
+    ///
+    /// `scanned` is the live total across every device (used by random mode to
+    /// notice a new `-r` epoch); runners may also update it per batch.
+    fn run(&mut self, stop: &AtomicBool, scanned: &AtomicU64) -> Result<DeviceOutcome, String>;
 }
 
 /// Runs one thread per device, joins all of them and sums the scanned keys.
@@ -104,17 +109,20 @@ pub fn drive(
 ) -> Result<u64, String> {
     let mut scanned = 0u64;
     let mut first_error: Option<String> = None;
+    // Live total across devices: random mode checks it for a new `-r` epoch.
+    let scanned_total = AtomicU64::new(0);
 
     thread::scope(|scope| {
         let (sender, receiver) = mpsc::channel::<Result<DeviceOutcome, String>>();
         let mut handles = Vec::with_capacity(runners.len());
         for mut runner in runners {
             let sender = sender.clone();
+            let scanned_total = &scanned_total;
             handles.push(scope.spawn(move || {
                 let result = if stop.load(Ordering::SeqCst) {
                     Ok(DeviceOutcome::default())
                 } else {
-                    runner.run(stop)
+                    runner.run(stop, scanned_total)
                 };
                 let _ = sender.send(result);
             }));
@@ -156,6 +164,65 @@ pub fn drive(
         Some(err) => Err(err),
         None => Ok(scanned),
     }
+}
+
+/// One device chunk resumed from a checkpoint: shifted `[start, end]`, the
+/// cumulative count already scanned by that device (`baseline`), and whether
+/// the chunk still has keys left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ResumedChunk {
+    pub start: Split,
+    pub end: Split,
+    pub baseline: u64,
+    pub runnable: bool,
+}
+
+/// Reads `Rotor-Cuda_Continue.bat`; when no usable checkpoint exists, writes
+/// `Rotor-Cuda_START.bat` like the CPU engine does. A zero count is ignored.
+pub(crate) fn resume_checkpoint(continue_path: &Path, start_path: &Path) -> Option<Checkpoint> {
+    let saved = checkpoint::read_continue(continue_path).filter(|saved| saved.count > 0);
+    if saved.is_none()
+        && let Err(err) = checkpoint::write_start(start_path, &checkpoint::command_line())
+    {
+        eprintln!("  Cannot write Rotor-Cuda_START.bat: {err}");
+    }
+    saved
+}
+
+/// Splits `[start, end]` into one chunk per device and shifts each chunk by its
+/// saved count. The exact `threads:`/`chunks:` extension wins when it matches
+/// the device count; otherwise every device gets `count / devices`. A chunk
+/// whose saved count passed its end keeps its baseline (so the checkpoint
+/// layout stays stable) but is marked `runnable == false`.
+pub(crate) fn resumed_ranges(
+    start: Split,
+    end: Split,
+    devices: usize,
+    saved: Option<&Checkpoint>,
+) -> Vec<ResumedChunk> {
+    let chunks = engine::split_ranges(start, end, devices);
+    let offsets = engine::resume_offsets(saved, chunks.len());
+    chunks
+        .into_iter()
+        .enumerate()
+        .map(|(index, (low, high))| {
+            let baseline = offsets[index];
+            match engine::shift_chunk(low, high, baseline, end) {
+                Some((start, end)) => ResumedChunk {
+                    start,
+                    end,
+                    baseline,
+                    runnable: true,
+                },
+                None => ResumedChunk {
+                    start: low,
+                    end: high,
+                    baseline,
+                    runnable: false,
+                },
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -212,7 +279,11 @@ mod tests {
     }
 
     impl DeviceRunner for StubRunner {
-        fn run(&mut self, stop: &AtomicBool) -> Result<DeviceOutcome, String> {
+        fn run(
+            &mut self,
+            stop: &AtomicBool,
+            _scanned: &AtomicU64,
+        ) -> Result<DeviceOutcome, String> {
             if let Some(runs) = &self.runs {
                 runs.fetch_add(1, Ordering::SeqCst);
             }
@@ -405,5 +476,146 @@ mod tests {
         assert_eq!(keys.len(), THREADS * BLOCKS, "no block was lost");
 
         let _ = fs::remove_file(&path);
+    }
+
+    fn split(value: u64) -> Split {
+        Split::from_u64(value)
+    }
+
+    /// Raw continuation file with an explicit `threads:` line, so mismatched
+    /// layouts can be tested (the writer always sets `threads = chunks.len()`).
+    fn checkpoint_fixture(threads: usize, chunks: &[u64], count: u64) -> String {
+        let list = chunks
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            ":loop \nrotor.exe -g\ngoto :loop \ncreated: Sun Nov 15 19:42:03 2026\n{count}\n\
+             To continue correctly, DO NOT change the parameters in this file! \n\
+             If you no longer need the continuation, DELETE this file! \n\
+             threads: {threads}\nchunks: {list}\n"
+        )
+    }
+
+    #[test]
+    fn exact_chunk_extension_shifts_each_device_range() {
+        let path = temp_path("resume_exact");
+        fs::write(&path, checkpoint_fixture(2, &[5, 7], 12)).expect("write fixture");
+        let saved = checkpoint::read_continue(&path).expect("parse fixture");
+
+        let ranges = resumed_ranges(split(0x1000), split(0x10FF), 2, Some(&saved));
+        assert_eq!(
+            ranges,
+            vec![
+                ResumedChunk {
+                    start: split(0x1005),
+                    end: split(0x1084),
+                    baseline: 5,
+                    runnable: true,
+                },
+                // The second window would end past the range end and is clipped.
+                ResumedChunk {
+                    start: split(0x1087),
+                    end: split(0x10FF),
+                    baseline: 7,
+                    runnable: true,
+                },
+            ]
+        );
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_device_past_its_chunk_end_is_skipped() {
+        let path = temp_path("resume_past_end");
+        fs::write(&path, checkpoint_fixture(2, &[5, 300], 305)).expect("write fixture");
+        let saved = checkpoint::read_continue(&path).expect("parse fixture");
+
+        let ranges = resumed_ranges(split(0x1000), split(0x10FF), 2, Some(&saved));
+        assert_eq!(
+            ranges[0],
+            ResumedChunk {
+                start: split(0x1005),
+                end: split(0x1084),
+                baseline: 5,
+                runnable: true,
+            }
+        );
+        assert!(!ranges[1].runnable, "a fully scanned device must not run");
+        assert_eq!(ranges[1].baseline, 300, "the baseline must survive");
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn mismatched_threads_fall_back_to_the_even_split() {
+        let path = temp_path("resume_fallback");
+        fs::write(&path, checkpoint_fixture(3, &[1, 2, 3], 20)).expect("write fixture");
+        let saved = checkpoint::read_continue(&path).expect("parse fixture");
+
+        let ranges = resumed_ranges(split(0x1000), split(0x10FF), 2, Some(&saved));
+        assert_eq!(
+            ranges,
+            vec![
+                ResumedChunk {
+                    start: split(0x100A),
+                    end: split(0x1089),
+                    baseline: 10,
+                    runnable: true,
+                },
+                ResumedChunk {
+                    start: split(0x108A),
+                    end: split(0x10FF),
+                    baseline: 10,
+                    runnable: true,
+                },
+            ]
+        );
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn start_file_is_written_when_no_checkpoint_exists() {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!(
+            "rotor_gpu_checkpoint_{}_{nanos}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("temp dir");
+        let continue_path = dir.join(checkpoint::CONTINUE_FILE);
+        let start_path = dir.join(checkpoint::START_FILE);
+
+        assert!(resume_checkpoint(&continue_path, &start_path).is_none());
+        let start = fs::read_to_string(&start_path).expect("START.bat was written");
+        assert!(
+            start.starts_with(":loop \n"),
+            "unexpected START.bat: {start}"
+        );
+        assert!(
+            start.contains("goto :loop "),
+            "START.bat misses the loop: {start}"
+        );
+
+        // A zero-count checkpoint is not usable either.
+        fs::write(&continue_path, checkpoint_fixture(1, &[0], 0)).expect("write fixture");
+        assert!(resume_checkpoint(&continue_path, &start_path).is_none());
+
+        // A real checkpoint is returned and START.bat is not (re)written.
+        fs::remove_file(&start_path).expect("remove START.bat");
+        fs::write(&continue_path, checkpoint_fixture(1, &[5], 5)).expect("write fixture");
+        let saved = resume_checkpoint(&continue_path, &start_path).expect("valid checkpoint");
+        assert_eq!(saved.count, 5);
+        assert!(
+            !start_path.exists(),
+            "a valid checkpoint must not write START.bat"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }
