@@ -1,58 +1,65 @@
-# Design: accounts, stats, cabinet
+# Design: public site, accounts, stats, cabinet
 
-## D1. Client records
+## D1. Static site served by the coordinator
 
+Files under `web/`, embedded with `include_str!`:
+- `landing.html` → `/` (hero, how-it-works, live totals, join CTA, nav)
+- `app.html` → `/app` (current dashboard: jobs, clients, results, leaderboard)
+- `me.html` → `/me` (personal cabinet, token login)
+- `docs.html` → `/docs` (FAQ, client commands, security/disclaimer)
+- `site.css`, `site.js` shared (dark theme matching the current dashboard;
+  no frameworks, no build step; responsive at 480 px).
+
+`/` no longer serves the dashboard; `/api/*` unchanged. Unknown non-API paths
+return the landing page (SPA-ish) or 404 — landing is fine.
+
+## D2. Client records and stats
+
+`State.clients: Vec<ClientRecord>`:
 ```rust
-struct ClientRecord {
-    id: String, name: String, token_hash: String, created_at: u64, disabled: bool,
-    scanned_total: u64, chunks_done: u64, found: u64, last_seen: u64, rate: f64,
-    history: VecDeque<HistoryPoint>, // { at: u64, scanned: u64, rate: f64 } max 240
-}
+struct ClientRecord { id, name, token_hash, created_at, disabled,
+    scanned_total, chunks_done, found, last_seen, rate,
+    history: VecDeque<{at, scanned, rate}> } // max 240 points
 ```
-
-Stored in `State.clients`; token hash is SHA-256 hex of the bearer token (the
-auth change's map format). `--clients FILE` is imported once when
-`State.clients` is empty; afterwards the state is authoritative and the file is
-ignored (documented). All mutations under the existing state mutex; atomic save
-unchanged.
-
-## D2. Stats updates
-
-- Heartbeat: `scanned_total += scanned_delta` (keep the max seen per lease to
-  avoid double counting after retries; the lease holds the last reported
-  scanned), `rate = reported`, `last_seen = now`, push a history point (replace
-  the last point if < 5 s since the previous one).
-- Chunk done: `chunks_done += 1`.
-- Accepted result: `found += 1`.
-- A lease carries `client_id`; the server resolves the record and rejects a
-  disabled client (401) even with a valid token.
+- Token hash = SHA-256 hex; tokens are 32 random bytes hex, shown once.
+- Heartbeat: add the lease scanned delta (per-lease max watermark, no double
+  counting), set rate/last_seen, push/replace a history point (≥5 s apart).
+- Chunk done: `chunks_done += 1`; accepted result: `found += 1`, `last_seen`.
+- Disabled clients: 401 on every authenticated call; their leases invalidated.
+- Creation: admin `POST /api/v1/clients {name}`; open registration
+  `POST /api/v1/register {name}` when `--open-registration` (rate-limited by
+  IP/token bucket, e.g. 1/min per IP, max name length 64, sanitize HTML).
+- Import: an existing `--clients FILE` map is imported into `State.clients` on
+  first start (names = ids) and the file is then ignored.
 
 ## D3. API
 
-- `GET /api/v1/clients` (admin): id, name, created_at, disabled, stats, history.
-- `POST /api/v1/clients` (admin): `{name}` → `{id, token}` (token shown once;
-  stored hashed).
-- `POST /api/v1/clients/{id}/disable` (admin): set the flag; existing leases
-  for that client become invalid.
-- `GET /api/v1/me` (client): own record, active lease/job progress, results.
-- `GET /api/v1/status` (admin or client): adds `totals { scanned, clients_active,
-  results, jobs }`; keeps the existing fields.
+- `GET /api/v1/me` (client token): own record, active lease, current job
+  progress, recent results, rank.
+- `GET /api/v1/clients` (admin): records with stats/history.
+- `POST /api/v1/clients` (admin), `POST /api/v1/clients/{id}/disable` (admin).
+- `POST /api/v1/register` (public when enabled).
+- `GET /api/v1/status` adds `totals {scanned, clients_active, results, jobs}` and
+  `leaderboard: [{id, name, scanned, chunks_done, found}]` (top 10); existing
+  fields untouched.
 
-## D4. Dashboard and cabinet
+## D4. Pages
 
-- `web/index.html`: global stat cards + clients table (name, scanned, chunks,
-  found, rate, last seen) + jobs/results as today.
-- `web/me.html` (new, embedded): token field (localStorage), cards (scanned,
-  chunks, found, rate), an SVG sparkline of the history ring, the current lease
-  and recent results; polls `/api/v1/me` every 2 s.
-- The cabinet is served at `/me`; the main dashboard links to it.
+- Landing: live totals polled every 2 s, "Join" form (if registration open: name
+  → token shown once with copy button), links to app/docs/cabinet.
+- App: keep current tables; add global stat cards and the leaderboard.
+- Cabinet: token field (localStorage), cards (scanned, chunks, found, rate,
+  rank), SVG sparkline from history, active lease, recent results; poll `/me`
+  every 2 s.
+- Docs: registration, `rotor -m addresses ... --coordinator URL --token ...`,
+  CPU/GPU/BGS notes, security (tokens are secrets, puzzle-only disclaimer).
 
 ## D5. Tests
 
-- State: stats aggregation (no double counting), history bound, disable,
-  create/import.
-- API: `/clients` admin-only; `/me` requires a client token and returns only
-  that client; disabled token 401; status totals.
-- Dashboard HTML contains the cabinet link and the stat card ids; cabinet page
-  parses (basic string assertions).
-- Manual multi-user run (3 tokens) documented in the change evidence.
+- State: stats aggregation/no double count, history bound, disable, import,
+  registration.
+- API: admin/client/register authorization matrix, `/me` scope, leaderboard
+  order, totals, disabled token 401, registration rate limit/flag off.
+- Pages: `/`, `/app`, `/me`, `/docs` return 200 and contain key ids/links;
+  `site.css` served.
+- Manual: 3 users, global vs personal numbers, leaderboard, cabinet.

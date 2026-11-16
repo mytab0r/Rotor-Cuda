@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - distributed key search</title>
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Rotor Coordinator</h1>
+    <p>
+      A community puzzle solver. Clients lease disjoint key ranges from this
+      coordinator, scan them on CPU or GPU, and report accepted completions.
+      Everyone's work is verified, counted and shown on the leaderboard.
+    </p>
+    <div class="actions">
+      <a class="button primary" href="/app">Open the app</a>
+      <a class="button" href="/me">Open my cabinet</a>
+      <a class="button" href="/docs">How to run a client</a>
+    </div>
+  </section>
+
+  <section class="card" id="totals-card">
+    <h2>Live totals</h2>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">Keys scanned</span><span class="stat-value" id="totals-scanned">0</span></div>
+      <div class="stat"><span class="stat-label">Active clients</span><span class="stat-value" id="totals-clients">0</span></div>
+      <div class="stat"><span class="stat-label">Results</span><span class="stat-value" id="totals-results">0</span></div>
+      <div class="stat"><span class="stat-label">Jobs</span><span class="stat-value" id="totals-jobs">0</span></div>
+    </div>
+    <p class="muted" id="totals-status">connecting...</p>
+  </section>
+
+  <section class="card">
+    <h2>Leaderboard</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th class="rank">#</th><th>Contributor</th><th>Scanned</th><th>Chunks</th><th>Found</th></tr>
+        </thead>
+        <tbody id="leaderboard-body">
+          <tr><td colspan="5" class="muted">no contributors yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="join-card">
+    <h2>Join</h2>
+    <p id="join-closed" class="muted" hidden>
+      Registration is closed. Ask the operator for a client token.
+    </p>
+    <form id="join-form">
+      <label>Display name
+        <input id="join-name" maxlength="64" placeholder="your name" autocomplete="off">
+      </label>
+      <button type="submit" class="primary">Get a token</button>
+    </form>
+    <div id="join-result" hidden>
+      <p class="ok">Account created. Copy this token now: it is shown only once.</p>
+      <div class="token-row">
+        <code id="join-token" class="mono"></code>
+        <button type="button" id="join-copy">Copy</button>
+      </div>
+      <p class="muted">Run a client with <code>--token &lt;token&gt;</code>, or save it in your <a href="/me">cabinet</a>.</p>
+      <p id="join-id" class="muted mono"></p>
+    </div>
+    <p id="join-error" class="error" hidden></p>
+  </section>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <ol>
+      <li>Register here (when open) or ask the operator for a token.</li>
+      <li>Run <code class="mono">rotor</code> with <code class="mono">--coordinator</code> and <code class="mono">--token</code>; it leases a key range.</li>
+      <li>The client scans and sends heartbeats plus a verified completion sample.</li>
+      <li>The coordinator counts accepted work and ranks every contributor.</li>
+    </ol>
+    <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.Rotor;
+  var byId = function (id) { return document.getElementById(id); };
+  var registrationOpen = false;
+  var pollTimer = null;
+
+  function setText(id, value) { byId(id).textContent = value; }
+
+  function renderLeaderboard(rows) {
+    var body = byId('leaderboard-body');
+    if (!rows || !rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="muted">no contributors yet</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (row, index) {
+      return '<tr>' +
+        '<td class="rank">' + (index + 1) + '</td>' +
+        '<td>' + R.escapeHtml(row.name) + '</td>' +
+        '<td>' + R.formatNumber(row.scanned) + '</td>' +
+        '<td>' + R.formatNumber(row.chunks_done) + '</td>' +
+        '<td>' + R.formatNumber(row.found) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function showRegistration(open) {
+    registrationOpen = open;
+    byId('join-form').hidden = !open;
+    byId('join-closed').hidden = open;
+    if (!open) byId('join-result').hidden = true;
+  }
+
+  async function refresh() {
+    try {
+      var summary = await R.request('/api/v1/summary', { token: '' });
+      var totals = summary.totals || {};
+      setText('totals-scanned', R.formatNumber(totals.scanned));
+      setText('totals-clients', R.formatNumber(totals.clients_active));
+      setText('totals-results', R.formatNumber(totals.results));
+      setText('totals-jobs', R.formatNumber(totals.jobs));
+      setText('totals-status', 'live, refreshed every 2 s');
+      renderLeaderboard(summary.leaderboard || []);
+      showRegistration(summary.registration_open === true);
+    } catch (err) {
+      setText('totals-status', 'coordinator unavailable: ' + err.message);
+    }
+  }
+
+  function showError(message) {
+    var box = byId('join-error');
+    box.textContent = message || '';
+    box.hidden = !message;
+  }
+
+  byId('join-form').addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var name = byId('join-name').value;
+    if (!name.trim()) {
+      showError('enter a display name');
+      return;
+    }
+    showError('');
+    try {
+      var created = await R.request('/api/v1/register', {
+        method: 'POST',
+        token: '',
+        body: JSON.stringify({ name: name })
+      });
+      byId('join-form').hidden = true;
+      byId('join-result').hidden = false;
+      byId('join-token').textContent = created.token;
+      byId('join-id').textContent = 'client id: ' + created.id;
+      R.setToken(created.token);
+    } catch (err) {
+      if (err.status === 403) {
+        showRegistration(false);
+        showError('registration is closed');
+        return;
+      }
+      if (err.status === 429) {
+        showError('too many registrations from this address; try again in a minute');
+        return;
+      }
+      showError(err.message);
+    }
+  });
+
+  byId('join-copy').addEventListener('click', async function () {
+    var text = byId('join-token').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      byId('join-copy').textContent = 'Copied';
+    } catch (err) {
+      var range = document.createRange();
+      range.selectNodeContents(byId('join-token'));
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      byId('join-copy').textContent = 'Ctrl+C';
+    }
+  });
+
+  refresh();
+  pollTimer = window.setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - app</title>
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" class="active" id="nav-app">App</a>
+    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+  </nav>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Operator console</h2>
+    <form class="compact" id="auth-form">
+      <label>API token
+        <input id="token" type="password" placeholder="admin or client token" autocomplete="off" spellcheck="false">
+      </label>
+      <button id="connect" type="submit" class="primary">Connect</button>
+      <span id="auth-state" class="muted">disconnected</span>
+    </form>
+  </section>
+
+  <section id="error" class="error" hidden></section>
+
+  <section class="card">
+    <h2>Global stats</h2>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">Keys scanned</span><span class="stat-value" id="global-scanned">0</span></div>
+      <div class="stat"><span class="stat-label">Active clients</span><span class="stat-value" id="global-clients">0</span></div>
+      <div class="stat"><span class="stat-label">Results</span><span class="stat-value" id="global-results">0</span></div>
+      <div class="stat"><span class="stat-label">Jobs</span><span class="stat-value" id="global-jobs">0</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Leaderboard</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th class="rank">#</th><th>Contributor</th><th>Scanned</th><th>Chunks</th><th>Found</th></tr></thead>
+        <tbody id="leaderboard-body"><tr><td colspan="5" class="muted">no contributors yet</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>New job</h2>
+    <form id="job-form">
+      <label>Mode
+        <select id="mode">
+          <option value="address">address</option>
+          <option value="addresses">addresses</option>
+          <option value="xpoint">xpoint</option>
+          <option value="xpoints">xpoints</option>
+          <option value="bsgs">bsgs</option>
+        </select>
+      </label>
+      <label>Coin
+        <select id="coin">
+          <option value="btc">btc</option>
+          <option value="eth">eth</option>
+        </select>
+      </label>
+      <label>Compression
+        <select id="comp_mode">
+          <option value="compressed">compressed</option>
+          <option value="uncompressed">uncompressed</option>
+          <option value="both">both</option>
+        </select>
+      </label>
+      <label class="wide">Target (address, pubkey, X or hash; one per line for addresses/xpoints)
+        <textarea id="target" rows="3" spellcheck="false" class="mono"></textarea>
+      </label>
+      <label>Start (hex)
+        <input id="start" value="4000000000000000000000000000000000000000000000000000000000000000" spellcheck="false" class="mono">
+      </label>
+      <label>End (hex)
+        <input id="end" value="4fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" spellcheck="false" class="mono">
+      </label>
+      <label>Chunk width (hex)
+        <input id="chunk_width" value="0x10000000" spellcheck="false" class="mono">
+      </label>
+      <label>Lease TTL (seconds)
+        <input id="lease_ttl" value="600" inputmode="numeric">
+      </label>
+      <button type="submit" class="primary">Create job</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Jobs</h2>
+    <div id="jobs"><p class="muted">no jobs</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Active clients</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Client</th><th>Job</th><th>Chunk</th><th>Scanned</th><th>Rate</th><th>Lease</th></tr></thead>
+        <tbody id="clients-body"><tr><td colspan="6" class="muted">no active leases</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Results</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Job</th><th>Client</th><th>Key</th><th>Found</th></tr></thead>
+        <tbody id="results-body"><tr><td colspan="4" class="muted">no results yet</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="bsgs-section" hidden>
+    <h2>BSGS checkpoints</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Job</th><th>Giant index</th><th>Baby size</th><th>Range</th><th>Format</th><th>Checksum</th></tr></thead>
+        <tbody id="bsgs-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+<script>
+(function () {
+  'use strict';
+  var R = window.Rotor;
+  var byId = function (id) { return document.getElementById(id); };
+  var pollTimer = null;
+
+  function setError(message) {
+    var box = byId('error');
+    box.hidden = !message;
+    box.textContent = message || '';
+  }
+
+  function renderTotals(totals) {
+    totals = totals || {};
+    byId('global-scanned').textContent = R.formatNumber(totals.scanned);
+    byId('global-clients').textContent = R.formatNumber(totals.clients_active);
+    byId('global-results').textContent = R.formatNumber(totals.results);
+    byId('global-jobs').textContent = R.formatNumber(totals.jobs);
+  }
+
+  function renderLeaderboard(rows) {
+    var body = byId('leaderboard-body');
+    if (!rows || !rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="muted">no contributors yet</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (row, index) {
+      return '<tr>' +
+        '<td class="rank">' + (index + 1) + '</td>' +
+        '<td>' + R.escapeHtml(row.name) + '</td>' +
+        '<td>' + R.formatNumber(row.scanned) + '</td>' +
+        '<td>' + R.formatNumber(row.chunks_done) + '</td>' +
+        '<td>' + R.formatNumber(row.found) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function renderJobs(jobs) {
+    var root = byId('jobs');
+    if (!jobs.length) {
+      root.innerHTML = '<p class="muted">no jobs</p>';
+      return;
+    }
+    root.innerHTML = jobs.map(function (job) {
+      var total = job.chunks_total || 0;
+      var done = job.chunks_done || 0;
+      var percent = total ? Math.round((done / total) * 100) : 0;
+      var state = job.found ? 'FOUND' : (job.done ? 'done' : 'running');
+      var multi = job.mode === 'addresses' || job.mode === 'xpoints';
+      var target = multi ? (job.targets.length + ' targets') : (job.target || '');
+      var key = job.found_key
+        ? '<span class="key mono">key ' + R.escapeHtml(job.found_key) + '</span>'
+        : '';
+      return '<div class="job' + (job.found ? ' found' : '') + '">' +
+        '<div class="job-head">' +
+          '<span class="mono">' + R.escapeHtml(job.id) + '</span>' +
+          '<span class="badge">' + R.escapeHtml(job.mode) + '/' + R.escapeHtml(job.coin) + '</span>' +
+          '<span class="badge">' + R.escapeHtml(job.comp_mode) + '</span>' +
+          '<span class="state">' + state + '</span>' +
+        '</div>' +
+        '<div class="target mono" title="' + R.escapeHtml(target) + '">' + R.escapeHtml(target) + '</div>' +
+        '<div class="progress"><div class="bar" style="width:' + percent + '%"></div></div>' +
+        '<div class="meta">' +
+          '<span>' + done + '/' + total + ' chunks</span>' +
+          '<span>' + (job.chunks_leased || 0) + ' leased</span>' +
+          '<span>' + R.formatNumber(job.scanned) + ' scanned</span>' +
+          '<span class="mono range">' + R.escapeHtml(job.start) + ' : ' + R.escapeHtml(job.end) + '</span>' +
+          key +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderClients(clients) {
+    var body = byId('clients-body');
+    if (!clients.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">no active leases</td></tr>';
+      return;
+    }
+    body.innerHTML = clients.map(function (client) {
+      return '<tr>' +
+        '<td class="mono">' + R.escapeHtml(client.client_id) + '</td>' +
+        '<td class="mono">' + R.escapeHtml(client.job_id) + '</td>' +
+        '<td>' + client.chunk_index + '</td>' +
+        '<td>' + R.formatNumber(client.scanned) + '</td>' +
+        '<td>' + R.formatNumber(Math.round(client.rate)) + '/s</td>' +
+        '<td>' + R.relativeTime(client.expires_at) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function renderResults(results) {
+    var body = byId('results-body');
+    if (!results.length) {
+      body.innerHTML = '<tr><td colspan="4" class="muted">no results yet</td></tr>';
+      return;
+    }
+    body.innerHTML = results.map(function (result) {
+      return '<tr>' +
+        '<td class="mono">' + R.escapeHtml(result.job_id) + '</td>' +
+        '<td class="mono">' + R.escapeHtml(result.client_id) + '</td>' +
+        '<td class="mono key wrap">' + R.escapeHtml(result.key) + '</td>' +
+        '<td>' + new Date(result.found_at * 1000).toLocaleString() + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function renderBsgs(entries) {
+    var section = byId('bsgs-section');
+    var body = byId('bsgs-body');
+    section.hidden = entries.length === 0;
+    body.innerHTML = entries.map(function (entry) {
+      return '<tr>' +
+        '<td class="mono">' + R.escapeHtml(entry.job_id) + '</td>' +
+        '<td>' + R.formatNumber(entry.giant_index) + '</td>' +
+        '<td>' + R.formatNumber(entry.manifest.baby_size) + '</td>' +
+        '<td class="mono">' + R.escapeHtml(entry.manifest.range_id) + '</td>' +
+        '<td>' + entry.manifest.format_version + '</td>' +
+        '<td class="mono">' + Number(entry.manifest.table_checksum).toString(16) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  async function refresh() {
+    if (!R.token()) return;
+    var status;
+    try {
+      status = await R.request('/api/v1/status');
+    } catch (err) {
+      byId('auth-state').textContent = err.status === 401 ? 'invalid token' : 'disconnected';
+      setError(err.message);
+      return;
+    }
+    byId('auth-state').textContent = 'connected';
+    setError('');
+    renderTotals(status.totals || {});
+    renderLeaderboard(status.leaderboard || []);
+    renderJobs(status.jobs || []);
+    renderClients(status.clients || []);
+    renderResults(status.results || []);
+    renderBsgs(status.bsgs || []);
+  }
+
+  function startPolling() {
+    if (pollTimer !== null) return;
+    pollTimer = window.setInterval(refresh, 2000);
+  }
+
+  async function connect() {
+    var value = byId('token').value.trim();
+    if (!value) {
+      setError('enter the API token');
+      return;
+    }
+    R.setToken(value);
+    startPolling();
+    await refresh();
+  }
+
+  byId('auth-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    connect();
+  });
+
+  byId('job-form').addEventListener('submit', async function (event) {
+    event.preventDefault();
+
+    var mode = byId('mode').value;
+    var rawTarget = byId('target').value;
+    var body = {
+      mode: mode,
+      coin: byId('coin').value,
+      comp_mode: byId('comp_mode').value,
+      start: byId('start').value.trim() || '0',
+      end: byId('end').value.trim()
+    };
+
+    if (mode === 'addresses' || mode === 'xpoints') {
+      body.targets = rawTarget.split(/\s+/).map(function (part) { return part.trim(); }).filter(Boolean);
+      if (!body.targets.length) {
+        setError('targets are required');
+        return;
+      }
+    } else {
+      body.target = rawTarget.trim();
+      if (!body.target) {
+        setError('target is required');
+        return;
+      }
+    }
+    if (!body.end) {
+      setError('end is required');
+      return;
+    }
+
+    var chunkWidth = Number(byId('chunk_width').value.trim());
+    if (isFinite(chunkWidth) && chunkWidth > 0) body.chunk_width = chunkWidth;
+    var leaseTtl = Number(byId('lease_ttl').value.trim());
+    if (isFinite(leaseTtl) && leaseTtl > 0) body.lease_ttl = leaseTtl;
+
+    try {
+      await R.request('/api/v1/jobs', { method: 'POST', body: JSON.stringify(body) });
+      byId('job-form').reset();
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  });
+
+  var saved = R.token();
+  if (saved) {
+    byId('token').value = saved;
+    startPolling();
+    refresh();
+  }
+})();
+</script>
+</body>
+</html>

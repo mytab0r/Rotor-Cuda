@@ -1,20 +1,25 @@
-# Tasks: accounts, stats, cabinet
+# Tasks: public site, accounts, stats, cabinet
 
 ## 1. Client records and stats  (blocked by: auth change)
-- [ ] `ClientRecord` + `State.clients`; import `--clients` once; create/disable;
-      stats on heartbeat/done/result with no double counting; history ring.
-- [ ] Tests: aggregation, bounds, disable, import.
+- [x] `ClientRecord`/`State.clients`, import from `--clients`, create/disable,
+      registration tokens; stats on heartbeat/done/result without double counting,
+      bounded history.
+- [x] Tests: aggregation, bounds, disable, import, registration.
 
 ## 2. API  (blocked by: 1)
-- [ ] `/api/v1/clients` (admin list/create/disable), `/api/v1/me`, status totals;
-      disabled tokens rejected.
-- [ ] Tests: auth matrix, `/me` scope, totals.
+- [x] `/api/v1/clients` (admin), `/me` (client), `/register` (open flag,
+      rate-limited), status totals + leaderboard; disabled tokens rejected.
+- [x] Tests: auth matrix, `/me`, leaderboard order, totals, register limits.
 
-## 3. Cabinet UI  (blocked by: 2)
-- [ ] `web/me.html` embedded at `/me`: token login, cards, sparkline, lease,
-      results; main dashboard global cards + clients table + link.
-- [ ] Tests: page served, required ids/links present.
+## 3. Site  (blocked by: 2)
+- [x] `web/landing.html`, `app.html`, `me.html`, `docs.html`, `site.css`,
+      `site.js`; routes `/`, `/app`, `/me`, `/docs`; responsive dark theme.
+- [x] Landing live totals + join form; app stat cards + leaderboard; cabinet
+      cards/sparkline/lease/results/docs; tests for page availability/ids.
 
-## 4. Multi-user verification and close-out
-- [ ] Run three clients with distinct tokens on small jobs; record evidence;
-      fmt/clippy/test; README; archive; PR.
+## 4. Verification and close-out
+- [x] `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+      (host suites green).
+- [x] Manual 3-user run (global vs personal, leaderboard, disabled token);
+      README/deploy updated.
+- [ ] Archive and PR (left to the orchestrator; no commit requested here).
