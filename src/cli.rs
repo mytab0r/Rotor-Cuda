@@ -48,7 +48,9 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 -d, --display                               : Disable all informers, compact version for many GPUs. Use -d 0 Default -d 1 (display all)
 --coordinator URL                  : Lease disjoint key chunks from a rotor-coord server
 --token TOKEN                      : Coordinator API token (or ROTOR_COORD_TOKEN)
---client-id ID                     : Coordinator client id, default is hostname + pid"#,
+--client-id ID                     : Coordinator client id, default is hostname + pid
+--bsgs-work FILE                   : CPU-BSGS work file: save the table/position and resume from it
+--bsgs-work-reset                  : Overwrite a mismatched or stale --bsgs-work file and start over"#,
     " \n",
 );
 
@@ -194,6 +196,8 @@ pub struct Config {
     pub coordinator: Option<String>,
     pub token: Option<String>,
     pub client_id: Option<String>,
+    pub bsgs_work: Option<String>,
+    pub bsgs_work_reset: bool,
     pub operands: Vec<String>,
 }
 
@@ -226,6 +230,8 @@ impl Default for Config {
             coordinator: None,
             token: None,
             client_id: None,
+            bsgs_work: None,
+            bsgs_work_reset: false,
             operands: Vec::new(),
         }
     }
@@ -257,6 +263,8 @@ enum Opt {
     Coordinator,
     Token,
     ClientId,
+    BsgsWork,
+    BsgsWorkReset,
 }
 
 /// Exact-token option table: `(token, option, takes_argument)`.
@@ -300,6 +308,8 @@ const OPTIONS: &[(&str, Opt, bool)] = &[
     ("--coordinator", Opt::Coordinator, true),
     ("--token", Opt::Token, true),
     ("--client-id", Opt::ClientId, true),
+    ("--bsgs-work", Opt::BsgsWork, true),
+    ("--bsgs-work-reset", Opt::BsgsWorkReset, false),
 ];
 
 fn lookup(token: &str) -> Option<(Opt, bool)> {
@@ -371,6 +381,7 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         Opt::Version => config.version = true,
         Opt::CheckUpdate => config.check_update = true,
         Opt::Update => config.update = true,
+        Opt::BsgsWorkReset => config.bsgs_work_reset = true,
         Opt::GpuIds
         | Opt::GpuGrid
         | Opt::Thread
@@ -385,7 +396,8 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         | Opt::Display
         | Opt::Coordinator
         | Opt::Token
-        | Opt::ClientId => {
+        | Opt::ClientId
+        | Opt::BsgsWork => {
             // These options always arrive as Token::Value.
         }
     }
@@ -417,6 +429,7 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         Opt::Coordinator => config.coordinator = Some(value),
         Opt::Token => config.token = Some(value),
         Opt::ClientId => config.client_id = Some(value),
+        Opt::BsgsWork => config.bsgs_work = Some(value),
         Opt::Help
         | Opt::Check
         | Opt::List
@@ -425,7 +438,8 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         | Opt::Gpu
         | Opt::Version
         | Opt::CheckUpdate
-        | Opt::Update => {
+        | Opt::Update
+        | Opt::BsgsWorkReset => {
             // These options never take a value.
         }
     }

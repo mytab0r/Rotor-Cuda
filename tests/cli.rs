@@ -256,6 +256,24 @@ fn action_flags_return_before_semantic_validation() {
 }
 
 #[test]
+fn bsgs_work_flags_parse() {
+    let config = parse(&["--bsgs-work", "job.rwork"]);
+    assert_eq!(config.bsgs_work.as_deref(), Some("job.rwork"));
+    assert!(!config.bsgs_work_reset);
+
+    let config = parse(&["--bsgs-work", "job.rwork", "--bsgs-work-reset"]);
+    assert_eq!(config.bsgs_work.as_deref(), Some("job.rwork"));
+    assert!(config.bsgs_work_reset);
+
+    let defaults = parse_from_empty();
+    assert!(defaults.bsgs_work.is_none());
+    assert!(!defaults.bsgs_work_reset);
+
+    let err = parse_err(&["--bsgs-work"]);
+    assert_eq!(err.message(), "'--bsgs-work' requires an argument");
+}
+
+#[test]
 fn coordinator_flags_parse() {
     let config = parse(&[
         "-m",
