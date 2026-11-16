@@ -251,6 +251,28 @@ Requires `rustup target add wasm32-unknown-unknown` once.
 Web UI changes go through [`web/UI-CHECKLIST.md`](web/UI-CHECKLIST.md): states,
 375/768/1280 layouts, focus/keyboard, reduced motion and the browser checks.
 
+### Private-key explorer
+
+`/key` is a read-only private-key explorer. Open `https://<coordinator>/key`
+(or `http://localhost:<port>/key` locally). Derivation runs in the browser in
+the same WASM artifact the worker uses; the coordinator only serves the page.
+
+- Accepts a key as hex (64 chars, optional `0x`), a decimal integer, or a
+  Bitcoin WIF.
+- Curves: secp256k1 and ed25519.
+- Addresses: BTC legacy/P2SH/segwit/taproot, EVM, TRON and Solana. Every
+  calculation is expandable to show the intermediate values.
+- Online balance lookups are opt-in and off by default. When enabled, only the
+  derived addresses currently shown are queried: BTC via mempool.space, EVM via
+  a short ordered fallback list of public Ethereum JSON-RPC endpoints
+  (ethereum-rpc.publicnode.com, eth.drpc.org, 1rpc.io), TRON via Tronscan.
+  Nothing else is sent.
+- The private key never leaves the browser and is not stored in the URL,
+  history or local storage.
+- This is not a wallet: it offers no signing or sweeping. A key that holds
+  funds should be handled offline on an air-gapped machine, never typed into an
+  online page.
+
 ### BSGS resume
 
 A `bsgs` job is searched as one giant walk, not chunk by chunk. Create it with the

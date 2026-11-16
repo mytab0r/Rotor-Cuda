@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - docs</title>
-<link rel="stylesheet" href="/site.css?v=20261116">
+<link rel="stylesheet" href="/site.css?v=20261116c">
 </head>
 <body>
 <header class="site-nav">
@@ -14,6 +14,7 @@
     <a href="/run" id="nav-run">Run</a>
     <a href="/me" id="nav-me">Cabinet</a>
     <a href="/docs" class="active" id="nav-docs">Docs</a>
+    <a href="/key" id="nav-key">Keys</a>
   </nav>
 </header>
 
@@ -80,6 +81,20 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>The token is stored in this browser's <code>localStorage</code> and sent only in the <code>Authorization</code> header.</li>
     </ul>
 
+    <h2>Private-key explorer</h2>
+    <p>
+      <a href="/key">/key</a> is a read-only private-key explorer. Derivation
+      runs in this browser in the same WASM artifact the worker uses; the
+      coordinator only serves the page. It accepts hex, decimal or Bitcoin WIF
+      keys for secp256k1 and ed25519, and shows BTC (legacy/P2SH/segwit/taproot),
+      EVM, TRON and Solana addresses with expandable calculations.
+    </p>
+    <ul>
+      <li>Online balance lookups are opt-in and off by default. When enabled, only the derived addresses currently shown are queried: BTC via mempool.space, EVM via public Ethereum JSON-RPC providers (publicnode, dRPC, 1rpc; tried in order), TRON via Tronscan.</li>
+      <li>The private key never leaves the browser and is not stored in the URL, history or local storage.</li>
+      <li>This is not a wallet: no signing or sweeping. Handle any key that holds funds offline on an air-gapped machine, never on an online page.</li>
+    </ul>
+
     <h2>Security and disclaimer</h2>
     <ul>
       <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
@@ -91,6 +106,6 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
   </section>
 </main>
 
-<script src="/site.js?v=20261116"></script>
+<script src="/site.js?v=20261116c"></script>
 </body>
 </html>
