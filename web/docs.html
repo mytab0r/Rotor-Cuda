@@ -11,6 +11,7 @@
   <a class="brand" href="/">Rotor <span>Coordinator</span></a>
   <nav>
     <a href="/app" id="nav-app">App</a>
+    <a href="/run" id="nav-run">Run</a>
     <a href="/me" id="nav-me">Cabinet</a>
     <a href="/docs" class="active" id="nav-docs">Docs</a>
   </nav>
@@ -63,6 +64,21 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       rejected with <code>--coordinator</code> because the giant walk lives on
       the coordinator.
     </p>
+
+    <h3>Browser client</h3>
+    <p>
+      Open <a href="/run">/run</a>, paste a client token from the
+      <a href="/me">cabinet</a> and press Start. The tab runs the WASM scan core
+      on the CPU, leases the same chunks and submits the same completion proofs
+      as the native client. It only leases jobs the operator already created
+      (authorized puzzle jobs only) and cannot create jobs.
+    </p>
+    <ul>
+      <li>Measured on the development machine: ~300–400k keys/s per tab; the page shows its own measured rate.</li>
+      <li>Use <code>chunk_width</code> 2^20–2^22 and <code>lease_ttl</code> 120–300 seconds for browser jobs.</li>
+      <li>The page requires HTTPS or localhost.</li>
+      <li>The token is stored in this browser's <code>localStorage</code> and sent only in the <code>Authorization</code> header.</li>
+    </ul>
 
     <h2>Security and disclaimer</h2>
     <ul>

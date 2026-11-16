@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - run</title>
+<link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/run" class="active" id="nav-run">Run</a>
+    <a href="/me" id="nav-me">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>Run a browser worker</h1>
+    <p>This tab leases one chunk at a time from the coordinator and scans it in
+    WebAssembly. It reports progress every few seconds and submits a result only
+    when the wasm scanner finds a key. The rate shown below is measured in this
+    tab, not a promise: a browser is a small volunteer contribution next to the
+    GPU client.</p>
+  </section>
+
+  <section class="notice">
+    Authorized puzzle jobs only. This page never accepts a target you type: it
+    can only lease jobs that the coordinator operator has already created, and
+    it submits results through the same verified protocol as the native client.
+  </section>
+
+  <p id="run-error" class="error" hidden></p>
+  <p id="run-insecure" class="notice" hidden>This page needs a secure context
+  (HTTPS or localhost) before it will start the worker.</p>
+
+  <section class="card">
+    <h2>Client token</h2>
+    <form class="compact" id="run-token-form">
+      <label>Client token
+        <input id="run-token" type="password" placeholder="paste a client token" autocomplete="off" spellcheck="false">
+      </label>
+      <button id="run-connect" type="submit" class="primary">Save token</button>
+      <span id="run-token-state" class="muted">no token</span>
+    </form>
+    <p class="muted">The token is kept in this browser's localStorage and is
+    sent only in the Authorization header. <a href="/me">Open the cabinet</a>
+    to register or manage it.</p>
+  </section>
+
+  <section class="card">
+    <h2>Job</h2>
+    <form class="compact" id="run-controls">
+      <label>Job
+        <select id="run-job"><option value="">(loading jobs...)</option></select>
+      </label>
+      <button id="run-start" type="submit" class="primary">Start</button>
+      <button id="run-stop" type="button">Stop</button>
+      <span id="run-state" class="muted">idle</span>
+    </form>
+    <p class="muted" id="run-job-status">No job selected.</p>
+    <p class="muted" id="run-skipped" hidden></p>
+  </section>
+
+  <section class="card">
+    <h2>Live stats</h2>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">Chunk</span><span class="stat-value small" id="run-chunk">-</span></div>
+      <div class="stat"><span class="stat-label">Keys scanned</span><span class="stat-value" id="run-scanned">0</span></div>
+      <div class="stat"><span class="stat-label">Rate</span><span class="stat-value small" id="run-rate">0/s</span></div>
+      <div class="stat"><span class="stat-label">Matches</span><span class="stat-value" id="run-matches">0</span></div>
+    </div>
+    <div class="progress" style="margin-top:12px"><div class="bar" id="run-bar" style="width:0%"></div></div>
+    <div class="meta">
+      <span id="run-chunk-meta">no chunk leased</span>
+      <span id="run-eta"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Found keys</h2>
+    <div id="run-found"><p class="muted">no matches in this tab yet</p></div>
+  </section>
+
+  <section class="card">
+    <h2>Activity</h2>
+    <div id="run-log" class="mono muted" style="max-height:160px;overflow:auto"></div>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var R = window.Rotor;
+  var byId = function (id) { return document.getElementById(id); };
+
+  var worker = null;
+  var jobs = [];
+  var workerActive = false;
+  var userStopped = true;
+  var resumeAfterVisibility = false;
+  var clientId = makeClientId();
+
+  var PHASE_LABELS = {
+    'loading-wasm': 'loading wasm',
+    'ready': 'ready',
+    'token-required': 'token required',
+    'loading-jobs': 'loading jobs',
+    'jobs': 'ready',
+    'no-jobs': 'no eligible jobs',
+    'leasing': 'leasing',
+    'job': 'ready',
+    'scanning': 'scanning',
+    'retrying': 'retrying',
+    'found': 'match found',
+    'chunk-done': 'chunk done',
+    'paused': 'paused',
+    'idle': 'idle',
+    'error': 'error'
+  };
+
+  var ACTIVE_PHASES = {
+    'loading-wasm': true,
+    'loading-jobs': true,
+    'leasing': true,
+    'scanning': true,
+    'retrying': true,
+    'found': true,
+    'chunk-done': true
+  };
+
+  function makeClientId() {
+    var out = 'web-';
+    if (window.crypto && window.crypto.getRandomValues) {
+      var bytes = new Uint8Array(8);
+      window.crypto.getRandomValues(bytes);
+      for (var i = 0; i < bytes.length; i++) out += ('0' + bytes[i].toString(16)).slice(-2);
+    } else {
+      for (var j = 0; j < 16; j++) out += Math.floor(Math.random() * 16).toString(16);
+    }
+    return out;
+  }
+
+  function setError(message) {
+    var box = byId('run-error');
+    box.hidden = !message;
+    box.textContent = message || '';
+  }
+
+  function appendLog(message) {
+    var box = byId('run-log');
+    var line = document.createElement('div');
+    line.textContent = String(message);
+    box.appendChild(line);
+    while (box.childNodes.length > 60) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function updateTokenState() {
+    byId('run-token-state').textContent = R.token() ? 'token stored' : 'no token';
+  }
+
+  function secureContext() {
+    if (window.isSecureContext) return true;
+    var host = window.location.hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+  }
+
+  function setButtons(active) {
+    workerActive = active;
+    byId('run-start').disabled = active;
+    byId('run-stop').disabled = !active;
+  }
+
+  function formatDuration(seconds) {
+    if (!isFinite(seconds) || seconds <= 0) return '0s';
+    seconds = Math.ceil(seconds);
+    if (seconds < 60) return seconds + 's';
+    var minutes = Math.floor(seconds / 60);
+    var rest = seconds % 60;
+    if (minutes < 60) return minutes + 'm ' + rest + 's';
+    return Math.floor(minutes / 60) + 'h ' + (minutes % 60) + 'm';
+  }
+
+  function findJob(id) {
+    for (var i = 0; i < jobs.length; i++) {
+      if (jobs[i].id === id) return jobs[i];
+    }
+    return null;
+  }
+
+  function updateJobStatus() {
+    var selected = byId('run-job').value;
+    var entry = findJob(selected);
+    if (!entry) {
+      byId('run-job-status').textContent = jobs.length
+        ? 'No eligible job. Every visible job is done, found, unsupported, or above the target limit.'
+        : 'No jobs have been created yet.';
+      return;
+    }
+    var total = Number(entry.chunks_total || 0);
+    var done = Number(entry.chunks_done || 0);
+    var leased = Number(entry.chunks_leased || 0);
+    byId('run-job-status').textContent =
+      entry.mode + ' / ' + entry.coin +
+      ' · ' + R.formatNumber(entry.scanned) + ' keys scanned' +
+      ' · ' + done + '/' + total + ' chunks done' +
+      (leased ? ' · ' + leased + ' in flight' : '');
+  }
+
+  function renderJobs(list, selected) {
+    jobs = list || [];
+    var select = byId('run-job');
+    var previous = select.value;
+    select.textContent = '';
+    var count = 0;
+    var skipped = [];
+
+    for (var i = 0; i < jobs.length; i++) {
+      if (jobs[i].reason) {
+        skipped.push(jobs[i].id + ' (' + jobs[i].reason + ')');
+        continue;
+      }
+      count += 1;
+      var option = document.createElement('option');
+      option.value = jobs[i].id;
+      option.textContent = jobs[i].id + ' - ' + jobs[i].mode + ' ' + jobs[i].coin +
+        ' (' + jobs[i].chunks_done + '/' + jobs[i].chunks_total + ' chunks)';
+      select.appendChild(option);
+    }
+
+    var skippedBox = byId('run-skipped');
+    if (skipped.length) {
+      skippedBox.hidden = false;
+      skippedBox.textContent = 'Skipped: ' + skipped.slice(0, 4).join('; ') +
+        (skipped.length > 4 ? ' and ' + (skipped.length - 4) + ' more' : '');
+    } else {
+      skippedBox.hidden = true;
+      skippedBox.textContent = '';
+    }
+
+    if (!count) {
+      var empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = jobs.length ? '(no eligible jobs)' : '(no jobs)';
+      select.appendChild(empty);
+      updateJobStatus();
+      return;
+    }
+
+    var wanted = selected || previous;
+    var found = false;
+    for (var j = 0; j < select.options.length; j++) {
+      if (select.options[j].value === wanted) {
+        select.selectedIndex = j;
+        found = true;
+        break;
+      }
+    }
+    if (!found) select.selectedIndex = 0;
+    updateJobStatus();
+  }
+
+  function handleState(message) {
+    var phase = message.phase || '';
+    byId('run-state').textContent = PHASE_LABELS[phase] || phase;
+
+    if (ACTIVE_PHASES[phase]) {
+      setButtons(true);
+    } else if (phase !== 'jobs' && phase !== 'ready' && phase !== 'job') {
+      setButtons(false);
+    }
+
+    if ((phase === 'jobs' || phase === 'no-jobs') && Array.isArray(message.jobs)) {
+      renderJobs(message.jobs, message.selected);
+    }
+    if (phase === 'token-required') {
+      setError('No client token is stored. Open the cabinet to register or paste a token.');
+      updateTokenState();
+    }
+    if (phase === 'error') {
+      setButtons(false);
+    }
+    if (phase === 'found' && message.found) {
+      renderFound(message.found);
+    }
+  }
+
+  function handleStats(stats) {
+    byId('run-scanned').textContent = R.formatNumber(stats.scanned || 0);
+    byId('run-rate').textContent = R.formatNumber(Math.round(stats.rate || 0)) + '/s';
+    byId('run-matches').textContent = R.formatNumber(stats.matches || 0);
+
+    var chunkIndex = stats.chunkIndex;
+    if (chunkIndex === null || chunkIndex === undefined) {
+      byId('run-chunk').textContent = '-';
+      byId('run-chunk-meta').textContent = 'no chunk leased';
+      byId('run-bar').style.width = '0%';
+      byId('run-eta').textContent = '';
+      return;
+    }
+
+    var span = Number(stats.span || 0);
+    var scanned = Number(stats.scanned || 0);
+    var percent = span > 0 ? Math.min(100, Math.floor((scanned / span) * 100)) : 0;
+    byId('run-chunk').textContent = '#' + chunkIndex;
+    byId('run-bar').style.width = percent + '%';
+    byId('run-chunk-meta').textContent =
+      R.formatNumber(scanned) + ' / ' + R.formatNumber(span) + ' keys (' + percent + '%)';
+
+    var rate = Number(stats.rate || 0);
+    if (rate > 0 && span > scanned) {
+      byId('run-eta').textContent = '~' + formatDuration((span - scanned) / rate) + ' left';
+    } else {
+      byId('run-eta').textContent = '';
+    }
+  }
+
+  function renderFound(found) {
+    var box = byId('run-found');
+    if (box.firstChild && box.firstChild.className === 'muted') box.textContent = '';
+    var line = document.createElement('p');
+    line.className = 'mono';
+    line.textContent = found.jobId + ' chunk ' + found.chunkIndex + ': ' + found.key +
+      (found.address ? ' -> ' + found.address : '');
+    box.appendChild(line);
+  }
+
+  function startWorker() {
+    if (!secureContext()) {
+      setError('Run this page over HTTPS, or from localhost, before starting the worker.');
+      return;
+    }
+    var token = R.token();
+    if (!token) {
+      setError('No client token is stored. Open the cabinet to register or paste a token.');
+      updateTokenState();
+      byId('run-token').focus();
+      return;
+    }
+    if (/[\r\n\0]/.test(token)) {
+      setError('The stored token contains an invalid control character. Paste it again in the cabinet.');
+      return;
+    }
+
+    setError('');
+    userStopped = false;
+    setButtons(true);
+    var message = { type: 'start', token: token, clientId: clientId };
+    var jobId = byId('run-job').value;
+    if (jobId) message.jobId = jobId;
+    worker.postMessage(message);
+    appendLog('start requested');
+  }
+
+  function stopWorker(manual) {
+    if (manual) userStopped = true;
+    worker.postMessage({ type: 'stop' });
+    appendLog('stop requested');
+  }
+
+  byId('run-token-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = byId('run-token').value.trim();
+    if (!value) {
+      setError('Paste a client token first.');
+      return;
+    }
+    if (/[\r\n\0]/.test(value)) {
+      setError('The token contains an invalid control character.');
+      return;
+    }
+    R.setToken(value);
+    byId('run-token').value = '';
+    updateTokenState();
+    setError('');
+    appendLog('token saved in this browser');
+  });
+
+  byId('run-controls').addEventListener('submit', function (event) {
+    event.preventDefault();
+    startWorker();
+  });
+
+  byId('run-stop').addEventListener('click', function () {
+    stopWorker(true);
+  });
+
+  byId('run-job').addEventListener('change', updateJobStatus);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (workerActive && !userStopped) {
+        resumeAfterVisibility = true;
+        worker.postMessage({ type: 'stop' });
+      }
+    } else if (resumeAfterVisibility) {
+      resumeAfterVisibility = false;
+      if (!userStopped) startWorker();
+    }
+  });
+
+  window.addEventListener('error', function (event) {
+    setError('Page error: ' + (event.message || 'unknown error'));
+  });
+
+  worker = new Worker('/rotor-worker.js');
+  worker.onmessage = function (event) {
+    var message = event.data || {};
+    if (message.type === 'state') handleState(message);
+    else if (message.type === 'stats') handleStats(message);
+    else if (message.type === 'error') {
+      setError(message.message || 'worker error');
+      setButtons(false);
+    } else if (message.type === 'log') {
+      appendLog(message.message);
+    }
+  };
+  worker.onerror = function (event) {
+    setError('Worker failed: ' + (event.message || 'unknown error'));
+    setButtons(false);
+  };
+
+  updateTokenState();
+  setButtons(false);
+  if (!secureContext()) byId('run-insecure').hidden = false;
+})();
+</script>
+</body>
+</html>
