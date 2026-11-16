@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - docs</title>
-<link rel="stylesheet" href="/site.css?v=20261116e">
+<link rel="stylesheet" href="/site.css?v=20261116h">
 </head>
 <body>
 <header class="site-nav">
@@ -15,6 +15,7 @@
     <a href="/me" id="nav-me">Cabinet</a>
     <a href="/docs" class="active" id="nav-docs">Docs</a>
     <a href="/key" id="nav-key">Keys</a>
+    <a href="/monitor" id="nav-monitor">Monitor</a>
   </nav>
 </header>
 
@@ -95,6 +96,21 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>This is not a wallet: no signing or sweeping. Handle any key that holds funds offline on an air-gapped machine, never on an online page.</li>
     </ul>
 
+    <h2>Address monitor</h2>
+    <p>
+      <a href="/monitor">/monitor</a> watches addresses you control: connect an
+      EVM wallet, sign the one-time SIWE challenge, and the coordinator stores
+      those accounts and reports balance/nonce changes in your feed. It never
+      asks for a private key, WIF or seed phrase, never signs, and never moves
+      funds.
+    </p>
+    <ul>
+      <li>Only the address that signed the login is <code>verified</code>; other imported accounts and manually added BTC addresses are marked <code>unverified</code>.</li>
+      <li>On <a href="/key">/key</a>, the "Check these addresses against the Rotor registry" box is off by default. When checked, only the derived addresses (never the key) are sent; the coordinator returns a match count and warns the registered owner that someone looked the address up.</li>
+      <li>Alerts are early warning, not protection: an idle stolen key is not observable, and delivery can be delayed or missed.</li>
+      <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
+    </ul>
+
     <h2>Security and disclaimer</h2>
     <ul>
       <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
@@ -106,6 +122,6 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
   </section>
 </main>
 
-<script src="/site.js?v=20261116e"></script>
+<script src="/site.js?v=20261116h"></script>
 </body>
 </html>

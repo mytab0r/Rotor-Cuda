@@ -332,3 +332,34 @@ provider spend per paying user, support tickets per 100 users.
 - Paid explorer tier vs self-host for BTC at launch volume.
 - Legal entity, VAT and crypto-payment treatment.
 - Whether to expose a public status page for watcher health.
+
+## D12 Transparent exposure check (MVP addition)
+
+The owner wants `/key` lookups to warn a registered owner when someone derives
+one of their addresses. This is implemented **transparently**, not as a hidden
+beacon:
+
+- `/key` shows an unchecked box: "Check these addresses against the Rotor
+  registry". Its helper text says that the derived **addresses** (never the
+  key) will be sent to the coordinator, and why: to warn a registered owner.
+- Only when the box is checked does the page POST `{addresses: [{chain,
+  address}]}` to `POST /api/v1/monitor/exposure`. The coordinator compares the
+  canonical addresses with the watchlist, returns only a count
+  (`{"matched": N}`), and records one `lookup` event per matched watch for its
+  owner. The submitted list is not stored; the request is rate-limited per IP.
+- A match does not prove that a key was compromised: it records that someone
+  looked the address up on this page. The owner alert says exactly that and
+  recommends moving funds if the lookup was not theirs.
+- The private key, seed, WIF and signature material never reach this endpoint;
+  a shape guard rejects 64-hex/WIF/BIP39 bodies with 422.
+- Wallet login (EVM SIWE via an injected wallet) proves control of the EVM
+  account; its `eth_accounts` addresses are imported as watched EVM addresses.
+  BTC/TRON/Solana address linking needs a chain-specific signature and is a
+  later phase; the exposure matcher still accepts those chains only for
+  addresses a user explicitly added as unverified watches, never for alerts
+  that claim proof of control.
+
+MVP sequence: store + SIWE login + EVM address import + EVM watcher + in-app
+feed + exposure endpoint + `/monitor` page + `/key` checkbox. Telegram/email
+delivery, BTC/BIP322 linking, billing and leak lists follow after the first
+end-to-end alert is proven.

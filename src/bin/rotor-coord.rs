@@ -8,8 +8,11 @@
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
-use rotor::coordinator::{self, Clients};
+use rotor::coordinator::{self, Clients, ServerOptions};
+use rotor::monitor::store::MonitorStore;
+use rotor::monitor::watcher::{self, WatcherConfig};
 
 const USAGE: &str = "\
 rotor-coord - distributed rotor coordinator
@@ -20,6 +23,14 @@ Usage: rotor-coord [OPTIONS]
   --clients FILE         client token map { \"client-id\": \"<sha256 hex>\" }
   --open-registration    allow public POST /api/v1/register (1/min per IP)
   --state PATH           state file (default coordinator.json)
+  --monitor-state PATH   monitor store file (default monitor.json)
+  --monitor-interval N   EVM poll interval in seconds, min 10 (default 300)
+  --monitor-rpc URL      EVM JSON-RPC endpoint
+                         (default https://ethereum-rpc.publicnode.com)
+  --monitor-domain HOST  fixed SIWE domain shown in login challenges
+                         (default localhost; never taken from Host)
+  --trust-proxy          trust CF-Connecting-IP / X-Forwarded-For for rate
+                         limits (only behind a reverse proxy; default off)
   -h, --help             show this help
 ";
 
@@ -29,6 +40,11 @@ struct Options {
     clients: Option<PathBuf>,
     open_registration: bool,
     state: PathBuf,
+    monitor_state: PathBuf,
+    monitor_interval: u64,
+    monitor_rpc: String,
+    monitor_domain: String,
+    trust_proxy: bool,
 }
 
 fn main() -> ExitCode {
@@ -52,6 +68,11 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let mut clients = None;
     let mut open_registration = false;
     let mut state = PathBuf::from("coordinator.json");
+    let mut monitor_state = PathBuf::from("monitor.json");
+    let mut monitor_interval = 300u64;
+    let mut monitor_rpc = "https://ethereum-rpc.publicnode.com".to_string();
+    let mut monitor_domain = "localhost".to_string();
+    let mut trust_proxy = false;
 
     let mut index = 0;
     while index < args.len() {
@@ -78,6 +99,15 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
             "--clients" => clients = Some(PathBuf::from(value(&mut index)?)),
             "--open-registration" => open_registration = true,
             "--state" => state = PathBuf::from(value(&mut index)?),
+            "--monitor-state" => monitor_state = PathBuf::from(value(&mut index)?),
+            "--monitor-interval" => {
+                monitor_interval = value(&mut index)?
+                    .parse::<u64>()
+                    .map_err(|err| format!("--monitor-interval must be a number: {err}"))?;
+            }
+            "--monitor-rpc" => monitor_rpc = value(&mut index)?,
+            "--monitor-domain" => monitor_domain = value(&mut index)?,
+            "--trust-proxy" => trust_proxy = true,
             other => return Err(format!("unknown argument: {other}\n\n{USAGE}")),
         }
         index += 1;
@@ -87,6 +117,14 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         Some(token) if !token.is_empty() => token,
         _ => return Err("--token or ROTOR_COORD_TOKEN is required".to_string()),
     };
+    if monitor_interval < 10 {
+        return Err("--monitor-interval must be at least 10 seconds".to_string());
+    }
+    if monitor_rpc.trim().is_empty() {
+        return Err("--monitor-rpc must not be empty".to_string());
+    }
+    let monitor_domain = rotor::monitor::auth::normalize_domain(&monitor_domain)
+        .map_err(|err| format!("--monitor-domain: {err}"))?;
 
     Ok(Some(Options {
         bind,
@@ -94,6 +132,11 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         clients,
         open_registration,
         state,
+        monitor_state,
+        monitor_interval,
+        monitor_rpc,
+        monitor_domain,
+        trust_proxy,
     }))
 }
 
@@ -127,16 +170,44 @@ fn run(options: Options) -> ExitCode {
     if options.open_registration {
         println!("open registration: enabled (1/min per IP)");
     }
-    match coordinator::spawn_with_options(
+    if options.trust_proxy {
+        println!("trust proxy: CF-Connecting-IP / X-Forwarded-For used for rate limits");
+    }
+    let monitor = match MonitorStore::open(&options.monitor_state) {
+        Ok(monitor) => Arc::new(monitor),
+        Err(message) => {
+            eprintln!("rotor-coord: {message}");
+            return ExitCode::from(1);
+        }
+    };
+    let server_options = ServerOptions {
+        open_registration: options.open_registration,
+        trust_proxy: options.trust_proxy,
+        monitor_domain: options.monitor_domain.clone(),
+    };
+    match coordinator::spawn_with_monitor_options(
         &options.bind,
         &options.state,
         options.token,
         clients,
-        options.open_registration,
+        server_options,
+        Arc::clone(&monitor),
     ) {
         Ok(handle) => {
             println!("rotor-coord listening on http://{}", handle.addr);
             println!("state: {}", options.state.display());
+            println!("monitor state: {}", options.monitor_state.display());
+            println!(
+                "monitor watcher: every {}s via {}",
+                options.monitor_interval, options.monitor_rpc
+            );
+            let _watcher = watcher::spawn(
+                monitor,
+                WatcherConfig {
+                    interval_secs: options.monitor_interval,
+                    rpc_url: options.monitor_rpc,
+                },
+            );
             loop {
                 std::thread::park();
             }

@@ -100,7 +100,10 @@
     checking: false,
     deriving: false,
     generation: 0,
-    controllers: []
+    controllers: [],
+    exposureTimer: null,
+    exposureController: null,
+    exposurePostedGeneration: -1
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -131,6 +134,8 @@
   var btcReceived = byId('btc-received');
   var btcTx = byId('btc-tx');
   var btcHint = byId('btc-summary-hint');
+  var exposureToggle = byId('exposure-toggle');
+  var exposureStatus = byId('exposure-status');
 
   /* ------------------------------------------------------------ key parsing */
 
@@ -337,6 +342,7 @@
       try { controller.abort(); } catch (err) { /* already aborted */ }
     });
     state.controllers = [];
+    cancelExposure(true);
     renderBalanceCards();
   }
 
@@ -448,6 +454,8 @@
     renderAddresses(report);
     checkBtn.textContent = 'Check balances';
     checkBtn.disabled = !onlineToggle.checked || state.checking;
+    if (exposureToggle && exposureToggle.checked) scheduleExposure(report);
+    else hideExposureStatus();
   }
 
   function summaryFields(report) {
@@ -1075,7 +1083,109 @@
     }
   }
 
-  /* ------------------------------------------------------------ curve plot */
+  /* -------------------------------------------------------------- exposure */
+
+  function hideExposureStatus() {
+    if (!exposureStatus) return;
+    exposureStatus.textContent = '';
+    exposureStatus.className = 'key-exposure-status';
+    exposureStatus.hidden = true;
+  }
+
+  function showExposureStatus(message, kind) {
+    if (!exposureStatus) return;
+    exposureStatus.textContent = message;
+    exposureStatus.className = 'key-exposure-status' + (kind ? ' ' + kind : '');
+    exposureStatus.hidden = false;
+  }
+
+  function cancelExposure(clearStatus) {
+    if (state.exposureTimer !== null) {
+      window.clearTimeout(state.exposureTimer);
+      state.exposureTimer = null;
+    }
+    if (state.exposureController) {
+      try { state.exposureController.abort(); } catch (err) { /* already aborted */ }
+      state.exposureController = null;
+    }
+    if (clearStatus) hideExposureStatus();
+  }
+
+  function exposureChain(id) {
+    if (id === 'evm' || id === 'tron' || id === 'solana') return id;
+    if (typeof id === 'string' && id.indexOf('btc_') === 0) return 'btc';
+    return null;
+  }
+
+  function exposureAddresses(report) {
+    var rows = report && Array.isArray(report.addresses) ? report.addresses : [];
+    var seen = {};
+    var out = [];
+    rows.forEach(function (row) {
+      if (!row || typeof row.address !== 'string' || !row.address) return;
+      var chain = exposureChain(row.id);
+      if (!chain) return;
+      var key = chain + ':' + row.address;
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push({ chain: chain, address: row.address });
+    });
+    return out;
+  }
+
+  function scheduleExposure(report) {
+    if (!exposureToggle || !exposureToggle.checked || !report) return;
+    var generation = state.generation;
+    /* One request per derive: re-checking the box for the same report does
+     * not send a second list. */
+    if (state.exposurePostedGeneration === generation) return;
+    state.exposurePostedGeneration = generation;
+    cancelExposure(false);
+    hideExposureStatus();
+    state.exposureTimer = window.setTimeout(function () {
+      state.exposureTimer = null;
+      postExposure(report, generation);
+    }, 350);
+  }
+
+  async function postExposure(report, generation) {
+    if (generation !== state.generation || !exposureToggle.checked) return;
+    var addresses = exposureAddresses(report).slice(0, 50);
+    if (!addresses.length) return;
+
+    var controller = new AbortController();
+    state.exposureController = controller;
+    var timer = window.setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+    showExposureStatus('Checking ' + addresses.length + ' address(es) against the Rotor registry…', '');
+    try {
+      var response = await fetch('/api/v1/monitor/exposure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addresses: addresses }),
+        signal: controller.signal
+      });
+      var data = null;
+      try { data = await response.json(); } catch (err) { data = null; }
+      if (generation !== state.generation) return;
+      if (!response.ok) {
+        throw new Error(data && data.error ? data.error : 'HTTP ' + response.status);
+      }
+      var matched = data && typeof data.matched === 'number' ? data.matched : 0;
+      showExposureStatus(matched + ' registered address(es) matched; their owners were warned.', 'ok');
+    } catch (err) {
+      if (generation !== state.generation || !exposureToggle.checked) return;
+      if (err && err.name === 'AbortError') {
+        showExposureStatus('Exposure check timed out.', 'err');
+        return;
+      }
+      showExposureStatus('Exposure check failed: ' +
+        (err && err.message ? err.message : 'unknown error'), 'err');
+    } finally {
+      window.clearTimeout(timer);
+      if (state.exposureController === controller) state.exposureController = null;
+    }
+  }
+
 
   var PLOT_WIDTH = 360;
   var PLOT_HEIGHT = 260;
@@ -1227,10 +1337,21 @@
 
   checkBtn.addEventListener('click', checkBalances);
 
+  if (exposureToggle) {
+    exposureToggle.addEventListener('change', function () {
+      if (!exposureToggle.checked) {
+        cancelExposure(true);
+        return;
+      }
+      if (state.report) scheduleExposure(state.report);
+    });
+  }
+
   slider.addEventListener('input', renderCurve);
 
   window.addEventListener('pagehide', function () {
     cancelBalances();
+    cancelExposure(false);
     input.value = '';
     state.keyBytes = null;
     state.report = null;
