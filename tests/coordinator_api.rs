@@ -1051,10 +1051,9 @@ fn public_pages_and_assets_are_served() {
         }
     }
 
-    // Unknown non-API paths fall back to the landing page.
-    let (status, _, body) = raw(addr, "GET", "/anything", None, None);
-    assert_eq!(status, 200);
-    assert!(body.contains("Rotor Coordinator"));
+    // Unknown non-API paths are a real 404, not a landing-page fallback.
+    let (status, _, _) = raw(addr, "GET", "/anything", None, None);
+    assert_eq!(status, 404);
 
     // The authenticated API is still protected.
     let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);
