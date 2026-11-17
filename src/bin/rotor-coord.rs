@@ -27,6 +27,8 @@ Usage: rotor-coord [OPTIONS]
   --monitor-interval N   EVM poll interval in seconds, min 10 (default 300)
   --monitor-rpc URL      EVM JSON-RPC endpoint
                          (default https://ethereum-rpc.publicnode.com)
+  --monitor-btc-rpc URL  Bitcoin address API base
+                         (default https://mempool.space)
   --monitor-domain HOST  fixed SIWE domain shown in login challenges
                          (default localhost; never taken from Host)
   --trust-proxy          trust CF-Connecting-IP / X-Forwarded-For for rate
@@ -43,6 +45,7 @@ struct Options {
     monitor_state: PathBuf,
     monitor_interval: u64,
     monitor_rpc: String,
+    monitor_btc_rpc: String,
     monitor_domain: String,
     trust_proxy: bool,
 }
@@ -71,6 +74,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let mut monitor_state = PathBuf::from("monitor.json");
     let mut monitor_interval = 300u64;
     let mut monitor_rpc = "https://ethereum-rpc.publicnode.com".to_string();
+    let mut monitor_btc_rpc = "https://mempool.space".to_string();
     let mut monitor_domain = "localhost".to_string();
     let mut trust_proxy = false;
 
@@ -106,6 +110,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
                     .map_err(|err| format!("--monitor-interval must be a number: {err}"))?;
             }
             "--monitor-rpc" => monitor_rpc = value(&mut index)?,
+            "--monitor-btc-rpc" => monitor_btc_rpc = value(&mut index)?,
             "--monitor-domain" => monitor_domain = value(&mut index)?,
             "--trust-proxy" => trust_proxy = true,
             other => return Err(format!("unknown argument: {other}\n\n{USAGE}")),
@@ -123,6 +128,9 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
     if monitor_rpc.trim().is_empty() {
         return Err("--monitor-rpc must not be empty".to_string());
     }
+    if monitor_btc_rpc.trim().is_empty() {
+        return Err("--monitor-btc-rpc must not be empty".to_string());
+    }
     let monitor_domain = rotor::monitor::auth::normalize_domain(&monitor_domain)
         .map_err(|err| format!("--monitor-domain: {err}"))?;
 
@@ -135,6 +143,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         monitor_state,
         monitor_interval,
         monitor_rpc,
+        monitor_btc_rpc,
         monitor_domain,
         trust_proxy,
     }))
@@ -198,14 +207,15 @@ fn run(options: Options) -> ExitCode {
             println!("state: {}", options.state.display());
             println!("monitor state: {}", options.monitor_state.display());
             println!(
-                "monitor watcher: every {}s via {}",
-                options.monitor_interval, options.monitor_rpc
+                "monitor watcher: every {}s via {} (BTC via {})",
+                options.monitor_interval, options.monitor_rpc, options.monitor_btc_rpc
             );
             let _watcher = watcher::spawn(
                 monitor,
                 WatcherConfig {
                     interval_secs: options.monitor_interval,
                     rpc_url: options.monitor_rpc,
+                    btc_api_url: options.monitor_btc_rpc,
                 },
             );
             loop {

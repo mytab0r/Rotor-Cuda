@@ -128,7 +128,45 @@ pub struct Session {
     pub created_at: u64,
 }
 
-/// A watched address and its last observed EVM counters.
+/// One mempool.space stats block (chain or mempool).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BtcStats {
+    pub funded_txo_sum: u64,
+    pub spent_txo_sum: u64,
+    pub tx_count: u64,
+}
+
+/// The last successful Bitcoin observation for one watch.
+///
+/// Keeping the full snapshot (not only the net balance) is what makes the
+/// classifier restart-safe: a process restart can no longer re-emit an event
+/// for stats that were already reported.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BtcSnapshot {
+    pub chain: BtcStats,
+    pub mempool: BtcStats,
+}
+
+impl BtcSnapshot {
+    /// Spendable balance in satoshis: confirmed plus mempool deltas.
+    pub fn balance(&self) -> i64 {
+        let received = self
+            .chain
+            .funded_txo_sum
+            .saturating_add(self.mempool.funded_txo_sum);
+        let spent = self
+            .chain
+            .spent_txo_sum
+            .saturating_add(self.mempool.spent_txo_sum);
+        sat_to_i64(received).saturating_sub(sat_to_i64(spent))
+    }
+}
+
+fn sat_to_i64(value: u64) -> i64 {
+    value.min(i64::MAX as u64) as i64
+}
+
+/// A watched address and its last observed counters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Watch {
     pub user_id: String,
@@ -138,7 +176,8 @@ pub struct Watch {
     pub label: Option<String>,
     #[serde(default)]
     pub verified: bool,
-    /// Last observed balance as a normalized `0x` quantity (EVM only).
+    /// Last observed balance as a normalized `0x` quantity (EVM) or decimal
+    /// satoshis (BTC).
     #[serde(default)]
     pub last_balance: Option<String>,
     /// Last observed transaction count (EVM only).
@@ -146,6 +185,9 @@ pub struct Watch {
     pub last_nonce: Option<u64>,
     #[serde(default)]
     pub last_seen_at: Option<u64>,
+    /// Last Bitcoin stats snapshot (BTC only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub btc: Option<BtcSnapshot>,
 }
 
 /// A feed entry for one user.
@@ -191,6 +233,23 @@ pub struct Observation {
     /// Normalized `0x` balance quantity.
     pub balance: String,
     pub nonce: u64,
+}
+
+/// One BTC observation produced by the watcher.
+#[derive(Debug, Clone)]
+pub struct BtcObservation {
+    pub address: String,
+    pub chain: BtcStats,
+    pub mempool: BtcStats,
+}
+
+impl BtcObservation {
+    fn snapshot(&self) -> BtcSnapshot {
+        BtcSnapshot {
+            chain: self.chain,
+            mempool: self.mempool,
+        }
+    }
 }
 
 /// The `/me` cabinet snapshot.
@@ -486,6 +545,7 @@ impl MonitorStore {
                     last_balance: None,
                     last_nonce: None,
                     last_seen_at: None,
+                    btc: None,
                 }),
             }
         }
@@ -734,6 +794,78 @@ impl MonitorStore {
         Ok(created)
     }
 
+    /// Unique BTC addresses to poll.
+    pub fn btc_watch_addresses(&self) -> Vec<String> {
+        let data = self.lock();
+        let mut addresses: Vec<String> = data
+            .watches
+            .iter()
+            .filter(|watch| watch.chain == "btc")
+            .map(|watch| watch.address.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        addresses.sort();
+        addresses
+    }
+
+    /// Apply BTC poll results. The first observation per watch sets the
+    /// baseline; later changes produce at most one event per watch. The
+    /// updated snapshot is persisted in the same write as the event, so a
+    /// restart cannot replay it.
+    pub fn apply_btc_observations(
+        &self,
+        observations: &[BtcObservation],
+    ) -> Result<Vec<Event>, String> {
+        let now = now_secs();
+        let by_address: HashMap<&str, &BtcObservation> = observations
+            .iter()
+            .map(|observation| (observation.address.as_str(), observation))
+            .collect();
+        let mut data = self.lock();
+        data.watcher.last_ok_at = now;
+        let mut created = Vec::new();
+        for index in 0..data.watches.len() {
+            let watch = &data.watches[index];
+            if watch.chain != "btc" {
+                continue;
+            }
+            let Some(observation) = by_address.get(watch.address.as_str()) else {
+                continue;
+            };
+            let next = observation.snapshot();
+            let change = watch
+                .btc
+                .as_ref()
+                .and_then(|prev| classify_btc(prev, &next));
+            let user_id = watch.user_id.clone();
+            let chain = watch.chain.clone();
+            let address = watch.address.clone();
+            let watch = &mut data.watches[index];
+            watch.last_balance = Some(next.balance().to_string());
+            watch.last_seen_at = Some(now);
+            watch.btc = Some(next);
+            if let Some((kind, severity, detail)) = change
+                && let Some(event) = record_event_locked(
+                    &mut data,
+                    EventInput {
+                        user_id: &user_id,
+                        chain: &chain,
+                        address: &address,
+                        kind,
+                        severity,
+                        detail: &detail,
+                    },
+                    now,
+                )
+            {
+                created.push(event);
+            }
+        }
+        self.save_locked(&mut data)?;
+        Ok(created)
+    }
+
     /// Remember a watcher failure without losing the last success time.
     pub fn record_watcher_error(&self, message: &str) {
         let mut data = self.lock();
@@ -843,6 +975,64 @@ fn record_event_locked(data: &mut Data, input: EventInput<'_>, now: u64) -> Opti
         data.events.drain(..excess);
     }
     Some(event)
+}
+
+/// Classify a BTC stats change into `(kind, severity, detail)`.
+///
+/// A new chain transaction is "outgoing" unless it also brought funds in, in
+/// which case it is an ordinary incoming transaction. Mempool-only movement
+/// stays informational: it is not yet confirmed.
+pub fn classify_btc(
+    prev: &BtcSnapshot,
+    next: &BtcSnapshot,
+) -> Option<(&'static str, &'static str, String)> {
+    let old_balance = prev.balance();
+    let new_balance = next.balance();
+    let spent_up = next.chain.spent_txo_sum > prev.chain.spent_txo_sum;
+    let received_up = next.chain.funded_txo_sum > prev.chain.funded_txo_sum;
+    let tx_up = next.chain.tx_count > prev.chain.tx_count;
+    if spent_up || (tx_up && !received_up) {
+        return Some((
+            "outgoing",
+            "high",
+            format!(
+                "balance {old_balance} -> {new_balance} sats; spent {} -> {} sats; tx {} -> {}",
+                prev.chain.spent_txo_sum,
+                next.chain.spent_txo_sum,
+                prev.chain.tx_count,
+                next.chain.tx_count
+            ),
+        ));
+    }
+    if received_up {
+        return Some((
+            "incoming",
+            "info",
+            format!(
+                "balance {old_balance} -> {new_balance} sats; received {} -> {} sats; tx {} -> {}",
+                prev.chain.funded_txo_sum,
+                next.chain.funded_txo_sum,
+                prev.chain.tx_count,
+                next.chain.tx_count
+            ),
+        ));
+    }
+    if next.mempool != prev.mempool {
+        return Some((
+            "mempool",
+            "info",
+            format!(
+                "mempool received {} -> {}, spent {} -> {}, tx {} -> {}; balance {old_balance} -> {new_balance} sats",
+                prev.mempool.funded_txo_sum,
+                next.mempool.funded_txo_sum,
+                prev.mempool.spent_txo_sum,
+                next.mempool.spent_txo_sum,
+                prev.mempool.tx_count,
+                next.mempool.tx_count
+            ),
+        ));
+    }
+    None
 }
 
 /// Map a client-supplied chain name to its canonical key.
@@ -1371,6 +1561,90 @@ mod tests {
         let kinds: HashSet<&str> = changes.iter().map(|event| event.kind.as_str()).collect();
         assert!(kinds.contains("balance"));
         assert!(kinds.contains("nonce"));
+    }
+
+    #[test]
+    fn btc_classifier_covers_the_decision_table() {
+        let stats = |funded, spent, tx| BtcStats {
+            funded_txo_sum: funded,
+            spent_txo_sum: spent,
+            tx_count: tx,
+        };
+        let snap = |chain, mempool| BtcSnapshot { chain, mempool };
+        let base = snap(stats(1_000, 0, 1), BtcStats::default());
+
+        assert!(classify_btc(&base, &base).is_none(), "no change, no event");
+
+        let incoming = snap(stats(5_000, 0, 2), BtcStats::default());
+        let (kind, severity, detail) = classify_btc(&base, &incoming).expect("incoming");
+        assert_eq!((kind, severity), ("incoming", "info"));
+        assert!(detail.contains("balance 1000 -> 5000 sats"));
+        assert!(detail.contains("tx 1 -> 2"));
+
+        let spent = snap(stats(5_000, 3_000, 3), BtcStats::default());
+        let (kind, severity, detail) = classify_btc(&incoming, &spent).expect("outgoing");
+        assert_eq!((kind, severity), ("outgoing", "high"));
+        assert!(detail.contains("spent 0 -> 3000 sats"));
+
+        // A new tx with no incoming funds is outgoing even without spent_sum
+        // moving (for example a reorg/replace). Both stay chain-level.
+        let new_tx = snap(stats(5_000, 3_000, 4), BtcStats::default());
+        let (kind, _, _) = classify_btc(&spent, &new_tx).expect("outgoing tx");
+        assert_eq!(kind, "outgoing");
+
+        // Mempool-only movement is informational.
+        let mempool = snap(stats(5_000, 3_000, 4), stats(700, 0, 1));
+        let (kind, severity, detail) = classify_btc(&new_tx, &mempool).expect("mempool");
+        assert_eq!((kind, severity), ("mempool", "info"));
+        assert!(detail.contains("mempool received 0 -> 700"));
+    }
+
+    #[test]
+    fn btc_observations_baseline_emit_once_and_survive_restart() {
+        let temp = TempStore::new("btc-observations");
+        let btc_address = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
+        let user = temp
+            .store
+            .upsert_identity("btc", btc_address)
+            .expect("user");
+        temp.store
+            .add_watches(&user.id, vec![new_watch("btc", btc_address, false)])
+            .expect("add");
+        let observation = |funded, spent, tx| BtcObservation {
+            address: btc_address.to_string(),
+            chain: BtcStats {
+                funded_txo_sum: funded,
+                spent_txo_sum: spent,
+                tx_count: tx,
+            },
+            mempool: BtcStats::default(),
+        };
+
+        // First successful poll only sets the baseline.
+        let events = temp
+            .store
+            .apply_btc_observations(&[observation(0, 0, 0)])
+            .expect("baseline");
+        assert!(events.is_empty());
+        let watch = temp.store.me(&user.id).expect("me").watches.remove(0);
+        assert_eq!(watch.last_balance.as_deref(), Some("0"));
+        assert!(watch.last_seen_at.is_some());
+        assert!(watch.btc.is_some());
+
+        let events = temp
+            .store
+            .apply_btc_observations(&[observation(1_000, 0, 1)])
+            .expect("incoming");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind, "incoming");
+        assert_eq!(events[0].severity, "info");
+
+        // Reopening from disk must not replay the same stats.
+        let reopened = MonitorStore::open(&temp.path).expect("reopen");
+        let events = reopened
+            .apply_btc_observations(&[observation(1_000, 0, 1)])
+            .expect("repeat");
+        assert!(events.is_empty(), "restart replayed a known change");
     }
 
     #[test]
