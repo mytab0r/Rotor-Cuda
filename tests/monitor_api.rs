@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use ed25519_dalek::{Signer as _, SigningKey as Ed25519SigningKey};
 use k256::ecdsa::SigningKey;
 use rotor::coordinator::{
     Clients, ServerOptions, spawn_with_monitor_options, spawn_with_options_trust_proxy,
@@ -158,24 +159,105 @@ fn sign_message(key: &SigningKey, message: &str) -> String {
     out
 }
 
-fn challenge(addr: SocketAddr, address: &str) -> Value {
+fn tron_address(key: &SigningKey) -> String {
+    let point = key.verifying_key().to_encoded_point(false);
+    let hash = keccak256(&point.as_bytes()[1..]);
+    let mut payload = [0u8; 21];
+    payload[0] = 0x41;
+    payload[1..].copy_from_slice(&hash[12..]);
+    rotor::base58::encode_check(&payload)
+}
+
+/// TRON `signMessageV2`: prefix, decimal byte length, then the message bytes.
+fn sign_tron(key: &SigningKey, message: &str) -> String {
+    let prefix = format!("\x19TRON Signed Message:\n{}", message.len());
+    let mut data = prefix.into_bytes();
+    data.extend_from_slice(message.as_bytes());
+    let (signature, recovery) = key
+        .sign_prehash_recoverable(&keccak256(&data))
+        .expect("sign tron message");
+    let mut bytes = signature.to_bytes().to_vec();
+    bytes.push(recovery.to_byte() + 27);
+    let mut out = String::from("0x");
+    for byte in bytes {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out
+}
+
+fn solana_key(seed: u8) -> Ed25519SigningKey {
+    Ed25519SigningKey::from_bytes(&[seed; 32])
+}
+
+fn solana_address(key: &Ed25519SigningKey) -> String {
+    bs58::encode(key.verifying_key().to_bytes()).into_string()
+}
+
+fn sign_solana(key: &Ed25519SigningKey, message: &str) -> String {
+    let signature = key.sign(message.as_bytes());
+    let mut out = String::from("0x");
+    for byte in signature.to_bytes() {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b0 = u32::from(chunk[0]);
+        let b1 = u32::from(*chunk.get(1).unwrap_or(&0));
+        let b2 = u32::from(*chunk.get(2).unwrap_or(&0));
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(ALPHABET[(n >> 18) as usize & 63] as char);
+        out.push(ALPHABET[(n >> 12) as usize & 63] as char);
+        if chunk.len() > 1 {
+            out.push(ALPHABET[(n >> 6) as usize & 63] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(ALPHABET[n as usize & 63] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+fn challenge_for(addr: SocketAddr, chain: &str, address: &str) -> Value {
     let (status, value) = post(
         addr,
         "/api/v1/monitor/challenge",
         None,
-        json!({"address": address}),
+        json!({"chain": chain, "address": address}),
     );
     assert_eq!(status, 200, "challenge failed: {value}");
     value
 }
 
-fn login(addr: SocketAddr, key: &SigningKey, message: &str) -> (u16, Value) {
+fn challenge(addr: SocketAddr, address: &str) -> Value {
+    challenge_for(addr, "evm", address)
+}
+
+fn login_sig(
+    addr: SocketAddr,
+    chain: &str,
+    message: &str,
+    signature: &str,
+    token: Option<&str>,
+) -> (u16, Value) {
     post(
         addr,
         "/api/v1/monitor/login",
-        None,
-        json!({"message": message, "signature": sign_message(key, message)}),
+        token,
+        json!({"chain": chain, "message": message, "signature": signature}),
     )
+}
+
+fn login(addr: SocketAddr, key: &SigningKey, message: &str) -> (u16, Value) {
+    login_sig(addr, "evm", message, &sign_message(key, message), None)
 }
 
 fn monitor_flow(addr: SocketAddr, key: &SigningKey) {
@@ -209,11 +291,20 @@ fn monitor_flow(addr: SocketAddr, key: &SigningKey) {
     let token = body["token"].as_str().expect("token").to_string();
     let user_id = body["user"]["id"].as_str().expect("user id").to_string();
     assert_eq!(body["user"]["address"], address);
+    let identities = body["user"]["identities"]
+        .as_array()
+        .expect("login identities");
+    assert_eq!(identities.len(), 1);
+    assert_eq!(identities[0]["chain"], "evm");
+    assert_eq!(identities[0]["address"], address);
+    assert_eq!(identities[0]["verified"], true);
 
     // The same nonce is single-use.
     let (status, _) = login(addr, key, message);
     assert_eq!(status, 400, "replayed login must fail");
 
+    let foreign_sol = solana_address(&solana_key(0x55));
+    let foreign_tron = tron_address(&SigningKey::from_slice(&[0x66; 32]).expect("tron key"));
     let (status, body) = post(
         addr,
         "/api/v1/monitor/addresses",
@@ -221,12 +312,14 @@ fn monitor_flow(addr: SocketAddr, key: &SigningKey) {
         json!({"addresses": [
             {"chain": "evm", "address": address, "label": "main"},
             {"chain": "evm", "address": "0x4444444444444444444444444444444444444444"},
-            {"chain": "btc", "address": BTC_ADDRESS}
+            {"chain": "btc", "address": BTC_ADDRESS},
+            {"chain": "solana", "address": foreign_sol},
+            {"chain": "tron", "address": foreign_tron}
         ]}),
     );
     assert_eq!(status, 200, "add addresses failed: {body}");
     let watches = body["watches"].as_array().expect("watches");
-    assert_eq!(watches.len(), 3);
+    assert_eq!(watches.len(), 5);
     let evm = watches
         .iter()
         .find(|watch| watch["chain"] == "evm" && watch["address"] == address)
@@ -239,10 +332,20 @@ fn monitor_flow(addr: SocketAddr, key: &SigningKey) {
         .iter()
         .find(|watch| watch["chain"] == "btc")
         .expect("btc watch");
-    // Only the SIWE signer is verified; other addresses are not.
+    let sol_watch = watches
+        .iter()
+        .find(|watch| watch["chain"] == "solana")
+        .expect("solana watch");
+    let tron_watch = watches
+        .iter()
+        .find(|watch| watch["chain"] == "tron")
+        .expect("tron watch");
+    // Only the account's verified identities are verified.
     assert_eq!(evm["verified"], true);
     assert_eq!(foreign_evm["verified"], false);
     assert_eq!(btc["verified"], false);
+    assert_eq!(sol_watch["verified"], false);
+    assert_eq!(tron_watch["verified"], false);
 
     // Public exposure lookup: count only, one lookup event for the owner.
     // `/key` also submits TRON/Solana rows; unsupported chains are skipped.
@@ -270,6 +373,173 @@ fn monitor_flow(addr: SocketAddr, key: &SigningKey) {
             && event["address"] == address),
         "lookup event missing: {body}"
     );
+
+    // --- Solana login: hex signature, then Base64 on a fresh challenge. ---
+    let sol_key = solana_key(0x33);
+    let sol_addr = solana_address(&sol_key);
+    let sol_challenge = challenge_for(addr, "solana", &sol_addr);
+    assert_eq!(sol_challenge["chain"], "solana");
+    let sol_message = sol_challenge["message"].as_str().expect("sol message");
+    assert!(sol_message.contains(&sol_addr));
+    let (status, body) = login_sig(
+        addr,
+        "solana",
+        sol_message,
+        &sign_solana(&sol_key, sol_message),
+        None,
+    );
+    assert_eq!(status, 200, "solana login failed: {body}");
+    let sol_token = body["token"].as_str().expect("sol token").to_string();
+    let sol_user_id = body["user"]["id"]
+        .as_str()
+        .expect("sol user id")
+        .to_string();
+    assert_eq!(body["user"]["address"], sol_addr);
+    let identities = body["user"]["identities"]
+        .as_array()
+        .expect("sol identities");
+    assert_eq!(identities.len(), 1);
+    assert_eq!(identities[0]["chain"], "solana");
+    assert_eq!(identities[0]["address"], sol_addr);
+    assert_eq!(identities[0]["verified"], true);
+
+    let sol_challenge = challenge_for(addr, "solana", &sol_addr);
+    let sol_message = sol_challenge["message"].as_str().expect("sol message");
+    let sol_base64 = base64_encode(&sol_key.sign(sol_message.as_bytes()).to_bytes());
+    let (status, body) = login_sig(addr, "solana", sol_message, &sol_base64, None);
+    assert_eq!(status, 200, "base64 solana login failed: {body}");
+    assert_eq!(body["user"]["id"], sol_user_id);
+
+    let (status, body) = post(
+        addr,
+        "/api/v1/monitor/addresses",
+        Some(&sol_token),
+        json!({"addresses": [{"chain": "solana", "address": sol_addr}]}),
+    );
+    assert_eq!(status, 200, "solana watch failed: {body}");
+    assert_eq!(body["watches"][0]["verified"], true);
+
+    // --- TRON signMessageV2 login. ---
+    let tron_key = SigningKey::from_slice(&[0x22; 32]).expect("tron key");
+    let tron_addr = tron_address(&tron_key);
+    let tron_challenge = challenge_for(addr, "tron", &tron_addr);
+    assert_eq!(tron_challenge["chain"], "tron");
+    let tron_message = tron_challenge["message"].as_str().expect("tron message");
+    let (status, body) = login_sig(
+        addr,
+        "tron",
+        tron_message,
+        &sign_tron(&tron_key, tron_message),
+        None,
+    );
+    assert_eq!(status, 200, "tron login failed: {body}");
+    assert_eq!(body["user"]["address"], tron_addr);
+    let identities = body["user"]["identities"]
+        .as_array()
+        .expect("tron identities");
+    assert_eq!(identities.len(), 1);
+    assert_eq!(identities[0]["chain"], "tron");
+    assert_eq!(identities[0]["verified"], true);
+
+    // --- Linking: a Bearer EVM session absorbs the Solana identity. ---
+    let link_key = solana_key(0x44);
+    let link_addr = solana_address(&link_key);
+    let link_challenge = challenge_for(addr, "solana", &link_addr);
+    let link_message = link_challenge["message"].as_str().expect("link message");
+    let (status, body) = login_sig(
+        addr,
+        "solana",
+        link_message,
+        &sign_solana(&link_key, link_message),
+        Some(&token),
+    );
+    assert_eq!(status, 200, "linking login failed: {body}");
+    assert_eq!(body["user"]["id"], user_id, "linking must reuse the user");
+    let identities = body["user"]["identities"]
+        .as_array()
+        .expect("linked identities");
+    assert_eq!(identities.len(), 2);
+    assert!(
+        identities
+            .iter()
+            .any(|identity| identity["chain"] == "solana"
+                && identity["address"] == link_addr
+                && identity["verified"] == true)
+    );
+    let (status, me) = get(addr, "/api/v1/monitor/me", Some(&token));
+    assert_eq!(status, 200);
+    assert_eq!(
+        me["user"]["identities"].as_array().expect("me ids").len(),
+        2
+    );
+    let (status, body) = post(
+        addr,
+        "/api/v1/monitor/addresses",
+        Some(&token),
+        json!({"addresses": [{"chain": "solana", "address": link_addr}]}),
+    );
+    assert_eq!(status, 200, "linked watch failed: {body}");
+    assert!(
+        body["watches"]
+            .as_array()
+            .expect("linked watches")
+            .iter()
+            .any(|watch| watch["chain"] == "solana"
+                && watch["address"] == link_addr
+                && watch["verified"] == true)
+    );
+
+    // --- Rejections: unknown chain, wrong chain, wrong signer. ---
+    let (status, _) = post(
+        addr,
+        "/api/v1/monitor/challenge",
+        None,
+        json!({"chain": "doge", "address": address}),
+    );
+    assert_eq!(status, 400, "unknown chain challenge must fail");
+
+    let mismatch = challenge_for(addr, "evm", &address);
+    let mismatch_message = mismatch["message"].as_str().expect("mismatch message");
+    let (status, _) = login_sig(
+        addr,
+        "solana",
+        mismatch_message,
+        &sign_message(key, mismatch_message),
+        None,
+    );
+    assert_eq!(status, 400, "challenge/login chain mismatch must fail");
+
+    let bad = challenge_for(addr, "solana", &sol_addr);
+    let bad_message = bad["message"].as_str().expect("bad message");
+    let (status, _) = login_sig(
+        addr,
+        "solana",
+        bad_message,
+        &sign_solana(&solana_key(0x45), bad_message),
+        None,
+    );
+    assert_eq!(status, 400, "wrong solana signer must fail");
+    // A failed verification must not burn the challenge.
+    let (status, body) = login_sig(
+        addr,
+        "solana",
+        bad_message,
+        &sign_solana(&sol_key, bad_message),
+        None,
+    );
+    assert_eq!(
+        status, 200,
+        "challenge must survive a bad signature: {body}"
+    );
+    // And it is single-use once verified.
+    let (status, _) = login_sig(
+        addr,
+        "solana",
+        bad_message,
+        &sign_solana(&sol_key, bad_message),
+        None,
+    );
+    assert_eq!(status, 400, "verified challenge must be single-use");
 
     // Unmatched exposure stays at zero and records nothing.
     let (status, body) = post(

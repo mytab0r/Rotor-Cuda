@@ -535,6 +535,39 @@ p { text-wrap: pretty; }
 
 .monitor-wallet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .monitor-wallet-bar #monitor-wallet-state { font-size: 12px; }
+.monitor-providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.monitor-provider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 58px;
+  padding: 9px 12px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.monitor-provider:hover:not(:disabled) { border-color: var(--accent); }
+.monitor-provider:disabled { opacity: .55; cursor: not-allowed; }
+.monitor-provider-name { font-size: 13px; font-weight: 600; }
+.monitor-provider-hint { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.monitor-identities { list-style: none; margin: 8px 0 0; padding: 0; }
+.monitor-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.monitor-identity:first-child { padding-top: 2px; }
+.monitor-identity:last-child { border-bottom: 0; padding-bottom: 2px; }
 .monitor-account-line {
   display: flex;
   flex-wrap: wrap;
@@ -558,12 +591,12 @@ p { text-wrap: pretty; }
 }
 .monitor-no-wallet p { margin: 0 0 8px; font-size: 13px; color: #c9d1d9; }
 .monitor-no-wallet p:last-of-type { margin-bottom: 10px; }
-.monitor-note { font-size: 12px; color: var(--muted); max-width: 75ch; }
-#monitor-siwe-note { max-width: 62ch; overflow-wrap: anywhere; }
+.monitor-note { font-size: 12px; color: var(--muted); max-width: 62ch; }
+#monitor-wallet-note { max-width: 62ch; overflow-wrap: anywhere; }
 .monitor-status { margin: 10px 0 0; font-size: 12px; }
 .monitor-status.ok { color: var(--ok); }
 .monitor-status.err { color: var(--err); }
-.monitor-warning-text { margin: 10px 0 0; }
+.monitor-warning-text { margin: 10px 0 0; max-width: 62ch; }
 .monitor-wallet-bar button,
 .monitor-form button,
 .monitor-settings-form button,
@@ -645,6 +678,7 @@ p { text-wrap: pretty; }
 .monitor-form select:focus-visible,
 .monitor-settings-form input:focus-visible,
 .monitor-remove:focus-visible,
+.monitor-provider:focus-visible,
 .monitor-wallet-bar button:focus-visible,
 .monitor-no-wallet button:focus-visible,
 .monitor-account-line button:focus-visible {
@@ -660,6 +694,7 @@ p { text-wrap: pretty; }
 @media (max-width: 480px) {
   .monitor-hero { padding: 15px 14px; }
   .monitor-hero h1 { font-size: 22px; }
+  .monitor-providers { grid-template-columns: 1fr; }
   .monitor-verified,
   .monitor-unverified { margin-left: 0; width: 100%; }
   .monitor-event-time { margin-left: 0; width: 100%; }

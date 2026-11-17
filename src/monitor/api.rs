@@ -13,7 +13,7 @@ use tiny_http::{Method, Request};
 
 use crate::coordinator::{client_ip, query_param, read_body, respond_body_error, respond_json};
 use crate::monitor::auth::{self, CHALLENGE_TTL_SECS};
-use crate::monitor::store::{MonitorStore, NewWatch, canonicalize_address, canonicalize_evm};
+use crate::monitor::store::{MonitorStore, NewWatch, canonicalize_address};
 
 /// Exposure requests allowed per IP per window.
 const EXPOSURE_LIMIT: usize = 30;
@@ -124,7 +124,13 @@ fn rate_limited(request: Request) {
 
 #[derive(Deserialize)]
 struct ChallengeRequest {
+    #[serde(default = "default_chain")]
+    chain: String,
     address: String,
+}
+
+fn default_chain() -> String {
+    "evm".to_string()
 }
 
 fn challenge(store: &MonitorStore, domain: &str, trust_proxy: bool, mut request: Request) {
@@ -148,8 +154,12 @@ fn challenge(store: &MonitorStore, domain: &str, trust_proxy: bool, mut request:
             );
         }
     };
-    let address = match canonicalize_evm(&challenge.address) {
-        Ok(address) => address,
+    let chain = match auth::login_chain(&challenge.chain) {
+        Ok(chain) => chain,
+        Err(err) => return respond_json(request, 400, &json!({"error": err})),
+    };
+    let address = match canonicalize_address(chain, &challenge.address) {
+        Ok((_, address)) => address,
         Err(err) => return respond_json(request, 400, &json!({"error": err})),
     };
     let nonce = match store.new_nonce() {
@@ -169,18 +179,25 @@ fn challenge(store: &MonitorStore, domain: &str, trust_proxy: bool, mut request:
         issued_at,
         expires_at,
     );
-    if let Err(err) = store.put_challenge(&nonce, &address, &message, expires_at) {
+    if let Err(err) = store.put_challenge(&nonce, chain, &address, &message, expires_at) {
         return respond_json(request, 500, &json!({"error": err}));
     }
     respond_json(
         request,
         200,
-        &json!({"nonce": nonce, "message": message, "expires_at": expires_at}),
+        &json!({
+            "chain": chain,
+            "nonce": nonce,
+            "message": message,
+            "expires_at": expires_at,
+        }),
     );
 }
 
 #[derive(Deserialize)]
 struct LoginRequest {
+    #[serde(default = "default_chain")]
+    chain: String,
     message: String,
     signature: String,
 }
@@ -189,6 +206,9 @@ fn login(store: &MonitorStore, trust_proxy: bool, mut request: Request) {
     if !LOGIN_LIMITER.allow(&client_ip(&request, trust_proxy)) {
         return rate_limited(request);
     }
+    // A valid bearer session links the new identity to that account; it
+    // never creates a second user.
+    let session_user = auth::bearer_token(&request).and_then(|token| store.resolve_session(token));
     let body = match read_body(&mut request) {
         Ok(body) => body,
         Err(error) => return respond_body_error(request, error),
@@ -206,7 +226,13 @@ fn login(store: &MonitorStore, trust_proxy: bool, mut request: Request) {
             );
         }
     };
-    match auth::login(store, &login.message, &login.signature) {
+    match auth::login(
+        store,
+        &login.chain,
+        &login.message,
+        &login.signature,
+        session_user.as_deref(),
+    ) {
         Ok((user, token)) => respond_json(request, 200, &json!({"token": token, "user": user})),
         Err(err) => respond_json(request, 400, &json!({"error": err})),
     }
@@ -280,9 +306,12 @@ fn add_addresses(store: &MonitorStore, mut request: Request) {
             Ok(pair) => pair,
             Err(err) => return respond_json(request, 400, &json!({"error": err})),
         };
-        // Only the address proven by the SIWE login is verified. Every other
-        // address stays unverified until its own chain-specific proof exists.
-        let verified = chain == "evm" && address == user.address;
+        // A watch is verified only when its (chain, address) matches one of
+        // the account's verified login identities. The primary EVM address is
+        // therefore verified by identity, not by string equality here.
+        let verified = user.identities.iter().any(|identity| {
+            identity.chain == chain && identity.address == address && identity.verified
+        });
         let label = entry
             .label
             .map(|label| label.trim().to_string())
