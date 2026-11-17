@@ -6,6 +6,7 @@
 
 pub mod api;
 pub mod auth;
+pub mod notify;
 pub mod store;
 pub mod watcher;
 

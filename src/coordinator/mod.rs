@@ -210,6 +210,8 @@ struct App {
     public_url: String,
     /// Optional Reown/WalletConnect project id, exposed to the cabinet config.
     walletconnect_project_id: String,
+    /// Telegram Bot API configuration for monitor alert linking/delivery.
+    telegram: Arc<crate::monitor::notify::TelegramConfig>,
 }
 
 impl App {
@@ -443,6 +445,7 @@ fn spawn_inner(
         public_url: public_url_from_env(),
         walletconnect_project_id: std::env::var("ROTOR_WALLETCONNECT_PROJECT_ID")
             .unwrap_or_default(),
+        telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
     });
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -493,7 +496,11 @@ fn reject_over_capacity(app: &App, request: Request) {
 
 fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
     // Public endpoints never answer 401; capacity is the only failure.
-    if path == "/api/v1/summary" || path == "/api/v1/register" || path == "/api/v1/monitor/config" {
+    if path == "/api/v1/summary"
+        || path == "/api/v1/register"
+        || path == "/api/v1/monitor/config"
+        || path == "/api/v1/telegram/webhook"
+    {
         return 503;
     }
     if path.starts_with("/api/v1/") && !authorized {
@@ -551,14 +558,26 @@ fn handle(app: Arc<App>, request: Request) {
         );
     }
 
+    // Telegram webhook is public: Telegram calls it with its own secret header.
+    if method == Method::Post && path == "/api/v1/telegram/webhook" {
+        match app.monitor.as_ref() {
+            Some(store) => crate::monitor::api::handle_webhook(store, &app.telegram, request),
+            None => respond_json(request, 404, &json!({"error": "not found"})),
+        }
+        return;
+    }
+
     // The address monitor has its own store, sessions and rate limits; its
     // routes never enter the coordinator token matrix below.
     if path.starts_with("/api/v1/monitor/") {
         match app.monitor.as_ref() {
             Some(store) => crate::monitor::api::handle(
-                store,
-                &app.monitor_domain,
-                app.trust_proxy,
+                crate::monitor::api::Context {
+                    store,
+                    telegram: &app.telegram,
+                    domain: &app.monitor_domain,
+                    trust_proxy: app.trust_proxy,
+                },
                 request,
                 &method,
                 path,
@@ -682,6 +701,12 @@ fn public_url_from_env() -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+/// Canonical public origin from `ROTOR_PUBLIC_URL` (used for webhook
+/// registration and absolute links).
+pub fn public_url() -> String {
+    public_url_from_env()
 }
 
 /// One server-rendered chain hub under `/keys/<slug>`.
