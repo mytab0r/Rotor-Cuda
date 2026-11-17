@@ -677,6 +677,21 @@ p { text-wrap: pretty; }
 .monitor-settings-form .monitor-check { color: var(--text); font-size: 13px; }
 .monitor-settings-form .monitor-check input { accent-color: var(--accent-2); }
 .monitor-settings-form button { justify-self: start; }
+.monitor-telegram-state { margin: 8px 0 0; font-size: 13px; }
+.monitor-telegram-state.ok { color: var(--ok); }
+.monitor-telegram-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.monitor-telegram-actions button { min-height: 38px; }
+.monitor-telegram-code {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.monitor-telegram-code p { margin: 0 0 8px; font-size: 13px; }
+.monitor-telegram-code p:last-child { margin-bottom: 0; }
+.monitor-telegram-code code { overflow-wrap: anywhere; word-break: break-all; user-select: all; }
+.monitor-telegram-code a { color: var(--accent); }
 .monitor-form input:focus-visible,
 .monitor-form select:focus-visible,
 .monitor-settings-form input:focus-visible,
@@ -703,6 +718,8 @@ p { text-wrap: pretty; }
   .monitor-event-time { margin-left: 0; width: 100%; }
   .monitor-wallet-bar { align-items: stretch; }
   .monitor-wallet-bar button { flex: 1 1 auto; }
+  .monitor-telegram-actions { flex-direction: column; }
+  .monitor-telegram-actions button { width: 100%; }
 }
 
 /* Public key-range page */

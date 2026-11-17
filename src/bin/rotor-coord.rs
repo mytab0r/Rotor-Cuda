@@ -11,6 +11,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use rotor::coordinator::{self, Clients, ServerOptions};
+use rotor::monitor::notify::{self, TelegramConfig};
 use rotor::monitor::store::MonitorStore;
 use rotor::monitor::watcher::{self, WatcherConfig};
 
@@ -194,6 +195,9 @@ fn run(options: Options) -> ExitCode {
         trust_proxy: options.trust_proxy,
         monitor_domain: options.monitor_domain.clone(),
     };
+    // Telegram alerts are optional. The coordinator reads the same environment
+    // for its webhook route; this copy drives registration and delivery.
+    let telegram = TelegramConfig::from_env();
     match coordinator::spawn_with_monitor_options(
         &options.bind,
         &options.state,
@@ -210,8 +214,17 @@ fn run(options: Options) -> ExitCode {
                 "monitor watcher: every {}s via {} (BTC via {})",
                 options.monitor_interval, options.monitor_rpc, options.monitor_btc_rpc
             );
+            if telegram.is_enabled() {
+                let webhook = telegram.webhook_url(&coordinator::public_url());
+                start_telegram(&monitor, telegram);
+                println!("telegram: alerts enabled; webhook {webhook}");
+            } else {
+                println!(
+                    "telegram: disabled (set ROTOR_TELEGRAM_BOT_TOKEN and ROTOR_TELEGRAM_BOT_USERNAME)"
+                );
+            }
             let _watcher = watcher::spawn(
-                monitor,
+                Arc::clone(&monitor),
                 WatcherConfig {
                     interval_secs: options.monitor_interval,
                     rpc_url: options.monitor_rpc,
@@ -227,6 +240,29 @@ fn run(options: Options) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+/// Persist the webhook secret, register the webhook in the background and
+/// start the delivery worker. Failures are logged without the bot token.
+fn start_telegram(monitor: &Arc<MonitorStore>, telegram: TelegramConfig) {
+    let secret = match monitor.ensure_webhook_secret() {
+        Ok(secret) => Some(secret),
+        Err(message) => {
+            eprintln!("rotor-coord: telegram webhook secret: {message}");
+            None
+        }
+    };
+    if let Some(secret) = secret {
+        let config = telegram.clone();
+        let url_base = coordinator::public_url();
+        std::thread::spawn(move || match config.register_webhook(&url_base, &secret) {
+            Ok(()) => eprintln!("rotor-coord: telegram webhook registered"),
+            Err(message) => {
+                eprintln!("rotor-coord: telegram webhook registration failed: {message}")
+            }
+        });
+    }
+    let _delivery = notify::spawn(Arc::clone(monitor), telegram);
 }
 
 fn is_loopback(bind: &str) -> bool {

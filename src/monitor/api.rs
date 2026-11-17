@@ -13,6 +13,7 @@ use tiny_http::{Method, Request};
 
 use crate::coordinator::{client_ip, query_param, read_body, respond_body_error, respond_json};
 use crate::monitor::auth::{self, CHALLENGE_TTL_SECS};
+use crate::monitor::notify::TelegramConfig;
 use crate::monitor::store::{MonitorStore, NewWatch, canonicalize_address};
 
 /// Exposure requests allowed per IP per window.
@@ -86,16 +87,22 @@ impl IpRateLimiter {
     }
 }
 
+/// Shared request context for the monitor routes.
+pub struct Context<'a> {
+    pub store: &'a MonitorStore,
+    pub telegram: &'a TelegramConfig,
+    pub domain: &'a str,
+    pub trust_proxy: bool,
+}
+
 /// Route one monitor request. Always responds.
-pub fn handle(
-    store: &MonitorStore,
-    domain: &str,
-    trust_proxy: bool,
-    request: Request,
-    method: &Method,
-    path: &str,
-    query: &str,
-) {
+pub fn handle(context: Context<'_>, request: Request, method: &Method, path: &str, query: &str) {
+    let Context {
+        store,
+        telegram,
+        domain,
+        trust_proxy,
+    } = context;
     match (method, path) {
         (Method::Post, "/api/v1/monitor/challenge") => {
             challenge(store, domain, trust_proxy, request)
@@ -107,6 +114,9 @@ pub fn handle(
         (Method::Post, "/api/v1/monitor/addresses") => add_addresses(store, request),
         (Method::Patch, "/api/v1/monitor/settings") => settings(store, request),
         (Method::Get, "/api/v1/monitor/feed") => feed(store, request, query),
+        (Method::Post, "/api/v1/monitor/telegram/link") => telegram_link(store, telegram, request),
+        (Method::Get, "/api/v1/monitor/telegram/status") => telegram_status(store, request),
+        (Method::Delete, "/api/v1/monitor/telegram/link") => telegram_unlink(store, request),
         (Method::Delete, _) => {
             if let Some(rest) = path.strip_prefix("/api/v1/monitor/addresses/") {
                 delete_address(store, request, rest);
@@ -404,6 +414,175 @@ fn feed(store: &MonitorStore, request: Request, query: &str) {
     );
 }
 
+/// Create a single-use Telegram linking code and its deep link.
+fn telegram_link(store: &MonitorStore, telegram: &TelegramConfig, request: Request) {
+    let Some(user_id) = auth::session_user(store, &request) else {
+        return respond_json(request, 401, &json!({"error": "unauthorized"}));
+    };
+    if !telegram.is_enabled() {
+        return respond_json(
+            request,
+            503,
+            &json!({"error": "Telegram alerts are not configured on this server"}),
+        );
+    }
+    let Some(user) = store.user(&user_id) else {
+        return respond_json(request, 401, &json!({"error": "unauthorized"}));
+    };
+    if user.telegram_chat_id.is_some() {
+        return respond_json(
+            request,
+            409,
+            &json!({"error": "Telegram is already linked; unlink it first"}),
+        );
+    }
+    match store.create_link_code(&user_id) {
+        Ok(link) => respond_json(
+            request,
+            200,
+            &json!({
+                "code": link.code,
+                "deep_link": telegram.deep_link(&link.code),
+                "expires_at": link.expires_at,
+            }),
+        ),
+        Err(err) => respond_json(request, 500, &json!({"error": err})),
+    }
+}
+
+fn telegram_status(store: &MonitorStore, request: Request) {
+    let Some(user_id) = auth::session_user(store, &request) else {
+        return respond_json(request, 401, &json!({"error": "unauthorized"}));
+    };
+    match store.telegram_status(&user_id) {
+        Some(linked) => respond_json(request, 200, &json!({"linked": linked})),
+        None => respond_json(request, 401, &json!({"error": "unauthorized"})),
+    }
+}
+
+fn telegram_unlink(store: &MonitorStore, request: Request) {
+    let Some(user_id) = auth::session_user(store, &request) else {
+        return respond_json(request, 401, &json!({"error": "unauthorized"}));
+    };
+    match store.unlink_telegram(&user_id) {
+        Ok(_) => respond_json(request, 200, &json!({"linked": false})),
+        Err(err) => respond_json(request, 500, &json!({"error": err})),
+    }
+}
+
+#[derive(Deserialize)]
+struct TelegramUpdate {
+    #[serde(default)]
+    message: Option<TelegramMessage>,
+}
+
+#[derive(Deserialize)]
+struct TelegramMessage {
+    chat: TelegramChat,
+    #[serde(default)]
+    text: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct TelegramChat {
+    id: i64,
+}
+
+/// Public Telegram webhook. Verifies the secret header, binds a chat to the
+/// account that owns a `/start <code>` payload and confirms over the Bot API.
+///
+/// The response is sent before the confirmation call so Telegram sees a quick
+/// 200. Unknown or malformed updates are acknowledged and ignored.
+pub fn handle_webhook(store: &MonitorStore, telegram: &TelegramConfig, mut request: Request) {
+    if !telegram.is_enabled() {
+        return respond_json(
+            request,
+            503,
+            &json!({"error": "Telegram alerts are not configured on this server"}),
+        );
+    }
+    let Some(secret) = store.webhook_secret() else {
+        return respond_json(
+            request,
+            503,
+            &json!({"error": "Telegram webhook is not initialized"}),
+        );
+    };
+    let presented = header_value(&request, "X-Telegram-Bot-Api-Secret-Token")
+        .unwrap_or_default()
+        .to_string();
+    if !constant_time_eq(presented.as_bytes(), secret.as_bytes()) {
+        return respond_json(request, 401, &json!({"error": "unauthorized"}));
+    }
+    let body = match read_body(&mut request) {
+        Ok(body) => body,
+        Err(error) => return respond_body_error(request, error),
+    };
+    let update: TelegramUpdate = match serde_json::from_str(&body) {
+        Ok(update) => update,
+        // Malformed updates are ignored; Telegram must not keep retrying.
+        Err(_) => return respond_json(request, 200, &json!({"ok": true})),
+    };
+    let Some(message) = update.message else {
+        return respond_json(request, 200, &json!({"ok": true}));
+    };
+    let Some(code) = message.text.as_deref().and_then(start_code) else {
+        return respond_json(request, 200, &json!({"ok": true}));
+    };
+    let link = match store.consume_link_code(code) {
+        Ok(link) => link,
+        Err(err) => {
+            eprintln!("rotor-coord: telegram webhook: {err}");
+            return respond_json(request, 200, &json!({"ok": true}));
+        }
+    };
+    if let Some(link) = link {
+        let _ = store.link_telegram(&link.user_id, message.chat.id);
+        respond_json(request, 200, &json!({"ok": true}));
+        let _ = telegram.sender().send_message(
+            message.chat.id,
+            "Rotor monitor: Telegram alerts linked. You will receive notifications for your watched addresses. Send no keys here.",
+        );
+    } else {
+        respond_json(request, 200, &json!({"ok": true}));
+    }
+}
+
+/// Extract `<code>` from `/start <code>` (also `/start@bot <code>`).
+fn start_code(text: &str) -> Option<&str> {
+    let mut parts = text.split_whitespace();
+    let command = parts.next()?;
+    if command != "/start" && !command.starts_with("/start@") {
+        return None;
+    }
+    let code = parts.next()?;
+    (code.len() <= 64
+        && code
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')))
+    .then_some(code)
+}
+
+fn header_value<'a>(request: &'a Request, name: &'static str) -> Option<&'a str> {
+    request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv(name))
+        .map(|header| header.value.as_str())
+}
+
+/// Constant-time byte comparison for the webhook secret.
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut difference = 0u8;
+    for (left, right) in left.iter().zip(right) {
+        difference |= left ^ right;
+    }
+    difference == 0
+}
+
 #[derive(Deserialize)]
 struct ExposureRequest {
     addresses: Vec<ExposureEntry>,
@@ -550,5 +729,212 @@ mod tests {
         assert!(limiter.allow("127.0.0.1"));
         std::thread::sleep(Duration::from_millis(5));
         assert!(limiter.allow("127.0.0.1"));
+    }
+
+    struct WebhookHarness {
+        path: std::path::PathBuf,
+        store: std::sync::Arc<MonitorStore>,
+        config: TelegramConfig,
+        addr: std::net::SocketAddr,
+        server: std::sync::Arc<tiny_http::Server>,
+        join: Option<std::thread::JoinHandle<()>>,
+        mock: TelegramMock,
+    }
+
+    impl WebhookHarness {
+        fn new(tag: &str) -> Self {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_nanos())
+                .unwrap_or(0);
+            let path = std::env::temp_dir().join(format!(
+                "rotor-monitor-telegram-{}-{nanos}-{tag}.json",
+                std::process::id()
+            ));
+            let store = std::sync::Arc::new(MonitorStore::open(&path).expect("open store"));
+            store.ensure_webhook_secret().expect("secret");
+            let mock = TelegramMock::start();
+            let config = TelegramConfig {
+                bot_token: "test-token".to_string(),
+                bot_username: "test_bot".to_string(),
+                api_base: mock.base.clone(),
+            };
+            let server =
+                std::sync::Arc::new(tiny_http::Server::http("127.0.0.1:0").expect("http server"));
+            let addr = server.server_addr().to_ip().expect("addr");
+            let handler_store = std::sync::Arc::clone(&store);
+            let handler_config = config.clone();
+            let handler_server = std::sync::Arc::clone(&server);
+            let join = std::thread::spawn(move || {
+                for request in handler_server.incoming_requests() {
+                    handle_webhook(&handler_store, &handler_config, request);
+                }
+            });
+            Self {
+                path,
+                store,
+                config,
+                addr,
+                server,
+                join: Some(join),
+                mock,
+            }
+        }
+
+        fn post(&self, secret: Option<&str>, body: &str) -> u16 {
+            let url = format!("http://{}/api/v1/telegram/webhook", self.addr);
+            let mut request = ureq::post(&url).set("Content-Type", "application/json");
+            if let Some(secret) = secret {
+                request = request.set("X-Telegram-Bot-Api-Secret-Token", secret);
+            }
+            match request.send_string(body) {
+                Ok(response) => response.status(),
+                Err(ureq::Error::Status(code, _)) => code,
+                Err(_) => 0,
+            }
+        }
+    }
+
+    impl Drop for WebhookHarness {
+        fn drop(&mut self) {
+            self.server.unblock();
+            if let Some(join) = self.join.take() {
+                let _ = join.join();
+            }
+            let _ = std::fs::remove_file(&self.path);
+            let _ = std::fs::remove_file(format!("{}.tmp", self.path.display()));
+        }
+    }
+
+    /// Bot API mock recording message bodies.
+    struct TelegramMock {
+        base: String,
+        bodies: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+        stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        join: Option<std::thread::JoinHandle<()>>,
+    }
+
+    impl TelegramMock {
+        fn start() -> Self {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind mock");
+            listener.set_nonblocking(true).expect("nonblocking");
+            let base = format!("http://{}", listener.local_addr().expect("addr"));
+            let bodies = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let recorded = std::sync::Arc::clone(&bodies);
+            let stopping = std::sync::Arc::clone(&stop);
+            let join = std::thread::spawn(move || {
+                while !stopping.load(std::sync::atomic::Ordering::SeqCst) {
+                    match listener.accept() {
+                        Ok((mut stream, _)) => {
+                            use std::io::{Read, Write};
+                            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                            let mut buffer = [0u8; 8192];
+                            let read = stream.read(&mut buffer).unwrap_or(0);
+                            let text = String::from_utf8_lossy(&buffer[..read]).into_owned();
+                            if let Some(position) = text.find("\r\n\r\n") {
+                                recorded
+                                    .lock()
+                                    .expect("bodies")
+                                    .push(text[position + 4..].to_string());
+                            }
+                            let response = "HTTP/1.1 200 OK\r\n\
+                                Content-Type: application/json\r\n\
+                                Content-Length: 11\r\n\
+                                Connection: close\r\n\r\n{\"ok\":true}";
+                            let _ = stream.write_all(response.as_bytes());
+                        }
+                        Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(Duration::from_millis(5));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+            Self {
+                base,
+                bodies,
+                stop,
+                join: Some(join),
+            }
+        }
+
+        fn count(&self) -> usize {
+            self.bodies.lock().expect("bodies").len()
+        }
+
+        fn wait_for(&self, expected: usize) {
+            let deadline = std::time::Instant::now() + Duration::from_secs(3);
+            while std::time::Instant::now() < deadline && self.count() < expected {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+
+    impl Drop for TelegramMock {
+        fn drop(&mut self) {
+            self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+            if let Some(join) = self.join.take() {
+                let _ = join.join();
+            }
+        }
+    }
+
+    #[test]
+    fn webhook_rejects_a_wrong_or_missing_secret() {
+        let harness = WebhookHarness::new("secret");
+        let user = harness
+            .store
+            .upsert_user("0x1111111111111111111111111111111111111111");
+        let user = user.expect("user");
+        let link = harness.store.create_link_code(&user.id).expect("code");
+        let body = format!(
+            r#"{{"update_id":1,"message":{{"message_id":1,"chat":{{"id":777,"type":"private"}},"text":"/start {}"}}}}"#,
+            link.code
+        );
+
+        assert_eq!(harness.post(None, &body), 401);
+        assert_eq!(harness.post(Some("wrong-secret"), &body), 401);
+        assert_eq!(harness.store.telegram_status(&user.id), Some(false));
+        // The rejected call did not consume the code.
+        assert!(
+            harness
+                .store
+                .consume_link_code(&link.code)
+                .expect("peek")
+                .is_some()
+        );
+        assert_eq!(harness.mock.count(), 0);
+        let _ = &harness.config;
+    }
+
+    #[test]
+    fn webhook_binds_the_chat_and_confirms_once() {
+        let harness = WebhookHarness::new("bind");
+        let user = harness
+            .store
+            .upsert_user("0x1111111111111111111111111111111111111111")
+            .expect("user");
+        let link = harness.store.create_link_code(&user.id).expect("code");
+        let secret = harness.store.webhook_secret().expect("secret");
+        let body = format!(
+            r#"{{"update_id":1,"message":{{"message_id":1,"chat":{{"id":777,"type":"private"}},"text":"/start {}"}}}}"#,
+            link.code
+        );
+
+        assert_eq!(harness.post(Some(&secret), &body), 200);
+        assert_eq!(harness.store.telegram_status(&user.id), Some(true));
+        let bound = harness.store.user(&user.id).expect("user");
+        assert_eq!(bound.telegram_chat_id, Some(777));
+        harness.mock.wait_for(1);
+        assert_eq!(harness.mock.count(), 1);
+        let bodies = harness.mock.bodies.lock().expect("bodies");
+        assert!(bodies[0].contains("\"chat_id\":777"));
+        drop(bodies);
+
+        // Single-use: replaying the update sends no second confirmation.
+        assert_eq!(harness.post(Some(&secret), &body), 200);
+        harness.mock.wait_for(1);
+        assert_eq!(harness.mock.count(), 1);
     }
 }
