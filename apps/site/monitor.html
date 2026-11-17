@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - cabinet</title>
-<link rel="stylesheet" href="/site.css?v=20261117i">
+<link rel="stylesheet" href="/site.css?v=20261118a">
 </head>
 <body>
 <header class="site-nav">
@@ -131,8 +131,23 @@
     <p id="monitor-settings-error" class="error monitor-status" role="alert" hidden></p>
     <p id="monitor-settings-status" class="muted monitor-status" role="status" hidden></p>
   </section>
+
+  <section class="card monitor-card">
+    <h2>Telegram alerts</h2>
+    <p class="muted monitor-note">Get alerts for your watched addresses in Telegram. Linking shares no private key, WIF or seed phrase, and you can unlink at any time.</p>
+    <p id="monitor-telegram-state" class="monitor-telegram-state" role="status" aria-live="polite">Sign in to manage Telegram alerts.</p>
+    <div class="monitor-telegram-actions">
+      <button type="button" id="monitor-telegram-link" disabled>Link Telegram</button>
+      <button type="button" id="monitor-telegram-unlink" hidden>Unlink Telegram</button>
+    </div>
+    <div id="monitor-telegram-code-box" class="monitor-telegram-code" hidden>
+      <p>Send <code class="mono">/start <span id="monitor-telegram-code"></span></code> to the bot, or <a id="monitor-telegram-deep-link" href="#" target="_blank" rel="noopener noreferrer">open Telegram</a> and press Start. The code expires after a short time.</p>
+      <p class="muted monitor-note">Waiting for the bot to confirm the link.</p>
+    </div>
+    <p id="monitor-telegram-error" class="error monitor-status" role="alert" hidden></p>
+  </section>
 </main>
 
-<script src="/cabinet.js?v=20261117f"></script>
+<script src="/cabinet.js?v=20261118a"></script>
 </body>
 </html>
