@@ -6,6 +6,8 @@
   var TOKEN_KEY = 'rotor-monitor-token';
   var API = '/api/v1/monitor';
   var POLL_MS = 15000;
+  var TELEGRAM_POLL_MS = 3000;
+  var TELEGRAM_POLL_MAX_MS = 10 * 60 * 1000;
   var PROVIDER_ORDER = ['evm', 'solana', 'tron', 'btc'];
   var CHAIN_LABELS = { evm: 'EVM', solana: 'Solana', tron: 'TRON', btc: 'Bitcoin' };
   var PROVIDER_HINTS = {
@@ -28,6 +30,7 @@
     watches: [],
     events: [],
     settingsDirty: false,
+    telegram: { linked: false, known: false, busy: false, pending: false, pollTimer: null, deadline: 0 },
     busy: false,
     busyChain: '',
     refreshing: false,
@@ -74,7 +77,14 @@
     alerts: byId('monitor-alerts-enabled'),
     settingsSave: byId('monitor-settings-save'),
     settingsError: byId('monitor-settings-error'),
-    settingsStatus: byId('monitor-settings-status')
+    settingsStatus: byId('monitor-settings-status'),
+    telegramState: byId('monitor-telegram-state'),
+    telegramLink: byId('monitor-telegram-link'),
+    telegramUnlink: byId('monitor-telegram-unlink'),
+    telegramCodeBox: byId('monitor-telegram-code-box'),
+    telegramCode: byId('monitor-telegram-code'),
+    telegramDeepLink: byId('monitor-telegram-deep-link'),
+    telegramError: byId('monitor-telegram-error')
   };
 
   /* ------------------------------------------------------------------- api */
@@ -177,6 +187,11 @@
     els.settingsError.hidden = !message;
   }
 
+  function setTelegramError(message) {
+    els.telegramError.textContent = message || '';
+    els.telegramError.hidden = !message;
+  }
+
   function setStatus(el, message, kind) {
     el.textContent = message || '';
     el.hidden = !message;
@@ -195,6 +210,7 @@
     els.alerts.disabled = !active;
     els.settingsSave.disabled = !active;
     els.settingsSave.textContent = 'Save settings';
+    renderTelegram();
     renderProviders();
   }
 
@@ -460,6 +476,237 @@
     els.alerts.checked = s.alerts_enabled;
   }
 
+  /* --------------------------------------------------------------- telegram */
+
+  function renderTelegram() {
+    var tg = state.telegram;
+
+    if (!state.token) {
+      els.telegramState.textContent = 'Sign in to manage Telegram alerts.';
+      els.telegramState.className = 'monitor-telegram-state';
+      els.telegramLink.hidden = false;
+      els.telegramLink.disabled = true;
+      els.telegramLink.textContent = 'Link Telegram';
+      els.telegramUnlink.hidden = true;
+      els.telegramCodeBox.hidden = true;
+      return;
+    }
+
+    if (!tg.known) {
+      els.telegramState.textContent = 'Checking Telegram status…';
+      els.telegramState.className = 'monitor-telegram-state';
+      els.telegramLink.hidden = false;
+      els.telegramLink.disabled = true;
+      els.telegramLink.textContent = 'Link Telegram';
+      els.telegramUnlink.hidden = true;
+      els.telegramCodeBox.hidden = true;
+      return;
+    }
+
+    if (tg.linked) {
+      els.telegramState.textContent = 'Telegram is linked.';
+      els.telegramState.className = 'monitor-telegram-state ok';
+      els.telegramLink.hidden = true;
+      els.telegramLink.disabled = true;
+      els.telegramLink.textContent = 'Link Telegram';
+      els.telegramUnlink.hidden = false;
+      els.telegramUnlink.disabled = tg.busy;
+      els.telegramUnlink.textContent = tg.busy ? 'Unlinking…' : 'Unlink Telegram';
+      els.telegramCodeBox.hidden = true;
+      return;
+    }
+
+    els.telegramState.textContent = tg.pending
+      ? 'Waiting for the bot to confirm the link…'
+      : 'Telegram is not linked.';
+    els.telegramState.className = 'monitor-telegram-state';
+    els.telegramLink.hidden = false;
+    els.telegramLink.disabled = tg.busy || tg.pending;
+    els.telegramLink.textContent = tg.busy
+      ? 'Starting link…'
+      : (tg.pending ? 'Waiting for Telegram…' : 'Link Telegram');
+    els.telegramUnlink.hidden = true;
+    els.telegramCodeBox.hidden = !tg.pending;
+  }
+
+  function stopTelegramPolling() {
+    if (state.telegram.pollTimer !== null) {
+      window.clearInterval(state.telegram.pollTimer);
+      state.telegram.pollTimer = null;
+    }
+  }
+
+  /* Only http(s) t.me links and tg: links are allowed as deep links. */
+  function safeTelegramDeepLink(value) {
+    var raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) return '';
+    try {
+      var url = new URL(raw, location.origin);
+      if (url.protocol === 'https:' && (url.hostname === 't.me' || url.hostname === 'telegram.me')) {
+        return url.href;
+      }
+      if (url.protocol === 'tg:') return url.href;
+    } catch (err) {
+      /* fall through */
+    }
+    return '';
+  }
+
+  async function loadTelegramStatus() {
+    if (!state.token) return;
+    var token = state.token;
+    try {
+      var data = await api('/telegram/status');
+      if (state.token !== token) return;
+      state.telegram.known = true;
+      state.telegram.linked = !!(data && data.linked === true);
+      if (state.telegram.linked) {
+        state.telegram.pending = false;
+        stopTelegramPolling();
+        setTelegramError('');
+      }
+      renderTelegram();
+    } catch (err) {
+      if (state.token !== token) return;
+      state.telegram.known = true;
+      renderTelegram();
+      if (err && err.status === 401) return;
+      setTelegramError('Could not check Telegram status: ' +
+        (err && err.message ? err.message : 'unknown error'));
+    }
+  }
+
+  async function pollTelegramStatus() {
+    if (!state.token) {
+      stopTelegramPolling();
+      return;
+    }
+    if (Date.now() > state.telegram.deadline) {
+      stopTelegramPolling();
+      state.telegram.pending = false;
+      setTelegramError('Linking timed out. Start the link again to get a fresh code.');
+      renderTelegram();
+      return;
+    }
+    var token = state.token;
+    try {
+      var data = await api('/telegram/status');
+      if (state.token !== token) return;
+      state.telegram.known = true;
+      if (data && data.linked === true) {
+        state.telegram.linked = true;
+        state.telegram.pending = false;
+        stopTelegramPolling();
+        setTelegramError('');
+        renderTelegram();
+        return;
+      }
+      renderTelegram();
+    } catch (err) {
+      if (state.token !== token) return;
+      stopTelegramPolling();
+      state.telegram.pending = false;
+      renderTelegram();
+      if (err && err.status === 401) {
+        resetSession('Your session expired or was rejected. Sign in again with a signing wallet.');
+        return;
+      }
+      setTelegramError('Could not check Telegram status: ' +
+        (err && err.message ? err.message : 'unknown error'));
+    }
+  }
+
+  function startTelegramPolling() {
+    stopTelegramPolling();
+    state.telegram.deadline = Date.now() + TELEGRAM_POLL_MAX_MS;
+    state.telegram.pollTimer = window.setInterval(pollTelegramStatus, TELEGRAM_POLL_MS);
+    renderTelegram();
+  }
+
+  async function linkTelegram() {
+    if (!state.token) return;
+    setTelegramError('');
+    state.telegram.busy = true;
+    state.telegram.pending = false;
+    els.telegramCode.textContent = '';
+    renderTelegram();
+    try {
+      var data = await api('/telegram/link', { method: 'POST' });
+      if (!data || typeof data.code !== 'string' || !data.code) {
+        throw new Error('the server returned no linking code');
+      }
+      var deepLink = safeTelegramDeepLink(data.deep_link);
+      state.telegram.busy = false;
+      state.telegram.known = true;
+      state.telegram.linked = false;
+      state.telegram.pending = true;
+      els.telegramCode.textContent = data.code;
+      if (deepLink) {
+        els.telegramDeepLink.hidden = false;
+        els.telegramDeepLink.href = deepLink;
+        window.open(deepLink, '_blank', 'noopener,noreferrer');
+      } else {
+        els.telegramDeepLink.hidden = true;
+        els.telegramDeepLink.removeAttribute('href');
+      }
+      startTelegramPolling();
+    } catch (err) {
+      state.telegram.busy = false;
+      renderTelegram();
+      if (err && err.status === 401) {
+        resetSession('Your session expired or was rejected. Sign in again with a signing wallet.');
+        return;
+      }
+      if (err && err.status === 409) {
+        state.telegram.known = true;
+        state.telegram.linked = true;
+        setTelegramError('Telegram is already linked; unlink it first.');
+        renderTelegram();
+        return;
+      }
+      if (err && err.status === 503) {
+        setTelegramError('Telegram is not configured on this server.');
+        return;
+      }
+      if (err && err.status !== undefined && err.status !== 0) {
+        setTelegramError('Could not start Telegram linking: ' +
+          (err.message ? err.message : 'request failed') + '.');
+      } else {
+        setTelegramError('Network error while starting Telegram linking: ' +
+          (err && err.message ? err.message : 'unknown error') + '.');
+      }
+    }
+  }
+
+  async function unlinkTelegram() {
+    if (!state.token) return;
+    setTelegramError('');
+    stopTelegramPolling();
+    state.telegram.pending = false;
+    state.telegram.busy = true;
+    els.telegramCode.textContent = '';
+    renderTelegram();
+    try {
+      await api('/telegram/link', { method: 'DELETE' });
+      state.telegram.known = true;
+      state.telegram.linked = false;
+      if (els.telegramDeepLink) {
+        els.telegramDeepLink.hidden = true;
+        els.telegramDeepLink.removeAttribute('href');
+      }
+    } catch (err) {
+      if (err && err.status === 401) {
+        resetSession('Your session expired or was rejected. Sign in again with a signing wallet.');
+        return;
+      }
+      setTelegramError('Could not unlink Telegram: ' +
+        (err && err.message ? err.message : 'unknown error'));
+    } finally {
+      state.telegram.busy = false;
+      renderTelegram();
+    }
+  }
+
   /* ------------------------------------------------------------------ flow */
 
   /* --------------------------------------------------------- wallet adapters */
@@ -721,13 +968,16 @@
 
   function resetSession(message) {
     stopPolling();
+    stopTelegramPolling();
     saveToken('');
     state.token = '';
     state.user = null;
     state.settings = settingsFrom({});
+    state.telegram = { linked: false, known: false, busy: false, pending: false, pollTimer: null, deadline: 0 };
     state.watches = [];
     state.events = [];
     state.settingsDirty = false;
+    setTelegramError('');
     setAuthenticated(false);
     hideWalletError();
     hideSessionError();
@@ -816,6 +1066,7 @@
       renderWatches(state.watches);
       renderEvents(state.events);
       if (!state.settingsDirty) renderSettings(state.settings);
+      if (!state.telegram.known) loadTelegramStatus();
       setWalletState('Session active. Refreshing every 15 s.', 'ok');
     } catch (err) {
       if (state.token !== token) return;
@@ -1268,6 +1519,8 @@
   els.logout.addEventListener('click', logout);
   els.addForm.addEventListener('submit', addAddress);
   els.settingsForm.addEventListener('submit', saveSettings);
+  els.telegramLink.addEventListener('click', linkTelegram);
+  els.telegramUnlink.addEventListener('click', unlinkTelegram);
   els.recovery.addEventListener('change', function () { state.settingsDirty = true; });
   els.alerts.addEventListener('change', function () { state.settingsDirty = true; });
   els.copyAccount.addEventListener('click', function () {
@@ -1285,6 +1538,7 @@
   renderWatches([]);
   renderEvents([]);
   renderSettings(state.settings);
+  renderTelegram();
   els.eventsState.textContent = 'Sign in to load the event feed.';
   els.eventsState.hidden = false;
 
