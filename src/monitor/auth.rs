@@ -1,18 +1,34 @@
-//! SIWE-style wallet login for the address monitor.
+//! Multi-chain wallet login for the address monitor.
 //!
-//! The message is built from the server challenge and verified with EIP-191
-//! `personal_sign` semantics: `keccak256("\x19Ethereum Signed Message:\n" ++
-//! len ++ message)`, then ECDSA public-key recovery with k256. The submitted
-//! message must be byte-identical to the stored challenge message, so a
-//! message signed for a different domain is rejected.
+//! The message is built from the server challenge and bound to the chain by
+//! the stored challenge record. Verification is chain-specific:
+//!
+//! * EVM: EIP-191 `personal_sign` with k256 recovery.
+//! * Solana: ed25519 over the exact UTF-8 message bytes (`verify_strict`).
+//! * TRON: `signMessageV2` prehash and k256 recovery.
+//!
+//! The submitted message must be byte-identical to the stored challenge
+//! message, so a message signed for a different domain is rejected.
 
 use tiny_http::Request;
 
 use crate::hashes::keccak256;
-use crate::monitor::store::MonitorStore;
+use crate::monitor::store::{self, MonitorStore};
 
 /// Challenge lifetime in seconds.
 pub const CHALLENGE_TTL_SECS: u64 = 600;
+
+/// Chains that can be used to log in. BTC is watch-only.
+pub fn login_chain(chain: &str) -> Result<&'static str, String> {
+    match store::canonical_chain(chain)? {
+        "evm" => Ok("evm"),
+        "solana" => Ok("solana"),
+        "tron" => Ok("tron"),
+        other => Err(format!(
+            "unsupported login chain: {other}; login supports evm, solana and tron"
+        )),
+    }
+}
 
 /// The SIWE message exactly as the user's wallet displays it.
 pub fn challenge_message(
@@ -122,13 +138,155 @@ fn address_from_verifying_key(key: &k256::ecdsa::VerifyingKey) -> String {
     address
 }
 
-/// Verify the challenge, then consume it. A failed signature or a wrong
-/// message must not burn the nonce, so consumption is the last step.
-pub fn login(
-    store: &MonitorStore,
+/// TRON `signMessageV2` prehash: `keccak256("\x19TRON Signed Message:\n" ++
+/// decimal byte-length ++ message)`.
+pub fn tron_message_hash(message: &str) -> [u8; 32] {
+    let prefix = format!("\x19TRON Signed Message:\n{}", message.len());
+    let mut data = Vec::with_capacity(prefix.len() + message.len());
+    data.extend_from_slice(prefix.as_bytes());
+    data.extend_from_slice(message.as_bytes());
+    keccak256(&data)
+}
+
+/// Verify a Solana login: the claimed address is the Base58 ed25519 public
+/// key and the 64-byte signature is hex or Base64 over the message bytes.
+pub fn verify_solana(message: &str, address: &str, signature: &str) -> Result<String, String> {
+    let canonical = store::canonicalize_solana(address)?;
+    let public: [u8; 32] = bs58::decode(&canonical)
+        .into_vec()
+        .map_err(|err| format!("invalid Solana address: {err}"))?
+        .try_into()
+        .map_err(|_| "Solana address must be 32 bytes".to_string())?;
+    let signature = decode_solana_signature(signature)?;
+    let key = ed25519_dalek::VerifyingKey::from_bytes(&public)
+        .map_err(|err| format!("invalid Solana public key: {err}"))?;
+    key.verify_strict(
+        message.as_bytes(),
+        &ed25519_dalek::Signature::from_bytes(&signature),
+    )
+    .map_err(|err| format!("invalid Solana signature: {err}"))?;
+    Ok(canonical)
+}
+
+/// Verify a TRON `signMessageV2` signature and derive the signer address.
+pub fn verify_tron(message: &str, address: &str, signature: &str) -> Result<String, String> {
+    use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
+
+    let bytes = decode_hex(signature)?;
+    if bytes.len() != 65 {
+        return Err("signature must be 65 bytes (r || s || v)".to_string());
+    }
+    let signature =
+        Signature::from_slice(&bytes[..64]).map_err(|err| format!("invalid signature: {err}"))?;
+    let recovery = match bytes[64] {
+        0 | 1 => bytes[64],
+        27 | 28 => bytes[64] - 27,
+        other => return Err(format!("unsupported signature recovery byte: {other}")),
+    };
+    let recovery_id =
+        RecoveryId::from_byte(recovery).ok_or_else(|| "invalid recovery id".to_string())?;
+    let prehash = tron_message_hash(message);
+    let verifying_key = VerifyingKey::recover_from_prehash(&prehash, &signature, recovery_id)
+        .map_err(|err| format!("cannot recover public key: {err}"))?;
+    let point = verifying_key.to_encoded_point(false);
+    let hash = keccak256(&point.as_bytes()[1..]);
+    let mut payload = [0u8; 21];
+    payload[0] = 0x41;
+    payload[1..].copy_from_slice(&hash[12..]);
+    let derived = crate::base58::encode_check(&payload);
+    let claimed = store::canonicalize_tron(address)?;
+    if derived != claimed {
+        return Err("signature does not match the challenge address".to_string());
+    }
+    Ok(claimed)
+}
+
+fn decode_solana_signature(text: &str) -> Result<[u8; 64], String> {
+    let trimmed = text.trim();
+    let hex = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+        .unwrap_or(trimmed);
+    let bytes = if hex.len() == 128 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        decode_hex(hex)?
+    } else {
+        decode_base64(trimmed)?
+    };
+    bytes
+        .try_into()
+        .map_err(|_| "Solana signature must be 64 bytes".to_string())
+}
+
+/// Standard Base64 decoder (wallets return Base64, not hex).
+fn decode_base64(text: &str) -> Result<Vec<u8>, String> {
+    let mut out = Vec::with_capacity(text.len() * 3 / 4);
+    let mut accumulator = 0u32;
+    let mut bits = 0u32;
+    let mut padding = 0usize;
+    for byte in text.bytes() {
+        if byte == b'=' {
+            padding += 1;
+            continue;
+        }
+        if padding > 0 {
+            return Err("invalid base64 padding".to_string());
+        }
+        let value = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' | b'-' => 62,
+            b'/' | b'_' => 63,
+            _ => return Err("invalid base64 character".to_string()),
+        } as u32;
+        accumulator = ((accumulator << 6) | value) & 0x00ff_ffff;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(((accumulator >> bits) & 0xff) as u8);
+        }
+    }
+    if padding > 2 || bits >= 6 || (accumulator & ((1 << bits) - 1)) != 0 {
+        return Err("invalid base64 length".to_string());
+    }
+    Ok(out)
+}
+
+fn verify_identity(
+    chain: &str,
     message: &str,
     signature: &str,
+    address: &str,
+) -> Result<String, String> {
+    match chain {
+        "evm" => {
+            let claimed = store::canonicalize_evm(address)?;
+            let recovered = recover_address(message, signature)?;
+            if recovered != claimed {
+                return Err("signature does not match the challenge address".to_string());
+            }
+            Ok(recovered)
+        }
+        "solana" => verify_solana(message, address, signature),
+        "tron" => verify_tron(message, address, signature),
+        other => Err(format!("unsupported login chain: {other}")),
+    }
+}
+
+/// Verify the challenge, then consume it. A failed signature or a wrong
+/// message must not burn the nonce, so consumption is the last step.
+///
+/// `session_user` is the account resolved from an optional bearer token; when
+/// present the verified identity is attached to that account instead of
+/// resolving or creating another one.
+pub fn login(
+    store: &MonitorStore,
+    chain: &str,
+    message: &str,
+    signature: &str,
+    session_user: Option<&str>,
 ) -> Result<(crate::monitor::store::User, String), String> {
+    let chain = login_chain(chain)?;
     let nonce = message_nonce(message).ok_or_else(|| "message has no nonce".to_string())?;
     let challenge = store
         .challenge(nonce)
@@ -136,20 +294,34 @@ pub fn login(
     if challenge.message != message {
         return Err("message does not match the challenge".to_string());
     }
+    if challenge.chain != chain {
+        return Err("challenge chain does not match the request chain".to_string());
+    }
     if crate::coordinator::state::now_secs() > challenge.expires_at {
         return Err("challenge expired".to_string());
     }
-    let recovered = recover_address(message, signature)?;
-    if recovered != challenge.address {
-        return Err("signature does not match the challenge address".to_string());
-    }
+    let verified = verify_identity(chain, message, signature, &challenge.address)?;
+    // Verification succeeded: the challenge becomes single-use.
     let consumed = store
         .consume_challenge(nonce)?
         .ok_or_else(|| "unknown or already used nonce".to_string())?;
-    if consumed.message != message {
+    if consumed.message != message || consumed.chain != chain {
         return Err("message does not match the challenge".to_string());
     }
-    let user = store.upsert_user(&recovered)?;
+    let user = match session_user {
+        Some(user_id) => match store.find_user_by_identity(chain, &verified) {
+            Some(owner) if owner.id != user_id => {
+                return Err("address is already linked to another account".to_string());
+            }
+            _ => store
+                .add_identity(user_id, chain, &verified, true)?
+                .ok_or_else(|| "unknown session".to_string())?,
+        },
+        None => match store.find_user_by_identity(chain, &verified) {
+            Some(user) => user,
+            None => store.upsert_identity(chain, &verified)?,
+        },
+    };
     let token = store.create_session(&user.id)?;
     Ok((user, token))
 }
@@ -297,6 +469,74 @@ mod tests {
     }
 
     #[test]
+    fn solana_signature_verifies_over_the_exact_message() {
+        use ed25519_dalek::Signer;
+
+        let key = ed25519_dalek::SigningKey::from_bytes(&[0x33; 32]);
+        let address = bs58::encode(key.verifying_key().to_bytes()).into_string();
+        let message = challenge_message(
+            "localhost",
+            "http://localhost:7887",
+            &address,
+            "aabbccdd",
+            1_700_000_000,
+            1_700_000_600,
+        );
+        let signature = key.sign(message.as_bytes());
+        let hex_signature = format!(
+            "0x{}",
+            signature
+                .to_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+        assert_eq!(
+            verify_solana(&message, &address, &hex_signature).unwrap(),
+            address
+        );
+        // A different message does not verify against the same signature.
+        assert!(verify_solana(&format!("{message} "), &address, &hex_signature).is_err());
+        assert!(verify_solana(&message, &address, "deadbeef").is_err());
+    }
+
+    #[test]
+    fn tron_sign_message_v2_recovers_the_signer() {
+        let key = signing_key();
+        let point = key.verifying_key().to_encoded_point(false);
+        let hash = keccak256(&point.as_bytes()[1..]);
+        let mut payload = [0u8; 21];
+        payload[0] = 0x41;
+        payload[1..].copy_from_slice(&hash[12..]);
+        let address = crate::base58::encode_check(&payload);
+        let message = challenge_message(
+            "localhost",
+            "http://localhost:7887",
+            &address,
+            "aabbccdd",
+            1_700_000_000,
+            1_700_000_600,
+        );
+        let (signature, recovery) = key
+            .sign_prehash_recoverable(&tron_message_hash(&message))
+            .expect("sign");
+        let mut bytes = signature.to_bytes().to_vec();
+        bytes.push(recovery.to_byte() + 27);
+        let hex_signature = format!(
+            "0x{}",
+            bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        );
+        assert_eq!(
+            verify_tron(&message, &address, &hex_signature).unwrap(),
+            address
+        );
+        assert!(verify_tron(&format!("{message} "), &address, &hex_signature).is_err());
+    }
+
+    #[test]
     fn recovery_matches_the_signing_key() {
         let key = signing_key();
         let address = address_of(&key);
@@ -333,11 +573,11 @@ mod tests {
             now + CHALLENGE_TTL_SECS,
         );
         temp.store
-            .put_challenge(&nonce, &address, &message, now + CHALLENGE_TTL_SECS)
+            .put_challenge(&nonce, "evm", &address, &message, now + CHALLENGE_TTL_SECS)
             .expect("store challenge");
         let signature = sign_message(&key, &message);
 
-        let (user, token) = login(&temp.store, &message, &signature).expect("login");
+        let (user, token) = login(&temp.store, "evm", &message, &signature, None).expect("login");
         assert_eq!(user.address, address);
         assert_eq!(
             temp.store.resolve_session(&token).as_deref(),
@@ -345,7 +585,7 @@ mod tests {
         );
 
         // Replay is rejected because the challenge is gone.
-        assert!(login(&temp.store, &message, &signature).is_err());
+        assert!(login(&temp.store, "evm", &message, &signature, None).is_err());
     }
 
     #[test]
@@ -364,14 +604,14 @@ mod tests {
             now + CHALLENGE_TTL_SECS,
         );
         temp.store
-            .put_challenge(&nonce, &address, &message, now + CHALLENGE_TTL_SECS)
+            .put_challenge(&nonce, "evm", &address, &message, now + CHALLENGE_TTL_SECS)
             .expect("store challenge");
         let signature = sign_message(&key, &message);
 
         // A wrong signature must not consume the challenge.
         let mutated = mutated_signature(&signature);
-        assert!(login(&temp.store, &message, &mutated).is_err());
-        assert!(login(&temp.store, &message, &signature).is_ok());
+        assert!(login(&temp.store, "evm", &message, &mutated, None).is_err());
+        assert!(login(&temp.store, "evm", &message, &signature, None).is_ok());
     }
 
     #[test]
@@ -390,15 +630,15 @@ mod tests {
             now + CHALLENGE_TTL_SECS,
         );
         temp.store
-            .put_challenge(&nonce, &address, &message, now + CHALLENGE_TTL_SECS)
+            .put_challenge(&nonce, "evm", &address, &message, now + CHALLENGE_TTL_SECS)
             .expect("store challenge");
         let signature = sign_message(&key, &message);
 
         let evil = message.replace("127.0.0.1 wants", "evil.example wants");
-        assert!(login(&temp.store, &evil, &signature).is_err());
+        assert!(login(&temp.store, "evm", &evil, &signature, None).is_err());
 
         let mutated = mutated_signature(&signature);
-        assert!(login(&temp.store, &message, &mutated).is_err());
+        assert!(login(&temp.store, "evm", &message, &mutated, None).is_err());
     }
 
     #[test]

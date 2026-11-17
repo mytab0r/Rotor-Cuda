@@ -6,10 +6,19 @@
   var TOKEN_KEY = 'rotor-monitor-token';
   var API = '/api/v1/monitor';
   var POLL_MS = 15000;
-  var SIWE_NOTE = 'No EVM wallet was detected in this browser. Rotor Monitor signs you in with a ' +
-    'Sign-In with Ethereum (EIP-4361) message: your wallet signs a one-time challenge, and the ' +
-    'signature proves the address is yours. No private key, WIF or seed phrase is ever requested. ' +
-    'Install or open a browser wallet (MetaMask, Rabby, Frame) and reload this page.';
+  var PROVIDER_ORDER = ['evm', 'solana', 'tron', 'btc'];
+  var CHAIN_LABELS = { evm: 'EVM', solana: 'Solana', tron: 'TRON', btc: 'Bitcoin' };
+  var PROVIDER_HINTS = {
+    evm: 'not detected — install MetaMask or Rabby',
+    solana: 'not detected — install Phantom',
+    tron: 'not detected — install TronLink',
+    btc: 'not detected — install Unisat'
+  };
+  var WALLET_NOTE = 'No browser wallet was detected. Rotor signs you in with a one-time challenge: ' +
+    'your wallet signs it, and the signature proves the address is yours. EVM (MetaMask/Rabby), ' +
+    'Solana (Phantom) and TRON (TronLink) can sign in. Bitcoin (Unisat) has no signature scheme yet: ' +
+    'after signing in with another chain you can import its addresses as unverified. No private key, ' +
+    'WIF or seed phrase is ever requested. Install a wallet and reload this page.';
 
   var state = {
     token: '',
@@ -19,6 +28,7 @@
     events: [],
     settingsDirty: false,
     busy: false,
+    busyChain: '',
     refreshing: false,
     pollTimer: null
   };
@@ -26,16 +36,24 @@
   function byId(id) { return document.getElementById(id); }
 
   var els = {
-    connect: byId('monitor-connect'),
     logout: byId('monitor-logout'),
     walletState: byId('monitor-wallet-state'),
     walletError: byId('monitor-wallet-error'),
+    providers: {
+      evm: byId('monitor-connect-evm'),
+      solana: byId('monitor-connect-solana'),
+      tron: byId('monitor-connect-tron'),
+      btc: byId('monitor-connect-btc')
+    },
+    providerNote: byId('monitor-provider-note'),
     accountLine: byId('monitor-account-line'),
     account: byId('monitor-account'),
     copyAccount: byId('monitor-copy-account'),
     noWallet: byId('monitor-no-wallet'),
-    siweNote: byId('monitor-siwe-note'),
-    copySiwe: byId('monitor-copy-siwe'),
+    walletNote: byId('monitor-wallet-note'),
+    copyWalletNote: byId('monitor-copy-wallet-note'),
+    identities: byId('monitor-identities'),
+    identitiesState: byId('monitor-identities-state'),
     sessionError: byId('monitor-session-error'),
     watches: byId('monitor-watches'),
     watchlistState: byId('monitor-watchlist-state'),
@@ -175,12 +193,18 @@
     els.alerts.disabled = !active;
     els.settingsSave.disabled = !active;
     els.settingsSave.textContent = 'Save settings';
+    renderProviders();
   }
 
   /* --------------------------------------------------------------- rendering */
 
   function renderAccount() {
     var address = state.user && state.user.address ? String(state.user.address) : '';
+    if (!address) {
+      var ids = identityList(state.user);
+      var primary = ids.filter(function (identity) { return identity.verified === true; })[0] || ids[0];
+      address = primary ? String(primary.address) : '';
+    }
     if (!address) {
       els.accountLine.hidden = true;
       els.account.textContent = '';
@@ -190,6 +214,76 @@
     els.account.textContent = address;
     els.accountLine.hidden = false;
     els.copyAccount.hidden = false;
+  }
+
+  /* Identities are the wallets linked to the account. Fall back to the primary
+   * address for backends that do not send an `identities` array yet. */
+  function identityList(user) {
+    var raw = user && Array.isArray(user.identities) ? user.identities : [];
+    var out = [];
+    raw.forEach(function (identity) {
+      if (identity && identity.address) out.push(identity);
+    });
+    if (!out.length && user && user.address) {
+      out.push({ chain: 'evm', address: String(user.address), verified: true });
+    }
+    return out;
+  }
+
+  function chainLabel(chain) {
+    var text = typeof chain === 'string' ? chain.toLowerCase() : '';
+    return CHAIN_LABELS[text] || (text ? text.toUpperCase() : 'CHAIN');
+  }
+
+  function identityItem(identity) {
+    var li = document.createElement('li');
+    li.className = 'monitor-identity';
+
+    var chain = document.createElement('span');
+    var token = chainToken(identity.chain);
+    chain.className = 'monitor-chain' + (token ? ' monitor-chain-' + token : '');
+    chain.textContent = chainLabel(identity.chain);
+    li.appendChild(chain);
+
+    var address = document.createElement('code');
+    address.className = 'mono monitor-watch-address';
+    address.textContent = identity.address || '';
+    li.appendChild(address);
+
+    var verified = document.createElement('span');
+    verified.className = identity.verified === true ? 'monitor-verified' : 'monitor-unverified';
+    verified.textContent = identity.verified === true ? 'verified' : 'unverified';
+    li.appendChild(verified);
+
+    return li;
+  }
+
+  function renderIdentities() {
+    els.identities.textContent = '';
+    if (!state.token) {
+      els.identitiesState.textContent = 'Sign in to see the wallets linked to this cabinet.';
+      els.identitiesState.hidden = false;
+      return;
+    }
+    var list = identityList(state.user);
+    if (!list.length) {
+      els.identitiesState.textContent = 'No identities yet.';
+      els.identitiesState.hidden = false;
+      return;
+    }
+    els.identitiesState.hidden = true;
+    list.forEach(function (identity) {
+      els.identities.appendChild(identityItem(identity));
+    });
+  }
+
+  function hasVerifiedIdentity(chain, address) {
+    var target = String(address).toLowerCase();
+    return identityList(state.user).some(function (identity) {
+      return identity.verified === true &&
+        String(identity.chain || '').toLowerCase() === chain &&
+        String(identity.address || '').toLowerCase() === target;
+    });
   }
 
   function formatValue(value) {
@@ -236,7 +330,7 @@
     var chain = document.createElement('span');
     var chainClass = chainToken(watch.chain);
     chain.className = 'monitor-chain' + (chainClass ? ' monitor-chain-' + chainClass : '');
-    chain.textContent = watch.chain ? String(watch.chain).toUpperCase() : 'CHAIN';
+    chain.textContent = chainLabel(watch.chain);
     head.appendChild(chain);
 
     var address = document.createElement('code');
@@ -289,8 +383,7 @@
       els.watchlistState.textContent = 'No addresses are watched yet. Connect a wallet or add an address below.';
       els.watchlistState.hidden = false;
       return;
-    }
-    els.watchlistState.hidden = true;
+    }    els.watchlistState.hidden = true;
   }
 
   function severityToken(value) {
@@ -367,43 +460,187 @@
 
   /* ------------------------------------------------------------------ flow */
 
-  function provider() {
+  /* --------------------------------------------------------- wallet adapters */
+
+  function evmProvider() {
     var eth = window.ethereum;
     return eth && typeof eth.request === 'function' ? eth : null;
   }
 
-  function showNoWallet() {
-    els.noWallet.hidden = false;
+  function solanaProvider() {
+    var phantom = window.phantom && window.phantom.solana;
+    if (phantom && typeof phantom.connect === 'function') return phantom;
+    var sol = window.solana;
+    return sol && typeof sol.connect === 'function' ? sol : null;
   }
 
-  function walletErrorMessage(err) {
+  function tronWebInstance() {
+    if (window.tronWeb && window.tronWeb.defaultAddress) return window.tronWeb;
+    if (window.tronLink && window.tronLink.tronWeb) return window.tronLink.tronWeb;
+    return window.tronWeb || null;
+  }
+
+  function tronProvider() {
+    var link = window.tronLink;
+    if (link && typeof link.request === 'function') return link;
+    return tronWebInstance() ? window.tronWeb || window.tronLink : null;
+  }
+
+  function bitcoinProvider() {
+    var unisat = window.unisat;
+    return unisat && typeof unisat.requestAccounts === 'function' ? unisat : null;
+  }
+
+  function detectProvider(chain) {
+    switch (chain) {
+      case 'evm': return evmProvider();
+      case 'solana': return solanaProvider();
+      case 'tron': return tronProvider();
+      case 'btc': return bitcoinProvider();
+      default: return null;
+    }
+  }
+
+  /* The coordinator verifies Solana signatures as hex (or Base64). Phantom
+   * returns raw bytes, so encode them as lowercase hex. */
+  function hexEncode(bytes) {
+    if (typeof bytes === 'string') return bytes;
+    var out = '';
+    for (var i = 0; i < bytes.length; i++) {
+      var byte = bytes[i] & 0xff;
+      out += (byte < 16 ? '0' : '') + byte.toString(16);
+    }
+    return out;
+  }
+
+  var ADAPTERS = {
+    evm: {
+      connect: function (eth) {
+        return eth.request({ method: 'eth_requestAccounts' }).then(function (accounts) {
+          if (!Array.isArray(accounts) || !accounts.length) {
+            throw new Error('The wallet returned no account.');
+          }
+          return accounts;
+        });
+      },
+      addresses: function (eth, connected) {
+        return eth.request({ method: 'eth_accounts' }).then(function (accounts) {
+          return Array.isArray(accounts) && accounts.length ? accounts : connected;
+        }).catch(function () { return connected; });
+      },
+      sign: function (eth, message, address) {
+        return eth.request({ method: 'personal_sign', params: [message, address] }).then(function (signature) {
+          if (typeof signature !== 'string' || !signature) {
+            throw new Error('The wallet returned no signature.');
+          }
+          return signature;
+        });
+      }
+    },
+    solana: {
+      connect: function (wallet) {
+        return Promise.resolve(wallet.connect()).then(function () {
+          var key = wallet.publicKey;
+          if (!key) throw new Error('The wallet returned no public key.');
+          return [String(key)];
+        });
+      },
+      addresses: function (wallet, connected) { return connected; },
+      sign: function (wallet, message) {
+        var bytes = new TextEncoder().encode(message);
+        return Promise.resolve(wallet.signMessage(bytes, 'utf8')).then(function (result) {
+          var signature = result && result.signature ? result.signature : result;
+          if (!signature || typeof signature.length !== 'number') {
+            throw new Error('The wallet returned no signature.');
+          }
+          return hexEncode(signature);
+        });
+      }
+    },
+    tron: {
+      connect: function (link) {
+        var request = link && typeof link.request === 'function'
+          ? Promise.resolve(link.request({ method: 'tron_requestAccounts' }))
+          : Promise.resolve();
+        return request.then(function (result) {
+          if (result && result.code !== undefined && String(result.code) !== '200') {
+            throw new Error('TronLink did not authorize the connection.');
+          }
+          var tronWeb = tronWebInstance();
+          var address = tronWeb && tronWeb.defaultAddress ? tronWeb.defaultAddress.base58 : '';
+          if (!address) throw new Error('TronLink returned no address.');
+          return [String(address)];
+        });
+      },
+      addresses: function (link, connected) { return connected; },
+      sign: function (link, message) {
+        var tronWeb = tronWebInstance();
+        if (!tronWeb || !tronWeb.trx || typeof tronWeb.trx.signMessageV2 !== 'function') {
+          throw new Error('TronLink does not support message signing.');
+        }
+        return Promise.resolve(tronWeb.trx.signMessageV2(message)).then(function (signature) {
+          if (typeof signature !== 'string' || !signature) {
+            throw new Error('TronLink returned no signature.');
+          }
+          return signature;
+        });
+      }
+    },
+    btc: {
+      connect: function (unisat) {
+        return Promise.resolve(unisat.requestAccounts()).then(function (accounts) {
+          if (!Array.isArray(accounts) || !accounts.length) {
+            throw new Error('Unisat returned no account.');
+          }
+          return accounts;
+        });
+      },
+      addresses: function (unisat, connected) { return connected; },
+      sign: null
+    }
+  };
+
+  function renderProviders() {
+    var anyDetected = false;
+    PROVIDER_ORDER.forEach(function (chain) {
+      var button = els.providers[chain];
+      if (!button) return;
+      var hint = button.querySelector('[data-provider-hint]');
+      var detected = !!detectProvider(chain);
+      if (detected) anyDetected = true;
+      button.disabled = !detected || state.busy;
+      var label;
+      if (!detected) {
+        label = PROVIDER_HINTS[chain];
+      } else if (state.busy && state.busyChain === chain) {
+        label = 'connecting…';
+      } else if (!state.token) {
+        label = chain === 'btc' ? 'sign in with another chain first' : 'sign in';
+      } else {
+        label = chain === 'btc' ? 'import addresses (unverified)' : 'link or import';
+      }
+      if (hint) hint.textContent = label;
+    });
+    els.noWallet.hidden = anyDetected;
+  }
+
+  function walletErrorMessage(err, chain) {
     if (!err) return 'Wallet request failed.';
+    var label = chainLabel(chain);
     var message = err.message ? String(err.message) : '';
     if (err.code === 4001 || /reject|denied|cancel/i.test(message)) {
-      return 'Wallet request was rejected. Nothing was sent to Rotor.';
+      return 'The ' + label + ' wallet request was rejected. Nothing was sent to Rotor.';
     }
     if (err.code === -32002) {
       return 'A wallet request is already pending. Open your wallet and approve or reject it.';
     }
-    return 'Wallet error: ' + (message || 'unknown error');
+    return label + ' wallet error: ' + (message || 'unknown error');
   }
 
-  function watchPayload(addresses) {
-    var seen = {};
-    var out = [];
-    (Array.isArray(addresses) ? addresses : []).forEach(function (address) {
-      if (typeof address !== 'string' || !address) return;
-      var key = address.toLowerCase();
-      if (seen[key]) return;
-      seen[key] = true;
-      out.push({ chain: 'evm', address: address });
-    });
-    return out;
-  }
-
-  function setConnectBusy(busy) {
-    els.connect.disabled = busy;
-    els.connect.textContent = busy ? 'Connecting…' : 'Connect wallet';
+  function setConnectBusy(busy, chain) {
+    state.busy = busy;
+    state.busyChain = busy ? chain || '' : '';
+    renderProviders();
   }
 
   function stopPolling() {
@@ -441,8 +678,36 @@
     els.eventsState.textContent = 'Sign in to load the event feed.';
     els.eventsState.hidden = false;
     renderSettings(state.settings);
+    renderAccount();
+    renderIdentities();
+    renderProviders();
     setWalletState('No session.', 'muted');
     if (message) showWalletError(message);
+  }
+
+  function disconnectProviders() {
+    var jobs = [];
+    function attempt(wallet) {
+      if (wallet && typeof wallet.disconnect === 'function') {
+        jobs.push(Promise.resolve().then(function () {
+          return wallet.disconnect();
+        }).catch(function () { /* best effort */ }));
+      }
+    }
+    var eth = evmProvider();
+    if (eth) {
+      if (typeof eth.disconnect === 'function') {
+        attempt(eth);
+      } else if (typeof eth.request === 'function') {
+        jobs.push(Promise.resolve().then(function () {
+          return eth.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] });
+        }).catch(function () { /* best effort */ }));
+      }
+    }
+    attempt(solanaProvider());
+    attempt(window.tronLink);
+    attempt(bitcoinProvider());
+    return Promise.all(jobs);
   }
 
   async function logout() {
@@ -455,8 +720,13 @@
         /* Signing out locally must work even when the server is unreachable. */
       }
     }
+    try {
+      await disconnectProviders();
+    } catch (err) {
+      /* Provider disconnects are best effort. */
+    }
     resetSession('');
-    setWalletState('Signed out. Connect the wallet to sign in again.', 'muted');
+    setWalletState('Signed out. Connect a wallet to sign in again.', 'muted');
   }
 
   async function refresh() {
@@ -468,12 +738,17 @@
       if (state.token !== token) return;
       if (!me || typeof me !== 'object') throw new Error('unexpected response');
       state.user = me.user || state.user;
+      if (Array.isArray(me.identities)) {
+        state.user = Object.assign({}, state.user || {}, { identities: me.identities });
+      }
       var settings = me.settings || (me.user && me.user.settings) || state.settings;
       state.settings = settingsFrom(settings);
       state.watches = Array.isArray(me.watches) ? me.watches : [];
       state.events = Array.isArray(me.events) ? me.events : [];
       hideSessionError();
       renderAccount();
+      renderIdentities();
+      renderProviders();
       renderWatches(state.watches);
       renderEvents(state.events);
       if (!state.settingsDirty) renderSettings(state.settings);
@@ -490,88 +765,170 @@
     }
   }
 
-  async function connectWallet() {
+  function mergeWatches(returned) {
+    if (!Array.isArray(returned) || !returned.length) return;
+    var byKey = {};
+    state.watches.forEach(function (watch) {
+      if (watch && watch.address) byKey[(watch.chain || '') + '|' + watch.address] = watch;
+    });
+    returned.forEach(function (watch) {
+      if (watch && watch.address) byKey[(watch.chain || '') + '|' + watch.address] = watch;
+    });
+    state.watches = Object.keys(byKey).map(function (key) { return byKey[key]; });
+    renderWatches(state.watches);
+  }
+
+  async function importProviderAddresses(chain, wallet, connected) {
+    var addresses = connected;
+    try {
+      var listed = await ADAPTERS[chain].addresses(wallet, connected);
+      if (Array.isArray(listed) && listed.length) addresses = listed;
+    } catch (err) {
+      /* Keep the addresses the connect step already returned. */
+    }
+    var seen = {};
+    var payload = [];
+    (Array.isArray(addresses) ? addresses : []).forEach(function (address) {
+      if (typeof address !== 'string' || !address) return;
+      var key = address.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      payload.push({ chain: chain, address: address });
+    });
+    if (!payload.length) return 0;
+    var result = await api('/addresses', { method: 'POST', body: { addresses: payload } });
+    if (result && Array.isArray(result.watches)) mergeWatches(result.watches);
+    return payload.length;
+  }
+
+  async function connectProvider(chain) {
     hideWalletError();
-    var eth = provider();
-    if (!eth) {
-      showNoWallet();
-      setWalletState('No wallet detected.', 'muted');
+    hideSessionError();
+    var wallet = detectProvider(chain);
+    if (!wallet) {
+      showWalletError('No ' + chainLabel(chain) + ' wallet was detected in this browser (' +
+        PROVIDER_HINTS[chain].replace('not detected — ', '') + ').');
+      if (state.token) setWalletState('Session active.', 'ok');
+      else setWalletState('No ' + chainLabel(chain) + ' wallet detected.', 'muted');
+      return;
+    }
+    if (chain === 'btc' && !state.token) {
+      showWalletError('Bitcoin addresses can only be imported after you sign in with EVM, Solana or TRON. Connect a signing wallet first.');
+      setWalletState('No session.', 'muted');
       return;
     }
     if (state.busy) return;
-    state.busy = true;
-    setConnectBusy(true);
-    setWalletState('Connecting…', 'muted');
+
+    var linking = !!state.token;
+    var loggedIn = false;
+    setConnectBusy(true, chain);
+    setWalletState('Connecting to ' + chainLabel(chain) + '…', 'muted');
     try {
-      var accounts = await eth.request({ method: 'eth_requestAccounts' });
-      if (!Array.isArray(accounts) || !accounts.length) throw new Error('The wallet returned no account.');
-      var primary = accounts[0];
+      var addresses = await ADAPTERS[chain].connect(wallet);
+      var primary = addresses[0];
+      if (!primary) throw new Error('The wallet returned no address.');
+
+      /* Bitcoin has no server-side signature verification yet: with an
+       * existing session its addresses are imported as unverified. */
+      if (chain === 'btc') {
+        setWalletState('Importing Bitcoin addresses…', 'muted');
+        var btcCount = await importProviderAddresses('btc', wallet, addresses);
+        await refresh();
+        setWalletState('Imported ' + btcCount + ' Bitcoin address(es). They stay unverified until a Bitcoin signature scheme ships.', 'ok');
+        return;
+      }
+
+      /* A verified identity of this chain is already linked: import any other
+       * accounts it exposes instead of creating another session. */
+      if (linking && hasVerifiedIdentity(chain, primary)) {
+        setWalletState('Importing ' + chainLabel(chain) + ' addresses…', 'muted');
+        var importedCount = await importProviderAddresses(chain, wallet, addresses);
+        await refresh();
+        setWalletState('Imported ' + importedCount + ' ' + chainLabel(chain) + ' address(es).', 'ok');
+        return;
+      }
 
       setWalletState('Requesting a sign-in challenge…', 'muted');
-      var challenge = await api('/challenge', { method: 'POST', body: { address: primary }, token: '' });
+      var challenge = await api('/challenge', {
+        method: 'POST',
+        body: { chain: chain, address: primary },
+        token: ''
+      });
       if (!challenge || typeof challenge.message !== 'string' || !challenge.message) {
         throw new Error('The coordinator returned no challenge message.');
       }
 
       setWalletState('Waiting for your signature…', 'muted');
-      var signature = await eth.request({ method: 'personal_sign', params: [challenge.message, primary] });
-      if (typeof signature !== 'string' || !signature) throw new Error('The wallet returned no signature.');
+      var signature = await ADAPTERS[chain].sign(wallet, challenge.message, primary);
 
-      setWalletState('Signing in…', 'muted');
+      setWalletState(linking ? 'Linking this wallet…' : 'Signing in…', 'muted');
+      var body = { chain: chain, message: challenge.message, signature: signature };
+      if (linking) body.link = true;
       var login = await api('/login', {
         method: 'POST',
-        body: { message: challenge.message, signature: signature },
-        token: ''
+        body: body,
+        token: linking ? state.token : ''
       });
-      if (!login || typeof login.token !== 'string' || !login.token) {
-        throw new Error('The coordinator returned no session token.');
-      }
 
-      /* Store the token; never render it. */
-      saveToken(login.token);
-      state.token = login.token;
-      state.user = login.user || { address: primary };
-      state.settings = settingsFrom(login.user && login.user.settings);
+      if (!linking) {
+        if (!login || typeof login.token !== 'string' || !login.token) {
+          throw new Error('The coordinator returned no session token.');
+        }
+        /* Store the token; never render it. */
+        saveToken(login.token);
+        state.token = login.token;
+      } else if (login && typeof login.token === 'string' && login.token) {
+        saveToken(login.token);
+        state.token = login.token;
+      }
+      if (!linking || state.token) loggedIn = true;
+
+      if (login && login.user) state.user = login.user;
+      else if (!linking) state.user = { address: primary };
+      if (login && login.user && login.user.settings) {
+        state.settings = settingsFrom(login.user.settings);
+      }
       state.settingsDirty = false;
       setAuthenticated(true);
       hideSessionError();
       renderAccount();
+      renderIdentities();
       renderSettings(state.settings);
       els.watchlistState.textContent = 'Loading watchlist…';
       els.watchlistState.hidden = false;
       els.eventsState.textContent = 'Loading events…';
       els.eventsState.hidden = false;
-      setWalletState('Signed in.', 'ok');
+      setWalletState(linking ? 'Wallet linked.' : 'Signed in.', 'ok');
+      if (!linking) startPolling();
 
-      /* Import every EVM account the wallet exposes as a watch. */
-      var all = [primary];
+      var imported = 0;
       try {
-        var listed = await eth.request({ method: 'eth_accounts' });
-        if (Array.isArray(listed) && listed.length) all = listed;
+        imported = await importProviderAddresses(chain, wallet, addresses);
       } catch (err) {
-        /* Keep the account that just signed in. */
+        showWalletError((linking ? 'Wallet linked' : 'Signed in') +
+          ', but the addresses could not all be imported: ' +
+          (err && err.message ? err.message : 'unknown error'));
       }
-      var payload = watchPayload(all);
-      if (payload.length) {
-        try {
-          await api('/addresses', { method: 'POST', body: { addresses: payload } });
-        } catch (err) {
-          showWalletError('Signed in, but the wallet addresses could not all be imported: ' +
-            (err && err.message ? err.message : 'unknown error'));
-        }
-      }
-
       await refresh();
-      startPolling();
+      setWalletState((linking ? 'Wallet linked' : 'Signed in') + '. Imported ' + imported +
+        ' ' + chainLabel(chain) + ' address(es).', 'ok');
     } catch (err) {
       if (err && err.status !== undefined) {
-        showWalletError('Sign-in failed: ' + (err.message || 'request failed') + '. Nothing was saved.');
+        if (err.status === 401 && linking) {
+          resetSession('Your session expired or was rejected. Sign in again with a signing wallet.');
+          return;
+        }
+        var prefix = chain === 'btc' ? 'Import failed'
+          : (loggedIn ? 'Import failed' : (linking ? 'Linking failed' : 'Sign-in failed'));
+        showWalletError(prefix + ': ' + (err.message || 'request failed') + '.');
+        if (!state.token) setWalletState('No session.', 'muted');
+        else setWalletState('Session active.', 'ok');
       } else {
-        showWalletError(walletErrorMessage(err));
+        showWalletError(walletErrorMessage(err, chain));
+        if (!state.token) setWalletState('No session.', 'muted');
+        else setWalletState('Session active.', 'ok');
       }
-      setWalletState('No session.', 'muted');
     } finally {
-      state.busy = false;
       setConnectBusy(false);
     }
   }
@@ -591,8 +948,8 @@
       setAddError('Enter an address.');
       return;
     }
-    if (chain !== 'evm' && chain !== 'btc') {
-      setAddError('Choose EVM or Bitcoin.');
+    if (chain !== 'evm' && chain !== 'solana' && chain !== 'tron' && chain !== 'btc') {
+      setAddError('Choose EVM, Solana, TRON or Bitcoin.');
       return;
     }
     els.addSubmit.disabled = true;
@@ -701,7 +1058,10 @@
 
   /* ---------------------------------------------------------------- events */
 
-  els.connect.addEventListener('click', connectWallet);
+  PROVIDER_ORDER.forEach(function (chain) {
+    var button = els.providers[chain];
+    if (button) button.addEventListener('click', function () { connectProvider(chain); });
+  });
   els.logout.addEventListener('click', logout);
   els.addForm.addEventListener('submit', addAddress);
   els.settingsForm.addEventListener('submit', saveSettings);
@@ -710,20 +1070,20 @@
   els.copyAccount.addEventListener('click', function () {
     copyText(els.account.textContent, els.copyAccount);
   });
-  els.copySiwe.addEventListener('click', function () {
-    copyText(SIWE_NOTE, els.copySiwe);
+  els.copyWalletNote.addEventListener('click', function () {
+    copyText(WALLET_NOTE, els.copyWalletNote);
   });
   window.addEventListener('pagehide', stopPolling);
 
-  els.siweNote.textContent = SIWE_NOTE;
+  els.walletNote.textContent = WALLET_NOTE;
   setAuthenticated(false);
+  renderAccount();
+  renderIdentities();
   renderWatches([]);
   renderEvents([]);
   renderSettings(state.settings);
   els.eventsState.textContent = 'Sign in to load the event feed.';
   els.eventsState.hidden = false;
-
-  if (!provider()) showNoWallet();
 
   var saved = storedToken();
   if (saved) {
