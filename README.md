@@ -842,6 +842,15 @@ Hard limits and honest expectations:
 ## License
 - Rotor-Cuda is licensed under GPLv3.0
 
+### WalletConnect
+
+The cabinet can connect a mobile EVM wallet over WalletConnect (QR). Set
+`ROTOR_WALLETCONNECT_PROJECT_ID` (from cloud.reown.com) in the coordinator
+environment; without it the WalletConnect card says it is not configured and
+loads no bundle. The provider bundle is self-hosted at `/walletconnect.js` and
+is rebuilt with `scripts/build-walletconnect.sh`. WalletConnect is EVM-only in
+this build; Solana, TRON and Bitcoin use the injected wallet cards.
+
 ## Donation
 - BTC: `bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8`
 - USDT (TRC20): `TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f`
