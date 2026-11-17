@@ -44,6 +44,7 @@ const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
 const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
 const WALLETCONNECT_JS: &[u8] = include_bytes!("../../apps/site/walletconnect.js");
+const BRAINWALLET_JS: &str = include_str!("../../apps/site/brainwallet.js");
 const FAVICON_ICO: &[u8] = include_bytes!("../../apps/site/favicon.ico");
 const FAVICON_PNG: &[u8] = include_bytes!("../../apps/site/favicon.png");
 /// Canonical public origin for absolute URLs in the SEO surface. It is never
@@ -537,9 +538,11 @@ fn handle(app: Arc<App>, request: Request) {
             return;
         }
         if !path.starts_with("/api/v1/") {
-            // Unknown non-API paths fall back to the landing page.
-            let response = Response::from_string(LANDING)
-                .with_header(header("Content-Type", "text/html; charset=utf-8"));
+            // Unknown non-API paths are a real 404, never a soft landing page.
+            let (body, content_type, status) = unknown_html_page();
+            let response = Response::from_string(body)
+                .with_status_code(StatusCode(status))
+                .with_header(header("Content-Type", content_type));
             let _ = request.respond(response);
             return;
         }
@@ -662,6 +665,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/range.js" => Some((RANGE_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/walletconnect.js" => Some((WALLETCONNECT_JS, "application/javascript; charset=utf-8")),
+        "/brainwallet.js" => Some((
+            BRAINWALLET_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/favicon.ico" => Some((FAVICON_ICO, "image/x-icon")),
         "/favicon.png" => Some((FAVICON_PNG, "image/png")),
         "/cabinet" => Some((MONITOR_PAGE.as_bytes(), "text/html; charset=utf-8")),
@@ -764,6 +771,18 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
     }
     if path == "/sitemap.xml" {
         return Some((render_sitemap(base), "application/xml; charset=utf-8", 200));
+    }
+    if path == "/faq" {
+        return Some((render_faq(base), HTML, 200));
+    }
+    if path == "/disclaimer" {
+        return Some((render_disclaimer(base), HTML, 200));
+    }
+    if path == "/donate" {
+        return Some((render_donate(base), HTML, 200));
+    }
+    if path == "/brainwallet" {
+        return Some((render_brainwallet(base), HTML, 200));
     }
     if path == "/keys" {
         return Some((render_keys_hub(base), HTML, 200));
@@ -1218,12 +1237,246 @@ fn render_keys_hub(base: &str) -> String {
          <section class=\"card\"><h2>Chains</h2><ul class=\"key-chains\">{cards}</ul></section>\
          <section class=\"card\"><h2>What this page shows</h2>\
          <p>These pages explain how a private key maps to public addresses on each chain. They list example keys only; no balances, holdings or account values are shown.</p></section>\
+         <section class=\"card\"><h2>Tools and site information</h2><ul>\
+         <li><a href=\"/faq\">FAQ: how key tools and alerts work</a></li>\
+         <li><a href=\"/brainwallet\">Brainwallet checker (educational)</a></li>\
+         <li><a href=\"/disclaimer\">Disclaimer and authorized use</a></li>\
+         <li><a href=\"/donate\">Donate</a></li></ul></section>\
          </main>",
         site_header(),
         "",
         breadcrumb_nav(&[("Home", Some("/")), ("Keys", None)]),
     );
     html_document(title, &head, &body)
+}
+
+/// Absolute `BreadcrumbList` JSON-LD matching a visible trail. A `None` href
+/// is a non-link intermediate crumb (for example "Tools") and omits `item`.
+fn breadcrumb_ld(base: &str, items: &[(&str, Option<&str>)]) -> serde_json::Value {
+    let entries: Vec<_> = items
+        .iter()
+        .enumerate()
+        .map(|(index, (name, href))| {
+            let mut entry = json!({
+                "@type": "ListItem",
+                "position": index + 1,
+                "name": *name,
+            });
+            if let Some(href) = href {
+                entry["item"] = json!(format!("{base}{href}"));
+            }
+            entry
+        })
+        .collect();
+    json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": entries,
+    })
+}
+
+const FAQ_TITLE: &str = "FAQ — how Rotor key tools and alerts work | Rotor";
+const FAQ_DESCRIPTION: &str = "Answers about Rotor's browser key derivation, the /keys hubs, noindex pages, the address watchlist and Telegram alerts, and what the tools cannot do.";
+
+/// Honest Q&A used both for the visible FAQ and its `FAQPage` JSON-LD.
+const FAQ_QA: [(&str, &str); 9] = [
+    (
+        "What does this site do?",
+        "Rotor explains how private keys map to public addresses on Bitcoin, Ethereum, TRON and Solana. It derives addresses from a key you control in your browser and runs an authorized puzzle search engine and an address watchlist. It does not hold, sign for or move funds.",
+    ),
+    (
+        "Is my key sent to a server?",
+        "No. Derivation runs locally with WebAssembly in your browser. The page does not receive, log or transmit the key, and the site never asks for a seed phrase.",
+    ),
+    (
+        "Do you ask for seed phrases?",
+        "No. The web tools accept single private keys only, for educational use. There is no custody: Rotor cannot hold funds, sign transactions or sweep balances.",
+    ),
+    (
+        "What do /keys and /key/<hex> show?",
+        "The key hubs list 64 deterministic example keys (1 to 64). Each key page derives public addresses for the selected chain and curve. These pages show derivation, not balances, holdings or ownership; the server never places a key you enter into the page URL.",
+    ),
+    (
+        "Why are some pages noindex?",
+        "A key page or key range that contains user-supplied material is marked noindex so it is not published in search results. Only the curated example keys, hubs and informational pages are indexable.",
+    ),
+    (
+        "How do alerts and the watchlist work?",
+        "You add a public address you control to the cabinet. The coordinator polls public chain data providers for changes and can deliver Telegram alerts. Alerts are best-effort: provider delays, reorgs and outages mean a late or missed notification is possible.",
+    ),
+    (
+        "What is impossible here?",
+        "Deriving an address from a key does not prove that the address is observable, funded, used or known to anyone else. You cannot derive a private key from an address, and Rotor cannot know whether a key was used somewhere else.",
+    ),
+    (
+        "Can I use this to find or recover someone else's keys?",
+        "No. Use Rotor only for keys and addresses you own or are explicitly authorized to test, such as public puzzles and research. Deriving a key does not give lawful access to funds.",
+    ),
+    (
+        "Is the brainwallet checker safe?",
+        "No brainwallet is safe for real funds. The checker is educational: it shows why passphrase-derived keys are easy to guess. Use only test passphrases, never a phrase that protects funds.",
+    ),
+];
+
+fn render_faq(base: &str) -> String {
+    let canonical = format!("{base}/faq");
+    let ld_faq = json!({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": FAQ_QA
+            .iter()
+            .map(|(question, answer)| json!({
+                "@type": "Question",
+                "name": *question,
+                "acceptedAnswer": { "@type": "Answer", "text": *answer },
+            }))
+            .collect::<Vec<_>>(),
+    });
+    let ld_crumbs = breadcrumb_ld(base, &[("Home", Some("/")), ("FAQ", Some("/faq"))]);
+    let head = hub_head(&canonical, FAQ_TITLE, FAQ_DESCRIPTION, &[ld_faq, ld_crumbs]);
+
+    let mut qa = String::new();
+    for (question, answer) in FAQ_QA {
+        qa.push_str(&format!(
+            "<div class=\"faq-item\"><h3>{}</h3><p>{}</p></div>",
+            escape_attr(question),
+            escape_attr(answer)
+        ));
+    }
+    let mut hub_links = String::from("<li><a href=\"/keys\">All key hubs</a></li>");
+    for chain in &CHAINS {
+        hub_links.push_str(&format!(
+            "<li><a href=\"/keys/{}\">{} private keys</a></li>",
+            chain.slug, chain.name
+        ));
+    }
+    let body = format!(
+        "{}{}<main class=\"key-page\">{}<section class=\"hero\">\
+         <h1>Frequently asked questions</h1>\
+         <p>How Rotor derives addresses, what the key pages show, and what the tools cannot do.</p></section>\
+         <section class=\"card\"><h2>Questions</h2>{qa}</section>\
+         <section class=\"card\"><h2>Explore the key hubs</h2><ul>{hub_links}</ul></section>\
+         <section class=\"card\"><h2>Site information</h2><ul>\
+         <li><a href=\"/disclaimer\">Disclaimer and authorized use</a></li>\
+         <li><a href=\"/brainwallet\">Brainwallet checker (educational)</a></li>\
+         <li><a href=\"/docs\">Documentation</a></li>\
+         <li><a href=\"/donate\">Donate</a></li></ul></section>\
+         </main>",
+        site_header(),
+        "",
+        breadcrumb_nav(&[("Home", Some("/")), ("FAQ", None)]),
+    );
+    html_document(FAQ_TITLE, &head, &body)
+}
+
+const DISCLAIMER_TITLE: &str = "Disclaimer — educational and authorized use | Rotor";
+const DISCLAIMER_DESCRIPTION: &str = "Rotor is provided for education, research and authorized testing only. It is not a wallet, holds no funds, signs nothing, and cannot sweep balances.";
+
+fn render_disclaimer(base: &str) -> String {
+    let canonical = format!("{base}/disclaimer");
+    let ld_crumbs = breadcrumb_ld(
+        base,
+        &[("Home", Some("/")), ("Disclaimer", Some("/disclaimer"))],
+    );
+    let head = hub_head(
+        &canonical,
+        DISCLAIMER_TITLE,
+        DISCLAIMER_DESCRIPTION,
+        &[ld_crumbs],
+    );
+    let body = format!(
+        "{}{}<main class=\"key-page\">{}<section class=\"hero\">\
+         <h1>Disclaimer</h1>\
+         <p>Rotor is an educational and research tool. Read this page before using any key or address feature.</p></section>\
+         <section class=\"card\"><h2>Educational and authorized use only</h2>\
+         <p>The site explains how keys map to addresses and lets you test that mapping. Use it only with keys and addresses you own or are explicitly authorized to test, such as public puzzles and security research. Do not use it to access funds you do not control.</p></section>\
+         <section class=\"card\"><h2>No custody, signing or sweeping</h2>\
+         <p>Rotor is not a wallet. It does not hold funds, sign transactions, broadcast transfers or sweep balances, and it never asks for a seed phrase. Any signing or transaction feature is separate and gated; nothing on these pages moves value.</p></section>\
+         <section class=\"card\"><h2>Key handling warning</h2>\
+         <p>Treat any private key typed into a networked browser as potentially exposed. Use published test vectors or throwaway keys for learning, and keep keys that protect real funds offline or air-gapped. A passphrase-derived brainwallet is not safe for real funds.</p></section>\
+         <section class=\"card\"><h2>Data providers and API caveats</h2>\
+         <p>Balance and watchlist checks send public addresses to configured chain data providers. Those services can be delayed, incomplete or unavailable, and alerts are best-effort rather than a guarantee. Derived addresses alone do not prove ownership, funding or observability.</p></section>\
+         <section class=\"card\"><h2>More information</h2><ul>\
+         <li><a href=\"/faq\">Frequently asked questions</a></li>\
+         <li><a href=\"/docs\">Documentation</a></li>\
+         <li><a href=\"/keys\">Key hubs</a></li></ul></section>\
+         </main>",
+        site_header(),
+        "",
+        breadcrumb_nav(&[("Home", Some("/")), ("Disclaimer", None)]),
+    );
+    html_document(DISCLAIMER_TITLE, &head, &body)
+}
+
+const DONATE_TITLE: &str = "Donate — support Rotor development | Rotor";
+const DONATE_DESCRIPTION: &str = "Maintainer donation addresses for Rotor: Bitcoin, USDT-TRC20 and EVM, plus a hosted payment link. Select an address and copy it in your browser.";
+
+fn render_donate(base: &str) -> String {
+    let canonical = format!("{base}/donate");
+    let ld_crumbs = breadcrumb_ld(base, &[("Home", Some("/")), ("Donate", Some("/donate"))]);
+    let head = hub_head(&canonical, DONATE_TITLE, DONATE_DESCRIPTION, &[ld_crumbs]);
+    let body = format!(
+        "{}{}<main class=\"key-page\">{}<section class=\"hero\">\
+         <h1>Donate</h1>\
+         <p>Support maintenance of Rotor. These are the maintainer's own addresses; select an address to copy it with your browser.</p></section>\
+         <section class=\"card\"><h2>Addresses</h2><ul class=\"donate-addresses\">\
+         <li><strong>Bitcoin (BTC)</strong><br><code class=\"mono\">bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8</code></li>\
+         <li><strong>USDT (TRC-20)</strong><br><code class=\"mono\">TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f</code></li>\
+         <li><strong>EVM (Ethereum and compatible chains)</strong><br><code class=\"mono\">0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a</code></li>\
+         </ul></section>\
+         <section class=\"card\"><h2>Payment link</h2>\
+         <p><a href=\"https://pay.pxbt.app/u/0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a\" rel=\"noopener noreferrer\">pay.pxbt.app payment page</a></p></section>\
+         </main>",
+        site_header(),
+        "",
+        breadcrumb_nav(&[("Home", Some("/")), ("Donate", None)]),
+    );
+    html_document(DONATE_TITLE, &head, &body)
+}
+
+const BRAINWALLET_TITLE: &str = "Brainwallet checker — SHA-256 passphrase to addresses | Rotor";
+const BRAINWALLET_DESCRIPTION: &str = "Educational SHA-256 brainwallet checker: derive public addresses from a passphrase in your browser. Brainwallets are unsafe for real funds; test only with throwaway passphrases.";
+
+fn render_brainwallet(base: &str) -> String {
+    let canonical = format!("{base}/brainwallet");
+    let ld_crumbs = breadcrumb_ld(
+        base,
+        &[
+            ("Home", Some("/")),
+            ("Tools", None),
+            ("Brainwallet", Some("/brainwallet")),
+        ],
+    );
+    let head = hub_head(
+        &canonical,
+        BRAINWALLET_TITLE,
+        BRAINWALLET_DESCRIPTION,
+        &[ld_crumbs],
+    );
+    let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
+         <a href=\"/\">Home</a> / <span>Tools</span> / \
+         <span aria-current=\"page\">Brainwallet</span></nav>";
+    let body = format!(
+        "{}{}<main class=\"key-page\">{crumbs}<section class=\"hero\">\
+         <h1>Brainwallet checker</h1>\
+         <p>Derive addresses from a passphrase with SHA-256. The derivation runs in your browser.</p>\
+         <p class=\"notice\" role=\"note\">Brainwallets are unsafe for real funds. Passphrases that people can remember are guessable, and such keys are swept quickly. This page is educational and for authorized testing only; never enter a phrase that protects funds.</p></section>\
+         <section class=\"card\"><h2>Passphrase</h2>\
+         <form id=\"brainwallet-form\" class=\"key-form\" autocomplete=\"off\">\
+         <label>Passphrase\
+         <input id=\"brainwallet-input\" type=\"password\" class=\"mono\" autocomplete=\"new-password\" spellcheck=\"false\" autocapitalize=\"off\" data-lpignore=\"true\" data-1p-ignore=\"true\">\
+         </label>\
+         <div class=\"key-buttons\"><button type=\"button\" class=\"primary\" id=\"brainwallet-derive\">Derive</button></div>\
+         </form>\
+         <p class=\"muted\">The passphrase stays in this browser and is not sent to the coordinator.</p></section>\
+         <section class=\"card\"><h2>Results</h2>\
+         <div id=\"brainwallet-results\" class=\"mono\">Enter a throwaway passphrase and press Derive.</div></section>\
+         </main>\
+         <script src=\"/brainwallet.js?v=20261118b\" defer></script>",
+        site_header(),
+        "",
+    );
+    html_document(BRAINWALLET_TITLE, &head, &body)
 }
 
 fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
@@ -1379,6 +1632,12 @@ fn render_sitemap(base: &str) -> String {
             chain.slug
         ));
     }
+    for page in ["/faq", "/disclaimer", "/donate", "/brainwallet"] {
+        urls.push_str(&format!(
+            "  <url><loc>{}{page}</loc></url>\n",
+            escape_attr(base)
+        ));
+    }
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n\
@@ -1396,6 +1655,12 @@ fn render_seo_not_found() -> String {
          <p><a href=\"/keys\">Browse the key hubs</a> or go back to the <a href=\"/\">landing page</a>.</p>\
          </section></main>",
     )
+}
+
+/// Body and status for an unknown non-API GET. A soft landing fallback would
+/// answer 200 and look like an endless site to crawlers.
+fn unknown_html_page() -> (String, &'static str, u16) {
+    (render_seo_not_found(), "text/html; charset=utf-8", 404)
 }
 
 fn create_job(app: &App, mut request: Request) {
@@ -1982,6 +2247,142 @@ mod tests {
     }
 
     #[test]
+    fn keys_hub_links_tools_pages() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, status) = seo_asset(base, "/keys", "").expect("/keys");
+        assert_eq!(status, 200);
+        for href in ["/faq", "/brainwallet", "/disclaimer", "/donate"] {
+            assert!(body.contains(&format!("href=\"{href}\"")), "missing {href}");
+        }
+    }
+
+    #[test]
+    fn seo_informational_pages_render_metadata_and_breadcrumbs() {
+        let base = "https://rotor.pxbt.app";
+        let pages = [
+            ("/faq", FAQ_TITLE, "FAQ"),
+            ("/disclaimer", DISCLAIMER_TITLE, "Disclaimer"),
+            ("/donate", DONATE_TITLE, "Donate"),
+            ("/brainwallet", BRAINWALLET_TITLE, "Brainwallet"),
+        ];
+        for (path, title, crumb) in pages {
+            let (body, content_type, status) = seo_asset(base, path, "").expect(path);
+            assert_eq!(status, 200, "{path}");
+            assert_eq!(content_type, "text/html; charset=utf-8", "{path}");
+            assert!(body.contains(&format!("<title>{title}</title>")), "{path}");
+            assert!(
+                body.contains(&format!("<link rel=\"canonical\" href=\"{base}{path}\">")),
+                "{path}"
+            );
+            assert!(body.contains(&format!("<meta property=\"og:title\" content=\"{title}\">")));
+            assert!(
+                body.contains("<meta name=\"description\""),
+                "{path} description"
+            );
+            assert!(
+                body.contains("robots\" content=\"index,follow\""),
+                "{path} indexable"
+            );
+            assert!(
+                !body.contains("<meta name=\"robots\" content=\"noindex"),
+                "{path} must be indexable"
+            );
+            assert!(
+                body.contains("<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">"),
+                "{path} breadcrumbs"
+            );
+            assert!(
+                body.contains("\"@type\":\"BreadcrumbList\""),
+                "{path} breadcrumb JSON-LD"
+            );
+            assert!(
+                body.contains("aria-current=\"page\""),
+                "{path} current crumb"
+            );
+            assert!(body.contains(crumb), "{path} visible crumb label {crumb:?}");
+        }
+    }
+
+    #[test]
+    fn faq_has_questions_and_faq_json_ld() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, _) = seo_asset(base, "/faq", "").expect("/faq");
+        assert!(body.contains("\"@type\":\"FAQPage\""));
+        assert_eq!(body.matches("\"@type\":\"Question\"").count(), FAQ_QA.len());
+        assert!(FAQ_QA.len() >= 8);
+        assert!(body.contains("What does this site do?"));
+        assert!(body.contains("Why are some pages noindex?"));
+        assert!(body.contains("What is impossible here?"));
+        // Hub links and site links from the FAQ.
+        assert!(body.contains("href=\"/keys\""));
+        assert!(body.contains("href=\"/keys/bitcoin\""));
+        assert!(body.contains("href=\"/disclaimer\""));
+        assert!(body.contains("href=\"/docs\""));
+        assert!(!body.to_ascii_lowercase().contains("we detect leaked keys"));
+    }
+
+    #[test]
+    fn disclaimer_states_authorized_use_and_limits() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, _) = seo_asset(base, "/disclaimer", "").expect("/disclaimer");
+        assert!(body.contains("authorized"));
+        assert!(body.contains("No custody, signing or sweeping"));
+        assert!(body.contains("Key handling warning"));
+        assert!(body.contains("Data providers and API caveats"));
+        assert!(body.contains("href=\"/faq\""));
+        assert!(body.contains("href=\"/docs\""));
+    }
+
+    #[test]
+    fn donate_lists_maintainer_addresses_and_payment_link() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, _) = seo_asset(base, "/donate", "").expect("/donate");
+        for address in [
+            "bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8",
+            "TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f",
+            "0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a",
+        ] {
+            assert!(body.contains(address), "missing address {address}");
+        }
+        assert!(body.contains("https://pay.pxbt.app/u/0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a"));
+        assert!(body.contains("class=\"mono\""));
+    }
+
+    #[test]
+    fn brainwallet_shell_has_form_and_client_script() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, _) = seo_asset(base, "/brainwallet", "").expect("/brainwallet");
+        assert!(body.contains(&format!("<title>{BRAINWALLET_TITLE}</title>")));
+        assert!(body.contains("<span>Tools</span>"));
+        assert!(body.contains("type=\"password\""));
+        assert!(body.contains(">Derive</button>"));
+        assert!(body.contains("id=\"brainwallet-results\""));
+        assert!(body.contains("<script src=\"/brainwallet.js?v=20261118b\" defer></script>"));
+        assert!(body.contains("Brainwallets are unsafe"));
+        // No server-side derivation: the page carries no key payload.
+        assert!(!body.contains("window.__ROTOR_KEY__"));
+
+        let (script, content_type) =
+            static_asset("/brainwallet.js").expect("/brainwallet.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let needle = b"brainwallet-results";
+        assert!(script.windows(needle.len()).any(|w| w == needle));
+    }
+
+    #[test]
+    fn unknown_html_path_is_a_404() {
+        let base = "https://rotor.pxbt.app";
+        assert!(seo_asset(base, "/nope", "").is_none());
+        assert!(static_asset("/nope").is_none());
+        let (body, content_type, status) = unknown_html_page();
+        assert_eq!(status, 404);
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(body.contains("Page not found"));
+        assert!(body.contains("noindex,nofollow"));
+        assert_ne!(body, LANDING);
+    }
+
+    #[test]
     fn seo_key_page_injects_key_and_robots_policy() {
         let base = "https://rotor.pxbt.app";
         let key = format!("{:064x}", 1);
@@ -2157,6 +2558,12 @@ mod tests {
         assert_eq!(status, 200);
         assert_eq!(content_type, "application/xml; charset=utf-8");
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/keys/bitcoin</loc>"));
+        for path in ["/faq", "/disclaimer", "/donate", "/brainwallet"] {
+            assert!(
+                sitemap.contains(&format!("<loc>https://rotor.pxbt.app{path}</loc>")),
+                "sitemap missing {path}"
+            );
+        }
         assert!(!sitemap.contains("/key/"));
     }
 
