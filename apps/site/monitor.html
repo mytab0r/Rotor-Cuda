@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - cabinet</title>
-<link rel="stylesheet" href="/site.css?v=20261117c">
+<link rel="stylesheet" href="/site.css?v=20261117e">
 </head>
 <body>
 <header class="site-nav">
@@ -21,7 +21,7 @@
 <main class="monitor-page">
   <section class="hero monitor-hero">
     <h1>Cabinet</h1>
-    <p class="monitor-tagline">Watch the addresses you control and be warned when something moves without you. This page never asks for a private key, WIF or seed phrase.</p>
+    <p class="monitor-tagline">Watch the addresses you control across EVM, Solana, TRON and Bitcoin, and be warned when something moves without you. This page never asks for a private key, WIF or seed phrase.</p>
     <p class="notice monitor-warning" role="note">An alert is early warning, not protection. Alerts can be delayed or missed, and an idle stolen key is not observable on-chain.</p>
   </section>
 
@@ -30,21 +30,45 @@
   <section class="card monitor-card">
     <h2>Wallet</h2>
     <div class="monitor-wallet-bar">
-      <button type="button" class="primary" id="monitor-connect">Connect wallet</button>
       <button type="button" id="monitor-logout" disabled>Sign out</button>
       <span id="monitor-wallet-state" class="muted" role="status">No session.</span>
     </div>
+    <div id="monitor-providers" class="monitor-providers" role="group" aria-label="Connect a wallet">
+      <button type="button" class="monitor-provider" id="monitor-connect-evm" data-chain="evm">
+        <span class="monitor-provider-name">EVM</span>
+        <span class="monitor-provider-hint" data-provider-hint="evm">Detecting…</span>
+      </button>
+      <button type="button" class="monitor-provider" id="monitor-connect-solana" data-chain="solana">
+        <span class="monitor-provider-name">Solana</span>
+        <span class="monitor-provider-hint" data-provider-hint="solana">Detecting…</span>
+      </button>
+      <button type="button" class="monitor-provider" id="monitor-connect-tron" data-chain="tron">
+        <span class="monitor-provider-name">TRON</span>
+        <span class="monitor-provider-hint" data-provider-hint="tron">Detecting…</span>
+      </button>
+      <button type="button" class="monitor-provider" id="monitor-connect-btc" data-chain="btc">
+        <span class="monitor-provider-name">Bitcoin</span>
+        <span class="monitor-provider-hint" data-provider-hint="btc">Detecting…</span>
+      </button>
+    </div>
+    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Rotor never asks for a private key, WIF or seed phrase.</p>
     <p id="monitor-account-line" class="monitor-account-line" hidden>
-      <span>Account</span>
+      <span>Primary</span>
       <code class="mono" id="monitor-account"></code>
       <button type="button" class="key-copy key-copy-sm" id="monitor-copy-account" hidden>Copy</button>
     </p>
     <p id="monitor-wallet-error" class="error monitor-status" role="alert" hidden></p>
     <div id="monitor-no-wallet" class="monitor-no-wallet" hidden>
-      <p>No EVM wallet was detected in this browser. Rotor Cabinet signs you in with a Sign-In with Ethereum (EIP-4361) message: the wallet signs a one-time challenge, and the signature proves the address is yours. No private key or seed phrase is ever requested.</p>
-      <p class="muted monitor-note" id="monitor-siwe-note"></p>
-      <button type="button" id="monitor-copy-siwe">Copy sign-in note</button>
+      <p>No browser wallet was detected. Rotor Cabinet signs you in with a one-time challenge: the wallet signs it, and the signature proves the address is yours. No private key, WIF or seed phrase is ever requested.</p>
+      <p class="muted monitor-note" id="monitor-wallet-note"></p>
+      <button type="button" id="monitor-copy-wallet-note">Copy sign-in note</button>
     </div>
+  </section>
+
+  <section class="card monitor-card">
+    <h2>Identities</h2>
+    <p id="monitor-identities-state" class="muted monitor-empty">Sign in to see the wallets linked to this cabinet.</p>
+    <ul id="monitor-identities" class="monitor-identities"></ul>
   </section>
 
   <section class="card monitor-card">
@@ -60,6 +84,8 @@
       <label>Chain
         <select id="monitor-add-chain" disabled>
           <option value="evm">Ethereum / EVM</option>
+          <option value="solana">Solana</option>
+          <option value="tron">TRON</option>
           <option value="btc">Bitcoin</option>
         </select>
       </label>
@@ -74,7 +100,7 @@
     </form>
     <p id="monitor-add-error" class="error monitor-status" role="alert" hidden></p>
     <p id="monitor-add-status" class="muted monitor-status" role="status" hidden></p>
-    <p class="monitor-note monitor-warning-text">Unverified addresses can be watched, but Rotor has not proven that you control them. Only the address used to sign in is marked verified; every other address stays unverified.</p>
+    <p class="monitor-note monitor-warning-text">Unverified addresses can be watched, but Rotor has not proven that you control them. An address is marked verified only when its chain signed a challenge. Bitcoin signatures are not verified yet, so imported Bitcoin addresses stay unverified until a Bitcoin signature scheme ships.</p>
   </section>
 
   <section class="card monitor-card">
@@ -102,6 +128,6 @@
   </section>
 </main>
 
-<script src="/cabinet.js?v=20261117c"></script>
+<script src="/cabinet.js?v=20261117e"></script>
 </body>
 </html>

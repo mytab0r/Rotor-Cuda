@@ -80,23 +80,44 @@ impl Default for Settings {
     }
 }
 
+/// One login identity proven for an account. `address` on the user is the
+/// primary identity (the first one added).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Identity {
+    pub chain: String,
+    pub address: String,
+    #[serde(default)]
+    pub verified: bool,
+    #[serde(default)]
+    pub added_at: u64,
+}
+
 /// A monitor account. It is separate from the coordinator's `ClientRecord`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: String,
+    /// Primary identity address (the first identity created for the user).
     pub address: String,
     pub created_at: u64,
     #[serde(default)]
     pub settings: Settings,
+    #[serde(default)]
+    pub identities: Vec<Identity>,
 }
 
 /// A single-use SIWE challenge.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Challenge {
     pub nonce: String,
+    #[serde(default = "default_chain")]
+    pub chain: String,
     pub address: String,
     pub message: String,
     pub expires_at: u64,
+}
+
+fn default_chain() -> String {
+    "evm".to_string()
 }
 
 /// A bearer session. Only the SHA-256 of the token is persisted.
@@ -200,7 +221,7 @@ impl MonitorStore {
                 parent.display()
             ));
         }
-        let data = match fs::read(&path) {
+        let mut data = match fs::read(&path) {
             Ok(bytes) => {
                 let data: Data = serde_json::from_slice(&bytes)
                     .map_err(|err| format!("cannot parse {}: {err}", path.display()))?;
@@ -220,10 +241,16 @@ impl MonitorStore {
             },
             Err(err) => return Err(format!("cannot read {}: {err}", path.display())),
         };
-        Ok(Self {
+        let migrated = migrate_identities(&mut data);
+        let store = Self {
             path,
             data: Mutex::new(data),
-        })
+        };
+        if migrated {
+            let mut data = store.lock();
+            store.save_locked(&mut data)?;
+        }
+        Ok(store)
     }
 
     fn lock(&self) -> MutexGuard<'_, Data> {
@@ -250,22 +277,74 @@ impl MonitorStore {
             .map_err(|err| format!("cannot replace {}: {err}", self.path.display()))
     }
 
-    /// Find a user by wallet address or create one.
+    /// Find a user by wallet address or create one (EVM convenience wrapper).
     pub fn upsert_user(&self, address: &str) -> Result<User, String> {
-        let address = canonicalize_evm(address)?;
+        self.upsert_identity("evm", address)
+    }
+
+    /// Find a user by `(chain, address)` or create one whose primary identity
+    /// is that address.
+    pub fn upsert_identity(&self, chain: &str, address: &str) -> Result<User, String> {
+        let (chain, address) = canonicalize_address(chain, address)?;
         let mut data = self.lock();
-        if let Some(user) = data.users.values().find(|user| user.address == address) {
+        if let Some(user) = find_identity(&data, &chain, &address) {
             return Ok(user.clone());
         }
+        let now = now_secs();
         let user = User {
             id: format!("u_{}", random_hex(8)?),
-            address,
-            created_at: now_secs(),
+            address: address.clone(),
+            created_at: now,
             settings: Settings::default(),
+            identities: vec![Identity {
+                chain,
+                address,
+                verified: true,
+                added_at: now,
+            }],
         };
         data.users.insert(user.id.clone(), user.clone());
         self.save_locked(&mut data)?;
         Ok(user)
+    }
+
+    /// Resolve the account that already owns `(chain, address)`.
+    pub fn find_user_by_identity(&self, chain: &str, address: &str) -> Option<User> {
+        let (chain, address) = canonicalize_address(chain, address).ok()?;
+        let data = self.lock();
+        find_identity(&data, &chain, &address).cloned()
+    }
+
+    /// Attach a verified identity to an existing account. Returns the updated
+    /// user, or `None` when the account does not exist. An identity already
+    /// owned by a different account is rejected instead of silently merging.
+    pub fn add_identity(
+        &self,
+        user_id: &str,
+        chain: &str,
+        address: &str,
+        verified: bool,
+    ) -> Result<Option<User>, String> {
+        let (chain, address) = canonicalize_address(chain, address)?;
+        let mut data = self.lock();
+        if let Some(owner) = find_identity(&data, &chain, &address) {
+            if owner.id != user_id {
+                return Err("address is already linked to another account".to_string());
+            }
+            return Ok(Some(owner.clone()));
+        }
+        let Some(user) = data.users.get_mut(user_id) else {
+            return Ok(None);
+        };
+        user.identities.push(Identity {
+            chain,
+            address,
+            verified,
+            added_at: now_secs(),
+        });
+        let user = user.clone();
+        self.save_locked(&mut data)?;
+        Ok(Some(user))
     }
 
     /// Generate an opaque challenge nonce (16 random bytes, hex).
@@ -277,6 +356,7 @@ impl MonitorStore {
     pub fn put_challenge(
         &self,
         nonce: &str,
+        chain: &str,
         address: &str,
         message: &str,
         expires_at: u64,
@@ -289,6 +369,7 @@ impl MonitorStore {
             nonce.to_string(),
             Challenge {
                 nonce: nonce.to_string(),
+                chain: chain.to_string(),
                 address: address.to_string(),
                 message: message.to_string(),
                 expires_at,
@@ -672,6 +753,32 @@ impl MonitorStore {
     }
 }
 
+/// Backfill identities for accounts written before multi-chain login: the
+/// primary EVM address becomes their first verified identity.
+fn migrate_identities(data: &mut Data) -> bool {
+    let mut changed = false;
+    for user in data.users.values_mut() {
+        if user.identities.is_empty() {
+            user.identities.push(Identity {
+                chain: "evm".to_string(),
+                address: user.address.clone(),
+                verified: true,
+                added_at: user.created_at,
+            });
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn find_identity<'a>(data: &'a Data, chain: &str, address: &str) -> Option<&'a User> {
+    data.users.values().find(|user| {
+        user.identities
+            .iter()
+            .any(|identity| identity.chain == chain && identity.address == address)
+    })
+}
+
 fn watches_for(data: &Data, user_id: &str) -> Vec<Watch> {
     let mut watches: Vec<Watch> = data
         .watches
@@ -743,10 +850,39 @@ pub fn canonical_chain(chain: &str) -> Result<&'static str, String> {
     match chain.trim().to_ascii_lowercase().as_str() {
         "evm" | "ethereum" | "eth" => Ok("evm"),
         "btc" | "bitcoin" => Ok("btc"),
+        "solana" | "sol" => Ok("solana"),
+        "tron" | "trx" => Ok("tron"),
         other => Err(format!(
-            "unsupported chain: {other}; MVP supports evm and btc"
+            "unsupported chain: {other}; supports evm, btc, solana and tron"
         )),
     }
+}
+
+/// Canonicalize a Solana address: Base58 of exactly 32 ed25519 pubkey bytes.
+pub fn canonicalize_solana(address: &str) -> Result<String, String> {
+    let trimmed = address.trim();
+    let bytes = bs58::decode(trimmed)
+        .into_vec()
+        .map_err(|err| format!("invalid Solana address: {err}"))?;
+    if bytes.len() != 32 {
+        return Err("Solana address must be a 32-byte ed25519 public key".to_string());
+    }
+    Ok(bs58::encode(bytes).into_string())
+}
+
+/// Canonicalize a TRON address: Base58Check over a 21-byte payload whose first
+/// byte is the `0x41` mainnet version.
+pub fn canonicalize_tron(address: &str) -> Result<String, String> {
+    let trimmed = address.trim();
+    let payload = crate::base58::decode_check(trimmed)
+        .map_err(|err| format!("invalid TRON address: {err}"))?;
+    if payload.len() != 21 {
+        return Err("TRON address payload must be 21 bytes".to_string());
+    }
+    if payload[0] != 0x41 {
+        return Err("TRON address must use the 0x41 mainnet version".to_string());
+    }
+    Ok(crate::base58::encode_check(&payload))
 }
 
 /// Canonicalize an EVM address to `0x` + 40 lowercase hex digits.
@@ -889,6 +1025,8 @@ pub fn canonicalize_address(chain: &str, address: &str) -> Result<(String, Strin
     let address = match chain {
         "evm" => canonicalize_evm(address)?,
         "btc" => canonicalize_btc(address)?,
+        "solana" => canonicalize_solana(address)?,
+        "tron" => canonicalize_tron(address)?,
         _ => return Err(format!("unsupported chain: {chain}")),
     };
     Ok((chain.to_string(), address))
@@ -970,8 +1108,9 @@ mod tests {
         assert!(canonicalize_evm("1111111111111111111111111111111111111111").is_err());
         assert!(canonicalize_evm("0x1234").is_err());
         assert_eq!(canonical_chain("Ethereum").unwrap(), "evm");
-        assert!(canonical_chain("solana").is_err());
-        assert!(canonical_chain("tron").unwrap_err().contains("evm and btc"));
+        assert_eq!(canonical_chain("solana").unwrap(), "solana");
+        assert_eq!(canonical_chain("trx").unwrap(), "tron");
+        assert!(canonical_chain("doge").unwrap_err().contains("evm, btc"));
         // Base58Check: the genesis P2PKH address has a valid checksum.
         assert_eq!(
             canonicalize_btc("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").unwrap(),
@@ -997,7 +1136,7 @@ mod tests {
         let temp = TempStore::new("prune");
         let now = now_secs();
         temp.store
-            .put_challenge("stale", ADDRESS, "message", now.saturating_sub(1))
+            .put_challenge("stale", "evm", ADDRESS, "message", now.saturating_sub(1))
             .expect("put challenge");
         assert!(temp.store.challenge("stale").is_none());
     }
@@ -1076,6 +1215,58 @@ mod tests {
             store.resolve_session(fresh_token).as_deref(),
             Some("u_fresh")
         );
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_file(format!("{}.tmp", path.display()));
+    }
+
+    #[test]
+    fn identities_are_migrated_and_looked_up() {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!(
+            "rotor-monitor-store-{}-{nanos}-identity.json",
+            std::process::id()
+        ));
+        let legacy = serde_json::json!({
+            "version": STORE_VERSION,
+            "users": {
+                "u_legacy": {"id": "u_legacy", "address": ADDRESS, "created_at": 1},
+            },
+        });
+        fs::write(&path, legacy.to_string()).expect("write legacy state");
+
+        let store = MonitorStore::open(&path).expect("open store");
+        let user = store
+            .find_user_by_identity("evm", ADDRESS)
+            .expect("migrated identity");
+        assert_eq!(user.id, "u_legacy");
+        assert_eq!(user.identities.len(), 1);
+        assert!(user.identities[0].verified);
+        let raw: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).expect("read state")).expect("json");
+        assert_eq!(raw["users"]["u_legacy"]["identities"][0]["chain"], "evm");
+
+        // A second identity links to the same user instead of a new account.
+        let sol = "11111111111111111111111111111111";
+        let linked = store
+            .add_identity("u_legacy", "solana", sol, true)
+            .expect("link")
+            .expect("user exists");
+        assert_eq!(linked.identities.len(), 2);
+        assert_eq!(
+            store
+                .find_user_by_identity("solana", sol)
+                .expect("lookup")
+                .id,
+            "u_legacy"
+        );
+
+        // An identity owned by one account cannot move to another.
+        let other = store.upsert_user(OTHER).expect("second user");
+        assert!(store.add_identity(&other.id, "solana", sol, true).is_err());
+
         let _ = fs::remove_file(&path);
         let _ = fs::remove_file(format!("{}.tmp", path.display()));
     }
