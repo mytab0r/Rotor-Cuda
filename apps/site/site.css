@@ -75,6 +75,7 @@ a:hover { text-decoration: underline; }
 
 main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   max-width: 1180px;
   margin: 0 auto;
@@ -702,4 +703,96 @@ p { text-wrap: pretty; }
   .monitor-event-time { margin-left: 0; width: 100%; }
   .monitor-wallet-bar { align-items: stretch; }
   .monitor-wallet-bar button { flex: 1 1 auto; }
+}
+
+/* Public key-range page */
+.range-page { --range-panel: #1a212b; --range-panel-2: #232c38; --range-border: #3b4654; }
+.range-page h1,
+.range-title { overflow-wrap: anywhere; }
+.range-hero { padding: 18px 20px; }
+.range-hero h1 { margin: 0 0 4px; font-size: 24px; line-height: 1.25; }
+.range-tagline { max-width: 80ch; margin: 0; font-size: 14px; color: var(--muted); }
+
+.range-form {
+  grid-template-columns: minmax(120px, .7fr) minmax(0, 1.6fr) minmax(0, 1.6fr) auto;
+  align-items: end;
+}
+.range-form label { min-width: 0; }
+.range-form input,
+.range-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  border-radius: 8px;
+  background: var(--range-panel-2);
+  border-color: var(--range-border);
+  font-size: 12px;
+}
+.range-form input { font-size: 11px; }
+.range-form input:focus-visible,
+.range-form select:focus-visible,
+.range-actions button:focus-visible,
+.range-table a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.range-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.range-actions button { justify-self: auto; white-space: nowrap; }
+.range-actions button.primary { min-width: 74px; }
+.range-export { margin-top: 10px; }
+.range-export button { background: var(--range-panel-2); border-color: var(--range-border); color: var(--text); }
+.range-export button:disabled { color: var(--muted); cursor: not-allowed; border-color: var(--range-border); }
+.range-notice { margin: 14px 0 0; font-size: 12px; }
+.range-error { margin: 10px 0 0; overflow-wrap: anywhere; }
+.range-status { margin: 8px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.range-balance-note { margin: 10px 0 0; font-size: 12px; }
+
+.range-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.range-table { min-width: 620px; }
+.range-table th,
+.range-table td { vertical-align: top; }
+.range-table .range-key { white-space: normal; overflow-wrap: anywhere; min-width: 190px; max-width: 300px; }
+.range-table .range-key a { font-size: 11px; line-height: 1.5; }
+.range-table .range-address,
+.range-table .range-secondary-cell { white-space: normal; overflow-wrap: anywhere; }
+.range-addr { font-size: 12px; overflow-wrap: anywhere; }
+.range-secondary { display: grid; gap: 3px; }
+.range-secondary-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.range-dash { color: var(--muted); }
+.range-empty { margin: 0; padding: 14px 10px; color: var(--muted); }
+.range-skeleton {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #232c38 0%, #2e3a49 50%, #232c38 100%);
+  background-size: 200% 100%;
+  animation: range-shimmer 1.2s ease-in-out infinite;
+}
+.range-skeleton.w1 { width: 22px; }
+.range-skeleton.w2 { width: 72%; }
+.range-skeleton.w3 { width: 100%; }
+@keyframes range-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .range-skeleton { animation: none; }
+}
+
+@media (max-width: 900px) {
+  .range-form { grid-template-columns: 1fr 1fr; }
+  .range-form label:first-child { grid-column: 1 / -1; }
+  .range-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 480px) {
+  .range-form { grid-template-columns: 1fr; }
+  .range-form label:first-child,
+  .range-actions { grid-column: auto; }
+  .range-hero { padding: 15px 14px; }
+  .range-hero h1 { font-size: 20px; }
+  .range-export button { flex: 1 1 auto; }
 }
