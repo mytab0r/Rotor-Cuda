@@ -41,6 +41,9 @@ const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
 const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
 const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
+const WALLETCONNECT_JS: &[u8] = include_bytes!("../../apps/site/walletconnect.js");
+const FAVICON_ICO: &[u8] = include_bytes!("../../apps/site/favicon.ico");
+const FAVICON_PNG: &[u8] = include_bytes!("../../apps/site/favicon.png");
 /// Canonical public origin for absolute URLs in the SEO surface. It is never
 /// derived from the request `Host` header; override with `ROTOR_PUBLIC_URL`
 /// (the CLI flag lives outside this module's route contract).
@@ -203,6 +206,8 @@ struct App {
     /// Canonical public origin (no trailing slash) for canonical links, the
     /// sitemap and JSON-LD. Fixed at startup, never taken from the request.
     public_url: String,
+    /// Optional Reown/WalletConnect project id, exposed to the cabinet config.
+    walletconnect_project_id: String,
 }
 
 impl App {
@@ -434,6 +439,8 @@ fn spawn_inner(
         monitor_domain,
         trust_proxy: options.trust_proxy,
         public_url: public_url_from_env(),
+        walletconnect_project_id: std::env::var("ROTOR_WALLETCONNECT_PROJECT_ID")
+            .unwrap_or_default(),
     });
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -484,7 +491,7 @@ fn reject_over_capacity(app: &App, request: Request) {
 
 fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
     // Public endpoints never answer 401; capacity is the only failure.
-    if path == "/api/v1/summary" || path == "/api/v1/register" {
+    if path == "/api/v1/summary" || path == "/api/v1/register" || path == "/api/v1/monitor/config" {
         return 503;
     }
     if path.starts_with("/api/v1/") && !authorized {
@@ -534,6 +541,14 @@ fn handle(app: Arc<App>, request: Request) {
         return;
     }
 
+    if method == Method::Get && path == "/api/v1/monitor/config" {
+        return respond_json(
+            request,
+            200,
+            &json!({ "walletconnect_project_id": app.walletconnect_project_id }),
+        );
+    }
+
     // The address monitor has its own store, sessions and rate limits; its
     // routes never enter the coordinator token matrix below.
     if path.starts_with("/api/v1/monitor/") {
@@ -552,7 +567,6 @@ fn handle(app: Arc<App>, request: Request) {
         return;
     }
 
-    // Public aggregate snapshot for the landing page: no secrets, no auth.
     if method == Method::Get && path == "/api/v1/summary" {
         let response = app.lock().summary(state::now_secs());
         return respond_json(
@@ -625,6 +639,9 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/walletconnect.js" => Some((WALLETCONNECT_JS, "application/javascript; charset=utf-8")),
+        "/favicon.ico" => Some((FAVICON_ICO, "image/x-icon")),
+        "/favicon.png" => Some((FAVICON_PNG, "image/png")),
         "/cabinet" => Some((MONITOR_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/cabinet.js" | "/monitor.js" => Some((
             MONITOR_JS.as_bytes(),
