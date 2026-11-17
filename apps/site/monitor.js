@@ -16,7 +16,8 @@
   };
   var WALLET_NOTE = 'No browser wallet was detected. Rotor signs you in with a one-time challenge: ' +
     'your wallet signs it, and the signature proves the address is yours. EVM (MetaMask/Rabby), ' +
-    'Solana (Phantom) and TRON (TronLink) can sign in. Bitcoin (Unisat) has no signature scheme yet: ' +
+    'Solana (Phantom) and TRON (TronLink) can sign in, and WalletConnect links a mobile EVM wallet ' +
+    'over QR (EVM only in this build). Bitcoin (Unisat) has no signature scheme yet: ' +
     'after signing in with another chain you can import its addresses as unverified. No private key, ' +
     'WIF or seed phrase is ever requested. Install a wallet and reload this page.';
 
@@ -45,6 +46,7 @@
       tron: byId('monitor-connect-tron'),
       btc: byId('monitor-connect-btc')
     },
+    walletconnect: byId('monitor-connect-walletconnect'),
     providerNote: byId('monitor-provider-note'),
     accountLine: byId('monitor-account-line'),
     account: byId('monitor-account'),
@@ -501,6 +503,44 @@
     }
   }
 
+  /* WalletConnect is lazy: the bundle is fetched only when the card is used. */
+  var walletConnectLoader = null;
+
+  function walletConnectMetadata() {
+    return {
+      name: 'Rotor Cabinet',
+      description: 'Watch addresses and get alerts',
+      url: location.origin,
+      icons: [location.origin + '/favicon.ico']
+    };
+  }
+
+  function loadWalletConnectBundle() {
+    if (window.RotorWC && typeof window.RotorWC.connect === 'function') {
+      return Promise.resolve(window.RotorWC);
+    }
+    if (walletConnectLoader) return walletConnectLoader;
+    walletConnectLoader = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = '/walletconnect.js';
+      script.async = true;
+      script.onload = function () {
+        if (window.RotorWC && typeof window.RotorWC.connect === 'function') {
+          resolve(window.RotorWC);
+        } else {
+          walletConnectLoader = null;
+          reject(new Error('The WalletConnect bundle did not initialise.'));
+        }
+      };
+      script.onerror = function () {
+        walletConnectLoader = null;
+        reject(new Error('Could not load the WalletConnect bundle.'));
+      };
+      document.head.appendChild(script);
+    });
+    return walletConnectLoader;
+  }
+
   /* The coordinator verifies Solana signatures as hex (or Base64). Phantom
    * returns raw bytes, so encode them as lowercase hex. */
   function hexEncode(bytes) {
@@ -600,6 +640,20 @@
     }
   };
 
+  function renderWalletConnectProvider() {
+    var button = els.walletconnect;
+    if (!button) return;
+    var hint = button.querySelector('[data-provider-hint]');
+    var busy = state.busy && state.busyChain === 'walletconnect';
+    button.disabled = state.busy;
+    button.setAttribute('aria-busy', busy ? 'true' : 'false');
+    var label;
+    if (busy) label = 'connecting…';
+    else if (!state.token) label = 'sign in with a mobile wallet';
+    else label = 'link or import';
+    if (hint) hint.textContent = label;
+  }
+
   function renderProviders() {
     var anyDetected = false;
     PROVIDER_ORDER.forEach(function (chain) {
@@ -621,7 +675,17 @@
       }
       if (hint) hint.textContent = label;
     });
+    renderWalletConnectProvider();
     els.noWallet.hidden = anyDetected;
+  }
+
+  function walletConnectErrorMessage(err) {
+    if (!err) return 'WalletConnect request failed.';
+    var message = err.message ? String(err.message) : '';
+    if (err.code === 4001 || /reject|denied|cancel|closed|declin|expired|timeout/i.test(message)) {
+      return 'The WalletConnect request was rejected, closed or timed out. Nothing was sent to Rotor.';
+    }
+    return 'WalletConnect error: ' + (message || 'unknown error');
   }
 
   function walletErrorMessage(err, chain) {
@@ -778,14 +842,7 @@
     renderWatches(state.watches);
   }
 
-  async function importProviderAddresses(chain, wallet, connected) {
-    var addresses = connected;
-    try {
-      var listed = await ADAPTERS[chain].addresses(wallet, connected);
-      if (Array.isArray(listed) && listed.length) addresses = listed;
-    } catch (err) {
-      /* Keep the addresses the connect step already returned. */
-    }
+  async function importAddressList(chain, addresses) {
     var seen = {};
     var payload = [];
     (Array.isArray(addresses) ? addresses : []).forEach(function (address) {
@@ -799,6 +856,17 @@
     var result = await api('/addresses', { method: 'POST', body: { addresses: payload } });
     if (result && Array.isArray(result.watches)) mergeWatches(result.watches);
     return payload.length;
+  }
+
+  async function importProviderAddresses(chain, wallet, connected) {
+    var addresses = connected;
+    try {
+      var listed = await ADAPTERS[chain].addresses(wallet, connected);
+      if (Array.isArray(listed) && listed.length) addresses = listed;
+    } catch (err) {
+      /* Keep the addresses the connect step already returned. */
+    }
+    return importAddressList(chain, addresses);
   }
 
   async function connectProvider(chain) {
@@ -933,6 +1001,140 @@
     }
   }
 
+  async function connectWalletConnect() {
+    hideWalletError();
+    hideSessionError();
+    if (state.busy) return;
+
+    var linking = !!state.token;
+    var loggedIn = false;
+    var provider = null;
+    setConnectBusy(true, 'walletconnect');
+    setWalletState('Checking WalletConnect configuration…', 'muted');
+    try {
+      var config = await api('/config', { token: '' });
+      var projectId = config && typeof config.walletconnect_project_id === 'string'
+        ? config.walletconnect_project_id.trim() : '';
+      if (!projectId) {
+        showWalletError('WalletConnect is not configured on this server. Use a browser wallet for now, or ask the operator to set a project ID.');
+        setWalletState(state.token ? 'Session active.' : 'No session.', state.token ? 'ok' : 'muted');
+        return;
+      }
+
+      setWalletState('Loading WalletConnect…', 'muted');
+      var sdk = await loadWalletConnectBundle();
+      setWalletState('Scan the QR code with your mobile wallet…', 'muted');
+      provider = await sdk.connect({ projectId: projectId, metadata: walletConnectMetadata() });
+      var accounts = provider && Array.isArray(provider.accounts)
+        ? provider.accounts.filter(function (address) { return typeof address === 'string' && address; })
+        : [];
+      if (!accounts.length) throw new Error('WalletConnect returned no EVM account.');
+      var primary = accounts[0];
+
+      /* Already linked to this session: import the exposed accounts without a
+       * second sign-in, matching the injected wallet adapters. */
+      if (linking && hasVerifiedIdentity('evm', primary)) {
+        setWalletState('Importing WalletConnect addresses…', 'muted');
+        var linkedCount = await importAddressList('evm', accounts);
+        await refresh();
+        setWalletState('Imported ' + linkedCount + ' WalletConnect address(es).', 'ok');
+        return;
+      }
+
+      setWalletState('Requesting a sign-in challenge…', 'muted');
+      var challenge = await api('/challenge', {
+        method: 'POST',
+        body: { chain: 'evm', address: primary },
+        token: ''
+      });
+      if (!challenge || typeof challenge.message !== 'string' || !challenge.message) {
+        throw new Error('The coordinator returned no challenge message.');
+      }
+
+      setWalletState('Waiting for your signature in the mobile wallet…', 'muted');
+      var signature = await provider.request({
+        method: 'personal_sign',
+        params: [challenge.message, primary]
+      });
+      if (typeof signature !== 'string' || !signature) {
+        throw new Error('The wallet returned no signature.');
+      }
+
+      setWalletState(linking ? 'Linking this wallet…' : 'Signing in…', 'muted');
+      var body = { chain: 'evm', message: challenge.message, signature: signature };
+      if (linking) body.link = true;
+      var login = await api('/login', {
+        method: 'POST',
+        body: body,
+        token: linking ? state.token : ''
+      });
+
+      if (!linking) {
+        if (!login || typeof login.token !== 'string' || !login.token) {
+          throw new Error('The coordinator returned no session token.');
+        }
+        /* Store the token; never render or log it. */
+        saveToken(login.token);
+        state.token = login.token;
+      } else if (login && typeof login.token === 'string' && login.token) {
+        saveToken(login.token);
+        state.token = login.token;
+      }
+      loggedIn = true;
+
+      if (login && login.user) state.user = login.user;
+      else if (!linking) state.user = { address: primary };
+      if (login && login.user && login.user.settings) {
+        state.settings = settingsFrom(login.user.settings);
+      }
+      state.settingsDirty = false;
+      setAuthenticated(true);
+      hideSessionError();
+      renderAccount();
+      renderIdentities();
+      renderSettings(state.settings);
+      els.watchlistState.textContent = 'Loading watchlist…';
+      els.watchlistState.hidden = false;
+      els.eventsState.textContent = 'Loading events…';
+      els.eventsState.hidden = false;
+      setWalletState(linking ? 'Wallet linked.' : 'Signed in.', 'ok');
+      if (!linking) startPolling();
+
+      var imported = 0;
+      try {
+        imported = await importAddressList('evm', accounts);
+      } catch (err) {
+        showWalletError((linking ? 'Wallet linked' : 'Signed in') +
+          ', but the WalletConnect addresses could not all be imported: ' +
+          (err && err.message ? err.message : 'unknown error'));
+      }
+      await refresh();
+      setWalletState((linking ? 'Wallet linked' : 'Signed in') + '. Imported ' + imported +
+        ' WalletConnect address(es).', 'ok');
+    } catch (err) {
+      if (err && err.status !== undefined) {
+        if (err.status === 401 && linking) {
+          resetSession('Your session expired or was rejected. Sign in again with a signing wallet.');
+          return;
+        }
+        var prefix = loggedIn ? 'Import failed' : (linking ? 'Linking failed' : 'Sign-in failed');
+        showWalletError(prefix + ': ' + (err.message || 'request failed') + '.');
+        if (!state.token) setWalletState('No session.', 'muted');
+        else setWalletState('Session active.', 'ok');
+      } else {
+        showWalletError(walletConnectErrorMessage(err));
+        if (!state.token) setWalletState('No session.', 'muted');
+        else setWalletState('Session active.', 'ok');
+      }
+    } finally {
+      /* Closing the WC session is best effort; never block the cabinet on it. */
+      if (provider && typeof provider.disconnect === 'function') {
+        Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+      }
+      setConnectBusy(false);
+    }
+  }
+
   async function addAddress(event) {
     event.preventDefault();
     setAddError('');
@@ -1062,6 +1264,7 @@
     var button = els.providers[chain];
     if (button) button.addEventListener('click', function () { connectProvider(chain); });
   });
+  if (els.walletconnect) els.walletconnect.addEventListener('click', connectWalletConnect);
   els.logout.addEventListener('click', logout);
   els.addForm.addEventListener('submit', addAddress);
   els.settingsForm.addEventListener('submit', saveSettings);
