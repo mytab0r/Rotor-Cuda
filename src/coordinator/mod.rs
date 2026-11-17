@@ -37,6 +37,8 @@ const SITE_JS: &str = include_str!("../../apps/site/site.js");
 const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
 const KEY_PAGE: &str = include_str!("../../apps/site/key.html");
 const KEY_JS: &str = include_str!("../../apps/site/key.js");
+const RANGE_PAGE: &str = include_str!("../../apps/site/range.html");
+const RANGE_JS: &str = include_str!("../../apps/site/range.js");
 const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
 const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
@@ -639,6 +641,7 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/range.js" => Some((RANGE_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/walletconnect.js" => Some((WALLETCONNECT_JS, "application/javascript; charset=utf-8")),
         "/favicon.ico" => Some((FAVICON_ICO, "image/x-icon")),
         "/favicon.png" => Some((FAVICON_PNG, "image/png")),
@@ -740,8 +743,17 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
     if path == "/keys" {
         return Some((render_keys_hub(base), HTML, 200));
     }
-    if let Some(slug) = path.strip_prefix("/keys/") {
-        return Some(match chain_by_slug(slug) {
+    if let Some(rest) = path.strip_prefix("/keys/") {
+        if let Some((slug, range_text)) = rest.split_once('/') {
+            let Some(chain) = chain_by_slug(slug) else {
+                return Some((render_seo_not_found(), HTML, 404));
+            };
+            return Some(match parse_key_range(range_text) {
+                Some(range) => (render_range_page(base, chain, &range), HTML, 200),
+                None => (render_seo_not_found(), HTML, 404),
+            });
+        }
+        return Some(match chain_by_slug(rest) {
             Some(chain) => (render_chain_hub(base, chain), HTML, 200),
             None => (render_seo_not_found(), HTML, 404),
         });
@@ -775,6 +787,92 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
         return None;
     }
     Some(lower)
+}
+
+/// A parsed `/keys/<chain>/<start>-<end>` range: lowercase hex endpoints, an
+/// inclusive key count (1..=64) and whether it is one of the curated 1..=64
+/// ranges that hub pages link to (indexable).
+struct KeyRange {
+    start: String,
+    end: String,
+    start_bytes: [u8; 32],
+    count: u32,
+    curated: bool,
+}
+
+/// Exactly 64 hex digits as 32 big-endian bytes.
+fn hex_to_32(hex: &str) -> Option<[u8; 32]> {
+    if hex.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (slot, chunk) in out.iter_mut().zip(hex.as_bytes().as_chunks::<2>().0) {
+        *slot = (hex_digit(chunk[0])? << 4) | hex_digit(chunk[1])?;
+    }
+    Some(out)
+}
+
+fn hex_from_32(bytes: &[u8; 32]) -> String {
+    let mut out = String::with_capacity(64);
+    for byte in bytes {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out
+}
+
+/// True when the 256-bit value is at most 64 (it fits in the last byte).
+fn value_at_most_64(bytes: &[u8; 32]) -> bool {
+    bytes[..31].iter().all(|&byte| byte == 0) && bytes[31] <= 64
+}
+
+/// `end - start` as a 256-bit big-endian subtraction; returns `None` when
+/// `end < start`.
+fn sub_32(end: &[u8; 32], start: &[u8; 32]) -> Option<[u8; 32]> {
+    if end < start {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    let mut borrow = 0u16;
+    for index in (0..32).rev() {
+        let difference = end[index] as u16 + 256 - start[index] as u16 - borrow;
+        out[index] = (difference & 0xff) as u8;
+        borrow = if difference < 256 { 1 } else { 0 };
+    }
+    Some(out)
+}
+
+fn increment_32(bytes: &mut [u8; 32]) {
+    for slot in bytes.iter_mut().rev() {
+        let (next, carry) = slot.overflowing_add(1);
+        *slot = next;
+        if !carry {
+            break;
+        }
+    }
+}
+
+/// Parse the `<start>-<end>` part of a key-range route. Case-insensitive hex,
+/// inclusive range, `start <= end`, at most 64 keys; anything else is `None`.
+fn parse_key_range(text: &str) -> Option<KeyRange> {
+    let (start_hex, end_hex) = text.split_once('-')?;
+    let start_bytes = hex_to_32(start_hex)?;
+    let end_bytes = hex_to_32(end_hex)?;
+    let span = sub_32(&end_bytes, &start_bytes)?;
+    if span[..24].iter().any(|&byte| byte != 0) {
+        return None;
+    }
+    let low = u64::from_be_bytes(span[24..32].try_into().ok()?);
+    if low >= 64 {
+        return None;
+    }
+    let curated = start_bytes.iter().any(|&byte| byte != 0) && value_at_most_64(&end_bytes);
+    Some(KeyRange {
+        start: start_hex.to_ascii_lowercase(),
+        end: end_hex.to_ascii_lowercase(),
+        start_bytes,
+        count: (low + 1) as u32,
+        curated,
+    })
 }
 
 fn escape_attr(text: &str) -> String {
@@ -870,10 +968,20 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
             { "@type": "ListItem", "position": 3, "name": format!("Key {short}"), "item": canonical },
         ],
     });
+    // Only the curated example keys 1..=64 are indexable; any other key page is
+    // user-supplied and stays out of the index.
+    let curated = hex_to_32(key).is_some_and(|bytes| {
+        bytes[..31].iter().all(|&byte| byte == 0) && (1..=64).contains(&bytes[31])
+    });
+    let robots = if curated {
+        "index,follow"
+    } else {
+        "noindex,follow"
+    };
     let head = format!(
         "<meta name=\"description\" content=\"{}\">\n\
          <link rel=\"canonical\" href=\"{}\">\n\
-         <meta name=\"robots\" content=\"noindex,follow\">\n\
+         <meta name=\"robots\" content=\"{}\">\n\
          <meta property=\"og:type\" content=\"website\">\n\
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
@@ -881,6 +989,7 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
          {}{}",
         escape_attr(&description),
         escape_attr(&canonical),
+        robots,
         escape_attr(&title),
         escape_attr(&description),
         escape_attr(&canonical),
@@ -912,6 +1021,111 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     html.replacen(
         "<script src=\"/key.js",
         &format!("{payload}<script src=\"/key.js"),
+        1,
+    )
+}
+
+fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
+    let start_short = &range.start[..8];
+    let end_short = &range.end[56..];
+    let label = format!("0x{start_short}…–0x{end_short}…");
+    let canonical = format!("{base}/keys/{}/{}-{}", chain.slug, range.start, range.end);
+    let title = format!("{} keys {label} — {} keys | Rotor", chain.name, range.count);
+    let description = format!(
+        "{} private keys from 0x{start_short}… to 0x{end_short}… (inclusive), derived locally in your browser. Rotor shows public addresses only; the keys are never sent to a server.",
+        chain.name
+    );
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Keys", "item": format!("{base}/keys") },
+            { "@type": "ListItem", "position": 3, "name": chain.name, "item": format!("{base}/keys/{}", chain.slug) },
+            { "@type": "ListItem", "position": 4, "name": label, "item": canonical },
+        ],
+    });
+    let mut entries = Vec::with_capacity(range.count as usize);
+    let mut current = range.start_bytes;
+    for position in 1..=range.count {
+        entries.push(json!({
+            "@type": "ListItem",
+            "position": position,
+            "url": format!("{base}/key/{}{}", hex_from_32(&current), chain.curve_suffix),
+        }));
+        increment_32(&mut current);
+    }
+    let ld_items = json!({
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": format!("{} keys in range {label}", chain.name),
+        "numberOfItems": range.count,
+        "itemListElement": entries,
+    });
+    // Curated ranges (1..=64) are linked from hubs and stay indexable; any other
+    // range is user-supplied and only follows links.
+    let robots = if range.curated {
+        "index,follow"
+    } else {
+        "noindex,follow"
+    };
+    let head = format!(
+        "<meta name=\"description\" content=\"{}\">\n\
+         <link rel=\"canonical\" href=\"{}\">\n\
+         <meta name=\"robots\" content=\"{}\">\n\
+         <meta property=\"og:type\" content=\"website\">\n\
+         <meta property=\"og:title\" content=\"{}\">\n\
+         <meta property=\"og:description\" content=\"{}\">\n\
+         <meta property=\"og:url\" content=\"{}\">\n\
+         {}{}{}",
+        escape_attr(&description),
+        escape_attr(&canonical),
+        robots,
+        escape_attr(&title),
+        escape_attr(&description),
+        escape_attr(&canonical),
+        json_ld(&ld_app),
+        json_ld(&ld_crumbs),
+        json_ld(&ld_items),
+    );
+
+    let chain_href = format!("/keys/{}", chain.slug);
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Keys", Some("/keys")),
+        (chain.name, Some(&chain_href)),
+        (&label, None),
+    ]);
+    let payload = format!(
+        "<script>window.__ROTOR_RANGE__={{chain:\"{}\",start:\"{}\",end:\"{}\"}};</script>\n",
+        chain.slug, range.start, range.end
+    );
+
+    let mut html = RANGE_PAGE.replacen(
+        "<title>Rotor Coordinator - key range</title>",
+        &format!("<title>{}</title>", escape_attr(&title)),
+        1,
+    );
+    html = html.replacen("</head>", &format!("{head}</head>"), 1);
+    html = html.replacen(
+        "<nav class=\"breadcrumbs\" id=\"range-breadcrumbs\" aria-label=\"Breadcrumbs\"></nav>",
+        &crumbs,
+        1,
+    );
+    html.replacen(
+        "<script src=\"/range.js",
+        &format!("{payload}<script src=\"/range.js"),
         1,
     )
 }
@@ -1033,11 +1247,20 @@ fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
             "url": format!("{base}/key/{hex}{}", chain.curve_suffix),
         }));
     }
+    let curated_start = format!("{:064x}", 1u8);
+    let curated_end = format!("{:064x}", 64u8);
+    let curated_range = format!("/keys/{}/{curated_start}-{curated_end}", chain.slug);
+    entries.push(json!({
+        "@type": "ListItem",
+        "position": 65,
+        "name": "Curated key range 1–64",
+        "url": format!("{base}{curated_range}"),
+    }));
     let ld_items = json!({
         "@context": "https://schema.org",
         "@type": "ItemList",
         "name": format!("{} example private keys", chain.name),
-        "numberOfItems": 64,
+        "numberOfItems": 65,
         "itemListElement": entries,
     });
     let head = hub_head(
@@ -1059,6 +1282,7 @@ fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
          <p>{}</p></section>\
          <section class=\"card\"><h2>Example keys</h2>\
          <p>The same 64 deterministic keys (1 to 64) appear on every hub. Each link opens the key page for that chain.</p>\
+         <p><a href=\"{curated_range}\">Browse the curated 1–64 key range</a> to derive all 64 example keys on one page.</p>\
          <table class=\"keys-table\"><thead><tr><th>#</th><th>Private key</th></tr></thead><tbody>{rows}</tbody></table></section>\
          <section class=\"card\"><h2>Other chains</h2><ul>{other_links}</ul></section>\
          <section class=\"card\"><h2>What this page shows</h2>\
@@ -1733,7 +1957,7 @@ mod tests {
     }
 
     #[test]
-    fn seo_key_page_injects_key_and_noindex() {
+    fn seo_key_page_injects_key_and_robots_policy() {
         let base = "https://rotor.pxbt.app";
         let key = format!("{:064x}", 1);
         let (body, _, status) = seo_asset(base, &format!("/key/{key}"), "").expect("/key/<hex>");
@@ -1741,13 +1965,24 @@ mod tests {
         assert!(body.contains(&format!(
             "window.__ROTOR_KEY__=\"{key}\";window.__ROTOR_CURVE__=\"secp256k1\";"
         )));
-        assert!(body.contains("robots\" content=\"noindex,follow\""));
+        // Curated example keys (1..=64) are indexable.
+        assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains(&format!(
             "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/key/{key}\">"
         )));
         assert!(body.contains(&format!("Private key {}…{}", &key[..8], &key[60..])));
         assert!(body.contains("<nav class=\"breadcrumbs\""));
         assert!(body.contains("\"@type\":\"WebApplication\""));
+
+        // Key 100 is user-supplied and stays out of the index.
+        let other = format!("{:064x}", 100);
+        let (body, _, status) =
+            seo_asset(base, &format!("/key/{other}"), "").expect("/key/<other>");
+        assert_eq!(status, 200);
+        assert!(body.contains("robots\" content=\"noindex,follow\""));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/key/{other}\">"
+        )));
 
         let (body, _, status) =
             seo_asset(base, &format!("/key/{key}"), "curve=ed25519").expect("ed25519 key");
@@ -1775,6 +2010,105 @@ mod tests {
             "window.__ROTOR_KEY__=\"{}\"",
             upper.to_ascii_lowercase()
         )));
+    }
+
+    #[test]
+    fn seo_range_page_renders_metadata_and_payload() {
+        let base = "https://rotor.pxbt.app";
+        let start = format!("{:064x}", 1);
+        let end = format!("{:064x}", 64);
+        let path = format!("/keys/bitcoin/{start}-{end}");
+        let (body, content_type, status) = seo_asset(base, &path, "").expect("range");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(body.contains(&format!(
+            "<title>Bitcoin keys 0x{}…–0x{}… — 64 keys | Rotor</title>",
+            &start[..8],
+            &end[56..]
+        )));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/keys/bitcoin/{start}-{end}\">"
+        )));
+        assert!(body.contains("name=\"description\""));
+        // Curated 1..=64 range: indexable.
+        assert!(body.contains("robots\" content=\"index,follow\""));
+        assert!(body.contains("\"@type\":\"WebApplication\""));
+        assert!(body.contains("\"@type\":\"BreadcrumbList\""));
+        assert!(body.contains("\"@type\":\"ItemList\""));
+        assert!(body.contains(&format!("0x{}…–0x{}…", &start[..8], &end[56..])));
+        assert!(body.contains("\"position\":4"));
+        assert!(body.contains(&format!("{base}/key/{start}")));
+        assert!(body.contains(&format!("{base}/key/{end}")));
+        assert_eq!(body.matches("\"position\":").count(), 4 + 64);
+        assert!(body.contains(&format!(
+            "window.__ROTOR_RANGE__={{chain:\"bitcoin\",start:\"{start}\",end:\"{end}\"}};"
+        )));
+        assert!(body.contains("<nav class=\"breadcrumbs\""));
+        assert!(body.contains("href=\"/keys/bitcoin\""));
+
+        // Uppercase input is normalized in the emitted payload and canonical.
+        let upper = format!("{:064X}", 1);
+        let upper_end = format!("{:064X}", 64);
+        let (body, _, status) = seo_asset(base, &format!("/keys/ethereum/{upper}-{upper_end}"), "")
+            .expect("uppercase range");
+        assert_eq!(status, 200);
+        assert!(body.contains(&format!(
+            "window.__ROTOR_RANGE__={{chain:\"ethereum\",start:\"{start}\",end:\"{end}\"}};"
+        )));
+    }
+
+    #[test]
+    fn seo_arbitrary_range_is_noindex() {
+        let base = "https://rotor.pxbt.app";
+        let start = format!("{:064x}", 100);
+        let end = format!("{:064x}", 101);
+        let (body, _, status) =
+            seo_asset(base, &format!("/keys/tron/{start}-{end}"), "").expect("range");
+        assert_eq!(status, 200);
+        assert!(body.contains("robots\" content=\"noindex,follow\""));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/keys/tron/{start}-{end}\">"
+        )));
+        assert_eq!(body.matches("\"position\":").count(), 4 + 2);
+    }
+
+    #[test]
+    fn seo_invalid_ranges_are_404() {
+        let base = "https://rotor.pxbt.app";
+        let one = format!("{:064x}", 1);
+        let sixty_four = format!("{:064x}", 64);
+        let sixty_five = format!("{:064x}", 65);
+        let cases = [
+            format!("/keys/unknown/{one}-{sixty_four}"),
+            format!("/keys/bitcoin/{one}"),
+            format!("/keys/bitcoin/{one}-{sixty_five}"), // 65 keys: too wide
+            format!("/keys/bitcoin/{sixty_four}-{one}"), // start > end
+            format!("/keys/bitcoin/{}-{one}", "0".repeat(63)), // not 64 digits
+            format!("/keys/bitcoin/{}-{sixty_four}", "g".repeat(64)), // not hex
+            format!("/keys/bitcoin/{one}-{sixty_four}-{sixty_four}"),
+        ];
+        for path in cases {
+            assert_eq!(seo_asset(base, &path, "").unwrap().2, 404, "{path}");
+        }
+    }
+
+    #[test]
+    fn range_js_is_served_as_javascript() {
+        let (body, content_type) = static_asset("/range.js").expect("/range.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
+        assert!(body.windows(15).any(|window| window == b"__ROTOR_RANGE__"));
+    }
+
+    #[test]
+    fn chain_hub_links_the_curated_range() {
+        let base = "https://rotor.pxbt.app";
+        let one = format!("{:064x}", 1);
+        let sixty_four = format!("{:064x}", 64);
+        let (body, _, status) = seo_asset(base, "/keys/solana", "").expect("hub");
+        assert_eq!(status, 200);
+        assert!(body.contains(&format!("href=\"/keys/solana/{one}-{sixty_four}\"")));
+        assert!(body.contains(&format!("{base}/keys/solana/{one}-{sixty_four}")));
     }
 
     #[test]
@@ -1823,6 +2157,8 @@ mod tests {
             ("docs", DOCS_PAGE),
             ("run", RUN_PAGE),
             ("key", KEY_PAGE),
+            ("range", RANGE_PAGE),
+            ("range.js", RANGE_JS),
             ("site.js", SITE_JS),
             ("key.js", KEY_JS),
             ("monitor", MONITOR_PAGE),

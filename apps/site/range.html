@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotor Coordinator - key range</title>
+<link rel="stylesheet" href="/site.css?v=20261117i">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
+  <nav>
+    <a href="/app" id="nav-app">App</a>
+    <a href="/run" id="nav-run">Run</a>
+    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
+    <a href="/docs" id="nav-docs">Docs</a>
+    <a href="/key" class="active" id="nav-key">Keys</a>
+  </nav>
+</header>
+
+<main class="range-page">
+  <nav class="breadcrumbs" id="range-breadcrumbs" aria-label="Breadcrumbs"></nav>
+
+  <section class="hero range-hero">
+    <h1 id="range-title">Key range</h1>
+    <p class="range-tagline">Every key in this inclusive range is derived in your browser with the Rotor WASM core. The addresses are checked against the Rotor registry; the keys stay local.</p>
+  </section>
+
+  <section class="card">
+    <h2>Range controls</h2>
+    <form id="range-form" class="range-form" autocomplete="off">
+      <label>Chain
+        <select id="range-chain">
+          <option value="bitcoin">Bitcoin</option>
+          <option value="ethereum">Ethereum</option>
+          <option value="tron">TRON</option>
+          <option value="solana">Solana</option>
+        </select>
+      </label>
+      <label>Start key (64 hex)
+        <input id="range-start" class="mono" type="text" inputmode="text" spellcheck="false"
+               autocapitalize="off" placeholder="0000000000000000000000000000000000000000000000000000000000000001">
+      </label>
+      <label>End key (64 hex)
+        <input id="range-end" class="mono" type="text" inputmode="text" spellcheck="false"
+               autocapitalize="off" placeholder="0000000000000000000000000000000000000000000000000000000000000002">
+      </label>
+      <div class="range-actions">
+        <button type="submit" class="primary" id="range-go">Go</button>
+      </div>
+    </form>
+    <p class="notice range-notice" role="note">This range is in the page URL. The derived addresses are checked against the Rotor registry so a registered owner can be warned; the key material stays in this browser.</p>
+    <p class="error range-error" id="range-error" role="alert" hidden></p>
+    <p class="range-status" id="range-status" role="status" aria-live="polite"></p>
+    <p class="range-status" id="range-exposure" role="status" aria-live="polite"></p>
+    <div class="range-actions range-export">
+      <button type="button" id="range-copy" disabled>Copy CSV</button>
+      <button type="button" id="range-download" disabled>Download CSV</button>
+    </div>
+    <p class="muted range-balance-note">Balances are not checked on range pages; open a key page for balances.</p>
+  </section>
+
+  <section class="card">
+    <h2>Keys</h2>
+    <div class="range-table-wrap">
+      <table class="range-table" id="range-table" aria-busy="false">
+        <thead>
+          <tr>
+            <th scope="col" class="rank">#</th>
+            <th scope="col">Key (hex)</th>
+            <th scope="col">Primary address</th>
+            <th scope="col">Other addresses</th>
+          </tr>
+        </thead>
+        <tbody id="range-rows">
+          <tr><td colspan="4" class="range-empty muted">Enter a start and end key to derive a range.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/range.js?v=20261117i"></script>
+</body>
+</html>
