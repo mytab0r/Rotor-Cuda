@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - cabinet</title>
-<link rel="stylesheet" href="/site.css?v=20261117e">
+<link rel="stylesheet" href="/site.css?v=20261117f">
 </head>
 <body>
 <header class="site-nav">
@@ -50,8 +50,13 @@
         <span class="monitor-provider-name">Bitcoin</span>
         <span class="monitor-provider-hint" data-provider-hint="btc">Detecting…</span>
       </button>
+      <button type="button" class="monitor-provider" id="monitor-connect-walletconnect" data-chain="walletconnect">
+        <span class="monitor-provider-name">WalletConnect (EVM)</span>
+        <span class="monitor-provider-desc">Scan with a mobile wallet; EVM only in this build.</span>
+        <span class="monitor-provider-hint" data-provider-hint="walletconnect">Detecting…</span>
+      </button>
     </div>
-    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Rotor never asks for a private key, WIF or seed phrase.</p>
+    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. WalletConnect connects a mobile EVM wallet over QR; it is EVM-only in this build. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Rotor never asks for a private key, WIF or seed phrase.</p>
     <p id="monitor-account-line" class="monitor-account-line" hidden>
       <span>Primary</span>
       <code class="mono" id="monitor-account"></code>
@@ -128,6 +133,6 @@
   </section>
 </main>
 
-<script src="/cabinet.js?v=20261117e"></script>
+<script src="/cabinet.js?v=20261117f"></script>
 </body>
 </html>

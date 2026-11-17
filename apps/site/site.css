@@ -555,7 +555,9 @@ p { text-wrap: pretty; }
 }
 .monitor-provider:hover:not(:disabled) { border-color: var(--accent); }
 .monitor-provider:disabled { opacity: .55; cursor: not-allowed; }
+.monitor-provider[aria-busy="true"] { opacity: 1; border-color: var(--accent); }
 .monitor-provider-name { font-size: 13px; font-weight: 600; }
+.monitor-provider-desc { font-size: 11px; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
 .monitor-provider-hint { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .monitor-identities { list-style: none; margin: 8px 0 0; padding: 0; }
 .monitor-identity {
