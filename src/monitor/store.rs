@@ -23,6 +23,8 @@ pub const MAX_WATCHES_PER_USER: usize = 50;
 pub const EVENT_DEDUPE_WINDOW_SECS: u64 = 60;
 /// Bearer session lifetime: 30 days.
 pub const SESSION_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+/// Telegram linking code lifetime: 10 minutes.
+pub const LINK_CODE_TTL_SECS: u64 = 10 * 60;
 /// Events older than this are dropped on the next write.
 const EVENT_RETENTION_SECS: u64 = 90 * 24 * 60 * 60;
 /// Upper bound on retained events, newest kept.
@@ -48,6 +50,24 @@ struct Data {
     next_event_id: u64,
     #[serde(default)]
     watcher: WatcherHealth,
+    /// Single-use Telegram linking codes, keyed by code.
+    #[serde(default)]
+    telegram_links: HashMap<String, LinkCode>,
+    /// Secret expected in `X-Telegram-Bot-Api-Secret-Token`; generated once.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    telegram_webhook_secret: Option<String>,
+    /// Highest event id already considered by the delivery worker, per user.
+    /// Kept out of the user record so `/me` does not expose internal state.
+    #[serde(default)]
+    telegram_cursors: HashMap<String, u64>,
+}
+
+/// A single-use code that binds a Telegram chat to one account.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LinkCode {
+    pub code: String,
+    pub user_id: String,
+    pub expires_at: u64,
 }
 
 fn default_version() -> u32 {
@@ -103,6 +123,12 @@ pub struct User {
     pub settings: Settings,
     #[serde(default)]
     pub identities: Vec<Identity>,
+    /// Bound Telegram chat, when the account linked one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_chat_id: Option<i64>,
+    /// When the chat was linked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telegram_linked_at: Option<u64>,
 }
 
 /// A single-use SIWE challenge.
@@ -261,6 +287,13 @@ pub struct MeView {
     pub events: Vec<Event>,
 }
 
+/// One event waiting for Telegram delivery.
+#[derive(Debug, Clone)]
+pub struct Alert {
+    pub event: Event,
+    pub chat_id: i64,
+}
+
 /// Monitor data with its own lock and file.
 pub struct MonitorStore {
     path: PathBuf,
@@ -326,6 +359,7 @@ impl MonitorStore {
             .retain(|_, challenge| challenge.expires_at > now);
         data.sessions
             .retain(|_, session| now.saturating_sub(session.created_at) <= SESSION_TTL_SECS);
+        data.telegram_links.retain(|_, link| link.expires_at > now);
         let json = serde_json::to_vec_pretty(data)
             .map_err(|err| format!("cannot serialize monitor state: {err}"))?;
         let mut tmp = self.path.as_os_str().to_owned();
@@ -361,6 +395,8 @@ impl MonitorStore {
                 verified: true,
                 added_at: now,
             }],
+            telegram_chat_id: None,
+            telegram_linked_at: None,
         };
         data.users.insert(user.id.clone(), user.clone());
         self.save_locked(&mut data)?;
@@ -622,6 +658,173 @@ impl MonitorStore {
         let settings = user.settings.clone();
         self.save_locked(&mut data)?;
         Ok(Some(settings))
+    }
+
+    /// Create a 10-minute single-use Telegram linking code for `user_id`.
+    pub fn create_link_code(&self, user_id: &str) -> Result<LinkCode, String> {
+        self.create_link_code_with_ttl(user_id, LINK_CODE_TTL_SECS)
+    }
+
+    /// Create a linking code with an explicit lifetime (tests use short TTLs).
+    /// Any older code for the same account is dropped: one active code.
+    pub fn create_link_code_with_ttl(
+        &self,
+        user_id: &str,
+        ttl_secs: u64,
+    ) -> Result<LinkCode, String> {
+        let mut data = self.lock();
+        if !data.users.contains_key(user_id) {
+            return Err("user not found".to_string());
+        }
+        data.telegram_links
+            .retain(|_, link| link.user_id != user_id);
+        let code = random_hex(16)?;
+        let link = LinkCode {
+            code: code.clone(),
+            user_id: user_id.to_string(),
+            expires_at: now_secs().saturating_add(ttl_secs),
+        };
+        data.telegram_links.insert(code, link.clone());
+        self.save_locked(&mut data)?;
+        Ok(link)
+    }
+
+    /// Remove and return a linking code. Codes are single-use and expire after
+    /// [`LINK_CODE_TTL_SECS`].
+    pub fn consume_link_code(&self, code: &str) -> Result<Option<LinkCode>, String> {
+        let mut data = self.lock();
+        let Some(link) = data.telegram_links.remove(code) else {
+            return Ok(None);
+        };
+        self.save_locked(&mut data)?;
+        if link.expires_at <= now_secs() {
+            return Ok(None);
+        }
+        Ok(Some(link))
+    }
+
+    /// Bind a Telegram chat to the account. A chat can only belong to one
+    /// account: any previous owner is unlinked first.
+    pub fn link_telegram(&self, user_id: &str, chat_id: i64) -> Result<bool, String> {
+        let mut data = self.lock();
+        if !data.users.contains_key(user_id) {
+            return Ok(false);
+        }
+        for (id, user) in data.users.iter_mut() {
+            if id != user_id && user.telegram_chat_id == Some(chat_id) {
+                user.telegram_chat_id = None;
+                user.telegram_linked_at = None;
+            }
+        }
+        let cursor = data.next_event_id.saturating_sub(1);
+        let Some(user) = data.users.get_mut(user_id) else {
+            return Ok(false);
+        };
+        user.telegram_chat_id = Some(chat_id);
+        user.telegram_linked_at = Some(now_secs());
+        // Linking starts from now: old events are not replayed as alerts.
+        data.telegram_cursors.insert(user_id.to_string(), cursor);
+        self.save_locked(&mut data)?;
+        Ok(true)
+    }
+
+    /// Clear the bound chat. Alerts stop immediately.
+    pub fn unlink_telegram(&self, user_id: &str) -> Result<bool, String> {
+        let mut data = self.lock();
+        let Some(user) = data.users.get_mut(user_id) else {
+            return Ok(false);
+        };
+        let linked = user.telegram_chat_id.take().is_some();
+        user.telegram_linked_at = None;
+        if linked {
+            self.save_locked(&mut data)?;
+        }
+        Ok(linked)
+    }
+
+    /// `Some(true)` when the account exists and has a linked chat.
+    pub fn telegram_status(&self, user_id: &str) -> Option<bool> {
+        let data = self.lock();
+        data.users
+            .get(user_id)
+            .map(|user| user.telegram_chat_id.is_some())
+    }
+
+    /// Return the persisted webhook secret, if one was generated.
+    pub fn webhook_secret(&self) -> Option<String> {
+        let data = self.lock();
+        data.telegram_webhook_secret.clone()
+    }
+
+    /// Generate and persist the webhook secret on first call.
+    pub fn ensure_webhook_secret(&self) -> Result<String, String> {
+        let mut data = self.lock();
+        if let Some(secret) = &data.telegram_webhook_secret {
+            return Ok(secret.clone());
+        }
+        let secret = random_hex(32)?;
+        data.telegram_webhook_secret = Some(secret.clone());
+        self.save_locked(&mut data)?;
+        Ok(secret)
+    }
+
+    /// Claim up to `limit` events for Telegram delivery.
+    ///
+    /// Each account's cursor is advanced and persisted before this returns, so
+    /// a restart cannot send the same event twice. Events for accounts with
+    /// alerts disabled still advance the cursor but produce no alert.
+    pub fn claim_alerts(&self, limit: usize) -> Result<Vec<Alert>, String> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let mut data = self.lock();
+        let bindings: HashMap<String, (i64, bool, u64)> = data
+            .users
+            .iter()
+            .filter_map(|(id, user)| {
+                user.telegram_chat_id.map(|chat_id| {
+                    (
+                        id.clone(),
+                        (
+                            chat_id,
+                            user.settings.alerts_enabled,
+                            data.telegram_cursors.get(id).copied().unwrap_or(0),
+                        ),
+                    )
+                })
+            })
+            .collect();
+        if bindings.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut alerts = Vec::new();
+        let mut cursors: HashMap<String, u64> = HashMap::new();
+        for event in &data.events {
+            if alerts.len() >= limit {
+                break;
+            }
+            let Some((chat_id, enabled, cursor)) = bindings.get(&event.user_id).copied() else {
+                continue;
+            };
+            if event.id <= cursor {
+                continue;
+            }
+            cursors.insert(event.user_id.clone(), event.id);
+            if enabled {
+                alerts.push(Alert {
+                    event: event.clone(),
+                    chat_id,
+                });
+            }
+        }
+        if !cursors.is_empty() {
+            for (user_id, cursor) in cursors {
+                let entry = data.telegram_cursors.entry(user_id).or_insert(0);
+                *entry = (*entry).max(cursor);
+            }
+            self.save_locked(&mut data)?;
+        }
+        Ok(alerts)
     }
 
     /// Record an event unless an identical one landed within the dedupe
@@ -1645,6 +1848,92 @@ mod tests {
             .apply_btc_observations(&[observation(1_000, 0, 1)])
             .expect("repeat");
         assert!(events.is_empty(), "restart replayed a known change");
+    }
+
+    #[test]
+    fn link_codes_expire_and_are_single_use() {
+        let temp = TempStore::new("link-codes");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+
+        let link = temp.store.create_link_code(&user.id).expect("create code");
+        assert_eq!(link.user_id, user.id);
+        assert!(link.expires_at > now_secs());
+        assert_eq!(link.code.len(), 32);
+
+        let consumed = temp
+            .store
+            .consume_link_code(&link.code)
+            .expect("consume")
+            .expect("valid code");
+        assert_eq!(consumed.user_id, user.id);
+        // Single use: the second attempt finds nothing.
+        assert!(
+            temp.store
+                .consume_link_code(&link.code)
+                .expect("consume twice")
+                .is_none()
+        );
+
+        // Expired codes are rejected even when they are still on disk.
+        let stale = temp
+            .store
+            .create_link_code_with_ttl(&user.id, 0)
+            .expect("create stale");
+        assert!(
+            temp.store
+                .consume_link_code(&stale.code)
+                .expect("consume stale")
+                .is_none()
+        );
+        assert!(temp.store.create_link_code("u_missing").is_err());
+    }
+
+    #[test]
+    fn telegram_binding_unlink_and_alert_cursor_survive_restart() {
+        let temp = TempStore::new("telegram-bind");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        assert_eq!(temp.store.telegram_status(&user.id), Some(false));
+        assert!(temp.store.link_telegram(&user.id, 424242).expect("link"));
+        assert_eq!(temp.store.telegram_status(&user.id), Some(true));
+        let linked = temp.store.user(&user.id).expect("user");
+        assert_eq!(linked.telegram_chat_id, Some(424242));
+        assert!(linked.telegram_linked_at.is_some());
+
+        let event = temp
+            .store
+            .record_event(&user.id, "btc", ADDRESS, "incoming", "info", "first")
+            .expect("record")
+            .expect("event");
+        let alerts = temp.store.claim_alerts(10).expect("claim");
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].event.id, event.id);
+        assert_eq!(alerts[0].chat_id, 424242);
+
+        // The cursor is persisted before delivery: a reopen sends nothing.
+        let reopened = MonitorStore::open(&temp.path).expect("reopen");
+        assert!(reopened.claim_alerts(10).expect("claim again").is_empty());
+
+        assert!(reopened.unlink_telegram(&user.id).expect("unlink"));
+        assert_eq!(reopened.telegram_status(&user.id), Some(false));
+        reopened
+            .record_event(&user.id, "btc", ADDRESS, "incoming", "info", "second")
+            .expect("record");
+        assert!(
+            reopened
+                .claim_alerts(10)
+                .expect("claim unlinked")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn webhook_secret_is_generated_once() {
+        let temp = TempStore::new("webhook-secret");
+        assert!(temp.store.webhook_secret().is_none());
+        let first = temp.store.ensure_webhook_secret().expect("secret");
+        let second = temp.store.ensure_webhook_secret().expect("secret again");
+        assert_eq!(first, second);
+        assert_eq!(temp.store.webhook_secret().as_deref(), Some(first.as_str()));
     }
 
     #[test]
