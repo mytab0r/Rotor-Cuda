@@ -2394,3 +2394,4 @@ code { font-family: var(--mono); font-size: .92em; }
 @media (max-width: 560px) { .seed-row { padding: 13px; } }
 .key-dot-zcash { background: #ecb244; }
 .key-dot-sui { background: #6fbcf0; }
+.key-dot-ton { background: #0098ea; }

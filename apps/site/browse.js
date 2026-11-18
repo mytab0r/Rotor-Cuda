@@ -37,7 +37,8 @@
     bch_legacy: 'Bitcoin Cash legacy P2PKH',
     xrp_classic: 'XRP classic address',
     zcash_p2pkh: 'Zcash transparent address',
-    sui: 'Sui address'
+    sui: 'Sui address',
+    ton: 'TON wallet v4R2'
   };
   var RPC = {
     ethereum: 'https://ethereum-rpc.publicnode.com',
@@ -79,7 +80,8 @@
     balances: {},
     busy: false,
     generation: 0,
-    balanceRun: 0
+    balanceRun: 0,
+    tonPromise: null
   };
 
   var rows = Array.prototype.slice.call(document.querySelectorAll('#keys-container .key-row'));
@@ -611,6 +613,11 @@
     return JSON.parse(text);
   }
 
+  function tonCenterBalance(address) {
+    return fetchJson('https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address))
+      .then(function (data) { return Number(data.result || 0); });
+  }
+
   function tronBalance(address) {
     return accountJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address))
       .then(function (data) { return Number(data.balance || 0); });
@@ -635,10 +642,13 @@
       else if (BLOCKCHAIR[config.chain]) await blockchairBalances(addresses, run);
       else if (config.chain === 'tron') {
         var tronFailures = await perAddressBalances(addresses, tronBalance, 6, run);
-        if (tronFailures) throw new Error('some TRON lookups failed');
+
       } else if (config.chain === 'xrp') {
         var xrpFailures = await perAddressBalances(addresses, xrpBalance, 6, run);
-        if (xrpFailures) throw new Error('some XRP lookups failed');
+
+      } else if (config.chain === 'ton') {
+        var tonFailures = await perAddressBalances(addresses, tonCenterBalance, 9, run);
+
       } else {
         setSummary('—', '—', '—');
         setNote('Live balance lookup is not available for ' + config.chain + ' on this page; each address links to its explorer.');
@@ -649,6 +659,40 @@
     } catch (err) {
       if (run !== state.balanceRun) return;
       setNote('Balance lookup is unavailable right now. The addresses are still derived locally.', 'err');
+    }
+  }
+
+  function loadTon() {
+    if (window.RotorTon) return Promise.resolve(window.RotorTon);
+    if (state.tonPromise) return state.tonPromise;
+    state.tonPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = '/ton.js';
+      script.onload = function () {
+        if (window.RotorTon) resolve(window.RotorTon);
+        else reject(new Error('TON library did not load.'));
+      };
+      script.onerror = function () { reject(new Error('TON library did not load.')); };
+      document.head.appendChild(script);
+    });
+    return state.tonPromise;
+  }
+
+  async function attachTonAddresses() {
+    setNote('Building TON wallet addresses in your browser…');
+    var ton = await loadTon();
+    for (var i = 0; i < rows.length; i += 1) {
+      var row = rows[i];
+      var hex = row.getAttribute('data-key');
+      var report = state.reports[hex];
+      if (!report || !report.ed_pubkey) continue;
+      var map = state.addressMaps[hex] || (state.addressMaps[hex] = addressMap(report));
+      try {
+        map.ton = await ton.address(report.ed_pubkey);
+      } catch (err) {
+        map.ton = '';
+      }
+      if (i % 8 === 0) setNote('Building TON wallet addresses… ' + i + ' of ' + rows.length);
     }
   }
 
@@ -762,6 +806,13 @@
       renderAddresses(config.type);
       if (i + CHUNK < rows.length) {
         await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
+      }
+    }
+    if (config.chain === 'ton') {
+      try {
+        await attachTonAddresses();
+      } catch (err) {
+        setNote(err && err.message ? err.message : 'TON addresses are unavailable.', 'err');
       }
     }
     renderAddresses(config.type);

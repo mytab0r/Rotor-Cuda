@@ -42,7 +42,8 @@
     bch_legacy: 'Bitcoin Cash legacy (compressed)',
     xrp_classic: 'XRP classic address',
     zcash_p2pkh: 'Zcash transparent',
-    sui: 'Sui account'
+    sui: 'Sui account',
+    ton: 'TON wallet v4R2'
   };
 
   var EXPLAIN = {
@@ -61,7 +62,8 @@
     bch_legacy: 'Bitcoin Cash legacy address: hash160(pubkey) with version byte 0x00, base58check.',
     xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).',
     zcash_p2pkh: 'Zcash transparent address: two-byte version 0x1cb8 || hash160(pubkey), base58check.',
-    sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.'
+    sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.',
+    ton: 'TON wallet: address of the standard v4R2 contract whose StateInit stores this ed25519 public key.'
   };
 
   var PATHS = {
@@ -129,7 +131,8 @@
     bch: ['bch_'],
     xrp: ['xrp_'],
     zcash: ['zcash_'],
-    sui: ['sui']
+    sui: ['sui'],
+    ton: ['ton']
   };
 
   var CHAIN_NAMES = {
@@ -507,6 +510,7 @@
     state.balances = {};
     renderSummary(report);
     renderAddresses(report);
+    attachTon(report);
     checkBtn.textContent = 'Check balances';
     checkBtn.disabled = !onlineToggle.checked || state.checking;
     if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
@@ -617,6 +621,38 @@
     return order.filter(function (key) {
       var value = steps[key];
       return value !== null && value !== undefined && value !== '';
+    });
+  }
+
+  var tonLoader = null;
+  function loadTon() {
+    if (window.RotorTon) return Promise.resolve(window.RotorTon);
+    if (tonLoader) return tonLoader;
+    tonLoader = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = '/ton.js';
+      script.onload = function () {
+        if (window.RotorTon) resolve(window.RotorTon);
+        else reject(new Error('TON library did not load.'));
+      };
+      script.onerror = function () { reject(new Error('TON library did not load.')); };
+      document.head.appendChild(script);
+    });
+    tonLoader.catch(function () { tonLoader = null; });
+    return tonLoader;
+  }
+
+  function attachTon(report) {
+    if (!report || report.curve !== 'ed25519' || !report.ed_pubkey) return;
+    if (Array.isArray(report.addresses) && report.addresses.some(function (row) { return row.id === 'ton'; })) return;
+    loadTon().then(function (ton) {
+      return ton.address(report.ed_pubkey);
+    }).then(function (address) {
+      if (!address || state.report !== report) return;
+      report.addresses.push({ id: 'ton', label: 'TON wallet v4R2', address: address, steps: {} });
+      renderAddresses(report);
+    }).catch(function () {
+      /* Solana and Sui remain usable without the TON bundle */
     });
   }
 
