@@ -552,12 +552,13 @@
       var row = document.createElement('div');
       row.className = 'key-form-row';
       var dt = document.createElement('dt');
-      if (field[0].indexOf('WIF') === 0) {
-        var wifLink = document.createElement('a');
-        wifLink.href = '/key/wif';
-        wifLink.textContent = field[0];
-        wifLink.title = 'Open the WIF calculator';
-        dt.appendChild(wifLink);
+      var entityHref = field[0].indexOf('WIF') === 0 ? '/key/wif' : field[0] === 'Hex' ? '/key/hex' : '';
+      if (entityHref) {
+        var entityLink = document.createElement('a');
+        entityLink.href = entityHref;
+        entityLink.textContent = field[0];
+        entityLink.title = 'Open the ' + field[0].toLowerCase() + ' calculator';
+        dt.appendChild(entityLink);
       } else {
         dt.textContent = field[0];
       }
