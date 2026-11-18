@@ -134,6 +134,21 @@
   </section>
 
   <section class="card monitor-card">
+    <h2>Your devices</h2>
+    <p class="muted monitor-note">Paste a client token from the <a href="/docs#getting-a-token">docs</a> to see that machine's job, live lease and recent findings. The token is kept in this browser only and sent in the Authorization header.</p>
+    <form id="monitor-device-form" class="monitor-form" autocomplete="off">
+      <label for="monitor-device-token">Client token
+        <input id="monitor-device-token" class="mono" type="password" placeholder="paste client token" autocomplete="off" spellcheck="false">
+      </label>
+      <button type="submit" id="monitor-device-load">Load status</button>
+      <button type="button" id="monitor-device-forget" disabled>Forget</button>
+    </form>
+    <p id="monitor-device-error" class="error monitor-status" role="alert" hidden></p>
+    <p id="monitor-device-state" class="muted monitor-empty">No client token loaded.</p>
+    <div id="monitor-device" class="monitor-watch" hidden></div>
+  </section>
+
+  <section class="card monitor-card">
     <h2>Telegram alerts</h2>
     <p class="muted monitor-note">Get alerts for your watched addresses in Telegram. Linking shares no private key, WIF or seed phrase, and you can unlink at any time.</p>
     <p id="monitor-telegram-state" class="monitor-telegram-state" role="status" aria-live="polite">Sign in to manage Telegram alerts.</p>
@@ -149,6 +164,6 @@
   </section>
 </main>
 
-<script src="/cabinet.js?v=20261118e"></script>
+<script src="/cabinet.js?v=20261118g"></script>
 </body>
 </html>
