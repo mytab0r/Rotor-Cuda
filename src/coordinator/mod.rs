@@ -54,6 +54,8 @@ const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
 const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
 const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
 const SEED_PAGE_JS: &str = include_str!("../../apps/site/seed-page.js");
+const MNEMONIC_SEEDS_PAGE: &str = include_str!("../../apps/site/mnemonic-seeds.html");
+const MNEMONIC_SEEDS_JS: &str = include_str!("../../apps/site/mnemonic-seeds.js");
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
 const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
@@ -718,6 +720,11 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             SEED_PAGE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/mnemonic-seeds" => Some((MNEMONIC_SEEDS_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/mnemonic-seeds.js" => Some((
+            MNEMONIC_SEEDS_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/ton.js" => Some((
             include_str!("../../apps/site/ton.js").as_bytes(),
             "application/javascript; charset=utf-8",
@@ -758,6 +765,9 @@ fn redirect_target(path: &str) -> Option<String> {
     }
     if path == "/keys" {
         return Some("/private-keys".to_string());
+    }
+    if path == "/mnemonic-seeds/" {
+        return Some("/mnemonic-seeds".to_string());
     }
     if let Some(slug) = path.strip_prefix("/keys/")
         && !slug.contains('/')
@@ -1240,6 +1250,30 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
     }
     if path == "/bitcoin-puzzle" {
         return Some((render_bitcoin_puzzle(base), HTML, 200));
+    }
+    if let Some(rest) = path.strip_prefix("/mnemonic-seeds/") {
+        let rest = rest.trim_end_matches('/');
+        if rest.is_empty() {
+            return Some((MNEMONIC_SEEDS_PAGE.to_string(), HTML, 200));
+        }
+        let mut parts = rest.split('/');
+        let Some(slug) = parts.next() else {
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        let page = parts.next();
+        if parts.next().is_some() {
+            return Some((render_seo_not_found(), HTML, 404));
+        }
+        let Some(chain) = chain_by_slug(slug) else {
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        return Some(match page {
+            Some(raw) if parse_page_number(raw).is_some() => {
+                (render_mnemonic_seeds_page(base, chain, raw), HTML, 200)
+            }
+            Some(_) => (render_seo_not_found(), HTML, 404),
+            None => (render_mnemonic_seeds_page(base, chain, "1"), HTML, 200),
+        });
     }
     if let Some(rest) = path.strip_prefix("/keys/") {
         let Some((slug, range_text)) = rest.split_once('/') else {
@@ -2485,6 +2519,147 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     html_document(&title, &head, &body)
 }
 
+/// Default `<title>` in the embedded mnemonic seed shell. Chain pages swap it
+/// for a chain-specific title; the directory keeps it.
+const MNEMONIC_SEEDS_DEFAULT_TITLE: &str =
+    "Mnemonic seeds directory — browse BIP39 phrases by chain | Rotor";
+const MNEMONIC_SEEDS_DEFAULT_DESCRIPTION: &str = "Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.";
+const MNEMONIC_SEEDS_DEFAULT_CANONICAL: &str = "https://rotor.pxbt.app/mnemonic-seeds";
+const MNEMONIC_SEEDS_DEFAULT_MAIN: &str = "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"\" data-symbol=\"\" data-explorer=\"\" data-curve=\"0\" data-page=\"1\" style=\"--chain:#f7931a\">";
+const MNEMONIC_SEEDS_DEFAULT_INTRO: &str = "<span data-chain-intro>Browse deterministic English BIP39 phrases across the entropy space, 60 seeds per page, and derive the matching addresses locally.</span>";
+
+/// One `/mnemonic-seeds/<chain>[/<page>]` page. The shell is static; the
+/// chain, page and SEO head are filled in here.
+fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> String {
+    let mut page = parse_page_number(requested).unwrap_or_else(|| BigUint::from(1u8));
+    if page < BigUint::from(1u8) {
+        page = BigUint::from(1u8);
+    }
+    let page_text = page.to_string();
+    let self_url = if page == BigUint::from(1u8) {
+        format!("{base}/mnemonic-seeds/{}", chain.slug)
+    } else {
+        format!("{base}/mnemonic-seeds/{}/{}", chain.slug, page_text)
+    };
+    let title = if page == BigUint::from(1u8) {
+        format!(
+            "{} mnemonic seeds — 60 BIP39 phrases per page | Rotor",
+            chain.name
+        )
+    } else {
+        format!("{} mnemonic seeds — page {} | Rotor", chain.name, page_text)
+    };
+    let description = format!(
+        "Browse deterministic {} mnemonic seeds, 60 per page. Choose 12, 18 or 24 words, a BIP32 path and an address type, then derive addresses and balances in your browser. Page {}.",
+        chain.name, page_text
+    );
+    let intro = format!(
+        "Enumerate deterministic {} mnemonic seeds from the entropy space, 60 per page, and derive the matching addresses locally. Choose the word count, BIP32 path and address type; balance checks are optional.",
+        chain.name
+    );
+    let robots = if page == BigUint::from(1u8) {
+        "index,follow"
+    } else {
+        "noindex,follow"
+    };
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": format!("{} mnemonic seeds", chain.name),
+        "url": self_url,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let chain_path = format!("/mnemonic-seeds/{}", chain.slug);
+    let chain_name = chain.name;
+    let ld_crumbs = breadcrumb_ld(
+        base,
+        &[
+            ("Home", Some("/")),
+            ("Mnemonic seeds", Some("/mnemonic-seeds")),
+            (chain_name, Some(chain_path.as_str())),
+        ],
+    );
+    let head = format!(
+        "<meta name=\"robots\" content=\"{robots}\">\n\
+         <meta property=\"og:type\" content=\"website\">\n\
+         <meta property=\"og:title\" content=\"{}\">\n\
+         <meta property=\"og:description\" content=\"{}\">\n\
+         <meta property=\"og:url\" content=\"{}\">\n\
+         {}{}",
+        escape_attr(&title),
+        escape_attr(&description),
+        escape_attr(&self_url),
+        json_ld(&ld_app),
+        json_ld(&ld_crumbs),
+    );
+
+    let mut html = MNEMONIC_SEEDS_PAGE.to_string();
+    html = html.replacen(
+        &format!("<title>{MNEMONIC_SEEDS_DEFAULT_TITLE}</title>"),
+        &format!("<title>{}</title>", escape_attr(&title)),
+        1,
+    );
+    html = html.replacen(
+        &format!("<meta name=\"description\" content=\"{MNEMONIC_SEEDS_DEFAULT_DESCRIPTION}\">"),
+        &format!(
+            "<meta name=\"description\" content=\"{}\">",
+            escape_attr(&description)
+        ),
+        1,
+    );
+    html = html.replacen(
+        &format!("<link rel=\"canonical\" href=\"{MNEMONIC_SEEDS_DEFAULT_CANONICAL}\">"),
+        &format!(
+            "<link rel=\"canonical\" href=\"{}\">",
+            escape_attr(&self_url)
+        ),
+        1,
+    );
+    html = html.replacen("</head>", &format!("{head}</head>"), 1);
+    html = html.replacen(
+        "<body class=\"mnemonic-directory-mode\">",
+        "<body class=\"mnemonic-chain-mode\">",
+        1,
+    );
+    html = html.replacen(
+        MNEMONIC_SEEDS_DEFAULT_MAIN,
+        &format!(
+            "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-curve=\"{}\" data-page=\"{}\" style=\"--chain:{}\">",
+            escape_attr(chain.slug),
+            escape_attr(chain.symbol),
+            escape_attr(chain.explorer),
+            chain.kind.curve(),
+            page_text,
+            escape_attr(chain.color),
+        ),
+        1,
+    );
+    html = html.replace(
+        "<span data-chain-name>Directory</span>",
+        &format!("<span data-chain-name>{}</span>", escape_attr(chain.name)),
+    );
+    html = html.replace(
+        "<span data-chain-name>Chain</span>",
+        &format!("<span data-chain-name>{}</span>", escape_attr(chain.name)),
+    );
+    html = html.replace(
+        "<span data-chain-title>Mnemonic seeds</span>",
+        &format!(
+            "<span data-chain-title>{} mnemonic seeds</span>",
+            escape_attr(chain.name)
+        ),
+    );
+    html = html.replace(
+        MNEMONIC_SEEDS_DEFAULT_INTRO,
+        &format!("<span data-chain-intro>{}</span>", escape_attr(&intro)),
+    );
+    html
+}
+
 fn render_bitcoin_puzzle(base: &str) -> String {
     let canonical = format!("{base}/bitcoin-puzzle");
     let title = "Bitcoin puzzle — pooled key search | Rotor";
@@ -2589,6 +2764,17 @@ fn render_sitemap(base: &str) -> String {
     for chain in &CHAINS {
         urls.push_str(&format!(
             "  <url><loc>{}/private-keys/{}</loc></url>\n",
+            escape_attr(base),
+            chain.slug
+        ));
+    }
+    urls.push_str(&format!(
+        "  <url><loc>{}/mnemonic-seeds</loc></url>\n",
+        escape_attr(base)
+    ));
+    for chain in &CHAINS {
+        urls.push_str(&format!(
+            "  <url><loc>{}/mnemonic-seeds/{}</loc></url>\n",
             escape_attr(base),
             chain.slug
         ));
@@ -3661,6 +3847,68 @@ mod tests {
             assert_eq!(status, 200);
             assert!(body.contains("private keys"));
         }
+    }
+
+    #[test]
+    fn mnemonic_seed_directory_routes_and_assets_are_served() {
+        let base = "https://rotor.pxbt.app";
+
+        let (directory, content_type) = static_asset("/mnemonic-seeds").expect("directory");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        let directory = std::str::from_utf8(directory).expect("utf-8 html");
+        assert!(directory.contains("data-chain=\"\""));
+        assert!(directory.contains("href=\"/mnemonic-seeds/bitcoin\""));
+        assert!(directory.contains("href=\"/seed\""));
+
+        let (script, content_type) = static_asset("/mnemonic-seeds.js").expect("script");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let script = std::str::from_utf8(script).expect("utf-8 js");
+        assert!(script.contains("entropyToMnemonic"));
+        assert!(script.contains("mnemonic-seeds"));
+
+        let (body, _, status) = seo_asset(base, "/mnemonic-seeds/bitcoin", "").expect("chain page");
+        assert_eq!(status, 200);
+        assert!(body.contains("data-chain=\"bitcoin\""));
+        assert!(body.contains("data-symbol=\"BTC\""));
+        assert!(body.contains("https://mempool.space/address/"));
+        assert!(body.contains("Bitcoin mnemonic seeds"));
+        assert!(body.contains(
+            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/mnemonic-seeds/bitcoin\">"
+        ));
+        assert!(body.contains("<body class=\"mnemonic-chain-mode\">"));
+
+        let (page_two, _, status) =
+            seo_asset(base, "/mnemonic-seeds/bitcoin/2", "").expect("page two");
+        assert_eq!(status, 200);
+        assert!(page_two.contains("data-page=\"2\""));
+        assert!(page_two.contains("<meta name=\"robots\" content=\"noindex,follow\">"));
+
+        for chain in &CHAINS {
+            let path = format!("/mnemonic-seeds/{}", chain.slug);
+            let (body, _, status) = seo_asset(base, &path, "").expect("chain route");
+            assert_eq!(status, 200, "{path}");
+            assert!(body.contains(&format!("data-chain=\"{}\"", chain.slug)));
+        }
+
+        for path in [
+            "/mnemonic-seeds/unknown",
+            "/mnemonic-seeds/bitcoin/not-a-page",
+            "/mnemonic-seeds/bitcoin/2/extra",
+        ] {
+            assert_eq!(
+                seo_asset(base, path, "").expect("404 route").2,
+                404,
+                "{path}"
+            );
+        }
+
+        assert_eq!(
+            redirect_target("/mnemonic-seeds/"),
+            Some("/mnemonic-seeds".to_string())
+        );
+        let sitemap = render_sitemap(base);
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/mnemonic-seeds</loc>"));
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/mnemonic-seeds/bitcoin</loc>"));
     }
 
     #[test]
