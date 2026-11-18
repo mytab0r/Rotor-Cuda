@@ -199,6 +199,17 @@
     }
   }
 
+  (function restoreSearchPhrase() {
+    var phrase = '';
+    try {
+      phrase = sessionStorage.getItem('rotor-seed-phrase') || '';
+      sessionStorage.removeItem('rotor-seed-phrase');
+    } catch (err) { phrase = ''; }
+    if (!phrase) return;
+    phraseInput.value = phrase;
+    deriveAll();
+  })();
+
   form.addEventListener('submit', function (event) {
     event.preventDefault();
     deriveAll();

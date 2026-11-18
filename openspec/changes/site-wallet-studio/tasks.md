@@ -98,3 +98,51 @@ browser capture in the PR.
 - [ ] Run `node scripts/check-projects.mjs`, `cargo test`, clippy, WASM smoke.
 - [ ] Record gate #1 and #2 verdicts under `reviews/`.
 - [ ] Archive the change and update `openspec/specs/key-explorer/spec.md`.
+
+## 12. Donor route backlog (from donor-map.md)
+- [ ] `/mnemonic-seeds` and `/mnemonic-seeds/<chain>` with 60 rows per page,
+      12/18/24-word entropy, BIP-32 path, address type, balances and pager.
+      (blocked by: 5 — seed studio engine)
+- [ ] Header icon-only search + 18-chain icon strip modal with auto-detect
+      HEX/WIF/Keypair/XRP secret/Mnemonic/Brainwallet and `Search All Chains`.
+      (blocked by: 12 seed directory for mnemonic results)
+- [ ] `/mnemonic-converter` as a standalone page reusing the seed form.
+- [ ] `/brainwallet/bitcoin`, `/brainwallet/ethereum` and
+      `/brainwallet-generator` aliases/variants.
+- [ ] `/richest` and `/richest/<chain>` in-site lists with search/filter and
+      the Rich-Address-Wallet attribution; do not proxy balances.
+- [ ] `/keystore-parser` accepting a UTC/JSON keystore and decrypting locally;
+      no password or file upload.
+- [ ] `/wallet-viewer` read-only address lookup with explorer links.
+- [ ] `/whale-tracker`, `/satoshi-wallets`, `/bitcoin-dormant` research pages;
+      decide data source and rate limits before building.
+
+## 13. Bitcoin puzzle browser parity [front+wasm]
+- [ ] `/bitcoin-puzzle` puzzle selector `#1…#160`, previous/next and
+      breadcrumbs `Home / Bitcoin Puzzle / Puzzle #N / Random Keys`.
+      (blocked by: -)
+- [ ] `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/<n>/detail` routes;
+      show balance, range start/end, progress, target address, explorer and
+      mempool links.
+- [ ] Range presets `Full`, `1st Half`, `2nd Half`, `Q1…Q4`; mode
+      `Solo Random` / `Solo Seq` / `Team`.
+- [ ] Browser WASM worker Start/Stop/Reset/Check; counters Generated, Speed,
+      Workers, WASM, Match, ETA, Network; match panel with key + Copy.
+- [ ] Keep the coordinator pooled jobs as a separate `Team` mode; no silent
+      mix of local and lease work.
+- Evidence: puzzle #71 random run for 60s; start/stop/reset; match fixture;
+      mobile 375 capture; no key leaves the browser.
+
+## 14. Secretscan calculator catalogue (from donor-map.md)
+- [ ] `/monero-address-generator`; decide whether view-key/spend-key derivation
+      or only address encoding is in scope.
+- [ ] Per-chain address-generator pages that reuse `/key` with a chain preset:
+      Ethereum, BNB, Tron, Solana, XRP, TON, Bitcoin Cash, Taproot/SegWit.
+- [ ] `/hex-dec-bin` converter and `/reconstruction` private-key reconstruction.
+- [ ] `/public-key` (public key → addresses) and `/pubkey-add` (P + Q).
+- [ ] `/keystore-parser` local UTC/JSON keystore decrypt; no upload.
+- [ ] Transaction builders/decoders per secretscan route, reusing the
+      tx-sign-broadcast review gate; no server-side signing.
+- [ ] `/wallets` in-site rich-list catalogue with search/filter and explicit
+      price/terms; data source and resale rights must be confirmed first.
+- [ ] `/scaner` + `/results` UX only if a real scanner exists; no fake progress.

@@ -71,7 +71,7 @@ Decision: run a 2-week spike with the secp kernel on one NVIDIA GPU:
    subgroup ops; benchmark both dispatch and arithmetic.
 2. `rust-gpu` SPIR-V implementation: same kernels in Rust; pin nightly; check
    NVIDIA driver path and CI reproducibility.
-3. If neither reaches 70% of CUDA keys/s, keep CUDA as a **feature-gated
+3. If neither reaches 98% of CUDA keys/s, keep CUDA as a **feature-gated
    backend** and declare the Rust-only goal blocked; if one reaches it, delete
    CUDA after parity.
 
@@ -102,7 +102,14 @@ Add optional `chain` to job creation, lease and result payloads:
 5. GPU port and performance gate; remove CUDA/nvcc.
 6. Delete legacy `Rotor-Cuda/*`, update CI, release notes.
 
-## D8. Risks
+## D8. Porting harness
+
+`rust-anything` (record original behavior → diff Rust → lift) is a candidate for
+the non-GPU port (BinSort and any remaining C/C++ host helpers). It does not
+model CUDA device execution, so it cannot gate the kernel migration; that still
+uses the measured GPU parity gate.
+
+## D9. Risks
 
 - WGSL/rust-gpu performance or toolchain dead end → documented fallback and
   explicit "Rust-only blocked" status rather than a silent mixed build.
