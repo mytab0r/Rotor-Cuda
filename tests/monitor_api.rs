@@ -614,6 +614,7 @@ fn monitor_api_end_to_end() {
             open_registration: false,
             trust_proxy: false,
             monitor_domain: "127.0.0.1".to_string(),
+            wallets_upstream: None,
         },
         Arc::clone(&store),
     )

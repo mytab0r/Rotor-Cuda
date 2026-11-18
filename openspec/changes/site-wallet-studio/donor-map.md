@@ -12,7 +12,7 @@ Crawled `privatekeyfinder.io/sitemap.xml` and representative pages on
 | `/mnemonic-converter` | missing (converter lives only in `/seed`) | P1 |
 | `/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum`, `/brainwallet-generator` | only one generic `/brainwallet` page | P1 |
 | `/keystore-parser` | missing | P2 |
-| `/richest`, `/richest/{bitcoin,bnb,ethereum,solana,tron}` | only external Rich-Address-Wallet links added to landing; no browsable/filterable in-site lists | P1 |
+| `/richest`, `/richest/{bitcoin,bnb,ethereum,solana,tron}` | in-domain `/wallets` storefront with proxied Rich-Address-Wallet downloads; no browsable/filterable in-site rich-list pages yet | P1 |
 | `/wallet-viewer` | missing | P2 |
 | `/whale-tracker` | missing | P3 |
 | `/satoshi-wallets` | missing | P3 |
