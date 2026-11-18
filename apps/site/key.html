@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261119o">
+<link rel="stylesheet" href="/site.css?v=20261119q">
 </head>
 <body>
 <header class="site-nav">
@@ -39,7 +39,8 @@
 
   <section class="card">
     <h2>Key input</h2>
-    <p id="key-url-notice" class="notice key-url-notice" role="note" hidden>This key is in the page URL. Derivation still runs locally; the key is not sent to the server.</p>
+    <p id="key-url-notice" class="notice key-url-notice" role="note" hidden>This key is in the page URL. Derivation runs locally; only the derived public addresses are checked against the registry so a registered owner can be warned.</p>
+    <p id="exposure-status" class="muted key-help" role="status" hidden></p>
     <form id="key-form" class="key-form" autocomplete="off">
       <label class="key-input-label">Private key
         <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
@@ -116,7 +117,7 @@
       </div>
       <div class="key-balance-controls">
         <label class="key-toggle">Online balance lookups
-          <input type="checkbox" id="online-toggle">
+          <input type="checkbox" id="online-toggle" checked>
         </label>
         <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
       </div>
@@ -195,6 +196,6 @@
 
 </main>
 
-<script src="/key.js?v=20261119o"></script>
+<script src="/key.js?v=20261119q"></script>
 </body>
 </html>
