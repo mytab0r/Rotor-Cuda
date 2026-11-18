@@ -49,6 +49,11 @@ const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
 const WALLETCONNECT_JS: &[u8] = include_bytes!("../../apps/site/walletconnect.js");
 const BRAINWALLET_JS: &str = include_str!("../../apps/site/brainwallet.js");
 const BROWSE_JS: &str = include_str!("../../apps/site/browse.js");
+const VANITY_PAGE: &str = include_str!("../../apps/site/vanity.html");
+const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
+const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
+const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
+const SEED_PAGE_JS: &str = include_str!("../../apps/site/seed-page.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
 const MANROPE_WOFF2: &[u8] = include_bytes!("../../apps/site/fonts/manrope-latin.woff2");
@@ -696,6 +701,20 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             BROWSE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/vanity" => Some((VANITY_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/vanity.js" => Some((
+            VANITY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/seed" => Some((SEED_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/seed.js" => Some((
+            SEED_BUNDLE.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/seed-page.js" => Some((
+            SEED_PAGE_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/search.js" => Some((
             SEARCH_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -773,6 +792,8 @@ enum AddressKind {
     Dogecoin,
     BitcoinCash,
     Xrp,
+    Zcash,
+    Sui,
 }
 
 struct AddressType {
@@ -864,11 +885,23 @@ const XRP_TYPES: &[AddressType] = &[AddressType {
     desc: "r…",
     field: "xrp_classic",
 }];
+const ZCASH_TYPES: &[AddressType] = &[AddressType {
+    value: "legacy",
+    label: "Transparent",
+    desc: "t1…",
+    field: "zcash_p2pkh",
+}];
+const SUI_TYPES: &[AddressType] = &[AddressType {
+    value: "legacy",
+    label: "Address",
+    desc: "0x…",
+    field: "sui",
+}];
 
 impl AddressKind {
     fn curve(self) -> u32 {
         match self {
-            Self::Solana => 1,
+            Self::Solana | Self::Sui => 1,
             _ => 0,
         }
     }
@@ -883,6 +916,8 @@ impl AddressKind {
             Self::Dogecoin => DOGE_TYPES,
             Self::BitcoinCash => BCH_TYPES,
             Self::Xrp => XRP_TYPES,
+            Self::Zcash => ZCASH_TYPES,
+            Self::Sui => SUI_TYPES,
         }
     }
 
@@ -905,7 +940,7 @@ struct ChainHub {
     explorer: &'static str,
 }
 
-const CHAINS: [ChainHub; 15] = [
+const CHAINS: [ChainHub; 17] = [
     ChainHub {
         slug: "bitcoin",
         name: "Bitcoin",
@@ -1085,6 +1120,30 @@ const CHAINS: [ChainHub; 15] = [
         color: "#c2a633",
         icon: "chain-dogecoin",
         explorer: "https://blockchair.com/dogecoin/address/",
+    },
+    ChainHub {
+        slug: "zcash",
+        name: "Zcash",
+        symbol: "ZEC",
+        description: "Transparent Zcash t-addresses with the two-byte 0x1cb8 prefix.",
+        intro: "Zcash transparent addresses use secp256k1 and a two-byte version prefix. Shielded addresses are a separate protocol and are not derived here.",
+        curve_suffix: "",
+        kind: AddressKind::Zcash,
+        color: "#ecb244",
+        icon: "chain-zcash",
+        explorer: "https://blockchair.com/zcash/address/",
+    },
+    ChainHub {
+        slug: "sui",
+        name: "Sui",
+        symbol: "SUI",
+        description: "Sui ed25519 accounts hashed with BLAKE2b-256.",
+        intro: "Sui derives an account address as BLAKE2b-256 of the ed25519 scheme flag plus the public key. Open any key to derive the 0x address locally.",
+        curve_suffix: "?curve=ed25519",
+        kind: AddressKind::Sui,
+        color: "#6fbcf0",
+        icon: "chain-sui",
+        explorer: "https://suiscan.xyz/mainnet/account/",
     },
 ];
 
@@ -1322,17 +1381,34 @@ fn breadcrumb_nav(items: &[(&str, Option<&str>)]) -> String {
 
 fn site_header() -> String {
     format!(
-        "<header class=\"site-nav\">         <a class=\"brand\" href=\"/\"><span class=\"brand-mark\">{key}</span><span class=\"brand-name\">Rotor<span>.</span></span></a>         <nav aria-label=\"Main\">         <a href=\"/\" data-nav=\"home\">{grid}<span>Home</span></a>         <a href=\"/private-keys\" data-nav=\"directory\">{key2}<span>Directory</span></a>         <a href=\"/bitcoin-puzzle\" data-nav=\"puzzle\">{puzzle}<span>Puzzle</span></a>         <a href=\"/brainwallet\" data-nav=\"tools\">{tools}<span>Tools</span></a>         <a href=\"/docs\" data-nav=\"docs\">{book}<span>Docs</span></a>         </nav>         <div class=\"nav-tools\">         <a class=\"nav-pill\" href=\"/key\" data-nav=\"search\">{search}<span>Key search</span></a>         <a class=\"nav-pill nav-cabinet\" href=\"/cabinet\" data-nav=\"cabinet\">{wallet}<span>Cabinet</span></a>         </div></header>",
+        "<header class=\"site-nav\">\
+         <a class=\"brand\" href=\"/\"><span class=\"brand-mark\">{key}</span><span class=\"brand-name\">Rotor<span>.</span></span></a>\
+         <nav aria-label=\"Main\">\
+         <a href=\"/\" data-nav=\"home\">{grid}<span>Home</span></a>\
+         <a href=\"/private-keys\" data-nav=\"directory\">{key2}<span>Directory</span></a>\
+         <a href=\"/seed\" data-nav=\"seeds\">{seed}<span>Seeds</span></a>\
+         <a href=\"/bitcoin-puzzle\" data-nav=\"puzzle\">{puzzle}<span>Puzzle</span></a>\
+         <a href=\"/vanity\" data-nav=\"vanity\">{vanity}<span>Vanity</span></a>\
+         <a href=\"/brainwallet\" data-nav=\"tools\">{tools}<span>Tools</span></a>\
+         <a href=\"/docs\" data-nav=\"docs\">{book}<span>Docs</span></a>\
+         </nav>\
+         <div class=\"nav-tools\">\
+         <a class=\"nav-pill\" href=\"/key\" data-nav=\"search\">{search}<span>Key search</span></a>\
+         <a class=\"nav-pill nav-cabinet\" href=\"/cabinet\" data-nav=\"cabinet\">{wallet}<span>Cabinet</span></a>\
+         </div></header>",
         key = ui_icon("ui-rotor", "icon"),
         grid = ui_icon("ui-grid", "icon"),
         key2 = ui_icon("ui-key", "icon"),
+        seed = ui_icon("ui-key", "icon"),
         puzzle = ui_icon("ui-puzzle", "icon"),
+        vanity = ui_icon("ui-tools", "icon"),
         tools = ui_icon("ui-tools", "icon"),
         book = ui_icon("ui-book", "icon"),
         search = ui_icon("ui-search", "icon"),
         wallet = ui_icon("ui-wallet", "icon"),
     )
 }
+
 /// Swap the template header (built before the IA change) for [`site_header`]
 /// without touching the static site files.
 fn replace_site_nav(html: String) -> String {
@@ -1358,8 +1434,8 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261118u\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261118u\"></script>\n<script src=\"/site.js?v=20261118u\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261119d\">\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119d\"></script>\n<script src=\"/site.js?v=20261119d\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -1561,8 +1637,8 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
 
 fn render_keys_hub(base: &str) -> String {
     let canonical = format!("{base}/private-keys");
-    let title = "Private keys directory — browse keys on 15 chains | Rotor";
-    let description = "Browse private key pages for Bitcoin, Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync, Solana, TRON, XRP, Litecoin, Bitcoin Cash and Dogecoin. Addresses are derived locally in your browser.";
+    let title = "Private keys directory — browse keys on 17 chains | Rotor";
+    let description = "Browse private key pages for Bitcoin, Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync, Solana, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin, Zcash and Sui. Addresses are derived locally in your browser.";
     let ld_app = json!({
         "@context": "https://schema.org",
         "@type": "WebApplication",
@@ -2214,7 +2290,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261118u\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261119d\"></script>",
         site_header(),
         "",
         chain.color,
@@ -2399,7 +2475,14 @@ fn render_sitemap(base: &str) -> String {
 ",
         escape_attr(base)
     ));
-    for page in ["/faq", "/disclaimer", "/donate", "/brainwallet"] {
+    for page in [
+        "/faq",
+        "/disclaimer",
+        "/donate",
+        "/brainwallet",
+        "/seed",
+        "/vanity",
+    ] {
         urls.push_str(&format!(
             "  <url><loc>{}{page}</loc></url>
 ",
@@ -3425,6 +3508,29 @@ mod tests {
         assert_eq!(status, 200);
         assert!(body.contains(&format!("href=\"/keys/solana/{one}-{sixty_four}\"")));
         assert!(body.contains(&format!("{base}/keys/solana/{one}-{sixty_four}")));
+    }
+
+    #[test]
+    fn seed_and_vanity_tools_are_served_and_indexed() {
+        for path in [
+            "/seed",
+            "/seed.js",
+            "/seed-page.js",
+            "/vanity",
+            "/vanity.js",
+        ] {
+            assert!(static_asset(path).is_some(), "{path} must be embedded");
+        }
+        let base = "https://rotor.pxbt.app";
+        let sitemap = render_sitemap(base);
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/seed</loc>"));
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/vanity</loc>"));
+        for chain in ["zcash", "sui"] {
+            let path = format!("/private-keys/{chain}");
+            let (body, _, status) = seo_asset(base, &path, "").expect("chain hub");
+            assert_eq!(status, 200);
+            assert!(body.contains("private keys"));
+        }
     }
 
     #[test]

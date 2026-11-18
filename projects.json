@@ -1,5 +1,5 @@
 {
-  "asset_version": "20261118u",
+  "asset_version": "20261119d",
   "areas": [
     {
       "id": "site",
@@ -13,7 +13,9 @@
         "node --check apps/site/key.js",
         "node --check apps/site/rotor-worker.js",
         "node --check apps/site/browse.js",
-        "node --check apps/site/search.js"
+        "node --check apps/site/search.js",
+        "node --check apps/site/vanity.js",
+        "node --check apps/site/seed-page.js"
       ],
       "test": [
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm"

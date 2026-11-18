@@ -40,7 +40,9 @@
     ltc_p2wpkh: 'Litecoin native segwit',
     doge_p2pkh: 'Dogecoin legacy (compressed)',
     bch_legacy: 'Bitcoin Cash legacy (compressed)',
-    xrp_classic: 'XRP classic address'
+    xrp_classic: 'XRP classic address',
+    zcash_p2pkh: 'Zcash transparent',
+    sui: 'Sui account'
   };
 
   var EXPLAIN = {
@@ -57,7 +59,9 @@
     ltc_p2wpkh: 'witness v0 program hash160(pubkey) with the "ltc" human-readable part, bech32.',
     doge_p2pkh: 'hash160 of the compressed public key with Dogecoin version byte 0x1e, base58check-encoded.',
     bch_legacy: 'Bitcoin Cash legacy address: hash160(pubkey) with version byte 0x00, base58check.',
-    xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).'
+    xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).',
+    zcash_p2pkh: 'Zcash transparent address: two-byte version 0x1cb8 || hash160(pubkey), base58check.',
+    sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.'
   };
 
   var PATHS = {
@@ -123,7 +127,9 @@
     ltc: ['ltc_'],
     doge: ['doge_'],
     bch: ['bch_'],
-    xrp: ['xrp_']
+    xrp: ['xrp_'],
+    zcash: ['zcash_'],
+    sui: ['sui']
   };
 
   var CHAIN_NAMES = {
@@ -513,8 +519,6 @@
       key: [
         ['Curve', report.curve || ''],
         ['Hex', report.priv_hex || ''],
-        ['Decimal', report.priv_dec || ''],
-        ['Binary', report.priv_bin || ''],
         ['WIF (compressed)', report.wif_compressed || ''],
         ['WIF (uncompressed)', report.wif_uncompressed || '']
       ],
@@ -827,6 +831,8 @@
 
   function selectPreset(button) {
     state.preset = button.getAttribute('data-preset');
+    var presetSelect = byId('preset-select');
+    if (presetSelect) presetSelect.value = state.preset;
     presetButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
@@ -1438,6 +1444,35 @@
   chainButtons.forEach(function (button) {
     button.addEventListener('click', function () { selectChain(button); });
   });
+
+  var curveChoices = Array.prototype.slice.call(document.querySelectorAll('[data-curve-choice]'));
+  function syncCurveChoices() {
+    curveChoices.forEach(function (button) {
+      var active = button.getAttribute('data-curve-choice') === curveSelect.value;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  }
+  curveChoices.forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (curveSelect.value === button.getAttribute('data-curve-choice')) return;
+      curveSelect.value = button.getAttribute('data-curve-choice');
+      syncCurveChoices();
+      curveSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  curveSelect.addEventListener('change', syncCurveChoices);
+  syncCurveChoices();
+
+  var presetSelect = byId('preset-select');
+  if (presetSelect) {
+    presetSelect.addEventListener('change', function () {
+      var target = presetButtons.filter(function (button) {
+        return button.getAttribute('data-preset') === presetSelect.value;
+      })[0];
+      if (target) selectPreset(target);
+    });
+  }
 
   (function focusRequestedType() {
     var type = new URLSearchParams(window.location.search).get('type');
