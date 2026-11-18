@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seed phrase converter — derive addresses locally | Rotor</title>
+<meta name="description" content="Convert a BIP39 seed phrase into Bitcoin, Ethereum, TRON, Litecoin, Dogecoin, Bitcoin Cash and XRP keys. Everything runs in your browser.">
+<link rel="canonical" href="https://rotor.pxbt.app/seed">
+<link rel="stylesheet" href="/site.css?v=20261119d">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page seed-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <div>
+        <h1>Seed phrase converter</h1>
+        <p class="key-tagline">Turn a BIP39 phrase into the first key of each standard wallet path. The phrase, seed and keys stay in this browser.</p>
+        <div class="key-badges"><span>BIP39 / BIP32</span><span>Runs locally</span><span>No upload</span></div>
+      </div>
+    </div>
+    <p class="notice key-warning" role="note">A seed phrase controls every address derived from it. Use this page offline for real funds, and never paste a live phrase into a site you do not control.</p>
+  </section>
+
+  <section class="card">
+    <h2>Phrase</h2>
+    <form id="seed-form" class="seed-form" autocomplete="off">
+      <label class="seed-phrase-label">Mnemonic (12 or 24 words)
+        <textarea id="seed-phrase" class="mono" rows="3" spellcheck="false" autocapitalize="off" placeholder="word1 word2 word3 …"></textarea>
+      </label>
+      <label>BIP39 passphrase (optional)
+        <input id="seed-passphrase" type="password" class="mono" autocomplete="new-password" placeholder="leave empty if none">
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="seed-derive">Derive addresses</button>
+        <button type="button" id="seed-generate">Generate 12 words</button>
+        <button type="button" id="seed-clear">Clear</button>
+      </div>
+    </form>
+    <p class="muted key-help">English BIP39 wordlist. Derivation uses the standard BIP44/49/84/86 paths shown in each row. The phrase is never stored, logged or sent.</p>
+    <p id="seed-error" class="error key-error" role="alert" hidden></p>
+  </section>
+
+  <section class="card" id="seed-result" hidden>
+    <div class="seed-result-head"><h2>Derived keys</h2><span class="seed-count" id="seed-count"></span></div>
+    <div class="seed-rows" id="seed-rows"></div>
+  </section>
+</main>
+
+<script src="/seed.js?v=20261119d"></script>
+<script src="/seed-page.js?v=20261119d"></script>
+<script src="/site.js?v=20261119d"></script>
+</body>
+</html>

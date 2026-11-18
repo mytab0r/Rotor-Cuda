@@ -35,7 +35,9 @@
     ltc_p2wpkh: 'Litecoin native SegWit',
     doge_p2pkh: 'Dogecoin P2PKH',
     bch_legacy: 'Bitcoin Cash legacy P2PKH',
-    xrp_classic: 'XRP classic address'
+    xrp_classic: 'XRP classic address',
+    zcash_p2pkh: 'Zcash transparent address',
+    sui: 'Sui address'
   };
   var RPC = {
     ethereum: 'https://ethereum-rpc.publicnode.com',
@@ -50,7 +52,8 @@
   var BLOCKCHAIR = {
     litecoin: 'litecoin',
     dogecoin: 'dogecoin',
-    'bitcoin-cash': 'bitcoin-cash'
+    'bitcoin-cash': 'bitcoin-cash',
+    zcash: 'zcash'
   };
 
   var root = document.querySelector('.browse-page');

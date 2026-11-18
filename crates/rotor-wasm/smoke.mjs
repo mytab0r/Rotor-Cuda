@@ -241,6 +241,7 @@ const expectedAddresses = {
   doge_p2pkh: "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
   bch_legacy: KEY1,
   xrp_classic: "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH",
+  zcash_p2pkh: "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs",
   evm: "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
   tron: "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
   solana: "",
@@ -349,13 +350,15 @@ const expectedSolana = "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z";
 if (
   edReport.curve !== "ed25519" ||
   edReport.ed_pubkey !== expectedEdPubkey ||
-  edReport.addresses.length !== 1 ||
+  edReport.addresses.length !== 2 ||
   edReport.addresses[0].id !== "solana" ||
-  edReport.addresses[0].address !== expectedSolana
+  edReport.addresses[0].address !== expectedSolana ||
+  edReport.addresses[1].id !== "sui" ||
+  edReport.addresses[1].address !== "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d"
 ) {
   throw new Error("derive_report: unexpected ed25519 report");
 }
-console.log(`derive_report ed25519: solana=${edReport.addresses[0].address}`);
+console.log(`derive_report ed25519: solana=${edReport.addresses[0].address} sui=${edReport.addresses[1].address}`);
 
 // Invalid keys are rejected with a nonzero status and an error message.
 const zeroPtr = wasm.alloc(32);
