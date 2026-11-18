@@ -235,6 +235,12 @@ const expectedAddresses = {
   btc_p2sh_p2wpkh: "3JvL6Ymt8MVWiCNHC7oWU6nLeHNJKLZGLN",
   btc_p2wpkh: "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
   btc_p2tr: "bc1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5sspknck9",
+  ltc_p2pkh: "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ",
+  ltc_p2sh_p2wpkh: "MR8UQSBr5ULwWheBHznrHk2jxyxkHQu8vB",
+  ltc_p2wpkh: "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9",
+  doge_p2pkh: "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
+  bch_legacy: KEY1,
+  xrp_classic: "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH",
   evm: "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
   tron: "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
   solana: "",
@@ -250,7 +256,9 @@ if (
 }
 if (key1Report.addresses.length !== Object.keys(expectedAddresses).length) {
   throw new Error(
-    `derive_report: got ${key1Report.addresses.length} addresses, want 8`,
+    `derive_report: got ${key1Report.addresses.length} addresses, want ${
+      Object.keys(expectedAddresses).length
+    }`,
   );
 }
 for (const [id, address] of Object.entries(expectedAddresses)) {
@@ -260,8 +268,26 @@ for (const [id, address] of Object.entries(expectedAddresses)) {
     );
   }
 }
+// New chain rows must carry the same step schema as their Bitcoin siblings.
+const requiredSteps = {
+  ltc_p2pkh: ["pubkey", "hash160", "payload", "checksum", "base58"],
+  ltc_p2sh_p2wpkh: ["redeem", "script_hash", "payload", "checksum"],
+  ltc_p2wpkh: ["hrp", "witness_version", "program", "checksum"],
+  doge_p2pkh: ["pubkey", "hash160", "payload", "checksum", "base58"],
+  bch_legacy: ["pubkey", "hash160", "payload", "checksum", "base58"],
+  xrp_classic: ["pubkey", "hash160", "payload", "checksum", "base58"],
+};
+for (const [id, steps] of Object.entries(requiredSteps)) {
+  for (const step of steps) {
+    if (typeof byId[id]?.steps?.[step] !== "string" || byId[id].steps[step] === "") {
+      throw new Error(`derive_report ${id}: empty step ${step}`);
+    }
+  }
+}
 console.log(
-  `derive_report secp256k1: 8 addresses, p2tr=${byId.btc_p2tr.address}`,
+  `derive_report secp256k1: ${key1Report.addresses.length} addresses, ` +
+    `p2tr=${byId.btc_p2tr.address}, ltc=${byId.ltc_p2wpkh.address}, ` +
+    `xrp=${byId.xrp_classic.address}`,
 );
 
 // Odd-y public points: BIP341 lifts the internal key to even y before the

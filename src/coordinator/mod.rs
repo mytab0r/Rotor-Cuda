@@ -39,6 +39,7 @@ const KEY_PAGE: &str = include_str!("../../apps/site/key.html");
 const KEY_JS: &str = include_str!("../../apps/site/key.js");
 const RANGE_PAGE: &str = include_str!("../../apps/site/range.html");
 const RANGE_JS: &str = include_str!("../../apps/site/range.js");
+const PUZZLE_JS: &str = include_str!("../../apps/site/puzzle.js");
 const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
 const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
@@ -498,6 +499,8 @@ fn reject_over_capacity(app: &App, request: Request) {
 fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
     // Public endpoints never answer 401; capacity is the only failure.
     if path == "/api/v1/summary"
+        || path == "/api/v1/jobs/public"
+        || path == "/api/v1/workers/public"
         || path == "/api/v1/register"
         || path == "/api/v1/monitor/config"
         || path == "/api/v1/telegram/webhook"
@@ -518,7 +521,7 @@ fn handle(app: Arc<App>, request: Request) {
 
     if method == Method::Get {
         if let Some(location) = redirect_target(path) {
-            respond_redirect(request, location);
+            respond_redirect(request, &location);
             return;
         }
         // Dynamic SEO surface: key pages, chain hubs, robots and sitemap.
@@ -604,6 +607,16 @@ fn handle(app: Arc<App>, request: Request) {
         );
     }
 
+    // Public job snapshot: no token, lightly rate-limited per IP.
+    if method == Method::Get && path == "/api/v1/jobs/public" {
+        return public_jobs(&app, request);
+    }
+
+    // Public worker snapshot: same open, rate-limited policy.
+    if method == Method::Get && path == "/api/v1/workers/public" {
+        return public_workers(&app, request);
+    }
+
     // Self-service registration is public; the flag decides 403 vs 201.
     if method == Method::Post && path == "/api/v1/register" {
         return register(&app, request);
@@ -664,6 +677,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/range.js" => Some((RANGE_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/puzzle.js" => Some((
+            PUZZLE_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/walletconnect.js" => Some((WALLETCONNECT_JS, "application/javascript; charset=utf-8")),
         "/brainwallet.js" => Some((
             BRAINWALLET_JS.as_bytes(),
@@ -687,10 +704,23 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
     }
 }
 
-/// `/monitor` was renamed to `/cabinet`; keep the old URL as a permanent
-/// redirect and serve the same assets from both script paths.
-fn redirect_target(path: &str) -> Option<&'static str> {
-    (path == "/monitor").then_some("/cabinet")
+/// Permanent redirects to the canonical naming: `/monitor` -> `/cabinet`
+/// and the old `/keys` hubs -> `/private-keys`. Key-range pages keep their
+/// `/keys/<chain>/<start>-<end>` URLs and are not redirected.
+fn redirect_target(path: &str) -> Option<String> {
+    if path == "/monitor" {
+        return Some("/cabinet".to_string());
+    }
+    if path == "/keys" {
+        return Some("/private-keys".to_string());
+    }
+    if let Some(slug) = path.strip_prefix("/keys/")
+        && !slug.contains('/')
+        && chain_by_slug(slug).is_some()
+    {
+        return Some(format!("/private-keys/{slug}"));
+    }
+    None
 }
 
 fn respond_redirect(request: Request, location: &str) {
@@ -726,7 +756,7 @@ struct ChainHub {
     curve_suffix: &'static str,
 }
 
-const CHAINS: [ChainHub; 4] = [
+const CHAINS: [ChainHub; 8] = [
     ChainHub {
         slug: "bitcoin",
         name: "Bitcoin",
@@ -754,6 +784,34 @@ const CHAINS: [ChainHub; 4] = [
         description: "Solana private key examples derived on the ed25519 curve.",
         intro: "Solana accounts use ed25519 keys. Every key page on this hub switches the derivation to ed25519 and runs locally in your browser.",
         curve_suffix: "?curve=ed25519",
+    },
+    ChainHub {
+        slug: "litecoin",
+        name: "Litecoin",
+        description: "Litecoin private key examples with legacy, P2SH-SegWit and native SegWit addresses.",
+        intro: "Litecoin uses secp256k1 with its own version bytes. Open an example key to derive its legacy, P2SH-SegWit and ltc1 SegWit addresses locally in your browser.",
+        curve_suffix: "",
+    },
+    ChainHub {
+        slug: "dogecoin",
+        name: "Dogecoin",
+        description: "Dogecoin private key examples with legacy Base58Check addresses.",
+        intro: "Dogecoin uses secp256k1 and the 0x1e version byte. Open an example key to see its Dogecoin address derived locally in your browser.",
+        curve_suffix: "",
+    },
+    ChainHub {
+        slug: "bitcoin-cash",
+        name: "Bitcoin Cash",
+        description: "Bitcoin Cash private key examples with legacy P2PKH addresses.",
+        intro: "Bitcoin Cash shares the secp256k1 key format with Bitcoin. Open an example key to see its legacy P2PKH address derived locally in your browser; CashAddr is not shown yet.",
+        curve_suffix: "",
+    },
+    ChainHub {
+        slug: "xrp",
+        name: "XRP",
+        description: "XRP private key examples with classic r-address derivation.",
+        intro: "XRP classic addresses use secp256k1, hash160 and the Ripple Base58 alphabet. Open an example key to derive its r-address locally in your browser.",
+        curve_suffix: "",
     },
 ];
 
@@ -784,21 +842,29 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
     if path == "/brainwallet" {
         return Some((render_brainwallet(base), HTML, 200));
     }
-    if path == "/keys" {
+    if path == "/keys" || path == "/private-keys" {
         return Some((render_keys_hub(base), HTML, 200));
     }
-    if let Some(rest) = path.strip_prefix("/keys/") {
-        if let Some((slug, range_text)) = rest.split_once('/') {
-            let Some(chain) = chain_by_slug(slug) else {
-                return Some((render_seo_not_found(), HTML, 404));
-            };
-            return Some(match parse_key_range(range_text) {
-                Some(range) => (render_range_page(base, chain, &range), HTML, 200),
-                None => (render_seo_not_found(), HTML, 404),
-            });
-        }
+    if let Some(rest) = path.strip_prefix("/private-keys/") {
         return Some(match chain_by_slug(rest) {
             Some(chain) => (render_chain_hub(base, chain), HTML, 200),
+            None => (render_seo_not_found(), HTML, 404),
+        });
+    }
+    if path == "/bitcoin-puzzle" {
+        return Some((render_bitcoin_puzzle(base), HTML, 200));
+    }
+    if let Some(rest) = path.strip_prefix("/keys/") {
+        let Some((slug, range_text)) = rest.split_once('/') else {
+            // Bare `/keys/<chain>` is redirected to `/private-keys/<chain>`
+            // before this point; keep direct lookups a hard 404.
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        let Some(chain) = chain_by_slug(slug) else {
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        return Some(match parse_key_range(range_text) {
+            Some(range) => (render_range_page(base, chain, &range), HTML, 200),
             None => (render_seo_not_found(), HTML, 404),
         });
     }
@@ -960,11 +1026,32 @@ fn site_header() -> &'static str {
     "<header class=\"site-nav\">\
      <a class=\"brand\" href=\"/\">Rotor <span>Coordinator</span></a>\
      <nav>\
-     <a href=\"/keys\" class=\"active\">Keys</a>\
-     <a href=\"/app\">App</a>\
-     <a href=\"/cabinet\">Cabinet</a>\
+     <a href=\"/\">Home</a>\
+     <a href=\"/private-keys\">Chains</a>\
+     <a href=\"/bitcoin-puzzle\">Puzzles</a>\
+     <a href=\"/brainwallet\">Tools</a>\
      <a href=\"/docs\">Docs</a>\
+     <a href=\"/cabinet\">Cabinet</a>\
      </nav></header>"
+}
+
+/// Swap the template header (built before the IA change) for [`site_header`]
+/// without touching the static site files.
+fn replace_site_nav(html: String) -> String {
+    const OPEN: &str = "<header class=\"site-nav\">";
+    const CLOSE: &str = "</header>";
+    let Some(start) = html.find(OPEN) else {
+        return html;
+    };
+    let Some(close_rel) = html[start..].find(CLOSE) else {
+        return html;
+    };
+    let end = start + close_rel + CLOSE.len();
+    let mut out = String::with_capacity(html.len());
+    out.push_str(&html[..start]);
+    out.push_str(site_header());
+    out.push_str(&html[end..]);
+    out
 }
 
 fn html_document(title: &str, head_extra: &str, body: &str) -> String {
@@ -1008,7 +1095,7 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
         "@type": "BreadcrumbList",
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
-            { "@type": "ListItem", "position": 2, "name": "Keys", "item": format!("{base}/keys") },
+            { "@type": "ListItem", "position": 2, "name": "Chains", "item": format!("{base}/private-keys") },
             { "@type": "ListItem", "position": 3, "name": format!("Key {short}"), "item": canonical },
         ],
     });
@@ -1044,7 +1131,7 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     let crumb_label = format!("Key {short}");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
-        ("Keys", Some("/keys")),
+        ("Chains", Some("/private-keys")),
         (&crumb_label, None),
     ]);
     let payload = format!(
@@ -1062,11 +1149,11 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
         &format!("<main class=\"key-page\">{crumbs}"),
         1,
     );
-    html.replacen(
+    replace_site_nav(html.replacen(
         "<script src=\"/key.js",
         &format!("{payload}<script src=\"/key.js"),
         1,
-    )
+    ))
 }
 
 fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
@@ -1095,8 +1182,8 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
         "@type": "BreadcrumbList",
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
-            { "@type": "ListItem", "position": 2, "name": "Keys", "item": format!("{base}/keys") },
-            { "@type": "ListItem", "position": 3, "name": chain.name, "item": format!("{base}/keys/{}", chain.slug) },
+            { "@type": "ListItem", "position": 2, "name": "Chains", "item": format!("{base}/private-keys") },
+            { "@type": "ListItem", "position": 3, "name": chain.name, "item": format!("{base}/private-keys/{}", chain.slug) },
             { "@type": "ListItem", "position": 4, "name": label, "item": canonical },
         ],
     });
@@ -1144,10 +1231,10 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
         json_ld(&ld_items),
     );
 
-    let chain_href = format!("/keys/{}", chain.slug);
+    let chain_href = format!("/private-keys/{}", chain.slug);
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
-        ("Keys", Some("/keys")),
+        ("Chains", Some("/private-keys")),
         (chain.name, Some(&chain_href)),
         (&label, None),
     ]);
@@ -1167,15 +1254,15 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
         &crumbs,
         1,
     );
-    html.replacen(
+    replace_site_nav(html.replacen(
         "<script src=\"/range.js",
         &format!("{payload}<script src=\"/range.js"),
         1,
-    )
+    ))
 }
 
 fn render_keys_hub(base: &str) -> String {
-    let canonical = format!("{base}/keys");
+    let canonical = format!("{base}/private-keys");
     let title = "Private key explorer — Bitcoin, Ethereum, TRON, Solana | Rotor";
     let description = "Browse Rotor's public key hubs for Bitcoin, Ethereum, TRON and Solana. Each hub lists deterministic example private keys and derives addresses locally in your browser.";
     let ld_app = json!({
@@ -1193,7 +1280,7 @@ fn render_keys_hub(base: &str) -> String {
         "@type": "BreadcrumbList",
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
-            { "@type": "ListItem", "position": 2, "name": "Keys", "item": canonical },
+            { "@type": "ListItem", "position": 2, "name": "Chains", "item": canonical },
         ],
     });
     let entries: Vec<_> = CHAINS
@@ -1204,7 +1291,7 @@ fn render_keys_hub(base: &str) -> String {
                 "@type": "ListItem",
                 "position": index + 1,
                 "name": format!("{} private keys", chain.name),
-                "url": format!("{base}/keys/{}", chain.slug),
+                "url": format!("{base}/private-keys/{}", chain.slug),
             })
         })
         .collect();
@@ -1225,7 +1312,7 @@ fn render_keys_hub(base: &str) -> String {
     let mut cards = String::new();
     for chain in &CHAINS {
         cards.push_str(&format!(
-            "<li><h2><a href=\"/keys/{}\">{}</a></h2><p>{}</p></li>",
+            "<li><h2><a href=\"/private-keys/{}\">{}</a></h2><p>{}</p></li>",
             chain.slug,
             chain.name,
             escape_attr(chain.description)
@@ -1245,7 +1332,7 @@ fn render_keys_hub(base: &str) -> String {
          </main>",
         site_header(),
         "",
-        breadcrumb_nav(&[("Home", Some("/")), ("Keys", None)]),
+        breadcrumb_nav(&[("Home", Some("/")), ("Chains", None)]),
     );
     html_document(title, &head, &body)
 }
@@ -1480,7 +1567,7 @@ fn render_brainwallet(base: &str) -> String {
 }
 
 fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
-    let canonical = format!("{base}/keys/{}", chain.slug);
+    let canonical = format!("{base}/private-keys/{}", chain.slug);
     let title = format!(
         "{} private key explorer — 64 example keys | Rotor",
         chain.name
@@ -1505,7 +1592,7 @@ fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
         "@type": "BreadcrumbList",
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
-            { "@type": "ListItem", "position": 2, "name": "Keys", "item": format!("{base}/keys") },
+            { "@type": "ListItem", "position": 2, "name": "Chains", "item": format!("{base}/private-keys") },
             { "@type": "ListItem", "position": 3, "name": crumb_label, "item": canonical },
         ],
     });
@@ -1551,7 +1638,7 @@ fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
     let mut other_links = String::new();
     for other in CHAINS.iter().filter(|other| other.slug != chain.slug) {
         other_links.push_str(&format!(
-            "<li><a href=\"/keys/{}\">{}</a></li>",
+            "<li><a href=\"/private-keys/{}\">{}</a></li>",
             other.slug, other.name
         ));
     }
@@ -1570,13 +1657,68 @@ fn render_chain_hub(base: &str, chain: &ChainHub) -> String {
         "",
         breadcrumb_nav(&[
             ("Home", Some("/")),
-            ("Keys", Some("/keys")),
+            ("Chains", Some("/private-keys")),
             (crumb_label, None)
         ]),
         chain.name,
         escape_attr(chain.intro),
     );
     html_document(&title, &head, &body)
+}
+
+fn render_bitcoin_puzzle(base: &str) -> String {
+    let canonical = format!("{base}/bitcoin-puzzle");
+    let title = "Bitcoin puzzle — pooled key search | Rotor";
+    let description = "Track Rotor's public Bitcoin puzzle: contributors lease fixed-size key chunks, report progress, and the pool resumes unfinished work. Live job stats for open and finished runs.";
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Puzzles", "item": canonical },
+            { "@type": "ListItem", "position": 3, "name": "Bitcoin puzzle", "item": canonical },
+        ],
+    });
+    let head = hub_head(&canonical, title, description, &[ld_app, ld_crumbs]);
+
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Puzzles", Some("/bitcoin-puzzle")),
+        ("Bitcoin puzzle", None),
+    ]);
+    let body = format!(
+        "{}{crumbs}<main class=\"key-page\">\
+         <section class=\"hero\"><h1>Bitcoin puzzle</h1>\
+         <p>Rotor splits a public key range into fixed-size chunks. Contributors lease a chunk, scan it on their own hardware, and report progress back. Nobody holds the whole range and no key material is shared.</p>\
+         <p><a href=\"/run\">Run a worker</a> · <a href=\"/cabinet\">Open the cabinet</a> · <a href=\"/docs\">Read the docs</a></p></section>\
+         <section class=\"card\"><h2>How pooled chunk leasing works</h2>\
+         <ol><li>A job defines a start key, an end key and a chunk width; the coordinator fingerprints each chunk with challenge offsets.</li>\
+         <li>A worker leases one free chunk and receives only that slice of the range.</li>\
+         <li>Heartbeats keep the lease alive; an expired lease returns the chunk to the pool for another worker.</li>\
+         <li>When every chunk is done the job is marked finished. A found key stops the job and is recorded once.</li></ol>\
+         <p>The table below is fed by the public <code>/api/v1/jobs/public</code> snapshot. It lists job identifiers, mode, progress and status without tokens or client data.</p></section>\
+         <section class=\"card\"><h2>Live public jobs</h2>\
+         <div data-puzzle-summary></div>\
+         <div data-puzzle-jobs></div>\
+         <noscript><p>Enable JavaScript to load live job statistics, or read the JSON at <a href=\"/api/v1/jobs/public\">/api/v1/jobs/public</a>.</p></noscript></section>\
+         <section class=\"card\"><h2>Join the pool</h2>\
+         <p><a href=\"/run\">Run a worker</a> to lease chunks, <a href=\"/cabinet\">open the cabinet</a> to watch your contribution, or <a href=\"/docs\">read the docs</a> for the API and lease lifecycle.</p></section>\
+         </main>\
+         <script src=\"/puzzle.js\" defer></script>",
+        site_header()
+    );
+    html_document(title, &head, &body)
 }
 
 fn hub_head(
@@ -1622,19 +1764,25 @@ fn render_sitemap(base: &str) -> String {
     urls.push_str(&escape_attr(base));
     urls.push_str("/</loc></url>\n");
     urls.push_str(&format!(
-        "  <url><loc>{}/keys</loc></url>\n",
+        "  <url><loc>{}/private-keys</loc></url>\n",
         escape_attr(base)
     ));
     for chain in &CHAINS {
         urls.push_str(&format!(
-            "  <url><loc>{}/keys/{}</loc></url>\n",
+            "  <url><loc>{}/private-keys/{}</loc></url>\n",
             escape_attr(base),
             chain.slug
         ));
     }
+    urls.push_str(&format!(
+        "  <url><loc>{}/bitcoin-puzzle</loc></url>
+",
+        escape_attr(base)
+    ));
     for page in ["/faq", "/disclaimer", "/donate", "/brainwallet"] {
         urls.push_str(&format!(
-            "  <url><loc>{}{page}</loc></url>\n",
+            "  <url><loc>{}{page}</loc></url>
+",
             escape_attr(base)
         ));
     }
@@ -1661,6 +1809,57 @@ fn render_seo_not_found() -> String {
 /// answer 200 and look like an endless site to crawlers.
 fn unknown_html_page() -> (String, &'static str, u16) {
     (render_seo_not_found(), "text/html; charset=utf-8", 404)
+}
+
+/// Public projection of one job. Deliberately explicit: no client ids, no
+/// leases, no found key, and targets only for single-address jobs (those are
+/// public puzzle targets). Multi-target jobs expose only the target count.
+fn public_job_json(job: &state::JobView) -> serde_json::Value {
+    let single_target = job.targets.is_empty();
+    let target_count = if single_target {
+        usize::from(job.target.is_some())
+    } else {
+        job.targets.len()
+    };
+    json!({
+        "id": job.id.clone(),
+        "mode": job.mode.clone(),
+        "coin": job.coin.clone(),
+        "comp_mode": job.comp_mode.clone(),
+        "target": if single_target { job.target.clone() } else { None },
+        "target_count": target_count,
+        "start": job.start.clone(),
+        "end": job.end.clone(),
+        "chunks_total": job.chunks_total,
+        "chunks_done": job.chunks_done,
+        "chunks_leased": job.chunks_leased,
+        "scanned": job.scanned,
+        "done": job.done,
+        "found": job.found,
+    })
+}
+
+/// `GET /api/v1/jobs/public`: open and finished jobs without authentication.
+/// Rate-limited per client IP with the existing token bucket.
+fn public_jobs(app: &App, request: Request) {
+    let ip = client_ip(&request, app.trust_proxy);
+    if !app.rate.allow(&format!("public-jobs:{ip}")) {
+        return respond_rate_limited(request);
+    }
+    let jobs = app.lock().list_jobs();
+    let public: Vec<_> = jobs.iter().map(public_job_json).collect();
+    respond_json(request, 200, &json!({ "jobs": public }));
+}
+
+/// `GET /api/v1/workers/public`: worker stats and live leases without
+/// authentication. Rate-limited per client IP with the existing token bucket.
+fn public_workers(app: &App, request: Request) {
+    let ip = client_ip(&request, app.trust_proxy);
+    if !app.rate.allow(&format!("public-workers:{ip}")) {
+        return respond_rate_limited(request);
+    }
+    let workers = app.lock().public_workers(state::now_secs());
+    respond_json(request, 200, &json!({ "workers": workers }));
 }
 
 fn create_job(app: &App, mut request: Request) {
@@ -2182,6 +2381,11 @@ mod tests {
     fn capacity_rejection_keeps_auth_precedence() {
         assert_eq!(capacity_rejection_status("/api/v1/status", false), 401);
         assert_eq!(capacity_rejection_status("/api/v1/status", true), 503);
+        assert_eq!(capacity_rejection_status("/api/v1/jobs/public", false), 503);
+        assert_eq!(
+            capacity_rejection_status("/api/v1/workers/public", false),
+            503
+        );
         assert_eq!(capacity_rejection_status("/", false), 503);
     }
 
@@ -2210,6 +2414,14 @@ mod tests {
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         assert!(!body.is_empty());
 
+        let (body, content_type) = static_asset("/puzzle.js").expect("/puzzle.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
+        assert!(
+            body.windows(19)
+                .any(|window| window == b"/api/v1/jobs/public")
+        );
+
         let (body, content_type) = static_asset("/cabinet").expect("/cabinet is embedded");
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(!body.is_empty());
@@ -2225,25 +2437,43 @@ mod tests {
     #[test]
     fn seo_hubs_render_canonical_and_json_ld() {
         let base = "https://rotor.pxbt.app";
-        let (body, content_type, status) = seo_asset(base, "/keys", "").expect("/keys");
+        let (body, content_type, status) =
+            seo_asset(base, "/private-keys", "").expect("/private-keys");
         assert_eq!(status, 200);
         assert_eq!(content_type, "text/html; charset=utf-8");
-        assert!(body.contains("<link rel=\"canonical\" href=\"https://rotor.pxbt.app/keys\">"));
+        assert!(
+            body.contains("<link rel=\"canonical\" href=\"https://rotor.pxbt.app/private-keys\">")
+        );
         assert!(body.contains("application/ld+json"));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains("\"@type\":\"ItemList\""));
         assert!(!body.contains("noindex"));
+        assert!(body.contains("href=\"/private-keys/bitcoin\""));
 
-        let (body, _, status) = seo_asset(base, "/keys/bitcoin", "").expect("/keys/bitcoin");
+        let (body, _, status) =
+            seo_asset(base, "/private-keys/bitcoin", "").expect("/private-keys/bitcoin");
         assert_eq!(status, 200);
-        assert!(
-            body.contains("<link rel=\"canonical\" href=\"https://rotor.pxbt.app/keys/bitcoin\">")
-        );
+        assert!(body.contains(
+            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/private-keys/bitcoin\">"
+        ));
         assert!(body.contains("<table class=\"keys-table\">"));
         assert!(body.matches("/key/").count() >= 64);
         assert!(body.contains("robots\" content=\"index,follow"));
 
-        assert_eq!(seo_asset(base, "/keys/unknown", "").unwrap().2, 404);
+        assert_eq!(seo_asset(base, "/private-keys/unknown", "").unwrap().2, 404);
+    }
+
+    #[test]
+    fn legacy_keys_hubs_redirect_to_private_keys() {
+        assert_eq!(redirect_target("/keys"), Some("/private-keys".to_string()));
+        assert_eq!(
+            redirect_target("/keys/bitcoin"),
+            Some("/private-keys/bitcoin".to_string())
+        );
+        assert_eq!(redirect_target("/keys/unknown"), None);
+        // Range pages keep their canonical /keys URL.
+        let range = format!("/keys/bitcoin/{}-{}", "1".repeat(64), "2".repeat(64));
+        assert_eq!(redirect_target(&range), None);
     }
 
     #[test]
@@ -2470,7 +2700,7 @@ mod tests {
             "window.__ROTOR_RANGE__={{chain:\"bitcoin\",start:\"{start}\",end:\"{end}\"}};"
         )));
         assert!(body.contains("<nav class=\"breadcrumbs\""));
-        assert!(body.contains("href=\"/keys/bitcoin\""));
+        assert!(body.contains("href=\"/private-keys/bitcoin\""));
 
         // Uppercase input is normalized in the emitted payload and canonical.
         let upper = format!("{:064X}", 1);
@@ -2531,7 +2761,7 @@ mod tests {
         let base = "https://rotor.pxbt.app";
         let one = format!("{:064x}", 1);
         let sixty_four = format!("{:064x}", 64);
-        let (body, _, status) = seo_asset(base, "/keys/solana", "").expect("hub");
+        let (body, _, status) = seo_asset(base, "/private-keys/solana", "").expect("hub");
         assert_eq!(status, 200);
         assert!(body.contains(&format!("href=\"/keys/solana/{one}-{sixty_four}\"")));
         assert!(body.contains(&format!("{base}/keys/solana/{one}-{sixty_four}")));
@@ -2539,7 +2769,7 @@ mod tests {
 
     #[test]
     fn monitor_moved_to_cabinet() {
-        assert_eq!(redirect_target("/monitor"), Some("/cabinet"));
+        assert_eq!(redirect_target("/monitor"), Some("/cabinet".to_string()));
         assert_eq!(redirect_target("/cabinet"), None);
         assert_eq!(redirect_target("/monitor.js"), None);
     }
@@ -2557,13 +2787,16 @@ mod tests {
         let (sitemap, content_type, status) = seo_asset(base, "/sitemap.xml", "").expect("sitemap");
         assert_eq!(status, 200);
         assert_eq!(content_type, "application/xml; charset=utf-8");
-        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/keys/bitcoin</loc>"));
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/private-keys/bitcoin</loc>"));
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/private-keys</loc>"));
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/bitcoin-puzzle</loc>"));
         for path in ["/faq", "/disclaimer", "/donate", "/brainwallet"] {
             assert!(
                 sitemap.contains(&format!("<loc>https://rotor.pxbt.app{path}</loc>")),
                 "sitemap missing {path}"
             );
         }
+        assert!(!sitemap.contains("<loc>https://rotor.pxbt.app/keys</loc>"));
         assert!(!sitemap.contains("/key/"));
     }
 
@@ -2646,5 +2879,364 @@ mod tests {
             client_ip_from(None, Some("1.2.3.4:5678"), socket(), true),
             "1.2.3.4"
         );
+    }
+
+    #[test]
+    fn site_nav_links_the_new_ia() {
+        let base = "https://rotor.pxbt.app";
+        let key = format!("{:064x}", 1);
+        let end = format!("{:064x}", 64);
+        let range = format!("/keys/bitcoin/{key}-{end}");
+        let key_path = format!("/key/{key}");
+        for path in [
+            "/private-keys",
+            "/private-keys/bitcoin",
+            "/bitcoin-puzzle",
+            key_path.as_str(),
+            range.as_str(),
+        ] {
+            let (body, _, status) = seo_asset(base, path, "").expect(path);
+            assert_eq!(status, 200, "{path}");
+            for link in [
+                "href=\"/\"",
+                "href=\"/private-keys\"",
+                "href=\"/bitcoin-puzzle\"",
+                "href=\"/brainwallet\"",
+                "href=\"/docs\"",
+                "href=\"/cabinet\"",
+            ] {
+                assert!(body.contains(link), "{path} misses {link}");
+            }
+        }
+    }
+
+    #[test]
+    fn bitcoin_puzzle_page_and_script_are_served() {
+        let base = "https://rotor.pxbt.app";
+        let (body, content_type, status) =
+            seo_asset(base, "/bitcoin-puzzle", "").expect("/bitcoin-puzzle");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(body.contains("<title>Bitcoin puzzle — pooled key search | Rotor</title>"));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle\">"
+        )));
+        assert!(body.contains("property=\"og:title\""));
+        assert!(body.contains("property=\"og:url\""));
+        assert!(body.contains("robots\" content=\"index,follow"));
+        assert!(body.contains("\"@type\":\"BreadcrumbList\""));
+        assert!(body.contains("\"name\":\"Puzzles\""));
+        assert!(body.contains("data-puzzle-jobs"));
+        assert!(body.contains("data-puzzle-summary"));
+        assert!(body.contains("<script src=\"/puzzle.js\" defer></script>"));
+        assert!(body.contains("href=\"/run\""));
+        assert!(body.contains("href=\"/cabinet\""));
+        assert!(body.contains("href=\"/docs\""));
+        assert!(body.contains("/api/v1/jobs/public"));
+
+        let (js, content_type) = static_asset("/puzzle.js").expect("/puzzle.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!js.is_empty());
+        assert!(
+            js.windows(19)
+                .any(|window| window == b"/api/v1/jobs/public")
+        );
+    }
+
+    fn sample_job_view(target: Option<&str>, targets: &[&str]) -> state::JobView {
+        state::JobView {
+            id: "job-1".to_string(),
+            target: target.map(str::to_string),
+            targets: targets.iter().map(|text| text.to_string()).collect(),
+            mode: "address".to_string(),
+            coin: "btc".to_string(),
+            comp_mode: "compressed".to_string(),
+            start: format!("{:064x}", 1),
+            end: format!("{:064x}", 64),
+            chunk_width: 64,
+            lease_ttl: 600,
+            created_at: 1,
+            chunks_total: 1,
+            chunks_done: 0,
+            chunks_leased: 0,
+            scanned: 0,
+            done: false,
+            found: false,
+            found_key: Some("client-secret-found-key".to_string()),
+        }
+    }
+
+    #[test]
+    fn public_job_projection_excludes_secrets_and_multi_targets() {
+        let single = public_job_json(&sample_job_view(
+            Some("1BoatSLRHtKNngkdXEeobR76b53LETtpyT"),
+            &[],
+        ));
+        assert_eq!(single["target"], "1BoatSLRHtKNngkdXEeobR76b53LETtpyT");
+        assert_eq!(single["target_count"], 1);
+        assert!(single.get("found_key").is_none());
+        assert!(single.get("id").is_some());
+        assert!(single.get("comp_mode").is_some());
+
+        let multi = public_job_json(&sample_job_view(None, &["addr-a", "addr-b"]));
+        assert!(multi["target"].is_null());
+        assert_eq!(multi["target_count"], 2);
+        assert!(!multi.to_string().contains("addr-a"));
+
+        let none = public_job_json(&sample_job_view(None, &[]));
+        assert!(none["target"].is_null());
+        assert_eq!(none["target_count"], 0);
+    }
+
+    fn http_request(
+        addr: SocketAddr,
+        method: &str,
+        path: &str,
+        token: Option<&str>,
+        body: Option<&str>,
+    ) -> (u16, String) {
+        use std::io::Write as _;
+
+        let mut stream = std::net::TcpStream::connect(addr).expect("connect");
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+            .expect("read timeout");
+        let payload = body.unwrap_or("");
+        let mut request =
+            format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n");
+        if let Some(token) = token {
+            request.push_str(&format!("Authorization: Bearer {token}\r\n"));
+        }
+        if body.is_some() {
+            request.push_str("Content-Type: application/json\r\n");
+        }
+        request.push_str(&format!(
+            "Content-Length: {}\r\n\r\n{payload}",
+            payload.len()
+        ));
+        stream.write_all(request.as_bytes()).expect("write request");
+        let mut response = String::new();
+        stream.read_to_string(&mut response).expect("read response");
+        let (head, body) = response.split_once("\r\n\r\n").expect("header terminator");
+        let status = head
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|code| code.parse::<u16>().ok())
+            .expect("status code");
+        (status, body.to_string())
+    }
+
+    #[test]
+    fn public_jobs_endpoint_needs_no_token_and_leaks_no_secrets() {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!(
+            "rotor-coord-public-{}-{nanos}.json",
+            std::process::id()
+        ));
+        let admin = "admin-secret-token";
+        let client_token = "client-secret-token";
+        let hash: String = crate::hashes::sha256(client_token.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let clients = Clients::parse(&format!(r#"{{"alpha":"{hash}"}}"#)).expect("clients");
+        let handle =
+            spawn_with_clients("127.0.0.1:0", &path, admin.to_string(), clients).expect("spawn");
+        let addr = handle.addr;
+        let job = json!({
+            "mode": "address",
+            "coin": "btc",
+            "comp_mode": "compressed",
+            "target": "1BoatSLRHtKNngkdXEeobR76b53LETtpyT",
+            "start": "1",
+            "end": "ff",
+            "chunk_width": 256,
+        });
+        let (status, _) = http_request(
+            addr,
+            "POST",
+            "/api/v1/jobs",
+            Some(admin),
+            Some(&job.to_string()),
+        );
+        assert_eq!(status, 201);
+
+        let (status, body) = http_request(addr, "GET", "/api/v1/jobs/public", None, None);
+        assert_eq!(status, 200);
+        let value: serde_json::Value = serde_json::from_str(&body).expect("JSON");
+        let jobs = value["jobs"].as_array().expect("jobs array");
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0]["target"], "1BoatSLRHtKNngkdXEeobR76b53LETtpyT");
+        assert!(!body.contains(admin));
+        assert!(!body.contains(client_token));
+        assert!(!body.contains(&hash));
+        assert!(!body.contains("found_key"));
+
+        drop(handle);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    fn token_hash(token: &str) -> String {
+        crate::hashes::sha256(token.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
+    fn temp_state(label: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!(
+            "rotor-coord-{label}-{}-{nanos}.json",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn public_workers_endpoint_needs_no_token_and_hides_private_data() {
+        let path = temp_state("public-workers");
+        let admin = "admin-secret-token";
+        let alpha_token = "alpha-secret-token";
+        let beta_token = "beta-secret-token";
+        let gamma_token = "gamma-secret-token";
+        let alpha_hash = token_hash(alpha_token);
+        let beta_hash = token_hash(beta_token);
+        let gamma_hash = token_hash(gamma_token);
+        let clients = Clients::parse(&format!(
+            r#"{{"alpha":"{alpha_hash}","beta":"{beta_hash}","gamma":"{gamma_hash}"}}"#
+        ))
+        .expect("clients");
+        let handle =
+            spawn_with_clients("127.0.0.1:0", &path, admin.to_string(), clients).expect("spawn");
+        let addr = handle.addr;
+
+        // beta is disabled and must never appear in the public snapshot.
+        let (status, _) = http_request(
+            addr,
+            "POST",
+            "/api/v1/clients/beta/disable",
+            Some(admin),
+            None,
+        );
+        assert_eq!(status, 200);
+
+        let job = json!({
+            "mode": "address",
+            "coin": "btc",
+            "comp_mode": "compressed",
+            "target": "1BoatSLRHtKNngkdXEeobR76b53LETtpyT",
+            "start": "1",
+            "end": "ff",
+            "chunk_width": 16,
+        });
+        let (status, body) = http_request(
+            addr,
+            "POST",
+            "/api/v1/jobs",
+            Some(admin),
+            Some(&job.to_string()),
+        );
+        assert_eq!(status, 201);
+        let job: serde_json::Value = serde_json::from_str(&body).expect("job JSON");
+        let job_id = job["id"].as_str().expect("job id").to_string();
+
+        let lease = json!({
+            "job_id": job_id,
+            "mode": "address",
+            "coin": "btc",
+            "start": "1",
+            "end": "ff",
+        });
+        let (status, body) = http_request(
+            addr,
+            "POST",
+            "/api/v1/lease",
+            Some(alpha_token),
+            Some(&lease.to_string()),
+        );
+        assert_eq!(status, 200);
+        let lease: serde_json::Value = serde_json::from_str(&body).expect("lease JSON");
+        let chunk_index = lease["chunk_index"].as_u64().expect("chunk index");
+        let lease_id = lease["lease_id"].as_u64().expect("lease id");
+
+        let heartbeat = json!({
+            "job_id": job_id,
+            "chunk_index": chunk_index,
+            "lease_id": lease_id,
+            "scanned": 100,
+            "rate": 5.0,
+        });
+        let (status, _) = http_request(
+            addr,
+            "POST",
+            "/api/v1/heartbeat",
+            Some(alpha_token),
+            Some(&heartbeat.to_string()),
+        );
+        assert_eq!(status, 200);
+
+        let (status, body) = http_request(addr, "GET", "/api/v1/workers/public", None, None);
+        assert_eq!(status, 200);
+        let value: serde_json::Value = serde_json::from_str(&body).expect("JSON");
+        let workers = value["workers"].as_array().expect("workers array");
+        assert_eq!(workers.len(), 2, "disabled beta must be absent");
+        assert_eq!(workers[0]["id"], "alpha");
+        assert_eq!(workers[1]["id"], "gamma");
+        assert_eq!(workers[0]["scanned"], 100);
+        assert_eq!(workers[0]["chunks_done"], 0);
+        assert_eq!(workers[0]["found"], 0);
+        assert_eq!(workers[0]["rate"], 5.0);
+        let live = &workers[0]["lease"];
+        assert_eq!(live["job_id"], job_id.as_str());
+        assert_eq!(live["chunk_index"], chunk_index);
+        assert_eq!(live["scanned"], 100);
+        assert!(live["expires_at"].as_u64().expect("expiry") > state::now_secs());
+        assert!(workers[1]["lease"].is_null());
+
+        assert!(workers[0].get("token").is_none());
+        assert!(workers[0].get("token_hash").is_none());
+        assert!(!body.contains("token"));
+        assert!(!body.contains("beta"));
+        assert!(!body.contains(&alpha_hash));
+        assert!(!body.contains(&beta_hash));
+        assert!(!body.contains(&gamma_hash));
+        assert!(!body.contains(alpha_token));
+        assert!(!body.contains(beta_token));
+        assert!(!body.contains(gamma_token));
+
+        drop(handle);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn public_workers_endpoint_is_rate_limited_per_ip() {
+        let path = temp_state("public-workers-rate");
+        let hash = token_hash("alpha-secret-token");
+        let clients = Clients::parse(&format!(r#"{{"alpha":"{hash}"}}"#)).expect("clients");
+        let handle =
+            spawn_with_clients("127.0.0.1:0", &path, "admin".to_string(), clients).expect("spawn");
+        let addr = handle.addr;
+
+        // The bucket starts at RATE_BURST; a burst beyond it must answer 429.
+        let mut limited = false;
+        for _ in 0..(RATE_BURST as usize * 5) {
+            let (status, body) = http_request(addr, "GET", "/api/v1/workers/public", None, None);
+            if status == 429 {
+                assert!(body.contains("rate limit exceeded"));
+                limited = true;
+                break;
+            }
+            assert_eq!(status, 200);
+        }
+        assert!(limited, "the endpoint must enforce its per-IP bucket");
+
+        drop(handle);
+        let _ = std::fs::remove_file(&path);
     }
 }

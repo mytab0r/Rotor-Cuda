@@ -4,32 +4,131 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - distributed key search</title>
-<link rel="stylesheet" href="/site.css?v=20261118d">
+<link rel="stylesheet" href="/site.css?v=20261118e">
 </head>
 <body>
 <header class="site-nav">
   <a class="brand" href="/">Rotor <span>Coordinator</span></a>
   <nav>
-    <a href="/app" id="nav-app">App</a>
-    <a href="/run" id="nav-run">Run</a>
-    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
+    <a href="/" class="active" id="nav-home" aria-current="page">Home</a>
+    <a href="/private-keys" id="nav-chains">Chains</a>
+    <a href="/bitcoin-puzzle" id="nav-puzzles">Puzzles</a>
+    <a href="/brainwallet" id="nav-tools">Tools</a>
     <a href="/docs" id="nav-docs">Docs</a>
-    <a href="/key" id="nav-key">Keys</a>
+    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
   </nav>
 </header>
 
-<main>
-  <section class="hero">
+<main class="landing-page">
+  <section class="hero landing-hero">
     <h1>Rotor Coordinator</h1>
     <p>
       A community puzzle solver. Clients lease disjoint key ranges from this
       coordinator, scan them on CPU or GPU, and report accepted completions.
       Everyone's work is verified, counted and shown on the leaderboard.
     </p>
+    <form class="key-search" id="key-search-form" role="search" autocomplete="off">
+      <label for="key-search-input">Find a key</label>
+      <div class="key-search-row">
+        <input id="key-search-input" class="mono" type="search"
+               placeholder="64-hex private key, WIF or address"
+               spellcheck="false" autocapitalize="off">
+        <button type="submit" class="primary">Search</button>
+      </div>
+      <p class="muted key-search-hint" id="key-search-hint" role="status">Paste a 64-hex private key to open its key page. WIF and addresses are handled in the key calculator.</p>
+    </form>
     <div class="actions">
-      <a class="button primary" href="/app">Open the app</a>
-      <a class="button" href="/me">Open my cabinet</a>
-      <a class="button" href="/docs">How to run a client</a>
+      <a class="button primary" href="/bitcoin-puzzle">Explore the puzzle board</a>
+      <a class="button" href="/run">Run a client</a>
+      <a class="button" href="/key">Open the key calculator</a>
+    </div>
+  </section>
+
+  <section class="card landing-section">
+    <h2>Chains</h2>
+    <p class="muted landing-lead">Deterministic example keys and address formats for every supported chain.</p>
+    <div class="chain-grid">
+      <a class="chain-card chain-btc" href="/private-keys/bitcoin">
+        <span class="chain-name">Bitcoin</span>
+        <span class="chain-meta">BTC · P2PKH, SegWit, Taproot</span>
+      </a>
+      <a class="chain-card chain-evm" href="/private-keys/ethereum">
+        <span class="chain-name">Ethereum</span>
+        <span class="chain-meta">EVM · 0x address</span>
+      </a>
+      <a class="chain-card chain-tron" href="/private-keys/tron">
+        <span class="chain-name">TRON</span>
+        <span class="chain-meta">TRX · Base58Check</span>
+      </a>
+      <a class="chain-card chain-solana" href="/private-keys/solana">
+        <span class="chain-name">Solana</span>
+        <span class="chain-meta">SOL · ed25519</span>
+      </a>
+      <a class="chain-card chain-ltc" href="/private-keys/litecoin">
+        <span class="chain-name">Litecoin</span>
+        <span class="chain-meta">LTC · legacy, SegWit</span>
+      </a>
+      <a class="chain-card chain-doge" href="/private-keys/dogecoin">
+        <span class="chain-name">Dogecoin</span>
+        <span class="chain-meta">DOGE · P2PKH</span>
+      </a>
+      <a class="chain-card chain-bch" href="/private-keys/bitcoin-cash">
+        <span class="chain-name">Bitcoin Cash</span>
+        <span class="chain-meta">BCH · legacy address</span>
+      </a>
+      <a class="chain-card chain-xrp" href="/private-keys/xrp">
+        <span class="chain-name">XRP</span>
+        <span class="chain-meta">XRP · classic address</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="card landing-section">
+    <h2>Key directory</h2>
+    <p class="muted landing-lead">The first twelve deterministic keys, each with a full page of addresses and derivation steps.</p>
+    <div class="key-directory">
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000001"><span class="key-chip-label">Key 1</span><code class="mono">0000…0001</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000002"><span class="key-chip-label">Key 2</span><code class="mono">0000…0002</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000003"><span class="key-chip-label">Key 3</span><code class="mono">0000…0003</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000004"><span class="key-chip-label">Key 4</span><code class="mono">0000…0004</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000005"><span class="key-chip-label">Key 5</span><code class="mono">0000…0005</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000006"><span class="key-chip-label">Key 6</span><code class="mono">0000…0006</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000007"><span class="key-chip-label">Key 7</span><code class="mono">0000…0007</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000008"><span class="key-chip-label">Key 8</span><code class="mono">0000…0008</code></a>
+      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000009"><span class="key-chip-label">Key 9</span><code class="mono">0000…0009</code></a>
+      <a class="key-chip" href="/key/000000000000000000000000000000000000000000000000000000000000000a"><span class="key-chip-label">Key 10</span><code class="mono">0000…000a</code></a>
+      <a class="key-chip" href="/key/000000000000000000000000000000000000000000000000000000000000000b"><span class="key-chip-label">Key 11</span><code class="mono">0000…000b</code></a>
+      <a class="key-chip" href="/key/000000000000000000000000000000000000000000000000000000000000000c"><span class="key-chip-label">Key 12</span><code class="mono">0000…000c</code></a>
+    </div>
+  </section>
+
+  <section class="card landing-section puzzle-card">
+    <h2>Puzzles</h2>
+    <div class="puzzle-summary" data-puzzle-summary aria-live="polite">
+      <p class="muted">Loading public jobs…</p>
+    </div>
+    <div class="puzzle-actions">
+      <a class="button primary" href="/bitcoin-puzzle">Open the puzzle board</a>
+      <a class="button" href="/run">Run a client</a>
+    </div>
+    <p class="muted landing-lead">Live jobs from the coordinator. A client leases a disjoint key range and reports verified completions.</p>
+  </section>
+
+  <section class="card landing-section">
+    <h2>Tools</h2>
+    <div class="tool-grid">
+      <a class="tool-card" href="/brainwallet">
+        <h3>Brainwallet</h3>
+        <p>See how a passphrase becomes a key and address. Educational only; never use a memorable phrase for real funds.</p>
+      </a>
+      <a class="tool-card" href="/faq">
+        <h3>FAQ</h3>
+        <p>Safety, derivation and puzzle questions answered.</p>
+      </a>
+      <a class="tool-card" href="/donate">
+        <h3>Donate</h3>
+        <p>Support the coordinator and the puzzle research.</p>
+      </a>
     </div>
   </section>
 
@@ -75,7 +174,7 @@
         <code id="join-token" class="mono"></code>
         <button type="button" id="join-copy">Copy</button>
       </div>
-      <p class="muted">Run a client with <code>--token &lt;token&gt;</code>, or save it in your <a href="/me">cabinet</a>.</p>
+      <p class="muted">Run a client with <code>--token &lt;token&gt;</code>, or save it in your <a href="/cabinet">cabinet</a>.</p>
       <p id="join-id" class="muted mono"></p>
     </div>
     <p id="join-error" class="error" hidden></p>
@@ -91,20 +190,10 @@
     </ol>
     <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
   </section>
-
-  <section class="card">
-    <h2>Donate</h2>
-    <p class="muted">Server and development are funded by the maintainer. Tips are welcome:</p>
-    <dl class="kv">
-      <div><dt>BTC</dt><dd class="mono">bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8</dd></div>
-      <div><dt>USDT (TRC20)</dt><dd class="mono">TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f</dd></div>
-      <div><dt>EVM (ETH, BSC, Polygon, Arbitrum, Base)</dt><dd class="mono">0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a</dd></div>
-    </dl>
-    <p class="muted">All networks and QR codes: <a href="https://pay.pxbt.app/u/0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a" rel="noopener">pay.pxbt.app</a></p>
-  </section>
 </main>
 
-<script src="/site.js?v=20261118d"></script>
+<script src="/site.js?v=20261118e"></script>
+<script src="/puzzle.js?v=20261118e"></script>
 <script>
 (function () {
   'use strict';
@@ -154,6 +243,62 @@
       setText('totals-status', 'coordinator unavailable: ' + err.message);
     }
   }
+
+  /* Search: only a 64-hex key has a /key/<hex> page. Everything else gets a
+   * hint with a link to the right tool. */
+  var searchForm = byId('key-search-form');
+  var searchInput = byId('key-search-input');
+  var searchHint = byId('key-search-hint');
+
+  function hint(prefix, links) {
+    searchHint.textContent = prefix;
+    links.forEach(function (item, index) {
+      if (index > 0) searchHint.appendChild(document.createTextNode(' or '));
+      var link = document.createElement('a');
+      link.href = item.href;
+      link.textContent = item.text;
+      searchHint.appendChild(link);
+    });
+    searchHint.appendChild(document.createTextNode('.'));
+  }
+
+  searchForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = searchInput.value.trim();
+    if (!value) {
+      hint('Paste a 64-hex private key, a WIF or an address. ', [
+        { href: '/key', text: 'Open the key calculator' }
+      ]);
+      searchInput.focus();
+      return;
+    }
+    var hex = value.replace(/^0[xX]/, '');
+    if (/^[0-9a-fA-F]{64}$/.test(hex)) {
+      searchHint.textContent = 'Opening key page…';
+      window.location.assign('/key/' + hex.toLowerCase());
+      return;
+    }
+    if (/^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) {
+      hint('That is a Bitcoin WIF. Decode it in the ', [
+        { href: '/key', text: 'key calculator' },
+        { href: '/docs', text: 'docs' }
+      ]);
+      return;
+    }
+    if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{20,60}$/.test(value) ||
+        /^0x[0-9a-fA-F]{40}$/.test(value) ||
+        /^[1-9A-HJ-NP-Za-km-z]{26,35}$/.test(value)) {
+      hint('That looks like an address. Browse example keys in the ', [
+        { href: '/private-keys', text: 'chain directory' },
+        { href: '/key', text: 'key calculator' }
+      ]);
+      return;
+    }
+    hint('No 64-hex private key found. Use the ', [
+      { href: '/key', text: 'key calculator' },
+      { href: '/docs', text: 'docs' }
+    ]);
+  });
 
   function showError(message) {
     var box = byId('join-error');

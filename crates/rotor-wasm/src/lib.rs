@@ -1016,7 +1016,7 @@ mod tests {
             value["wif_uncompressed"],
             "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf"
         );
-        assert_eq!(value["addresses"].as_array().unwrap().len(), 8);
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 14);
 
         let compressed = address(&value, "btc_p2pkh");
         assert_eq!(compressed["address"], KEY1_ADDR);
@@ -1089,9 +1089,86 @@ mod tests {
         assert_eq!(tron["steps"]["checksum"], "b164fb1f");
         assert_eq!(tron["steps"]["base58"], tron["address"]);
 
+        // Litecoin, Dogecoin, Bitcoin Cash and XRP fixtures were computed with
+        // an independent Python reference (hashlib + BIP173/base58 encoders).
+        let ltc = address(&value, "ltc_p2pkh");
+        assert_eq!(ltc["address"], "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ");
+        assert_eq!(ltc["steps"]["pubkey"], KEY1_PUB_COMPRESSED);
+        assert_eq!(ltc["steps"]["hash160"], H160_1_CMP);
+        assert_eq!(ltc["steps"]["payload"], format!("30{H160_1_CMP}"));
+        assert_eq!(ltc["steps"]["checksum"], "e987c9bf");
+        assert_eq!(ltc["steps"]["base58"], ltc["address"]);
+
+        let ltc_p2sh = address(&value, "ltc_p2sh_p2wpkh");
+        assert_eq!(ltc_p2sh["address"], "MR8UQSBr5ULwWheBHznrHk2jxyxkHQu8vB");
+        assert_eq!(ltc_p2sh["steps"]["redeem"], format!("0014{H160_1_CMP}"));
+        assert_eq!(
+            ltc_p2sh["steps"]["script_hash"],
+            "bcfeb728b584253d5f3f70bcb780e9ef218a68f4"
+        );
+        assert_eq!(
+            ltc_p2sh["steps"]["payload"],
+            "32bcfeb728b584253d5f3f70bcb780e9ef218a68f4"
+        );
+        assert_eq!(ltc_p2sh["steps"]["checksum"], "58f61ad8");
+
+        let ltc_segwit = address(&value, "ltc_p2wpkh");
+        assert_eq!(
+            ltc_segwit["address"],
+            "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9"
+        );
+        assert_eq!(ltc_segwit["steps"]["hrp"], "ltc");
+        assert_eq!(ltc_segwit["steps"]["witness_version"], "0");
+        assert_eq!(ltc_segwit["steps"]["program"], H160_1_CMP);
+        assert_eq!(ltc_segwit["steps"]["checksum"], "gmn4n9");
+
+        let doge = address(&value, "doge_p2pkh");
+        assert_eq!(doge["address"], "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE");
+        assert_eq!(doge["steps"]["payload"], format!("1e{H160_1_CMP}"));
+        assert_eq!(doge["steps"]["checksum"], "2b0fde73");
+
+        let bch = address(&value, "bch_legacy");
+        assert_eq!(bch["address"], KEY1_ADDR);
+        assert_eq!(bch["steps"]["payload"], format!("00{H160_1_CMP}"));
+        assert_eq!(bch["steps"]["checksum"], "510d1634");
+
+        let xrp = address(&value, "xrp_classic");
+        assert_eq!(xrp["address"], "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH");
+        assert_eq!(xrp["steps"]["pubkey"], KEY1_PUB_COMPRESSED);
+        assert_eq!(xrp["steps"]["hash160"], H160_1_CMP);
+        assert_eq!(xrp["steps"]["payload"], format!("00{H160_1_CMP}"));
+        assert_eq!(xrp["steps"]["checksum"], "510d1634");
+        assert_eq!(xrp["steps"]["base58"], xrp["address"]);
+
         let solana = address(&value, "solana");
         assert_eq!(solana["address"], "");
         assert_eq!(solana["steps"]["pubkey"], "");
+    }
+
+    #[test]
+    fn derive_new_chain_rows_key_two() {
+        // Independent Python reference vectors for private key 2.
+        let value = derive_value(&key_bytes(2), 0);
+        assert_eq!(
+            address(&value, "ltc_p2pkh")["address"],
+            "LKqJxEKxN7SnCEpj3ia3Z9DuAD1HNjh1hx"
+        );
+        assert_eq!(
+            address(&value, "ltc_p2sh_p2wpkh")["address"],
+            "MMiRb7TPSoqLtRpfTjc9FGQRQcW8WLeirF"
+        );
+        assert_eq!(
+            address(&value, "ltc_p2wpkh")["address"],
+            "ltc1qq6hag67dl53wl99vzg42z8eyzfz2xlkvz9zn23"
+        );
+        assert_eq!(
+            address(&value, "doge_p2pkh")["address"],
+            "D5kTEGxmas71USKAcAaJptKjq8NJc6EK8C"
+        );
+        assert_eq!(
+            address(&value, "xrp_classic")["address"],
+            "rcM6pp3HTU5AS3Z122kH3w3AzerJRnZ1P"
+        );
     }
 
     #[test]
