@@ -353,7 +353,7 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
     let mut sui_input = [0u8; 33];
     sui_input[1..].copy_from_slice(&public);
     let mut hasher = Blake2b::<U32>::new();
-    hasher.update(&sui_input);
+    hasher.update(sui_input);
     let digest = hasher.finalize();
     let sui_address = format!("0x{}", hex(&digest));
 
