@@ -709,6 +709,14 @@
       path.textContent = PATHS[addr.id];
       head.appendChild(path);
     }
+    if (typeof addr.id === 'string' && addr.id.indexOf('btc_') === 0 && state.report && state.report.wif_compressed) {
+      var wif = document.createElement('a');
+      wif.className = 'key-wif';
+      wif.href = '/key/' + encodeURIComponent(state.report.wif_compressed);
+      wif.title = 'Open the WIF key page';
+      wif.textContent = 'WIF';
+      head.appendChild(wif);
+    }
     var badge = document.createElement('span');
     badge.className = 'key-balance';
     badge.hidden = true;
@@ -741,9 +749,16 @@
     }
     var copy = document.createElement('button');
     copy.type = 'button';
-    copy.className = 'key-copy';
-    copy.textContent = 'Copy';
+    copy.className = 'key-copy key-copy-icon';
+    copy.title = 'Copy address';
     copy.setAttribute('aria-label', 'Copy ' + (addr.label || addr.id) + ' address');
+    var copySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    copySvg.setAttribute('class', 'icon');
+    copySvg.setAttribute('aria-hidden', 'true');
+    var copyUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    copyUse.setAttribute('href', '/icons.svg#ui-copy');
+    copySvg.appendChild(copyUse);
+    copy.appendChild(copySvg);
     copy.addEventListener('click', function () { copyText(addr.address, copy); });
     line.appendChild(copy);
     row.appendChild(line);
