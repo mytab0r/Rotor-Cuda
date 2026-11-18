@@ -118,17 +118,17 @@ browser capture in the PR.
       decide data source and rate limits before building.
 
 ## 13. Bitcoin puzzle browser parity [front+wasm]
-- [ ] `/bitcoin-puzzle` puzzle selector `#1…#160`, previous/next and
+- [x] `/bitcoin-puzzle` puzzle selector `#1…#160`, previous/next and
       breadcrumbs `Home / Bitcoin Puzzle / Puzzle #N / Random Keys`.
       (blocked by: -)
-- [ ] `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/<n>/detail` routes;
+- [x] `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/<n>/detail` routes;
       show balance, range start/end, progress, target address, explorer and
       mempool links.
-- [ ] Range presets `Full`, `1st Half`, `2nd Half`, `Q1…Q4`; mode
+- [x] Range presets `Full`, `1st Half`, `2nd Half`, `Q1…Q4`; mode
       `Solo Random` / `Solo Seq` / `Team`.
-- [ ] Browser WASM worker Start/Stop/Reset/Check; counters Generated, Speed,
+- [x] Browser WASM worker Start/Stop/Reset/Check; counters Generated, Speed,
       Workers, WASM, Match, ETA, Network; match panel with key + Copy.
-- [ ] Keep the coordinator pooled jobs as a separate `Team` mode; no silent
+- [x] Keep the coordinator pooled jobs as a separate `Team` mode; no silent
       mix of local and lease work.
 - Evidence: puzzle #71 random run for 60s; start/stop/reset; match fixture;
       mobile 375 capture; no key leaves the browser.
