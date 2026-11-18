@@ -1075,7 +1075,7 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     let last = &key[key.len() - 4..];
     let short = format!("{first}…{last}");
     let canonical = format!("{base}/key/{key}");
-    let title = format!("Private key {short} — Bitcoin, EVM, TRON addresses | Rotor");
+    let title = format!("Private key {short} — Bitcoin, EVM, Solana and TRON addresses | Rotor");
     let description = format!(
         "Derive Bitcoin, EVM and TRON addresses from private key {short} in your browser. Rotor shows public addresses only; the key is never sent to a server."
     );
