@@ -30,7 +30,7 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 - **Filter catalog** — binary-fuse filter alongside the classic bloom for large hash160 sets (lower false-positive at similar memory).
 - **Distributed coordinator `rotor-coord`** — token-protected HTTP/JSON server plus an embedded dashboard; several clients (CPU or GPU, one or more devices per client) lease disjoint key chunks of one job, BSGS giant-walk progress is stored remotely and resumed, and found keys are re-verified with `k*G == target` before they are accepted.
 - **Self-update** — SHA-256 verified binary self-replace via WinHTTP + MoveFileEx rename-trick (Windows).
-- **Cloud CI/CD** — full Windows build (MSBuild + CUDA) and Release pipeline run entirely on GitHub Actions; no local toolchain needed.
+- **Cloud CI/CD** — GitHub Actions run the Rust build/test matrix (CPU + wasm), compile the CUDA `gpu` feature (`gpu-bsgs-compile.yml`) and publish `rust-release.yml` assets; no local toolchain needed. The legacy C++ MSBuild workflows were removed with the application.
 - Only for **authorized public puzzle events** (known addresses, known bit ranges, official rewards). Not for mass scanning or de-anonymization.
 
 ### BSGS usage (CPU) :
@@ -651,46 +651,29 @@ $./Rotor -g --gpui 0,1,2 --gpux 256,256,256,256,256,256 -m address --coin BTC --
 
   ```
 # Linux
-- **Note: use Makefile targets below; do not edit Makefile for normal builds.**
 
-- update & Install libgmp: ```sh
-sudo apt update
-sudo apt install -y libgmp-dev
-```
-
-- CUDA       = /usr/local/cuda-10.0 ~ 13.x (CUDA 13.3 verified for SM_120)
-
-- CXXCUDA    = /usr/bin/g++
-
-- To build CPU-only version :
-
-  ```sh
-
-   make all
-
-  ```
-- To build with CUDA (GPU)
-
-- To get info about various Nvidia GPU CCAP value see :
-
-   #### https://arnon.dk/matching-sm-architectures-arch-and-gencode-for-various-nvidia-cards
-
-  ```sh
-
-   cd Rotor-Cuda
-
-   make gpu=1 CCAP=75 all     [SM_75]
-
-   make gpu=1 CCAP=89 all     [SM_89]
-
-   make gpu=1 CCAP=100 all   [SM_100]
-
-  ```
+The legacy C++ application and its Makefile were removed, so the upstream
+`make` instructions no longer apply. Build the Rust binary instead (see
+**Rust CPU port** below); the CUDA backend is built by `build.rs` with
+`--features gpu`.
 
 ## Rust CPU port
 
-The CPU side of Rotor-Cuda is being ported to Rust (GPLv3, same licence). The CUDA
-tree under `Rotor-Cuda/` is unchanged and remains the reference for the GPU backend.
+The CPU side of Rotor-Cuda is being ported to Rust (GPLv3, same licence).
+
+### Repository layout
+
+`Rotor-Cuda/` is a vendor directory holding only the CUDA kernels and headers
+that the Rust GPU feature needs: `GPU/GpuAddressAbi.cu`, `GPU/GPUMath.h`,
+`GPU/GPUHash.h`, `GPU/GPUCompute.h`, `bsgs/BsgsGpu.cu`, `bsgs/BsgsGpu.h` and
+`bsgs/BsgsGpuAbi.cu` (with the CUDA notes in `bsgs/*.md`). The legacy C++
+application (`Main.cpp`, the CPU core, `Makefile`, Visual Studio projects and
+the CPU/GMP/hash/filter sources) was removed; it is still available in git
+history. The C++-only workflows that built it (`windows-build`,
+`windows-release` and the BSGS/filter/self-update self-tests) were removed too;
+the remaining workflows (`rust.yml`, `gpu-bsgs-compile.yml`, `rust-release.yml`,
+`coordinator-image.yml`, `codeql.yml`, `selfupdate-check.yml`, `audit.yml`) are
+Rust-only.
 
 Build (no GMP, no CUDA, no MSBuild needed):
 

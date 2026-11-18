@@ -119,6 +119,15 @@ mod tests {
     }
 
     #[test]
+    fn bech32_witness_v0_ltc_hrp() {
+        // Same program as the BIP173 vector with Litecoin's hrp; the published
+        // Litecoin address for this program is ltc1qw508...gmn4n9.
+        let (address, checksum) = encode_segwit("ltc", 0, &decode_hex(H160), false);
+        assert_eq!(address, "ltc1qw508d6qejxtdg4y5r3zarvary0c5xw7kgmn4n9");
+        assert_eq!(checksum, "gmn4n9");
+    }
+
+    #[test]
     fn bech32m_witness_v1_matches_bip350() {
         // Published BIP350 vector: v1, 40-byte program, bech32m checksum.
         let program = decode_hex(&format!("{H160}{H160}"));
