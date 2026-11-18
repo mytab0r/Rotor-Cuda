@@ -520,7 +520,9 @@
     attachTon(report);
     checkBtn.textContent = 'Check balances';
     checkBtn.disabled = !onlineToggle.checked || state.checking;
-    hideExposureStatus();
+    if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
+    else hideExposureStatus();
+    if (onlineToggle.checked && !state.checking) checkBalances();
   }
 
   function summaryFields(report) {
@@ -1330,7 +1332,7 @@
         throw new Error(data && data.error ? data.error : 'HTTP ' + response.status);
       }
       var matched = data && typeof data.matched === 'number' ? data.matched : 0;
-      showExposureStatus(matched + ' registered address(es) matched; their owners were warned.', 'ok');
+      showExposureStatus(matched > 0 ? matched + ' registered address(es) matched; their owners were warned.' : 'No registered address matched.', 'ok');
     } catch (err) {
       if (generation !== state.generation || (!auto && !exposureToggle.checked)) return;
       if (err && err.name === 'AbortError') {
