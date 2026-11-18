@@ -4,25 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - cabinet</title>
-<link rel="stylesheet" href="/site.css?v=20261118e">
+<link rel="stylesheet" href="/site.css?v=20261118r">
 </head>
 <body>
 <header class="site-nav">
-  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
-  <nav>
-    <a href="/" id="nav-home">Home</a>
-    <a href="/private-keys" id="nav-chains">Chains</a>
-    <a href="/bitcoin-puzzle" id="nav-puzzles">Puzzles</a>
-    <a href="/brainwallet" id="nav-tools">Tools</a>
-    <a href="/docs" id="nav-docs">Docs</a>
-    <a href="/cabinet" class="active" id="nav-cabinet" aria-current="page">Cabinet</a>
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
 </header>
 
 <main class="monitor-page">
-  <section class="hero monitor-hero">
-    <h1>Cabinet</h1>
-    <p class="monitor-tagline">Watch the addresses you control across EVM, Solana, TRON and Bitcoin, and be warned when something moves without you. This page never asks for a private key, WIF or seed phrase.</p>
+  <section class="hero key-hero monitor-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg></span>
+      <div>
+        <h1>Cabinet</h1>
+        <p class="monitor-tagline">Watch the addresses you control across EVM, Solana, TRON and Bitcoin, and be warned when something moves without you. This page never asks for a private key, WIF or seed phrase.</p>
+      </div>
+    </div>
     <p class="notice monitor-warning" role="note">An alert is early warning, not protection. Alerts can be delayed or missed, and an idle stolen key is not observable on-chain.</p>
   </section>
 
@@ -36,22 +44,27 @@
     </div>
     <div id="monitor-providers" class="monitor-providers" role="group" aria-label="Connect a wallet">
       <button type="button" class="monitor-provider" id="monitor-connect-evm" data-chain="evm">
+        <span class="monitor-provider-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
         <span class="monitor-provider-name">EVM</span>
         <span class="monitor-provider-hint" data-provider-hint="evm">Detecting…</span>
       </button>
       <button type="button" class="monitor-provider" id="monitor-connect-solana" data-chain="solana">
+        <span class="monitor-provider-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg></span>
         <span class="monitor-provider-name">Solana</span>
         <span class="monitor-provider-hint" data-provider-hint="solana">Detecting…</span>
       </button>
       <button type="button" class="monitor-provider" id="monitor-connect-tron" data-chain="tron">
+        <span class="monitor-provider-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg></span>
         <span class="monitor-provider-name">TRON</span>
         <span class="monitor-provider-hint" data-provider-hint="tron">Detecting…</span>
       </button>
       <button type="button" class="monitor-provider" id="monitor-connect-btc" data-chain="btc">
+        <span class="monitor-provider-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
         <span class="monitor-provider-name">Bitcoin</span>
         <span class="monitor-provider-hint" data-provider-hint="btc">Detecting…</span>
       </button>
       <button type="button" class="monitor-provider" id="monitor-connect-walletconnect" data-chain="walletconnect">
+        <span class="monitor-provider-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg></span>
         <span class="monitor-provider-name">WalletConnect (EVM)</span>
         <span class="monitor-provider-desc">Scan with a mobile wallet; EVM only in this build.</span>
         <span class="monitor-provider-hint" data-provider-hint="walletconnect">Detecting…</span>
@@ -164,6 +177,6 @@
   </section>
 </main>
 
-<script src="/cabinet.js?v=20261118g"></script>
+<script src="/cabinet.js?v=20261118r"></script>
 </body>
 </html>

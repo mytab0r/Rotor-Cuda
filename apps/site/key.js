@@ -1439,6 +1439,20 @@
     button.addEventListener('click', function () { selectChain(button); });
   });
 
+  (function focusRequestedType() {
+    var type = new URLSearchParams(window.location.search).get('type');
+    if (!type) return;
+    var chain = {
+      legacy: 'btc', segwit: 'btc', script: 'btc', taproot: 'btc',
+      evm: 'evm', tron: 'tron', solana: 'solana',
+      ltc_p2pkh: 'ltc', ltc_p2wpkh: 'ltc', ltc_p2sh_p2wpkh: 'ltc',
+      doge_p2pkh: 'doge', bch_legacy: 'bch', xrp_classic: 'xrp'
+    }[type];
+    if (!chain) return;
+    var button = chainButtons.filter(function (item) { return item.getAttribute('data-chain') === chain; })[0];
+    if (button) selectChain(button);
+  })();
+
   pathChips.forEach(function (chip) {
     chip.addEventListener('click', function () { focusTarget(chip.getAttribute('data-row')); });
   });
