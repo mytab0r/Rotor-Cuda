@@ -291,6 +291,23 @@
     if (!box || !report) return;
     box.textContent = '';
     var map = state.addressMaps[row.getAttribute('data-key')] || addressMap(report);
+    var keyLine = document.createElement('div');
+    keyLine.className = 'detail-line';
+    var keyLabel = document.createElement('span');
+    keyLabel.className = 'detail-label';
+    keyLabel.textContent = 'Private key';
+    var keyValue = document.createElement('code');
+    keyValue.className = 'mono detail-value';
+    keyValue.textContent = row.getAttribute('data-key');
+    var keyCopy = document.createElement('button');
+    keyCopy.type = 'button';
+    keyCopy.className = 'copy-btn';
+    keyCopy.textContent = 'Copy';
+    keyCopy.addEventListener('click', function () { copyText(row.getAttribute('data-key'), keyCopy); });
+    keyLine.appendChild(keyLabel);
+    keyLine.appendChild(keyValue);
+    keyLine.appendChild(keyCopy);
+    box.appendChild(keyLine);
     var fields = Object.keys(FIELD_LABELS).filter(function (field) {
       return map[field] && map[field] !== '';
     });
