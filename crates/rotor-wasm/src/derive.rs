@@ -6,6 +6,7 @@
 
 use std::fmt::Write as _;
 
+use blake2::{Blake2b, Digest as _, digest::consts::U32};
 use ed25519_dalek::SigningKey;
 
 use crate::scalar::Scalar;
@@ -80,6 +81,16 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
     // Bitcoin Cash legacy is Bitcoin's P2PKH encoding (CashAddr is out of scope).
     let (bch_payload, bch_checksum, bch_address) = p2pkh_parts(&hash_compressed, 0x00);
 
+    // Zcash transparent P2PKH uses the two-byte version 0x1cb8.
+    let mut zcash_payload = [0u8; 22];
+    zcash_payload[0] = 0x1c;
+    zcash_payload[1] = 0xb8;
+    zcash_payload[2..].copy_from_slice(&hash_compressed);
+    let zcash_digest = hashes::sha256d(&zcash_payload);
+    let mut zcash_checksum = [0u8; 4];
+    zcash_checksum.copy_from_slice(&zcash_digest[..4]);
+    let zcash_address = base58::encode_check(&zcash_payload);
+
     // XRP classic address: version 0x00, the account id and a four-byte
     // double-SHA256 checksum, encoded with Ripple's own base58 alphabet.
     let mut xrp_payload = [0u8; 21];
@@ -104,6 +115,8 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
     let doge_checksum_hex = hex(&doge_checksum);
     let bch_payload_hex = hex(&bch_payload);
     let bch_checksum_hex = hex(&bch_checksum);
+    let zcash_payload_hex = hex(&zcash_payload);
+    let zcash_checksum_hex = hex(&zcash_checksum);
 
     // P2TR: BIP341 key path with an empty script tree. The internal key is the
     // x-only key, so it is lift_x(x(P)): a point with odd y is negated before
@@ -263,6 +276,18 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
             ],
         ),
         address_object(
+            "zcash_p2pkh",
+            "Zcash transparent (P2PKH)",
+            &zcash_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &zcash_payload_hex),
+                ("checksum", &zcash_checksum_hex),
+                ("base58", &zcash_address),
+            ],
+        ),
+        address_object(
             "xrp_classic",
             "XRP classic address",
             &xrp_address,
@@ -323,12 +348,29 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
     let public_hex = hex(&public);
     let address = bs58::encode(public).into_string();
 
-    let addresses = [address_object(
-        "solana",
-        "Solana (ed25519)",
-        &address,
-        &[("pubkey", &public_hex)],
-    )];
+    // Sui hashes the scheme flag (0x00 = ed25519) plus the public key with
+    // BLAKE2b-256 and prefixes the 32-byte digest with 0x.
+    let mut sui_input = [0u8; 33];
+    sui_input[1..].copy_from_slice(&public);
+    let mut hasher = Blake2b::<U32>::new();
+    hasher.update(&sui_input);
+    let digest = hasher.finalize();
+    let sui_address = format!("0x{}", hex(&digest));
+
+    let addresses = [
+        address_object(
+            "solana",
+            "Solana (ed25519)",
+            &address,
+            &[("pubkey", &public_hex)],
+        ),
+        address_object(
+            "sui",
+            "Sui (ed25519)",
+            &sui_address,
+            &[("pubkey", &public_hex), ("blake2b", &sui_address)],
+        ),
+    ];
 
     let mut out = String::with_capacity(1024);
     out.push('{');

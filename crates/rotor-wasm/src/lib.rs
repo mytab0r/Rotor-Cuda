@@ -1016,8 +1016,10 @@ mod tests {
             value["wif_uncompressed"],
             "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf"
         );
-        assert_eq!(value["addresses"].as_array().unwrap().len(), 14);
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 15);
 
+        let zcash = address(&value, "zcash_p2pkh");
+        assert_eq!(zcash["address"], "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs");
         let compressed = address(&value, "btc_p2pkh");
         assert_eq!(compressed["address"], KEY1_ADDR);
         assert_eq!(compressed["steps"]["pubkey"], KEY1_PUB_COMPRESSED);
@@ -1195,7 +1197,7 @@ mod tests {
         );
 
         let addresses = value["addresses"].as_array().unwrap();
-        assert_eq!(addresses.len(), 1);
+        assert_eq!(addresses.len(), 2);
         assert_eq!(addresses[0]["id"], "solana");
         assert_eq!(addresses[0]["label"], "Solana (ed25519)");
         assert_eq!(
@@ -1205,6 +1207,11 @@ mod tests {
         assert_eq!(
             addresses[0]["steps"]["pubkey"],
             "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        );
+        assert_eq!(addresses[1]["id"], "sui");
+        assert_eq!(
+            addresses[1]["address"],
+            "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d"
         );
     }
 
