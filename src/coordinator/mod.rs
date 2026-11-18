@@ -54,6 +54,8 @@ const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
 const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
 const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
 const SEED_PAGE_JS: &str = include_str!("../../apps/site/seed-page.js");
+const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
+const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
 const MANROPE_WOFF2: &[u8] = include_bytes!("../../apps/site/fonts/manrope-latin.woff2");
@@ -719,6 +721,8 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             include_str!("../../apps/site/ton.js").as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/milk-sad" => Some((MILK_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tools" => Some((TOOLS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/search.js" => Some((
             SEARCH_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -1249,6 +1253,11 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
             None => (render_seo_not_found(), HTML, 404),
         });
     }
+    if let Some(entity) = path.strip_prefix("/key/")
+        && let Some(page) = render_key_entity(base, entity)
+    {
+        return Some((page, HTML, 200));
+    }
     if let Some(hex) = path.strip_prefix("/key/") {
         let curve = if query.split('&').any(|pair| pair == "curve=ed25519") {
             "ed25519"
@@ -1413,7 +1422,7 @@ fn site_header() -> String {
          <a href=\"/seed\" data-nav=\"seeds\">{seed}<span>Seeds</span></a>\
          <a href=\"/bitcoin-puzzle\" data-nav=\"puzzle\">{puzzle}<span>Puzzle</span></a>\
          <a href=\"/vanity\" data-nav=\"vanity\">{vanity}<span>Vanity</span></a>\
-         <a href=\"/brainwallet\" data-nav=\"tools\">{tools}<span>Tools</span></a>\
+         <a href=\"/tools\" data-nav=\"tools\">{tools}<span>Tools</span></a>\
          <a href=\"/docs\" data-nav=\"docs\">{book}<span>Docs</span></a>\
          </nav>\
          <div class=\"nav-tools\">\
@@ -1458,14 +1467,82 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261119g\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119g\"></script>\n<script src=\"/site.js?v=20261119g\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261119j\">\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119j\"></script>\n<script src=\"/site.js?v=20261119j\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
 
 fn json_ld(value: &serde_json::Value) -> String {
     format!("<script type=\"application/ld+json\">{value}</script>\n")
+}
+
+fn render_key_entity(base: &str, entity: &str) -> Option<String> {
+    let (slug, title, heading, tagline, label, placeholder, help) = match entity {
+        "hex" => (
+            "hex",
+            "Hex private key calculator",
+            "Hex private key calculator",
+            "Paste 64 hexadecimal characters and see the WIF, decimal value, public key and every derived address.",
+            "Private key (hex)",
+            "64 hex characters, optional 0x",
+            "Accepts 64 hex characters with an optional 0x prefix. The key stays in memory only.",
+        ),
+        "wif" => (
+            "wif",
+            "WIF calculator — Wallet Import Format to hex and addresses",
+            "WIF calculator",
+            "Decode a Bitcoin Wallet Import Format key (5…, K… or L…) into hex, decimal, public key and addresses.",
+            "WIF (Wallet Import Format)",
+            "5…, K… or L… WIF",
+            "Accepts a mainnet Bitcoin WIF. The compressed flag is preserved; the key never leaves this page.",
+        ),
+        "decimal" => (
+            "decimal",
+            "Decimal private key calculator",
+            "Decimal private key calculator",
+            "Paste a decimal integer below the secp256k1 order and see its hex, WIF, public key and addresses.",
+            "Private key (decimal)",
+            "decimal integer",
+            "Accepts a decimal integer in 1..n-1. The key stays in memory only.",
+        ),
+        _ => return None,
+    };
+    let canonical = format!("{base}/key/{slug}");
+    let mut page = KEY_PAGE.to_string();
+    page = page.replace(
+        "<title>Rotor Coordinator - private key explorer</title>",
+        &format!("<title>{title} | Rotor</title>"),
+    );
+    page = page.replace(
+        "<h1>Private-key explorer</h1>",
+        &format!("<h1>{heading}</h1>"),
+    );
+    page = page.replace(
+        "Every private key is a number. See what yours opens — all derivation happens in this browser.",
+        tagline,
+    );
+    page = page.replace("64 hex, decimal, or BTC WIF", placeholder);
+    page = page.replace(
+        "<label class=\"key-input-label\">Private key",
+        &format!("<label class=\"key-input-label\">{label}"),
+    );
+    page = page.replace(
+        "Accepts 64 hex characters with an optional 0x prefix, a decimal integer, or a Bitcoin WIF. The key stays in memory only and is cleared when you leave the page.",
+        help,
+    );
+    page = page.replace(
+        "</head>",
+        &format!(
+            "<meta name=\"description\" content=\"{}\">\n\
+             <link rel=\"canonical\" href=\"{}\">\n\
+             </head>",
+            escape_attr(tagline),
+            escape_attr(&canonical)
+        ),
+    );
+    page = page.replace("<body>", &format!("<body data-entity=\"{slug}\">"));
+    Some(page)
 }
 
 fn render_key_page(base: &str, key: &str, curve: &str) -> String {
@@ -2314,7 +2391,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261119g\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261119j\"></script>",
         site_header(),
         "",
         chain.color,
@@ -2506,6 +2583,11 @@ fn render_sitemap(base: &str) -> String {
         "/brainwallet",
         "/seed",
         "/vanity",
+        "/milk-sad",
+        "/tools",
+        "/key/wif",
+        "/key/hex",
+        "/key/decimal",
     ] {
         urls.push_str(&format!(
             "  <url><loc>{}{page}</loc></url>
@@ -3542,6 +3624,7 @@ mod tests {
             "/seed-page.js",
             "/vanity",
             "/vanity.js",
+            "/milk-sad",
         ] {
             assert!(static_asset(path).is_some(), "{path} must be embedded");
         }
@@ -3549,6 +3632,7 @@ mod tests {
         let sitemap = render_sitemap(base);
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/seed</loc>"));
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/vanity</loc>"));
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/milk-sad</loc>"));
         for chain in ["zcash", "sui", "ton"] {
             let path = format!("/private-keys/{chain}");
             let (body, _, status) = seo_asset(base, &path, "").expect("chain hub");
@@ -3587,7 +3671,7 @@ mod tests {
             );
         }
         assert!(!sitemap.contains("<loc>https://rotor.pxbt.app/keys</loc>"));
-        assert!(!sitemap.contains("/key/"));
+        assert!(!sitemap.contains(&format!("{}/key/{}", base, "0".repeat(64))));
     }
 
     #[test]
@@ -3691,7 +3775,9 @@ mod tests {
                 "href=\"/\"",
                 "href=\"/private-keys\"",
                 "href=\"/bitcoin-puzzle\"",
-                "href=\"/brainwallet\"",
+                "href=\"/seed\"",
+                "href=\"/vanity\"",
+                "href=\"/tools\"",
                 "href=\"/docs\"",
                 "href=\"/cabinet\"",
             ] {

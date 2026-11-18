@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261119g">
+<link rel="stylesheet" href="/site.css?v=20261119j">
 </head>
 <body>
 <header class="site-nav">
@@ -15,7 +15,7 @@
     <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
     <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
-    <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
   <div class="nav-tools">
@@ -68,6 +68,16 @@
     <p id="key-format" class="muted key-help">Accepts 64 hex characters with an optional 0x prefix, a decimal integer, or a Bitcoin WIF. The key stays in memory only and is cleared when you leave the page.</p>
     <p id="key-error" class="error key-error" role="alert" hidden></p>
   </section>
+
+  <nav class="entity-links" aria-label="Entity calculators">
+    <span>Other calculators</span>
+    <a href="/key/hex">Hex</a>
+    <a href="/key/wif">WIF</a>
+    <a href="/key/decimal">Decimal</a>
+    <a href="/brainwallet">Brainwallet</a>
+    <a href="/seed">Seed phrase</a>
+    <a href="/vanity">Vanity</a>
+  </nav>
 
   <section class="card">
     <h2>Key summary</h2>
@@ -194,6 +204,6 @@
 
 </main>
 
-<script src="/key.js?v=20261119g"></script>
+<script src="/key.js?v=20261119j"></script>
 </body>
 </html>
