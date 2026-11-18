@@ -6,7 +6,7 @@
 <title>Milk Sad (CVE-2023-39910) — what it is and what to do | Rotor</title>
 <meta name="description" content="Milk Sad is the Libbitcoin Explorer bx seed weakness: a 32-bit Mersenne Twister seed reduced key entropy to about 4.3 billion possibilities. Check whether a wallet you created is affected.">
 <link rel="canonical" href="https://rotor.pxbt.app/milk-sad">
-<link rel="stylesheet" href="/site.css?v=20261119o">
+<link rel="stylesheet" href="/site.css?v=20261119q">
 </head>
 <body>
 <header class="site-nav">
@@ -66,6 +66,53 @@
     </div>
   </section>
 
+  <section class="card" id="address-audit">
+    <h2>Check your address against a seed range</h2>
+    <p>Enter a Bitcoin address you control, a seed range and scan locally. The page recovers a key only when your address matches; it never lists other wallets and never checks balances.</p>
+    <form id="milk-scan-form" class="milk-form milk-scan-form" autocomplete="off">
+      <label>Bitcoin address
+        <input id="milk-address-input" class="mono" type="text" spellcheck="false" placeholder="1…, 3… or bc1…" required>
+      </label>
+      <label>Start seed
+        <input id="milk-seed-start" class="mono" type="number" min="0" max="4294967295" step="1" value="0" required>
+      </label>
+      <label>Seeds to scan (max 2000)
+        <input id="milk-seed-count" class="mono" type="number" min="1" max="2000" step="1" value="200" required>
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="milk-scan">Scan range</button>
+      </div>
+    </form>
+    <p id="milk-scan-status" class="muted key-help" role="status"></p>
+    <p id="milk-scan-error" class="error key-error" role="alert" hidden></p>
+    <div id="milk-scan-result" class="milk-result" hidden>
+      <div class="key-form-row"><span class="key-field-label">Matched seed</span><code class="mono key-addr" id="milk-scan-seed"></code></div>
+      <div class="key-form-row"><span class="key-field-label">Mnemonic</span><code class="mono key-addr" id="milk-scan-mnemonic"></code></div>
+      <div class="key-form-row"><span class="key-field-label">WIF</span><code class="mono key-addr" id="milk-scan-wif"></code></div>
+      <p class="muted key-help">This address is in the weak set for that seed. Move the funds to a wallet created with a CSPRNG.</p>
+    </div>
+  </section>
+
+  <section class="card" id="seed-browser">
+    <h2>Browse the 2<sup>32</sup> seed space</h2>
+    <p>Every 32-bit seed produces one bx-seed wallet. This is the same key calculator as the rest of Rotor, limited to that 2<sup>32</sup> set and computed locally. No balances are looked up here; open a derived address in an explorer if you need to check it.</p>
+    <form id="milk-browse-form" class="milk-form" autocomplete="off">
+      <label>Start seed
+        <input id="milk-browse-start" class="mono" type="number" min="0" max="4294967235" step="1" value="0" required>
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="milk-browse-go">Show 60 seeds</button>
+      </div>
+    </form>
+    <div class="milk-pager">
+      <button type="button" id="milk-browse-prev">Previous 60</button>
+      <span class="mono" id="milk-browse-range">seeds 0…59</span>
+      <button type="button" id="milk-browse-next">Next 60</button>
+    </div>
+    <p id="milk-browse-status" class="muted key-help" role="status"></p>
+    <div id="milk-browse-rows" class="seed-rows"></div>
+  </section>
+
   <section class="card">
     <h2>Are you affected?</h2>
     <ul>
@@ -100,8 +147,8 @@
   </section>
 </main>
 
-<script src="/seed.js?v=20261119o"></script>
-<script src="/site.js?v=20261119o"></script>
-<script src="/milk-sad.js?v=20261119o"></script>
+<script src="/seed.js?v=20261119q"></script>
+<script src="/site.js?v=20261119q"></script>
+<script src="/milk-sad.js?v=20261119q"></script>
 </body>
 </html>
