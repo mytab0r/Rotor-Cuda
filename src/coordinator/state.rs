@@ -340,6 +340,29 @@ pub struct ClientView {
     pub expires_at: u64,
 }
 
+/// An active lease in a public worker snapshot.
+#[derive(Clone, Debug, Serialize)]
+pub struct PublicLeaseView {
+    pub job_id: String,
+    pub chunk_index: u64,
+    pub scanned: u64,
+    pub expires_at: u64,
+}
+
+/// A worker in the public snapshot: account stats plus at most one live lease.
+/// Deliberately omits the token hash and every client-only field.
+#[derive(Clone, Debug, Serialize)]
+pub struct PublicWorkerView {
+    pub id: String,
+    pub name: String,
+    pub scanned: u64,
+    pub chunks_done: u64,
+    pub found: u64,
+    pub last_seen: u64,
+    pub rate: f64,
+    pub lease: Option<PublicLeaseView>,
+}
+
 /// A stored BSGS resume point, as served by `GET /api/v1/status`.
 #[derive(Clone, Debug, Serialize)]
 pub struct BsgsView {
@@ -1034,6 +1057,43 @@ impl State {
             totals,
             leaderboard,
         }
+    }
+
+    /// Public worker snapshot: enabled clients with their account stats and,
+    /// when present, one live lease. Sorted by scanned keys, descending.
+    pub fn public_workers(&self, now: u64) -> Vec<PublicWorkerView> {
+        let mut workers: Vec<PublicWorkerView> = self
+            .data
+            .clients
+            .iter()
+            .filter(|client| !client.disabled)
+            .map(|client| {
+                let lease = self
+                    .data
+                    .leases
+                    .iter()
+                    .filter(|lease| lease.client_id == client.id && lease.expires_at > now)
+                    .max_by_key(|lease| lease.expires_at)
+                    .map(|lease| PublicLeaseView {
+                        job_id: lease.job_id.clone(),
+                        chunk_index: lease.chunk_index,
+                        scanned: lease.scanned,
+                        expires_at: lease.expires_at,
+                    });
+                PublicWorkerView {
+                    id: client.id.clone(),
+                    name: client.name.clone(),
+                    scanned: client.scanned_total,
+                    chunks_done: client.chunks_done,
+                    found: client.found,
+                    last_seen: client.last_seen,
+                    rate: client.rate,
+                    lease,
+                }
+            })
+            .collect();
+        workers.sort_by_key(|worker| std::cmp::Reverse(worker.scanned));
+        workers
     }
 
     /// Public aggregates: no job targets, client ids with results or keys.

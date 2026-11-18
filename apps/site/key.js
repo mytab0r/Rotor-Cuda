@@ -21,7 +21,7 @@
     all: null,
     ledger: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr'],
     metamask: ['evm'],
-    safepal: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr', 'evm', 'tron'],
+    safepal: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr', 'evm', 'tron', 'ltc_p2pkh', 'ltc_p2sh_p2wpkh', 'ltc_p2wpkh', 'doge_p2pkh', 'bch_legacy', 'xrp_classic'],
     tronlink: ['tron'],
     phantom: ['solana']
   };
@@ -34,7 +34,13 @@
     btc_p2tr: 'Bitcoin taproot',
     evm: 'Ethereum / EVM',
     tron: 'TRON',
-    solana: 'Solana (ed25519)'
+    solana: 'Solana (ed25519)',
+    ltc_p2pkh: 'Litecoin legacy (compressed)',
+    ltc_p2sh_p2wpkh: 'Litecoin P2SH-P2WPKH',
+    ltc_p2wpkh: 'Litecoin native segwit',
+    doge_p2pkh: 'Dogecoin legacy (compressed)',
+    bch_legacy: 'Bitcoin Cash legacy (compressed)',
+    xrp_classic: 'XRP classic address'
   };
 
   var EXPLAIN = {
@@ -45,7 +51,13 @@
     btc_p2tr: 'x-only key tweaked for an empty script path: t = hash_TapTweak(x(P)), Q = P + tG; witness v1, bech32m.',
     evm: 'last 20 bytes of keccak256 of the uncompressed key (without the 0x04 prefix), shown with the EIP-55 checksum.',
     tron: '0x41 || last 20 bytes of the same keccak256 hash, base58check-encoded.',
-    solana: 'base58 of the 32-byte ed25519 public key; no hash step.'
+    solana: 'base58 of the 32-byte ed25519 public key; no hash step.',
+    ltc_p2pkh: 'hash160 of the compressed public key with Litecoin version byte 0x30, base58check-encoded.',
+    ltc_p2sh_p2wpkh: 'P2SH redeem script 0x0014 || hash160(pubkey) with Litecoin version byte 0x32, base58check.',
+    ltc_p2wpkh: 'witness v0 program hash160(pubkey) with the "ltc" human-readable part, bech32.',
+    doge_p2pkh: 'hash160 of the compressed public key with Dogecoin version byte 0x1e, base58check-encoded.',
+    bch_legacy: 'Bitcoin Cash legacy address: hash160(pubkey) with version byte 0x00, base58check.',
+    xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).'
   };
 
   var PATHS = {
@@ -56,7 +68,13 @@
     btc_p2tr: "P2TR · m/86'/0'/0'/0/0",
     evm: "EVM · m/44'/60'/0'/0/0",
     tron: "TRON · m/44'/195'/0'/0/0",
-    solana: 'Solana · ed25519 seed'
+    solana: 'Solana · ed25519 seed',
+    ltc_p2pkh: "P2PKH · m/44'/2'/0'/0/0",
+    ltc_p2sh_p2wpkh: "P2SH-P2WPKH · m/49'/2'/0'/0/0",
+    ltc_p2wpkh: "P2WPKH · m/84'/2'/0'/0/0",
+    doge_p2pkh: "P2PKH · m/44'/3'/0'/0/0",
+    bch_legacy: "P2PKH · m/44'/145'/0'/0/0",
+    xrp_classic: "XRP · m/44'/144'/0'/0/0"
   };
 
   var STEP_ORDER = {
@@ -67,7 +85,13 @@
     btc_p2tr: ['internal_x', 'tweak', 'output_x', 'parity', 'program'],
     evm: ['pubkey', 'keccak', 'last20'],
     tron: ['pubkey', 'keccak', 'last20', 'payload', 'checksum', 'base58'],
-    solana: ['pubkey']
+    solana: ['pubkey'],
+    ltc_p2pkh: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
+    ltc_p2sh_p2wpkh: ['pubkey', 'hash160', 'redeem', 'script_hash', 'payload', 'checksum', 'base58'],
+    ltc_p2wpkh: ['pubkey', 'hash160', 'hrp', 'witness_version', 'program', 'checksum'],
+    doge_p2pkh: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
+    bch_legacy: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
+    xrp_classic: ['pubkey', 'hash160', 'payload', 'checksum', 'base58']
   };
 
   var STEP_LABELS = {
@@ -87,6 +111,26 @@
     parity: 'parity',
     keccak: 'Keccak-256',
     last20: 'last 20 bytes'
+  };
+
+  /* Address-row ids grouped by chain tab. Prefixes match both exact ids
+   * (evm, tron, solana) and families (btc_*, ltc_*, ...). */
+  var CHAIN_PREFIXES = {
+    btc: ['btc_'],
+    evm: ['evm'],
+    tron: ['tron'],
+    solana: ['solana'],
+    ltc: ['ltc_'],
+    doge: ['doge_'],
+    bch: ['bch_'],
+    xrp: ['xrp_']
+  };
+
+  var CHAIN_NAMES = {
+    ltc: 'Litecoin',
+    doge: 'Dogecoin',
+    bch: 'Bitcoin Cash',
+    xrp: 'XRP'
   };
 
   var state = {
@@ -356,6 +400,7 @@
     state.focusId = null;
     summaryPlaceholder();
     rowsPlaceholder();
+    updateChainAvailability([], null);
     syncSelection(false, false);
     syncBitcoinPanel();
     presetEmpty.hidden = true;
@@ -553,6 +598,7 @@
       rowsEl.appendChild(buildRow(addr));
     });
     resetBalanceBadges();
+    updateChainAvailability(addresses, report.curve);
     ensureBtcFocus();
     applyFilters();
     syncSelection(false, false);
@@ -718,12 +764,50 @@
     }
   }
 
+  function chainHasRows(chain, addresses) {
+    var prefixes = CHAIN_PREFIXES[chain];
+    if (!prefixes || !addresses) return false;
+    return addresses.some(function (addr) {
+      if (!addr || !addr.id || !addr.address) return false;
+      return prefixes.some(function (prefix) {
+        return addr.id === prefix || addr.id.indexOf(prefix) === 0;
+      });
+    });
+  }
+
+  function updateChainAvailability(addresses, curve) {
+    /* "soon" means the secp256k1 core does not report this chain yet. On
+     * ed25519 only Solana exists, so absence there is expected, not pending. */
+    var showSoon = curve === 'secp256k1';
+    chainButtons.forEach(function (button) {
+      var chain = button.getAttribute('data-chain');
+      var badge = button.querySelector('.key-soon');
+      if (!badge) return;
+      var pending = showSoon && !chainHasRows(chain, addresses);
+      badge.hidden = !pending;
+      button.classList.toggle('key-chain-soon', pending);
+    });
+  }
+
+  function emptyMessage() {
+    var name = CHAIN_NAMES[state.chain];
+    if (name && state.report && state.report.curve !== 'ed25519' &&
+        !chainHasRows(state.chain, state.report.addresses)) {
+      return name + ' addresses are coming soon. The derivation core does not report ' +
+        state.chain + '_* rows yet.';
+    }
+    return 'No rows match this chain and wallet preset on the selected curve.';
+  }
+
   function rowMatches(id) {
     var preset = PRESETS[state.preset];
     if (preset && preset.indexOf(id) < 0) return false;
     if (state.chain === 'all') return true;
-    if (state.chain === 'btc') return id.indexOf('btc_') === 0;
-    return id === state.chain;
+    var prefixes = CHAIN_PREFIXES[state.chain];
+    if (!prefixes) return false;
+    return prefixes.some(function (prefix) {
+      return id === prefix || id.indexOf(prefix) === 0;
+    });
   }
 
   function applyFilters() {
@@ -737,6 +821,7 @@
       row.classList.toggle('hidden', !show);
       if (show) visible++;
     });
+    if (visible === 0) presetEmpty.textContent = emptyMessage();
     presetEmpty.hidden = visible > 0;
   }
 
@@ -1036,6 +1121,11 @@
     var address = row.getAttribute('data-address');
     if (!badge || !address || generation !== state.generation) return;
     if (id === 'solana') {
+      setBalance(badge, 'muted', 'no provider in v1');
+      return;
+    }
+    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0 ||
+        id.indexOf('bch_') === 0 || id.indexOf('xrp_') === 0) {
       setBalance(badge, 'muted', 'no provider in v1');
       return;
     }
