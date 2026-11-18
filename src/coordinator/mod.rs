@@ -1263,8 +1263,8 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
 
 fn render_keys_hub(base: &str) -> String {
     let canonical = format!("{base}/private-keys");
-    let title = "Private key explorer — Bitcoin, Ethereum, TRON, Solana | Rotor";
-    let description = "Browse Rotor's public key hubs for Bitcoin, Ethereum, TRON and Solana. Each hub lists deterministic example private keys and derives addresses locally in your browser.";
+    let title = "Private key explorer — Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash, XRP | Rotor";
+    let description = "Browse Rotor's public key hubs for Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP. Each hub lists deterministic example private keys and derives addresses locally in your browser.";
     let ld_app = json!({
         "@context": "https://schema.org",
         "@type": "WebApplication",
@@ -1369,7 +1369,7 @@ const FAQ_DESCRIPTION: &str = "Answers about Rotor's browser key derivation, the
 const FAQ_QA: [(&str, &str); 9] = [
     (
         "What does this site do?",
-        "Rotor explains how private keys map to public addresses on Bitcoin, Ethereum, TRON and Solana. It derives addresses from a key you control in your browser and runs an authorized puzzle search engine and an address watchlist. It does not hold, sign for or move funds.",
+        "Rotor explains how private keys map to public addresses on Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP. It derives addresses from a key you control in your browser and runs an authorized puzzle search engine and an address watchlist. It does not hold, sign for or move funds.",
     ),
     (
         "Is my key sent to a server?",
