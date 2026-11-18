@@ -61,6 +61,10 @@ performance gates, then delete it.
 - TON/SOL/SUI brute force may be CPU-only in the first release if the GPU
   kernel misses the floor; that is surfaced, never silently CPU.
 - No coordinator protocol break without a version bump and migration.
+- No CUDA deletion before the benchmark gate; GitHub language percentages are
+  not a reason to remove a faster backend.
+- `BinSort/BinSort.cpp` is the only non-CUDA C++ file (252 lines, archival
+  utility); it is ported or removed separately from the CUDA decision.
 
 ## Success criteria
 

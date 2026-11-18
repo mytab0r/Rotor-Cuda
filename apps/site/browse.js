@@ -181,46 +181,79 @@
     return config.explorer + encodeURIComponent(address);
   }
 
-  function fillAddressCell(row, entries, wif) {
+  function formatLabel() {
+    var labels = {
+      bitcoin: { legacy: 'P2PKH', segwit: 'P2WPKH', script: 'P2SH', taproot: 'P2TR' },
+      litecoin: { legacy: 'P2PKH', segwit: 'P2WPKH', script: 'P2SH' }
+    };
+    var table = labels[config.chain];
+    return table && table[config.type] ? table[config.type] : config.symbol;
+  }
+
+  function iconUse(name, className) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', className || 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '/icons.svg#' + name);
+    svg.appendChild(use);
+    return svg;
+  }
+
+  function fillAddressCell(row, address, wif) {
     var cell = row.querySelector('.col-address');
     if (!cell) return;
     cell.textContent = '';
-    var list = Array.isArray(entries) ? entries : (entries ? [{ address: entries }] : []);
-    if (!list.length) {
+    if (!address) {
       var empty = document.createElement('span');
       empty.className = 'cell-skeleton';
       empty.textContent = 'Not available';
       cell.appendChild(empty);
       return;
     }
-    list.forEach(function (entry) {
-      if (!entry || !entry.address) return;
-      var line = document.createElement('span');
-      line.className = 'addr-line';
-      if (entry.prefix) {
-        var prefix = document.createElement('span');
-        prefix.className = 'addr-prefix';
-        prefix.textContent = entry.prefix;
-        line.appendChild(prefix);
-      }
-      var link = document.createElement('a');
-      link.className = 'mono address-link';
-      link.href = explorerUrl(entry.address) || '#';
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = entry.address;
-      link.title = 'Open in explorer';
-      line.appendChild(link);
-      cell.appendChild(line);
-    });
+    var main = document.createElement('div');
+    main.className = 'addr-main';
+    var format = document.createElement('span');
+    format.className = 'addr-format';
+    format.textContent = formatLabel();
+    main.appendChild(format);
+    var link = document.createElement('a');
+    link.className = 'mono address-link';
+    link.href = explorerUrl(address) || '#';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = address;
+    link.title = address;
+    main.appendChild(link);
+    var actions = document.createElement('span');
+    actions.className = 'addr-actions';
+    var ext = document.createElement('a');
+    ext.className = 'icon-btn';
+    ext.href = explorerUrl(address) || '#';
+    ext.target = '_blank';
+    ext.rel = 'noopener noreferrer';
+    ext.title = 'Open in explorer';
+    ext.setAttribute('aria-label', 'Open address in explorer');
+    ext.appendChild(iconUse('ui-external'));
+    actions.appendChild(ext);
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'icon-btn';
+    copy.title = 'Copy address';
+    copy.setAttribute('aria-label', 'Copy address');
+    copy.appendChild(iconUse('ui-copy'));
+    copy.addEventListener('click', function () { copyText(address, copy); });
+    actions.appendChild(copy);
     if (wif) {
-      var wifLine = document.createElement('a');
-      wifLine.className = 'wif-line';
-      wifLine.href = '/key/' + encodeURIComponent(wif);
-      wifLine.title = 'Open the WIF key page';
-      wifLine.textContent = wif;
-      cell.appendChild(wifLine);
+      var wifLink = document.createElement('a');
+      wifLink.className = 'addr-wif';
+      wifLink.href = '/key/' + encodeURIComponent(wif);
+      wifLink.title = 'Open the WIF key page';
+      wifLink.textContent = 'WIF';
+      actions.appendChild(wifLink);
     }
+    main.appendChild(actions);
+    cell.appendChild(main);
   }
 
   function addressMap(report) {
@@ -249,7 +282,7 @@
       state.addressSets[hex] = entries;
       state.addresses[hex] = entries.length ? entries[0].address : '';
       var wif = config.chain === 'bitcoin' && report ? report.wif_compressed || '' : '';
-      fillAddressCell(row, entries, wif);
+      fillAddressCell(row, entries.length ? entries[0].address : '', wif);
     });
   }
 
@@ -407,28 +440,21 @@
       if (!cell) return;
       cell.textContent = '';
       var rowBalance = 0;
+      var primary = set[0];
       set.forEach(function (entry) {
         var info = data[entry.address];
         if (!info) return;
         sum += Number(info.final_balance || 0);
         received += Number(info.total_received || 0);
         tx += Number(info.n_tx || 0);
-        rowBalance += Number(info.final_balance || 0);
-        var line = document.createElement('span');
-        line.className = 'bal-line';
-        if (entry.prefix) {
-          var prefix = document.createElement('span');
-          prefix.className = 'addr-prefix';
-          prefix.textContent = entry.prefix;
-          line.appendChild(prefix);
-        }
+        if (entry !== primary) return;
+        rowBalance = Number(info.final_balance || 0);
         var value = document.createElement('span');
         value.textContent = coin(info.final_balance, 8) + ' BTC';
         var sub = document.createElement('small');
         sub.textContent = Number(info.n_tx || 0) + ' tx';
-        line.appendChild(value);
-        line.appendChild(sub);
-        cell.appendChild(line);
+        cell.appendChild(value);
+        cell.appendChild(sub);
       });
       cell.classList.toggle('has-balance', rowBalance > 0);
       cell.title = 'Current balance, transaction count';
