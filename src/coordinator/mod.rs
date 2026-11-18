@@ -7,6 +7,7 @@
 
 pub mod chunk_loop;
 pub mod client;
+pub mod puzzles;
 pub mod state;
 
 use std::collections::HashMap;
@@ -42,6 +43,8 @@ const KEY_JS: &str = include_str!("../../apps/site/key.js");
 const RANGE_PAGE: &str = include_str!("../../apps/site/range.html");
 const RANGE_JS: &str = include_str!("../../apps/site/range.js");
 const PUZZLE_JS: &str = include_str!("../../apps/site/puzzle.js");
+const PUZZLE_BROWSER_JS: &str = include_str!("../../apps/site/puzzle-browser.js");
+const PUZZLE_WORKER_JS: &str = include_str!("../../apps/site/puzzle-worker.js");
 const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
 const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
@@ -695,6 +698,14 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             PUZZLE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/puzzle-browser.js" => Some((
+            PUZZLE_BROWSER_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/puzzle-worker.js" => Some((
+            PUZZLE_WORKER_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/walletconnect.js" => Some((WALLETCONNECT_JS, "application/javascript; charset=utf-8")),
         "/brainwallet.js" => Some((
             BRAINWALLET_JS.as_bytes(),
@@ -1239,7 +1250,29 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
         });
     }
     if path == "/bitcoin-puzzle" {
-        return Some((render_bitcoin_puzzle(base), HTML, 200));
+        return Some((render_puzzle_home(base), HTML, 200));
+    }
+    if let Some(rest) = path.strip_prefix("/bitcoin-puzzle/") {
+        let rest = rest.trim_end_matches('/');
+        if rest.is_empty() {
+            return Some((render_puzzle_home(base), HTML, 200));
+        }
+        if rest == "unsolved" {
+            return Some((render_puzzle_unsolved(base), HTML, 200));
+        }
+        let mut parts = rest.split('/');
+        let Some(number) = parts.next().and_then(|part| part.parse::<u32>().ok()) else {
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        let view = parts.next();
+        if parts.next().is_some() || puzzles::puzzle(number).is_none() {
+            return Some((render_seo_not_found(), HTML, 404));
+        }
+        return Some(match view {
+            None | Some("detail") => (render_puzzle_page(base, number, false), HTML, 200),
+            Some("random") => (render_puzzle_page(base, number, true), HTML, 200),
+            Some(_) => (render_seo_not_found(), HTML, 404),
+        });
     }
     if let Some(rest) = path.strip_prefix("/keys/") {
         let Some((slug, range_text)) = rest.split_once('/') else {
@@ -1489,8 +1522,8 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261119y\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119y\"></script>\n<script src=\"/site.js?v=20261119y\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261119z\">\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119z\"></script>\n<script src=\"/site.js?v=20261119z\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2413,7 +2446,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261119y\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261119z\"></script>",
         site_header(),
         "",
         chain.color,
@@ -2485,10 +2518,124 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     html_document(&title, &head, &body)
 }
 
-fn render_bitcoin_puzzle(base: &str) -> String {
+fn puzzle_badge(solved: bool) -> String {
+    if solved {
+        "<span class=\"puzzle-badge solved\">Solved</span>".to_string()
+    } else {
+        "<span class=\"puzzle-badge\">Unsolved</span>".to_string()
+    }
+}
+
+fn puzzle_picker(number: u32, tab: &str) -> String {
+    let mut options = String::new();
+    for item in puzzles::all() {
+        let selected = if item.number == number {
+            " selected"
+        } else {
+            ""
+        };
+        options.push_str(&format!(
+            "<option value=\"{}\"{}>#{}</option>",
+            item.number, selected, item.number
+        ));
+    }
+    let prev = if number > 1 {
+        format!(
+            "<a class=\"puzzle-step\" rel=\"prev\" href=\"/bitcoin-puzzle/{}/{}\">&larr; #{}</a>",
+            number - 1,
+            escape_attr(tab),
+            number - 1
+        )
+    } else {
+        "<span class=\"puzzle-step disabled\">&larr; Prev</span>".to_string()
+    };
+    let next = if number < puzzles::PUZZLE_COUNT {
+        format!(
+            "<a class=\"puzzle-step\" rel=\"next\" href=\"/bitcoin-puzzle/{}/{}\">#{} &rarr;</a>",
+            number + 1,
+            escape_attr(tab),
+            number + 1
+        )
+    } else {
+        "<span class=\"puzzle-step disabled\">Next &rarr;</span>".to_string()
+    };
+    format!(
+        "<div class=\"puzzle-picker\">\
+         <label class=\"puzzle-picker-label\" for=\"puzzle-select\">Puzzle</label>\
+         <select id=\"puzzle-select\" data-puzzle-picker data-puzzle-tab=\"{}\">{}</select>\
+         {}<span class=\"puzzle-step-current\">#{}</span>{}\
+         </div>",
+        escape_attr(tab),
+        options,
+        prev,
+        number,
+        next
+    )
+}
+
+fn puzzle_tabs(number: u32, active: &str) -> String {
+    let entries = [
+        (
+            "detail",
+            "Detail",
+            format!("/bitcoin-puzzle/{number}/detail"),
+        ),
+        (
+            "random",
+            "Random Keys",
+            format!("/bitcoin-puzzle/{number}/random"),
+        ),
+        (
+            "unsolved",
+            "Unsolved",
+            "/bitcoin-puzzle/unsolved".to_string(),
+        ),
+        ("team", "Team", "/bitcoin-puzzle#team".to_string()),
+    ];
+    let mut out = String::from("<nav class=\"puzzle-tabs\" aria-label=\"Puzzle views\">");
+    for (key, label, href) in entries {
+        let class = if key == active {
+            "puzzle-tab active"
+        } else {
+            "puzzle-tab"
+        };
+        let current = if key == active {
+            " aria-current=\"page\""
+        } else {
+            ""
+        };
+        out.push_str(&format!(
+            "<a class=\"{}\" href=\"{}\"{}>{}</a>",
+            class,
+            escape_attr(&href),
+            current,
+            label
+        ));
+    }
+    out.push_str("</nav>");
+    out
+}
+
+fn puzzle_unsolved_grid() -> String {
+    let mut out = String::from("<div class=\"puzzle-grid\">");
+    for item in puzzles::all().filter(|item| !item.solved) {
+        out.push_str(&format!(
+            "<a class=\"puzzle-chip\" href=\"/bitcoin-puzzle/{0}/random\">\
+             <span class=\"puzzle-chip-number\">#{0}</span>\
+             <code class=\"puzzle-chip-target\">{1}</code>\
+             <span class=\"puzzle-chip-meta\">{0}-bit range · unsolved</span></a>",
+            item.number,
+            escape_attr(item.target)
+        ));
+    }
+    out.push_str("</div>");
+    out
+}
+
+fn render_puzzle_home(base: &str) -> String {
     let canonical = format!("{base}/bitcoin-puzzle");
-    let title = "Bitcoin puzzle — pooled key search | Rotor";
-    let description = "Track Rotor's public Bitcoin puzzle: contributors lease fixed-size key chunks, report progress, and the pool resumes unfinished work. Live job stats for open and finished runs.";
+    let title = "Bitcoin puzzle browser — client-side key search | Rotor";
+    let description = "Browse all 160 public Bitcoin puzzles with target address, key range, balance and split presets. Scan a puzzle range locally in your browser with WebAssembly; the pooled team mode stays separate.";
     let ld_app = json!({
         "@context": "https://schema.org",
         "@type": "WebApplication",
@@ -2505,39 +2652,267 @@ fn render_bitcoin_puzzle(base: &str) -> String {
         "@type": "BreadcrumbList",
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
-            { "@type": "ListItem", "position": 2, "name": "Puzzles", "item": canonical },
-            { "@type": "ListItem", "position": 3, "name": "Bitcoin puzzle", "item": canonical },
+            { "@type": "ListItem", "position": 2, "name": "Bitcoin Puzzle", "item": canonical },
         ],
     });
     let head = hub_head(&canonical, title, description, &[ld_app, ld_crumbs]);
-
-    let crumbs = breadcrumb_nav(&[
-        ("Home", Some("/")),
-        ("Puzzles", Some("/bitcoin-puzzle")),
-        ("Bitcoin puzzle", None),
-    ]);
+    let crumbs = breadcrumb_nav(&[("Home", Some("/")), ("Bitcoin Puzzle", None)]);
+    let solved = puzzles::all().filter(|item| item.solved).count();
+    let unsolved = puzzles::PUZZLE_COUNT as usize - solved;
     let body = format!(
         "{}{crumbs}<main class=\"key-page\">\
-         <section class=\"hero\"><h1>Bitcoin puzzle</h1>\
-         <p>Rotor splits a public key range into fixed-size chunks. Contributors lease a chunk, scan it on their own hardware, and report progress back. Nobody holds the whole range and no key material is shared.</p>\
-         <p><a href=\"/run\">Run a worker</a> · <a href=\"/cabinet\">Open the cabinet</a> · <a href=\"/docs\">Read the docs</a></p></section>\
-         <section class=\"card\"><h2>How pooled chunk leasing works</h2>\
-         <ol><li>A job defines a start key, an end key and a chunk width; the coordinator fingerprints each chunk with challenge offsets.</li>\
-         <li>A worker leases one free chunk and receives only that slice of the range.</li>\
-         <li>Heartbeats keep the lease alive; an expired lease returns the chunk to the pool for another worker.</li>\
-         <li>When every chunk is done the job is marked finished. A found key stops the job and is recorded once.</li></ol>\
-         <p>The table below is fed by the public <code>/api/v1/jobs/public</code> snapshot. It lists job identifiers, mode, progress and status without tokens or client data.</p></section>\
-         <section class=\"card\"><h2>Live public jobs</h2>\
+         <section class=\"hero\"><h1>Bitcoin Puzzle</h1>\
+         <p>Pick any public puzzle from #1 to #160 and scan its key range in your browser. Random and sequential modes run locally with WebAssembly; no private key or scan result leaves the page.</p>\
+         <div class=\"actions\"><a class=\"button primary\" href=\"/bitcoin-puzzle/71/random\">Random Keys · Puzzle #71</a><a class=\"button\" href=\"#team\">Pooled team mode</a></div></section>\
+         <section class=\"card\"><h2>Puzzle selector</h2>{picker}\
+         <p class=\"puzzle-note\">Puzzle n covers the inclusive range 2^(n-1) to 2^n-1. The embedded target list contains {known} solved and {unsolved} unsolved puzzles, sourced from the public puzzle dataset (privatekeyfinder.io, crawled 2026-11-19).</p>\
+         {tabs}</section>\
+         <section class=\"card\" id=\"unsolved\"><h2>Unsolved puzzles</h2>\
+         <p class=\"puzzle-note\">Every puzzle below is still unsolved according to the public dataset. Open one to inspect its range or start a local random scan.</p>{grid}</section>\
+         <section class=\"card\" id=\"team\"><h2>Team mode — pooled chunk leasing</h2>\
+         <p>Team mode is Rotor's coordinator pool: a job is split into fixed-size chunks, each contributor leases one chunk and scans it on their own hardware. A worker receives only its slice of the range, and an expired lease returns the chunk to the pool. This is separate from the local puzzle browser above; the two never mix in one run.</p>\
+         <h3>Live public jobs</h3>\
          <div data-puzzle-summary></div>\
          <div data-puzzle-jobs></div>\
-         <noscript><p>Enable JavaScript to load live job statistics, or read the JSON at <a href=\"/api/v1/jobs/public\">/api/v1/jobs/public</a>.</p></noscript></section>\
-         <section class=\"card\"><h2>Join the pool</h2>\
-         <p><a href=\"/run\">Run a worker</a> to lease chunks, <a href=\"/cabinet\">open the cabinet</a> to watch your contribution, or <a href=\"/docs\">read the docs</a> for the API and lease lifecycle.</p></section>\
+         <noscript><p>Enable JavaScript to load live job statistics, or read the JSON at <a href=\"/api/v1/jobs/public\">/api/v1/jobs/public</a>.</p></noscript>\
+         <p class=\"puzzle-actions\"><a class=\"button\" href=\"/run\">Run a worker</a> <a class=\"button\" href=\"/cabinet\">Open the cabinet</a> <a class=\"button\" href=\"/docs\">Read the docs</a></p></section>\
          </main>\
+         <script src=\"/puzzle-browser.js\" defer></script>\
          <script src=\"/puzzle.js\" defer></script>",
-        site_header()
+        site_header(),
+        picker = puzzle_picker(71, "random"),
+        known = solved,
+        unsolved = unsolved,
+        tabs = puzzle_tabs(71, "home"),
+        grid = puzzle_unsolved_grid()
     );
     html_document(title, &head, &body)
+}
+
+fn render_puzzle_unsolved(base: &str) -> String {
+    let canonical = format!("{base}/bitcoin-puzzle/unsolved");
+    let title = "Unsolved Bitcoin puzzles — local browser scan | Rotor";
+    let description = "The unsolved subset of the 160 public Bitcoin puzzles, with target addresses and key ranges. Open any puzzle to scan its range locally in the browser.";
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Bitcoin Puzzle", "item": format!("{base}/bitcoin-puzzle") },
+            { "@type": "ListItem", "position": 3, "name": "Unsolved" },
+        ],
+    });
+    let head = hub_head(&canonical, title, description, &[ld_app, ld_crumbs]);
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Bitcoin Puzzle", Some("/bitcoin-puzzle")),
+        ("Unsolved", None),
+    ]);
+    let unsolved = puzzles::all().filter(|item| !item.solved).count();
+    let body = format!(
+        "{}{crumbs}<main class=\"key-page\">\
+         <section class=\"hero\"><h1>Unsolved Bitcoin puzzles</h1>\
+         <p>There are {unsolved} unsolved puzzles in the public #1–#160 set. Each card links to a local browser scan for that puzzle's key range.</p></section>\
+         <section class=\"card\">{picker}{tabs}\
+         <p class=\"puzzle-note\">Ranges follow 2^(n-1) to 2^n-1. A puzzle leaves this list when its target address is spent; the embedded status comes from the public dataset (privatekeyfinder.io, crawled 2026-11-19).</p>{grid}</section>\
+         </main>\
+         <script src=\"/puzzle-browser.js\" defer></script>",
+        site_header(),
+        picker = puzzle_picker(71, "random"),
+        tabs = puzzle_tabs(71, "unsolved"),
+        grid = puzzle_unsolved_grid()
+    );
+    html_document(title, &head, &body)
+}
+
+fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
+    let item = puzzles::puzzle(number).expect("route validated the puzzle number");
+    let (start_hex, end_hex) =
+        puzzles::range_hex(number).expect("route validated the puzzle number");
+    let view = if random { "random" } else { "detail" };
+    let view_label = if random { "Random Keys" } else { "Detail" };
+    let canonical = format!("{base}/bitcoin-puzzle/{number}/{view}");
+    let title = if random {
+        format!("Bitcoin Puzzle #{number} — Random Keys | Rotor")
+    } else {
+        format!("Bitcoin Puzzle #{number} — Detail | Rotor")
+    };
+    let description = if random {
+        format!(
+            "Scan the key range of public Bitcoin puzzle #{number} locally in your browser. Target {}, random or sequential WASM workers, no key upload.",
+            item.target
+        )
+    } else {
+        format!(
+            "Puzzle #{number} detail: target {}, inclusive key range, balance and explorer links. The search runs locally in the browser.",
+            item.target
+        )
+    };
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": title,
+        "url": canonical,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let ld_crumbs = json!({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
+            { "@type": "ListItem", "position": 2, "name": "Bitcoin Puzzle", "item": format!("{base}/bitcoin-puzzle") },
+            { "@type": "ListItem", "position": 3, "name": format!("Puzzle #{number}"), "item": format!("{base}/bitcoin-puzzle/{number}/detail") },
+            { "@type": "ListItem", "position": 4, "name": view_label },
+        ],
+    });
+    let head = hub_head(&canonical, &title, &description, &[ld_app, ld_crumbs]);
+
+    let puzzle_label = format!("Puzzle #{number}");
+    let detail_href = format!("/bitcoin-puzzle/{number}/detail");
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Bitcoin Puzzle", Some("/bitcoin-puzzle")),
+        (puzzle_label.as_str(), Some(detail_href.as_str())),
+        (view_label, None),
+    ]);
+
+    let status = puzzle_badge(item.solved);
+    let status_sentence = if item.solved {
+        format!(
+            "The public dataset lists puzzle #{number} as solved. The target address has been spent."
+        )
+    } else {
+        format!(
+            "Puzzle #{number} is unsolved. The target below is the only match; everything else in the range is noise."
+        )
+    };
+    let solved_pct = if item.solved { 100 } else { 0 };
+    let status_progress = if item.solved {
+        "Solved: the target address is spent. Global search progress is not published, so this bar shows the solved / unsolved status only."
+    } else {
+        "Unsolved: the target address still holds the prize. Global search progress is not published; Random Keys shows the progress of your own local run."
+    };
+
+    let detail = format!(
+        "<section class=\"card\" data-puzzle-target=\"{target}\"><h2>Puzzle detail</h2>\
+         <div class=\"puzzle-facts\">\
+         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Target address</span><code class=\"puzzle-fact-value\">{target}</code></div>\
+         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Balance</span><strong class=\"puzzle-fact-value\" data-puzzle-balance>—</strong><span class=\"puzzle-fact-note\" data-puzzle-balance-state>loading via mempool.space</span></div>\
+         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Range start</span><code class=\"puzzle-fact-value mono\">{start_hex}</code></div>\
+         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Range end</span><code class=\"puzzle-fact-value mono\">{end_hex}</code></div>\
+         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Range size</span><strong class=\"puzzle-fact-value\">2^{bits} keys</strong></div>\
+         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Status</span><span class=\"puzzle-fact-value\">{status}</span></div>\
+         </div>\
+         <div class=\"puzzle-progress\"><div class=\"progress\" role=\"img\" aria-label=\"Puzzle solved status\"><span class=\"bar\" style=\"width:{solved_pct}%\"></span></div>\
+         <p class=\"puzzle-progress-text\">{status_progress}</p></div>\
+         <p class=\"puzzle-actions\"><a class=\"button primary\" href=\"/bitcoin-puzzle/{number}/random\">Open Random Keys</a>\
+         <a class=\"button\" href=\"https://www.blockchain.com/btc/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">Blockchain</a>\
+         <a class=\"button\" href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">Mempool</a>\
+         <button type=\"button\" data-puzzle-check>Check</button></p>\
+         <p class=\"puzzle-note\">The balance line is read from mempool.space for this public puzzle address. The page never sends a private key or scan result.</p></section>\
+         <section class=\"card\"><h2>How this range works</h2>\
+         <p class=\"puzzle-note\">Puzzle n spans every private key from 2^(n-1) to 2^n-1, so puzzle #{number} covers {bits} bits. A valid match is the single key whose public key hashes to the target address; every other key in the range is discarded.</p>\
+         <p class=\"puzzle-note\">Splits only narrow the search window. They do not change the target, the range formula, or the difficulty per tested key.</p></section>",
+        target = escape_attr(item.target),
+        start_hex = start_hex,
+        end_hex = end_hex,
+        bits = number - 1,
+        status = status,
+        solved_pct = solved_pct,
+        status_progress = status_progress,
+        number = number
+    );
+
+    let presets = "<div class=\"puzzle-presets\" role=\"group\" aria-label=\"Range presets\">\
+         <button type=\"button\" class=\"active\" data-range-preset=\"full\">Full</button>\
+         <button type=\"button\" data-range-preset=\"first\">1st Half</button>\
+         <button type=\"button\" data-range-preset=\"second\">2nd Half</button>\
+         <button type=\"button\" data-range-preset=\"q1\">Q1</button>\
+         <button type=\"button\" data-range-preset=\"q2\">Q2</button>\
+         <button type=\"button\" data-range-preset=\"q3\">Q3</button>\
+         <button type=\"button\" data-range-preset=\"q4\">Q4</button>\
+         </div>";
+    let worker = format!(
+        "<section class=\"card puzzle-app\" data-puzzle-app data-puzzle-number=\"{number}\" data-puzzle-target=\"{target}\" data-puzzle-start=\"{start_hex}\" data-puzzle-end=\"{end_hex}\" data-puzzle-solved=\"{solved}\">\
+         <h2>Random keys — browser scan</h2>\
+         <p class=\"puzzle-balance-line\">Target balance <strong data-puzzle-balance>—</strong> <span class=\"puzzle-fact-note\" data-puzzle-balance-state>loading via mempool.space</span></p>\
+         <p class=\"puzzle-note\">The scan uses the Rotor WebAssembly core in local Web Workers. Keys are generated, tested and discarded inside this tab; the optional balance check only reads this public target address.</p>\
+         <div class=\"puzzle-controls\">\
+         <label>Mode <select data-puzzle-mode><option value=\"random\" selected>Solo Random</option><option value=\"seq\">Solo Seq</option><option value=\"team\">Team</option></select></label>\
+         <label>Workers <input type=\"number\" min=\"1\" max=\"8\" step=\"1\" value=\"1\" inputmode=\"numeric\" data-puzzle-workers></label>\
+         </div>\
+         {presets}\
+         <div class=\"puzzle-range\">\
+         <label>Range start <input class=\"mono\" data-puzzle-start-input value=\"{start_hex}\" spellcheck=\"false\" autocomplete=\"off\" aria-label=\"Range start in hex\"></label>\
+         <label>Range end <input class=\"mono\" data-puzzle-end-input value=\"{end_hex}\" spellcheck=\"false\" autocomplete=\"off\" aria-label=\"Range end in hex\"></label>\
+         </div>\
+         <div class=\"puzzle-actions\">\
+         <button type=\"button\" class=\"primary\" data-puzzle-start-btn>Start</button>\
+         <button type=\"button\" data-puzzle-stop-btn disabled>Stop</button>\
+         <button type=\"button\" data-puzzle-reset-btn>Reset</button>\
+         <button type=\"button\" data-puzzle-check>Check</button>\
+         </div>\
+         <p class=\"puzzle-state\" data-puzzle-state role=\"status\" aria-live=\"polite\">Ready. Press Start or Space.</p>\
+         <div class=\"puzzle-team-note\" data-puzzle-team-note hidden>Team mode is the coordinator pool, not this local scan. <a href=\"/bitcoin-puzzle#team\">Open the pooled job board</a> or <a href=\"/run\">run a lease worker</a>. Local and leased work never mix.</div>\
+         <div class=\"stat-grid puzzle-counters\">\
+         <div class=\"stat\"><span class=\"stat-label\">Generated</span><span class=\"stat-value small\" data-puzzle-generated>0</span></div>\
+         <div class=\"stat\"><span class=\"stat-label\">Speed /s</span><span class=\"stat-value small\" data-puzzle-speed>0</span></div>\
+         <div class=\"stat\"><span class=\"stat-label\">Workers</span><span class=\"stat-value small\" data-puzzle-worker-count>0</span></div>\
+         <div class=\"stat\"><span class=\"stat-label\">WASM</span><span class=\"stat-value small\" data-puzzle-wasm>loading</span></div>\
+         <div class=\"stat\"><span class=\"stat-label\">Match</span><span class=\"stat-value small\" data-puzzle-match-count>0</span></div>\
+         <div class=\"stat\"><span class=\"stat-label\">ETA</span><span class=\"stat-value small\" data-puzzle-eta>—</span></div>\
+         <div class=\"stat\"><span class=\"stat-label\">Network /s</span><span class=\"stat-value small\" data-puzzle-network title=\"Local-only scan; nothing is uploaded.\">0 · local</span></div>\
+         </div>\
+         <div class=\"puzzle-progress\"><div class=\"progress\" role=\"progressbar\" aria-label=\"Local scan progress\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\" data-puzzle-progress-bar><span class=\"bar\" data-puzzle-progress style=\"width:0%\"></span></div>\
+         <p class=\"puzzle-progress-text\" data-puzzle-progress-text>No keys scanned yet.</p></div>\
+         <div class=\"puzzle-match\" data-puzzle-match hidden>\
+         <h3>MATCH FOUND</h3>\
+         <p class=\"puzzle-match-target\">Target <code>{target}</code></p>\
+         <div class=\"puzzle-match-key\"><span>Private key</span><code data-puzzle-match-key></code><button type=\"button\" data-puzzle-copy>Copy</button></div>\
+         <p class=\"puzzle-note\">The key stayed in this browser. Verify it against the target before using it anywhere.</p>\
+         </div></section>",
+        number = number,
+        target = escape_attr(item.target),
+        start_hex = start_hex,
+        end_hex = end_hex,
+        solved = item.solved,
+        presets = presets
+    );
+
+    let content = if random { worker } else { detail };
+    let body = format!(
+        "{}{crumbs}<main class=\"key-page\">\
+         <section class=\"card puzzle-head\">\
+         <div class=\"puzzle-head-row\"><div><h1>Bitcoin Puzzle #{number}</h1>\
+         <p class=\"puzzle-note\">{status_sentence}</p></div>{status}</div>\
+         {picker}{tabs}</section>\
+         {content}\
+         </main>\
+         <script src=\"/puzzle-browser.js\" defer></script>",
+        site_header(),
+        number = number,
+        status_sentence = status_sentence,
+        status = status,
+        picker = puzzle_picker(number, view),
+        tabs = puzzle_tabs(number, view),
+        content = content
+    );
+    html_document(&title, &head, &body)
 }
 
 fn hub_head(
@@ -2598,6 +2973,17 @@ fn render_sitemap(base: &str) -> String {
 ",
         escape_attr(base)
     ));
+    for puzzle_path in [
+        "/bitcoin-puzzle/unsolved",
+        "/bitcoin-puzzle/71/detail",
+        "/bitcoin-puzzle/71/random",
+    ] {
+        urls.push_str(&format!(
+            "  <url><loc>{}{puzzle_path}</loc></url>
+",
+            escape_attr(base)
+        ));
+    }
     for page in [
         "/faq",
         "/disclaimer",
@@ -3834,7 +4220,9 @@ mod tests {
             seo_asset(base, "/bitcoin-puzzle", "").expect("/bitcoin-puzzle");
         assert_eq!(status, 200);
         assert_eq!(content_type, "text/html; charset=utf-8");
-        assert!(body.contains("<title>Bitcoin puzzle — pooled key search | Rotor</title>"));
+        assert!(
+            body.contains("<title>Bitcoin puzzle browser — client-side key search | Rotor</title>")
+        );
         assert!(body.contains(&format!(
             "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle\">"
         )));
@@ -3842,10 +4230,13 @@ mod tests {
         assert!(body.contains("property=\"og:url\""));
         assert!(body.contains("robots\" content=\"index,follow"));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
-        assert!(body.contains("\"name\":\"Puzzles\""));
+        assert!(body.contains("\"name\":\"Bitcoin Puzzle\""));
+        assert!(body.contains("data-puzzle-picker"));
+        assert!(body.contains("id=\"unsolved\""));
         assert!(body.contains("data-puzzle-jobs"));
         assert!(body.contains("data-puzzle-summary"));
         assert!(body.contains("<script src=\"/puzzle.js\" defer></script>"));
+        assert!(body.contains("<script src=\"/puzzle-browser.js\" defer></script>"));
         assert!(body.contains("href=\"/run\""));
         assert!(body.contains("href=\"/cabinet\""));
         assert!(body.contains("href=\"/docs\""));
@@ -3858,6 +4249,109 @@ mod tests {
             js.windows(19)
                 .any(|window| window == b"/api/v1/jobs/public")
         );
+    }
+
+    #[test]
+    fn bitcoin_puzzle_browser_routes_are_served() {
+        let base = "https://rotor.pxbt.app";
+        let target = "1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU";
+        let (body, content_type, status) =
+            seo_asset(base, "/bitcoin-puzzle/71/random", "").expect("#71 random");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(body.contains("<title>Bitcoin Puzzle #71 — Random Keys | Rotor</title>"));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle/71/random\">"
+        )));
+        assert!(body.contains("<a href=\"/bitcoin-puzzle\">Bitcoin Puzzle</a>"));
+        assert!(body.contains("Puzzle #71"));
+        assert!(body.contains("Random Keys"));
+        assert!(body.contains("data-puzzle-app"));
+        assert!(body.contains(&format!("data-puzzle-target=\"{target}\"")));
+        assert!(body.contains("0000000000000000000000000000000000000000000000400000000000000000"));
+        assert!(body.contains("00000000000000000000000000000000000000000000007fffffffffffffffff"));
+        assert!(body.contains("data-puzzle-mode"));
+        assert!(body.contains("Solo Random"));
+        assert!(body.contains("Solo Seq"));
+        assert!(body.contains(">Team</option>"));
+        assert!(body.contains("data-range-preset=\"full\""));
+        assert!(body.contains("data-range-preset=\"first\""));
+        assert!(body.contains("data-range-preset=\"second\""));
+        assert!(body.contains("data-range-preset=\"q4\""));
+        assert!(body.contains("data-puzzle-start-btn"));
+        assert!(body.contains("data-puzzle-stop-btn"));
+        assert!(body.contains("data-puzzle-reset-btn"));
+        assert!(body.contains("data-puzzle-check"));
+        assert!(body.contains("data-puzzle-match"));
+        assert!(body.contains("data-puzzle-copy"));
+        assert!(body.contains("<script src=\"/puzzle-browser.js\" defer></script>"));
+
+        let (detail, _, status) =
+            seo_asset(base, "/bitcoin-puzzle/71/detail", "").expect("#71 detail");
+        assert_eq!(status, 200);
+        assert!(detail.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle/71/detail\">"
+        )));
+        assert!(detail.contains(target));
+        assert!(detail.contains(&format!("https://mempool.space/address/{target}")));
+        assert!(detail.contains(&format!("https://www.blockchain.com/btc/address/{target}")));
+        assert!(detail.contains("data-puzzle-balance"));
+        assert!(detail.contains("Puzzle #71 is unsolved"));
+        assert!(!detail.contains("data-puzzle-app"));
+
+        let (short, _, status) =
+            seo_asset(base, "/bitcoin-puzzle/71", "").expect("#71 short route");
+        assert_eq!(status, 200);
+        assert!(short.contains(
+            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/bitcoin-puzzle/71/detail\">"
+        ));
+
+        let (unsolved, _, status) =
+            seo_asset(base, "/bitcoin-puzzle/unsolved", "").expect("/bitcoin-puzzle/unsolved");
+        assert_eq!(status, 200);
+        assert!(
+            unsolved
+                .contains("<title>Unsolved Bitcoin puzzles — local browser scan | Rotor</title>")
+        );
+        assert!(unsolved.contains(target));
+        assert!(!unsolved.contains("1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"));
+        assert!(unsolved.contains("data-puzzle-picker"));
+    }
+
+    #[test]
+    fn bitcoin_puzzle_routes_reject_bad_input() {
+        let base = "https://rotor.pxbt.app";
+        for path in [
+            "/bitcoin-puzzle/0",
+            "/bitcoin-puzzle/0/random",
+            "/bitcoin-puzzle/161",
+            "/bitcoin-puzzle/161/detail",
+            "/bitcoin-puzzle/not-a-number/random",
+            "/bitcoin-puzzle/71/unknown",
+            "/bitcoin-puzzle/71/random/extra",
+            "/bitcoin-puzzle/71/detail/extra",
+        ] {
+            let (_, content_type, status) = seo_asset(base, path, "").expect(path);
+            assert_eq!(status, 404, "{path}");
+            assert_eq!(content_type, "text/html; charset=utf-8");
+        }
+    }
+
+    #[test]
+    fn puzzle_browser_assets_are_embedded() {
+        for path in ["/puzzle-browser.js", "/puzzle-worker.js"] {
+            let (body, content_type) = static_asset(path).expect("puzzle asset is embedded");
+            assert_eq!(content_type, "application/javascript; charset=utf-8");
+            assert!(!body.is_empty());
+        }
+        let (worker, _) = static_asset("/puzzle-worker.js").expect("puzzle worker");
+        let worker = std::str::from_utf8(worker).expect("utf-8 worker");
+        assert!(worker.contains("/rotor_wasm.wasm"));
+        assert!(worker.contains("set_job"));
+        let (browser, _) = static_asset("/puzzle-browser.js").expect("puzzle browser");
+        let browser = std::str::from_utf8(browser).expect("utf-8 browser");
+        assert!(browser.contains("/puzzle-worker.js"));
+        assert!(browser.contains("mempool.space"));
     }
 
     fn sample_job_view(target: Option<&str>, targets: &[&str]) -> state::JobView {
