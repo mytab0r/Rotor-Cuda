@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milk Sad (CVE-2023-39910) — what it is and what to do | Rotor</title>
+<meta name="description" content="Milk Sad is the Libbitcoin Explorer bx seed weakness: a 32-bit Mersenne Twister seed reduced key entropy to about 4.3 billion possibilities. Check whether a wallet you created is affected.">
+<link rel="canonical" href="https://rotor.pxbt.app/milk-sad">
+<link rel="stylesheet" href="/site.css?v=20261119k">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg></span>
+      <div>
+        <h1>Milk Sad</h1>
+        <p class="key-tagline">CVE-2023-39910: Libbitcoin Explorer 3.x <code class="mono">bx seed</code> used a Mersenne Twister PRNG seeded by 32-bit system time. A wallet made that way had about 4.3 billion possible keys instead of 2<sup>256</sup>.</p>
+        <div class="key-badges"><span>CVE-2023-39910</span><span>Weak entropy</span><span>Owner action</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>What happened</h2>
+    <p><code class="mono">bx seed</code> in libbitcoin-explorer 3.x generated key material with MT19937. Seeding that generator with a 32-bit timestamp collapsed the key space to roughly 2<sup>32</sup>. Any wallet created with affected <code class="mono">bx seed</code> versions can be reproduced by anyone who guesses the generation time.</p>
+    <p>The vulnerability is public and documented by the Milk Sad project. It is not a flaw in Bitcoin, secp256k1 or the wallets that generate keys from a proper CSPRNG.</p>
+  </section>
+
+  <section class="card">
+    <h2>Are you affected?</h2>
+    <ul>
+      <li>You used <strong>libbitcoin-explorer 3.x</strong>, or a wallet/service that used its <code class="mono">bx seed</code> output, to create the key.</li>
+      <li>The wallet was created in the period covered by the Milk Sad research.</li>
+      <li>You still control the same key or seed and have not moved the funds.</li>
+    </ul>
+    <p>Use the official checker and the published research to evaluate a specific wallet: <a href="https://milksad.info/" target="_blank" rel="noopener noreferrer">milksad.info</a>. Do not paste a live seed phrase into an arbitrary site; use an offline machine for a real wallet.</p>
+  </section>
+
+  <section class="card">
+    <h2>What to do</h2>
+    <ol>
+      <li>Create a new wallet with a reputable CSPRNG and a fresh seed phrase.</li>
+      <li>Move the funds to the new wallet as soon as you can, starting with the highest-value addresses.</li>
+      <li>Do not reuse the old seed phrase, even after moving the funds.</li>
+      <li>If the key is still online, treat it as public: an idle vulnerable key cannot be protected by watching it.</li>
+    </ol>
+    <p class="muted">This page is documentation, not a recovery service. Rotor does not scan third-party wallets, does not hold funds and cannot move them for you.</p>
+  </section>
+
+  <section class="card">
+    <h2>Why this page does not list vulnerable keys</h2>
+    <p>A searchable directory of every weak key and its balances is a target list, not a safety tool. It helps someone take funds from wallets they do not own. The owner of an affected wallet already has the public research and the official checker; publishing the whole enumeration adds no protection for that owner.</p>
+  </section>
+
+  <section class="directory-links">
+    <a href="https://milksad.info/" target="_blank" rel="noopener noreferrer">Official Milk Sad research</a>
+    <a href="https://nvd.nist.gov/vuln/detail/CVE-2023-39910" target="_blank" rel="noopener noreferrer">CVE-2023-39910</a>
+    <a href="/seed">Seed phrase converter</a>
+    <a href="/key">Key explorer</a>
+  </section>
+</main>
+
+<script src="/site.js?v=20261119k"></script>
+</body>
+</html>
