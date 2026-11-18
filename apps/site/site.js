@@ -168,13 +168,22 @@
     dialog.id = 'global-search';
     dialog.innerHTML =
       '<form class="global-search-form" id="global-search-form">' +
-      '<div class="global-search-field">' +
-      '<svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg>' +
-      '<input id="global-search-input" type="text" autocomplete="off" spellcheck="false" ' +
-      'aria-label="Search a private key, WIF or brainwallet" placeholder="Search key, WIF or brainwallet">' +
-      '<kbd>Esc</kbd>' +
+      '<div class="global-search-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Wallet search</span><kbd>Esc</kbd></div>' +
+      '<textarea id="global-search-input" rows="3" autocomplete="off" spellcheck="false" ' +
+      'aria-label="Enter a private key, mnemonic or brainwallet text" placeholder="Enter private key, mnemonic, or any text (brainwallet)…"></textarea>' +
+      '<p class="global-search-hint">Auto-detect: HEX, WIF, Keypair, XRP Secret, Mnemonic, Brainwallet</p>' +
+      '<div class="global-search-chains" aria-label="Supported chains">' +
+      '<svg class="crypto"><use href="/icons.svg#chain-bitcoin"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-ethereum"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-bnb"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-solana"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-tron"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-xrp"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-litecoin"></use></svg>' +
+      '<svg class="crypto"><use href="/icons.svg#chain-dogecoin"></use></svg>' +
+      '<button type="button" class="search-more" disabled>+ more</button>' +
       '</div>' +
-      '<p class="global-search-hint">HEX, WIF, byte arrays and brainwallet text are decoded locally. Nothing is uploaded.</p>' +
+      '<button type="submit" class="primary global-search-submit">Search all chains</button>' +
       '<p class="global-search-error" id="global-search-error" role="alert" hidden></p>' +
       '</form>';
     document.body.appendChild(dialog);
@@ -211,6 +220,12 @@
       event.preventDefault();
       var value = input.value.trim();
       if (!value) return;
+      var words = value.split(/\s+/);
+      if (words.length === 12 || words.length === 15 || words.length === 18 || words.length === 21 || words.length === 24) {
+        try { sessionStorage.setItem('rotor-seed-phrase', value); } catch (err) { /* private mode */ }
+        window.location.href = '/seed';
+        return;
+      }
       ensureParser().then(function (parser) {
         return parser.resolve(value);
       }).then(function (hex) {
