@@ -260,7 +260,8 @@ the same WASM artifact the worker uses; the coordinator only serves the page.
 - Accepts a key as hex (64 chars, optional `0x`), a decimal integer, or a
   Bitcoin WIF.
 - Curves: secp256k1 and ed25519.
-- Addresses: BTC legacy/P2SH/segwit/taproot, EVM, TRON and Solana. Every
+- Addresses: BTC legacy/P2SH/segwit/taproot, EVM, TRON, Solana, Litecoin,
+  Dogecoin, Bitcoin Cash and XRP. Every
   calculation is expandable to show the intermediate values.
 - Online balance lookups are opt-in and off by default. When enabled, only the
   derived addresses currently shown are queried: BTC via mempool.space, EVM via
