@@ -9,7 +9,7 @@
 - [ ] Time-boxed `rust-gpu` SPIR-V spike; record toolchain pin, driver status,
       keys/s.
 - [ ] Decide: port winner, or keep CUDA feature-gated and mark Rust-only
-      blocked. Record the verdict and the 70% floor in `design.md`.
+      blocked. Record the verdict and the 98% floor in `design.md`.
 
 ## 2. Chain descriptors and CLI [desktop]
 - [ ] Replace `enum Coin` with the `Chain` descriptor table covering all 18
@@ -23,7 +23,8 @@
       for BTC, LTC, DOGE, BCH, ZEC, XRP, ETH, TRON.
 - [ ] Port `BinSort/BinSort.cpp` to a Rust subcommand/helper or delete it if
       the Rust sorter already covers it; remove the `.vcxproj`/Makefile.
-      This is independent of the CUDA gate.
+      Evaluate `rust-anything` (record/diff) for this non-GPU port. This is
+      independent of the CUDA gate.
 - [ ] CLI help/docs updated; deprecated `--coin` emits a warning, not an error.
 
 ## 3. secp-hash160 family [desktop]
@@ -47,7 +48,7 @@
       SUI BLAKE2b-256 account. (blocked by: 2)
 - [ ] Target parsing and `Found.txt` for both; xpoint/BSGS rejected.
 - [ ] Fixtures from `derive_report` curve=1; test seed 1 and a random seed.
-- [ ] GPU ed25519 kernel spike; enable only if it passes the same 70% floor.
+- [ ] GPU ed25519 kernel spike; enable only if it passes the same 98% floor.
 
 ## 6. TON v4 [desktop]
 - [ ] Port v4R2 StateInit serialization and CRC16/base64url display; fixture
