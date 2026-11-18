@@ -715,6 +715,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             SEED_PAGE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/ton.js" => Some((
+            include_str!("../../apps/site/ton.js").as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/search.js" => Some((
             SEARCH_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -794,6 +798,7 @@ enum AddressKind {
     Xrp,
     Zcash,
     Sui,
+    Ton,
 }
 
 struct AddressType {
@@ -897,11 +902,17 @@ const SUI_TYPES: &[AddressType] = &[AddressType {
     desc: "0x…",
     field: "sui",
 }];
+const TON_TYPES: &[AddressType] = &[AddressType {
+    value: "legacy",
+    label: "Wallet v4R2",
+    desc: "EQ…",
+    field: "ton",
+}];
 
 impl AddressKind {
     fn curve(self) -> u32 {
         match self {
-            Self::Solana | Self::Sui => 1,
+            Self::Solana | Self::Sui | Self::Ton => 1,
             _ => 0,
         }
     }
@@ -918,6 +929,7 @@ impl AddressKind {
             Self::Xrp => XRP_TYPES,
             Self::Zcash => ZCASH_TYPES,
             Self::Sui => SUI_TYPES,
+            Self::Ton => TON_TYPES,
         }
     }
 
@@ -940,7 +952,7 @@ struct ChainHub {
     explorer: &'static str,
 }
 
-const CHAINS: [ChainHub; 17] = [
+const CHAINS: [ChainHub; 18] = [
     ChainHub {
         slug: "bitcoin",
         name: "Bitcoin",
@@ -1144,6 +1156,18 @@ const CHAINS: [ChainHub; 17] = [
         color: "#6fbcf0",
         icon: "chain-sui",
         explorer: "https://suiscan.xyz/mainnet/account/",
+    },
+    ChainHub {
+        slug: "ton",
+        name: "TON",
+        symbol: "TON",
+        description: "TON Wallet v4R2 addresses derived from the ed25519 public key.",
+        intro: "A TON wallet address is the hash of the wallet contract StateInit. Rotor builds the standard v4R2 wallet locally from the ed25519 key; the contract is not deployed until it receives funds.",
+        curve_suffix: "?curve=ed25519",
+        kind: AddressKind::Ton,
+        color: "#0098ea",
+        icon: "chain-ton",
+        explorer: "https://tonviewer.com/",
     },
 ];
 
@@ -1434,8 +1458,8 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261119d\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119d\"></script>\n<script src=\"/site.js?v=20261119d\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261119g\">\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119g\"></script>\n<script src=\"/site.js?v=20261119g\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -1637,8 +1661,8 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
 
 fn render_keys_hub(base: &str) -> String {
     let canonical = format!("{base}/private-keys");
-    let title = "Private keys directory — browse keys on 17 chains | Rotor";
-    let description = "Browse private key pages for Bitcoin, Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync, Solana, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin, Zcash and Sui. Addresses are derived locally in your browser.";
+    let title = "Private keys directory — browse keys on 18 chains | Rotor";
+    let description = "Browse private key pages for Bitcoin, Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync, Solana, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin, Zcash, Sui and TON. Addresses are derived locally in your browser.";
     let ld_app = json!({
         "@context": "https://schema.org",
         "@type": "WebApplication",
@@ -2290,7 +2314,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261119d\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261119g\"></script>",
         site_header(),
         "",
         chain.color,
@@ -3525,7 +3549,7 @@ mod tests {
         let sitemap = render_sitemap(base);
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/seed</loc>"));
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/vanity</loc>"));
-        for chain in ["zcash", "sui"] {
+        for chain in ["zcash", "sui", "ton"] {
             let path = format!("/private-keys/{chain}");
             let (body, _, status) = seo_asset(base, &path, "").expect("chain hub");
             assert_eq!(status, 200);
