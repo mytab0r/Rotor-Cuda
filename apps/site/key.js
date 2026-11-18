@@ -6,6 +6,7 @@
   var WASM_URL = '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
   var URL_KEY_RE = /^\/key\/([0-9a-fA-F]{64})$/;
+  var URL_WIF_RE = /^\/key\/([5KL][1-9A-HJ-NP-Za-km-z]{50,51})$/;
   var EVM_RPC_URLS = [
     'https://ethereum-rpc.publicnode.com',
     'https://eth.drpc.org',
@@ -173,6 +174,8 @@
   var clearBtn = byId('clear-btn');
   var errorBox = byId('key-error');
   var summaryEl = byId('summary');
+  var summaryCard = byId('summary-card');
+  var addressesCard = byId('addresses-card');
   var rowsEl = byId('addr-rows');
   var presetEmpty = byId('preset-empty');
   var onlineToggle = byId('online-toggle');
@@ -405,6 +408,8 @@
 
   function clearResults() {
     cancelBalances();
+    if (summaryCard) summaryCard.hidden = true;
+    if (addressesCard) addressesCard.hidden = true;
     state.report = null;
     state.focusId = null;
     summaryPlaceholder();
@@ -507,15 +512,15 @@
 
   function renderReport(report) {
     state.report = report;
+    if (summaryCard) summaryCard.hidden = false;
+    if (addressesCard) addressesCard.hidden = false;
     state.balances = {};
     renderSummary(report);
     renderAddresses(report);
     attachTon(report);
     checkBtn.textContent = 'Check balances';
     checkBtn.disabled = !onlineToggle.checked || state.checking;
-    if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
-    else if (exposureToggle && exposureToggle.checked) scheduleExposure(report, false);
-    else hideExposureStatus();
+    hideExposureStatus();
   }
 
   function summaryFields(report) {
@@ -1447,8 +1452,9 @@
    * opt-in. Only the derived addresses leave this page. */
   function initUrlKey() {
     var match = URL_KEY_RE.exec(window.location.pathname);
-    if (!match) return;
-    state.urlKey = match[1].toLowerCase();
+    var wifMatch = match ? null : URL_WIF_RE.exec(window.location.pathname);
+    if (!match && !wifMatch) return;
+    state.urlKey = match ? match[1].toLowerCase() : wifMatch[1];
     input.value = state.urlKey;
     var curveParam = new URLSearchParams(window.location.search).get('curve');
     curveSelect.value = curveParam === 'ed25519' ? '1' : '0';

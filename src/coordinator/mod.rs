@@ -55,6 +55,7 @@ const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
 const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
 const SEED_PAGE_JS: &str = include_str!("../../apps/site/seed-page.js");
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
+const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
@@ -722,6 +723,7 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             "application/javascript; charset=utf-8",
         )),
         "/milk-sad" => Some((MILK_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/milk-sad.js" => Some((MILK_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/tools" => Some((TOOLS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/search.js" => Some((
             SEARCH_JS.as_bytes(),
@@ -1275,6 +1277,26 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
 /// Exactly 64 hex digits, non-zero; secp256k1 keys must also be below the
 /// curve order (the existing scalar parser enforces that). Returns lowercase.
 fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
+    // A Bitcoin WIF is accepted in the /key/<value> path as well, matching the
+    // donor-style key links. It is decoded to the 32-byte secp256k1 key here.
+    if curve != "ed25519"
+        && (51..=52).contains(&hex.len())
+        && matches!(hex.as_bytes().first(), Some(b'5' | b'K' | b'L'))
+    {
+        let decoded = bs58::decode(hex).with_check(None).into_vec().ok()?;
+        let key = match decoded.as_slice() {
+            [0x80, rest @ ..] if rest.len() == 32 => rest.to_vec(),
+            [0x80, rest @ .., 0x01] if rest.len() == 32 => rest.to_vec(),
+            _ => return None,
+        };
+        let lower = key
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        return crate::scalar::Scalar::from_hex(&lower)
+            .filter(|value| !value.is_zero())
+            .map(|_| lower);
+    }
     if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return None;
     }
@@ -1467,8 +1489,8 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261119k\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119k\"></script>\n<script src=\"/site.js?v=20261119k\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261119o\">\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119o\"></script>\n<script src=\"/site.js?v=20261119o\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2391,7 +2413,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261119k\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261119o\"></script>",
         site_header(),
         "",
         chain.color,
@@ -3639,6 +3661,25 @@ mod tests {
             assert_eq!(status, 200);
             assert!(body.contains("private keys"));
         }
+    }
+
+    #[test]
+    fn wif_key_path_resolves_to_the_hex_key() {
+        let base = "https://rotor.pxbt.app";
+        let wif = "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn";
+        let (body, _, status) = seo_asset(base, &format!("/key/{wif}"), "").expect("WIF key");
+        assert_eq!(status, 200);
+        assert!(body.contains("Private key 00000000"));
+        assert_eq!(
+            seo_asset(
+                base,
+                "/key/KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWx",
+                ""
+            )
+            .expect("bad WIF")
+            .2,
+            404
+        );
     }
 
     #[test]
