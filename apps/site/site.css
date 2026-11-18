@@ -2486,3 +2486,53 @@ code { font-family: var(--mono); font-size: .92em; }
 .milk-result { display: grid; gap: 8px; margin-top: 14px; }
 .milk-result .key-form-row { grid-template-columns: 150px minmax(0, 1fr); }
 @media (max-width: 560px) { .milk-form { grid-template-columns: 1fr; } .milk-result .key-form-row { grid-template-columns: 1fr; } }
+
+/* Compact chain rows: one address, one balance, icon actions */
+.keys-header,
+.key-row { grid-template-columns: minmax(0, 1.8fr) minmax(0, 2.1fr) 132px; }
+.key-row { min-height: 54px; padding-top: 6px; padding-bottom: 6px; }
+.col-address { display: block; min-width: 0; }
+.addr-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.addr-format {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+.addr-main .address-link { flex: 1 1 auto; min-width: 0; font-size: 12.5px; }
+.addr-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.addr-actions .icon-btn { width: 26px; height: 26px; }
+.addr-actions .icon { width: 14px; height: 14px; }
+.addr-wif {
+  padding: 2px 6px;
+  border: 1px solid rgba(245, 181, 68, .35);
+  border-radius: 5px;
+  color: var(--accent-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .03em;
+}
+.addr-wif:hover { border-color: var(--accent); text-decoration: none; }
+.col-balance { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+.col-balance small { color: var(--muted); font-size: 10px; }
+@media (max-width: 860px) {
+  .key-row { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 12px; }
+  .key-row .col-key { grid-column: 1 / -1; }
+  .key-row .col-address { grid-column: 1; }
+  .key-row .col-balance { grid-column: 2; grid-row: 1; }
+  .addr-format { display: none; }
+}
+
+/* Key address rows: one compact line plus details */
+.key-row { padding: 11px 13px; }
+.key-row-head { margin-bottom: 6px; }
+.key-addr-line { display: flex; align-items: center; gap: 6px; }
+.key-addr { flex: 1 1 auto; }
+.key-copy-icon { display: inline-grid; place-items: center; width: 34px; min-height: 34px; padding: 0; }
+.key-copy-icon .icon { width: 15px; height: 15px; }
+.key-steps { margin-top: 6px; }
+.key-steps > summary { font-size: 11.5px; }
