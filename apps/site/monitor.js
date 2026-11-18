@@ -4,6 +4,7 @@
   'use strict';
 
   var TOKEN_KEY = 'rotor-monitor-token';
+  var CLIENT_TOKEN_KEY = 'rotor-client-token';
   var API = '/api/v1/monitor';
   var POLL_MS = 15000;
   var TELEGRAM_POLL_MS = 3000;
@@ -31,6 +32,7 @@
     events: [],
     settingsDirty: false,
     telegram: { linked: false, known: false, busy: false, pending: false, pollTimer: null, deadline: 0 },
+    device: { token: '', busy: false },
     busy: false,
     busyChain: '',
     refreshing: false,
@@ -84,7 +86,14 @@
     telegramCodeBox: byId('monitor-telegram-code-box'),
     telegramCode: byId('monitor-telegram-code'),
     telegramDeepLink: byId('monitor-telegram-deep-link'),
-    telegramError: byId('monitor-telegram-error')
+    telegramError: byId('monitor-telegram-error'),
+    deviceForm: byId('monitor-device-form'),
+    deviceToken: byId('monitor-device-token'),
+    deviceLoad: byId('monitor-device-load'),
+    deviceForget: byId('monitor-device-forget'),
+    deviceError: byId('monitor-device-error'),
+    deviceState: byId('monitor-device-state'),
+    device: byId('monitor-device')
   };
 
   /* ------------------------------------------------------------------- api */
@@ -212,6 +221,135 @@
     els.settingsSave.textContent = 'Save settings';
     renderTelegram();
     renderProviders();
+  }
+
+  function storedClientToken() {
+    try { return localStorage.getItem(CLIENT_TOKEN_KEY) || ''; } catch (err) { return ''; }
+  }
+
+  function saveClientToken(value) {
+    try {
+      if (value) localStorage.setItem(CLIENT_TOKEN_KEY, value);
+      else localStorage.removeItem(CLIENT_TOKEN_KEY);
+    } catch (err) {
+      /* private mode: keep it in memory only */
+    }
+  }
+
+  function setDeviceError(message) {
+    els.deviceError.textContent = message || '';
+    els.deviceError.hidden = !message;
+  }
+
+  function renderDevice(data) {
+    els.device.textContent = '';
+    if (!data || !data.client) {
+      els.device.hidden = true;
+      els.deviceState.hidden = false;
+      els.deviceState.textContent = state.device.token ? 'No status for this token.' : 'No client token loaded.';
+      return;
+    }
+    var client = data.client;
+    var head = document.createElement('div');
+    head.className = 'monitor-watch-head';
+    var name = document.createElement('span');
+    name.className = 'monitor-chain';
+    name.textContent = client.name || client.id || 'client';
+    head.appendChild(name);
+    var stateToken = document.createElement('span');
+    stateToken.className = client.disabled ? 'monitor-unverified' : 'monitor-verified';
+    stateToken.textContent = client.disabled ? 'disabled' : 'active';
+    head.appendChild(stateToken);
+    els.device.appendChild(head);
+
+    var meta = document.createElement('div');
+    meta.className = 'monitor-watch-meta';
+    meta.appendChild(metaField('ID', formatValue(client.id)));
+    meta.appendChild(metaField('Rank', formatValue(data.rank)));
+    meta.appendChild(metaField('Rate', formatValue(client.rate)));
+    meta.appendChild(metaField('Scanned', formatValue(client.scanned_total)));
+    meta.appendChild(metaField('Chunks', formatValue(client.chunks_done)));
+    meta.appendChild(metaField('Found', formatValue(client.found)));
+    meta.appendChild(metaField('Last seen', client.last_seen ? formatTime(client.last_seen) : 'never'));
+    els.device.appendChild(meta);
+
+    if (data.lease) {
+      var lease = document.createElement('div');
+      lease.className = 'monitor-watch-meta';
+      lease.appendChild(metaField('Job', formatValue(data.lease.job_id)));
+      lease.appendChild(metaField('Chunk', formatValue(data.lease.chunk_index)));
+      lease.appendChild(metaField('Chunk scanned', formatValue(data.lease.scanned)));
+      lease.appendChild(metaField('Lease ends', formatTime(data.lease.expires_at)));
+      els.device.appendChild(lease);
+    } else {
+      var idle = document.createElement('p');
+      idle.className = 'muted monitor-note';
+      idle.textContent = 'No active lease right now.';
+      els.device.appendChild(idle);
+    }
+
+    var results = Array.isArray(data.results) ? data.results : [];
+    if (results.length) {
+      var title = document.createElement('p');
+      title.className = 'monitor-watch-label';
+      title.textContent = 'Recent findings';
+      els.device.appendChild(title);
+      results.slice(0, 5).forEach(function (result) {
+        var row = document.createElement('div');
+        row.className = 'monitor-watch-meta';
+        row.appendChild(metaField('Job', formatValue(result.job_id)));
+        row.appendChild(metaField('Key', formatValue(result.key)));
+        row.appendChild(metaField('Found', formatTime(result.found_at)));
+        els.device.appendChild(row);
+      });
+    }
+
+    els.deviceState.hidden = true;
+    els.device.hidden = false;
+  }
+
+  async function loadDevice(tokenOverride) {
+    if (state.device.busy) return;
+    var token = (tokenOverride || els.deviceToken.value || storedClientToken()).trim();
+    if (!token) {
+      setDeviceError('Paste a client token first.');
+      return;
+    }
+    state.device.busy = true;
+    els.deviceLoad.disabled = true;
+    els.deviceLoad.textContent = 'Loading…';
+    setDeviceError('');
+    try {
+      var data = await request('/api/v1/me', { token: token });
+      state.device.token = token;
+      els.deviceToken.value = token;
+      saveClientToken(token);
+      els.deviceForget.disabled = false;
+      renderDevice(data);
+    } catch (err) {
+      if (err && (err.status === 401 || err.status === 404)) {
+        state.device.token = '';
+        saveClientToken('');
+        els.deviceForget.disabled = true;
+        renderDevice(null);
+        setDeviceError('That client token is not valid or the account is disabled.');
+      } else {
+        setDeviceError(err && err.message ? err.message : 'Could not load the status.');
+      }
+    } finally {
+      state.device.busy = false;
+      els.deviceLoad.disabled = false;
+      els.deviceLoad.textContent = 'Load status';
+    }
+  }
+
+  function forgetDevice() {
+    state.device.token = '';
+    els.deviceToken.value = '';
+    saveClientToken('');
+    els.deviceForget.disabled = true;
+    setDeviceError('');
+    renderDevice(null);
   }
 
   /* --------------------------------------------------------------- rendering */
@@ -1521,6 +1659,11 @@
   els.settingsForm.addEventListener('submit', saveSettings);
   els.telegramLink.addEventListener('click', linkTelegram);
   els.telegramUnlink.addEventListener('click', unlinkTelegram);
+  els.deviceForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    loadDevice();
+  });
+  els.deviceForget.addEventListener('click', forgetDevice);
   els.recovery.addEventListener('change', function () { state.settingsDirty = true; });
   els.alerts.addEventListener('change', function () { state.settingsDirty = true; });
   els.copyAccount.addEventListener('click', function () {
@@ -1539,6 +1682,15 @@
   renderEvents([]);
   renderSettings(state.settings);
   renderTelegram();
+  var savedClient = storedClientToken();
+  if (savedClient) {
+    state.device.token = savedClient;
+    els.deviceToken.value = savedClient;
+    els.deviceForget.disabled = false;
+    loadDevice(savedClient);
+  } else {
+    renderDevice(null);
+  }
   els.eventsState.textContent = 'Sign in to load the event feed.';
   els.eventsState.hidden = false;
 

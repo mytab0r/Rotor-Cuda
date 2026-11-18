@@ -47,31 +47,63 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
     let y_hex = hex(&point.y.to_bytes_be());
 
     let (compressed_payload, compressed_checksum, compressed_address) =
-        p2pkh_parts(&hash_compressed);
+        p2pkh_parts(&hash_compressed, 0x00);
     let (uncompressed_payload, uncompressed_checksum, uncompressed_address) =
-        p2pkh_parts(&hash_uncompressed);
+        p2pkh_parts(&hash_uncompressed, 0x00);
     let compressed_payload_hex = hex(&compressed_payload);
     let compressed_checksum_hex = hex(&compressed_checksum);
     let uncompressed_payload_hex = hex(&uncompressed_payload);
     let uncompressed_checksum_hex = hex(&uncompressed_checksum);
 
     // P2SH-P2WPKH: redeem script 0x0014 || hash160(compressed pubkey).
-    let mut redeem = [0u8; 22];
-    redeem[1] = 0x14;
-    redeem[2..].copy_from_slice(&hash_compressed);
+    let (redeem, script_hash, p2sh_payload, p2sh_checksum, p2sh_address) =
+        p2sh_p2wpkh_parts(&hash_compressed, 0x05);
     let redeem_hex = hex(&redeem);
-    let script_hash = hashes::hash160(&redeem);
     let script_hash_hex = hex(&script_hash);
-    let mut p2sh_payload = [0u8; 21];
-    p2sh_payload[0] = 0x05;
-    p2sh_payload[1..].copy_from_slice(&script_hash);
     let p2sh_payload_hex = hex(&p2sh_payload);
-    let p2sh_digest = hashes::sha256d(&p2sh_payload);
-    let p2sh_checksum_hex = hex(&p2sh_digest[..4]);
-    let p2sh_address = base58::encode_check(&p2sh_payload);
+    let p2sh_checksum_hex = hex(&p2sh_checksum);
 
     // P2WPKH: witness v0 over hash160(compressed pubkey).
     let (p2wpkh_address, p2wpkh_checksum) = bech32::encode_segwit("bc", 0, &hash_compressed, false);
+
+    // Litecoin uses the same encodings with its own version bytes and hrp.
+    let (ltc_p2pkh_payload, ltc_p2pkh_checksum, ltc_p2pkh_address) =
+        p2pkh_parts(&hash_compressed, 0x30);
+    let (ltc_redeem, ltc_script_hash, ltc_p2sh_payload, ltc_p2sh_checksum, ltc_p2sh_address) =
+        p2sh_p2wpkh_parts(&hash_compressed, 0x32);
+    let (ltc_p2wpkh_address, ltc_p2wpkh_checksum) =
+        bech32::encode_segwit("ltc", 0, &hash_compressed, false);
+
+    // Dogecoin legacy shares the P2PKH layout with version byte 0x1e.
+    let (doge_payload, doge_checksum, doge_address) = p2pkh_parts(&hash_compressed, 0x1e);
+
+    // Bitcoin Cash legacy is Bitcoin's P2PKH encoding (CashAddr is out of scope).
+    let (bch_payload, bch_checksum, bch_address) = p2pkh_parts(&hash_compressed, 0x00);
+
+    // XRP classic address: version 0x00, the account id and a four-byte
+    // double-SHA256 checksum, encoded with Ripple's own base58 alphabet.
+    let mut xrp_payload = [0u8; 21];
+    xrp_payload[1..].copy_from_slice(&hash_compressed);
+    let xrp_digest = hashes::sha256d(&xrp_payload);
+    let mut xrp_checksum = [0u8; 4];
+    xrp_checksum.copy_from_slice(&xrp_digest[..4]);
+    let mut xrp_data = [0u8; 25];
+    xrp_data[..21].copy_from_slice(&xrp_payload);
+    xrp_data[21..].copy_from_slice(&xrp_checksum);
+    let xrp_address = ripple_base58(&xrp_data);
+    let xrp_payload_hex = hex(&xrp_payload);
+    let xrp_checksum_hex = hex(&xrp_checksum);
+
+    let ltc_p2pkh_payload_hex = hex(&ltc_p2pkh_payload);
+    let ltc_p2pkh_checksum_hex = hex(&ltc_p2pkh_checksum);
+    let ltc_redeem_hex = hex(&ltc_redeem);
+    let ltc_script_hash_hex = hex(&ltc_script_hash);
+    let ltc_p2sh_payload_hex = hex(&ltc_p2sh_payload);
+    let ltc_p2sh_checksum_hex = hex(&ltc_p2sh_checksum);
+    let doge_payload_hex = hex(&doge_payload);
+    let doge_checksum_hex = hex(&doge_checksum);
+    let bch_payload_hex = hex(&bch_payload);
+    let bch_checksum_hex = hex(&bch_checksum);
 
     // P2TR: BIP341 key path with an empty script tree. The internal key is the
     // x-only key, so it is lift_x(x(P)): a point with odd y is negated before
@@ -173,6 +205,76 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
             ],
         ),
         address_object(
+            "ltc_p2pkh",
+            "Litecoin legacy",
+            &ltc_p2pkh_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &ltc_p2pkh_payload_hex),
+                ("checksum", &ltc_p2pkh_checksum_hex),
+                ("base58", &ltc_p2pkh_address),
+            ],
+        ),
+        address_object(
+            "ltc_p2sh_p2wpkh",
+            "Litecoin P2SH-P2WPKH",
+            &ltc_p2sh_address,
+            &[
+                ("redeem", &ltc_redeem_hex),
+                ("script_hash", &ltc_script_hash_hex),
+                ("payload", &ltc_p2sh_payload_hex),
+                ("checksum", &ltc_p2sh_checksum_hex),
+            ],
+        ),
+        address_object(
+            "ltc_p2wpkh",
+            "Litecoin native segwit",
+            &ltc_p2wpkh_address,
+            &[
+                ("hrp", "ltc"),
+                ("witness_version", "0"),
+                ("program", &hash_compressed_hex),
+                ("checksum", &ltc_p2wpkh_checksum),
+            ],
+        ),
+        address_object(
+            "doge_p2pkh",
+            "Dogecoin legacy",
+            &doge_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &doge_payload_hex),
+                ("checksum", &doge_checksum_hex),
+                ("base58", &doge_address),
+            ],
+        ),
+        address_object(
+            "bch_legacy",
+            "Bitcoin Cash legacy (P2PKH)",
+            &bch_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &bch_payload_hex),
+                ("checksum", &bch_checksum_hex),
+                ("base58", &bch_address),
+            ],
+        ),
+        address_object(
+            "xrp_classic",
+            "XRP classic address",
+            &xrp_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &xrp_payload_hex),
+                ("checksum", &xrp_checksum_hex),
+                ("base58", &xrp_address),
+            ],
+        ),
+        address_object(
             "evm",
             "Ethereum / EVM",
             &evm_address,
@@ -246,14 +348,65 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
 }
 
 /// Base58Check parts of a P2PKH address: payload, checksum, full address.
-fn p2pkh_parts(hash: &[u8; 20]) -> ([u8; 21], [u8; 4], String) {
+fn p2pkh_parts(hash: &[u8; 20], version: u8) -> ([u8; 21], [u8; 4], String) {
     let mut payload = [0u8; 21];
+    payload[0] = version;
     payload[1..].copy_from_slice(hash);
     let digest = hashes::sha256d(&payload);
     let mut checksum = [0u8; 4];
     checksum.copy_from_slice(&digest[..4]);
     let address = base58::encode_check(&payload);
     (payload, checksum, address)
+}
+
+/// P2SH-P2WPKH parts: redeem script, its hash160, the versioned payload, the
+/// checksum and the Base58Check address.
+fn p2sh_p2wpkh_parts(
+    hash: &[u8; 20],
+    version: u8,
+) -> ([u8; 22], [u8; 20], [u8; 21], [u8; 4], String) {
+    let mut redeem = [0u8; 22];
+    redeem[1] = 0x14;
+    redeem[2..].copy_from_slice(hash);
+    let script_hash = hashes::hash160(&redeem);
+    let mut payload = [0u8; 21];
+    payload[0] = version;
+    payload[1..].copy_from_slice(&script_hash);
+    let digest = hashes::sha256d(&payload);
+    let mut checksum = [0u8; 4];
+    checksum.copy_from_slice(&digest[..4]);
+    let address = base58::encode_check(&payload);
+    (redeem, script_hash, payload, checksum, address)
+}
+
+/// Ripple's base58 alphabet, used by XRP classic addresses.
+const RIPPLE_ALPHABET: &[u8; 58] = b"rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+
+/// Encode bytes in Ripple's base58 alphabet. This is deliberately separate
+/// from Bitcoin's alphabet: the same bytes produce a different string.
+fn ripple_base58(data: &[u8]) -> String {
+    let zeros = data.iter().take_while(|&&byte| byte == 0).count();
+    let mut digits: Vec<u8> = Vec::with_capacity(data.len() * 138 / 100 + 1);
+    for &byte in &data[zeros..] {
+        let mut carry = u32::from(byte);
+        for digit in &mut digits {
+            let value = (u32::from(*digit) << 8) | carry;
+            *digit = (value % 58) as u8;
+            carry = value / 58;
+        }
+        while carry > 0 {
+            digits.push((carry % 58) as u8);
+            carry /= 58;
+        }
+    }
+    let mut out = String::with_capacity(zeros + digits.len());
+    for _ in 0..zeros {
+        out.push(char::from(RIPPLE_ALPHABET[0]));
+    }
+    for &digit in digits.iter().rev() {
+        out.push(char::from(RIPPLE_ALPHABET[digit as usize]));
+    }
+    out
 }
 
 /// BIP340 tagged hash: SHA256(SHA256(tag) || SHA256(tag) || message).

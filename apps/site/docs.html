@@ -4,17 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - docs</title>
-<link rel="stylesheet" href="/site.css?v=20261118d">
+<link rel="stylesheet" href="/site.css?v=20261118e">
 </head>
 <body>
 <header class="site-nav">
   <a class="brand" href="/">Rotor <span>Coordinator</span></a>
   <nav>
-    <a href="/app" id="nav-app">App</a>
-    <a href="/run" id="nav-run">Run</a>
+    <a href="/" id="nav-home">Home</a>
+    <a href="/private-keys" id="nav-chains">Chains</a>
+    <a href="/bitcoin-puzzle" id="nav-puzzles">Puzzles</a>
+    <a href="/brainwallet" id="nav-tools">Tools</a>
+    <a href="/docs" class="active" id="nav-docs" aria-current="page">Docs</a>
     <a href="/cabinet" id="nav-cabinet">Cabinet</a>
-    <a href="/docs" class="active" id="nav-docs">Docs</a>
-    <a href="/key" id="nav-key">Keys</a>
   </nav>
 </header>
 
@@ -87,7 +88,8 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       runs in this browser in the same WASM artifact the worker uses; the
       coordinator only serves the page. It accepts hex, decimal or Bitcoin WIF
       keys for secp256k1 and ed25519, and shows BTC (legacy/P2SH/segwit/taproot),
-      EVM, TRON and Solana addresses with expandable calculations.
+      EVM, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP addresses with
+      expandable calculations.
     </p>
     <ul>
       <li>Online balance lookups are opt-in and off by default. When enabled, only the derived addresses currently shown are queried: BTC via mempool.space, EVM via public Ethereum JSON-RPC providers (publicnode, dRPC, 1rpc; tried in order), TRON via Tronscan.</li>
@@ -97,12 +99,14 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
 
     <h2>Public key pages</h2>
     <p>
-      <a href="/keys">/keys</a> and <code>/keys/&lt;chain&gt;</code> are the
-      public hubs (Bitcoin, Ethereum, TRON, Solana) with breadcrumbs and
-      example key links. A URL such as <code>/key/&lt;64 hex&gt;</code> derives
-      the addresses for that key in your browser. Key pages are
-      <code>noindex,follow</code>; the hubs are indexed and listed in
-      <code>/sitemap.xml</code>.
+      <a href="/private-keys">/private-keys</a> and
+      <code>/private-keys/&lt;chain&gt;</code> are the public hubs (Bitcoin,
+      Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash, XRP) with
+      breadcrumbs; <code>/keys</code> is a permanent alias for the same hub.
+      A URL such as <code>/key/&lt;64 hex&gt;</code> derives the addresses for
+      that key in your browser. The first 64 keys and ranges are
+      <code>index,follow</code> and listed in <code>/sitemap.xml</code>;
+      arbitrary keys and ranges are <code>noindex,follow</code>.
     </p>
     <p>
       Because the key is in the URL, the coordinator knows which key page was
@@ -114,7 +118,7 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
 
     <h2>Address monitor</h2>
     <p>
-      <a href="/monitor">/monitor</a> watches addresses you control: connect an
+      <a href="/cabinet">/cabinet</a> watches addresses you control: connect an
       EVM wallet, sign the one-time SIWE challenge, and the coordinator stores
       those accounts and reports balance/nonce changes in your feed. It never
       asks for a private key, WIF or seed phrase, never signs, and never moves
@@ -138,6 +142,6 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
   </section>
 </main>
 
-<script src="/site.js?v=20261118d"></script>
+<script src="/site.js?v=20261118e"></script>
 </body>
 </html>
