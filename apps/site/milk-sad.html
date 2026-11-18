@@ -6,7 +6,7 @@
 <title>Milk Sad (CVE-2023-39910) — what it is and what to do | Rotor</title>
 <meta name="description" content="Milk Sad is the Libbitcoin Explorer bx seed weakness: a 32-bit Mersenne Twister seed reduced key entropy to about 4.3 billion possibilities. Check whether a wallet you created is affected.">
 <link rel="canonical" href="https://rotor.pxbt.app/milk-sad">
-<link rel="stylesheet" href="/site.css?v=20261119k">
+<link rel="stylesheet" href="/site.css?v=20261119o">
 </head>
 <body>
 <header class="site-nav">
@@ -44,6 +44,28 @@
     <p>The vulnerability is public and documented by the Milk Sad project. It is not a flaw in Bitcoin, secp256k1 or the wallets that generate keys from a proper CSPRNG.</p>
   </section>
 
+  <section class="card" id="timestamp-audit">
+    <h2>Audit a known 32-bit seed</h2>
+    <p><code class="mono">bx seed</code> seeded MT19937 with the low 32 bits of the high-resolution clock. This form reproduces one published seed value; it is an owner audit for a seed you already have, not a scan of other people's keys. Seed <code class="mono">0</code> reproduces the public Milk Sad test vector.</p>
+    <form id="milk-form" class="milk-form" autocomplete="off">
+      <label>MT19937 seed (0…4294967295)
+        <input id="milk-timestamp" class="mono" type="number" min="0" max="4294967295" step="1" placeholder="0" required>
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="milk-derive">Derive weak wallet</button>
+      </div>
+    </form>
+    <p id="milk-error" class="error key-error" role="alert" hidden></p>
+    <div id="milk-result" class="milk-result" hidden>
+      <p class="muted" id="milk-date"></p>
+      <div class="key-form-row"><span class="key-field-label">BIP39 mnemonic</span><code class="mono key-addr" id="milk-mnemonic"></code></div>
+      <div class="key-form-row"><span class="key-field-label">BTC address</span><code class="mono key-addr" id="milk-address"></code></div>
+      <div class="key-form-row"><span class="key-field-label">WIF</span><code class="mono key-addr" id="milk-wif"></code></div>
+      <div class="key-form-row"><span class="key-field-label">Private key</span><a class="mono key-addr" id="milk-key-link"></a></div>
+      <p class="muted key-help">Treat this as compromised. Move funds to a wallet created with a CSPRNG.</p>
+    </div>
+  </section>
+
   <section class="card">
     <h2>Are you affected?</h2>
     <ul>
@@ -78,6 +100,8 @@
   </section>
 </main>
 
-<script src="/site.js?v=20261119k"></script>
+<script src="/seed.js?v=20261119o"></script>
+<script src="/site.js?v=20261119o"></script>
+<script src="/milk-sad.js?v=20261119o"></script>
 </body>
 </html>
