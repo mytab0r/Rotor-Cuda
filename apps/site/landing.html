@@ -6,7 +6,7 @@
 <title>Private key explorer and Bitcoin puzzle search | Rotor</title>
 <meta name="description" content="Derive Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP addresses from a private key in your browser. Browse key hubs, puzzle ranges and join the distributed puzzle search.">
 <link rel="canonical" href="https://rotor.pxbt.app/">
-<link rel="stylesheet" href="/site.css?v=20261118u">
+<link rel="stylesheet" href="/site.css?v=20261119d">
 </head>
 <body>
 <header class="site-nav">
@@ -14,7 +14,9 @@
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
     <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
@@ -165,6 +167,14 @@
   <section class="card landing-section">
     <h2>Tools</h2>
     <div class="tool-grid">
+      <a class="tool-card" href="/seed">
+        <h3>Seed phrase</h3>
+        <p>Derive the first key of the standard wallet paths from a BIP39 phrase, locally.</p>
+      </a>
+      <a class="tool-card" href="/vanity">
+        <h3>Vanity generator</h3>
+        <p>Generate a key whose address starts or ends with your text, locally in the browser.</p>
+      </a>
       <a class="tool-card" href="/brainwallet">
         <h3>Brainwallet</h3>
         <p>See how a passphrase becomes a key and address. Educational only; never use a memorable phrase for real funds.</p>
@@ -240,9 +250,9 @@
   </section>
 </main>
 
-<script src="/search.js?v=20261118u"></script>
-<script src="/site.js?v=20261118u"></script>
-<script src="/puzzle.js?v=20261118u"></script>
+<script src="/search.js?v=20261119d"></script>
+<script src="/site.js?v=20261119d"></script>
+<script src="/puzzle.js?v=20261119d"></script>
 <script>
 (function () {
   'use strict';

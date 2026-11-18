@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261118u">
+<link rel="stylesheet" href="/site.css?v=20261119d">
 </head>
 <body>
 <header class="site-nav">
@@ -12,7 +12,9 @@
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
     <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
@@ -29,6 +31,7 @@
       <div>
         <h1>Private-key explorer</h1>
         <p class="key-tagline">Every private key is a number. See what yours opens — all derivation happens in this browser.</p>
+        <div class="key-badges"><span>Runs locally</span><span>15 chains</span><span>No seed phrase</span></div>
       </div>
     </div>
     <p class="notice key-warning" role="note">Use only keys you control. If a key holds funds, keep it offline or air-gapped — this page never asks for a seed phrase.</p>
@@ -43,12 +46,17 @@
                autocomplete="new-password" spellcheck="false" autocapitalize="off"
                data-lpignore="true" data-1p-ignore="true" aria-describedby="key-format">
       </label>
-      <label>Curve
-        <select id="curve">
+      <div class="key-curve-field">
+        <span class="key-field-label">Curve</span>
+        <div class="key-segmented" role="group" aria-label="Curve">
+          <button type="button" class="active" data-curve-choice="0" aria-pressed="true">secp256k1</button>
+          <button type="button" data-curve-choice="1" aria-pressed="false">ed25519</button>
+        </div>
+        <select id="curve" class="visually-hidden" tabindex="-1" aria-hidden="true">
           <option value="0">secp256k1</option>
           <option value="1">ed25519</option>
         </select>
-      </label>
+      </div>
       <div class="key-buttons">
         <button type="submit" class="primary" id="derive-btn">Calculate</button>
         <button type="button" id="step-down" title="Decrease the key by one">−1</button>
@@ -62,7 +70,83 @@
   </section>
 
   <section class="card">
-    <h2>Wallet presets and curve</h2>
+    <h2>Key summary</h2>
+    <div class="key-summary" id="summary">
+      <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Addresses</h2>
+    <div class="key-toolbar">
+      <div class="key-chains" role="group" aria-label="Chains">
+        <button type="button" class="key-chain" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
+        <button type="button" class="key-chain" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
+        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>Ethereum</button>
+        <button type="button" class="key-chain" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
+        <button type="button" class="key-chain" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
+        <button type="button" class="key-chain" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="doge" aria-pressed="false"><span class="key-dot key-dot-doge"></span>Dogecoin<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="bch" aria-pressed="false"><span class="key-dot key-dot-bch"></span>Bitcoin Cash<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="xrp" aria-pressed="false"><span class="key-dot key-dot-xrp"></span>XRP<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="zcash" aria-pressed="false"><span class="key-dot key-dot-zcash"></span>Zcash</button>
+        <button type="button" class="key-chain" data-chain="sui" aria-pressed="false"><span class="key-dot key-dot-sui"></span>Sui</button>
+      </div>
+      <div class="key-preset-inline">
+        <label for="preset-select">Wallet preset</label>
+        <select id="preset-select">
+          <option value="all">All addresses</option>
+          <option value="ledger">Ledger / Trezor</option>
+          <option value="metamask">MetaMask</option>
+          <option value="safepal">SafePal</option>
+          <option value="tronlink">TronLink</option>
+          <option value="phantom">Phantom</option>
+        </select>
+      </div>
+      <div class="key-balance-controls">
+        <label class="key-toggle">Online balance lookups
+          <input type="checkbox" id="online-toggle">
+        </label>
+        <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
+      </div>
+    </div>
+    <details class="key-exposure">
+      <summary>Registry privacy check</summary>
+      <label class="key-toggle key-exposure-toggle">
+        <input type="checkbox" id="exposure-toggle">
+        Check these addresses against the Rotor registry
+      </label>
+      <p class="muted key-help" id="exposure-help">Sends the derived addresses (never the key) to the coordinator so a registered owner can be warned that someone looked them up.</p>
+      <p class="key-exposure-status" id="exposure-status" role="status" hidden></p>
+    </details>
+    <p class="muted key-help" id="balance-help">Offline by default. A check sends only the shown public addresses to public providers; the key never leaves this page.</p>
+
+    <div class="key-btc-panel" id="btc-panel" hidden>
+      <h3 class="key-group-title">Bitcoin address type</h3>
+      <div class="key-types" role="group" aria-label="Bitcoin address type">
+        <button type="button" class="key-type" data-row="btc_p2pkh" aria-pressed="false"><span class="key-type-name">Legacy</span><span class="key-type-code">P2PKH</span></button>
+        <button type="button" class="key-type" data-row="btc_p2wpkh" aria-pressed="false"><span class="key-type-name">SegWit</span><span class="key-type-code">P2WPKH</span></button>
+        <button type="button" class="key-type" data-row="btc_p2sh_p2wpkh" aria-pressed="false"><span class="key-type-name">Nested SegWit</span><span class="key-type-code">P2SH</span></button>
+        <button type="button" class="key-type" data-row="btc_p2tr" aria-pressed="false"><span class="key-type-name">Taproot</span><span class="key-type-code">P2TR</span></button>
+      </div>
+      <p class="key-selected" id="btc-selected"></p>
+      <div class="key-balance-cards">
+        <div class="key-balance-card"><span class="key-balance-label">Balance</span><span class="key-balance-value mono empty" id="btc-balance">—</span></div>
+        <div class="key-balance-card"><span class="key-balance-label">Received</span><span class="key-balance-value mono empty" id="btc-received">—</span></div>
+        <div class="key-balance-card"><span class="key-balance-label">TX</span><span class="key-balance-value mono empty" id="btc-tx">—</span></div>
+      </div>
+      <p class="muted key-help" id="btc-summary-hint">Enable online lookups and press Check balances to fill these values for the selected Bitcoin address.</p>
+    </div>
+
+    <div id="addr-rows" class="key-rows">
+      <p class="muted key-empty">Derive a key to see its addresses.</p>
+    </div>
+    <p id="preset-empty" class="muted key-empty" hidden>No rows match this chain and wallet preset on the selected curve.</p>
+    <p class="muted key-preset-foot">Chain tabs, address types and path chips only filter or highlight rows; the derivation never changes. Chains marked “soon” appear once the derivation core exposes them.</p>
+  </section>
+  <details class="card key-advanced">
+    <summary>Wallet presets and curve illustration</summary>
+
     <div class="key-explore-grid">
       <div class="key-preset-panel">
         <h3 class="key-group-title">Presets</h3>
@@ -103,79 +187,12 @@
         <p class="muted key-help" id="curve-caption">Real-valued illustration. Actual key arithmetic is over a finite field.</p>
       </div>
     </div>
-  </section>
 
-  <section class="card">
-    <h2>Key summary</h2>
-    <div class="key-summary" id="summary">
-      <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
-    </div>
-  </section>
+  </details>
 
-  <section class="card">
-    <h2>Addresses</h2>
-    <div class="key-toolbar">
-      <div class="key-chains" role="group" aria-label="Chains">
-        <button type="button" class="key-chain" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
-        <button type="button" class="key-chain" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
-        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>Ethereum</button>
-        <button type="button" class="key-chain" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
-        <button type="button" class="key-chain" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
-        <button type="button" class="key-chain" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="doge" aria-pressed="false"><span class="key-dot key-dot-doge"></span>Dogecoin<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="bch" aria-pressed="false"><span class="key-dot key-dot-bch"></span>Bitcoin Cash<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="xrp" aria-pressed="false"><span class="key-dot key-dot-xrp"></span>XRP<span class="key-soon" hidden>soon</span></button>
-      </div>
-      <div class="key-balance-controls">
-        <label class="key-toggle">Online balance lookups
-          <input type="checkbox" id="online-toggle">
-        </label>
-        <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
-      </div>
-    </div>
-    <div class="key-exposure">
-      <label class="key-toggle key-exposure-toggle">
-        <input type="checkbox" id="exposure-toggle">
-        Check these addresses against the Rotor registry
-      </label>
-      <p class="muted key-help" id="exposure-help">Sends the derived addresses (never the key) to the coordinator so a registered owner can be warned that someone looked them up.</p>
-      <p class="key-exposure-status" id="exposure-status" role="status" hidden></p>
-    </div>
-    <p class="muted key-help" id="balance-help">Offline by default. When an online check is requested, only the derived addresses currently shown are sent: BTC to mempool.space, EVM to public Ethereum JSON-RPC providers (publicnode, dRPC, 1rpc; tried in order), TRON to Tronscan. Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP have no provider in v1.</p>
 
-    <div class="key-btc-panel" id="btc-panel" hidden>
-      <h3 class="key-group-title">Bitcoin path</h3>
-      <div class="key-paths" role="group" aria-label="Derivation paths">
-        <button type="button" class="key-path-chip" data-row="summary" aria-pressed="false">Master Key</button>
-        <button type="button" class="key-path-chip" data-row="btc_p2pkh" aria-pressed="false">BIP44 Legacy <span class="mono">m/44'/0'/0'/0/0</span></button>
-        <button type="button" class="key-path-chip" data-row="btc_p2wpkh" aria-pressed="false">BIP84 SegWit <span class="mono">m/84'/0'/0'/0/0</span></button>
-        <button type="button" class="key-path-chip" data-row="btc_p2sh_p2wpkh" aria-pressed="false">BIP49 Nested <span class="mono">m/49'/0'/0'/0/0</span></button>
-        <button type="button" class="key-path-chip" data-row="btc_p2tr" aria-pressed="false">BIP86 Taproot <span class="mono">m/86'/0'/0'/0/0</span></button>
-      </div>
-      <h3 class="key-group-title">Bitcoin address type</h3>
-      <div class="key-types" role="group" aria-label="Bitcoin address type">
-        <button type="button" class="key-type" data-row="btc_p2pkh" aria-pressed="false"><span class="key-type-name">Legacy</span><span class="key-type-code">P2PKH</span></button>
-        <button type="button" class="key-type" data-row="btc_p2wpkh" aria-pressed="false"><span class="key-type-name">SegWit</span><span class="key-type-code">P2WPKH</span></button>
-        <button type="button" class="key-type" data-row="btc_p2sh_p2wpkh" aria-pressed="false"><span class="key-type-name">Nested SegWit</span><span class="key-type-code">P2SH</span></button>
-        <button type="button" class="key-type" data-row="btc_p2tr" aria-pressed="false"><span class="key-type-name">Taproot</span><span class="key-type-code">P2TR</span></button>
-      </div>
-      <p class="key-selected" id="btc-selected"></p>
-      <div class="key-balance-cards">
-        <div class="key-balance-card"><span class="key-balance-label">Balance</span><span class="key-balance-value mono empty" id="btc-balance">—</span></div>
-        <div class="key-balance-card"><span class="key-balance-label">Received</span><span class="key-balance-value mono empty" id="btc-received">—</span></div>
-        <div class="key-balance-card"><span class="key-balance-label">TX</span><span class="key-balance-value mono empty" id="btc-tx">—</span></div>
-      </div>
-      <p class="muted key-help" id="btc-summary-hint">Enable online lookups and press Check balances to fill these values for the selected Bitcoin address.</p>
-    </div>
-
-    <div id="addr-rows" class="key-rows">
-      <p class="muted key-empty">Derive a key to see its addresses.</p>
-    </div>
-    <p id="preset-empty" class="muted key-empty" hidden>No rows match this chain and wallet preset on the selected curve.</p>
-    <p class="muted key-preset-foot">Chain tabs, address types and path chips only filter or highlight rows; the derivation never changes. Chains marked “soon” appear once the derivation core exposes them.</p>
-  </section>
 </main>
 
-<script src="/key.js?v=20261118u"></script>
+<script src="/key.js?v=20261119d"></script>
 </body>
 </html>

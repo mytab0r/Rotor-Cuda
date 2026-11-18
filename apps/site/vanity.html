@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vanity address generator — local, in your browser | Rotor</title>
+<meta name="description" content="Generate a private key whose public address starts or ends with your text. Derivation and the random key stay in your browser.">
+<link rel="canonical" href="https://rotor.pxbt.app/vanity">
+<link rel="stylesheet" href="/site.css?v=20261119d">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page vanity-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
+      <div>
+        <h1>Vanity address generator</h1>
+        <p class="key-tagline">Generate a key whose public address starts or ends with your text. The random key and every derivation stay in this browser.</p>
+        <div class="key-badges"><span>Runs locally</span><span>No upload</span><span>Real key</span></div>
+      </div>
+    </div>
+    <p class="notice key-warning" role="note">A vanity key is a real spending key. Save it offline and never paste it into a site you do not control.</p>
+  </section>
+
+  <section class="card">
+    <h2>Pattern</h2>
+    <form id="vanity-form" class="key-form vanity-form" autocomplete="off">
+      <label>Chain
+        <select id="vanity-chain">
+          <option value="bitcoin-legacy">Bitcoin · Legacy (1…)</option>
+          <option value="bitcoin-segwit">Bitcoin · SegWit (bc1q…)</option>
+          <option value="bitcoin-taproot">Bitcoin · Taproot (bc1p…)</option>
+          <option value="ethereum">Ethereum · 0x…</option>
+          <option value="tron">TRON · T…</option>
+          <option value="solana">Solana · base58</option>
+        </select>
+      </label>
+      <label>Starts with
+        <input id="vanity-prefix" class="mono" maxlength="24" placeholder="e.g. 777" spellcheck="false">
+      </label>
+      <label>Ends with
+        <input id="vanity-suffix" class="mono" maxlength="24" placeholder="optional" spellcheck="false">
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="vanity-start">Start</button>
+        <button type="button" id="vanity-stop" disabled>Stop</button>
+      </div>
+    </form>
+    <p class="muted key-help">Case matters for EVM and base58 addresses. A short pattern is found quickly; every extra character multiplies the expected work. The search runs in this tab — keep it open.</p>
+    <p id="vanity-error" class="error key-error" role="alert" hidden></p>
+  </section>
+
+  <section class="key-summary-grid vanity-stats" aria-live="polite">
+    <div class="key-summary-group"><h3 class="key-group-title">Attempts</h3><p class="vanity-stat" id="vanity-attempts">0</p></div>
+    <div class="key-summary-group"><h3 class="key-group-title">Rate</h3><p class="vanity-stat" id="vanity-rate">0 / s</p></div>
+    <div class="key-summary-group"><h3 class="key-group-title">Elapsed</h3><p class="vanity-stat" id="vanity-elapsed">0 s</p></div>
+  </section>
+
+  <section class="card vanity-result" id="vanity-result" hidden>
+    <h2>Match found</h2>
+    <div class="key-form-row"><span class="key-field-label">Address</span><code class="mono key-addr" id="vanity-address"></code><button type="button" class="key-copy" id="vanity-copy-address">Copy</button></div>
+    <div class="key-form-row"><span class="key-field-label">Private key (hex)</span><code class="mono key-addr" id="vanity-key"></code><button type="button" class="key-copy" id="vanity-copy-key">Copy</button></div>
+    <div class="key-form-row" id="vanity-wif-row"><span class="key-field-label">WIF</span><code class="mono key-addr" id="vanity-wif"></code><button type="button" class="key-copy" id="vanity-copy-wif">Copy</button></div>
+    <p class="muted key-help">Store this key offline. Anyone with it can spend the funds; this page does not save it.</p>
+  </section>
+</main>
+
+<script src="/search.js?v=20261119d"></script>
+<script src="/site.js?v=20261119d"></script>
+<script src="/vanity.js?v=20261119d"></script>
+</body>
+</html>

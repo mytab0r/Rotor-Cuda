@@ -120,6 +120,7 @@
     var section = 'home';
     if (path === '/private-keys' || path.indexOf('/private-keys/') === 0 || path.indexOf('/keys/') === 0) section = 'directory';
     else if (path.indexOf('/bitcoin-puzzle') === 0) section = 'puzzle';
+    else if (path.indexOf('/vanity') === 0) section = 'vanity';
     else if (path.indexOf('/brainwallet') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0) section = 'tools';
     else if (path.indexOf('/docs') === 0) section = 'docs';
     else if (path.indexOf('/key') === 0) section = 'search';
@@ -157,6 +158,85 @@
       });
     });
   }
+
+
+  /* Global search: Ctrl/Cmd+K from any page, parsed entirely in the browser. */
+  function installGlobalSearch() {
+    if (document.getElementById('global-search')) return;
+    var dialog = document.createElement('dialog');
+    dialog.className = 'global-search';
+    dialog.id = 'global-search';
+    dialog.innerHTML =
+      '<form class="global-search-form" id="global-search-form">' +
+      '<div class="global-search-field">' +
+      '<svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg>' +
+      '<input id="global-search-input" type="text" autocomplete="off" spellcheck="false" ' +
+      'aria-label="Search a private key, WIF or brainwallet" placeholder="Search key, WIF or brainwallet">' +
+      '<kbd>Esc</kbd>' +
+      '</div>' +
+      '<p class="global-search-hint">HEX, WIF, byte arrays and brainwallet text are decoded locally. Nothing is uploaded.</p>' +
+      '<p class="global-search-error" id="global-search-error" role="alert" hidden></p>' +
+      '</form>';
+    document.body.appendChild(dialog);
+
+    var input = dialog.querySelector('#global-search-input');
+    var form = dialog.querySelector('#global-search-form');
+    var error = dialog.querySelector('#global-search-error');
+
+    function ensureParser() {
+      if (window.RotorSearch) return Promise.resolve(window.RotorSearch);
+      return new Promise(function (resolve, reject) {
+        var script = document.createElement('script');
+        script.src = '/search.js?v=20261118w';
+        script.onload = function () {
+          if (window.RotorSearch) resolve(window.RotorSearch);
+          else reject(new Error('Search did not load.'));
+        };
+        script.onerror = function () { reject(new Error('Search did not load.')); };
+        document.head.appendChild(script);
+      });
+    }
+
+    function open() {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', 'open');
+      window.setTimeout(function () { if (input) input.focus(); }, 30);
+    }
+
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var value = input.value.trim();
+      if (!value) return;
+      ensureParser().then(function (parser) {
+        return parser.resolve(value);
+      }).then(function (hex) {
+        window.location.href = '/key/' + hex;
+      }).catch(function (err) {
+        error.textContent = err && err.message ? err.message : 'Cannot read that key.';
+        error.hidden = false;
+      });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
+        event.preventDefault();
+        open();
+      }
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-nav="search"]'), function (link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        open();
+      });
+    });
+  }
+
+  installGlobalSearch();
 
   markNavigation();
   bindKeySearches();
