@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mnemonic seeds directory — browse BIP39 phrases by chain | Rotor</title>
+<meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
+<link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
+<link rel="stylesheet" href="/site.css?v=20261119y">
+<style>
+.mnemonic-directory-only { display: none; }
+body.mnemonic-directory-mode .mnemonic-directory-only { display: block; }
+body.mnemonic-directory-mode .mnemonic-chain-only { display: none; }
+body.mnemonic-unsupported .mnemonic-control-grid,
+body.mnemonic-unsupported .mnemonic-help,
+body.mnemonic-unsupported .page-info,
+body.mnemonic-unsupported .browse-controls,
+body.mnemonic-unsupported #mnemonic-types-panel,
+body.mnemonic-unsupported .balance-summary,
+body.mnemonic-unsupported .mnemonic-rows-header,
+body.mnemonic-unsupported .mnemonic-derive { display: none; }
+.mnemonic-controls { padding: 16px 18px 14px; display: grid; gap: 10px; }
+.mnemonic-control-grid { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 22px; }
+.mnemonic-control { display: grid; gap: 7px; min-width: 0; }
+.mnemonic-control-path { flex: 1 1 330px; }
+.mnemonic-control label, .mnemonic-control .panel-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.mnemonic-word-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
+.mnemonic-word-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.mnemonic-word-btn span { color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-weight: 500; }
+.mnemonic-word-btn.active { border-color: color-mix(in srgb, var(--chain, var(--accent)) 62%, var(--border)); background: color-mix(in srgb, var(--chain, var(--accent)) 14%, var(--panel)); color: var(--text); }
+.mnemonic-word-btn.active span { color: var(--text-2); }
+.mnemonic-path-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.mnemonic-path-row input { flex: 1 1 220px; min-width: 0; font-family: var(--mono); font-size: 13px; }
+.mnemonic-path-row button { flex: none; }
+.mnemonic-control select { min-height: 42px; font-family: var(--mono); font-size: 12.5px; }
+.mnemonic-help { margin: 0; font-size: 12px; }
+.mnemonic-rows-header,
+.mnemonic-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1.6fr) minmax(0, 1.2fr) 132px;
+  align-items: start;
+  gap: 14px;
+  padding: 0 18px;
+}
+.mnemonic-rows-header {
+  min-height: 42px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.mnemonic-rows-header .col-balance { justify-content: flex-end; }
+.mnemonic-row { padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(31, 42, 56, .7); }
+.mnemonic-row:last-child { border-bottom: 0; }
+.mnemonic-row:hover { background: rgba(255, 255, 255, .022); }
+.mnemonic-seed { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.mnemonic-phrase { margin: 0; color: var(--text-2); font-family: var(--mono); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.mnemonic-address { display: grid; gap: 4px; min-width: 0; }
+.mnemonic-address .address-link { white-space: normal; overflow-wrap: anywhere; font-size: 11.5px; }
+.mnemonic-wif { color: var(--accent-2); font-size: 11px; }
+.mnemonic-balance { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mnemonic-balance.has-balance { color: var(--ok); }
+.mnemonic-derive { padding: 12px 18px 16px; display: grid; gap: 8px; }
+.mnemonic-derive-text { color: var(--muted); font-size: 12.5px; }
+.mnemonic-balance-toggle { display: inline-flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 12px; }
+.mnemonic-balance-toggle input { width: 16px; height: 16px; }
+.mnemonic-directory-card { display: grid; gap: 12px; }
+.mnemonic-directory-card h2 { margin: 0; }
+.mnemonic-directory-card p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
+.mnemonic-directory-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--text-2); font-size: 13px; }
+@media (max-width: 860px) {
+  .mnemonic-rows-header { display: none; }
+  .mnemonic-row {
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 5px 10px;
+    padding: 12px 14px;
+  }
+  .mnemonic-seed { grid-column: 1; grid-row: 1; }
+  .mnemonic-balance { grid-column: 2; grid-row: 1; font-size: 11px; }
+  .mnemonic-phrase { grid-column: 1 / -1; grid-row: 2; }
+  .mnemonic-address { grid-column: 1 / -1; grid-row: 3; }
+  .mnemonic-controls { padding: 14px; }
+  .mnemonic-control-path { flex-basis: 100%; }
+}
+@media (max-width: 520px) {
+  .mnemonic-word-btn { flex: 1 1 0; justify-content: center; padding: 0 8px; }
+  .mnemonic-path-row input { flex-basis: 100%; }
+  .mnemonic-path-row button { width: 100%; }
+}
+</style>
+</head>
+<body class="mnemonic-directory-mode">
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="browse-page mnemonic-seeds-page" data-chain="" data-symbol="" data-explorer="" data-curve="0" data-page="1" style="--chain:#f7931a">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span>/</span> <a href="/mnemonic-seeds">Mnemonic seeds</a> <span>/</span> <span aria-current="page" data-chain-name>Directory</span></nav>
+
+  <section class="browse-hero">
+    <div class="browse-hero-title"><svg class="browse-hero-icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><h1><span data-chain-title>Mnemonic seeds</span></h1></div>
+    <p><span data-chain-intro>Browse deterministic English BIP39 phrases across the entropy space, 60 seeds per page, and derive the matching addresses locally.</span></p>
+  </section>
+
+  <div class="chain-tabs" id="mnemonic-chain-tabs" role="navigation" aria-label="Chains">
+    <a class="chain-tab" href="/mnemonic-seeds/bitcoin" style="--chain:#f7931a"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
+    <a class="chain-tab" href="/mnemonic-seeds/ethereum" style="--chain:#8a9cf5"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a>
+    <a class="chain-tab" href="/mnemonic-seeds/bnb" style="--chain:#f3ba2f"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB Chain</a>
+    <a class="chain-tab" href="/mnemonic-seeds/arbitrum" style="--chain:#28a0f0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-arbitrum"></use></svg>Arbitrum</a>
+    <a class="chain-tab" href="/mnemonic-seeds/optimism" style="--chain:#ff0420"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-optimism"></use></svg>Optimism</a>
+    <a class="chain-tab" href="/mnemonic-seeds/base" style="--chain:#0052ff"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-base"></use></svg>Base</a>
+    <a class="chain-tab" href="/mnemonic-seeds/polygon" style="--chain:#a06ee8"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-polygon"></use></svg>Polygon</a>
+    <a class="chain-tab" href="/mnemonic-seeds/avalanche" style="--chain:#e84142"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-avalanche"></use></svg>Avalanche</a>
+    <a class="chain-tab" href="/mnemonic-seeds/zksync" style="--chain:#8c8dfc"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zksync"></use></svg>zkSync Era</a>
+    <a class="chain-tab" href="/mnemonic-seeds/solana" style="--chain:#14f195"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a>
+    <a class="chain-tab" href="/mnemonic-seeds/tron" style="--chain:#ff4d4d"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a>
+    <a class="chain-tab" href="/mnemonic-seeds/xrp" style="--chain:#7fa8d9"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a>
+    <a class="chain-tab" href="/mnemonic-seeds/litecoin" style="--chain:#b8c2d6"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-litecoin"></use></svg>Litecoin</a>
+    <a class="chain-tab" href="/mnemonic-seeds/bitcoin-cash" style="--chain:#8dc351"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>Bitcoin Cash</a>
+    <a class="chain-tab" href="/mnemonic-seeds/dogecoin" style="--chain:#c2a633"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-dogecoin"></use></svg>Dogecoin</a>
+    <a class="chain-tab" href="/mnemonic-seeds/zcash" style="--chain:#ecb244"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zcash"></use></svg>Zcash</a>
+    <a class="chain-tab" href="/mnemonic-seeds/sui" style="--chain:#6fbcf0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-sui"></use></svg>Sui</a>
+    <a class="chain-tab" href="/mnemonic-seeds/ton" style="--chain:#0098ea"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a>
+  </div>
+
+  <section class="mnemonic-directory-only mnemonic-directory-card card">
+    <h2>Mnemonic seed directory</h2>
+    <p>Select a chain above to enumerate deterministic English BIP39 phrases, 60 per page. Each page can use 12, 18 or 24 words (128, 192 or 256 bits of entropy), a standard or custom BIP32 derivation path, and the chain's address types.</p>
+    <p>The seed index is converted to entropy with BigInt arithmetic, so pages are reproducible but never stored. Phrases, keys and addresses are derived in this browser; the only network calls are public balance lookups for the derived addresses.</p>
+    <ul class="mnemonic-directory-list">
+      <li><a href="/seed">Seed phrase converter</a> — derive addresses from one phrase you already have.</li>
+      <li><a href="/private-keys">Private key directory</a> — browse the raw key space instead of mnemonics.</li>
+      <li><a href="/key">Key calculator</a> — inspect one hex, decimal or WIF key.</li>
+    </ul>
+    <p class="notice" role="note">These are deterministic example phrases, not a wallet and not a recovery service. Finding a funded seed by enumeration is infeasible. Use the tool for education, testing and seeds you control.</p>
+  </section>
+
+  <section class="mnemonic-chain-only mnemonic-controls card" aria-label="Seed settings">
+    <div class="mnemonic-control-grid">
+      <div class="mnemonic-control">
+        <span class="panel-label" id="mnemonic-words-label">Word count</span>
+        <div class="mnemonic-word-buttons" role="group" aria-labelledby="mnemonic-words-label">
+          <button type="button" class="mnemonic-word-btn active" data-words="12" aria-pressed="true">12 <span>128 bits</span></button>
+          <button type="button" class="mnemonic-word-btn" data-words="18" aria-pressed="false">18 <span>192 bits</span></button>
+          <button type="button" class="mnemonic-word-btn" data-words="24" aria-pressed="false">24 <span>256 bits</span></button>
+        </div>
+      </div>
+      <div class="mnemonic-control mnemonic-control-path">
+        <label for="mnemonic-path-preset">Path preset</label>
+        <select id="mnemonic-path-preset" class="mono"></select>
+      </div>
+      <div class="mnemonic-control mnemonic-control-path">
+        <label for="mnemonic-path-input">BIP-32 path</label>
+        <div class="mnemonic-path-row">
+          <input id="mnemonic-path-input" class="mono" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" value="m/44'/0'/0'/0/0">
+          <button type="button" class="primary" id="mnemonic-path-apply">Apply</button>
+        </div>
+      </div>
+    </div>
+    <p class="muted mnemonic-help">The path applies to every seed on this page and is never sent anywhere. Choosing an address type selects the matching standard path; Apply uses the path in the field.</p>
+    <p id="mnemonic-error" class="error" role="alert" hidden></p>
+  </section>
+
+  <section class="page-info mnemonic-chain-only">
+    <div class="page-info-text">
+      <svg class="page-info-icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg>
+      <span><span data-chain-name>Chain</span> mnemonic seeds page <strong id="mnemonic-page-number">#1</strong> out of <strong id="mnemonic-total-pages">#…</strong></span>
+      <span class="page-percent" id="mnemonic-page-percent"></span>
+    </div>
+    <div class="progress-track" id="mnemonic-page-progress" role="progressbar" aria-label="Position in the entropy space" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="mnemonic-page-bar" style="width:0%"></span></div>
+  </section>
+
+  <section class="browse-controls mnemonic-chain-only">
+    <div class="pager">
+      <a class="pager-btn" id="mnemonic-first" href="#" aria-disabled="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-first"></use></svg>First</a>
+      <a class="pager-btn" id="mnemonic-prev" href="#" aria-disabled="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-prev"></use></svg>Previous</a>
+      <a class="pager-btn random" id="mnemonic-random" href="#"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>Random</a>
+      <a class="pager-btn" id="mnemonic-next" href="#" aria-disabled="false">Next <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-next"></use></svg></a>
+      <a class="pager-btn" id="mnemonic-last" href="#" aria-disabled="false">Last <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-last"></use></svg></a>
+    </div>
+    <form class="page-jump" id="mnemonic-jump">
+      <label for="mnemonic-page-input">Page</label>
+      <input id="mnemonic-page-input" inputmode="numeric" autocomplete="off" value="1">
+      <button type="submit" class="primary">Jump <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg></button>
+    </form>
+  </section>
+
+  <section class="address-type-panel mnemonic-chain-only" id="mnemonic-types-panel" aria-label="Address type">
+    <div class="panel-label"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg> Address type</div>
+    <div class="address-type-cards" id="mnemonic-type-cards"></div>
+  </section>
+
+  <section class="balance-summary mnemonic-chain-only" aria-label="Balance summary">
+    <div class="stat-card"><span class="stat-label">Balance</span><span class="stat-value" id="mnemonic-total-balance">—</span></div>
+    <div class="stat-card"><span class="stat-label">Received</span><span class="stat-value" id="mnemonic-total-received">—</span></div>
+    <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-value" id="mnemonic-total-tx">—</span></div>
+    <p class="balance-note" id="mnemonic-note"><label class="mnemonic-balance-toggle"><input type="checkbox" id="mnemonic-balance-toggle" checked> Check balances for BTC and EVM addresses after deriving.</label> <span id="mnemonic-note-text">Public addresses only; keys and phrases stay in this browser.</span></p>
+  </section>
+
+  <section class="keys-panel mnemonic-chain-only">
+    <div class="keys-header mnemonic-rows-header">
+      <div>Seed</div>
+      <div>Mnemonic</div>
+      <div>Address</div>
+      <div class="col-balance">Balance</div>
+    </div>
+    <div id="mnemonic-rows" class="mnemonic-rows"></div>
+    <div class="mnemonic-derive" id="mnemonic-derive">
+      <span class="mnemonic-derive-text" id="mnemonic-derive-text">Preparing the derivation core…</span>
+      <div class="progress-track" role="progressbar" aria-label="Derivation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="mnemonic-derive-progress"><span id="mnemonic-derive-bar" style="width:0%"></span></div>
+    </div>
+  </section>
+
+  <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
+</main>
+
+<script src="/seed.js?v=20261119y"></script>
+<script src="/mnemonic-seeds.js?v=20261119y"></script>
+<script src="/site.js?v=20261119y"></script>
+</body>
+</html>
