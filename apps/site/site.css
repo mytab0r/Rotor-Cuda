@@ -2582,3 +2582,48 @@ code { font-family: var(--mono); font-size: .92em; }
   .addr-wif { padding: 8px 10px; font-size: 11px; }
   .key-copy-icon { width: 40px; min-height: 40px; }
 }
+
+/* Address database links (landing) */
+.address-db-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+.address-db-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+.address-db-card:hover { border-color: var(--border-strong); background: var(--panel-3); text-decoration: none; }
+.address-db-name { font-size: 15px; font-weight: 750; }
+.address-db-meta { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.address-db-action { margin-top: 4px; color: var(--accent-2); font-family: var(--mono); font-size: 11px; }
+
+.nav-icon-pill { width: 40px; padding: 0; justify-content: center; }
+
+.global-search-title { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 15px; font-weight: 750; padding: 0 2px 4px; }
+.global-search-title .icon { color: var(--accent); }
+.global-search-title kbd { margin-left: auto; }
+.global-search-form textarea {
+  min-height: 112px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: #090e15;
+  border: 1px solid var(--border-strong);
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.global-search-chains { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; padding: 2px; }
+.global-search-chains .crypto { width: 22px; height: 22px; color: var(--text-2); }
+.search-more { min-height: 26px; padding: 0 8px; border-radius: 999px; font-size: 11px; color: var(--muted); }
+.global-search-submit { width: 100%; min-height: 46px; }
+
+.global-search-form { grid-template-columns: minmax(0, 1fr); }

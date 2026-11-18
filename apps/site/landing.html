@@ -6,7 +6,7 @@
 <title>Private key explorer and Bitcoin puzzle search | Rotor</title>
 <meta name="description" content="Derive Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP addresses from a private key in your browser. Browse key hubs, puzzle ranges and join the distributed puzzle search.">
 <link rel="canonical" href="https://rotor.pxbt.app/">
-<link rel="stylesheet" href="/site.css?v=20261119v">
+<link rel="stylesheet" href="/site.css?v=20261119y">
 </head>
 <body>
 <header class="site-nav">
@@ -21,7 +21,7 @@
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
   <div class="nav-tools">
-    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
     <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
   </div>
 </header>
@@ -133,23 +133,42 @@
     </div>
   </section>
 
-  <section class="card landing-section">
-    <h2>Key directory</h2>
-    <p class="muted landing-lead">The first twelve deterministic keys, each with a full page of addresses and derivation steps.</p>
-    <div class="key-directory">
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000001"><span class="key-chip-label">Key 1</span><code class="mono">0000…0001</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000002"><span class="key-chip-label">Key 2</span><code class="mono">0000…0002</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000003"><span class="key-chip-label">Key 3</span><code class="mono">0000…0003</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000004"><span class="key-chip-label">Key 4</span><code class="mono">0000…0004</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000005"><span class="key-chip-label">Key 5</span><code class="mono">0000…0005</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000006"><span class="key-chip-label">Key 6</span><code class="mono">0000…0006</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000007"><span class="key-chip-label">Key 7</span><code class="mono">0000…0007</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000008"><span class="key-chip-label">Key 8</span><code class="mono">0000…0008</code></a>
-      <a class="key-chip" href="/key/0000000000000000000000000000000000000000000000000000000000000009"><span class="key-chip-label">Key 9</span><code class="mono">0000…0009</code></a>
-      <a class="key-chip" href="/key/000000000000000000000000000000000000000000000000000000000000000a"><span class="key-chip-label">Key 10</span><code class="mono">0000…000a</code></a>
-      <a class="key-chip" href="/key/000000000000000000000000000000000000000000000000000000000000000b"><span class="key-chip-label">Key 11</span><code class="mono">0000…000b</code></a>
-      <a class="key-chip" href="/key/000000000000000000000000000000000000000000000000000000000000000c"><span class="key-chip-label">Key 12</span><code class="mono">0000…000c</code></a>
+  <section class="card landing-section address-db">
+    <h2>Address databases</h2>
+    <p class="muted landing-lead">Daily-updated rich-address lists from the public Rich-Address-Wallet dataset. Download the chain you need and import it into your own tooling.</p>
+    <div class="address-db-grid">
+      <a class="address-db-card" href="https://github.com/Pymmdrza/Rich-Address-Wallet/releases/tag/Bitcoin" target="_blank" rel="noopener noreferrer">
+        <span class="address-db-name">Bitcoin</span>
+        <span class="address-db-meta">P2PKH · P2SH · Bech32 · all addresses</span>
+        <span class="address-db-action">Open release ↗</span>
+      </a>
+      <a class="address-db-card" href="https://github.com/Pymmdrza/Rich-Address-Wallet/releases/tag/Ethereum" target="_blank" rel="noopener noreferrer">
+        <span class="address-db-name">Ethereum</span>
+        <span class="address-db-meta">Rich account list</span>
+        <span class="address-db-action">Open release ↗</span>
+      </a>
+      <a class="address-db-card" href="https://github.com/Pymmdrza/Rich-Address-Wallet/releases/tag/Litecoin" target="_blank" rel="noopener noreferrer">
+        <span class="address-db-name">Litecoin</span>
+        <span class="address-db-meta">All · rich ≥ 0.1 LTC</span>
+        <span class="address-db-action">Open release ↗</span>
+      </a>
+      <a class="address-db-card" href="https://github.com/Pymmdrza/Rich-Address-Wallet/releases/tag/Dogecoin" target="_blank" rel="noopener noreferrer">
+        <span class="address-db-name">Dogecoin</span>
+        <span class="address-db-meta">All · rich ≥ 0.1 DOGE</span>
+        <span class="address-db-action">Open release ↗</span>
+      </a>
+      <a class="address-db-card" href="https://github.com/Pymmdrza/Rich-Address-Wallet/releases/tag/BitcoinCash" target="_blank" rel="noopener noreferrer">
+        <span class="address-db-name">Bitcoin Cash</span>
+        <span class="address-db-meta">All · rich ≥ 0.1 BCH</span>
+        <span class="address-db-action">Open release ↗</span>
+      </a>
+      <a class="address-db-card" href="https://github.com/Pymmdrza/Rich-Address-Wallet/releases/tag/Dash" target="_blank" rel="noopener noreferrer">
+        <span class="address-db-name">Dash</span>
+        <span class="address-db-meta">All · rich ≥ 0.1 DASH</span>
+        <span class="address-db-action">Open release ↗</span>
+      </a>
     </div>
+    <p class="muted landing-lead">Source: <a href="https://github.com/Pymmdrza/Rich-Address-Wallet" target="_blank" rel="noopener noreferrer">Rich-Address-Wallet</a>, updated every 24 hours. Rotor does not host or resell the files.</p>
   </section>
 
   <section class="card landing-section puzzle-card">
@@ -258,9 +277,9 @@
   </section>
 </main>
 
-<script src="/search.js?v=20261119v"></script>
-<script src="/site.js?v=20261119v"></script>
-<script src="/puzzle.js?v=20261119v"></script>
+<script src="/search.js?v=20261119y"></script>
+<script src="/site.js?v=20261119y"></script>
+<script src="/puzzle.js?v=20261119y"></script>
 <script>
 (function () {
   'use strict';

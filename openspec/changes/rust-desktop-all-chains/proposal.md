@@ -51,7 +51,7 @@ ed25519 key and may ship CPU-first.
 
 Recommendation: time-boxed spike of `wgpu` WGSL and `rust-gpu` against the
 current CUDA secp kernel; choose the one within an agreed performance floor
-(proposal: ≥70% of CUDA keys/s on the same GPU). Keep the existing CUDA path
+(proposal: ≥98% of CUDA keys/s on the same GPU). Keep the existing CUDA path
 behind a temporary feature only until the winner passes correctness and
 performance gates, then delete it.
 
