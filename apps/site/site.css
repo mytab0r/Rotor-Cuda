@@ -1300,9 +1300,9 @@ a.button,
   cursor: pointer;
   transition: background .16s ease, border-color .16s ease, transform .16s ease, color .16s ease;
 }
-button:hover,
-a.button:hover,
-.btn:hover { border-color: #445a75; background: var(--panel-3); color: var(--text); text-decoration: none; }
+button:not(.primary):hover,
+a.button:not(.primary):hover,
+.btn:not(.primary):hover { border-color: #445a75; background: var(--panel-3); color: var(--text); text-decoration: none; }
 button.primary,
 a.button.primary,
 .btn.primary {
@@ -2018,4 +2018,4 @@ code { font-family: var(--mono); font-size: .92em; }
 .docs h2 { font-size: 24px; }
 .docs h3 { font-size: 18px; }
 
-.table-scroll { padding: 2px; }
+.table-scroll { padding: 6px; }
