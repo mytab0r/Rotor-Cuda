@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261119k">
+<link rel="stylesheet" href="/site.css?v=20261119o">
 </head>
 <body>
 <header class="site-nav">
@@ -39,7 +39,7 @@
 
   <section class="card">
     <h2>Key input</h2>
-    <p id="key-url-notice" class="notice key-url-notice" role="note" hidden>This key is in the page URL. The derived addresses are checked against the Rotor registry so a registered owner can be warned; the key itself stays in this browser.</p>
+    <p id="key-url-notice" class="notice key-url-notice" role="note" hidden>This key is in the page URL. Derivation still runs locally; the key is not sent to the server.</p>
     <form id="key-form" class="key-form" autocomplete="off">
       <label class="key-input-label">Private key
         <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
@@ -79,14 +79,14 @@
     <a href="/vanity">Vanity</a>
   </nav>
 
-  <section class="card">
+  <section class="card" id="summary-card" hidden>
     <h2>Key summary</h2>
     <div class="key-summary" id="summary">
       <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="addresses-card" hidden>
     <h2>Addresses</h2>
     <div class="key-toolbar">
       <div class="key-chains" role="group" aria-label="Chains">
@@ -121,15 +121,6 @@
         <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
       </div>
     </div>
-    <details class="key-exposure">
-      <summary>Registry privacy check</summary>
-      <label class="key-toggle key-exposure-toggle">
-        <input type="checkbox" id="exposure-toggle">
-        Check these addresses against the Rotor registry
-      </label>
-      <p class="muted key-help" id="exposure-help">Sends the derived addresses (never the key) to the coordinator so a registered owner can be warned that someone looked them up.</p>
-      <p class="key-exposure-status" id="exposure-status" role="status" hidden></p>
-    </details>
     <p class="muted key-help" id="balance-help">Offline by default. A check sends only the shown public addresses to public providers; the key never leaves this page.</p>
 
     <div class="key-btc-panel" id="btc-panel" hidden>
@@ -204,6 +195,6 @@
 
 </main>
 
-<script src="/key.js?v=20261119k"></script>
+<script src="/key.js?v=20261119o"></script>
 </body>
 </html>
