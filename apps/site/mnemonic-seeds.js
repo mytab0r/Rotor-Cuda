@@ -1,0 +1,809 @@
+/* Mnemonic seeds directory: enumerate deterministic BIP39 phrases from the
+ * entropy space and derive addresses in this tab. Phrases and keys are never
+ * stored, put into the URL or sent anywhere; only public balances are fetched. */
+(function () {
+  'use strict';
+
+  var WASM_URL = '/rotor_wasm.wasm';
+  var DECODER = new TextDecoder('utf-8');
+  var ED_SEED_KEY = new TextEncoder().encode('ed25519 seed');
+  var ROWS_PER_PAGE = 60n;
+
+  var RPC = {
+    ethereum: 'https://ethereum-rpc.publicnode.com',
+    bnb: 'https://bsc-rpc.publicnode.com',
+    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
+    optimism: 'https://optimism-rpc.publicnode.com',
+    base: 'https://base-rpc.publicnode.com',
+    polygon: 'https://polygon-bor-rpc.publicnode.com',
+    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
+    zksync: 'https://mainnet.era.zksync.io'
+  };
+
+  function evmConfig() {
+    return {
+      types: [
+        {
+          value: 'legacy',
+          label: 'Address',
+          desc: '0x…',
+          field: 'evm',
+          path: "m/44'/60'/0'/0/0"
+        }
+      ],
+      presets: [{ label: 'BIP44 · Ethereum', path: "m/44'/60'/0'/0/0" }]
+    };
+  }
+
+  var CHAINS = {
+    bitcoin: {
+      types: [
+        { value: 'legacy', label: 'Legacy', desc: 'P2PKH · 1…', field: 'btc_p2pkh', path: "m/44'/0'/0'/0/0" },
+        { value: 'segwit', label: 'SegWit', desc: 'P2WPKH · bc1q…', field: 'btc_p2wpkh', path: "m/84'/0'/0'/0/0" },
+        { value: 'script', label: 'Nested SegWit', desc: 'P2SH · 3…', field: 'btc_p2sh_p2wpkh', path: "m/49'/0'/0'/0/0" },
+        { value: 'taproot', label: 'Taproot', desc: 'P2TR · bc1p…', field: 'btc_p2tr', path: "m/86'/0'/0'/0/0" }
+      ],
+      presets: [
+        { label: 'BIP44 · Legacy', path: "m/44'/0'/0'/0/0" },
+        { label: 'BIP49 · Nested SegWit', path: "m/49'/0'/0'/0/0" },
+        { label: 'BIP84 · Native SegWit', path: "m/84'/0'/0'/0/0" },
+        { label: 'BIP86 · Taproot', path: "m/86'/0'/0'/0/0" }
+      ]
+    },
+    ethereum: evmConfig(),
+    bnb: evmConfig(),
+    arbitrum: evmConfig(),
+    optimism: evmConfig(),
+    base: evmConfig(),
+    polygon: evmConfig(),
+    avalanche: evmConfig(),
+    zksync: evmConfig(),
+    solana: {
+      types: [
+        { value: 'legacy', label: 'Address', desc: 'base58', field: 'solana', path: "m/44'/501'/0'/0'" }
+      ],
+      presets: [
+        { label: 'Phantom · BIP44', path: "m/44'/501'/0'/0'" },
+        { label: 'Ledger · m/44\'/501\'/0\'', path: "m/44'/501'/0'" }
+      ]
+    },
+    tron: {
+      types: [
+        { value: 'legacy', label: 'Address', desc: 'T…', field: 'tron', path: "m/44'/195'/0'/0/0" }
+      ],
+      presets: [{ label: 'BIP44 · TRON', path: "m/44'/195'/0'/0/0" }]
+    },
+    xrp: {
+      types: [
+        { value: 'legacy', label: 'Classic', desc: 'r…', field: 'xrp_classic', path: "m/44'/144'/0'/0/0" }
+      ],
+      presets: [{ label: 'BIP44 · XRP', path: "m/44'/144'/0'/0/0" }]
+    },
+    litecoin: {
+      types: [
+        { value: 'legacy', label: 'Legacy', desc: 'P2PKH · L…', field: 'ltc_p2pkh', path: "m/44'/2'/0'/0/0" },
+        { value: 'segwit', label: 'SegWit', desc: 'P2WPKH · ltc1q…', field: 'ltc_p2wpkh', path: "m/84'/2'/0'/0/0" },
+        { value: 'script', label: 'Nested SegWit', desc: 'P2SH · M…', field: 'ltc_p2sh_p2wpkh', path: "m/49'/2'/0'/0/0" }
+      ],
+      presets: [
+        { label: 'BIP44 · Legacy', path: "m/44'/2'/0'/0/0" },
+        { label: 'BIP49 · Nested SegWit', path: "m/49'/2'/0'/0/0" },
+        { label: 'BIP84 · Native SegWit', path: "m/84'/2'/0'/0/0" }
+      ]
+    },
+    dogecoin: {
+      types: [{ value: 'legacy', label: 'Legacy', desc: 'P2PKH · D…', field: 'doge_p2pkh', path: "m/44'/3'/0'/0/0" }],
+      presets: [{ label: 'BIP44 · Dogecoin', path: "m/44'/3'/0'/0/0" }]
+    },
+    'bitcoin-cash': {
+      types: [{ value: 'legacy', label: 'Legacy', desc: 'P2PKH · 1…', field: 'bch_legacy', path: "m/44'/145'/0'/0/0" }],
+      presets: [{ label: 'BIP44 · Bitcoin Cash', path: "m/44'/145'/0'/0/0" }]
+    },
+    zcash: {
+      types: [{ value: 'legacy', label: 'Transparent', desc: 't1…', field: 'zcash_p2pkh', path: "m/44'/133'/0'/0/0" }],
+      presets: [{ label: 'BIP44 · Zcash', path: "m/44'/133'/0'/0/0" }]
+    },
+    sui: {
+      types: [{ value: 'legacy', label: 'Address', desc: '0x…', field: 'sui', path: "m/44'/784'/0'/0'/0'" }],
+      presets: [{ label: 'BIP44 · Sui', path: "m/44'/784'/0'/0'/0'" }]
+    },
+    ton: {
+      unsupported: 'TON mnemonic seeds need the wallet contract builder as well as the key. Use the TON key page or a TON wallet for now; no addresses are faked here.',
+      types: [],
+      presets: []
+    }
+  };
+
+  var root = document.querySelector('.mnemonic-seeds-page');
+  if (!root) return;
+
+  var chain = root.getAttribute('data-chain') || '';
+  if (!chain) return; // directory mode: the static page lists the chains.
+
+  document.body.classList.remove('mnemonic-directory-mode');
+  document.body.classList.add('mnemonic-chain-mode');
+
+  var config = CHAINS[chain];
+  var byId = function (id) { return document.getElementById(id); };
+  var rowsEl = byId('mnemonic-rows');
+  var errorBox = byId('mnemonic-error');
+  var noteText = byId('mnemonic-note-text');
+  var balanceToggle = byId('mnemonic-balance-toggle');
+  var deriveText = byId('mnemonic-derive-text');
+  var deriveBar = byId('mnemonic-derive-bar');
+  var deriveProgress = byId('mnemonic-derive-progress');
+  var pageNumberEl = byId('mnemonic-page-number');
+  var totalPagesEl = byId('mnemonic-total-pages');
+  var pagePercentEl = byId('mnemonic-page-percent');
+  var pageBar = byId('mnemonic-page-bar');
+  var pageProgress = byId('mnemonic-page-progress');
+  var pathInput = byId('mnemonic-path-input');
+  var presetSelect = byId('mnemonic-path-preset');
+  var applyButton = byId('mnemonic-path-apply');
+  var typeCards = byId('mnemonic-type-cards');
+  var pageInput = byId('mnemonic-page-input');
+  var wordButtons = Array.prototype.slice.call(document.querySelectorAll('.mnemonic-word-btn'));
+
+  var state = {
+    disposed: false,
+    wasmPromise: null,
+    entries: [],
+    run: 0,
+    balanceRun: 0
+  };
+
+  function fail(message) {
+    if (!errorBox) return;
+    errorBox.textContent = message || '';
+    errorBox.hidden = !message;
+  }
+
+  function setNote(message, isError) {
+    if (!noteText) return;
+    noteText.textContent = message;
+    noteText.classList.toggle('err', Boolean(isError));
+  }
+
+  /* ------------------------------------------------------------ routes */
+
+  var params = new URLSearchParams(window.location.search);
+  var words = Number(params.get('words'));
+  if (words !== 12 && words !== 18 && words !== 24) words = 12;
+  var bits = words === 12 ? 128 : words === 18 ? 192 : 256;
+  var entropyBytes = bits / 8;
+
+  var typeValue = params.get('type') || '';
+  var activeType = null;
+  (config && config.types ? config.types : []).forEach(function (kind) {
+    if (kind.value === typeValue) activeType = kind;
+  });
+  if (!activeType) activeType = config && config.types.length ? config.types[0] : null;
+
+  var customPath = params.get('path') || '';
+  var activePath = customPath || (activeType ? activeType.path : '');
+
+  var requestedPage = parseBigInt(root.getAttribute('data-page') || '1');
+  var totalEntropy = 1n << BigInt(bits);
+  var totalPages = (totalEntropy + ROWS_PER_PAGE - 1n) / ROWS_PER_PAGE;
+  var page = requestedPage < 1n ? 1n : requestedPage > totalPages ? totalPages : requestedPage;
+
+  function parseBigInt(text) {
+    var value = String(text || '').trim();
+    if (!/^\d+$/.test(value)) return 1n;
+    try {
+      return BigInt(value);
+    } catch (err) {
+      return 1n;
+    }
+  }
+
+  function formatCount(value) {
+    var text = value.toString();
+    if (text.length <= 12) return text;
+    return Number(value).toExponential(2).replace('e+', 'E+');
+  }
+
+  function pageHref(targetPage, overrides) {
+    var changes = overrides || {};
+    var nextWords = changes.words !== undefined ? changes.words : words;
+    var nextType = changes.type !== undefined ? changes.type : activeType.value;
+    var nextPath = changes.path !== undefined ? changes.path : customPath;
+    var base = targetPage <= 1n
+      ? '/mnemonic-seeds/' + chain
+      : '/mnemonic-seeds/' + chain + '/' + targetPage.toString();
+    var query = new URLSearchParams();
+    query.set('words', String(nextWords));
+    query.set('type', nextType);
+    if (nextPath) query.set('path', nextPath);
+    return base + '?' + query.toString();
+  }
+
+  /* ------------------------------------------------------------- paths */
+
+  function pathSegments(text, requireHardened) {
+    var value = String(text || '').trim();
+    if (!/^[mM](?:\/\d+'?)*$/.test(value)) {
+      throw new Error("Path must look like m/44'/0'/0'/0/0.");
+    }
+    if (value === 'm' || value === 'M') return [];
+    return value.slice(2).split('/').map(function (part) {
+      var hardened = part.charAt(part.length - 1) === "'";
+      var digits = hardened ? part.slice(0, -1) : part;
+      var index = Number(digits);
+      if (!Number.isSafeInteger(index) || index >= 2147483648) {
+        throw new Error('Invalid path index: ' + part);
+      }
+      if (requireHardened && !hardened) {
+        throw new Error("ed25519 paths must be hardened, for example m/44'/501'/0'/0'.");
+      }
+      return { index: index, hardened: hardened };
+    });
+  }
+
+  /* ------------------------------------------------------------- crypto */
+
+  function hexToBytes(hex) {
+    var length = hex.length / 2;
+    var out = new Uint8Array(length);
+    for (var i = 0; i < length; i += 1) {
+      out[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return out;
+  }
+
+  function bytesToHex(bytes) {
+    return Array.prototype.map.call(bytes, function (byte) {
+      return byte.toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  function entropyHex(index, byteLength) {
+    var hex = index.toString(16);
+    if (hex.length > byteLength * 2) {
+      throw new Error('Seed index is outside the selected word count.');
+    }
+    return hex.padStart(byteLength * 2, '0');
+  }
+
+  async function hmacSha512(keyBytes, dataBytes) {
+    var key = await window.crypto.subtle.importKey(
+      'raw',
+      keyBytes,
+      { name: 'HMAC', hash: 'SHA-512' },
+      false,
+      ['sign']
+    );
+    var signature = await window.crypto.subtle.sign('HMAC', key, dataBytes);
+    return new Uint8Array(signature);
+  }
+
+  /* SLIP-0010 ed25519: every child key is hardened. */
+  async function slip10(seed, pathText) {
+    var segments = pathSegments(pathText, true);
+    var master = await hmacSha512(ED_SEED_KEY, seed);
+    var key = master.slice(0, 32);
+    var chainCode = master.slice(32);
+    for (var i = 0; i < segments.length; i += 1) {
+      var index = (segments[i].index + 0x80000000) >>> 0;
+      var data = new Uint8Array(37);
+      data[0] = 0;
+      data.set(key, 1);
+      data[33] = (index >>> 24) & 0xff;
+      data[34] = (index >>> 16) & 0xff;
+      data[35] = (index >>> 8) & 0xff;
+      data[36] = index & 0xff;
+      var child = await hmacSha512(chainCode, data);
+      key = child.slice(0, 32);
+      chainCode = child.slice(32);
+    }
+    return key;
+  }
+
+  /* --------------------------------------------------------------- wasm */
+
+  function loadWasm() {
+    if (state.wasmPromise) return state.wasmPromise;
+    state.wasmPromise = (async function () {
+      var response = await fetch(WASM_URL);
+      if (!response.ok) throw new Error('Cannot load the derivation core: HTTP ' + response.status);
+      var module;
+      try {
+        module = await WebAssembly.instantiateStreaming(response.clone(), {});
+      } catch (err) {
+        module = await WebAssembly.instantiate(await response.arrayBuffer(), {});
+      }
+      return module.instance ? module.instance.exports : module.exports;
+    })();
+    state.wasmPromise.catch(function () { state.wasmPromise = null; });
+    return state.wasmPromise;
+  }
+
+  function readString(wasm, ptr, length) {
+    if (!ptr || !length) return '';
+    return DECODER.decode(new Uint8Array(wasm.memory.buffer, ptr, length));
+  }
+
+  function reportFor(wasm, keyHex, curve) {
+    var bytes = hexToBytes(keyHex);
+    var ptr = wasm.alloc(bytes.length) >>> 0;
+    if (!ptr) throw new Error('WASM memory exhausted.');
+    try {
+      new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
+      var status = wasm.derive_report(ptr, curve) >>> 0;
+      if (status !== 0) {
+        var detail = readString(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
+        throw new Error(detail || ('derivation status ' + status));
+      }
+      return JSON.parse(readString(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0));
+    } finally {
+      wasm.dealloc(ptr, bytes.length);
+    }
+  }
+
+  function addressOf(report, field) {
+    if (!report || !Array.isArray(report.addresses)) return '';
+    for (var i = 0; i < report.addresses.length; i += 1) {
+      if (report.addresses[i].id === field) return report.addresses[i].address || '';
+    }
+    return '';
+  }
+
+  /* ------------------------------------------------------------ rendering */
+
+  function explorerUrl(address) {
+    var prefix = root.getAttribute('data-explorer') || '';
+    return prefix ? prefix + encodeURIComponent(address) : '';
+  }
+
+  function renderPageInfo() {
+    if (pageNumberEl) pageNumberEl.textContent = '#' + formatCount(page);
+    if (totalPagesEl) totalPagesEl.textContent = '#' + formatCount(totalPages);
+    var percent = totalPages > 0n ? (Number(page) / Number(totalPages)) * 100 : 0;
+    var text = percent.toFixed(4) + '%';
+    if (pagePercentEl) pagePercentEl.textContent = text;
+    if (pageBar) pageBar.style.width = text;
+    if (pageProgress) {
+      pageProgress.setAttribute('aria-valuenow', percent.toFixed(2));
+    }
+    if (pageInput) pageInput.value = page.toString();
+  }
+
+  function renderPager() {
+    var first = byId('mnemonic-first');
+    var prev = byId('mnemonic-prev');
+    var next = byId('mnemonic-next');
+    var last = byId('mnemonic-last');
+    var random = byId('mnemonic-random');
+    var previousPage = page > 1n ? page - 1n : 1n;
+    var nextPage = page < totalPages ? page + 1n : page;
+    if (first) setPager(first, pageHref(1n), page <= 1n);
+    if (prev) setPager(prev, pageHref(previousPage), page <= 1n);
+    if (next) setPager(next, pageHref(nextPage), page >= totalPages);
+    if (last) setPager(last, pageHref(totalPages), page >= totalPages);
+    if (random) {
+      var sample = new Uint8Array(32);
+      window.crypto.getRandomValues(sample);
+      var value = BigInt('0x' + bytesToHex(sample)) % totalPages + 1n;
+      setPager(random, pageHref(value), false);
+    }
+  }
+
+  function setPager(link, href, disabled) {
+    link.setAttribute('href', href);
+    link.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    link.classList.toggle('disabled', disabled);
+    if (disabled) {
+      link.addEventListener('click', function (event) { event.preventDefault(); });
+    }
+  }
+
+  function renderWords() {
+    wordButtons.forEach(function (button) {
+      var value = Number(button.getAttribute('data-words'));
+      var active = value === words;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      button.addEventListener('click', function () {
+        window.location.assign(pageHref(page, { words: value }));
+      });
+    });
+  }
+
+  function renderTypeCards() {
+    if (!typeCards) return;
+    typeCards.textContent = '';
+    config.types.forEach(function (kind) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'address-type-card' + (kind === activeType ? ' active' : '');
+      var name = document.createElement('span');
+      name.className = 'type-name';
+      name.textContent = kind.label;
+      var desc = document.createElement('span');
+      desc.className = 'type-desc';
+      desc.textContent = kind.desc;
+      button.appendChild(name);
+      button.appendChild(desc);
+      button.addEventListener('click', function () {
+        window.location.assign(pageHref(page, { type: kind.value, path: '' }));
+      });
+      typeCards.appendChild(button);
+    });
+  }
+
+  function renderPresets() {
+    if (!presetSelect) return;
+    presetSelect.textContent = '';
+    var presets = config.presets || [];
+    var matched = false;
+    presets.forEach(function (preset) {
+      var option = document.createElement('option');
+      option.value = preset.path;
+      option.textContent = preset.label + ' · ' + preset.path;
+      if (preset.path === activePath) {
+        option.selected = true;
+        matched = true;
+      }
+      presetSelect.appendChild(option);
+    });
+    var custom = document.createElement('option');
+    custom.value = '';
+    custom.textContent = 'Custom path';
+    if (!matched) custom.selected = true;
+    presetSelect.appendChild(custom);
+    presetSelect.addEventListener('change', function () {
+      if (presetSelect.value) {
+        pathInput.value = presetSelect.value;
+      } else {
+        pathInput.focus();
+      }
+    });
+  }
+
+  function applyPath() {
+    var value = pathInput.value.trim();
+    try {
+      pathSegments(value, Number(root.getAttribute('data-curve')) === 1);
+    } catch (err) {
+      fail(err.message);
+      return;
+    }
+    window.location.assign(pageHref(page, { path: value }));
+  }
+
+  function createRow(entry) {
+    var row = document.createElement('div');
+    row.className = 'mnemonic-row';
+
+    var seed = document.createElement('div');
+    seed.className = 'mnemonic-seed';
+    seed.textContent = 'Seed #' + entry.seedNumber.toString();
+
+    var phrase = document.createElement('div');
+    phrase.className = 'mnemonic-phrase';
+    phrase.textContent = 'Deriving…';
+
+    var address = document.createElement('div');
+    address.className = 'mnemonic-address';
+    var pending = document.createElement('span');
+    pending.className = 'cell-skeleton';
+    pending.textContent = 'Calculating…';
+    address.appendChild(pending);
+
+    var balance = document.createElement('div');
+    balance.className = 'mnemonic-balance';
+    balance.textContent = '—';
+
+    row.appendChild(seed);
+    row.appendChild(phrase);
+    row.appendChild(address);
+    row.appendChild(balance);
+    rowsEl.appendChild(row);
+    entry.phraseCell = phrase;
+    entry.addressCell = address;
+    entry.balanceCell = balance;
+  }
+
+  function fillRow(entry) {
+    entry.phraseCell.textContent = entry.phrase;
+    entry.addressCell.textContent = '';
+    if (!entry.address) {
+      entry.addressCell.textContent = 'Not available for this address type.';
+      return;
+    }
+    var link = document.createElement('a');
+    link.className = 'mono address-link';
+    link.href = explorerUrl(entry.address) || '#';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = entry.address;
+    link.title = entry.address;
+    entry.addressCell.appendChild(link);
+    if (entry.wif) {
+      var wif = document.createElement('a');
+      wif.className = 'mono mnemonic-wif';
+      wif.href = '/key/' + encodeURIComponent(entry.wif);
+      wif.textContent = 'WIF';
+      wif.title = entry.wif;
+      entry.addressCell.appendChild(wif);
+    }
+  }
+
+  function fillRowError(entry, err) {
+    entry.phraseCell.textContent = '—';
+    entry.addressCell.textContent = err && err.message ? err.message : 'Derivation failed.';
+  }
+
+  function setDeriveProgress(done, total) {
+    var percent = total ? Math.round((done / total) * 100) : 0;
+    if (deriveBar) deriveBar.style.width = percent + '%';
+    if (deriveProgress) deriveProgress.setAttribute('aria-valuenow', String(percent));
+    if (deriveText) deriveText.textContent = 'Deriving seed ' + done + ' of ' + total + '…';
+  }
+
+  /* ------------------------------------------------------------- balances */
+
+  function coin(value, decimals) {
+    var number = Number(value) / Math.pow(10, decimals);
+    if (!isFinite(number)) return '0';
+    if (number === 0) return '0';
+    if (number < 0.00000001) return '<0.00000001';
+    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
+  }
+
+  function setBalance(entry, text, raw) {
+    entry.balanceCell.textContent = text;
+    if (raw !== undefined) entry.balanceCell.title = raw;
+    entry.balanceCell.classList.toggle('has-balance', text !== '—' && text !== '0');
+  }
+
+  function setSummary(balance, received, tx) {
+    var balanceEl = byId('mnemonic-total-balance');
+    var receivedEl = byId('mnemonic-total-received');
+    var txEl = byId('mnemonic-total-tx');
+    if (balanceEl) balanceEl.textContent = balance;
+    if (receivedEl) receivedEl.textContent = received;
+    if (txEl) txEl.textContent = tx;
+  }
+
+  async function fetchJson(url, options) {
+    var response = await fetch(url, options);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+  }
+
+  async function btcBalances(run) {
+    var addresses = state.entries.map(function (entry) { return entry.address; }).filter(Boolean);
+    if (!addresses.length) return;
+    var url = 'https://blockchain.info/balance?cors=true&active=' +
+      addresses.map(encodeURIComponent).join('|');
+    var data = await fetchJson(url);
+    if (run !== state.balanceRun || state.disposed) return;
+    var sum = 0;
+    var received = 0;
+    var tx = 0;
+    state.entries.forEach(function (entry) {
+      var info = data[entry.address];
+      if (!info) return;
+      sum += Number(info.final_balance || 0);
+      received += Number(info.total_received || 0);
+      tx += Number(info.n_tx || 0);
+      setBalance(entry, coin(info.final_balance, 8) + ' BTC', Number(info.n_tx || 0) + ' tx');
+    });
+    setSummary(coin(sum, 8) + ' BTC', coin(received, 8) + ' BTC', String(tx));
+  }
+
+  async function evmBalances(run) {
+    var rpc = RPC[chain];
+    if (!rpc) return;
+    var addresses = state.entries.map(function (entry) { return entry.address; }).filter(Boolean);
+    if (!addresses.length) return;
+    var unique = Array.from(new Set(addresses));
+    var payload = unique.map(function (address, index) {
+      return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
+    });
+    var list = await fetchJson(rpc, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (run !== state.balanceRun || state.disposed) return;
+    var byAddress = {};
+    (Array.isArray(list) ? list : []).forEach(function (item) {
+      var address = unique[item.id - 1];
+      if (address) byAddress[address] = BigInt(item.result || '0x0');
+    });
+    var symbol = root.getAttribute('data-symbol') || '';
+    var sum = 0n;
+    state.entries.forEach(function (entry) {
+      var value = byAddress[entry.address];
+      if (value === undefined) return;
+      sum += value;
+      setBalance(entry, coin(value, 18) + ' ' + symbol, value.toString() + ' wei');
+    });
+    setSummary(coin(sum, 18) + ' ' + symbol, '—', '—');
+  }
+
+  async function loadBalances() {
+    if (balanceToggle && !balanceToggle.checked) {
+      setNote('Balance lookup is off. The addresses still link to their explorers.');
+      return;
+    }
+    var run = ++state.balanceRun;
+    setNote('Checking public balances in your browser…');
+    try {
+      if (chain === 'bitcoin') {
+        await btcBalances(run);
+      } else if (RPC[chain]) {
+        await evmBalances(run);
+      } else {
+        setSummary('—', '—', '—');
+        setNote('Live balance lookup is not available for this chain here; each address links to its explorer.');
+        return;
+      }
+      if (run !== state.balanceRun || state.disposed) return;
+      setNote('Balances loaded from public providers in your browser. They can lag the chain; only public addresses were sent.');
+    } catch (err) {
+      if (run !== state.balanceRun || state.disposed) return;
+      setNote('Balance lookup is unavailable right now. The addresses are still derived locally.', true);
+    }
+  }
+
+  /* ----------------------------------------------------------------- boot */
+
+  async function deriveEntry(entry, wasm) {
+    var hex = entropyHex(entry.index, entropyBytes);
+    var phrase = window.RotorSeed.entropyToMnemonic(hex);
+    entry.phrase = phrase;
+    var report;
+    if (Number(root.getAttribute('data-curve')) === 1) {
+      var seed = hexToBytes(window.RotorSeed.seedHex(phrase, ''));
+      var key = await slip10(seed, activePath);
+      report = reportFor(wasm, bytesToHex(key), 1);
+    } else {
+      var keyHex = window.RotorSeed.derive(phrase, '', activePath);
+      report = reportFor(wasm, keyHex, 0);
+    }
+    entry.address = addressOf(report, activeType.field);
+    entry.wif = chain === 'bitcoin' && report ? report.wif_compressed || '' : '';
+    fillRow(entry);
+  }
+
+  async function deriveAll(wasm) {
+    var token = ++state.run;
+    var total = state.entries.length;
+    for (var i = 0; i < total; i += 3) {
+      if (state.disposed || token !== state.run) return;
+      var end = Math.min(i + 3, total);
+      for (var j = i; j < end; j += 1) {
+        try {
+          await deriveEntry(state.entries[j], wasm);
+        } catch (err) {
+          fillRowError(state.entries[j], err);
+        }
+      }
+      setDeriveProgress(end, total);
+      await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
+    }
+    if (state.disposed || token !== state.run) return;
+    if (deriveText) deriveText.textContent = 'Derived ' + total + ' seeds in this browser.';
+    if (deriveBar) deriveBar.style.width = '100%';
+    if (deriveProgress) deriveProgress.setAttribute('aria-valuenow', '100');
+    await loadBalances();
+  }
+
+  async function boot() {
+    // Mark the active chain tab.
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#mnemonic-chain-tabs .chain-tab'),
+      function (tab) {
+        if (tab.getAttribute('href') === '/mnemonic-seeds/' + chain) {
+          tab.classList.add('active');
+          tab.setAttribute('aria-current', 'page');
+        }
+      }
+    );
+
+    if (!config || config.unsupported) {
+      var reason = config && config.unsupported
+        ? config.unsupported
+        : 'This chain is not part of the mnemonic seed directory yet.';
+      document.body.classList.add('mnemonic-unsupported');
+      fail(reason);
+      if (deriveText) deriveText.textContent = 'Unsupported chain.';
+      if (rowsEl) rowsEl.textContent = '';
+      if (typeCards) typeCards.textContent = '';
+      return;
+    }
+
+    if (!window.RotorSeed) {
+      fail('The seed library did not load. Reload the page.');
+      return;
+    }
+
+    try {
+      pathSegments(activePath, Number(root.getAttribute('data-curve')) === 1);
+    } catch (err) {
+      fail(err.message);
+      return;
+    }
+
+    if (Number(root.getAttribute('data-curve')) === 1 &&
+        (!window.crypto || !window.crypto.subtle)) {
+      fail('ed25519 derivation needs Web Crypto (HTTPS or localhost). Open this page over HTTPS.');
+      return;
+    }
+
+    pathInput.value = activePath;
+    renderPageInfo();
+    renderPager();
+    renderWords();
+    renderTypeCards();
+    renderPresets();
+    applyButton.addEventListener('click', applyPath);
+    pathInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        applyPath();
+      }
+    });
+    var jump = byId('mnemonic-jump');
+    if (jump) {
+      jump.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var digits = (pageInput.value || '').replace(/[^0-9]/g, '');
+        var target = digits ? BigInt(digits) : 1n;
+        if (target < 1n) target = 1n;
+        if (target > totalPages) target = totalPages;
+        window.location.assign(pageHref(target));
+      });
+    }
+    ['mnemonic-first', 'mnemonic-prev', 'mnemonic-next', 'mnemonic-last'].forEach(function (id) {
+      var link = byId(id);
+      if (link) {
+        link.addEventListener('click', function (event) {
+          if (link.getAttribute('aria-disabled') === 'true') event.preventDefault();
+        });
+      }
+    });
+    if (balanceToggle) {
+      balanceToggle.addEventListener('change', function () {
+        if (balanceToggle.checked) loadBalances();
+      });
+    }
+
+    rowsEl.textContent = '';
+    var startIndex = (page - 1n) * ROWS_PER_PAGE;
+    var remaining = totalEntropy - startIndex;
+    var count = remaining >= ROWS_PER_PAGE ? Number(ROWS_PER_PAGE) : Number(remaining);
+    for (var i = 0; i < count; i += 1) {
+      var index = startIndex + BigInt(i);
+      var entry = { index: index, seedNumber: index + 1n };
+      state.entries.push(entry);
+      createRow(entry);
+    }
+    setDeriveProgress(0, count);
+
+    var wasm;
+    try {
+      wasm = await loadWasm();
+    } catch (err) {
+      fail(err && err.message ? err.message : 'The derivation core did not load.');
+      state.entries.forEach(function (entry) {
+        entry.phraseCell.textContent = '—';
+        entry.addressCell.textContent = 'Derivation core unavailable.';
+      });
+      return;
+    }
+    await deriveAll(wasm);
+  }
+
+  window.addEventListener('pagehide', function () {
+    state.disposed = true;
+    state.run += 1;
+    state.entries = [];
+    if (rowsEl) rowsEl.textContent = '';
+  });
+
+  boot();
+})();
