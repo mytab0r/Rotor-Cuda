@@ -1359,7 +1359,7 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
          <link rel=\"stylesheet\" href=\"/site.css\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261118s\"></script>\n<script src=\"/site.js?v=20261118s\"></script>\n</body>\n</html>\n",
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261118t\"></script>\n<script src=\"/site.js?v=20261118t\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2214,7 +2214,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261118s\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261118t\"></script>",
         site_header(),
         "",
         chain.color,

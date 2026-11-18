@@ -1916,7 +1916,7 @@ code { font-family: var(--mono); font-size: .92em; }
   flex: none;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1;
   border: 1px solid var(--border);
   border-radius: 3px;
@@ -1959,7 +1959,7 @@ code { font-family: var(--mono); font-size: .92em; }
 @media (max-width: 560px) {
   .balance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .stat-card { padding: 12px 10px; gap: 3px; }
-  .stat-card .stat-label { font-size: 10px; letter-spacing: .05em; }
+  .stat-card .stat-label { font-size: 11px; letter-spacing: .04em; }
   .stat-card .stat-value { font-size: 16px; }
   .balance-note { padding: 9px 12px 11px; font-size: 11px; }
   .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1983,7 +1983,7 @@ code { font-family: var(--mono); font-size: .92em; }
   .addr-prefix { font-size: 8.5px; padding: 1px 2px; }
   .address-link { font-size: 11px; }
   .bal-line { gap: 4px; }
-  .bal-line small { font-size: 10px; }
+  .bal-line small { font-size: 11px; }
 }
 
 .directory-hint.err { color: #ffb3b3 !important; }
