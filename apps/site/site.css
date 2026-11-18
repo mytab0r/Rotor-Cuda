@@ -2395,3 +2395,69 @@ code { font-family: var(--mono); font-size: .92em; }
 .key-dot-zcash { background: #ecb244; }
 .key-dot-sui { background: #6fbcf0; }
 .key-dot-ton { background: #0098ea; }
+
+/* Entity calculator index and cross-links */
+.tool-index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.tool-index-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  column-gap: 12px;
+  row-gap: 3px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .02), transparent 60%), var(--panel);
+  color: var(--text);
+  transition: border-color .16s ease, transform .16s ease, background .16s ease;
+}
+.tool-index-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  background: var(--panel-2);
+  text-decoration: none;
+}
+.tool-index-icon {
+  grid-row: 1 / 4;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(245, 181, 68, .28);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tool-index-icon .icon { width: 21px; height: 21px; }
+.tool-index-title { font-size: 15px; font-weight: 750; }
+.tool-index-desc { color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.tool-index-meta { color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .02em; }
+
+.entity-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.entity-links span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.entity-links a { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
+.entity-links a:hover { color: var(--accent-2); }
+
+/* One address-type button family across the key explorer and chain browser */
+.key-type {
+  min-height: 66px;
+  padding: 10px 14px;
+  border-radius: 11px;
+  align-items: flex-start;
+  gap: 3px;
+}
+.key-type-name { font-size: 14px; }
+.key-type-code { font-size: 11px; }

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypto calculators — keys, WIF, seeds, vanity | Rotor</title>
+<meta name="description" content="One page for every crypto calculator: hex and decimal private keys, WIF, brainwallets, BIP39 seed phrases, vanity addresses and the key explorer.">
+<link rel="canonical" href="https://rotor.pxbt.app/tools">
+<link rel="stylesheet" href="/site.css?v=20261119j">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" class="active" data-nav="tools" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page tools-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
+      <div>
+        <h1>Crypto calculators</h1>
+        <p class="key-tagline">One input, every useful form. Each calculator starts from the entity you already have — WIF, hex, decimal, a seed phrase or a brainwallet — and derives the rest in your browser.</p>
+        <div class="key-badges"><span>Runs locally</span><span>18 chains</span><span>No upload</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="tool-index-grid">
+    <a class="tool-index-card" href="/key">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <span class="tool-index-title">Key explorer</span>
+      <span class="tool-index-desc">Paste a private key in any supported format and derive every address with balances.</span>
+      <span class="tool-index-meta">HEX · WIF · decimal · byte array</span>
+    </a>
+    <a class="tool-index-card" href="/key/hex">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <span class="tool-index-title">Private key (hex)</span>
+      <span class="tool-index-desc">64 hexadecimal characters to WIF, decimal, public key and addresses.</span>
+      <span class="tool-index-meta">HEX → WIF · public key · addresses</span>
+    </a>
+    <a class="tool-index-card" href="/key/wif">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <span class="tool-index-title">WIF calculator</span>
+      <span class="tool-index-desc">Decode a Bitcoin Wallet Import Format key from 5… or K/L… into hex and addresses.</span>
+      <span class="tool-index-meta">WIF → HEX · public key · addresses</span>
+    </a>
+    <a class="tool-index-card" href="/key/decimal">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <span class="tool-index-title">Decimal key</span>
+      <span class="tool-index-desc">A decimal integer below the curve order to hex, WIF and addresses.</span>
+      <span class="tool-index-meta">DECIMAL → HEX · WIF · addresses</span>
+    </a>
+    <a class="tool-index-card" href="/brainwallet">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
+      <span class="tool-index-title">Brainwallet</span>
+      <span class="tool-index-desc">See how a passphrase becomes a SHA-256 key and address. Educational only.</span>
+      <span class="tool-index-meta">TEXT → SHA-256 → addresses</span>
+    </a>
+    <a class="tool-index-card" href="/seed">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <span class="tool-index-title">Seed phrase</span>
+      <span class="tool-index-desc">BIP39 phrase to the first key of the standard BTC, EVM, TRON and other paths.</span>
+      <span class="tool-index-meta">BIP39 → BIP32 → addresses</span>
+    </a>
+    <a class="tool-index-card" href="/vanity">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
+      <span class="tool-index-title">Vanity generator</span>
+      <span class="tool-index-desc">Generate a key whose address starts or ends with your text, locally.</span>
+      <span class="tool-index-meta">PREFIX / SUFFIX → key</span>
+    </a>
+    <a class="tool-index-card" href="/milk-sad">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg></span>
+      <span class="tool-index-title">Milk Sad audit</span>
+      <span class="tool-index-desc">What the Libbitcoin bx seed weak-entropy issue means and what an owner should do.</span>
+      <span class="tool-index-meta">CVE-2023-39910 · owner action</span>
+    </a>
+  </div>
+
+  <p class="muted key-help">Every calculator derives in this browser. The server never receives a private key, WIF or seed phrase; only public addresses are sent during an opt-in balance check.</p>
+</main>
+
+<script src="/site.js?v=20261119j"></script>
+</body>
+</html>

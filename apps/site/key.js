@@ -552,7 +552,15 @@
       var row = document.createElement('div');
       row.className = 'key-form-row';
       var dt = document.createElement('dt');
-      dt.textContent = field[0];
+      if (field[0].indexOf('WIF') === 0) {
+        var wifLink = document.createElement('a');
+        wifLink.href = '/key/wif';
+        wifLink.textContent = field[0];
+        wifLink.title = 'Open the WIF calculator';
+        dt.appendChild(wifLink);
+      } else {
+        dt.textContent = field[0];
+      }
       var dd = document.createElement('dd');
       dd.className = 'mono';
       dd.textContent = value;
