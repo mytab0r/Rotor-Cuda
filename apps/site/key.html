@@ -4,25 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261118e">
+<link rel="stylesheet" href="/site.css?v=20261118r">
 </head>
 <body>
 <header class="site-nav">
-  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
-  <nav>
-    <a href="/" id="nav-home">Home</a>
-    <a href="/private-keys" id="nav-chains">Chains</a>
-    <a href="/bitcoin-puzzle" id="nav-puzzles">Puzzles</a>
-    <a href="/brainwallet" id="nav-tools">Tools</a>
-    <a href="/docs" id="nav-docs">Docs</a>
-    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
 </header>
 
 <main class="key-page">
   <section class="hero key-hero">
-    <h1>Private-key explorer</h1>
-    <p class="key-tagline">Every private key is a number. See what yours opens — all derivation happens in this browser.</p>
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <div>
+        <h1>Private-key explorer</h1>
+        <p class="key-tagline">Every private key is a number. See what yours opens — all derivation happens in this browser.</p>
+      </div>
+    </div>
     <p class="notice key-warning" role="note">Use only keys you control. If a key holds funds, keep it offline or air-gapped — this page never asks for a seed phrase.</p>
   </section>
 
@@ -168,6 +176,6 @@
   </section>
 </main>
 
-<script src="/key.js?v=20261118e"></script>
+<script src="/key.js?v=20261118r"></script>
 </body>
 </html>

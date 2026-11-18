@@ -113,6 +113,54 @@
       '</svg>';
   }
 
+
+  /* Highlight the current section in the shared header. */
+  function markNavigation() {
+    var path = window.location.pathname;
+    var section = 'home';
+    if (path === '/private-keys' || path.indexOf('/private-keys/') === 0 || path.indexOf('/keys/') === 0) section = 'directory';
+    else if (path.indexOf('/bitcoin-puzzle') === 0) section = 'puzzle';
+    else if (path.indexOf('/brainwallet') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0) section = 'tools';
+    else if (path.indexOf('/docs') === 0) section = 'docs';
+    else if (path.indexOf('/key') === 0) section = 'search';
+    else if (path.indexOf('/cabinet') === 0 || path.indexOf('/monitor') === 0 || path.indexOf('/me') === 0) section = 'cabinet';
+    Array.prototype.forEach.call(document.querySelectorAll('.site-nav [data-nav]'), function (link) {
+      var active = link.getAttribute('data-nav') === section;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+  }
+
+  /* Directory search accepts a hex key; chain pages handle WIF and brainwallets. */
+  function bindKeySearches() {
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-key-search]'), function (form) {
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var input = form.querySelector('input');
+        var hint = document.querySelector('.directory-hint');
+        var value = input ? input.value.trim() : '';
+        if (!value) return;
+        if (!window.RotorSearch) {
+          if (hint) hint.textContent = 'Search is still loading. Try again.';
+          return;
+        }
+        window.RotorSearch.resolve(value).then(function (hex) {
+          window.location.href = '/key/' + hex;
+        }, function (err) {
+          if (hint) {
+            hint.textContent = err && err.message ? err.message : 'Cannot read that key.';
+            hint.classList.add('err');
+          }
+          if (input) input.focus();
+        });
+      });
+    });
+  }
+
+  markNavigation();
+  bindKeySearches();
+
   window.Rotor = {
     TOKEN_KEY: TOKEN_KEY,
     token: token,
