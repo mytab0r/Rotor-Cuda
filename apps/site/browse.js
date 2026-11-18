@@ -181,7 +181,7 @@
     return config.explorer + encodeURIComponent(address);
   }
 
-  function fillAddressCell(row, entries) {
+  function fillAddressCell(row, entries, wif) {
     var cell = row.querySelector('.col-address');
     if (!cell) return;
     cell.textContent = '';
@@ -213,6 +213,14 @@
       line.appendChild(link);
       cell.appendChild(line);
     });
+    if (wif) {
+      var wifLine = document.createElement('a');
+      wifLine.className = 'wif-line';
+      wifLine.href = '/key/' + encodeURIComponent(wif);
+      wifLine.title = 'Open the WIF key page';
+      wifLine.textContent = wif;
+      cell.appendChild(wifLine);
+    }
   }
 
   function addressMap(report) {
@@ -240,7 +248,8 @@
       }
       state.addressSets[hex] = entries;
       state.addresses[hex] = entries.length ? entries[0].address : '';
-      fillAddressCell(row, entries);
+      var wif = config.chain === 'bitcoin' && report ? report.wif_compressed || '' : '';
+      fillAddressCell(row, entries, wif);
     });
   }
 
@@ -279,8 +288,9 @@
         var label = document.createElement('span');
         label.className = 'detail-label';
         label.textContent = field === 'wif_compressed' ? 'WIF (compressed)' : 'WIF (uncompressed)';
-        var value = document.createElement('code');
-        value.className = 'mono detail-value';
+        var value = document.createElement('a');
+        value.className = 'mono detail-value wif-detail-link';
+        value.href = '/key/' + encodeURIComponent(report[field]);
         value.textContent = report[field];
         var copy = document.createElement('button');
         copy.type = 'button';
