@@ -8,7 +8,7 @@ Crawled `privatekeyfinder.io/sitemap.xml` and representative pages on
 | `/private-keys`, `/private-keys/<18 chains>` | done, 18 chains | — |
 | `/key/<hex>` and `/key/<WIF>` | done | — |
 | direct key search modal (`Ctrl+K`, auto-detect HEX/WIF/keypair/XRP secret/mnemonic/brainwallet, 18 chain icons, “Search All Chains”) | partial: HEX/WIF/brainwallet only, no mnemonic/keypair/XRP secret, no chain icon strip | P0 |
-| `/mnemonic-seeds`, `/mnemonic-seeds/<chain>` | missing: only a one-phrase converter at `/seed`; no 60-per-page directory, word count, path, address type or balances | P0 |
+| `/mnemonic-seeds`, `/mnemonic-seeds/<chain>` | done: directory, 60-per-page seed space, 12/18/24 words, BIP-32 path, address type, pager and BTC/EVM balances; TON is an explicit unsupported state | — |
 | `/mnemonic-converter` | missing (converter lives only in `/seed`) | P1 |
 | `/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum`, `/brainwallet-generator` | only one generic `/brainwallet` page | P1 |
 | `/keystore-parser` | missing | P2 |
@@ -32,9 +32,9 @@ Crawled `privatekeyfinder.io/sitemap.xml` and representative pages on
 - Summary: Balance / Received / TX.
 - 60 rows: `Seed #N`, mnemonic, address, balance; data derived client-side.
 
-Rotor's `/seed` currently starts from a phrase and returns fixed paths; it cannot
-browse the seed space, choose word count/path/address type, or page through it.
-This is a behaviour gap, not a visual one.
+Rotor's `/seed` starts from a phrase and returns fixed paths; the separate
+`/mnemonic-seeds` directory now browses the seed space with word count, path,
+address type and balances. `/seed` remains the single-phrase converter.
 
 ## Observed donor search component
 

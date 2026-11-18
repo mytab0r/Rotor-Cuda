@@ -17,7 +17,8 @@
         "node --check apps/site/vanity.js",
         "node --check apps/site/seed-page.js",
         "node --check apps/site/puzzle-browser.js",
-        "node --check apps/site/puzzle-worker.js"
+        "node --check apps/site/puzzle-worker.js",
+        "node --check apps/site/mnemonic-seeds.js"
       ],
       "test": [
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",

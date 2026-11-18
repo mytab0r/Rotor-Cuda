@@ -100,9 +100,10 @@ browser capture in the PR.
 - [ ] Archive the change and update `openspec/specs/key-explorer/spec.md`.
 
 ## 12. Donor route backlog (from donor-map.md)
-- [ ] `/mnemonic-seeds` and `/mnemonic-seeds/<chain>` with 60 rows per page,
+- [x] `/mnemonic-seeds` and `/mnemonic-seeds/<chain>` with 60 rows per page,
       12/18/24-word entropy, BIP-32 path, address type, balances and pager.
-      (blocked by: 5 — seed studio engine)
+      (blocked by: 5 — seed studio engine; delivered on top of `seed.js`)
+      Evidence: `mnemonic_seed_directory_routes_and_assets_are_served` route test.
 - [ ] Header icon-only search + 18-chain icon strip modal with auto-detect
       HEX/WIF/Keypair/XRP secret/Mnemonic/Brainwallet and `Search All Chains`.
       (blocked by: 12 seed directory for mnemonic results)
