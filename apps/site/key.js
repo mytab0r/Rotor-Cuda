@@ -672,6 +672,25 @@
     });
   }
 
+  function explorerFor(id) {
+    if (typeof id === 'string') {
+      if (id.indexOf('btc_') === 0) return 'https://mempool.space/address/';
+      if (id.indexOf('ltc_') === 0) return 'https://blockchair.com/litecoin/address/';
+      if (id.indexOf('doge_') === 0) return 'https://blockchair.com/dogecoin/address/';
+      if (id.indexOf('bch_') === 0) return 'https://blockchair.com/bitcoin-cash/address/';
+      if (id.indexOf('zcash_') === 0) return 'https://blockchair.com/zcash/address/';
+      if (id.indexOf('xrp_') === 0) return 'https://xrpscan.com/account/';
+    }
+    var map = {
+      evm: 'https://etherscan.io/address/',
+      tron: 'https://tronscan.org/#/address/',
+      solana: 'https://solscan.io/account/',
+      sui: 'https://suiscan.xyz/mainnet/account/',
+      ton: 'https://tonviewer.com/'
+    };
+    return map[id] || '';
+  }
+
   function buildRow(addr) {
     var row = document.createElement('div');
     row.className = 'key-row';
@@ -690,6 +709,14 @@
       path.textContent = PATHS[addr.id];
       head.appendChild(path);
     }
+    if (typeof addr.id === 'string' && addr.id.indexOf('btc_') === 0 && state.report && state.report.wif_compressed) {
+      var wif = document.createElement('a');
+      wif.className = 'key-wif';
+      wif.href = '/key/' + encodeURIComponent(state.report.wif_compressed);
+      wif.title = 'Open the WIF key page';
+      wif.textContent = 'WIF';
+      head.appendChild(wif);
+    }
     var badge = document.createElement('span');
     badge.className = 'key-balance';
     badge.hidden = true;
@@ -701,28 +728,52 @@
     var code = document.createElement('code');
     code.className = 'mono key-addr';
     code.textContent = addr.address;
+    line.appendChild(code);
+    var explorer = explorerFor(addr.id);
+    if (explorer) {
+      var ext = document.createElement('a');
+      ext.className = 'key-copy key-copy-icon';
+      ext.href = explorer + encodeURIComponent(addr.address);
+      ext.target = '_blank';
+      ext.rel = 'noopener noreferrer';
+      ext.title = 'Open in explorer';
+      ext.setAttribute('aria-label', 'Open ' + (addr.label || addr.id) + ' in explorer');
+      var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'icon');
+      svg.setAttribute('aria-hidden', 'true');
+      var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', '/icons.svg#ui-external');
+      svg.appendChild(use);
+      ext.appendChild(svg);
+      line.appendChild(ext);
+    }
     var copy = document.createElement('button');
     copy.type = 'button';
-    copy.className = 'key-copy';
-    copy.textContent = 'Copy';
+    copy.className = 'key-copy key-copy-icon';
+    copy.title = 'Copy address';
     copy.setAttribute('aria-label', 'Copy ' + (addr.label || addr.id) + ' address');
+    var copySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    copySvg.setAttribute('class', 'icon');
+    copySvg.setAttribute('aria-hidden', 'true');
+    var copyUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    copyUse.setAttribute('href', '/icons.svg#ui-copy');
+    copySvg.appendChild(copyUse);
+    copy.appendChild(copySvg);
     copy.addEventListener('click', function () { copyText(addr.address, copy); });
-    line.appendChild(code);
     line.appendChild(copy);
     row.appendChild(line);
-
-    if (EXPLAIN[addr.id]) {
-      var sentence = document.createElement('p');
-      sentence.className = 'muted key-explain';
-      sentence.textContent = EXPLAIN[addr.id];
-      row.appendChild(sentence);
-    }
 
     var details = document.createElement('details');
     details.className = 'key-steps';
     var summary = document.createElement('summary');
-    summary.textContent = 'Show calculation';
+    summary.textContent = 'Details';
     details.appendChild(summary);
+    if (EXPLAIN[addr.id]) {
+      var sentence = document.createElement('p');
+      sentence.className = 'muted key-explain';
+      sentence.textContent = EXPLAIN[addr.id];
+      details.appendChild(sentence);
+    }
 
     var steps = addr.steps && typeof addr.steps === 'object' ? addr.steps : null;
     if (steps) {

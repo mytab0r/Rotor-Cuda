@@ -21,6 +21,9 @@
       the WASM report (key 1 and an ed25519 seed).
 - [ ] `Found.txt` writes chain-specific WIF/secret only where defined; tests
       for BTC, LTC, DOGE, BCH, ZEC, XRP, ETH, TRON.
+- [ ] Port `BinSort/BinSort.cpp` to a Rust subcommand/helper or delete it if
+      the Rust sorter already covers it; remove the `.vcxproj`/Makefile.
+      This is independent of the CUDA gate.
 - [ ] CLI help/docs updated; deprecated `--coin` emits a warning, not an error.
 
 ## 3. secp-hash160 family [desktop]
@@ -64,8 +67,10 @@
 ## 8. Rust GPU backend and CUDA removal [desktop+ops]
 - [ ] Implement the chosen backend (WGSL or SPIR-V) for secp, EVM/keccak,
       ed25519 if gated; keep CPU fallback explicit. (blocked by: 1, 5)
-- [ ] Delete `Rotor-Cuda/` CUDA sources, `build.rs` `nvcc` branch, CUDA
-      workflow steps and docs; update `projects.json` and `PROJECTS.md`.
+- [ ] After the gate passes: delete `Rotor-Cuda/` CUDA sources, `build.rs`
+      `nvcc` branch, CUDA workflow steps and docs; update `projects.json` and
+      `PROJECTS.md`. If the gate fails, keep CUDA feature-gated and mark the
+      Rust-only goal blocked instead of removing it.
 - [ ] CI builds with no CUDA toolkit on ubuntu/windows; release artifact
       contains no C/C++ compiled objects.
 - [ ] Performance report vs the recorded CUDA baseline; same fixtures found.
