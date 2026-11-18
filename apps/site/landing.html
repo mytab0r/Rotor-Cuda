@@ -6,43 +6,46 @@
 <title>Private key explorer and Bitcoin puzzle search | Rotor</title>
 <meta name="description" content="Derive Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP addresses from a private key in your browser. Browse key hubs, puzzle ranges and join the distributed puzzle search.">
 <link rel="canonical" href="https://rotor.pxbt.app/">
-<link rel="stylesheet" href="/site.css?v=20261118e">
+<link rel="stylesheet" href="/site.css?v=20261118r">
 </head>
 <body>
 <header class="site-nav">
-  <a class="brand" href="/">Rotor <span>Coordinator</span></a>
-  <nav>
-    <a href="/" class="active" id="nav-home" aria-current="page">Home</a>
-    <a href="/private-keys" id="nav-chains">Chains</a>
-    <a href="/bitcoin-puzzle" id="nav-puzzles">Puzzles</a>
-    <a href="/brainwallet" id="nav-tools">Tools</a>
-    <a href="/docs" id="nav-docs">Docs</a>
-    <a href="/cabinet" id="nav-cabinet">Cabinet</a>
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/brainwallet" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
+  <div class="nav-tools">
+    <a class="nav-pill" href="/key" data-nav="search"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg><span>Key search</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
 </header>
 
 <main class="landing-page">
   <section class="hero landing-hero">
     <h1>Rotor Coordinator: private key explorer and puzzle search</h1>
     <p>
-      A community puzzle solver. Clients lease disjoint key ranges from this
-      coordinator, scan them on CPU or GPU, and report accepted completions.
-      Everyone's work is verified, counted and shown on the leaderboard.
+      Look up a private key, WIF or brainwallet and derive public addresses for
+      15 chains without sending the key anywhere. The same coordinator runs the
+      public Bitcoin puzzle search and a consent-based address watchlist.
     </p>
     <form class="key-search" id="key-search-form" role="search" autocomplete="off">
       <label for="key-search-input">Find a key</label>
       <div class="key-search-row">
         <input id="key-search-input" class="mono" type="search"
-               placeholder="64-hex private key, WIF or address"
+               placeholder="64-hex private key, WIF or brainwallet"
                spellcheck="false" autocapitalize="off">
         <button type="submit" class="primary">Search</button>
       </div>
-      <p class="muted key-search-hint" id="key-search-hint" role="status">Paste a 64-hex private key to open its key page. WIF and addresses are handled in the key calculator.</p>
+      <p class="muted key-search-hint" id="key-search-hint" role="status">HEX, WIF and brainwallet text are decoded in your browser. Addresses open the key calculator.</p>
     </form>
     <div class="actions">
-      <a class="button primary" href="/bitcoin-puzzle">Explore the puzzle board</a>
-      <a class="button" href="/run">Run a client</a>
-      <a class="button" href="/key">Open the key calculator</a>
+      <a class="button primary" href="/key">Open the key calculator</a>
+      <a class="button" href="/private-keys">Browse all chains</a>
+      <a class="button" href="/bitcoin-puzzle">Explore the puzzle board</a>
     </div>
   </section>
 
@@ -50,37 +53,80 @@
     <h2>Chains</h2>
     <p class="muted landing-lead">Deterministic example keys and address formats for every supported chain.</p>
     <div class="chain-grid">
-      <a class="chain-card chain-btc" href="/private-keys/bitcoin">
+      <a class="chain-card" href="/private-keys/bitcoin" style="--chain:#f7931a">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
         <span class="chain-name">Bitcoin</span>
-        <span class="chain-meta">BTC · P2PKH, SegWit, Taproot</span>
+        <span class="chain-meta">BTC · 4 address types</span>
       </a>
-      <a class="chain-card chain-evm" href="/private-keys/ethereum">
+      <a class="chain-card" href="/private-keys/ethereum" style="--chain:#8a9cf5">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
         <span class="chain-name">Ethereum</span>
-        <span class="chain-meta">EVM · 0x address</span>
+        <span class="chain-meta">ETH · 1 address type</span>
       </a>
-      <a class="chain-card chain-tron" href="/private-keys/tron">
-        <span class="chain-name">TRON</span>
-        <span class="chain-meta">TRX · Base58Check</span>
+      <a class="chain-card" href="/private-keys/bnb" style="--chain:#f3ba2f">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg></span>
+        <span class="chain-name">BNB Chain</span>
+        <span class="chain-meta">BNB · 1 address type</span>
       </a>
-      <a class="chain-card chain-solana" href="/private-keys/solana">
+      <a class="chain-card" href="/private-keys/arbitrum" style="--chain:#28a0f0">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-arbitrum"></use></svg></span>
+        <span class="chain-name">Arbitrum</span>
+        <span class="chain-meta">ETH · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/optimism" style="--chain:#ff0420">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-optimism"></use></svg></span>
+        <span class="chain-name">Optimism</span>
+        <span class="chain-meta">ETH · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/base" style="--chain:#0052ff">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-base"></use></svg></span>
+        <span class="chain-name">Base</span>
+        <span class="chain-meta">ETH · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/polygon" style="--chain:#a06ee8">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-polygon"></use></svg></span>
+        <span class="chain-name">Polygon</span>
+        <span class="chain-meta">POL · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/avalanche" style="--chain:#e84142">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-avalanche"></use></svg></span>
+        <span class="chain-name">Avalanche</span>
+        <span class="chain-meta">AVAX · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/zksync" style="--chain:#8c8dfc">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-zksync"></use></svg></span>
+        <span class="chain-name">zkSync Era</span>
+        <span class="chain-meta">ETH · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/solana" style="--chain:#14f195">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg></span>
         <span class="chain-name">Solana</span>
-        <span class="chain-meta">SOL · ed25519</span>
+        <span class="chain-meta">SOL · 1 address type</span>
       </a>
-      <a class="chain-card chain-ltc" href="/private-keys/litecoin">
-        <span class="chain-name">Litecoin</span>
-        <span class="chain-meta">LTC · legacy, SegWit</span>
+      <a class="chain-card" href="/private-keys/tron" style="--chain:#ff4d4d">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg></span>
+        <span class="chain-name">TRON</span>
+        <span class="chain-meta">TRX · 1 address type</span>
       </a>
-      <a class="chain-card chain-doge" href="/private-keys/dogecoin">
-        <span class="chain-name">Dogecoin</span>
-        <span class="chain-meta">DOGE · P2PKH</span>
-      </a>
-      <a class="chain-card chain-bch" href="/private-keys/bitcoin-cash">
-        <span class="chain-name">Bitcoin Cash</span>
-        <span class="chain-meta">BCH · legacy address</span>
-      </a>
-      <a class="chain-card chain-xrp" href="/private-keys/xrp">
+      <a class="chain-card" href="/private-keys/xrp" style="--chain:#7fa8d9">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg></span>
         <span class="chain-name">XRP</span>
-        <span class="chain-meta">XRP · classic address</span>
+        <span class="chain-meta">XRP · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/litecoin" style="--chain:#b8c2d6">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-litecoin"></use></svg></span>
+        <span class="chain-name">Litecoin</span>
+        <span class="chain-meta">LTC · 3 address types</span>
+      </a>
+      <a class="chain-card" href="/private-keys/bitcoin-cash" style="--chain:#8dc351">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg></span>
+        <span class="chain-name">Bitcoin Cash</span>
+        <span class="chain-meta">BCH · 1 address type</span>
+      </a>
+      <a class="chain-card" href="/private-keys/dogecoin" style="--chain:#c2a633">
+        <span class="chain-icon-wrap"><svg class="chain-card-icon" aria-hidden="true"><use href="/icons.svg#chain-dogecoin"></use></svg></span>
+        <span class="chain-name">Dogecoin</span>
+        <span class="chain-meta">DOGE · 1 address type</span>
       </a>
     </div>
   </section>
@@ -194,8 +240,9 @@
   </section>
 </main>
 
-<script src="/site.js?v=20261118e"></script>
-<script src="/puzzle.js?v=20261118e"></script>
+<script src="/search.js?v=20261118r"></script>
+<script src="/site.js?v=20261118r"></script>
+<script src="/puzzle.js?v=20261118r"></script>
 <script>
 (function () {
   'use strict';
@@ -268,23 +315,10 @@
     event.preventDefault();
     var value = searchInput.value.trim();
     if (!value) {
-      hint('Paste a 64-hex private key, a WIF or an address. ', [
+      hint('Paste a 64-hex private key, a WIF or any brainwallet text. ', [
         { href: '/key', text: 'Open the key calculator' }
       ]);
       searchInput.focus();
-      return;
-    }
-    var hex = value.replace(/^0[xX]/, '');
-    if (/^[0-9a-fA-F]{64}$/.test(hex)) {
-      searchHint.textContent = 'Opening key page…';
-      window.location.assign('/key/' + hex.toLowerCase());
-      return;
-    }
-    if (/^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) {
-      hint('That is a Bitcoin WIF. Decode it in the ', [
-        { href: '/key', text: 'key calculator' },
-        { href: '/docs', text: 'docs' }
-      ]);
       return;
     }
     if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{20,60}$/.test(value) ||
@@ -296,10 +330,21 @@
       ]);
       return;
     }
-    hint('No 64-hex private key found. Use the ', [
-      { href: '/key', text: 'key calculator' },
-      { href: '/docs', text: 'docs' }
-    ]);
+    if (!window.RotorSearch) {
+      hint('Search is still loading. Try again or use the ', [
+        { href: '/key', text: 'key calculator' }
+      ]);
+      return;
+    }
+    searchHint.textContent = 'Reading the key in your browser…';
+    window.RotorSearch.resolve(value).then(function (hex) {
+      window.location.assign('/key/' + hex);
+    }, function (err) {
+      hint((err && err.message ? err.message + ' ' : '') + 'Use the ', [
+        { href: '/key', text: 'key calculator' },
+        { href: '/docs', text: 'docs' }
+      ]);
+    });
   });
 
   function showError(message) {
