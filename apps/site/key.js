@@ -552,7 +552,16 @@
       var row = document.createElement('div');
       row.className = 'key-form-row';
       var dt = document.createElement('dt');
-      dt.textContent = field[0];
+      var entityHref = field[0].indexOf('WIF') === 0 ? '/key/wif' : field[0] === 'Hex' ? '/key/hex' : '';
+      if (entityHref) {
+        var entityLink = document.createElement('a');
+        entityLink.href = entityHref;
+        entityLink.textContent = field[0];
+        entityLink.title = 'Open the ' + field[0].toLowerCase() + ' calculator';
+        dt.appendChild(entityLink);
+      } else {
+        dt.textContent = field[0];
+      }
       var dd = document.createElement('dd');
       dd.className = 'mono';
       dd.textContent = value;
