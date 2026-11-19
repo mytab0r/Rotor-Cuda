@@ -227,3 +227,14 @@ browser capture in the PR.
       provider; legal review below)
 - [ ] Counterparty legal review of resale/redistribution obligations before any
       paid offer goes live. (blocked by: -)
+
+## 16. Interactive donor map [front]
+- [x] `/site-map` canonical page with search, area/status filters and
+      ours/donor/matrix views. Routes and feature statuses live in one file,
+      `apps/site/site-map-data.js`; donor pages that have no Rotor equivalent
+      stay visible as `missing`.
+      Evidence: `apps/site/site-map-test.mjs` validates route coverage, donor
+      links and status consistency; `site_map_route_assets_and_sitemap_are_served`
+      covers the route, assets and sitemap entry.
+- [x] Link the map from `/tools` and `/docs`; the page is listed in
+      `sitemap.xml` and embedded by the coordinator.

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Site map and donor parity — Rotor vs ref-site-a and ref-site-b</title>
+<meta name="description" content="One interactive map of every Rotor route and calculator, mapped against ref-site-a and ref-site-b, with an honest feature parity matrix and gap priorities.">
+<link rel="canonical" href="https://rotor.pxbt.app/site-map">
+<link rel="stylesheet" href="/site.css?v=20261120a">
+<link rel="stylesheet" href="/site-map.css?v=20261121a">
+<script src="/theme.js?v=20261120a"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" class="active" data-nav="tools" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page tools-page site-map-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg></span>
+      <div>
+        <h1>Site map and donor parity</h1>
+        <p class="key-tagline">Every Rotor route in one place, mapped to its equivalent on ref-site-a and ref-site-b. The feature matrix marks what is actually built, what is partial, and what is still a gap. Donor links open in a new tab.</p>
+        <div class="key-badges"><span>Canonical /site-map</span><span>2 donor sites</span><span>Updated 2026-11-19</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sitemap-summary" id="sitemap-summary" aria-label="Coverage summary"></section>
+
+  <section class="sitemap-controls" aria-label="Filter the map">
+    <div class="sitemap-field sitemap-search-field">
+      <label for="sitemap-query">Search routes and features</label>
+      <input id="sitemap-query" type="search" placeholder="Try seed, puzzle, richest, transaction…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="sitemap-field">
+      <label for="sitemap-area">Area</label>
+      <select id="sitemap-area">
+        <option value="">All areas</option>
+      </select>
+    </div>
+    <div class="sitemap-field">
+      <label for="sitemap-status">Status</label>
+      <select id="sitemap-status">
+        <option value="">All statuses</option>
+        <option value="parity">Parity</option>
+        <option value="partial">Partial</option>
+        <option value="missing">Missing</option>
+        <option value="ours-only">Ours only</option>
+      </select>
+    </div>
+    <div class="sitemap-views" role="group" aria-label="View">
+      <button type="button" class="sitemap-view-btn" data-view="ours" aria-pressed="true">Our routes</button>
+      <button type="button" class="sitemap-view-btn" data-view="donors" aria-pressed="false">Donor routes</button>
+      <button type="button" class="sitemap-view-btn" data-view="matrix" aria-pressed="false">Matrix</button>
+    </div>
+  </section>
+
+  <p class="sitemap-count" id="sitemap-count" role="status" aria-live="polite"></p>
+
+  <section class="sitemap-view" id="view-ours" aria-labelledby="heading-ours">
+    <h2 id="heading-ours">Our routes</h2>
+    <p class="muted sitemap-help">Rotor pages and route patterns. A status compares the route with the closest donor equivalent, not with the whole donor site.</p>
+    <div class="sitemap-list" id="ours-grid" role="list" aria-label="Rotor routes"></div>
+    <p class="sitemap-empty" id="ours-empty" hidden>No Rotor route matches these filters.</p>
+  </section>
+
+  <section class="sitemap-view" id="view-donors" aria-labelledby="heading-donors" hidden>
+    <h2 id="heading-donors">Donor routes</h2>
+    <p class="muted sitemap-help">Routes read from the ref-site-a sitemap and the ref-site-b navigation on 2026-11-19. “Missing” means a donor page has no Rotor equivalent.</p>
+    <div class="sitemap-list" id="donors-grid" role="list" aria-label="Donor routes"></div>
+    <p class="sitemap-empty" id="donors-empty" hidden>No donor route matches these filters.</p>
+  </section>
+
+  <section class="sitemap-view" id="view-matrix" aria-labelledby="heading-matrix" hidden>
+    <h2 id="heading-matrix">Mapped pairs</h2>
+    <p class="muted sitemap-help">Each Rotor route with the donor routes it maps to. Donor-only pages are listed in the donor view and counted as missing above.</p>
+    <div class="sitemap-list" id="pairs-body" role="list" aria-label="Mapped pairs"></div>
+    <p class="sitemap-empty" id="pairs-empty" hidden>No mapped pair matches these filters.</p>
+
+    <h2>Feature matrix</h2>
+    <p class="muted sitemap-help">Capabilities compared across both donor sites. Present means built and usable; partial means the route exists but the listed donor controls or data are still missing.</p>
+    <p class="muted sitemap-help sitemap-scroll-hint">On narrow screens, scroll the table sideways for the Rotor status, priority and notes.</p>
+    <div class="sitemap-table-wrap">
+      <table class="sitemap-table sitemap-feature-table">
+        <thead>
+          <tr><th scope="col">Capability</th><th scope="col">Area</th><th scope="col">Donor</th><th scope="col">Rotor</th><th scope="col">Status</th><th scope="col">Priority</th><th scope="col">Note</th></tr>
+        </thead>
+        <tbody id="features-body"></tbody>
+      </table>
+    </div>
+    <p class="sitemap-empty" id="features-empty" hidden>No capability matches these filters.</p>
+  </section>
+
+  <p class="muted key-help">This page renders one data file, <span class="mono">apps/site/site-map-data.js</span>. Update it when a route or capability lands; no donor page copy is copied verbatim.</p>
+  <noscript><p class="sitemap-empty">This page needs JavaScript to build the map from site-map-data.js.</p></noscript>
+</main>
+
+<script src="/site-map-data.js?v=20261121a"></script>
+<script src="/site-map.js?v=20261121a"></script>
+</body>
+</html>
