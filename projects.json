@@ -31,7 +31,8 @@
         "node --check apps/site/brainwallet-engine.js",
         "node --check apps/site/wallet.js",
         "node --check apps/site/wallet-vault.js",
-        "node --check apps/site/wallet-evm.js"
+        "node --check apps/site/wallet-evm.js",
+        "node --check apps/site/wallet-btc.js"
       ],
       "test": [
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
@@ -40,7 +41,8 @@
         "node apps/site/seed-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/wallet-vault-test.mjs",
-        "node apps/site/wallet-evm-test.mjs"
+        "node apps/site/wallet-evm-test.mjs",
+        "node apps/site/wallet-btc-test.mjs"
       ],
       "consumes": [
         "wasm-core"
@@ -140,6 +142,7 @@
         "deploy/**",
         "scripts/**",
         "openspec/**",
+        "docs/**",
         "Dockerfile",
         "README.md",
         "LICENSE",
