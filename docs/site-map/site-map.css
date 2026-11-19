@@ -153,7 +153,7 @@ p { color: var(--text-2); }
 .brand-name span { color: var(--accent); }
 
 .docs-tag {
-  padding: 4px 10px;
+  padding: 7px 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel-2);
