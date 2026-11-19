@@ -197,8 +197,6 @@
   var addressesCard = byId('addresses-card');
   var rowsEl = byId('addr-rows');
   var presetEmpty = byId('preset-empty');
-  var onlineToggle = byId('online-toggle');
-  var checkBtn = byId('check-balances');
   var plotEl = byId('curve-plot');
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
@@ -576,8 +574,6 @@
     syncBitcoinPanel();
     syncStepGroup(false);
     presetEmpty.hidden = true;
-    checkBtn.disabled = true;
-    checkBtn.textContent = 'Check balances';
   }
 
   function updateDerivedStatus() {
@@ -730,11 +726,9 @@
     renderSummary(report);
     renderAddresses(report);
     attachTon(report);
-    checkBtn.textContent = 'Check balances';
-    checkBtn.disabled = !onlineToggle.checked || state.checking;
     if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
     else hideExposureStatus();
-    if (onlineToggle.checked && !state.checking) checkBalances();
+    checkVisibleBalances();
   }
 
   function summaryFields(report) {
@@ -1170,6 +1164,7 @@
     });
     if (visible === 0) presetEmpty.textContent = emptyMessage();
     presetEmpty.hidden = visible > 0;
+    checkVisibleBalances();
   }
 
   function clearPathError() {
@@ -1320,7 +1315,7 @@
       setCardValue(btcBalance, '—');
       setCardValue(btcReceived, '—');
       setCardValue(btcTx, '—');
-      btcHint.textContent = 'Enable online lookups and press Check balances to fill these values for the selected Bitcoin address.';
+      btcHint.textContent = 'Balances load automatically from mempool.space for the selected Bitcoin address.';
     }
   }
 
@@ -1337,10 +1332,30 @@
 
   /* --------------------------------------------------------------- balances */
 
-  function setBalance(badge, kind, text) {
+  function retryIcon() {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '/icons.svg#ui-retry');
+    svg.appendChild(use);
+    return svg;
+  }
+
+  function setBalance(badge, kind, text, onRetry) {
     badge.hidden = false;
     badge.className = 'key-balance' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
     badge.textContent = text;
+    if (onRetry) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'key-balance-retry';
+      button.title = 'Retry this balance';
+      button.setAttribute('aria-label', 'Retry balance check for this address');
+      button.appendChild(retryIcon());
+      button.addEventListener('click', onRetry);
+      badge.appendChild(button);
+    }
   }
 
   function resetBalanceBadges() {
@@ -1348,6 +1363,9 @@
       badge.textContent = '';
       badge.className = 'key-balance';
       badge.hidden = true;
+    });
+    Array.prototype.forEach.call(rowsEl.children, function (row) {
+      delete row.dataset.balanceState;
     });
   }
 
@@ -1506,23 +1524,38 @@
     var address = row.getAttribute('data-address');
     if (!badge || !address || generation !== state.generation) return;
     if (id === 'solana') {
+      row.dataset.balanceState = 'off';
       setBalance(badge, 'muted', 'no provider in v1');
       return;
     }
     if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0 ||
         id.indexOf('bch_') === 0 || id.indexOf('xrp_') === 0) {
+      row.dataset.balanceState = 'off';
       setBalance(badge, 'muted', 'no provider in v1');
       return;
     }
+    row.dataset.balanceState = 'loading';
     setBalance(badge, 'loading', 'checking…');
+    var request = async function () {
+      if (id.indexOf('btc_') === 0) return fetchBtc(address, signal);
+      if (id === 'evm') return fetchEvm(address, signal);
+      if (id === 'tron') return fetchTron(address, signal);
+      throw new Error('no provider in v1');
+    };
     try {
       var result;
-      if (id.indexOf('btc_') === 0) result = await fetchBtc(address, signal);
-      else if (id === 'evm') result = await fetchEvm(address, signal);
-      else if (id === 'tron') result = await fetchTron(address, signal);
-      else throw new Error('no provider in v1');
+      try {
+        result = await request();
+      } catch (err) {
+        if (signal && signal.aborted) throw err;
+        /* Transient provider failures get one automatic retry. */
+        await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
+        if (signal && signal.aborted) throw err;
+        result = await request();
+      }
       if (generation !== state.generation || signal.aborted) return;
       if (result && result.summary) state.balances[id] = result.summary;
+      row.dataset.balanceState = 'ok';
       setBalance(badge, 'ok', typeof result === 'string' ? result : result.text);
       if (result && result.summary) renderBalanceCards();
     } catch (err) {
@@ -1530,37 +1563,43 @@
       var message = err && err.name === 'AbortError'
         ? 'timeout after ' + (TIMEOUT_MS / 1000) + ' s'
         : (err && err.message ? err.message : 'unknown error');
-      setBalance(badge, 'err', 'lookup failed: ' + message);
+      row.dataset.balanceState = 'err';
+      setBalance(badge, 'err', 'lookup failed: ' + message, function () {
+        var retryController = new AbortController();
+        state.controllers.push(retryController);
+        checkRow(row, state.generation, retryController.signal).finally(function () {
+          var index = state.controllers.indexOf(retryController);
+          if (index >= 0) state.controllers.splice(index, 1);
+        });
+      });
     }
   }
 
-  async function checkBalances() {
-    if (state.checking || !state.report || !onlineToggle.checked) return;
+  function checkVisibleBalances() {
+    if (state.checking || !state.report) return;
     var rows = Array.prototype.filter.call(rowsEl.children, function (row) {
-      return !row.classList.contains('hidden');
+      var stateName = row.dataset.balanceState;
+      return !row.classList.contains('hidden') &&
+        stateName !== 'loading' && stateName !== 'ok' && stateName !== 'off' && stateName !== 'err';
     });
     if (!rows.length) return;
     var generation = state.generation;
     var controllers = [];
     state.checking = true;
-    checkBtn.disabled = true;
-    checkBtn.textContent = 'Checking…';
-    try {
-      await Promise.all(rows.map(function (row) {
-        var controller = new AbortController();
-        controllers.push(controller);
-        state.controllers.push(controller);
-        return checkRow(row, generation, controller.signal).catch(function () { /* per-row failures render inline */ });
-      }));
-    } finally {
+    Promise.all(rows.map(function (row) {
+      var controller = new AbortController();
+      controllers.push(controller);
+      state.controllers.push(controller);
+      return checkRow(row, generation, controller.signal).catch(function () { /* per-row failures render inline */ });
+    })).finally(function () {
       controllers.forEach(function (controller) {
         var index = state.controllers.indexOf(controller);
         if (index >= 0) state.controllers.splice(index, 1);
       });
       state.checking = false;
-      checkBtn.textContent = 'Check balances';
-      checkBtn.disabled = !onlineToggle.checked || !state.report;
-    }
+      /* A filter change during the check may reveal rows that were skipped. */
+      checkVisibleBalances();
+    });
   }
 
   /* -------------------------------------------------------------- exposure */
@@ -1955,15 +1994,6 @@
   typeTiles.forEach(function (tile) {
     tile.addEventListener('click', function () { focusTarget(tile.getAttribute('data-row')); });
   });
-
-  onlineToggle.addEventListener('change', function () {
-    if (!onlineToggle.checked) cancelBalances();
-    resetBalanceBadges();
-    checkBtn.textContent = 'Check balances';
-    checkBtn.disabled = !onlineToggle.checked || !state.report;
-  });
-
-  checkBtn.addEventListener('click', checkBalances);
 
   if (exposureToggle) {
     exposureToggle.addEventListener('change', function () {
