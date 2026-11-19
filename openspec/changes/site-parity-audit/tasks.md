@@ -13,7 +13,7 @@
 - [ ] Puzzle random: Community Hunt counters and a live result table.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
   explorer.
-- [ ] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
+- [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
 - [ ] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
   core; mainnet stays gated.
 - [ ] `/key` debounced auto-derive, icon-only utility actions, full formats and

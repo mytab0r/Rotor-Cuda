@@ -31,7 +31,11 @@ owned by exactly one area; the most-specific glob wins.
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
   coordinator + site change. Key utility pages `/hex-dec-bin`, `/public-key`,
   `/pubkey-add`, `/reconstruction` and `/keystore-parser` (plus `key-tools.js`
-  and their per-page scripts) follow the same rule. The cabinet wallet lives on
+  and their per-page scripts) follow the same rule. The transaction decoders
+  are served on `/tx`, `/tx/bitcoin` and `/tx/ethereum`, sharing
+  `tx-decoders.js` (pure Bitcoin/EIP-2718 codecs) and `tx-page.js` (DOM
+  wiring); they decode raw hex locally, make no network request, and a Bitcoin
+  fee is only reported when prevout values are supplied. The cabinet wallet lives on
   `/cabinet/wallet` and shares `wallet-vault.js` (the pure encrypted-vault
   codec), `wallet-evm.js` (the pure Sepolia send flow: validation, chain-id
   guard, review and confirm over an injected RPC), `wallet-btc.js` (the pure
