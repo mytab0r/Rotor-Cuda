@@ -38,6 +38,28 @@
 - [ ] Vanity: threads/ETA/difficulty/save/recent; pubkey-add: P−Q and scalar
   multiply.
 
+## Shared Cloudflare Worker balance cache (next step, not in the client-cache PR)
+
+The pages now keep a client-side IndexedDB cache in `apps/site/balance-cache.js`
+(provider + chain + address; BTC/other 60 s, EVM 30 s). The next step moves the
+same contract behind the edge so many visitors share one upstream read:
+
+- [ ] Add `GET /api/v1/balances?provider=<id>&chain=<slug>&addresses=<csv>` to
+      the CF Worker. It accepts public addresses only; reject any request with
+      a key, WIF, seed or passphrase field, and cap `addresses` at 60.
+- [ ] Cache key `balance:<provider>:<chain>:<address>` in the Worker Cache API
+      (or D1 for persistence), with the same TTLs: BTC and non-EVM providers
+      60 s, EVM 30 s. Store `{value, fetchedAt, source}`; never store errors as
+      success.
+- [ ] Origin remains the upstream fetcher; the Worker does not proxy arbitrary
+      URLs. Allowlist each provider host, add a 5 s connect / 10 s read budget,
+      per-IP rate limit and a 10k-entry cap.
+- [ ] Return per-address `error` fields instead of failing the whole batch.
+      Pass 429/5xx through so the client keeps the per-row error and retry
+      icon; the client cache remains the display source and is advisory-only.
+- [ ] Keep `/api/v1/lease|result|heartbeat` on the origin; the Worker never
+      accepts a private key. Measure upstream request count before/after.
+
 ## Verification
 
 - [x] Durable UI self-review harness: `scripts/ui-audit.mjs` (zero-dep CDP,
