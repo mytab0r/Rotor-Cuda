@@ -1143,11 +1143,11 @@
     area: 'site',
     capability: 'Global auto-detect wallet search with interpret-as, address counts, results table, Copy All/CSV',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
+    rotor: 'present',
+    status: 'parity',
     priority: 'P0',
     sources: ['privatekeyfinder.io'],
-    note: 'The Ctrl+K modal covers HEX, WIF, keypair, mnemonic and brainwallet and redirects to /key; it has no interpret-as selector, 1/3/5/10 address counts, results table, Copy All or CSV.'
+    note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. Mnemonics still hand off to /seed; keys never enter the URL or storage.'
   });
 
   feature({
