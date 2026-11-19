@@ -1509,8 +1509,7 @@
     parts.push('</svg>');
     plotEl.innerHTML = parts.join('');
 
-    caption.textContent = 'Real-valued ' + (kind === 'secp' ? 'secp256k1' : 'ed25519') +
-      ' illustration; key arithmetic uses a finite field.';
+    caption.textContent = 'Real-valued view; keys use finite-field math.';
   }
 
   /* -------------------------------------------------------------- URL key */
