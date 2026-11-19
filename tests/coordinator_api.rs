@@ -1012,7 +1012,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 7] = [
+    let checks: [(&str, &[&str]); 8] = [
         (
             "/",
             &[
@@ -1048,8 +1048,17 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261122a",
-                "/theme.js?v=20261122a",
+                "/wallet-vault.js?v=20261122b",
+                "/theme.js?v=20261122b",
+            ],
+        ),
+        (
+            "/key",
+            &[
+                "class=\"address-type-panel key-address-panel\"",
+                "class=\"address-type-card\"",
+                "data-row=\"btc_p2pkh\"",
+                "id=\"btc-panel\"",
             ],
         ),
         ("/site.css", &[":root", "--bg", "@media"]),
