@@ -109,7 +109,11 @@ async function run(message) {
 
   vm.runInContext(workerSource, context, { filename: "puzzle-worker.js" });
   workerSelf.onmessage({ data: message });
-  return { messages, waitFor: (types) => waitFor(messages, types) };
+  return {
+    messages,
+    send: (next) => workerSelf.onmessage({ data: next }),
+    waitFor: (types) => waitFor(messages, types),
+  };
 }
 
 const tests = [];
@@ -175,6 +179,21 @@ test("random scan finds the target", async () => {
   assert.equal(match.type, "match", JSON.stringify(match));
   assert.equal(match.key, hex64(1));
   assert.equal(match.address, KEY1);
+});
+
+test("sample requests derive a public address for the result table", async () => {
+  const runState = await run({
+    type: "start",
+    target: KEY1,
+    mode: "seq",
+    start: hex64(2),
+    end: hex64(3),
+  });
+  runState.send({ type: "sample", key: hex64(1) });
+  const sample = await runState.waitFor(["sample", "error"]);
+  assert.equal(sample.type, "sample", JSON.stringify(sample));
+  assert.equal(sample.key, hex64(1));
+  assert.equal(sample.address, KEY1);
 });
 
 test("invalid range is rejected without scanning", async () => {

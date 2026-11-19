@@ -11,11 +11,13 @@
  * Message contract (page -> worker):
  *   { type: 'start', target, mode, start, end, sliceKeys? }
  *   { type: 'stop' }
+ *   { type: 'sample', key }   derive one address for the live result table
  * `start` and `end` are inclusive hex scalars (the puzzle range is inclusive).
  *
  * Worker -> page:
  *   { type: 'state', wasm: 'ready' }
  *   { type: 'stats', generated, rate, wasm }
+ *   { type: 'sample', key, address }
  *   { type: 'match', key, address, generated, rate }
  *   { type: 'done', generated, rate }
  *   { type: 'error', message }
@@ -371,6 +373,48 @@
     }
   }
 
+  /* ---------------------------------------------------------------- samples */
+
+  /* Derive the compressed P2PKH address for one private key. Returns '' when
+   * the artifact does not expose derive_report or the key is invalid. */
+  function deriveAddress(keyHex) {
+    if (!wasm || typeof wasm.derive_report !== 'function') return '';
+    var text = String(keyHex || '').toLowerCase();
+    if (text.slice(0, 2) === '0x') text = text.slice(2);
+    if (!/^[0-9a-f]{64}$/.test(text)) return '';
+    var bytes = new Uint8Array(32);
+    for (var i = 0; i < 32; i++) bytes[i] = parseInt(text.substr(i * 2, 2), 16);
+    var ptr = wasmAlloc(32);
+    new Uint8Array(wasm.memory.buffer, ptr, 32).set(bytes);
+    try {
+      if ((wasm.derive_report(ptr, 0) >>> 0) !== 0) return '';
+      var json = decoder.decode(new Uint8Array(
+        wasm.memory.buffer,
+        wasm.result_ptr() >>> 0,
+        wasm.result_len() >>> 0
+      ));
+      var report = JSON.parse(json);
+      var addresses = report && report.addresses;
+      if (!Array.isArray(addresses)) return '';
+      for (var j = 0; j < addresses.length; j++) {
+        if (addresses[j] && addresses[j].id === 'btc_p2pkh') return String(addresses[j].address || '');
+      }
+      return '';
+    } finally {
+      wasm.dealloc(ptr, 32);
+    }
+  }
+
+  async function sampleKey(key) {
+    try {
+      if (!wasm) await loadWasm();
+      var address = deriveAddress(key);
+      if (address) post('sample', { key: key, address: address });
+    } catch (err) {
+      /* Sample rows are best effort; a failure must not stop the scan. */
+    }
+  }
+
   /* --------------------------------------------------------------- control */
 
   self.onmessage = function (event) {
@@ -378,6 +422,10 @@
     if (message.type === 'stop') {
       running = false;
       wake();
+      return;
+    }
+    if (message.type === 'sample') {
+      sampleKey(String(message.key || ''));
       return;
     }
     if (message.type !== 'start') return;
