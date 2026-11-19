@@ -1,4 +1,5 @@
-/* Single source of truth for /site-map.
+/* Single source of truth for the internal docs parity map
+ * (docs/site-map/index.html).
  *
  * Update this file when a route or a capability lands; the page only renders
  * this data. Donor routes were read from

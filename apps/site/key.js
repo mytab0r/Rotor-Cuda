@@ -206,8 +206,9 @@
   var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-preset-chips button'));
   var chainButtons = Array.prototype.slice.call(document.querySelectorAll('.key-chain'));
   var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
-  var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.key-type'));
+  var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
   var btcPanel = byId('btc-panel');
+  var btcBalancePanel = byId('btc-balance-panel');
   var btcSelected = byId('btc-selected');
   var btcBalance = byId('btc-balance');
   var btcReceived = byId('btc-received');
@@ -1226,7 +1227,9 @@
       chip.setAttribute('aria-pressed', String(chip.getAttribute('data-row') === state.focusId));
     });
     typeTiles.forEach(function (tile) {
-      tile.setAttribute('aria-pressed', String(tile.getAttribute('data-row') === state.focusId));
+      var active = tile.getAttribute('data-row') === state.focusId;
+      tile.setAttribute('aria-pressed', String(active));
+      tile.classList.toggle('active', active);
     });
     Array.prototype.forEach.call(rowsEl.children, function (row) {
       row.classList.toggle('key-row-focus', !!state.focusId && row.getAttribute('data-id') === state.focusId);
@@ -1323,6 +1326,7 @@
       return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
     });
     btcPanel.hidden = !hasVisibleBtc;
+    if (btcBalancePanel) btcBalancePanel.hidden = !hasVisibleBtc;
     renderBalanceCards();
   }
 

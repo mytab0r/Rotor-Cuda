@@ -69,10 +69,6 @@ const MNEMONIC_SEEDS_JS: &str = include_str!("../../apps/site/mnemonic-seeds.js"
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
 const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
-const SITE_MAP_PAGE: &str = include_str!("../../apps/site/site-map.html");
-const SITE_MAP_CSS: &str = include_str!("../../apps/site/site-map.css");
-const SITE_MAP_JS: &str = include_str!("../../apps/site/site-map.js");
-const SITE_MAP_DATA_JS: &str = include_str!("../../apps/site/site-map-data.js");
 const KEY_TOOLS_JS: &str = include_str!("../../apps/site/key-tools.js");
 const HEX_DEC_BIN_PAGE: &str = include_str!("../../apps/site/hex-dec-bin.html");
 const HEX_DEC_BIN_JS: &str = include_str!("../../apps/site/hex-dec-bin.js");
@@ -821,16 +817,6 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/milk-sad" => Some((MILK_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/milk-sad.js" => Some((MILK_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/tools" => Some((TOOLS_PAGE.as_bytes(), "text/html; charset=utf-8")),
-        "/site-map" => Some((SITE_MAP_PAGE.as_bytes(), "text/html; charset=utf-8")),
-        "/site-map.css" => Some((SITE_MAP_CSS.as_bytes(), "text/css; charset=utf-8")),
-        "/site-map.js" => Some((
-            SITE_MAP_JS.as_bytes(),
-            "application/javascript; charset=utf-8",
-        )),
-        "/site-map-data.js" => Some((
-            SITE_MAP_DATA_JS.as_bytes(),
-            "application/javascript; charset=utf-8",
-        )),
         "/key-tools.js" => Some((
             KEY_TOOLS_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -4061,7 +4047,6 @@ fn render_sitemap(base: &str) -> String {
         "/vanity",
         "/milk-sad",
         "/tools",
-        "/site-map",
         "/hex-dec-bin",
         "/public-key",
         "/pubkey-add",
@@ -4894,6 +4879,40 @@ mod tests {
     }
 
     #[test]
+    fn address_type_component_is_shared_across_key_and_chain_pages() {
+        let base = "https://rotor.pxbt.app";
+        let (browse, _, status) = seo_asset(base, "/private-keys/bitcoin", "").expect("browse");
+        assert_eq!(status, 200);
+        for needle in [
+            "<section class=\"address-type-panel\"",
+            "class=\"address-type-card active\"",
+            "class=\"type-name\"",
+            "class=\"type-desc\"",
+        ] {
+            assert!(browse.contains(needle), "chain page misses {needle}");
+        }
+        for needle in [
+            "<section class=\"address-type-panel key-address-panel\"",
+            "class=\"address-type-card\"",
+            "class=\"type-name\"",
+            "class=\"type-desc\"",
+            "data-row=\"btc_p2pkh\"",
+            "id=\"btc-panel\"",
+        ] {
+            assert!(KEY_PAGE.contains(needle), "key page misses {needle}");
+        }
+        for legacy in ["key-type", "key-types", "key-btc-panel"] {
+            assert!(!KEY_PAGE.contains(legacy), "key page still uses {legacy}");
+            assert!(
+                !SITE_CSS.contains(legacy),
+                "site.css still defines {legacy}"
+            );
+        }
+        assert!(SITE_CSS.contains(".address-type-card[aria-pressed=\"true\"]"));
+        assert!(SITE_CSS.contains(".address-type-card:focus-visible"));
+    }
+
+    #[test]
     fn legacy_keys_hubs_redirect_to_private_keys() {
         assert_eq!(redirect_target("/keys"), Some("/private-keys".to_string()));
         assert_eq!(
@@ -5367,57 +5386,6 @@ mod tests {
             assert_eq!(status, 200);
             assert!(body.contains("private keys"));
         }
-    }
-
-    #[test]
-    fn site_map_route_assets_and_sitemap_are_served() {
-        let (page, content_type) = static_asset("/site-map").expect("/site-map is embedded");
-        assert_eq!(content_type, "text/html; charset=utf-8");
-        let page = std::str::from_utf8(page).expect("site-map.html is UTF-8");
-        for marker in [
-            "id=\"sitemap-summary\"",
-            "id=\"sitemap-query\"",
-            "id=\"ours-grid\"",
-            "id=\"donors-grid\"",
-            "id=\"pairs-body\"",
-            "id=\"features-body\"",
-            "/site-map-data.js?v=20261122b",
-            "/site-map.js?v=20261122b",
-            "/site-map.css?v=20261122b",
-            "/site.css?v=20261122b",
-            "href=\"/tools\"",
-        ] {
-            assert!(page.contains(marker), "/site-map is missing {marker}");
-        }
-
-        for path in ["/site-map.css", "/site-map.js", "/site-map-data.js"] {
-            assert!(static_asset(path).is_some(), "{path} must be embedded");
-        }
-        let (css, content_type) = static_asset("/site-map.css").expect("site-map.css");
-        assert_eq!(content_type, "text/css; charset=utf-8");
-        assert!(
-            std::str::from_utf8(css)
-                .expect("css is UTF-8")
-                .contains(".sitemap-row")
-        );
-        let (data, content_type) = static_asset("/site-map-data.js").expect("site-map-data.js");
-        assert_eq!(content_type, "application/javascript; charset=utf-8");
-        let data = std::str::from_utf8(data).expect("data is UTF-8");
-        for marker in [
-            "window.RotorSiteMapData",
-            "ref-site-a",
-            "ref-site-b",
-            "ours-only",
-            "features",
-        ] {
-            assert!(
-                data.contains(marker),
-                "site-map-data.js is missing {marker}"
-            );
-        }
-
-        let base = "https://rotor.pxbt.app";
-        assert!(render_sitemap(base).contains("<loc>https://rotor.pxbt.app/site-map</loc>"));
     }
 
     #[test]
