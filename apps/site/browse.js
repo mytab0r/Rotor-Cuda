@@ -78,11 +78,18 @@
     addressSets: {},
     addresses: {},
     balances: {},
+    cached: {},
     busy: false,
+    balanceBusy: false,
     generation: 0,
     balanceRun: 0,
     tonPromise: null
   };
+
+  var cacheApi = window.RotorBalanceCache || null;
+  var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
+  var BALANCE_LIMIT = 5;
+  var BALANCE_JITTER_MS = 400;
 
   var rows = Array.prototype.slice.call(document.querySelectorAll('#keys-container .key-row'));
   var typeButtons = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
@@ -95,6 +102,9 @@
   var totalBalance = document.getElementById('total-balance');
   var totalReceived = document.getElementById('total-received');
   var totalTx = document.getElementById('total-tx');
+  var refreshButton = document.getElementById('balance-refresh');
+  var refreshCount = document.getElementById('balance-refresh-count');
+  var refreshStatus = document.getElementById('balance-refresh-status');
 
   function fieldFor(type) {
     var table = TYPE_FIELDS[config.chain];
@@ -422,276 +432,306 @@
     if (totalTx) totalTx.textContent = tx;
   }
 
-  function setRowBalance(row, text, raw) {
-    var cell = row.querySelector('.col-balance');
-    if (!cell) return;
-    cell.textContent = text;
-    if (raw !== undefined) cell.title = raw;
-    cell.classList.toggle('has-balance', text !== '—' && text !== '0');
+  function providerMeta() {
+    if (config.chain === 'bitcoin') return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
+    if (RPC[config.chain]) return { provider: 'evm', chain: config.chain, decimals: 18, symbol: config.symbol };
+    if (config.chain === 'solana') return { provider: 'solana', chain: 'solana', decimals: 9, symbol: 'SOL' };
+    if (config.chain === 'litecoin') return { provider: 'litecoinspace', chain: 'litecoin', decimals: 8, symbol: 'LTC' };
+    if (config.chain === 'bitcoin-cash') return { provider: 'haskoin', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
+    if (BLOCKCHAIR[config.chain]) return { provider: 'blockchair', chain: config.chain, decimals: 8, symbol: config.symbol };
+    if (config.chain === 'tron') return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: config.symbol || 'TRX' };
+    if (config.chain === 'xrp') return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
+    if (config.chain === 'ton') return { provider: 'toncenter', chain: 'ton', decimals: 9, symbol: 'TON' };
+    return null;
   }
 
-  function setRowBalanceError(row) {
+  function uniqueAddresses(addresses) {
+    var out = [];
+    addresses.forEach(function (address) {
+      if (!address) return;
+      if (out.indexOf(address) < 0) out.push(address);
+    });
+    return out;
+  }
+
+  function balanceModel() {
+    var meta = providerMeta();
+    if (!meta) return { meta: null, records: [], groups: [] };
+    var records = [];
+    var groups = [];
+    rows.forEach(function (row) {
+      var set = state.addressSets[row.getAttribute('data-key')] || [];
+      var group = { row: row, entries: [] };
+      set.forEach(function (entry, index) {
+        if (!entry.address) return;
+        var record = {
+          row: row,
+          address: entry.address,
+          primary: index === 0,
+          key: cacheApi ? cacheApi.cacheKey(meta.provider, meta.chain, entry.address) : entry.address
+        };
+        group.entries.push(record);
+        records.push(record);
+      });
+      if (group.entries.length) groups.push(group);
+    });
+    return { meta: meta, records: records, groups: groups };
+  }
+
+  async function cacheGet(key) {
+    if (!cacheApi) return null;
+    var store = await cacheStore;
+    if (!store) return null;
+    try { return await store.get(key); } catch (err) { return null; }
+  }
+
+  async function readCached(records) {
+    var out = {};
+    if (!cacheApi) return out;
+    await Promise.all(records.map(async function (record) {
+      if (!record.key) return;
+      out[record.key] = await cacheGet(record.key);
+    }));
+    return out;
+  }
+
+  async function cachePut(key, entry) {
+    if (!cacheApi) return;
+    var store = await cacheStore;
+    if (!store) return;
+    try { await store.put(key, entry); } catch (err) { /* memory store fallback */ }
+  }
+
+  function cacheEntryOk(entry, meta, now) {
+    if (!cacheApi) return false;
+    return cacheApi.isSuccess(entry) && cacheApi.isFresh(entry, meta.provider, now);
+  }
+
+  function retryForRow(row) {
+    return function () { loadBalances({ manual: true, onlyRows: [row], force: true }); };
+  }
+
+  function setRowBalanceError(row, message, onRetry) {
     var cell = row.querySelector('.col-balance');
     if (!cell) return;
     cell.textContent = 'unavailable ';
     cell.classList.remove('has-balance');
+    cell.title = message || 'Balance unavailable';
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'icon-btn browse-balance-retry';
     button.title = 'Retry this balance';
     button.setAttribute('aria-label', 'Retry balance check for this address');
     button.appendChild(iconUse('ui-retry', 'icon'));
-    button.addEventListener('click', function () { loadBalances(); });
+    button.addEventListener('click', onRetry || retryForRow(row));
     cell.appendChild(button);
-  }
-
-  async function retryOnce(task) {
-    try {
-      return await task();
-    } catch (err) {
-      await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
-      return task();
-    }
   }
 
   async function fetchJson(url, options) {
     var response = await fetch(url, options);
-    if (!response.ok) throw new Error('HTTP ' + response.status);
+    if (!response.ok) {
+      var err = new Error('HTTP ' + response.status);
+      err.status = response.status;
+      throw err;
+    }
     return response.json();
   }
 
-  async function btcBalances(run) {
-    var unique = [];
-    rows.forEach(function (row) {
-      var set = state.addressSets[row.getAttribute('data-key')] || [];
-      set.forEach(function (entry) {
-        if (entry.address && unique.indexOf(entry.address) < 0) unique.push(entry.address);
-      });
-    });
-    if (!unique.length) return;
-    var url = 'https://blockchain.info/balance?cors=true&active=' + unique.map(encodeURIComponent).join('|');
-    var data = await fetchJson(url);
-    if (run !== state.balanceRun) return;
-    var sum = 0;
-    var received = 0;
-    var tx = 0;
-    rows.forEach(function (row) {
-      var set = state.addressSets[row.getAttribute('data-key')] || [];
-      var cell = row.querySelector('.col-balance');
-      if (!cell) return;
-      cell.textContent = '';
-      var rowBalance = 0;
-      var primary = set[0];
-      set.forEach(function (entry) {
-        var info = data[entry.address];
-        if (!info) return;
-        sum += Number(info.final_balance || 0);
-        received += Number(info.total_received || 0);
-        tx += Number(info.n_tx || 0);
-        if (entry !== primary) return;
-        rowBalance = Number(info.final_balance || 0);
-        var value = document.createElement('span');
-        value.textContent = coin(info.final_balance, 8) + ' BTC';
-        var sub = document.createElement('small');
-        sub.textContent = Number(info.n_tx || 0) + ' tx';
-        cell.appendChild(value);
-        cell.appendChild(sub);
-      });
-      cell.classList.toggle('has-balance', rowBalance > 0);
-      cell.title = 'Current balance, transaction count';
-    });
-    setSummary(coin(sum, 8) + ' BTC', coin(received, 8) + ' BTC', String(tx));
+  function retryOptions() {
+    return { attempts: 2, baseDelay: 500, maxDelay: 4000 };
   }
 
-  async function evmBalances(addresses, run) {
+  function requestJson(url, options) {
+    if (!cacheApi) return fetchJson(url, options);
+    return cacheApi.withRetry(function () { return fetchJson(url, options); }, retryOptions());
+  }
+
+  function errorMessage(err) {
+    return err && err.message ? err.message : 'unavailable';
+  }
+
+  async function btcProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
+    var url = 'https://blockchain.info/balance?cors=true&active=' + unique.map(encodeURIComponent).join('|');
+    var data = await requestJson(url);
+    unique.forEach(function (address) {
+      var info = data[address];
+      if (!info) {
+        errors[address] = 'Balance row missing from the provider.';
+        return;
+      }
+      values[address] = {
+        balance: String(info.final_balance || 0),
+        received: String(info.total_received || 0),
+        tx: Number(info.n_tx || 0)
+      };
+    });
+    return { values: values, errors: errors };
+  }
+
+  async function evmProvider(addresses) {
+    var values = {};
+    var errors = {};
     var rpc = RPC[config.chain];
     if (!rpc) throw new Error('No RPC for this chain');
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
     var payload = unique.map(function (address, index) {
       return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
     });
-    var response = await fetch(rpc, {
+    var list = await requestJson(rpc, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    var list = await response.json();
-    if (run !== state.balanceRun) return;
-    var byAddress = {};
-    (Array.isArray(list) ? list : []).forEach(function (item) {
-      var address = unique[item.id - 1];
-      if (!address) return;
-      byAddress[address] = BigInt(item.result || '0x0');
+    var byId = {};
+    (Array.isArray(list) ? list : [list]).forEach(function (item) {
+      if (item && item.id !== undefined) byId[item.id] = item;
     });
-    var sum = 0n;
-    rows.forEach(function (row) {
-      var address = state.addresses[row.getAttribute('data-key')];
-      var value = byAddress[address];
-      if (value === undefined) return;
-      sum += value;
-      setRowBalance(row, coin(value, 18) + ' ' + config.symbol, value.toString() + ' wei');
+    unique.forEach(function (address, index) {
+      var item = byId[index + 1];
+      if (!item || typeof item.result !== 'string') {
+        errors[address] = item && item.error && item.error.message
+          ? item.error.message
+          : 'unexpected response';
+        return;
+      }
+      values[address] = { balance: BigInt(item.result).toString() };
     });
-    setSummary(coin(sum, 18) + ' ' + config.symbol, '—', '—');
+    return { values: values, errors: errors };
   }
 
-  async function solBalances(addresses, run) {
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return;
+  async function solanaProvider(addresses) {
+    var values = {};
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: {} };
     var body = {
       jsonrpc: '2.0',
       id: 1,
       method: 'getMultipleAccounts',
       params: [unique, { encoding: 'base64', commitment: 'confirmed' }]
     };
-    var data = await fetchJson('https://solana-rpc.publicnode.com', {
+    var data = await requestJson('https://solana-rpc.publicnode.com', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     if (!data.result || !Array.isArray(data.result.value)) throw new Error('bad response');
-    if (run !== state.balanceRun) return;
-    var byAddress = {};
-    data.result.value.forEach(function (item, index) {
-      if (item) byAddress[unique[index]] = BigInt(item.lamports || 0);
+    unique.forEach(function (address, index) {
+      var item = data.result.value[index];
+      values[address] = { balance: item ? BigInt(item.lamports || 0).toString() : '0' };
     });
-    var sum = 0n;
-    rows.forEach(function (row) {
-      var address = state.addresses[row.getAttribute('data-key')];
-      var value = byAddress[address];
-      if (value === undefined) return;
-      sum += value;
-      setRowBalance(row, coin(value, 9) + ' SOL', value.toString() + ' lamports');
-    });
-    setSummary(coin(sum, 9) + ' SOL', '—', '—');
+    return { values: values, errors: {} };
   }
 
-  async function blockchairBalances(addresses, run) {
+  async function blockchairProvider(addresses) {
+    var values = {};
+    var errors = {};
     var network = BLOCKCHAIR[config.chain];
     if (!network) throw new Error('No provider for this chain');
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
     var url = 'https://api.blockchair.com/' + network + '/dashboards/addresses/' +
       unique.map(encodeURIComponent).join(',');
-    var data = await fetchJson(url);
-    if (run !== state.balanceRun) return;
-    var sum = 0;
-    var received = 0;
-    var tx = 0;
-    rows.forEach(function (row) {
-      var address = state.addresses[row.getAttribute('data-key')];
+    var data = await requestJson(url);
+    unique.forEach(function (address) {
       var entry = data.data && data.data[address] ? data.data[address].address : null;
-      if (!entry) return;
-      sum += Number(entry.balance || 0);
-      received += Number(entry.received || 0);
-      tx += Number(entry.transaction_count || 0);
-      setRowBalance(row, coin(entry.balance, 8) + ' ' + config.symbol, entry.balance + ' sat');
+      if (!entry) {
+        errors[address] = 'Balance row missing from the provider.';
+        return;
+      }
+      values[address] = {
+        balance: String(entry.balance || 0),
+        received: String(entry.received || 0),
+        tx: Number(entry.transaction_count || 0)
+      };
     });
-    setSummary(coin(sum, 8) + ' ' + config.symbol, coin(received, 8) + ' ' + config.symbol, String(tx));
+    return { values: values, errors: errors };
   }
 
-  async function ltcBalances(addresses, run) {
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    var byAddress = {};
-    var failures = 0;
-    for (var i = 0; i < unique.length; i += 5) {
-      var slice = unique.slice(i, i + 5);
-      await Promise.all(slice.map(async function (address) {
+  async function litecoinProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    var limit = cacheApi ? cacheApi.createLimiter(BALANCE_LIMIT) : function (task) { return task(); };
+    await Promise.all(unique.map(function (address) {
+      return limit(async function () {
         try {
-          byAddress[address] = await fetchJson('https://litecoinspace.org/api/address/' + encodeURIComponent(address));
+          var info = await requestJson('https://litecoinspace.org/api/address/' + encodeURIComponent(address));
+          var chain = info.chain_stats || {};
+          var mempool = info.mempool_stats || {};
+          var balance = (Number(chain.funded_txo_sum || 0) - Number(chain.spent_txo_sum || 0)) +
+            (Number(mempool.funded_txo_sum || 0) - Number(mempool.spent_txo_sum || 0));
+          var funded = Number(chain.funded_txo_sum || 0) + Number(mempool.funded_txo_sum || 0);
+          var count = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
+          values[address] = { balance: String(balance), received: String(funded), tx: count };
         } catch (err) {
-          failures += 1;
+          errors[address] = errorMessage(err);
         }
-      }));
-      if (i + 5 < unique.length) await new Promise(function (resolve) { window.setTimeout(resolve, 100); });
-    }
-    if (run !== state.balanceRun) return;
-    var sum = 0;
-    var received = 0;
-    var tx = 0;
-    rows.forEach(function (row) {
-      var address = state.addresses[row.getAttribute('data-key')];
-      var info = byAddress[address];
-      if (!info) return;
-      var chain = info.chain_stats || {};
-      var mempool = info.mempool_stats || {};
-      var balance = (Number(chain.funded_txo_sum || 0) - Number(chain.spent_txo_sum || 0)) +
-        (Number(mempool.funded_txo_sum || 0) - Number(mempool.spent_txo_sum || 0));
-      var funded = Number(chain.funded_txo_sum || 0) + Number(mempool.funded_txo_sum || 0);
-      var count = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
-      sum += balance;
-      received += funded;
-      tx += count;
-      setRowBalance(row, coin(balance, 8) + ' LTC', count + ' tx');
-    });
-    setSummary(coin(sum, 8) + ' LTC', coin(received, 8) + ' LTC', String(tx));
-    if (failures) setNote('Balances loaded for ' + (unique.length - failures) + ' of ' + unique.length + ' Litecoin addresses.', 'err');
+      });
+    }));
+    return { values: values, errors: errors };
   }
 
-  async function bchBalances(addresses, run) {
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return;
+  async function bchProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
     var url = 'https://api.haskoin.com/bch/address/balances?addresses=' + unique.map(encodeURIComponent).join(',');
-    var data = await fetchJson(url);
-    if (run !== state.balanceRun) return;
+    var data = await requestJson(url);
     var byAddress = {};
     (Array.isArray(data) ? data : []).forEach(function (entry, index) {
       if (entry && unique[index]) byAddress[unique[index]] = entry;
     });
-    var sum = 0;
-    var received = 0;
-    var tx = 0;
-    rows.forEach(function (row) {
-      var address = state.addresses[row.getAttribute('data-key')];
+    unique.forEach(function (address) {
       var info = byAddress[address];
-      if (!info) return;
-      var balance = Number(info.confirmed || 0) + Number(info.unconfirmed || 0);
-      sum += balance;
-      received += Number(info.received || 0);
-      tx += Number(info.txs || 0);
-      setRowBalance(row, coin(balance, 8) + ' BCH', balance + ' sat');
-    });
-    setSummary(coin(sum, 8) + ' BCH', coin(received, 8) + ' BCH', String(tx));
-  }
-
-  async function perAddressBalances(addresses, fetcher, decimals, run) {
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    var byAddress = {};
-    var failures = 0;
-    for (var i = 0; i < unique.length; i += 5) {
-      var slice = unique.slice(i, i + 5);
-      await Promise.all(slice.map(async function (address) {
-        try {
-          byAddress[address] = await retryOnce(function () { return fetcher(address); });
-        } catch (err) {
-          failures += 1;
-        }
-      }));
-      if (i + 5 < unique.length) await new Promise(function (resolve) { window.setTimeout(resolve, 120); });
-    }
-    if (run !== state.balanceRun) return failures;
-    var sum = 0;
-    rows.forEach(function (row) {
-      var address = state.addresses[row.getAttribute('data-key')];
-      var value = byAddress[address];
-      if (!address) return;
-      if (value === undefined || value === null) {
-        setRowBalanceError(row);
+      if (!info) {
+        errors[address] = 'Balance row missing from the provider.';
         return;
       }
-      sum += Number(value);
-      setRowBalance(row, coin(value, decimals) + ' ' + config.symbol, String(value));
+      values[address] = {
+        balance: String(Number(info.confirmed || 0) + Number(info.unconfirmed || 0)),
+        received: String(info.received || 0),
+        tx: Number(info.txs || 0)
+      };
     });
-    setSummary(coin(sum, decimals) + ' ' + config.symbol, '—', '—');
-    return failures;
+    return { values: values, errors: errors };
   }
 
   async function accountJson(url) {
     var response = await fetch(url);
     if (response.status === 404) return {};
-    if (!response.ok) throw new Error('HTTP ' + response.status);
+    if (!response.ok) {
+      var err = new Error('HTTP ' + response.status);
+      err.status = response.status;
+      throw err;
+    }
     var text = await response.text();
     if (!text) return {};
     return JSON.parse(text);
+  }
+
+  async function perAddressProvider(addresses, fetcher) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    var limit = cacheApi ? cacheApi.createLimiter(BALANCE_LIMIT) : function (task) { return task(); };
+    await Promise.all(unique.map(function (address) {
+      return limit(async function () {
+        try {
+          var task = function () { return fetcher(address); };
+          var value = cacheApi ? await cacheApi.withRetry(task, retryOptions()) : await task();
+          values[address] = { balance: String(value) };
+        } catch (err) {
+          errors[address] = errorMessage(err);
+        }
+      });
+    }));
+    return { values: values, errors: errors };
   }
 
   function tonCenterBalance(address) {
@@ -709,42 +749,229 @@
       .then(function (data) { return Number(data.Balance || 0); });
   }
 
-  async function loadBalances() {
-    var run = ++state.balanceRun;
-    var addresses = Object.keys(state.addresses).map(function (hex) { return state.addresses[hex]; });
-    if (!addresses.length) {
-      setSummary('—', '—', '—');
-      setNote('No derived public address to send; nothing was sent.');
+  function fetchProvider(meta, addresses) {
+    if (meta.provider === 'blockchain.info') return btcProvider(addresses);
+    if (meta.provider === 'evm') return evmProvider(addresses);
+    if (meta.provider === 'solana') return solanaProvider(addresses);
+    if (meta.provider === 'litecoinspace') return litecoinProvider(addresses);
+    if (meta.provider === 'haskoin') return bchProvider(addresses);
+    if (meta.provider === 'blockchair') return blockchairProvider(addresses);
+    if (meta.provider === 'tronscan') return perAddressProvider(addresses, tronBalance);
+    if (meta.provider === 'xrpscan') return perAddressProvider(addresses, xrpBalance);
+    if (meta.provider === 'toncenter') return perAddressProvider(addresses, tonCenterBalance);
+    return Promise.resolve({ values: {}, errors: {} });
+  }
+
+  function renderGroup(group, cached, errors, meta, now) {
+    var cell = group.row.querySelector('.col-balance');
+    if (!cell) return;
+    var primary = group.entries[0];
+    if (errors && errors[primary.address]) {
+      setRowBalanceError(group.row, errors[primary.address], retryForRow(group.row));
       return;
     }
-    setNote('Checking balances in your browser…');
-    try {
-      if (config.chain === 'bitcoin') await retryOnce(function () { return btcBalances(run); });
-      else if (config.chain === 'solana') await retryOnce(function () { return solBalances(addresses, run); });
-      else if (RPC[config.chain]) await retryOnce(function () { return evmBalances(addresses, run); });
-      else if (config.chain === 'bitcoin-cash') await retryOnce(function () { return bchBalances(addresses, run); });
-      else if (config.chain === 'litecoin') await retryOnce(function () { return ltcBalances(addresses, run); });
-      else if (BLOCKCHAIR[config.chain]) await retryOnce(function () { return blockchairBalances(addresses, run); });
-      else if (config.chain === 'tron') {
-        await retryOnce(function () { return perAddressBalances(addresses, tronBalance, 6, run); });
-      } else if (config.chain === 'xrp') {
-        await retryOnce(function () { return perAddressBalances(addresses, xrpBalance, 6, run); });
-      } else if (config.chain === 'ton') {
-        await retryOnce(function () { return perAddressBalances(addresses, tonCenterBalance, 9, run); });
-      } else {
-        setSummary('—', '—', '—');
-        setNote('Live balance lookup is not available for ' + config.chain + ' on this page; each address links to its explorer.');
+    var picked = null;
+    for (var i = 0; i < group.entries.length; i += 1) {
+      var entry = cached[group.entries[i].key];
+      if (cacheApi && cacheApi.isSuccess(entry)) {
+        picked = entry;
+        break;
+      }
+    }
+    if (!picked) {
+      cell.textContent = '—';
+      cell.classList.remove('has-balance');
+      cell.title = '';
+      group.row.dataset.balanceState = 'missing';
+      return;
+    }
+    var value = picked.value || {};
+    cell.textContent = '';
+    var main = document.createElement('span');
+    main.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    cell.appendChild(main);
+    if (value.tx !== undefined && value.tx !== null) {
+      var txEl = document.createElement('small');
+      txEl.textContent = value.tx + ' tx';
+      cell.appendChild(txEl);
+    }
+    var age = document.createElement('small');
+    age.className = 'balance-age';
+    age.textContent = cacheApi ? cacheApi.ageLabel(picked, now) : '';
+    if (age.textContent) cell.appendChild(age);
+    cell.classList.toggle('has-balance', Number(value.balance) > 0);
+    cell.title = value.balance + ' ' + meta.symbol +
+      (value.tx !== undefined && value.tx !== null ? ' · ' + value.tx + ' tx' : '');
+    group.row.dataset.balanceState = cacheApi && cacheApi.isFresh(picked, meta.provider, now) ? 'ok' : 'stale';
+    group.row.dataset.balanceAt = String(picked.fetchedAt || '');
+  }
+
+  function renderSummary(model, cached, now) {
+    if (!model.meta) return;
+    var meta = model.meta;
+    var big = meta.provider === 'evm' || meta.provider === 'solana';
+    var sumBig = 0n;
+    var sumNum = 0;
+    var received = 0;
+    var tx = 0;
+    var any = false;
+    var hasReceived = false;
+    var hasTx = false;
+    model.records.forEach(function (record) {
+      var entry = cached[record.key];
+      if (!cacheApi || !cacheApi.isSuccess(entry)) return;
+      var value = entry.value || {};
+      any = true;
+      if (big) sumBig += BigInt(value.balance || 0);
+      else sumNum += Number(value.balance || 0);
+      if (value.received !== undefined) {
+        received += Number(value.received);
+        hasReceived = true;
+      }
+      if (value.tx !== undefined) {
+        tx += Number(value.tx);
+        hasTx = true;
+      }
+    });
+    if (!any) {
+      setSummary('—', '—', '—');
+      return;
+    }
+    setSummary(
+      coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
+      hasReceived ? coin(received, meta.decimals) + ' ' + meta.symbol : '—',
+      hasTx ? String(tx) : '—'
+    );
+  }
+
+  function refreshPendingCount(model) {
+    if (!model || !model.meta) return 0;
+    var now = Date.now();
+    var count = 0;
+    model.groups.forEach(function (group) {
+      if (group.row.dataset.balanceState === 'err') {
+        count += 1;
         return;
       }
-      if (run !== state.balanceRun) return;
-      setNote('Balances loaded in your browser from public providers. They can lag the chain.');
-    } catch (err) {
-      if (run !== state.balanceRun) return;
-      rows.forEach(function (row) {
-        if (state.addressSets[row.getAttribute('data-key')]) setRowBalanceError(row);
+      var needs = group.entries.some(function (record) {
+        if (!cacheApi) return true;
+        return cacheApi.shouldRefresh(state.cached[record.key], model.meta.provider, now);
       });
-      setNote('Balance lookup is unavailable right now. The addresses are still derived locally.', 'err');
+      if (needs) count += 1;
+    });
+    return count;
+  }
+
+  function updateRefreshButton(model) {
+    var count = refreshPendingCount(model);
+    if (refreshCount) refreshCount.textContent = String(count);
+    if (refreshButton) {
+      refreshButton.disabled = !model || !model.meta || count === 0 || state.balanceBusy;
+      refreshButton.setAttribute(
+        'aria-label',
+        'Refresh ' + count + ' failed or stale ' + (count === 1 ? 'balance' : 'balances')
+      );
+      refreshButton.classList.toggle('busy', Boolean(state.balanceBusy));
     }
+    if (refreshStatus) {
+      refreshStatus.textContent = count
+        ? count + ' ' + (count === 1 ? 'balance needs' : 'balances need') + ' refresh'
+        : 'All visible balances are fresh';
+    }
+  }
+
+  function applyView(model, cached, errors) {
+    var now = Date.now();
+    model.groups.forEach(function (group) {
+      renderGroup(group, cached, errors, model.meta, now);
+    });
+    renderSummary(model, cached, now);
+    updateRefreshButton(model);
+  }
+
+  async function fetchAndApply(model, pending, run) {
+    var addresses = [];
+    pending.forEach(function (record) {
+      if (addresses.indexOf(record.address) < 0) addresses.push(record.address);
+    });
+    if (!addresses.length) return;
+    state.balanceBusy = true;
+    pending.forEach(function (record) { record.row.dataset.balanceState = 'loading'; });
+    updateRefreshButton(model);
+    var result;
+    try {
+      result = await fetchProvider(model.meta, addresses);
+    } catch (err) {
+      result = { values: {}, errors: {} };
+      addresses.forEach(function (address) { result.errors[address] = errorMessage(err); });
+    }
+    if (run !== state.balanceRun) {
+      state.balanceBusy = false;
+      return;
+    }
+    var now = Date.now();
+    var entries = {};
+    model.records.forEach(function (record) {
+      if (!cacheApi || result.values[record.address] === undefined) return;
+      var entry = cacheApi.makeEntry(result.values[record.address], model.meta.provider, now);
+      state.cached[record.key] = entry;
+      entries[record.key] = entry;
+    });
+    await Promise.all(Object.keys(entries).map(function (key) {
+      return cachePut(key, entries[key]);
+    }));
+    state.balanceBusy = false;
+    applyView(model, state.cached, result.errors);
+    var failed = Object.keys(result.errors).length;
+    setNote(
+      failed
+        ? 'Some balances could not be refreshed (' + failed + '); cached values stay visible.'
+        : 'Balances loaded in your browser. Cached values can lag the chain.',
+      failed ? 'err' : ''
+    );
+  }
+
+  async function loadBalances(options) {
+    var opts = options || {};
+    var run = ++state.balanceRun;
+    var model = balanceModel();
+    if (!model.meta) {
+      setSummary('—', '—', '—');
+      setNote('Live balance lookup is not available for ' + config.chain + ' on this page; each address links to its explorer.');
+      updateRefreshButton(model);
+      return;
+    }
+    if (!model.records.length) {
+      setSummary('—', '—', '—');
+      setNote('No derived public address to send; nothing was sent.');
+      updateRefreshButton(model);
+      return;
+    }
+    var only = opts.onlyRows && opts.onlyRows.length ? opts.onlyRows : null;
+    var ttl = cacheApi ? cacheApi.ttlFor(model.meta.provider) : 0;
+    var cached = await readCached(model.records);
+    if (run !== state.balanceRun) return;
+    state.cached = cached;
+    applyView(model, cached, null);
+    var pending = model.records.filter(function (record) {
+      if (only && only.indexOf(record.row) < 0) return false;
+      if (opts.force) return true;
+      if (!cacheApi) return true;
+      return cacheApi.shouldRefresh(cached[record.key], ttl, Date.now());
+    });
+    updateRefreshButton(model);
+    if (!pending.length) {
+      setNote(opts.manual
+        ? 'All selected balances are fresh; no request was sent.'
+        : 'Balances loaded from the local cache; nothing was sent.');
+      return;
+    }
+    if (!opts.manual) {
+      var wait = cacheApi ? cacheApi.jitterDelay(BALANCE_JITTER_MS) : 0;
+      await new Promise(function (resolve) { window.setTimeout(resolve, wait); });
+      if (run !== state.balanceRun) return;
+    }
+    await fetchAndApply(model, pending, run);
   }
 
   function loadTon() {
@@ -805,6 +1032,12 @@
       } finally {
         if (button) button.disabled = false;
       }
+    });
+  }
+
+  if (refreshButton) {
+    refreshButton.addEventListener('click', function () {
+      loadBalances({ manual: true });
     });
   }
 
@@ -908,6 +1141,6 @@
         if (cell) cell.textContent = 'Invalid key for this curve';
       }
     });
-    await loadBalances();
+    loadBalances();
   })();
 })();
