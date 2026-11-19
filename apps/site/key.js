@@ -27,6 +27,17 @@
     phantom: ['solana']
   };
 
+  /* Primary preset path shown in the derivation row. The page takes a final
+   * key, so these labels never change what is derived. */
+  var DERIVATION_PATHS = {
+    all: "m/44'/0'/0'/0/0",
+    ledger: "m/84'/0'/0'/0/0",
+    metamask: "m/44'/60'/0'/0/0",
+    safepal: "m/44'/0'/0'/0/0",
+    tronlink: "m/44'/195'/0'/0/0",
+    phantom: "m/501'/0'/0'/0'"
+  };
+
   var ID_LABELS = {
     btc_p2pkh: 'Bitcoin legacy (compressed)',
     btc_p2pkh_uncompressed: 'Bitcoin legacy (uncompressed)',
@@ -183,7 +194,9 @@
   var plotEl = byId('curve-plot');
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
-  var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-presets button'));
+  var derivePathInput = byId('derivation-path');
+  var copyPathBtn = byId('copy-derivation-path');
+  var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-preset-chips button'));
   var chainButtons = Array.prototype.slice.call(document.querySelectorAll('.key-chain'));
   var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
   var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.key-type'));
@@ -932,6 +945,11 @@
     presetEmpty.hidden = visible > 0;
   }
 
+  function setDerivationPath(preset) {
+    if (!derivePathInput) return;
+    derivePathInput.value = DERIVATION_PATHS[preset] || DERIVATION_PATHS.all;
+  }
+
   function selectPreset(button) {
     state.preset = button.getAttribute('data-preset');
     var presetSelect = byId('preset-select');
@@ -939,6 +957,7 @@
     presetButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
+    setDerivationPath(state.preset);
     applyFilters();
     syncBitcoinPanel();
   }
@@ -990,6 +1009,9 @@
       presetButtons.forEach(function (button) {
         button.setAttribute('aria-pressed', String(button.getAttribute('data-preset') === 'all'));
       });
+      var presetSelect = byId('preset-select');
+      if (presetSelect) presetSelect.value = 'all';
+      setDerivationPath('all');
       if (id.indexOf('btc_') === 0) {
         state.chain = 'btc';
         chainButtons.forEach(function (button) {
@@ -1465,10 +1487,6 @@
     return parts.join('');
   }
 
-  function coord(value) {
-    return (Math.round(value * 1000) / 1000).toString();
-  }
-
   function renderCurve() {
     var kind = Number(curveSelect.value) === 0 ? 'secp' : 'ed';
     var dom = plotDomains(kind);
@@ -1491,12 +1509,8 @@
     parts.push('</svg>');
     plotEl.innerHTML = parts.join('');
 
-    var equation = kind === 'secp'
-      ? 'y² = x³ + 7'
-      : 'x² + y² = 1 + d x²y², d = −121665/121666';
-    caption.textContent = 'Real-valued illustration: the ' + (kind === 'secp' ? 'secp256k1' : 'ed25519') +
-      ' shape (' + equation + '), highlighted point x = ' + coord(markerX) + ', y = ' + coord(markerY) +
-      '. Actual key arithmetic is over a finite field, not over the reals.';
+    caption.textContent = 'Real-valued ' + (kind === 'secp' ? 'secp256k1' : 'ed25519') +
+      ' illustration; key arithmetic uses a finite field.';
   }
 
   /* -------------------------------------------------------------- URL key */
@@ -1547,6 +1561,12 @@
   presetButtons.forEach(function (button) {
     button.addEventListener('click', function () { selectPreset(button); });
   });
+
+  if (copyPathBtn && derivePathInput) {
+    copyPathBtn.addEventListener('click', function () {
+      copyText(derivePathInput.value, copyPathBtn);
+    });
+  }
 
   chainButtons.forEach(function (button) {
     button.addEventListener('click', function () { selectChain(button); });
