@@ -22,6 +22,51 @@ fn secp_derive(id: &str, key: &Scalar, compressed: bool) -> chain::DerivedAddres
         .expect("secp derivation")
 }
 
+fn parse_seed(hex: &str) -> [u8; 32] {
+    let mut seed = [0u8; 32];
+    for (index, byte) in seed.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).expect("hex byte");
+    }
+    seed
+}
+
+/// Test-side base64url decoder, used only to verify the TON checksum.
+fn base64url_decode(text: &str) -> Vec<u8> {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut out = Vec::with_capacity(text.len() * 3 / 4);
+    let mut buffer = 0u32;
+    let mut bits = 0;
+    for byte in text.bytes() {
+        let value = ALPHABET
+            .iter()
+            .position(|candidate| *candidate == byte)
+            .expect("base64url character") as u32;
+        buffer = (buffer << 6) | value;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buffer >> bits) as u8);
+            buffer &= (1 << bits) - 1;
+        }
+    }
+    out
+}
+
+fn crc16_xmodem(data: &[u8]) -> u16 {
+    let mut crc = 0u16;
+    for &byte in data {
+        crc ^= u16::from(byte) << 8;
+        for _ in 0..8 {
+            crc = if crc & 0x8000 != 0 {
+                (crc << 1) ^ 0x1021
+            } else {
+                crc << 1
+            };
+        }
+    }
+    crc
+}
+
 #[test]
 fn registry_covers_all_eighteen_site_networks() {
     let ids: Vec<&str> = chain::all()
@@ -209,11 +254,7 @@ fn secp_hash160_and_keccak_family_vectors() {
 
 #[test]
 fn ed25519_family_uses_the_rfc8032_vector() {
-    let seed_hex = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
-    let mut seed = [0u8; 32];
-    for (index, byte) in seed.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&seed_hex[index * 2..index * 2 + 2], 16).expect("hex byte");
-    }
+    let seed = parse_seed("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
 
     let solana = chain::by_id("solana").expect("known chain");
     let derived = solana
@@ -240,26 +281,83 @@ fn ed25519_family_uses_the_rfc8032_vector() {
 }
 
 #[test]
-fn ton_derivation_is_an_explicit_unsupported_error() {
+fn ton_v4r2_matches_tonweb_and_ton_core() {
+    // Independently produced vectors: the tonweb `WalletV4ContractR2` bundled
+    // in `apps/site/ton.js` (the site's own TON output) and `@ton/ton` 16.3.0
+    // (`WalletContractV4`) both return these addresses for these seeds.
+    let vectors: &[(&str, &str, &str)] = &[
+        // RFC 8032 ed25519 test-vector seed.
+        (
+            "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+            "D75A980182B10AB7D54BFED3C964073A0EE172F3DAA62325AF021A68F707511A",
+            "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv",
+        ),
+        // ed25519 seed 1.
+        (
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "4CB5ABF6AD79FBF5ABBCCAFCC269D85CD2651ED4B885B5869F241AEDF0A5BA29",
+            "EQAkxuybaeBflbgYW3vgQvcFgyAQVcLtXZwdrpeLNqzZ000c",
+        ),
+    ];
+
     let ton = chain::by_id("ton").expect("known chain");
-    assert!(!ton.enabled, "TON is not enabled until v4R2 exists");
+    assert!(ton.enabled, "TON is enabled once v4R2 derives addresses");
+    for (seed_hex, public_hex, address) in vectors {
+        let seed = parse_seed(seed_hex);
+        let derived = ton
+            .derive(KeyMaterial::Seed(&seed))
+            .expect("ton derivation");
+        assert_eq!(derived.address, *address, "{seed_hex}");
+        assert_eq!(derived.public_hex, *public_hex);
+        assert_eq!(derived.secret, None);
+    }
 
-    let seed = [0u8; 32];
-    let error = ton
-        .derive(KeyMaterial::Seed(&seed))
-        .expect_err("TON must not fake an address");
-    assert!(
-        error.contains("not implemented") && error.contains("v4R2"),
-        "unexpected TON error: {error}"
-    );
-
-    // Every other descriptor is enabled.
-    for descriptor in chain::all()
-        .iter()
-        .filter(|descriptor| descriptor.id != "ton")
-    {
+    // Every descriptor is enabled now that TON derives addresses.
+    for descriptor in chain::all() {
         assert!(descriptor.enabled, "{} should be enabled", descriptor.id);
     }
+}
+
+#[test]
+fn ton_address_is_user_friendly_base64url_with_crc16() {
+    let seed = parse_seed("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
+    let address = chain::by_id("ton")
+        .expect("known chain")
+        .derive(KeyMaterial::Seed(&seed))
+        .expect("ton derivation")
+        .address;
+
+    assert_eq!(address.len(), 48, "34 payload bytes + 2 checksum bytes");
+    assert!(address.starts_with("EQ"), "bounceable workchain-0 tag");
+    assert!(
+        address
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
+        "unpadded base64url alphabet: {address}"
+    );
+
+    let raw = base64url_decode(&address);
+    assert_eq!(raw.len(), 36);
+    assert_eq!(raw[0], 0x11, "bounceable, non-testnet");
+    assert_eq!(raw[1], 0x00, "workchain 0");
+    let expected = crc16_xmodem(&raw[..34]).to_be_bytes();
+    assert_eq!(&raw[34..], &expected, "CRC16-XMODEM checksum");
+}
+
+#[test]
+fn ton_rejects_secp_material() {
+    let ton = chain::by_id("ton").expect("known chain");
+    let key = Scalar::from_u64(1);
+    let point = secp::mul_g(&key);
+    assert!(
+        ton.derive(KeyMaterial::Secp {
+            key: &key,
+            point: &point,
+            compressed: true,
+        })
+        .is_err()
+    );
+    assert!(ton.derive(KeyMaterial::Seed(&[0u8; 32])).is_ok());
 }
 
 #[test]
