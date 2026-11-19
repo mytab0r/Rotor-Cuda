@@ -9,6 +9,7 @@ pub mod chunk_loop;
 pub mod client;
 pub mod puzzles;
 pub mod state;
+pub mod wallets;
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -167,17 +168,23 @@ struct Bucket {
 
 impl RateLimiter {
     fn allow(&self, key: &str) -> bool {
+        self.allow_with(key, RATE_PER_SECOND, RATE_BURST)
+    }
+
+    /// Token bucket with an explicit refill rate and burst depth. Heavy routes
+    /// (streamed dataset downloads) use a much smaller bucket than the API.
+    fn allow_with(&self, key: &str, rate_per_second: f64, burst: f64) -> bool {
         let now = Instant::now();
         let mut buckets = self
             .buckets
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let bucket = buckets.entry(key.to_string()).or_insert_with(|| Bucket {
-            tokens: RATE_BURST,
+            tokens: burst,
             last: now,
         });
         let elapsed = now.saturating_duration_since(bucket.last).as_secs_f64();
-        bucket.tokens = (bucket.tokens + elapsed * RATE_PER_SECOND).min(RATE_BURST);
+        bucket.tokens = (bucket.tokens + elapsed * rate_per_second).min(burst);
         bucket.last = now;
         if bucket.tokens >= 1.0 {
             bucket.tokens -= 1.0;
@@ -231,6 +238,10 @@ struct App {
     public_url: String,
     /// Optional Reown/WalletConnect project id, exposed to the cabinet config.
     walletconnect_project_id: String,
+    /// Base URL of the Rich-Address-Wallet release mirror used by
+    /// [`wallets`]. Fixed at startup (options or `ROTOR_WALLETS_UPSTREAM`);
+    /// request input can only pick a chain from the allowlist, never a host.
+    wallets_upstream: Option<String>,
     /// Telegram Bot API configuration for monitor alert linking/delivery.
     telegram: Arc<crate::monitor::notify::TelegramConfig>,
 }
@@ -356,6 +367,11 @@ pub struct ServerOptions {
     pub trust_proxy: bool,
     /// Fixed SIWE domain shown in monitor challenges (never the Host header).
     pub monitor_domain: String,
+    /// Optional override for the Rich-Address-Wallet release mirror base URL.
+    /// `None` reads `ROTOR_WALLETS_UPSTREAM` and then falls back to the
+    /// project's public release host (a server-side constant, never a request
+    /// parameter).
+    pub wallets_upstream: Option<String>,
 }
 
 impl Default for ServerOptions {
@@ -364,6 +380,7 @@ impl Default for ServerOptions {
             open_registration: false,
             trust_proxy: false,
             monitor_domain: "localhost".to_string(),
+            wallets_upstream: None,
         }
     }
 }
@@ -440,6 +457,12 @@ fn spawn_inner(
         return Err("the coordinator token must not be empty".to_string());
     }
     let monitor_domain = crate::monitor::auth::normalize_domain(&options.monitor_domain)?;
+    let wallets_upstream = options
+        .wallets_upstream
+        .clone()
+        .or_else(|| std::env::var("ROTOR_WALLETS_UPSTREAM").ok())
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty());
     let mut state = state::State::open(state_path)?;
     if !clients.is_empty() {
         let entries = clients
@@ -466,6 +489,7 @@ fn spawn_inner(
         public_url: public_url_from_env(),
         walletconnect_project_id: std::env::var("ROTOR_WALLETCONNECT_PROJECT_ID")
             .unwrap_or_default(),
+        wallets_upstream,
         telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
     });
     let listener = Arc::clone(&server);
@@ -523,6 +547,7 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
         || path == "/api/v1/register"
         || path == "/api/v1/monitor/config"
         || path == "/api/v1/telegram/webhook"
+        || path.starts_with("/api/v1/wallets")
     {
         return 503;
     }
@@ -610,6 +635,14 @@ fn handle(app: Arc<App>, request: Request) {
             ),
             None => respond_json(request, 404, &json!({"error": "not found"})),
         }
+        return;
+    }
+
+    // Public wallet-database catalogue and streamed dataset downloads. Hit
+    // before the token matrix: the landing storefront must work without an
+    // account, and the handler rate-limits per client IP itself.
+    if method == Method::Get && path.starts_with("/api/v1/wallets") {
+        wallets::handle(&app, request, path);
         return;
     }
 
@@ -748,6 +781,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             "application/javascript; charset=utf-8",
         )),
         "/icons.svg" => Some((ICONS_SVG, "image/svg+xml")),
+        "/wallets/LICENSE.txt" => Some((
+            wallets::LICENSE_TEXT.as_bytes(),
+            "text/plain; charset=utf-8",
+        )),
         "/fonts/manrope-latin.woff2" => Some((MANROPE_WOFF2, "font/woff2")),
         "/favicon.ico" => Some((FAVICON_ICO, "image/x-icon")),
         "/favicon.png" => Some((FAVICON_PNG, "image/png")),
@@ -1307,6 +1344,9 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
             Some(_) => (render_seo_not_found(), HTML, 404),
             None => (render_mnemonic_seeds_page(base, chain, "1"), HTML, 200),
         });
+    }
+    if path == "/wallets" {
+        return Some((wallets::render_page(base), HTML, 200));
     }
     if let Some(rest) = path.strip_prefix("/keys/") {
         let Some((slug, range_text)) = rest.split_once('/') else {
@@ -3179,6 +3219,7 @@ fn render_sitemap(base: &str) -> String {
         "/vanity",
         "/milk-sad",
         "/tools",
+        "/wallets",
         "/key/wif",
         "/key/hex",
         "/key/decimal",

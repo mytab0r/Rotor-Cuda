@@ -146,4 +146,28 @@ browser capture in the PR.
       tx-sign-broadcast review gate; no server-side signing.
 - [ ] `/wallets` in-site rich-list catalogue with search/filter and explicit
       price/terms; data source and resale rights must be confirmed first.
+      (storefront and proxied downloads: §15; this item is the browsable
+      rich-list catalogue)
 - [ ] `/scaner` + `/results` UX only if a real scanner exists; no fake progress.
+
+## 15. Wallet database storefront [front+back]
+- [x] `/wallets` lists the six Rich-Address-Wallet rich lists for Bitcoin,
+      Ethereum, Litecoin, Dogecoin, Bitcoin Cash and Dash; the landing Address
+      databases section links only to `/wallets`; no direct `github.com` links
+      remain in customer-facing HTML.
+- [x] `GET /api/v1/wallets` and `GET /api/v1/wallets/<chain>` return the
+      allowlisted catalogue (license metadata, our download paths, no upstream
+      host); unknown chains are a hard 404.
+- [x] `GET /api/v1/wallets/<chain>/download` streams the upstream snapshot
+      through our origin: 5s connect / 30s read-write timeouts, 2 GB cap,
+      per-IP bucket, upstream 404 -> 404 and any other upstream failure -> 502.
+- [x] MIT notice (Copyright (c) 2022 MMDRZA) on the page and in the
+      machine-readable `/wallets/LICENSE.txt`; the access copy says
+      `Request access` and adds no invented price or fake checkout.
+- Evidence: `tests/coordinator_api.rs::wallet_catalog_is_public_and_downloads_stream_through_our_origin`
+  with a mocked upstream; source URLs stay server-side.
+- [ ] Paid checkout / terms and price display; decide whether the files stay
+      free with attribution or are sold as packaged lists. (blocked by: payment
+      provider; legal review below)
+- [ ] Counterparty legal review of resale/redistribution obligations before any
+      paid offer goes live. (blocked by: -)

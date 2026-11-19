@@ -2,14 +2,21 @@
 
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rotor::base58;
 use rotor::bsgs::TableManifest;
 use rotor::coordinator::client::CoordinatorClient;
-use rotor::coordinator::{Clients, spawn, spawn_with_clients, spawn_with_options};
+use rotor::coordinator::{
+    Clients, ServerOptions, spawn, spawn_with_clients, spawn_with_monitor_options,
+    spawn_with_options,
+};
+use rotor::monitor::store::MonitorStore;
 use rotor::scalar::Scalar;
 use rotor::secp;
 use serde_json::json;
@@ -1060,6 +1067,179 @@ fn public_pages_and_assets_are_served() {
     // The authenticated API is still protected.
     let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);
     assert_eq!(status, 401);
+
+    handle.shutdown();
+}
+
+/// Minimal HTTP upstream used to prove the wallet download route streams
+/// through the coordinator and maps upstream failures to clean statuses.
+struct MockUpstream {
+    base: String,
+    hits: Arc<AtomicUsize>,
+    mode: Arc<AtomicUsize>,
+    paths: Arc<Mutex<Vec<String>>>,
+}
+
+impl MockUpstream {
+    fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock upstream");
+        let addr = listener.local_addr().expect("mock address");
+        let hits = Arc::new(AtomicUsize::new(0));
+        let mode = Arc::new(AtomicUsize::new(0));
+        let paths = Arc::new(Mutex::new(Vec::new()));
+        let hits_thread = Arc::clone(&hits);
+        let mode_thread = Arc::clone(&mode);
+        let paths_thread = Arc::clone(&paths);
+        thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut buffer = [0u8; 4096];
+                let read = stream.read(&mut buffer).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]).into_owned();
+                let path = request
+                    .lines()
+                    .next()
+                    .and_then(|line| line.split_whitespace().nth(1))
+                    .unwrap_or("")
+                    .to_string();
+                paths_thread.lock().unwrap().push(path);
+                hits_thread.fetch_add(1, Ordering::SeqCst);
+                let body = b"mock-wallet-dataset";
+                let head = match mode_thread.load(Ordering::SeqCst) {
+                    1 => "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+                    2 => "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+                    _ => format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    ),
+                };
+                let _ = stream.write_all(head.as_bytes());
+                if mode_thread.load(Ordering::SeqCst) == 0 {
+                    let _ = stream.write_all(body);
+                }
+            }
+        });
+        Self {
+            base: format!("http://{addr}"),
+            hits,
+            mode,
+            paths,
+        }
+    }
+
+    fn set_mode(&self, mode: usize) {
+        self.mode.store(mode, Ordering::SeqCst);
+    }
+}
+
+#[test]
+fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
+    let coordinator_state = TempState::new("wallets");
+    let monitor_state = TempState::new("wallets-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let upstream = MockUpstream::start();
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            open_registration: false,
+            trust_proxy: false,
+            monitor_domain: "127.0.0.1".to_string(),
+            wallets_upstream: Some(upstream.base.clone()),
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+
+    // Catalogue: public, six chains, license notice, no upstream host.
+    let (status, headers, body) = raw(addr, "GET", "/api/v1/wallets", None, None);
+    assert_eq!(status, 200, "catalogue: {body}");
+    assert!(headers.to_ascii_lowercase().contains("application/json"));
+    assert!(!body.contains("github.com"), "upstream host leaked: {body}");
+    assert!(body.contains("Copyright (c) 2022 MMDRZA"), "{body}");
+    let catalog: serde_json::Value = serde_json::from_str(&body).expect("catalogue JSON");
+    assert_eq!(catalog["datasets"].as_array().unwrap().len(), 6);
+    assert_eq!(catalog["license"]["name"], "MIT");
+    assert_eq!(
+        catalog["datasets"][0]["download"],
+        "/api/v1/wallets/bitcoin/download"
+    );
+
+    // Single-chain lookup and the strict allowlist.
+    let (status, _, body) = raw(addr, "GET", "/api/v1/wallets/dash", None, None);
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("\"chain\":\"dash\""));
+    assert!(!body.contains("github.com"));
+    let (status, _, _) = raw(addr, "GET", "/api/v1/wallets/bitcoincash", None, None);
+    assert_eq!(status, 404, "only the slug allowlist may resolve");
+    let (status, _, _) = raw(addr, "GET", "/api/v1/wallets/../secret", None, None);
+    assert_eq!(status, 404);
+
+    // Storefront page and machine-readable license file.
+    let (status, _, page) = raw(addr, "GET", "/wallets", None, None);
+    assert_eq!(status, 200);
+    assert!(page.contains("Rich-address wallet databases"), "{page}");
+    assert!(
+        page.contains("/api/v1/wallets/bitcoin/download"),
+        "download must stay on our origin"
+    );
+    assert!(page.contains("/wallets/LICENSE.txt"));
+    assert!(page.contains("Request access"));
+    assert!(page.contains("Copyright (c) 2022 MMDRZA"));
+    assert!(!page.contains("github.com"), "page links upstream: {page}");
+    let (status, headers, license) = raw(addr, "GET", "/wallets/LICENSE.txt", None, None);
+    assert_eq!(status, 200);
+    assert!(headers.to_ascii_lowercase().contains("text/plain"));
+    assert!(license.contains("MIT License"));
+    assert!(license.contains("Copyright (c) 2022 MMDRZA"));
+
+    // The landing page links to /wallets only, never to the upstream host.
+    let (status, _, landing) = raw(addr, "GET", "/", None, None);
+    assert_eq!(status, 200);
+    assert!(landing.contains("href=\"/wallets\""));
+    assert!(
+        !landing.contains("github.com"),
+        "landing leaks upstream: {landing}"
+    );
+
+    // Successful proxied download.
+    let (status, headers, body) = raw(addr, "GET", "/api/v1/wallets/bitcoin/download", None, None);
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body, "mock-wallet-dataset");
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("content-disposition: attachment")
+    );
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("content-type: application/gzip")
+    );
+    assert!(
+        headers.to_ascii_lowercase().contains("rel=\"license\""),
+        "MIT notice must travel with the data: {headers}"
+    );
+    let requested = upstream.paths.lock().unwrap().clone();
+    assert_eq!(requested.len(), 1);
+    assert_eq!(requested[0], "/Bitcoin/Latest_Rich_Bitcoin_Address.txt.gz");
+
+    // Upstream failure is a clean 502, not a leaked error page.
+    upstream.set_mode(1);
+    let (status, _, body) = raw(addr, "GET", "/api/v1/wallets/ethereum/download", None, None);
+    assert_eq!(status, 502, "{body}");
+    assert!(body.contains("upstream download failed"));
+    assert!(!body.contains("github.com"));
+
+    // The download bucket allows a burst of two, then answers 429 without
+    // calling upstream again.
+    let hits_before = upstream.hits.load(Ordering::SeqCst);
+    let (status, _, _) = raw(addr, "GET", "/api/v1/wallets/dogecoin/download", None, None);
+    assert_eq!(status, 429);
+    assert_eq!(upstream.hits.load(Ordering::SeqCst), hits_before);
 
     handle.shutdown();
 }
