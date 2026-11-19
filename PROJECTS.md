@@ -28,7 +28,9 @@ owned by exactly one area; the most-specific glob wins.
   current value; Phase 1 will make it single-source.
 - **Routes.** `/`, `/app`, `/run`, `/me`, `/docs`, `/key` and the static asset
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
-  coordinator + site change.
+  coordinator + site change. SEO routes include `/bitcoin-puzzle`,
+  `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
+  `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
   `Rotor-Cuda/`; moving them requires `build.rs`, `Cargo.toml` and
   `gpu-bsgs-compile.yml` in the same change.
