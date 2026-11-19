@@ -1,0 +1,16 @@
+name = "rotor-edge-cache"
+main = "src/worker.mjs"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+# No secrets in this file. Provider configuration is supplied by name only:
+#
+#   npx wrangler secret put CHAIN_RPCS
+#
+# CHAIN_RPCS is a JSON object mapping an EVM chain name (as used in
+# /v1/balance?chain=...) to a JSON-RPC endpoint:
+#
+#   {"eth":"https://rpc.example/eth","bnb":"https://rpc.example/bnb"}
+#
+# BTC (mempool.space) and TRON (Tronscan) need no configuration.
+[vars]
