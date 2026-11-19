@@ -26,6 +26,16 @@
 .wallet-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 @media (max-width: 760px) { .wallet-split { grid-template-columns: minmax(0, 1fr); } }
 .wallet-backup-text { width: 100%; min-height: 84px; }
+.wallet-review { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); gap: 6px 14px; margin: 10px 0 14px; }
+.wallet-review dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+.wallet-review dd { margin: 0; overflow-wrap: anywhere; }
+.wallet-review dd code { overflow-wrap: anywhere; }
+.wallet-hex { display: block; margin: 6px 0 12px; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); overflow-wrap: anywhere; }
+.wallet-field-error { margin: -4px 0 8px; }
+.wallet-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--danger, #e05353); font-size: 13px; }
+#wallet-send select { width: 100%; max-width: 100%; }
+#wallet-send-from, #wallet-send-provider-note, #wallet-send-hash { overflow-wrap: anywhere; }
+@media (max-width: 560px) { .wallet-review { grid-template-columns: minmax(0, 1fr); gap: 2px; } .wallet-review dt { margin-top: 8px; } }
 </style>
 </head>
 <body>
@@ -54,12 +64,12 @@
       <div>
         <h1>Cabinet wallet</h1>
         <p class="key-tagline">Keep WIF and hex keys in an encrypted vault on this device and watch the addresses they control. The vault is encrypted with a passphrase you choose; the server never receives the passphrase, a private key or a WIF.</p>
-        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only</span><span>No signing yet</span></div>
+        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia testnet send</span></div>
       </div>
     </div>
   </section>
 
-  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. Testnet sending is not part of this phase; nothing on this page signs or broadcasts a transaction.</p>
+  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can now send on Ethereum Sepolia: the page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public RPC. Mainnet signing stays disabled in this phase.</p>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
 
@@ -148,6 +158,87 @@
     <p class="muted" id="wallet-empty">No keys in this vault yet. Import a WIF or a hex key above.</p>
   </section>
 
+  <section class="card" id="wallet-send" hidden>
+    <h2>Send an EVM testnet transaction</h2>
+    <p class="muted">The transaction is built from this form, reviewed field by field, signed in this tab by the local WASM core and then broadcast as a signed raw transaction. Public reads and the broadcast go directly from this browser to the chosen public RPC with the browser's real <code class="mono">Origin</code>; the server never sees a key and does not proxy these requests.</p>
+    <form id="wallet-send-form" class="key-form" autocomplete="off">
+      <label>From (unlocked vault entry)
+        <select id="wallet-send-entry"></select>
+      </label>
+      <p class="muted" id="wallet-send-from" role="status">Select a key to see its EVM address.</p>
+      <div class="wallet-split">
+        <label>Network
+          <select id="wallet-send-network">
+            <option value="11155111">Ethereum Sepolia — testnet (chain id 11155111)</option>
+            <option value="1" disabled>Ethereum mainnet — disabled in this phase</option>
+          </select>
+        </label>
+        <label>Public RPC
+          <select id="wallet-send-provider"></select>
+        </label>
+      </div>
+      <p class="muted">Only Sepolia is enabled. Mainnet signing stays off until the testnet flow is verified end to end. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch refuses the send.</p>
+
+      <label>To (0x address)
+        <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…">
+      </label>
+      <p class="error wallet-field-error" id="wallet-send-to-error" role="alert" hidden></p>
+      <div class="wallet-split">
+        <label>Value (ETH)
+          <input id="wallet-send-value" type="text" inputmode="decimal" autocomplete="off" placeholder="0.01">
+        </label>
+        <label>Data (optional hex)
+          <input id="wallet-send-data" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x">
+        </label>
+      </div>
+      <p class="error wallet-field-error" id="wallet-send-value-error" role="alert" hidden></p>
+      <p class="error wallet-field-error" id="wallet-send-data-error" role="alert" hidden></p>
+      <div class="wallet-split">
+        <label>Gas limit (empty = estimate)
+          <input id="wallet-send-gas" type="text" inputmode="numeric" autocomplete="off" placeholder="auto">
+        </label>
+        <label>Priority fee (gwei, empty = network)
+          <input id="wallet-send-priority" type="text" inputmode="decimal" autocomplete="off" placeholder="auto">
+        </label>
+        <label>Max fee (gwei, empty = 2 × base + priority)
+          <input id="wallet-send-max-fee" type="text" inputmode="decimal" autocomplete="off" placeholder="auto">
+        </label>
+      </div>
+      <p class="error wallet-field-error" id="wallet-send-gas-error" role="alert" hidden></p>
+      <p class="error wallet-field-error" id="wallet-send-priority-error" role="alert" hidden></p>
+      <p class="error wallet-field-error" id="wallet-send-max-fee-error" role="alert" hidden></p>
+      <p class="muted">Empty gas limit uses <code class="mono">eth_estimateGas</code>; empty fees use the node's priority fee and 2 × base fee + priority. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-send-prepare">Fetch fees and review</button>
+      </div>
+    </form>
+    <p class="muted" id="wallet-send-status" role="status"></p>
+    <p id="wallet-send-error" class="error" role="alert" hidden></p>
+
+    <div id="wallet-send-review" hidden>
+      <h3>Review before signing</h3>
+      <dl class="wallet-review" id="wallet-review-list"></dl>
+      <ul class="wallet-warnings" id="wallet-review-warnings" hidden></ul>
+      <p class="muted">Unsigned EIP-1559 type-2 transaction — the exact bytes that will be signed:</p>
+      <code class="mono wallet-hex" id="wallet-review-unsigned"></code>
+      <div class="key-buttons">
+        <button type="button" class="primary" id="wallet-send-confirm">Sign and broadcast</button>
+        <button type="button" id="wallet-send-cancel">Back to edit</button>
+      </div>
+      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. No key leaves this tab.</p>
+      <p class="error" id="wallet-send-confirm-error" role="alert" hidden></p>
+    </div>
+
+    <div id="wallet-send-result" hidden>
+      <h3>Broadcast result</h3>
+      <p class="muted" id="wallet-send-provider-note"></p>
+      <p>Transaction hash: <code class="mono" id="wallet-send-hash"></code></p>
+      <p><a id="wallet-send-explorer" target="_blank" rel="noopener noreferrer">Open on Sepolia Etherscan</a></p>
+      <p class="muted">Signed raw transaction:</p>
+      <code class="mono wallet-hex" id="wallet-send-signed"></code>
+    </div>
+  </section>
+
   <section class="card">
     <h2>Encrypted backup</h2>
     <div class="wallet-split">
@@ -168,7 +259,7 @@
       <div>
         <h3>What is stored</h3>
         <p class="muted">IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
-        <p class="muted">This page does not sign or broadcast transactions. Watch-only means it can show addresses, links and (opt-in) balances.</p>
+        <p class="muted">This page can sign and broadcast Sepolia EVM transactions only after the review screen. The signature and the raw transaction are created in this tab; only the signed raw transaction is sent to a public RPC. Watch-only still means address display and opt-in balances without signing.</p>
       </div>
     </div>
   </section>
@@ -177,6 +268,7 @@
 </main>
 
 <script src="/wallet-vault.js?v=20261120a"></script>
+<script src="/wallet-evm.js?v=20261120a"></script>
 <script src="/wallet.js?v=20261120a"></script>
 <script src="/site.js?v=20261120a"></script>
 </body>
