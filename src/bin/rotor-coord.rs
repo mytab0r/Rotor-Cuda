@@ -194,6 +194,7 @@ fn run(options: Options) -> ExitCode {
         open_registration: options.open_registration,
         trust_proxy: options.trust_proxy,
         monitor_domain: options.monitor_domain.clone(),
+        ..ServerOptions::default()
     };
     // Telegram alerts are optional. The coordinator reads the same environment
     // for its webhook route; this copy drives registration and delivery.
