@@ -2,22 +2,33 @@
 
 ## P0 — interaction parity
 
-- [ ] Brainwallet directory: `/brainwallet` index + 18 chain listings, 60 rows
+- [x] Brainwallet directory: `/brainwallet` index + 18 chain listings, 60 rows
   × 315 pages, auto addresses/balances, two copy icons per row, BTC type tabs,
-  First/Prev/Random/Next/Last + Jump.
-- [ ] Brainwallet single calculator on `/brainwallet-generator` with network,
-  passphrase, 1/3/5/10 addresses, Copy All/CSV.
+  First/Prev/Random/Next/Last + Jump. Evidence: `mod.rs:2291-2361`
+  (60×315, pager, jump), `brainwallet-directory.js:209-219,596-610`
+  (copy icons, type tabs), `brainwallet-directory.js:351-470` (balances).
+- [x] Brainwallet single calculator on `/brainwallet-generator` with network,
+  passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence: `mod.rs:2659-2700`,
+  `brainwallet.js:457-503`.
 - [ ] Seed rows: private key/WIF + copy icons; compact reveal for the phrase.
-- [ ] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
-  Balance/TX/Actions.
-- [ ] Puzzle random: Community Hunt counters and a live result table.
+  Remaining: the phrase is always fully expanded (`mnemonic-seeds.js:588-598`);
+  no reveal/collapse control exists. Key/WIF copy is done.
+- [x] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
+  Balance/TX/Actions. Evidence: `mod.rs:3260-3332`,
+  `puzzle-browser.js:236-365`.
+- [x] Puzzle random: Community Hunt counters and a live result table.
+  Evidence: `mod.rs:3935-3947`, `puzzle-browser.js:367-432,864-886`.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
-  explorer.
+  explorer. **Blocked: no dataset.** The repo has only gzip download mirrors
+  (`src/coordinator/wallets.rs:34-40`); top-100 ranks/labels/balances require a
+  licensed third-party dataset or API. Not faked.
 - [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
 - [ ] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
-  core; mainnet stays gated.
-- [ ] `/key` debounced auto-derive, icon-only utility actions, full formats and
-  counters.
+  core; mainnet stays gated. Kernel exists (`wallet-btc.js:473-624`,
+  `wallet-evm.js:338-553`); the page, routes and key-entry glue are missing.
+- [x] `/key` debounced auto-derive, icon-only utility actions, full formats and
+  counters. Evidence: `key.js:211,569-575` (debounce),
+  `key.html:69-76` (icon actions), `key-tools.js:304-321` (formats).
 - [x] Global search results in place: interpret-as, 1/3/5/10 addresses, table,
   Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
   shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
@@ -38,27 +49,27 @@
 - [ ] Vanity: threads/ETA/difficulty/save/recent; pubkey-add: P−Q and scalar
   multiply.
 
-## Shared Cloudflare Worker balance cache (next step, not in the client-cache PR)
+## Shared Cloudflare Worker balance cache
 
-The pages now keep a client-side IndexedDB cache in `apps/site/balance-cache.js`
-(provider + chain + address; BTC/other 60 s, EVM 30 s). The next step moves the
-same contract behind the edge so many visitors share one upstream read:
+The client keeps a local IndexedDB cache (`apps/site/balance-cache.js`,
+provider + chain + address; BTC/other 60 s, EVM 30 s). The edge worker lives in
+`deploy/cloudflare` (PR #87, merged) and is tested but **not wired to the site
+and not deployed**.
 
-- [ ] Add `GET /api/v1/balances?provider=<id>&chain=<slug>&addresses=<csv>` to
-      the CF Worker. It accepts public addresses only; reject any request with
-      a key, WIF, seed or passphrase field, and cap `addresses` at 60.
-- [ ] Cache key `balance:<provider>:<chain>:<address>` in the Worker Cache API
-      (or D1 for persistence), with the same TTLs: BTC and non-EVM providers
-      60 s, EVM 30 s. Store `{value, fetchedAt, source}`; never store errors as
-      success.
-- [ ] Origin remains the upstream fetcher; the Worker does not proxy arbitrary
-      URLs. Allowlist each provider host, add a 5 s connect / 10 s read budget,
-      per-IP rate limit and a 10k-entry cap.
-- [ ] Return per-address `error` fields instead of failing the whole batch.
-      Pass 429/5xx through so the client keeps the per-row error and retry
-      icon; the client cache remains the display source and is advisory-only.
-- [ ] Keep `/api/v1/lease|result|heartbeat` on the origin; the Worker never
-      accepts a private key. Measure upstream request count before/after.
+- [x] Cache key and TTLs, stale-while-revalidate, errors never stored as
+      success: `deploy/cloudflare/src/cache.mjs`, `src/worker.mjs`; 35 tests.
+- [x] Fixed provider allowlist (mempool.space, Tronscan, configured EVM RPCs),
+      5 s timeout, per-provider token bucket, concurrency 4, one retry with
+      backoff + jitter, secret-shaped body rejection:
+      `deploy/cloudflare/src/providers.mjs`, `src/security.mjs`.
+- [ ] Batch endpoint `GET /v1/balances?chain=&addresses=<csv>` (cap 60). The
+      worker serves one address at a time today.
+- [ ] Per-IP rate limiting. The current bucket is per provider per isolate, not
+      a global or per-client quota.
+- [ ] Client wiring + deploy. **Blocked: no valid Cloudflare credential**
+      (`CF_PAGES_TOKEN` is rejected by the API); needs `wrangler login` or a
+      Workers token. The site must keep calling providers directly until the
+      worker is live, so no fake endpoint is wired.
 
 ## Verification
 
