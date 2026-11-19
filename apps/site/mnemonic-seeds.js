@@ -114,6 +114,71 @@
     }
   };
 
+  /* Copy and key helpers are pure enough to test under Node: the directory
+   * page exports them before the chain guard below. Copying happens only on
+   * an explicit click; nothing is stored, logged or put into the URL. */
+
+  function legacyCopy(text) {
+    var area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '-1000px';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    try {
+      document.execCommand('copy');
+    } finally {
+      document.body.removeChild(area);
+    }
+  }
+
+  function copyText(text, button) {
+    var label = button && button.getAttribute ? button.getAttribute('aria-label') : '';
+    function done() {
+      if (!button || !button.classList) return;
+      button.classList.add('copied');
+      if (label) button.setAttribute('aria-label', 'Copied');
+      window.setTimeout(function () {
+        button.classList.remove('copied');
+        if (label) button.setAttribute('aria-label', label);
+      }, 1200);
+    }
+    function fallback() {
+      legacyCopy(text);
+      done();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  /* Bitcoin rows expose the compressed WIF; every other curve shows the
+   * derived 32-byte private key in hex. The report is the only source. */
+  function privateKeyFor(chainName, report) {
+    if (!report) return '';
+    if (chainName === 'bitcoin' && report.wif_compressed) return report.wif_compressed;
+    return report.priv_hex || '';
+  }
+
+  function privateKeyHref(chainName, key) {
+    return chainName === 'bitcoin' && key ? '/key/' + encodeURIComponent(key) : '';
+  }
+
+  function privateKeyLabel(chainName) {
+    return chainName === 'bitcoin' ? 'WIF' : 'HEX';
+  }
+
+  window.RotorMnemonicSeeds = {
+    copyText: copyText,
+    privateKeyFor: privateKeyFor,
+    privateKeyHref: privateKeyHref,
+    privateKeyLabel: privateKeyLabel
+  };
+
   var root = document.querySelector('.mnemonic-seeds-page');
   if (!root) return;
 
@@ -471,6 +536,39 @@
     window.location.assign(pageHref(page, { path: value }));
   }
 
+  function iconUse(name) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '/icons.svg#' + name);
+    svg.appendChild(use);
+    return svg;
+  }
+
+  function iconButton(iconId, label, handler) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'icon-btn mnemonic-copy';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.appendChild(iconUse(iconId));
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function iconLink(iconId, label, href) {
+    var link = document.createElement('a');
+    link.className = 'icon-btn';
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.title = label;
+    link.setAttribute('aria-label', label);
+    link.appendChild(iconUse(iconId));
+    return link;
+  }
+
   function createRow(entry) {
     var row = document.createElement('div');
     row.className = 'mnemonic-row';
@@ -481,7 +579,15 @@
 
     var phrase = document.createElement('div');
     phrase.className = 'mnemonic-phrase';
-    phrase.textContent = 'Deriving…';
+    var phraseText = document.createElement('span');
+    phraseText.className = 'mnemonic-phrase-text';
+    phraseText.textContent = 'Deriving…';
+    phrase.appendChild(phraseText);
+    var phraseCopy = iconButton('ui-copy', 'Copy mnemonic', function () {
+      if (entry.phrase) copyText(entry.phrase, phraseCopy);
+    });
+    phraseCopy.disabled = true;
+    phrase.appendChild(phraseCopy);
 
     var address = document.createElement('div');
     address.className = 'mnemonic-address';
@@ -500,17 +606,23 @@
     row.appendChild(balance);
     rowsEl.appendChild(row);
     entry.phraseCell = phrase;
+    entry.phraseText = phraseText;
+    entry.phraseCopy = phraseCopy;
     entry.addressCell = address;
     entry.balanceCell = balance;
   }
 
   function fillRow(entry) {
-    entry.phraseCell.textContent = entry.phrase;
+    entry.phraseText.textContent = entry.phrase;
+    entry.phraseCopy.disabled = false;
     entry.addressCell.textContent = '';
     if (!entry.address) {
       entry.addressCell.textContent = 'Not available for this address type.';
       return;
     }
+
+    var line = document.createElement('div');
+    line.className = 'mnemonic-addr-line';
     var link = document.createElement('a');
     link.className = 'mono address-link';
     link.href = explorerUrl(entry.address) || '#';
@@ -518,19 +630,48 @@
     link.rel = 'noopener noreferrer';
     link.textContent = entry.address;
     link.title = entry.address;
-    entry.addressCell.appendChild(link);
-    if (entry.wif) {
-      var wif = document.createElement('a');
-      wif.className = 'mono mnemonic-wif';
-      wif.href = '/key/' + encodeURIComponent(entry.wif);
-      wif.textContent = 'WIF';
-      wif.title = entry.wif;
-      entry.addressCell.appendChild(wif);
+    line.appendChild(link);
+
+    var actions = document.createElement('span');
+    actions.className = 'addr-actions mnemonic-actions';
+    actions.appendChild(iconLink('ui-external', 'Open address in explorer', link.href));
+    var addressCopy = iconButton('ui-copy', 'Copy address', function () {
+      copyText(entry.address, addressCopy);
+    });
+    actions.appendChild(addressCopy);
+    line.appendChild(actions);
+    entry.addressCell.appendChild(line);
+
+    if (!entry.key) return;
+    var keyLine = document.createElement('div');
+    keyLine.className = 'mnemonic-key-line';
+    var keyLabel = document.createElement('span');
+    keyLabel.className = 'mnemonic-key-label';
+    keyLabel.textContent = privateKeyLabel(chain);
+    keyLine.appendChild(keyLabel);
+    var key;
+    if (entry.keyHref) {
+      key = document.createElement('a');
+      key.className = 'mono mnemonic-key';
+      key.href = entry.keyHref;
+      key.title = entry.key + ' — open the key page';
+    } else {
+      key = document.createElement('code');
+      key.className = 'mono mnemonic-key';
+      key.title = entry.key;
     }
+    key.textContent = entry.key;
+    keyLine.appendChild(key);
+    var keyCopy = iconButton('ui-copy', 'Copy ' + privateKeyLabel(chain) + ' private key', function () {
+      copyText(entry.key, keyCopy);
+    });
+    keyLine.appendChild(keyCopy);
+    entry.addressCell.appendChild(keyLine);
   }
 
   function fillRowError(entry, err) {
-    entry.phraseCell.textContent = '—';
+    if (entry.phraseText) entry.phraseText.textContent = '—';
+    if (entry.phraseCopy) entry.phraseCopy.disabled = true;
     entry.addressCell.textContent = err && err.message ? err.message : 'Derivation failed.';
   }
 
@@ -665,7 +806,8 @@
       report = reportFor(wasm, keyHex, 0);
     }
     entry.address = addressOf(report, activeType.field);
-    entry.wif = chain === 'bitcoin' && report ? report.wif_compressed || '' : '';
+    entry.key = privateKeyFor(chain, report);
+    entry.keyHref = privateKeyHref(chain, entry.key);
     fillRow(entry);
   }
 
@@ -790,7 +932,8 @@
     } catch (err) {
       fail(err && err.message ? err.message : 'The derivation core did not load.');
       state.entries.forEach(function (entry) {
-        entry.phraseCell.textContent = '—';
+        if (entry.phraseText) entry.phraseText.textContent = '—';
+        if (entry.phraseCopy) entry.phraseCopy.disabled = true;
         entry.addressCell.textContent = 'Derivation core unavailable.';
       });
       return;

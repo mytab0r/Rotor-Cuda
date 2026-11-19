@@ -19,3 +19,19 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
 - Do not hand-edit generated artifacts (`target/`, wasm output) or add secrets.
 
 Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
+
+## UI/UX gate (all site changes)
+
+- Before designing or changing a page/component, query the installed
+  `ui-ux-pro-max` skill:
+  `python "$HOME/.claude/skills/ui-ux-pro-max/scripts/search.py" "<page or problem>" --domain ux`
+  (use `--domain style`, `--domain icons` or `--stack html-tailwind` for
+  specific questions). Apply its accessibility/touch/responsive rules.
+- Data-heavy pages use compact tables/rows with icon-only row actions, not a
+  grid of explanatory cards. Cards are for navigation, empty states and
+  summaries only.
+- Every icon-only action needs `aria-label`, `title`, a visible copied/active
+  state and a >=44px touch target.
+- Run the `ui-checklist` and verify 375/768/1280, light/dark, keyboard,
+  reduced-motion and no horizontal overflow before claiming a UI fix.
+
