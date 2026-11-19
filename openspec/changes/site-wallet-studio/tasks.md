@@ -23,11 +23,28 @@ browser capture in the PR.
 - Evidence: browser capture of BTC, EVM, TON rows; no 404 explorer prefixes.
 
 ## 2. Key page density [front]
-- [ ] Add the four counters (total value, has balance, active chains,
+- [x] Add the four counters (total value, has balance, active chains,
       checked N/N) above key facts; hide until the first successful derive.
-      (blocked by: 1)
-- [ ] Compact key-facts block: HEX, DECIMAL, WIF, WIF(U), KEYPAIR(SOL),
+      Total value stays “—” because no price source is connected (no fake
+      USD). Evidence: `apps/site/key-tools-test.mjs` `balanceCounters`
+      (unique addresses, funded chains, checked/total over visible provider
+      rows); browser capture of key 1: 2 has balance, 2 active chains, 14/14
+      checked.
+- [x] Compact key-facts block: HEX, DECIMAL, WIF, WIF(U), KEYPAIR(SOL),
       SECRET(XRP), PUBKEY, PAGE. Each row has copy; WIF links to `/key/wif`.
+      HEX links to `/key/hex`; PAGE opens the integer directory page; formats
+      that the curve cannot support show the reason (ed25519 has no WIF/XRP
+      secret; secp256k1 has no Solana keypair). Evidence:
+      `apps/site/key-tools-test.mjs` `buildKeyFacts` (report fields, XRP
+      secret interior/checksum via an independent Ripple-alphabet decoder,
+      Solana keypair seed||pubkey, key 1/60/61 page math).
+- [x] Show the EVM account once per network (Ethereum, BNB Chain, Arbitrum,
+      Optimism, Base, Polygon, Avalanche, zkSync Era), each tagged “same
+      address”, with per-network public RPC balances and explorers; add
+      public-only Copy All/CSV on the address toolbar (no key material).
+      Evidence: browser capture of key 1 (eight rows, same `0x7E5F…`, per-chain
+      balances); `node scripts/ui-audit.mjs --serve --routes key,private-keys/bitcoin
+      --viewports 375,1280 --themes dark,light` passes 8/8 runs.
 - [ ] Balance checks on by default; per-row spinner → value/error; retry on
       failure; `updated` timestamp.
 - [ ] Registry match line remains visible and honest (0 matches = no warning).
