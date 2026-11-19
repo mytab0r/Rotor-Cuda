@@ -34,4 +34,11 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   state and a >=44px touch target.
 - Run the `ui-checklist` and verify 375/768/1280, light/dark, keyboard,
   reduced-motion and no horizontal overflow before claiming a UI fix.
+- Run the automated gate before reporting done:
+  `node scripts/ui-audit.mjs --serve` (or against a running coordinator).
+  It checks all of the above plus small text/targets, unlabeled icon controls,
+  duplicated address-type components, half-empty cards and manual balance
+  controls. The failure table and the fix-the-class rule live in the project
+  skill `.claude/skills/ui-self-review/SKILL.md`. A UI change with violations
+  is not done; do not weaken the audit to get a green run.
 

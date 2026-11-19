@@ -11,6 +11,17 @@ node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm
 node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm
 ```
 
+## UI gate
+
+Any visible change must pass the shared audit (375/768/1280, dark/light):
+
+```sh
+node scripts/ui-audit.mjs --serve          # or --base http://127.0.0.1:7879
+```
+
+Violation IDs, thresholds and the "fix the class, not the page" rule are in
+`.claude/skills/ui-self-review/SKILL.md`. Do not weaken a check to get green.
+
 ## Gotchas
 
 - Every page and asset is a compile-time input of the coordinator:

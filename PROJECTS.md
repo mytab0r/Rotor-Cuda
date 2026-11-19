@@ -9,7 +9,7 @@ owned by exactly one area; the most-specific glob wins.
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
 | `wasm-core` | wasm-core | `crates/rotor-wasm/**` | `sh scripts/build-wasm.sh` | `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
 | `desktop` | desktop-tools | remaining `src/**` and `tests/**`, `Rotor-Cuda/**`, legacy trees, `build.rs`, `Cargo.toml` | `cargo build --release [--features gpu]` | `cargo test --release [--features gpu]` |
-| `ops` | ops/docs | `.github/**`, `deploy/**`, `scripts/**`, `openspec/**`, `docs/**`, `Dockerfile`, root docs | `node scripts/check-projects.mjs` | `node docs/site-map/site-map-test.mjs`; `node scripts/check-projects.mjs` |
+| `ops` | ops/docs | `.github/**`, `.claude/skills/**`, `deploy/**`, `scripts/**`, `openspec/**`, `docs/**`, `Dockerfile`, root docs | `node scripts/check-projects.mjs` | `node docs/site-map/site-map-test.mjs`; `node scripts/check-projects.mjs` |
 
 ## Cross-area contracts
 
@@ -66,7 +66,16 @@ owned by exactly one area; the most-specific glob wins.
 node scripts/check-projects.mjs                  # schema, ownership, coverage
 node scripts/affected-areas.mjs                  # diff origin/main + working tree
 node scripts/affected-areas.mjs path/to/file ... # explicit paths
+node scripts/ui-audit.mjs --serve                # headless UI self-review (site)
 ```
+
+`scripts/ui-audit.mjs` is the shared UI gate: headless Chrome/Edge over CDP
+(zero dependencies), every route at 375/768/1280 in dark and light, with
+screenshots and a JSON report. It checks overflow, text below 12px, touch
+targets below 44px, icon-only controls without labels, duplicated address-type
+components, uneven card widths, half-empty cards, manual balance controls and
+the route-specific row counts. Exit 1 means a UI change is not done. The
+failure table and workflow live in `.claude/skills/ui-self-review/SKILL.md`.
 
 Reading order: `AGENTS.md` -> this file -> the area `AGENTS.md` -> the
 `openspec/` change or spec.
