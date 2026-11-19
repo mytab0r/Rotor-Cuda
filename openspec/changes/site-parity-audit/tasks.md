@@ -10,9 +10,13 @@
 - [x] Brainwallet single calculator on `/brainwallet-generator` with network,
   passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence: `mod.rs:2659-2700`,
   `brainwallet.js:457-503`.
-- [ ] Seed rows: private key/WIF + copy icons; compact reveal for the phrase.
-  Remaining: the phrase is always fully expanded (`mnemonic-seeds.js:588-598`);
-  no reveal/collapse control exists. Key/WIF copy is done.
+- [x] Seed rows: private key/WIF + copy icons; compact reveal for the phrase.
+  Each row starts as the first two and last word (`abandon ability … zoo`)
+  behind a 44px `aria-expanded` Reveal/Hide button; expanding swaps the row's
+  text in place (no re-render, refetch, storage or URL change) and collapsing
+  restores the compact form. Evidence: `mnemonic-seeds.js:178-187,601-670`
+  (`compactPhrase`, `renderPhrase`, `resetPhrase`), inline styles in
+  `mnemonic-seeds.html:76-95`.
 - [x] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
   Balance/TX/Actions. Evidence: `mod.rs:3260-3332`,
   `puzzle-browser.js:236-365`.

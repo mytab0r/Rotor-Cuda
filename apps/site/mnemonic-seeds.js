@@ -172,11 +172,21 @@
     return chainName === 'bitcoin' ? 'WIF' : 'HEX';
   }
 
+  /* The phrase is public list data, but 12-24 words per row is a wall of
+   * text. Rows start with the first two and last word and expand on demand;
+   * nothing is hidden from the copy button, which always gets entry.phrase. */
+  function compactPhrase(phrase) {
+    var words = String(phrase || '').trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 3) return words.join(' ');
+    return words[0] + ' ' + words[1] + ' … ' + words[words.length - 1];
+  }
+
   window.RotorMnemonicSeeds = {
     copyText: copyText,
     privateKeyFor: privateKeyFor,
     privateKeyHref: privateKeyHref,
-    privateKeyLabel: privateKeyLabel
+    privateKeyLabel: privateKeyLabel,
+    compactPhrase: compactPhrase
   };
 
   var root = document.querySelector('.mnemonic-seeds-page');
@@ -591,6 +601,19 @@
     phraseText.className = 'mnemonic-phrase-text';
     phraseText.textContent = 'Deriving…';
     phrase.appendChild(phraseText);
+    var phraseReveal = document.createElement('button');
+    phraseReveal.type = 'button';
+    phraseReveal.className = 'mnemonic-reveal';
+    phraseReveal.setAttribute('aria-expanded', 'false');
+    phraseReveal.setAttribute('aria-label', 'Reveal mnemonic phrase');
+    phraseReveal.textContent = 'Reveal';
+    phraseReveal.disabled = true;
+    phraseReveal.addEventListener('click', function () {
+      if (!entry.phrase) return;
+      entry.revealed = !entry.revealed;
+      renderPhrase(entry);
+    });
+    phrase.appendChild(phraseReveal);
     var phraseCopy = iconButton('ui-copy', 'Copy mnemonic', function () {
       if (entry.phrase) copyText(entry.phrase, phraseCopy);
     });
@@ -615,13 +638,37 @@
     rowsEl.appendChild(row);
     entry.phraseCell = phrase;
     entry.phraseText = phraseText;
+    entry.phraseReveal = phraseReveal;
     entry.phraseCopy = phraseCopy;
     entry.addressCell = address;
     entry.balanceCell = balance;
   }
 
+  function renderPhrase(entry) {
+    var expanded = Boolean(entry.revealed);
+    entry.phraseText.textContent = expanded ? entry.phrase : compactPhrase(entry.phrase);
+    if (!entry.phraseReveal) return;
+    entry.phraseReveal.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    entry.phraseReveal.setAttribute('aria-label', expanded ? 'Hide mnemonic phrase' : 'Reveal mnemonic phrase');
+    entry.phraseReveal.textContent = expanded ? 'Hide' : 'Reveal';
+  }
+
+  function resetPhrase(entry) {
+    entry.revealed = false;
+    if (entry.phraseText) entry.phraseText.textContent = '—';
+    if (entry.phraseCopy) entry.phraseCopy.disabled = true;
+    if (entry.phraseReveal) {
+      entry.phraseReveal.disabled = true;
+      entry.phraseReveal.setAttribute('aria-expanded', 'false');
+      entry.phraseReveal.setAttribute('aria-label', 'Reveal mnemonic phrase');
+      entry.phraseReveal.textContent = 'Reveal';
+    }
+  }
+
   function fillRow(entry) {
-    entry.phraseText.textContent = entry.phrase;
+    entry.revealed = false;
+    renderPhrase(entry);
+    entry.phraseReveal.disabled = false;
     entry.phraseCopy.disabled = false;
     entry.addressCell.textContent = '';
     if (!entry.address) {
@@ -678,8 +725,7 @@
   }
 
   function fillRowError(entry, err) {
-    if (entry.phraseText) entry.phraseText.textContent = '—';
-    if (entry.phraseCopy) entry.phraseCopy.disabled = true;
+    resetPhrase(entry);
     entry.addressCell.textContent = err && err.message ? err.message : 'Derivation failed.';
   }
 
@@ -1194,8 +1240,7 @@
     } catch (err) {
       fail(err && err.message ? err.message : 'The derivation core did not load.');
       state.entries.forEach(function (entry) {
-        if (entry.phraseText) entry.phraseText.textContent = '—';
-        if (entry.phraseCopy) entry.phraseCopy.disabled = true;
+        resetPhrase(entry);
         entry.addressCell.textContent = 'Derivation core unavailable.';
       });
       return;
