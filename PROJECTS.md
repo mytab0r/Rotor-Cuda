@@ -14,18 +14,19 @@ owned by exactly one area; the most-specific glob wins.
 ## Cross-area contracts
 
 - **Site -> coordinator (compile time).** `src/coordinator/mod.rs:31-41`
-  embeds `apps/site/*.html`, `site.css`, `site.js`, `key.js`, `rotor-worker.js` with
-  `include_str!`/`include_bytes!`. The coordinator cannot build if a site file
-  is missing or renamed.
+  embeds `apps/site/*.html`, `site.css`, `site.js`, `theme.js`, `key.js`,
+  `rotor-worker.js` with `include_str!`/`include_bytes!`. The coordinator
+  cannot build if a site file is missing or renamed.
 - **Wasm -> site -> coordinator.** `apps/site/rotor_wasm.wasm` is a committed
   artifact rebuilt by `scripts/build-wasm.sh` from `crates/rotor-wasm`, then
   embedded by the coordinator. The `Dockerfile` rebuilds it during the image
   build. After any `crates/rotor-wasm` change, rebuild, run
   `crates/rotor-wasm/smoke.mjs` and `apps/site/worker-test.mjs`, and commit the
   artifact.
-- **Asset cache busting.** Bump `?v=` in every `apps/site/*.html` when `site.css`,
-  `site.js` or `key.js` changes. `projects.json.asset_version` tracks the
-  current value; Phase 1 will make it single-source.
+- **Asset cache busting.** Bump `?v=` in every `apps/site/*.html` when
+  `site.css`, `site.js`, `theme.js` or `key.js` changes.
+  `projects.json.asset_version` tracks the current value; Phase 1 will make it
+  single-source.
 - **Routes.** `/`, `/app`, `/run`, `/me`, `/docs`, `/key` and the static asset
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
   coordinator + site change. SEO routes include `/bitcoin-puzzle`,
