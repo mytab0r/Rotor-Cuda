@@ -563,7 +563,8 @@
 
   /* --------------------------------------------------------------- confirm */
 
-  /* options: { review, sign(request) -> signed hex, broadcast(url, hex) -> txid } */
+  /* options: { review, sign(request) -> signed hex, onSigned?(hex),
+   *            broadcast(url, hex) -> txid } */
   async function confirmTransaction(options) {
     var settings = options || {};
     var review = settings.review;
@@ -599,6 +600,10 @@
     };
     var signedHex = assertHex(await Promise.resolve(settings.sign(request)),
       'signed transaction');
+    /* Show the signed bytes before they leave the tab, when the UI asks. */
+    if (typeof settings.onSigned === 'function') {
+      await Promise.resolve(settings.onSigned(signedHex));
+    }
     var txid;
     try {
       txid = await Promise.resolve(settings.broadcast(API_BASE + '/tx', signedHex));

@@ -325,6 +325,7 @@ async function run() {
   await test("confirm signs exactly the reviewed request, then broadcasts it", async () => {
     let signedRequest = null;
     let broadcastArgs = null;
+    const order = [];
     const review = {
       network: "testnet",
       unsignedHex: "0200",
@@ -341,14 +342,20 @@ async function run() {
       review,
       sign: async (request) => {
         signedRequest = request;
+        order.push("sign");
         return "0200000001";
       },
+      onSigned: async (hex) => {
+        order.push("signed:" + hex);
+      },
       broadcast: async (url, hex) => {
+        order.push("broadcast");
         broadcastArgs = { url, hex };
         return "  " + TXID_C.toUpperCase() + "  ";
       }
     });
     assert.deepEqual(signedRequest, review.request);
+    assert.deepEqual(order, ["sign", "signed:0200000001", "broadcast"]);
     assert.deepEqual(broadcastArgs, { url: `${API}/tx`, hex: "0200000001" });
     assert.equal(result.txid, TXID_C);
     assert.equal(result.signedHex, "0200000001");
