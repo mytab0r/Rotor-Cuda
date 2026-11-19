@@ -160,6 +160,10 @@ wasm.dealloc(p.pointer, p.length);
 
 // --------------------------------------------------------------- keystore
 
+// Full keccak256(dk[16..32] || ciphertext) of the scrypt fixture below; its
+// first 16 bytes are the legacy MAC. Independently reproduced by the Rust test.
+const FULL_MAC = "3a5cc2cde46413afd05a8cc3b2bb836c1b9e669776d9a1be80d45cae5cfcf221";
+
 const FIXTURES = [
   {
     name: "scrypt",
@@ -172,6 +176,18 @@ const FIXTURES = [
     iv: "298f88b92ccc0d3a00d9c9740083aaf3",
     ciphertext: "d0529445d0ea0ac164cd2e33b8f2fbb290d512a525124035cacf7de3e10b709e",
     mac: "3a5cc2cde46413afd05a8cc3b2bb836c",
+  },
+  {
+    name: "scrypt-full-mac",
+    kdf: 0,
+    n: 1024,
+    r: 8,
+    p: 1,
+    c: 0,
+    salt: "dc4503dd74699a901de4d508c404856188e305edba9c4883eb076ff63d052e5f",
+    iv: "298f88b92ccc0d3a00d9c9740083aaf3",
+    ciphertext: "d0529445d0ea0ac164cd2e33b8f2fbb290d512a525124035cacf7de3e10b709e",
+    mac: FULL_MAC,
   },
   {
     name: "pbkdf2",
@@ -235,11 +251,12 @@ for (const fixture of FIXTURES) {
 }
 
 // A wrong password is rejected and leaves the error buffer readable.
+const PBKDF2 = FIXTURES.find((fixture) => fixture.name === "pbkdf2");
 const wrong = {
-  salt: upload(hexToBytes(FIXTURES[1].salt)),
-  iv: upload(hexToBytes(FIXTURES[1].iv)),
-  ciphertext: upload(hexToBytes(FIXTURES[1].ciphertext)),
-  mac: upload(hexToBytes(FIXTURES[1].mac)),
+  salt: upload(hexToBytes(PBKDF2.salt)),
+  iv: upload(hexToBytes(PBKDF2.iv)),
+  ciphertext: upload(hexToBytes(PBKDF2.ciphertext)),
+  mac: upload(hexToBytes(PBKDF2.mac)),
   password: upload("wrong-password"),
 };
 try {
@@ -257,4 +274,134 @@ try {
   for (const buffer of Object.values(wrong)) wasm.dealloc(buffer.pointer, buffer.length);
 }
 
-console.log("key-tools ok: integer, fragments, pubkey report/add, scrypt+pbkdf2 keystore");
+// A corrupt 32-byte MAC is rejected too.
+const wrongFullMac = {
+  salt: upload(hexToBytes(FIXTURES[0].salt)),
+  iv: upload(hexToBytes(FIXTURES[0].iv)),
+  ciphertext: upload(hexToBytes(FIXTURES[0].ciphertext)),
+  mac: upload(hexToBytes(FULL_MAC.slice(0, -2) + "00")),
+  password: upload("testpassword"),
+};
+try {
+  const status = wasm.keystore_decrypt(
+    0, 1024, 8, 1, 0, 32,
+    wrongFullMac.salt.pointer, wrongFullMac.salt.length,
+    wrongFullMac.iv.pointer, wrongFullMac.iv.length,
+    wrongFullMac.ciphertext.pointer, wrongFullMac.ciphertext.length,
+    wrongFullMac.mac.pointer, wrongFullMac.mac.length,
+    wrongFullMac.password.pointer, wrongFullMac.password.length,
+  );
+  assert(status !== 0, "corrupt 32-byte MAC must be rejected");
+  assert(wasmError().includes("MAC"), `corrupt 32-byte MAC error: ${wasmError()}`);
+} finally {
+  for (const buffer of Object.values(wrongFullMac)) wasm.dealloc(buffer.pointer, buffer.length);
+}
+
+// --------------------------------------------------------- keystore JSON parser
+
+const parser = require("./keystore-parser.js");
+const baseCrypto = {
+  cipher: "aes-128-ctr",
+  cipherparams: { iv: FIXTURES[0].iv },
+  ciphertext: FIXTURES[0].ciphertext,
+  kdf: "scrypt",
+  kdfparams: { dklen: 32, n: 1024, r: 8, p: 1, salt: FIXTURES[0].salt },
+  mac: FIXTURES[0].mac,
+};
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+const legacyMac = parser.parseKeystore(JSON.stringify({ version: 3, crypto: baseCrypto }));
+assert(legacyMac.mac.length === 32, `16-byte MAC parses as ${legacyMac.mac.length}`);
+assert(legacyMac.kdfId === 0 && legacyMac.n === 1024, "object kdfparams still parses");
+
+const fullMacJson = { version: 3, crypto: clone(baseCrypto) };
+fullMacJson.crypto.mac = FULL_MAC;
+const fullMac = parser.parseKeystore(JSON.stringify(fullMacJson));
+assert(fullMac.mac.length === 64, `32-byte MAC parses as ${fullMac.mac.length}`);
+assert(fullMac.mac === FULL_MAC, "full MAC is kept verbatim");
+
+const arrayJson = { version: 3, crypto: clone(baseCrypto) };
+arrayJson.crypto.kdfparams = [1024, 8, 1];
+arrayJson.crypto.salt = FIXTURES[0].salt;
+arrayJson.crypto.dklen = 32;
+arrayJson.crypto.mac = FULL_MAC;
+const arrayForm = parser.parseKeystore(JSON.stringify(arrayJson));
+assert(arrayForm.kdfId === 0, "array kdfparams is scrypt");
+assert(
+  arrayForm.n === 1024 && arrayForm.r === 8 && arrayForm.p === 1,
+  `array kdfparams [n, r, p] as ${arrayForm.n}/${arrayForm.r}/${arrayForm.p}`,
+);
+assert(arrayForm.salt === FIXTURES[0].salt, "array form reads the crypto salt");
+assert(arrayForm.mac.length === 64, "array form keeps the 32-byte MAC");
+
+// End to end: the parsed legacy shape decrypts the same fixture through wasm.
+const parsedBuffers = {
+  salt: upload(hexToBytes(arrayForm.salt)),
+  iv: upload(hexToBytes(arrayForm.iv)),
+  ciphertext: upload(hexToBytes(arrayForm.ciphertext)),
+  mac: upload(hexToBytes(arrayForm.mac)),
+  password: upload("testpassword"),
+};
+try {
+  const status = wasm.keystore_decrypt(
+    arrayForm.kdfId,
+    arrayForm.n,
+    arrayForm.r,
+    arrayForm.p,
+    arrayForm.c,
+    arrayForm.dklen,
+    parsedBuffers.salt.pointer,
+    parsedBuffers.salt.length,
+    parsedBuffers.iv.pointer,
+    parsedBuffers.iv.length,
+    parsedBuffers.ciphertext.pointer,
+    parsedBuffers.ciphertext.length,
+    parsedBuffers.mac.pointer,
+    parsedBuffers.mac.length,
+    parsedBuffers.password.pointer,
+    parsedBuffers.password.length,
+  );
+  assert(status === 0, `array-form keystore decrypt: ${wasmError()}`);
+  assert(
+    text(wasm.result_ptr(), wasm.result_len()) === EXPECTED_KEY,
+    "array-form keystore decrypts to the fixture key",
+  );
+  assert(typeof wasm.clear_result === "function", "wasm exposes clear_result");
+  wasm.clear_result();
+  assert(wasm.result_len() === 0, "clear_result empties the result buffer");
+} finally {
+  for (const buffer of Object.values(parsedBuffers)) wasm.dealloc(buffer.pointer, buffer.length);
+}
+
+for (const kdfparams of [[1024, 8], [1024, 8, 1, 32]]) {
+  const bad = { version: 3, crypto: clone(arrayJson.crypto) };
+  bad.crypto.kdfparams = kdfparams;
+  let message = "";
+  try {
+    parser.parseKeystore(JSON.stringify(bad));
+  } catch (err) {
+    message = err.message;
+  }
+  assert(
+    message.includes("[n, r, p]"),
+    `array kdfparams ${JSON.stringify(kdfparams)} must be rejected clearly, got ${message}`,
+  );
+}
+
+const badMacJson = { version: 3, crypto: clone(baseCrypto) };
+badMacJson.crypto.mac = "ab".repeat(24);
+let badMacMessage = "";
+try {
+  parser.parseKeystore(JSON.stringify(badMacJson));
+} catch (err) {
+  badMacMessage = err.message;
+}
+assert(
+  badMacMessage.includes("32") && badMacMessage.includes("64"),
+  `a 48-hex MAC must name both accepted sizes, got ${badMacMessage}`,
+);
+
+console.log(
+  "key-tools ok: integer, fragments, pubkey report/add, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
+    "JSON parser (64-hex MAC, array kdfparams)",
+);
