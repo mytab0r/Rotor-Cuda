@@ -34,7 +34,10 @@ owned by exactly one area; the most-specific glob wins.
   and their per-page scripts) follow the same rule. The cabinet wallet lives on
   `/cabinet/wallet` and shares `wallet-vault.js` (the pure encrypted-vault
   codec), `wallet-evm.js` (the pure Sepolia send flow: validation, chain-id
-  guard, review and confirm over an injected RPC) and `wallet.js` (page logic);
+  guard, review and confirm over an injected RPC), `wallet-btc.js` (the pure
+  Bitcoin testnet send flow: bech32 validation, coin selection, dust/change,
+  review and confirm over injected UTXO/broadcast callbacks) and `wallet.js`
+  (page logic);
   the coordinator never receives a key, WIF or passphrase. The seed studio is served
   on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
   `seed-page.js` and `seed-studio.css`; the directory remains on
