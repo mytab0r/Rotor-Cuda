@@ -248,3 +248,19 @@ browser capture in the PR.
       provider; legal review below)
 - [ ] Counterparty legal review of resale/redistribution obligations before any
       paid offer goes live. (blocked by: -)
+
+## 16. Interactive donor map [front]
+- [x] `/site-map` canonical page with search, area/status filters and
+      ours/donor/matrix views. Routes and feature statuses live in one file,
+      `apps/site/site-map-data.js`; donor pages that have no Rotor equivalent
+      stay visible as `missing`.
+      Evidence: `apps/site/site-map-test.mjs` validates route coverage, donor
+      links and status consistency; `site_map_route_assets_and_sitemap_are_served`
+      covers the route, assets and sitemap entry.
+- [x] Link the map from `/tools` and `/docs`; the page is listed in
+      `sitemap.xml` and embedded by the coordinator.
+- [x] Refresh the statuses after PR66–PR74: brainwallet directory, 18 chain
+      listings and generator; seed key/WIF rows; key auto-derive; puzzle table,
+      detail and Community Hunt. Only the still-missing controls stay partial.
+      Evidence: `site-map OK: 83 ours, 117 donors, 41 features; ours parity 48,
+      partial 29, ours-only 6, donor-only missing 27`.
