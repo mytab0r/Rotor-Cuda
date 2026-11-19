@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transaction decoders — Bitcoin and Ethereum raw hex | Rotor</title>
+<meta name="description" content="Decode a raw Bitcoin or Ethereum transaction in your browser: inputs, outputs, script types, addresses, gas fields, access lists and a JSON view. Nothing is uploaded.">
+<link rel="canonical" href="https://rotor.pxbt.app/tx">
+<link rel="stylesheet" href="/site.css?v=20261123a">
+<script src="/theme.js?v=20261123a"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg></span>
+      <div>
+        <h1>Transaction decoders</h1>
+        <p class="key-tagline">Paste a raw transaction and read its structure. The bytes are decoded in this tab; nothing is sent to a server and no private key is involved.</p>
+        <div class="key-badges"><span>Raw hex</span><span>Local only</span><span>JSON view</span></div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="key-chains" aria-label="Transaction decoders">
+    <a class="key-chain" href="/tx" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>Overview</a>
+    <a class="key-chain" href="/tx/bitcoin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
+    <a class="key-chain" href="/tx/ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a>
+  </nav>
+
+  <div class="tool-index-grid">
+    <a class="tool-index-card" href="/tx/bitcoin">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
+      <span class="tool-index-title">Bitcoin transaction decoder</span>
+      <span class="tool-index-desc">Legacy or SegWit hex to version, inputs, outputs, script types, addresses, locktime, size, weight and virtual size. A fee needs prevout values.</span>
+      <span class="tool-index-meta">RAW HEX → LEGACY · SEGWIT</span>
+    </a>
+    <a class="tool-index-card" href="/tx/ethereum">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
+      <span class="tool-index-title">Ethereum transaction decoder</span>
+      <span class="tool-index-desc">Legacy, EIP-2930 and EIP-1559 hex to chain id, nonce, gas, fees, destination or contract creation, value, data and access list.</span>
+      <span class="tool-index-meta">RAW HEX → TYPE 0 · 1 · 2</span>
+    </a>
+  </div>
+
+  <section class="card">
+    <h2>What gets decoded</h2>
+    <ul>
+      <li><strong>Bitcoin:</strong> version, SegWit marker and flag, every input (txid, vout, scriptSig, sequence, witness), every output (sats and BTC, script type, address when one exists), locktime, serialized size, weight and vsize.</li>
+      <li><strong>Ethereum:</strong> EIP-2718 type, chain id, nonce, gas price or max priority/max fee, gas limit, destination or contract creation, value in wei and ETH, data length, selector, first bytes, access list, y-parity or v, r and s.</li>
+      <li><strong>No invented fields.</strong> A Bitcoin fee is shown only when you supply one satoshi value per input. Signature recovery and verification are not performed, and malformed hex is rejected with the byte offset.</li>
+    </ul>
+    <p class="muted key-help">The JSON view contains the full report. Copy buttons are local clipboard actions only; there is no upload, storage or URL payload.</p>
+  </section>
+
+  <p class="muted key-help">Related: <a href="/tools">tools index</a>, <a href="/hex-dec-bin">hex / decimal / binary</a>, <a href="/key">key explorer</a>, <a href="/cabinet/wallet">cabinet wallet</a>.</p>
+</main>
+
+<script src="/site.js?v=20261123a"></script>
+</body>
+</html>

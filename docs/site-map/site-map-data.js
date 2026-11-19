@@ -342,6 +342,36 @@
   });
 
   oursRoute({
+    path: '/tx',
+    title: 'Transaction decoders',
+    area: 'tools',
+    status: 'parity',
+    priority: '-',
+    donorIds: ['ss:/Transaction_decoded_Bitcoin', 'ss:/decode_ethereum_transaction'],
+    note: 'Shared index for the two client-side decoders.'
+  });
+
+  oursRoute({
+    path: '/tx/bitcoin',
+    title: 'Bitcoin transaction decoder',
+    area: 'tools',
+    status: 'parity',
+    priority: '-',
+    donorIds: ['ss:/Transaction_decoded_Bitcoin'],
+    note: 'Raw legacy or SegWit hex to inputs, outputs, script types/addresses, locktime, size/weight/vsize and JSON. A fee appears only when prevout values are supplied; no guessing.'
+  });
+
+  oursRoute({
+    path: '/tx/ethereum',
+    title: 'Ethereum transaction decoder',
+    area: 'tools',
+    status: 'parity',
+    priority: '-',
+    donorIds: ['ss:/decode_ethereum_transaction'],
+    note: 'Raw legacy, EIP-2930 and EIP-1559 hex to chain id, gas/fee fields, destination or contract creation, value, data, access list, signature fields and JSON. Canonical RLP is validated; no signature recovery.'
+  });
+
+  oursRoute({
     path: '/wallets',
     title: 'Wallet database storefront',
     area: 'wallet',
@@ -714,8 +744,8 @@
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Rotor only adds (P + Q); the donor also subtracts and multiplies.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
     ['/HexDecBin', 'Hex / decimal / binary', 'tools', '/hex-dec-bin', 'parity', '-', ''],
-    ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', null, 'missing', 'P0', 'Raw hex to inputs, outputs, scripts, fees and JSON.'],
-    ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', null, 'missing', 'P0', 'Raw hex to inputs, outputs, scripts, fees and JSON.'],
+    ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', '/tx/bitcoin', 'parity', '-', 'Raw hex to inputs, outputs, scripts, fee (with supplied prevouts) and JSON.'],
+    ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', '/tx/ethereum', 'parity', '-', 'Raw hex to type, gas/fee fields, access list, signature and JSON. No signature recovery.'],
     ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', null, 'missing', 'P0', 'Rotor only has the Sepolia flow inside /cabinet/wallet.'],
     ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', null, 'missing', 'P0', 'Rotor only has the Sepolia flow inside /cabinet/wallet.'],
     ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', null, 'missing', 'P0', 'No BNB builder in Rotor.'],
@@ -1089,11 +1119,11 @@
     area: 'wallet',
     capability: 'BTC and EVM transaction decoders',
     donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['secretscan.org'],
-    note: 'Raw hex to inputs, outputs, scripts, fees and JSON is absent.'
+    note: 'Public client-side decoders on /tx/bitcoin and /tx/ethereum. Bitcoin fee needs supplied prevouts; EVM signature recovery is not performed.'
   });
 
   feature({

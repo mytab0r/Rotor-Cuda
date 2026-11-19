@@ -2103,25 +2103,27 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .address-type-panel.key-address-panel { padding: 13px 14px 15px; }
 /* Inside the Derivation card the type selector is a flat segmented control, not
  * a second row of cards. Same DOM/component, different depth. */
-.key-derive-block .key-address-panel { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
+.key-derive-block .key-address-panel { padding: 12px 8px 14px; border-bottom: 1px solid var(--border); }
 .key-derive-block .key-address-panel .address-type-cards {
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-2);
+  gap: 4px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .key-derive-block .key-address-panel .address-type-card {
   border: 0;
-  border-right: 1px solid var(--border);
+  border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  padding: 8px 10px;
 }
 .key-derive-block .key-address-panel .address-type-card:last-child { border-right: 0; }
 .key-derive-block .key-address-panel .address-type-card:hover { background: var(--panel-3); }
 .key-derive-block .key-address-panel .address-type-card.active,
 .key-derive-block .key-address-panel .address-type-card[aria-pressed="true"] {
+  border-bottom-color: var(--accent);
   background: var(--accent-soft);
   box-shadow: none;
 }
