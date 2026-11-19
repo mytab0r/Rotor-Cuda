@@ -48,26 +48,63 @@
     return bytesToHex(digest);
   }
 
-  async function resolve(text) {
+  function hexFromBytes(bytes) {
+    return bytes.map(function (n) { return n.toString(16).padStart(2, '0'); }).join('');
+  }
+
+  var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
+
+  /**
+   * Auto-detect the input format without deriving anything.
+   * Returns { kind, hex?, curve?, phrase?, chain? } or throws a precise error
+   * for formats the key page cannot consume (XRP family seeds, bad keypairs).
+   * Never falls back to a brainwallet hash for a recognized non-text format.
+   */
+  async function detect(text) {
     var value = String(text || '').trim();
-    if (!value) throw new Error('Paste a key, WIF or brainwallet text first.');
-    if (/^0x[0-9a-fA-F]{1,64}$/.test(value)) value = value.slice(2);
-    if (/^[0-9a-fA-F]{1,64}$/.test(value)) {
-      return value.toLowerCase().padStart(64, '0');
+    if (!value) throw new Error('Paste a key, WIF, mnemonic or brainwallet text first.');
+    var words = value.split(/\s+/);
+    if (MNEMONIC_WORD_COUNTS.indexOf(words.length) >= 0 &&
+        words.every(function (word) { return /^[a-z]+$/.test(word); })) {
+      return { kind: 'mnemonic', phrase: words.join(' ') };
     }
-    if (/^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) return decodeWif(value);
-    if (/^\s*\[[\d,\s]+\]\s*$/.test(value)) {
-      var parsed = JSON.parse(value);
-      if (Array.isArray(parsed) && (parsed.length === 32 || parsed.length === 64) &&
-          parsed.every(function (n) { return Number.isInteger(n) && n >= 0 && n <= 255; })) {
-        return parsed.slice(0, 32).map(function (n) { return n.toString(16).padStart(2, '0'); }).join('');
+    if (/^s[1-9A-HJ-NP-Za-km-z]{20,30}$/.test(value)) {
+      throw new Error('XRP family seeds (s…) are not supported in this search. Paste the 64-hex private key or export the hex key from your wallet.');
+    }
+    if (/^\[[\d,\s]+\]$/.test(value)) {
+      var parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch (err) {
+        throw new Error('Keypair JSON is not valid.');
       }
+      if (!Array.isArray(parsed) || (parsed.length !== 32 && parsed.length !== 64) ||
+          !parsed.every(function (n) { return Number.isInteger(n) && n >= 0 && n <= 255; })) {
+        throw new Error('Keypair must be a JSON array of 32 (seed) or 64 (secret key) byte values 0–255.');
+      }
+      return { kind: 'keypair', hex: hexFromBytes(parsed.slice(0, 32)), curve: 'ed25519', chain: 'solana' };
+    }
+    var normalized = value;
+    if (/^0x[0-9a-fA-F]{1,64}$/.test(normalized)) normalized = normalized.slice(2);
+    if (/^[0-9a-fA-F]{1,64}$/.test(normalized)) {
+      return { kind: 'hex', hex: normalized.toLowerCase().padStart(64, '0') };
+    }
+    if (/^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) {
+      return { kind: 'wif', hex: await decodeWif(value) };
     }
     if (!window.crypto || !window.crypto.subtle) {
       throw new Error('Brainwallet search needs HTTPS in this browser.');
     }
-    return sha256Hex(value);
+    return { kind: 'brainwallet', hex: await sha256Hex(value) };
   }
 
-  window.RotorSearch = { resolve: resolve };
+  async function resolve(text) {
+    var result = await detect(text);
+    if (result.kind === 'mnemonic') {
+      throw new Error('A mnemonic opens the seed tools; it is not a single private key.');
+    }
+    return result.hex;
+  }
+
+  window.RotorSearch = { resolve: resolve, detect: detect };
 })();
