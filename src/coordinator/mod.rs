@@ -4892,7 +4892,7 @@ mod tests {
             assert!(browse.contains(needle), "chain page misses {needle}");
         }
         for needle in [
-            "<section class=\"address-type-panel key-address-panel\"",
+            "<div class=\"address-type-panel key-address-panel\"",
             "class=\"address-type-card\"",
             "class=\"type-name\"",
             "class=\"type-desc\"",
