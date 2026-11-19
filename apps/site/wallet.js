@@ -1861,6 +1861,15 @@
       var result = await btcSend.confirmTransaction({
         review: review,
         sign: function (request) { return signBtcWithEntry(entry, request); },
+        onSigned: function (signedHex) {
+          /* Show the signed bytes before the POST leaves the tab. */
+          btcProviderNote.textContent = 'Signed locally. Broadcasting the signed raw transaction to mempool.space testnet…';
+          btcTxidEl.textContent = '';
+          btcExplorerLink.removeAttribute('href');
+          btcSignedEl.textContent = signedHex;
+          btcResultBox.hidden = false;
+          if (btcStatus) btcStatus.textContent = 'Signed. Posting the signed raw transaction…';
+        },
         broadcast: postTxText
       });
       if (generation !== state.generation || !state.unlocked) return;
