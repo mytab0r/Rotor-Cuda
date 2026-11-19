@@ -1,6 +1,7 @@
 # High-level parity matrix
 
-Detailed route/feature matrix lives in `/site-map` and in the audits below.
+Detailed route/feature matrix lives in the internal docs page
+`docs/site-map/index.html` and in the audits below.
 Status: `parity`, `partial`, `missing`, `ours-only`.
 
 | Area | ref-site-a / ref-site-b | rotor.pxbt.app | Status | P |
