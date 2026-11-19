@@ -8,10 +8,12 @@
  *  - lock clears the decrypted entries and passphrase from memory;
  *  - idle auto-lock after 10 minutes and lock on pagehide.
  *
- * This phase adds an EVM Sepolia send flow: the form and validation live in
- * wallet-evm.js, the review must be confirmed before signing, the signature
- * is produced by evm_sign_tx in the local WASM core and the signed raw
- * transaction is broadcast directly to a public RPC. Mainnet signing is off. */
+ * This phase adds an EVM Sepolia send flow and a Bitcoin testnet send flow:
+ * the forms and validation live in wallet-evm.js / wallet-btc.js, the review
+ * must be confirmed before signing, the signature is produced by
+ * evm_sign_tx / btc_sign_tx in the local WASM core and the signed raw
+ * transaction is broadcast directly to a public provider. Mainnet signing is
+ * off. */
 (function () {
   'use strict';
 
@@ -31,6 +33,7 @@
    * provider URLs mirror apps/site/key.js. */
   var CHAINS = [
     { slug: 'bitcoin', label: 'Bitcoin', curve: 0, addressId: 'btc_p2wpkh', explorer: 'https://mempool.space/address/' },
+    { slug: 'bitcoin-testnet', label: 'Bitcoin testnet', curve: 0, addressId: 'btc_p2wpkh', explorer: 'https://mempool.space/testnet/address/', btcApi: 'https://mempool.space/testnet/api', network: 1 },
     { slug: 'ethereum', label: 'Ethereum', curve: 0, addressId: 'evm', explorer: 'https://etherscan.io/address/', rpc: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org', 'https://1rpc.io/eth'], symbol: 'ETH' },
     { slug: 'bnb', label: 'BNB Chain', curve: 0, addressId: 'evm', explorer: 'https://bscscan.com/address/', rpc: ['https://bsc-dataseed.binance.org'], symbol: 'BNB' },
     { slug: 'arbitrum', label: 'Arbitrum', curve: 0, addressId: 'evm', explorer: 'https://arbiscan.io/address/', rpc: ['https://arb1.arbitrum.io/rpc'], symbol: 'ETH' },
@@ -70,11 +73,16 @@
     preparing: false,
     sending: false,
     review: null,
-    reviewEntryId: null
+    reviewEntryId: null,
+    btcPreparing: false,
+    btcSending: false,
+    btcReview: null,
+    btcReviewEntryId: null
   };
 
   var vault = window.RotorWalletVault;
   var evmSend = window.RotorEvmSend;
+  var btcSend = window.RotorBtcSend;
   var byId = function (id) { return document.getElementById(id); };
   var createForm = byId('wallet-create-form');
   var unlockForm = byId('wallet-unlock-form');
@@ -117,6 +125,28 @@
   var sendExplorerLink = byId('wallet-send-explorer');
   var sendSignedEl = byId('wallet-send-signed');
 
+  /* Bitcoin testnet send form. Nothing in this block holds a private key. */
+  var btcCard = byId('wallet-btc-send');
+  var btcForm = byId('wallet-btc-form');
+  var btcEntrySelect = byId('wallet-btc-entry');
+  var btcFromLine = byId('wallet-btc-from');
+  var btcToInput = byId('wallet-btc-to');
+  var btcAmountInput = byId('wallet-btc-amount');
+  var btcRateInput = byId('wallet-btc-fee-rate');
+  var btcStatus = byId('wallet-btc-status');
+  var btcPrepareButton = byId('wallet-btc-prepare');
+  var btcReviewBox = byId('wallet-btc-review');
+  var btcReviewList = byId('wallet-btc-review-list');
+  var btcReviewWarnings = byId('wallet-btc-review-warnings');
+  var btcReviewUnsigned = byId('wallet-btc-review-unsigned');
+  var btcConfirmButton = byId('wallet-btc-confirm');
+  var btcCancelButton = byId('wallet-btc-cancel');
+  var btcResultBox = byId('wallet-btc-result');
+  var btcProviderNote = byId('wallet-btc-provider-note');
+  var btcTxidEl = byId('wallet-btc-txid');
+  var btcExplorerLink = byId('wallet-btc-explorer');
+  var btcSignedEl = byId('wallet-btc-signed');
+
   if (!vault) {
     showUnavailable('The wallet codec did not load. Reload the page.');
     return;
@@ -124,6 +154,9 @@
   if (!evmSend) {
     /* The vault still works watch-only; sending stays unavailable and says so. */
     if (sendCard) sendCard.hidden = true;
+  }
+  if (!btcSend) {
+    if (btcCard) btcCard.hidden = true;
   }
 
   /* ------------------------------------------------------------- small utils */
@@ -282,8 +315,9 @@
       });
     }).then(function (module) {
       var wasm = module.instance ? module.instance.exports : module.exports;
-      var required = ['alloc', 'dealloc', 'derive_report', 'result_ptr', 'result_len',
-        'error_ptr', 'error_len', 'clear_result', 'evm_unsigned_tx', 'evm_sign_tx'];
+      var required = ['alloc', 'dealloc', 'derive_report', 'derive_report_network',
+        'result_ptr', 'result_len', 'error_ptr', 'error_len', 'clear_result',
+        'evm_unsigned_tx', 'evm_sign_tx', 'btc_unsigned_tx', 'btc_sign_tx'];
       for (var i = 0; i < required.length; i += 1) {
         if (typeof wasm[required[i]] !== 'function') {
           throw new Error('The wasm core has no "' + required[i] + '" export.');
@@ -302,12 +336,16 @@
     return new TextDecoder('utf-8').decode(new Uint8Array(wasm.memory.buffer, pointer, length));
   }
 
-  function deriveReport(wasm, bytes, curve) {
+  function deriveReport(wasm, bytes, curve, network) {
     var pointer = wasm.alloc(bytes.length) >>> 0;
     if (!pointer) throw new Error('WASM memory exhausted.');
     try {
       new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
-      var status = wasm.derive_report(pointer, curve) >>> 0;
+      /* Testnet addresses must come from derive_report_network; the mainnet
+       * export has no network parameter. */
+      var status = network === 1
+        ? wasm.derive_report_network(pointer, bytes.length, curve, 1) >>> 0
+        : wasm.derive_report(pointer, curve) >>> 0;
       if (status !== 0) {
         var detail = wasmText(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
         throw new Error('Derivation failed' + (detail ? ': ' + detail : ' (status ' + status + ')'));
@@ -350,6 +388,35 @@
       request = null;
       text = null;
     }
+  }
+
+  /* The reviewed request is the only input; the key is added here, at the
+   * explicit Confirm step, and never stored in the review object. */
+  async function signBtcWithEntry(entry, request) {
+    var parsed = await parseEntry(entry);
+    var keyHex = bytesToHex(parsed.key);
+    var full = {
+      network: request.network,
+      inputs: request.inputs,
+      outputs: request.outputs,
+      private_key: '0x' + keyHex
+    };
+    var text = JSON.stringify(full);
+    try {
+      var wasm = await loadWasm();
+      return btcSend.callWasmString(wasm, 'btc_sign_tx', text);
+    } finally {
+      parsed.key.fill(0);
+      keyHex = null;
+      full = null;
+      text = null;
+    }
+  }
+
+  function unsignedBtcTx(fields) {
+    return loadWasm().then(function (wasm) {
+      return btcSend.callWasmString(wasm, 'btc_unsigned_tx', JSON.stringify(fields));
+    });
   }
 
   function loadTon() {
@@ -435,13 +502,14 @@
       return { chain: 'dogecoin', addressId: 'doge_p2pkh' };
     }
     if (wif.version === 0xef) {
-      throw new Error('This is a Bitcoin testnet WIF (version 0xEF). The local derivation core returns mainnet addresses only in this phase, so the key was not stored.');
+      /* Testnet WIF: store it and derive tb1 through derive_report_network. */
+      return { chain: 'bitcoin-testnet', addressId: 'btc_p2wpkh', network: 1 };
     }
     if (wif.version === 0xf1) {
-      throw new Error('This is a Dogecoin testnet WIF (version 0xF1). Testnet addresses are not supported in this phase, so the key was not stored.');
+      throw new Error('This is a Dogecoin testnet WIF (version 0xF1). Dogecoin testnet is not supported in this phase, so the key was not stored.');
     }
     throw new Error('Unsupported WIF version 0x' + wif.version.toString(16).padStart(2, '0') +
-      '. Supported: Bitcoin, Litecoin and Dogecoin mainnet.');
+      '. Supported: Bitcoin mainnet, Bitcoin testnet, Litecoin and Dogecoin mainnet.');
   }
 
   /* Turn an imported secret into the derivation request. The WIF version
@@ -458,6 +526,7 @@
         chain: chainSlug,
         curve: spec.curve,
         addressId: spec.addressId,
+        network: spec.network || 0,
         key: hexToBytes(hexMatch[1].toLowerCase()),
         secret_type: 'hex',
         secret: hexMatch[1].toLowerCase()
@@ -472,6 +541,7 @@
       chain: target.chain,
       curve: 0,
       addressId: target.addressId,
+      network: target.network || 0,
       key: wif.key,
       secret_type: 'wif',
       secret: value
@@ -491,6 +561,7 @@
         chain: entry.chain,
         curve: spec.curve,
         addressId: spec.addressId,
+        network: spec.network || 0,
         key: hexToBytes(entry.secret)
       };
     }
@@ -504,13 +575,14 @@
       chain: entry.chain,
       curve: 0,
       addressId: target.addressId,
+      network: target.network || 0,
       key: wif.key
     };
   }
 
   async function deriveAddress(parsed) {
     var wasm = await loadWasm();
-    var report = deriveReport(wasm, parsed.key, parsed.curve);
+    var report = deriveReport(wasm, parsed.key, parsed.curve, parsed.network || 0);
     if (parsed.addressId === 'ton') {
       if (!report.ed_pubkey) throw new Error('The derivation core returned no ed25519 public key.');
       var ton = await loadTon();
@@ -942,6 +1014,9 @@
     if (state.unlocked && sendEntrySelect && sendEntrySelect.value === entry.id) {
       updateSendFrom();
     }
+    if (state.unlocked && btcEntrySelect && btcEntrySelect.value === entry.id) {
+      updateBtcFrom();
+    }
   }
 
   /* ----------------------------------------------------------------- balances */
@@ -961,8 +1036,9 @@
     return (fraction ? whole.toString() + '.' + fraction : whole.toString()) + ' ' + symbol;
   }
 
-  async function fetchBtcBalance(address) {
-    var response = await fetchWithTimeout('https://mempool.space/api/address/' + encodeURIComponent(address));
+  async function fetchBtcBalance(address, apiBase) {
+    var base = apiBase || 'https://mempool.space/api';
+    var response = await fetchWithTimeout(base + '/address/' + encodeURIComponent(address));
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var data = await response.json();
     var chain = data.chain_stats || {};
@@ -1024,9 +1100,10 @@
   }
 
   async function fetchBalance(chain, address) {
-    if (chain === 'bitcoin') return fetchBtcBalance(address);
-    if (chain === 'tron') return fetchTronBalance(address);
     var spec = chainSpec(chain);
+    if (chain === 'bitcoin') return fetchBtcBalance(address);
+    if (chain === 'bitcoin-testnet') return fetchBtcBalance(address, spec.btcApi);
+    if (chain === 'tron') return fetchTronBalance(address);
     if (spec && spec.rpc) return fetchEvmBalance(spec, address);
     throw new Error('no public balance provider in this phase');
   }
@@ -1140,6 +1217,7 @@
   }
 
   function renderSend() {
+    renderBtcSend();
     if (!sendCard || !evmSend) return;
     var entries = sendEntries();
     if (state.review && !entries.some(function (entry) { return entry.id === state.reviewEntryId; })) {
@@ -1307,6 +1385,7 @@
     if (sendStatus) sendStatus.textContent = '';
     if (sendEntrySelect) sendEntrySelect.textContent = '';
     if (sendCard) sendCard.hidden = true;
+    resetBtcSend();
     setSendBusy(false);
   }
 
@@ -1453,6 +1532,359 @@
     } finally {
       state.sending = false;
       setSendBusy(false);
+    }
+  });
+
+  /* --------------------------------------------------------- BTC send */
+
+  /* Bitcoin testnet only. The private key exists only inside
+   * signBtcWithEntry; the review carries public fields and unsigned hex. */
+
+  var BTC_ERROR_IDS = {
+    to: 'wallet-btc-to-error',
+    amount: 'wallet-btc-amount-error',
+    feeRate: 'wallet-btc-fee-rate-error'
+  };
+
+  function btcEntries() {
+    if (!btcSend) return [];
+    return state.entries.filter(function (entry) {
+      return entry.chain === btcSend.CHAIN_SLUG;
+    });
+  }
+
+  function selectedBtcEntry() {
+    if (!btcEntrySelect) return null;
+    return entryById(btcEntrySelect.value);
+  }
+
+  function showBtcFieldErrors(errors) {
+    Object.keys(BTC_ERROR_IDS).forEach(function (key) {
+      setError(BTC_ERROR_IDS[key], errors[key] || '');
+    });
+  }
+
+  function updateBtcFrom() {
+    if (!btcFromLine) return;
+    var entry = selectedBtcEntry();
+    if (!entry) {
+      btcFromLine.textContent = 'Select a Bitcoin testnet key to see its tb1 address.';
+      return;
+    }
+    var derived = state.derived[entry.id];
+    if (derived && derived.address) {
+      btcFromLine.textContent = 'From: ' + derived.address + ' (P2WPKH)';
+      return;
+    }
+    if (derived && derived.error) {
+      btcFromLine.textContent = 'Address unavailable: ' + derived.error;
+      return;
+    }
+    btcFromLine.textContent = 'Deriving address…';
+    deriveEntry(entry, state.generation);
+  }
+
+  function renderBtcSend() {
+    if (!btcCard || !btcSend) return;
+    var entries = btcEntries();
+    if (state.btcReview && !entries.some(function (entry) {
+      return entry.id === state.btcReviewEntryId;
+    })) {
+      invalidateBtcReview();
+    }
+    if (!state.unlocked || !entries.length) {
+      btcCard.hidden = true;
+      return;
+    }
+    btcCard.hidden = false;
+    var previous = btcEntrySelect.value;
+    btcEntrySelect.textContent = '';
+    entries.forEach(function (entry) {
+      var option = document.createElement('option');
+      option.value = entry.id;
+      option.textContent = (entry.label || chainLabel(entry.chain)) + ' · ' + chainLabel(entry.chain);
+      btcEntrySelect.appendChild(option);
+    });
+    if (previous && entries.some(function (entry) { return entry.id === previous; })) {
+      btcEntrySelect.value = previous;
+    }
+    if (!btcEntrySelect.value) btcEntrySelect.value = entries[0].id;
+    updateBtcFrom();
+  }
+
+  function invalidateBtcReview() {
+    if (!state.btcReview) return;
+    state.btcReview = null;
+    state.btcReviewEntryId = null;
+    if (btcReviewBox) btcReviewBox.hidden = true;
+    setError('wallet-btc-confirm-error', '');
+    if (btcStatus) btcStatus.textContent = 'Form changed: fetch UTXOs and review again.';
+  }
+
+  function setBtcBusy(busy, message) {
+    var blocked = !!busy || state.btcSending;
+    if (btcPrepareButton) btcPrepareButton.disabled = blocked;
+    if (btcConfirmButton) btcConfirmButton.disabled = blocked;
+    if (btcStatus && message !== undefined) btcStatus.textContent = message;
+  }
+
+  function addBtcReviewRow(label, value, asCode) {
+    var term = document.createElement('dt');
+    term.textContent = label;
+    var detail = document.createElement('dd');
+    if (asCode) {
+      var code = document.createElement('code');
+      code.className = 'mono';
+      code.textContent = value;
+      detail.appendChild(code);
+    } else {
+      detail.textContent = value;
+    }
+    btcReviewList.appendChild(term);
+    btcReviewList.appendChild(detail);
+  }
+
+  function renderBtcReview(review) {
+    btcReviewList.textContent = '';
+    addBtcReviewRow('Network', 'Bitcoin testnet · ' + review.networkName);
+    addBtcReviewRow('From', review.from, true);
+    addBtcReviewRow('To', review.to, true);
+    addBtcReviewRow('Amount', btcSend.formatBtc(review.amountSats) + ' BTC (' +
+      review.amountSats.toString() + ' sats)');
+    review.inputs.forEach(function (input, index) {
+      addBtcReviewRow('Input ' + (index + 1),
+        input.txid + ':' + input.vout + ' · ' + input.value + ' sats', true);
+    });
+    review.outputs.forEach(function (output, index) {
+      addBtcReviewRow('Output ' + (index + 1), output.address + ' · ' +
+        output.value + ' sats', true);
+    });
+    addBtcReviewRow('Fee', review.feeSats.toString() + ' sats (' +
+      btcSend.formatBtc(review.feeSats) + ' BTC)');
+    addBtcReviewRow('Fee rate', btcSend.formatFeeRate(review.feeRateHundredths) +
+      ' sat/vB · ' + review.feeRateSource);
+    addBtcReviewRow('Estimated vsize', review.vsize + ' vB');
+    addBtcReviewRow('Change', review.changeSats > 0n
+      ? review.changeSats.toString() + ' sats back to ' + review.from
+      : 'no change output' + (review.dustToFeeSats > 0n
+        ? ' (dust ' + review.dustToFeeSats.toString() + ' sats added to the fee)'
+        : ''));
+    addBtcReviewRow('Total input', review.totalInputSats.toString() + ' sats (' +
+      btcSend.formatBtc(review.totalInputSats) + ' BTC)');
+    addBtcReviewRow('Total spent', review.totalSpentSats.toString() + ' sats (' +
+      btcSend.formatBtc(review.totalSpentSats) + ' BTC including fee)');
+    addBtcReviewRow('UTXO source', review.apiBase + '/address/' + review.from + '/utxo', true);
+
+    btcReviewWarnings.textContent = '';
+    if (review.warnings.length) {
+      review.warnings.forEach(function (warning) {
+        var item = document.createElement('li');
+        item.textContent = warning;
+        btcReviewWarnings.appendChild(item);
+      });
+      btcReviewWarnings.hidden = false;
+    } else {
+      btcReviewWarnings.hidden = true;
+    }
+
+    btcReviewUnsigned.textContent = review.unsignedHex;
+    btcReviewBox.hidden = false;
+    if (btcStatus) btcStatus.textContent = 'Review ready. Check every field, then sign.';
+    if (btcConfirmButton) btcConfirmButton.focus();
+  }
+
+  function renderBtcResult(result) {
+    btcProviderNote.textContent = 'Sent to mempool.space testnet (' +
+      result.apiBase + '). Rotor did not proxy or store the transaction.';
+    btcTxidEl.textContent = result.txid;
+    btcExplorerLink.href = result.explorerUrl;
+    btcSignedEl.textContent = result.signedHex;
+    btcResultBox.hidden = false;
+    if (btcStatus) btcStatus.textContent = 'mempool.space accepted the signed transaction.';
+    btcExplorerLink.focus();
+  }
+
+  function resetBtcSend() {
+    state.btcPreparing = false;
+    state.btcReview = null;
+    state.btcReviewEntryId = null;
+    if (btcForm) btcForm.reset();
+    showBtcFieldErrors({});
+    setError('wallet-btc-error', '');
+    setError('wallet-btc-confirm-error', '');
+    if (btcReviewBox) btcReviewBox.hidden = true;
+    if (btcResultBox) btcResultBox.hidden = true;
+    if (btcReviewList) btcReviewList.textContent = '';
+    if (btcReviewWarnings) btcReviewWarnings.textContent = '';
+    if (btcReviewUnsigned) btcReviewUnsigned.textContent = '';
+    if (btcProviderNote) btcProviderNote.textContent = '';
+    if (btcTxidEl) btcTxidEl.textContent = '';
+    if (btcSignedEl) btcSignedEl.textContent = '';
+    if (btcExplorerLink) btcExplorerLink.removeAttribute('href');
+    if (btcStatus) btcStatus.textContent = '';
+    if (btcEntrySelect) btcEntrySelect.textContent = '';
+    if (btcCard) btcCard.hidden = true;
+    setBtcBusy(false);
+  }
+
+  /* Public GET with the honest Origin, bounded by the shared timeout. */
+  function getJson(url) {
+    return fetchWithTimeout(url).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status + ' from ' + url);
+      return response.json();
+    });
+  }
+
+  /* Broadcast the signed raw transaction as text. text/plain is a CORS
+   * safelisted content type, so the browser sends no preflight; mempool.space
+   * answers with Access-Control-Allow-Origin: * (verified 2026-11-19). */
+  function postTxText(url, rawHex) {
+    return fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: rawHex
+    }).then(function (response) {
+      return response.text().then(function (body) {
+        var text = body.trim();
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status + (text ? ': ' + text : ''));
+        }
+        return text;
+      });
+    });
+  }
+
+  btcForm.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    if (!state.unlocked) {
+      setError('wallet-btc-error', 'Unlock the vault first.');
+      return;
+    }
+    if (!btcSend) {
+      setError('wallet-btc-error', 'The Bitcoin send module did not load. Reload the page.');
+      return;
+    }
+    if (state.btcPreparing || state.btcSending) return;
+    var entry = selectedBtcEntry();
+    if (!entry) {
+      setError('wallet-btc-error', 'Import a Bitcoin testnet key and select it first.');
+      return;
+    }
+    showBtcFieldErrors({});
+    setError('wallet-btc-error', '');
+    setError('wallet-btc-confirm-error', '');
+    invalidateBtcReview();
+    if (btcReviewBox) btcReviewBox.hidden = true;
+
+    var form = {
+      to: btcToInput.value,
+      amount: btcAmountInput.value,
+      feeRate: btcRateInput.value
+    };
+    var local = btcSend.validateForm(form);
+    if (Object.keys(local.errors).length) {
+      showBtcFieldErrors(local.errors);
+      setError('wallet-btc-error', 'Fix the highlighted fields before review.');
+      return;
+    }
+
+    state.btcPreparing = true;
+    var generation = state.generation;
+    setBtcBusy(true, 'Fetching UTXOs and the recommended fee from mempool.space testnet…');
+    try {
+      var from = await ensureDerivedAddress(entry);
+      var review = await btcSend.prepareTransaction({
+        form: form,
+        from: from,
+        chain: entry.chain,
+        getJson: getJson,
+        unsigned: unsignedBtcTx
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      state.btcReview = review;
+      state.btcReviewEntryId = entry.id;
+      renderBtcReview(review);
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (err.fieldErrors) showBtcFieldErrors(err.fieldErrors);
+      setError('wallet-btc-error', errorText(err));
+      if (btcReviewBox) btcReviewBox.hidden = true;
+      if (btcStatus) btcStatus.textContent = '';
+    } finally {
+      state.btcPreparing = false;
+      setBtcBusy(false);
+      if (state.btcReview && btcConfirmButton && !btcConfirmButton.disabled) {
+        btcConfirmButton.focus();
+      }
+    }
+  });
+
+  btcForm.addEventListener('input', invalidateBtcReview);
+  btcEntrySelect.addEventListener('change', function () {
+    updateBtcFrom();
+    invalidateBtcReview();
+  });
+
+  btcCancelButton.addEventListener('click', function () {
+    invalidateBtcReview();
+    if (btcReviewBox) btcReviewBox.hidden = true;
+    if (btcStatus) btcStatus.textContent = '';
+    btcToInput.focus();
+  });
+
+  btcConfirmButton.addEventListener('click', async function () {
+    if (!state.unlocked) {
+      setError('wallet-btc-confirm-error', 'Unlock the vault first.');
+      return;
+    }
+    if (state.btcSending || state.btcPreparing) {
+      setError('wallet-btc-confirm-error', 'A send is already in flight.');
+      return;
+    }
+    var review = state.btcReview;
+    var entry = entryById(state.btcReviewEntryId);
+    var selected = selectedBtcEntry();
+    if (!review || !entry) {
+      setError('wallet-btc-confirm-error', 'Prepare a new review first.');
+      return;
+    }
+    if (!selected || selected.id !== entry.id) {
+      setError('wallet-btc-confirm-error', 'The selected key changed; prepare a new review.');
+      return;
+    }
+
+    state.btcSending = true;
+    var generation = state.generation;
+    setError('wallet-btc-confirm-error', '');
+    setBtcBusy(true, 'Signing locally and broadcasting to mempool.space testnet…');
+    try {
+      var result = await btcSend.confirmTransaction({
+        review: review,
+        sign: function (request) { return signBtcWithEntry(entry, request); },
+        onSigned: function (signedHex) {
+          /* Show the signed bytes before the POST leaves the tab. */
+          btcProviderNote.textContent = 'Signed locally. Broadcasting the signed raw transaction to mempool.space testnet…';
+          btcTxidEl.textContent = '';
+          btcExplorerLink.removeAttribute('href');
+          btcSignedEl.textContent = signedHex;
+          btcResultBox.hidden = false;
+          if (btcStatus) btcStatus.textContent = 'Signed. Posting the signed raw transaction…';
+        },
+        broadcast: postTxText
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      state.btcReview = null;
+      state.btcReviewEntryId = null;
+      if (btcReviewBox) btcReviewBox.hidden = true;
+      renderBtcResult(result);
+    } catch (err) {
+      if (generation === state.generation && state.unlocked) {
+        setError('wallet-btc-confirm-error', errorText(err));
+        if (btcStatus) btcStatus.textContent = 'Signing or broadcast failed.';
+      }
+    } finally {
+      state.btcSending = false;
+      setBtcBusy(false);
     }
   });
 

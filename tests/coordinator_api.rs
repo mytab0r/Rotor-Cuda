@@ -1073,6 +1073,7 @@ fn public_pages_and_assets_are_served() {
     for (path, needle) in [
         ("/wallet.js", "rotor-wallet"),
         ("/wallet-vault.js", "PBKDF2-SHA256"),
+        ("/wallet-btc.js", "RotorBtcSend"),
     ] {
         let (status, headers, body) = raw(addr, "GET", path, None, None);
         assert_eq!(status, 200, "{path}");
