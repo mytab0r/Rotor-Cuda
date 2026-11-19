@@ -372,6 +372,36 @@
   });
 
   oursRoute({
+    path: '/send',
+    title: 'Testnet send',
+    area: 'tools',
+    status: 'partial',
+    priority: 'P0',
+    donorIds: ['ss:/Easy_bitcoin_transaction_online', 'ss:/Easy_ethereum_transaction_online'],
+    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin and /send/ethereum. Keys derive, sign and broadcast locally; mainnet keys and endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
+  });
+
+  oursRoute({
+    path: '/send/bitcoin',
+    title: 'Send Bitcoin testnet',
+    area: 'tools',
+    status: 'partial',
+    priority: 'P0',
+    donorIds: ['ss:/Easy_bitcoin_transaction_online'],
+    note: 'Bitcoin testnet only: testnet WIF or 64-hex key, tb1q destination, coin selection, review, local P2WPKH signing and an optional mempool.space testnet broadcast. Mainnet WIFs are rejected.'
+  });
+
+  oursRoute({
+    path: '/send/ethereum',
+    title: 'Send Ethereum Sepolia',
+    area: 'tools',
+    status: 'partial',
+    priority: 'P0',
+    donorIds: ['ss:/Easy_ethereum_transaction_online'],
+    note: 'Ethereum Sepolia only: chain-id 11155111 guard, fee/nonce estimates from allowlisted Sepolia RPCs, review, local EIP-1559 signing and an optional broadcast. Mainnet RPCs are rejected.'
+  });
+
+  oursRoute({
     path: '/wallets',
     title: 'Wallet database storefront',
     area: 'wallet',
