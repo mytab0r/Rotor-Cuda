@@ -98,28 +98,54 @@ Electrum standard seed may be 13 words.
 - THEN the Bitcoin address comes from the old Electrum stretch and sequence
   scheme and the page reports the legacy seed type
 
-### Requirement: brainwallet calculator pages
-`/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum` and the donor
-alias `/brainwallet-generator` MUST derive the key as SHA-256 of the trimmed
-UTF-8 passphrase, using the same text hash as the key search and the shared
-wasm `derive_report` for all address encoding. The pages MUST show the private
-hex (and WIF on Bitcoin pages), the chain's addresses with explorer links and
-copy actions, and a prominent warning that brainwallets are unsafe for real
-funds. A random phrase action MAY fill the input but MUST NOT derive until the
-visitor presses Derive. The passphrase and key MUST NOT be stored, logged, put
-in the URL or sent to the coordinator; results MUST clear on `pagehide`.
-Out-of-range keys MUST show the core's explicit error.
+### Requirement: brainwallet directory
+`/brainwallet` MUST be an index of 18 chain directories with the total corpus
+count and links to `/brainwallet-generator`; it MUST NOT contain the
+single-passphrase calculator form. `/brainwallet/<chain>` and
+`/brainwallet/<chain>/<page>` MUST list a deterministic corpus of 18,890
+unique two-word passphrases built locally from a 138-word list (ordered pairs,
+sliced to 18,890), 60 rows per page and 315 pages, with BigInt page math,
+First/Previous/Random/Next/Last and Jump. Each row MUST show the passphrase,
+its SHA-256 hex private key, the chain-specific address from the shared wasm
+`derive_report`, compact labelled copy/explorer icon buttons and a balance
+cell; Bitcoin and Litecoin MUST expose their address-type switch and re-derive
+the visible rows without re-hashing. The summary MUST show balance, active
+rows, received and transaction counts where the provider supplies them.
+Balance loading MUST be controlled by a visible toggle and send only public
+addresses. Passphrases, keys and derived private keys MUST NOT be stored,
+logged, put in the URL or sent to the coordinator; rows MUST clear on
+`pagehide`. Out-of-range keys MUST show the core's explicit error.
+
+#### Scenario: directory page tail
+- GIVEN the visitor opens `/brainwallet/bitcoin/315`
+- WHEN the page derives the visible rows
+- THEN it shows 50 rows (indices 18840..18889) of the 18,890-phrase corpus
+  and the header reports page 315 of 315
+
+#### Scenario: balance toggle off
+- GIVEN the visitor turns the balance toggle off
+- WHEN the page has rendered its rows
+- THEN no balance request is made and every row keeps a local derived state
+
+### Requirement: brainwallet generator
+`/brainwallet-generator` MUST be the canonical single-passphrase calculator
+with an 18-network dropdown, a passphrase field, "Generate & Check Balance",
+a 1/3/5/10 address count, WIF/hex/address results, Copy All/CSV and an
+explicit opt-in balance toggle. The key MUST be SHA-256 of the trimmed UTF-8
+passphrase; rows after the first MUST be labelled as key + n. The passphrase
+and keys MUST NOT be stored, logged, put in the URL or sent to the
+coordinator; results MUST clear on `pagehide`.
 
 #### Scenario: known vector
-- GIVEN the phrase `correct horse battery staple`
-- WHEN the visitor presses Derive on `/brainwallet/bitcoin`
-- THEN the page shows SHA-256 key `c4bbcb1f…`, its WIF and the legacy, SegWit
-  and Taproot addresses, each with a mempool.space link
+- GIVEN the phrase `correct horse battery staple` on Bitcoin
+- WHEN the visitor generates
+- THEN the first row shows SHA-256 key `c4bbcb1f…`, its WIF and the Bitcoin
+  address `1C7zdTfnkzmr13HfA2vNm5SJYRK6nEKyq8`, with a mempool.space link
 
-#### Scenario: out of range
-- GIVEN a 32-byte value at or above the secp256k1 order
-- WHEN the visitor presses Derive
-- THEN the page shows the core's `not below the curve order` error and no key
+#### Scenario: opt-in balance
+- GIVEN the balance toggle is off
+- WHEN the visitor generates an address
+- THEN the address is derived locally and no balance request is made
 
 ### Requirement: transaction entry
 The key page MUST expose the signing entry defined by

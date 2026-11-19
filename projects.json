@@ -29,6 +29,7 @@
         "node --check apps/site/reconstruction.js",
         "node --check apps/site/brainwallet.js",
         "node --check apps/site/brainwallet-engine.js",
+        "node --check apps/site/brainwallet-directory.js",
         "node --check apps/site/wallet.js",
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-evm.js",
