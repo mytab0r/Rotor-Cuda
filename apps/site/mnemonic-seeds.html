@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Rotor</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261122b">
-<script src="/theme.js?v=20261122b"></script>
+<link rel="stylesheet" href="/site.css?v=20261122c">
+<script src="/theme.js?v=20261122c"></script>
 <style>
 .mnemonic-directory-only { display: none; }
 body.mnemonic-directory-mode .mnemonic-directory-only { display: block; }
@@ -30,7 +30,7 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -45,7 +45,7 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
 .mnemonic-path-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .mnemonic-path-row input { flex: 1 1 220px; min-width: 0; font-family: var(--mono); font-size: 13px; }
 .mnemonic-path-row button { flex: none; }
-.mnemonic-control select { min-height: 42px; font-family: var(--mono); font-size: 12.5px; }
+.mnemonic-control select { min-height: 44px; font-family: var(--mono); font-size: 12.5px; }
 .mnemonic-help { margin: 0; font-size: 12px; }
 .mnemonic-rows-header,
 .mnemonic-row {
@@ -78,17 +78,17 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
 .mnemonic-addr-line .address-link { flex: 1 1 auto; min-width: 0; }
 .mnemonic-address .address-link { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
 .mnemonic-actions { display: inline-flex; align-items: center; gap: 14px; flex: none; }
-.mnemonic-actions .icon-btn { position: relative; width: 30px; height: 30px; min-height: 0; padding: 0; }
+.mnemonic-actions .icon-btn { position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; }
 .mnemonic-key-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mnemonic-key-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; text-transform: uppercase; }
 .mnemonic-key { flex: 1 1 auto; min-width: 0; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
-a.mnemonic-key { color: var(--accent-2); }
-.mnemonic-copy { position: relative; width: 30px; height: 30px; min-height: 0; padding: 0; }
+a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: center; min-height: 44px; }
+.mnemonic-copy { position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; }
 .mnemonic-copy::before,
 .mnemonic-actions .icon-btn::before {
   content: "";
   position: absolute;
-  inset: -8px;
+  inset: 0;
   border-radius: 10px;
 }
 .icon-btn.copied { color: var(--ok); }
@@ -100,16 +100,16 @@ a.mnemonic-key { color: var(--accent-2); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  min-height: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--accent-2);
   background: var(--panel-2);
 }
-.mnemonic-balance-retry::before { content: ""; position: absolute; inset: -7px; border-radius: 10px; }
+.mnemonic-balance-retry::before { content: ""; position: absolute; inset: 0; border-radius: 10px; }
 .mnemonic-balance-retry .icon { width: 15px; height: 15px; }
 .mnemonic-derive { padding: 12px 18px 16px; display: grid; gap: 8px; }
 .mnemonic-derive-text { color: var(--muted); font-size: 12.5px; }
@@ -277,8 +277,8 @@ a.mnemonic-key { color: var(--accent-2); }
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261122b"></script>
-<script src="/mnemonic-seeds.js?v=20261122b"></script>
-<script src="/site.js?v=20261122b"></script>
+<script src="/seed.js?v=20261122c"></script>
+<script src="/mnemonic-seeds.js?v=20261122c"></script>
+<script src="/site.js?v=20261122c"></script>
 </body>
 </html>

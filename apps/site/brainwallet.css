@@ -23,7 +23,7 @@
 }
 
 .bw-type-btn {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 13px;
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -120,8 +120,8 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
 .bw-explorer {
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  min-height: 40px;
+  width: 44px;
+  min-height: 44px;
   flex: none;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -132,7 +132,7 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
 .bw-explorer .icon { width: 15px; height: 15px; }
 
 .bw-copy.copied { color: var(--ok); border-color: var(--ok); }
-.bw-copy { width: 40px; min-height: 40px; flex: none; }
+.bw-copy { width: 44px; min-height: 44px; flex: none; }
 
 .bw-balance {
   display: flex;
@@ -159,7 +159,7 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
   background: var(--panel-2);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -196,7 +196,7 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
 }
 .brainwallet-generator .bw-form-grid label { display: grid; gap: 6px; }
 .brainwallet-generator .bw-form-grid select,
-.brainwallet-generator .bw-form-grid input { min-height: 42px; }
+.brainwallet-generator .bw-form-grid input { min-height: 44px; }
 .brainwallet-generator .key-form { display: block; }
 .brainwallet-generator .bw-actions {
   display: flex;
@@ -204,11 +204,12 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
   gap: 8px;
   margin-top: 12px;
 }
-.brainwallet-generator .bw-actions button { min-height: 40px; }
+.brainwallet-generator .bw-actions button { min-height: 44px; }
 .bw-auto-balance {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
+  min-height: 44px;
   gap: 8px;
   margin-top: 10px;
   color: var(--text-2);
@@ -221,7 +222,7 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
   height: 16px;
   min-height: 0;
   padding: 0;
-  margin-top: 2px;
+  margin-top: 0;
   flex: none;
 }
 
@@ -232,7 +233,7 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
   justify-content: flex-end;
   margin-bottom: 10px;
 }
-.brainwallet-results-head button { min-height: 36px; }
+.brainwallet-results-head button { min-height: 44px; }
 
 .brainwallet-result {
   margin-top: 12px;
@@ -249,7 +250,7 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
   color: var(--muted);
 }
 .brainwallet-result .brainwallet-row { padding: 7px 0; }
-.brainwallet-result .brainwallet-copy { min-height: 30px; padding: 0 10px; }
+.brainwallet-result .brainwallet-copy { min-height: 44px; padding: 0 10px; }
 
 .brainwallet-generator .brainwallet-actions[disabled] { opacity: .55; }
 
@@ -270,6 +271,12 @@ html[data-theme="light"] .brainwallet-warning {
 }
 html[data-theme="light"] .bw-address-link,
 html[data-theme="light"] .brainwallet-addr { color: #1f5f9e; }
+
+.bw-generator-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 
 .brainwallet-directory .balance-note {
   display: flex;
