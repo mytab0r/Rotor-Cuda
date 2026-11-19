@@ -6,6 +6,12 @@ Every unchecked task has a concrete artifact; checked tasks need a test or a
 browser capture in the PR.
 
 ## 1. Explorer links and WIF rows [front]
+- [x] `/mnemonic-seeds/<chain>` rows show the derived private key (compressed
+      WIF on Bitcoin, hex elsewhere) and the mnemonic with icon-only copy
+      buttons; the BTC WIF keeps its `/key/<WIF>` link, address copy and
+      explorer icons stay. Evidence: `apps/site/mnemonic-seeds-test.mjs`,
+      `mnemonic_seed_directory_routes_and_assets_are_served` in
+      `src/coordinator/mod.rs`.
 - [ ] Add one explorer map in `apps/site/browse.js` and use it for chain rows;
       add the same map to `key.js` for derived rows. (blocked by: -)
 - [ ] Address text itself links to the explorer; external icon and
