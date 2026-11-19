@@ -119,6 +119,32 @@ test("row labels name the key encoding", () => {
   assertEqual(api.privateKeyLabel("solana"), "HEX", "ed25519 label");
 });
 
+test("compact phrase keeps the first two and last word", () => {
+  assertEqual(
+    api.compactPhrase("abandon ability able about above absent absorb abstract absurd abuse access accident"),
+    "abandon ability … accident",
+    "12-word phrase is masked in the middle"
+  );
+  assertEqual(
+    api.compactPhrase(
+      "legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth useful legal winner thank year wave sausage worth title"
+    ),
+    "legal winner … title",
+    "24-word phrase is masked in the middle"
+  );
+});
+
+test("compact phrase normalizes whitespace", () => {
+  assertEqual(api.compactPhrase("  abandon   ability\nabout  zoo "), "abandon ability … zoo", "extra whitespace is ignored");
+});
+
+test("short phrases are not masked", () => {
+  assertEqual(api.compactPhrase("abandon ability zoo"), "abandon ability zoo", "no middle word to hide");
+  assertEqual(api.compactPhrase("abandon"), "abandon", "one word stays whole");
+  assertEqual(api.compactPhrase(""), "", "empty phrase stays empty");
+  assertEqual(api.compactPhrase(undefined), "", "missing phrase stays empty");
+});
+
 test("copy wiring writes the exact value to the clipboard", async () => {
   clipboardWrites.length = 0;
   const target = button("Copy WIF private key");
