@@ -149,15 +149,19 @@ browser capture in the PR.
       It loads the same `seed.js`, `seed-crypto.js`, `seed-page.js` and
       `seed-studio.css` as `/seed`; the page is linked from `/tools` and `/seed`.
       Evidence: `seed_studio_and_mnemonic_converter_are_served`.
-- [x] `/brainwallet` index plus `/brainwallet/bitcoin`, `/brainwallet/ethereum`
-      and the donor alias `/brainwallet-generator`. Every page hashes the
-      trimmed passphrase with SHA-256 (same path as search.js), derives through
-      the shared wasm `derive_report`, shows the private hex/WIF plus the
-      chain's addresses with explorer links and copy actions, offers a
-      fill-only random phrase, and clears input/results on `pagehide`.
-      Evidence: `apps/site/brainwallet-test.mjs` known vector
-      (`correct horse battery staple` → `1JwSSubhmg6iPtRjtyqhUYYH7bZg3Lfy1T`),
-      `coordinator::tests::brainwallet_chain_pages_and_alias_are_served_and_indexed`.
+- [x] `/brainwallet` is a directory index with 18 chain tiles and the
+      18,890-passphrase counter; `/brainwallet/<chain>` and
+      `/brainwallet/<chain>/<page>` list 60 deterministic two-word passphrases
+      per page (315 pages, 50 on the last page) with BigInt page math,
+      First/Previous/Random/Next/Last and Jump. Each row shows the SHA-256 hex
+      key, the passphrase, the chain address, explorer/copy icon buttons and an
+      optional balance; Bitcoin and Litecoin expose the address-type switch and
+      the summary shows balance/active/received/tx. `/brainwallet-generator` is
+      the canonical single-passphrase calculator with an 18-network dropdown,
+      1/3/5/10 addresses, WIF, copy-all/CSV and opt-in balance checking.
+      Evidence: `apps/site/brainwallet-test.mjs` corpus/page/BigInt/vector
+      tests (corpus[0] `amber amber` → legacy `1FUi…`), and
+      `coordinator::tests::brainwallet_directory_pages_paginate_and_link_assets`.
 - [ ] `/richest` and `/richest/<chain>` in-site lists with search/filter and
       the Rich-Address-Wallet attribution; do not proxy balances.
 - [ ] `/keystore-parser` accepting a UTC/JSON keystore and decrypting locally;
