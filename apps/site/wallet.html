@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cabinet wallet — encrypted local vault | Rotor</title>
+<meta name="description" content="Keep WIF and hex keys in an encrypted local vault and watch their addresses across supported chains. Encryption and address derivation happen in your browser; no key or passphrase is sent to the server.">
+<link rel="canonical" href="https://rotor.pxbt.app/cabinet/wallet">
+<link rel="stylesheet" href="/site.css?v=20261120a">
+<script src="/theme.js?v=20261120a"></script>
+<style>
+.wallet-groups { display: grid; gap: 14px; }
+.wallet-group h3 { margin: 0 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+.wallet-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.wallet-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.wallet-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wallet-row-head .wallet-label-input { flex: 1 1 160px; min-width: 0; padding: 7px 9px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }
+.wallet-address-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.wallet-address-line code { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.wallet-address-line a, .wallet-address-line button { flex: 0 0 auto; }
+.wallet-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.wallet-balance { min-height: 18px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.wallet-balance.ok { color: var(--ok); }
+.wallet-balance.err { color: var(--danger, #e05353); }
+.wallet-status { margin: 8px 0 0; font-size: 13px; }
+.wallet-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 760px) { .wallet-split { grid-template-columns: minmax(0, 1fr); } }
+.wallet-backup-text { width: 100%; min-height: 84px; }
+</style>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-wallet" href="/cabinet/wallet" data-nav="wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Wallet</span></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg></span>
+      <div>
+        <h1>Cabinet wallet</h1>
+        <p class="key-tagline">Keep WIF and hex keys in an encrypted vault on this device and watch the addresses they control. The vault is encrypted with a passphrase you choose; the server never receives the passphrase, a private key or a WIF.</p>
+        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only</span><span>No signing yet</span></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. Testnet sending is not part of this phase; nothing on this page signs or broadcasts a transaction.</p>
+
+  <p id="wallet-unavailable" class="error" role="alert" hidden></p>
+
+  <section class="card" id="wallet-setup" hidden>
+    <h2>Create a vault</h2>
+    <form id="wallet-create-form" class="key-form" autocomplete="off">
+      <label>Passphrase
+        <input id="wallet-create-pass" type="password" autocomplete="new-password" spellcheck="false" data-lpignore="true" aria-describedby="wallet-pass-help">
+      </label>
+      <label>Repeat passphrase
+        <input id="wallet-create-pass2" type="password" autocomplete="new-password" spellcheck="false" data-lpignore="true">
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-create">Create vault</button>
+      </div>
+    </form>
+    <p class="muted" id="wallet-pass-help">Use at least 8 characters. The passphrase derives the AES key with PBKDF2-SHA256 (600,000 iterations); it is kept only in memory while the vault is unlocked.</p>
+    <p id="wallet-create-error" class="error" role="alert" hidden></p>
+  </section>
+
+  <section class="card" id="wallet-unlock" hidden>
+    <h2>Unlock the vault</h2>
+    <form id="wallet-unlock-form" class="key-form" autocomplete="off">
+      <label>Passphrase
+        <input id="wallet-unlock-pass" type="password" autocomplete="current-password" spellcheck="false" data-lpignore="true">
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-unlock-button">Unlock</button>
+      </div>
+    </form>
+    <p id="wallet-unlock-error" class="error" role="alert" hidden></p>
+    <p class="muted">A wrong passphrase cannot decrypt anything. The vault locks itself after 10 minutes without activity and whenever this page is hidden.</p>
+  </section>
+
+  <section class="card" id="wallet-panel" hidden>
+    <h2>Vault</h2>
+    <div class="wallet-row-actions">
+      <button type="button" id="wallet-lock">Lock now</button>
+      <button type="button" id="wallet-export">Export encrypted backup</button>
+      <span id="wallet-state" class="muted" role="status">unlocked</span>
+    </div>
+    <p class="wallet-status muted" id="wallet-export-status"></p>
+
+    <h2>Import a key</h2>
+    <form id="wallet-import-form" class="key-form" autocomplete="off">
+      <label>WIF or 64-character hex
+        <input id="wallet-secret" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" data-lpignore="true" aria-describedby="wallet-import-help">
+      </label>
+      <label>Chain (required for hex)
+        <select id="wallet-chain">
+          <option value="">Select a chain</option>
+          <option value="bitcoin">Bitcoin</option>
+          <option value="ethereum">Ethereum</option>
+          <option value="bnb">BNB Chain</option>
+          <option value="arbitrum">Arbitrum</option>
+          <option value="optimism">Optimism</option>
+          <option value="base">Base</option>
+          <option value="polygon">Polygon</option>
+          <option value="avalanche">Avalanche</option>
+          <option value="zksync">zkSync</option>
+          <option value="litecoin">Litecoin</option>
+          <option value="bitcoin-cash">Bitcoin Cash</option>
+          <option value="dogecoin">Dogecoin</option>
+          <option value="zcash">Zcash</option>
+          <option value="xrp">XRP</option>
+          <option value="tron">TRON</option>
+          <option value="solana">Solana</option>
+          <option value="sui">Sui</option>
+          <option value="ton">TON</option>
+        </select>
+      </label>
+      <label>Label
+        <input id="wallet-label" type="text" maxlength="64" autocomplete="off" placeholder="e.g. cold wallet">
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-add">Add to vault</button>
+      </div>
+    </form>
+    <p id="wallet-add-error" class="error" role="alert" hidden></p>
+    <p class="muted" id="wallet-import-help">A WIF is checked and mapped to Bitcoin, Litecoin or Dogecoin by its version byte: compressed Bitcoin WIFs use native SegWit, uncompressed ones use legacy P2PKH, Litecoin uses native SegWit and Dogecoin uses legacy. Testnet WIF versions (0xEF, 0xF1) are recognized but not stored in this phase because the local core returns mainnet addresses only. Any 64-character hex key needs an explicit chain. The address is derived with the local WASM core first; a key whose address cannot be derived is not stored.</p>
+
+    <h2>Addresses</h2>
+    <label class="wallet-row-actions"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
+    <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent.</p>
+    <div class="wallet-groups" id="wallet-entries"></div>
+    <p class="muted" id="wallet-empty">No keys in this vault yet. Import a WIF or a hex key above.</p>
+  </section>
+
+  <section class="card">
+    <h2>Encrypted backup</h2>
+    <div class="wallet-split">
+      <div>
+        <h3>Restore a backup</h3>
+        <p class="muted">Importing replaces this browser's vault. Only an encrypted Rotor wallet blob is accepted.</p>
+        <label class="wallet-row-actions">Backup file
+          <input id="wallet-backup-file" type="file" accept=".txt,.b64,text/plain">
+        </label>
+        <label>Or paste the blob
+          <textarea id="wallet-backup-text" class="wallet-backup-text mono" spellcheck="false" autocomplete="off"></textarea>
+        </label>
+        <div class="wallet-row-actions">
+          <button type="button" id="wallet-backup-import">Import encrypted backup</button>
+        </div>
+        <p class="muted" id="wallet-backup-status" role="status"></p>
+      </div>
+      <div>
+        <h3>What is stored</h3>
+        <p class="muted">IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
+        <p class="muted">This page does not sign or broadcast transactions. Watch-only means it can show addresses, links and (opt-in) balances.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="muted key-help">Related: <a href="/cabinet">cabinet dashboard</a>, <a href="/key">key explorer</a>, <a href="/docs">documentation</a>.</p>
+</main>
+
+<script src="/wallet-vault.js?v=20261120a"></script>
+<script src="/wallet.js?v=20261120a"></script>
+<script src="/site.js?v=20261120a"></script>
+</body>
+</html>

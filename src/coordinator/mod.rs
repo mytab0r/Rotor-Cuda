@@ -78,6 +78,9 @@ const KEYSTORE_PARSER_PAGE: &str = include_str!("../../apps/site/keystore-parser
 const KEYSTORE_PARSER_JS: &str = include_str!("../../apps/site/keystore-parser.js");
 const RECONSTRUCTION_PAGE: &str = include_str!("../../apps/site/reconstruction.html");
 const RECONSTRUCTION_JS: &str = include_str!("../../apps/site/reconstruction.js");
+const CABINET_WALLET_PAGE: &str = include_str!("../../apps/site/wallet.html");
+const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
+const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
@@ -848,6 +851,15 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/favicon.ico" => Some((FAVICON_ICO, "image/x-icon")),
         "/favicon.png" => Some((FAVICON_PNG, "image/png")),
         "/cabinet" => Some((MONITOR_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/cabinet/wallet" => Some((CABINET_WALLET_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/wallet.js" => Some((
+            WALLET_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-vault.js" => Some((
+            WALLET_VAULT_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/cabinet.js" | "/monitor.js" => Some((
             MONITOR_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -3342,6 +3354,7 @@ fn render_robots(base: &str) -> String {
         "User-agent: *\n\
          Disallow: /api/\n\
          Disallow: /cabinet\n\
+         Allow: /cabinet/wallet\n\
          Disallow: /monitor\n\
          Disallow: /dashboard\n\
          \n\
@@ -3409,6 +3422,7 @@ fn render_sitemap(base: &str) -> String {
         "/reconstruction",
         "/keystore-parser",
         "/wallets",
+        "/cabinet/wallet",
         "/key/wif",
         "/key/hex",
         "/key/decimal",
@@ -4717,6 +4731,39 @@ mod tests {
     }
 
     #[test]
+    fn cabinet_wallet_page_and_vault_assets_are_served() {
+        let (page, content_type) =
+            static_asset("/cabinet/wallet").expect("/cabinet/wallet is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        let html = std::str::from_utf8(page).expect("wallet page is utf-8");
+        assert!(html.contains("id=\"wallet-panel\""));
+        assert!(html.contains("id=\"wallet-import-form\""));
+        assert!(html.contains("id=\"wallet-unlock-form\""));
+        assert!(html.contains("<script src=\"/theme.js?v=20261120a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261120a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261120a\"></script>"));
+
+        let (script, content_type) = static_asset("/wallet.js").expect("/wallet.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let script = std::str::from_utf8(script).expect("wallet.js is utf-8");
+        assert!(script.contains("rotor-wallet"));
+        assert!(script.contains("derive_report"));
+        assert!(script.contains("IDLE_MS = 10 * 60 * 1000"));
+        assert!(script.contains("pagehide"));
+
+        let (codec, content_type) =
+            static_asset("/wallet-vault.js").expect("/wallet-vault.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let codec = std::str::from_utf8(codec).expect("wallet-vault.js is utf-8");
+        assert!(codec.contains("PBKDF2-SHA256"));
+        assert!(codec.contains("MIN_ITERATIONS = 600000"));
+        assert!(codec.contains("AES-GCM"));
+
+        let sitemap = render_sitemap("https://rotor.pxbt.app");
+        assert!(sitemap.contains("<loc>https://rotor.pxbt.app/cabinet/wallet</loc>"));
+    }
+
+    #[test]
     fn robots_and_sitemap_have_expected_content_types() {
         let base = "https://rotor.pxbt.app";
         let (robots, content_type, status) = seo_asset(base, "/robots.txt", "").expect("robots");
@@ -4724,6 +4771,7 @@ mod tests {
         assert_eq!(content_type, "text/plain; charset=utf-8");
         assert!(robots.contains("Disallow: /api/"));
         assert!(robots.contains("Disallow: /cabinet"));
+        assert!(robots.contains("Allow: /cabinet/wallet"));
         assert!(robots.contains("Sitemap: https://rotor.pxbt.app/sitemap.xml"));
 
         let (sitemap, content_type, status) = seo_asset(base, "/sitemap.xml", "").expect("sitemap");
