@@ -104,17 +104,17 @@ test("Electrum old derivation matches the legacy stretch/sequence reference", as
   const derived = await crypto.oldPrivateKeys(seedHex, 2, async (keyHex) => reportFor(keyHex));
   assertEqual(
     derived.keys[0],
-    "b4a12467fd7e8d0e193aa27b31a0368289f0b536892ab567aeb52b59249acbe8",
+    "490aa18749841c21f4ece6da50898645578736ce0e38cd67568c14e3c47c9d95",
     "old address 0 private key"
   );
   assertEqual(
     addressOf(reportFor(derived.keys[0]), "btc_p2pkh_uncompressed"),
-    "1ArkKc14Smo7Dw7vyrZuX6DkqYvZAp8XXk",
+    "18v3oDeH9LCmeKrbC2nYgLP5UKva1NpMG",
     "old address 0"
   );
   assertEqual(
     addressOf(reportFor(derived.keys[1]), "btc_p2pkh_uncompressed"),
-    "1G4erbznYaPjY92NgF17osUnDMP8jUBZQB",
+    "1BDoTF94QViEdnNuL4n6gQ8LgihBNCwXDT",
     "old address 1"
   );
 });

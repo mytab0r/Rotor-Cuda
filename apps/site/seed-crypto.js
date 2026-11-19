@@ -314,8 +314,13 @@
   }
 
   function oldStretchedKey(seedHex) {
-    var seed = hexToBytes(seedHex);
-    if (!seed.length) throw new Error('The Electrum old seed is empty.');
+    /* Electrum stretches the ASCII hex string, not the decoded seed bytes:
+     * encoded_hex_seed = hex_seed.encode('ascii'); x = encoded_hex_seed;
+     * repeat sha256(x + encoded_hex_seed) 100,000 times. */
+    var seed = utf8(String(seedHex || '').toLowerCase());
+    if (!seed.length || !/^[0-9a-f]+$/.test(String(seedHex || '').toLowerCase())) {
+      throw new Error('The Electrum old seed is not a hexadecimal string.');
+    }
     var value = seed;
     for (var i = 0; i < 100000; i += 1) {
       value = sha256(concatBytes(value, seed));
