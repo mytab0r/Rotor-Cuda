@@ -2103,25 +2103,27 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .address-type-panel.key-address-panel { padding: 13px 14px 15px; }
 /* Inside the Derivation card the type selector is a flat segmented control, not
  * a second row of cards. Same DOM/component, different depth. */
-.key-derive-block .key-address-panel { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
+.key-derive-block .key-address-panel { padding: 12px 8px 14px; border-bottom: 1px solid var(--border); }
 .key-derive-block .key-address-panel .address-type-cards {
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-2);
+  gap: 4px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .key-derive-block .key-address-panel .address-type-card {
   border: 0;
-  border-right: 1px solid var(--border);
+  border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  padding: 8px 10px;
 }
 .key-derive-block .key-address-panel .address-type-card:last-child { border-right: 0; }
 .key-derive-block .key-address-panel .address-type-card:hover { background: var(--panel-3); }
 .key-derive-block .key-address-panel .address-type-card.active,
 .key-derive-block .key-address-panel .address-type-card[aria-pressed="true"] {
+  border-bottom-color: var(--accent);
   background: var(--accent-soft);
   box-shadow: none;
 }
@@ -2339,6 +2341,26 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-step-list .mono { color: var(--text-2); }
 .key-soon { margin-left: 4px; color: var(--warn); font-size: 12px; text-transform: uppercase; }
 .key-empty { padding: 18px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
+
+/* Key counters and facts */
+.key-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 10px; }
+.key-stat { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.key-stat-label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.key-stat-value { display: block; margin-top: 3px; color: var(--text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.key-stat-value.empty { color: var(--muted); font-weight: 600; }
+.key-stats-note { margin: 0 0 14px; font-size: 12px; }
+.key-facts-group dd a { color: var(--accent-2); }
+.key-fact-unavailable { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.key-row-tag { padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.key-export { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.key-export-status { min-height: 0; margin: 6px 0 0; font-size: 12px; }
+
+@media (max-width: 900px) {
+  .key-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .key-export { margin-left: 0; }
+}
 
 @media (max-width: 980px) {
   .key-summary-grid { grid-template-columns: 1fr; }

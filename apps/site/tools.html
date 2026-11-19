@@ -6,8 +6,8 @@
 <title>Crypto calculators — keys, WIF, seeds, vanity | Rotor</title>
 <meta name="description" content="One page for every crypto calculator: hex and decimal private keys, WIF, brainwallets, BIP39 seed phrases, vanity addresses and the key explorer.">
 <link rel="canonical" href="https://rotor.pxbt.app/tools">
-<link rel="stylesheet" href="/site.css?v=20261122e">
-<script src="/theme.js?v=20261122e"></script>
+<link rel="stylesheet" href="/site.css?v=20261123b">
+<script src="/theme.js?v=20261123b"></script>
 <style>
 /* Tools index: eight scannable families, aliases as 44px chips. */
 .tool-family-grid {
@@ -178,8 +178,11 @@
         <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-mempool"></use></svg></span>
         <h2 class="tool-family-title" id="family-tx">Transaction tools</h2>
       </div>
-      <p class="tool-family-desc">Build, review, sign and broadcast testnet sends in the local vault; mainnet signing stays off.</p>
+      <p class="tool-family-desc">Decode a raw transaction, or build, review, sign and broadcast testnet sends in the local vault; mainnet signing stays off.</p>
       <ul class="tool-family-links">
+        <li><a href="/tx">Decoders overview</a></li>
+        <li><a href="/tx/bitcoin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin decoder</a></li>
+        <li><a href="/tx/ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum decoder</a></li>
         <li><a href="/cabinet/wallet#wallet-send">EVM send · Sepolia</a></li>
         <li><a href="/cabinet/wallet#wallet-btc-send">BTC send · testnet</a></li>
       </ul>
@@ -222,6 +225,6 @@
   <p class="muted key-help">Every Rotor page and calculator is compared with privatekeyfinder.io and secretscan.org in the internal parity audit (<code>docs/site-map/index.html</code>).</p>
 </main>
 
-<script src="/site.js?v=20261122e"></script>
+<script src="/site.js?v=20261123b"></script>
 </body>
 </html>
