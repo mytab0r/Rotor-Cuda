@@ -53,6 +53,8 @@ const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
 const WALLETCONNECT_JS: &[u8] = include_bytes!("../../apps/site/walletconnect.js");
 const BRAINWALLET_JS: &str = include_str!("../../apps/site/brainwallet.js");
 const BRAINWALLET_ENGINE_JS: &str = include_str!("../../apps/site/brainwallet-engine.js");
+const BRAINWALLET_DIRECTORY_JS: &str = include_str!("../../apps/site/brainwallet-directory.js");
+const BRAINWALLET_CSS: &str = include_str!("../../apps/site/brainwallet.css");
 const BROWSE_JS: &str = include_str!("../../apps/site/browse.js");
 const VANITY_PAGE: &str = include_str!("../../apps/site/vanity.html");
 const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
@@ -771,6 +773,11 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             BRAINWALLET_ENGINE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/brainwallet-directory.js" => Some((
+            BRAINWALLET_DIRECTORY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/brainwallet.css" => Some((BRAINWALLET_CSS.as_bytes(), "text/css; charset=utf-8")),
         "/browse.js" => Some((
             BROWSE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -1341,25 +1348,34 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
         return Some((render_donate(base), HTML, 200));
     }
     if path == "/brainwallet" || path == "/brainwallet/" {
-        return Some((render_brainwallet(base, BrainwalletFocus::All), HTML, 200));
-    }
-    if path == "/brainwallet/bitcoin" || path == "/brainwallet/bitcoin/" {
-        return Some((
-            render_brainwallet(base, BrainwalletFocus::Bitcoin),
-            HTML,
-            200,
-        ));
-    }
-    if path == "/brainwallet/ethereum" || path == "/brainwallet/ethereum/" {
-        return Some((
-            render_brainwallet(base, BrainwalletFocus::Ethereum),
-            HTML,
-            200,
-        ));
+        return Some((render_brainwallet_index(base), HTML, 200));
     }
     if path == "/brainwallet-generator" || path == "/brainwallet-generator/" {
-        // Donor alias for the same calculator; canonical stays on /brainwallet.
-        return Some((render_brainwallet(base, BrainwalletFocus::All), HTML, 200));
+        return Some((render_brainwallet_generator(base), HTML, 200));
+    }
+    if let Some(rest) = path.strip_prefix("/brainwallet/") {
+        let rest = rest.trim_end_matches('/');
+        if rest.is_empty() {
+            return Some((render_brainwallet_index(base), HTML, 200));
+        }
+        let mut parts = rest.split('/');
+        let Some(slug) = parts.next() else {
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        let page = parts.next();
+        if parts.next().is_some() {
+            return Some((render_seo_not_found(), HTML, 404));
+        }
+        let Some(chain) = chain_by_slug(slug) else {
+            return Some((render_seo_not_found(), HTML, 404));
+        };
+        return Some(match page {
+            Some(raw) if parse_page_number(raw).is_some() => {
+                (render_brainwallet_directory(base, chain, raw), HTML, 200)
+            }
+            Some(_) => (render_seo_not_found(), HTML, 404),
+            None => (render_brainwallet_directory(base, chain, "1"), HTML, 200),
+        });
     }
     if path == "/keys" || path == "/private-keys" {
         return Some((render_keys_hub(base), HTML, 200));
@@ -2246,152 +2262,411 @@ fn render_donate(base: &str) -> String {
     html_document(DONATE_TITLE, &head, &body)
 }
 
-const BRAINWALLET_TITLE: &str = "Brainwallet checker — SHA-256 passphrase to addresses | Rotor";
-const BRAINWALLET_DESCRIPTION: &str = "Educational SHA-256 brainwallet checker: derive public addresses from a passphrase in your browser. Brainwallets are unsafe for real funds; test only with throwaway passphrases.";
-const BRAINWALLET_BITCOIN_TITLE: &str =
-    "Bitcoin brainwallet calculator — passphrase to BTC addresses | Rotor";
-const BRAINWALLET_BITCOIN_DESCRIPTION: &str = "Turn a passphrase into its SHA-256 private key and Bitcoin legacy, SegWit and Taproot addresses in your browser. Brainwallets are unsafe for real funds; test only throwaway phrases.";
-const BRAINWALLET_ETHEREUM_TITLE: &str =
-    "Ethereum brainwallet calculator — passphrase to ETH address | Rotor";
-const BRAINWALLET_ETHEREUM_DESCRIPTION: &str = "Turn a passphrase into its SHA-256 private key and Ethereum address in your browser. Brainwallets are unsafe for real funds; test only throwaway phrases.";
+const BRAINWALLET_TITLE: &str = "Brainwallet directory — 18,890 passphrases on 18 chains | Rotor";
+const BRAINWALLET_DESCRIPTION: &str = "Browse 18,890 deterministic two-word brainwallet passphrases on 18 chains, 60 per page. SHA-256 keys and chain addresses are derived locally in your browser; balance checks are optional. Brainwallets are unsafe for real funds.";
+const BRAINWALLET_GENERATOR_TITLE: &str =
+    "Brainwallet generator — passphrase to key and address | Rotor";
+const BRAINWALLET_GENERATOR_DESCRIPTION: &str = "Turn one passphrase into its SHA-256 key and an address on 18 chains. Choose one, three, five or ten addresses, copy the WIF, copy all or download CSV. Brainwallets are unsafe for real funds.";
+const BRAINWALLET_CORPUS_SIZE: u32 = 18_890;
+const BRAINWALLET_ROWS_PER_PAGE: u32 = 60;
+const BRAINWALLET_TOTAL_PAGES: u32 = BRAINWALLET_CORPUS_SIZE.div_ceil(BRAINWALLET_ROWS_PER_PAGE);
+const BRAINWALLET_WARNING: &str = "Brainwallets are unsafe for real funds. A phrase people can remember is guessable and such keys are swept quickly. Use only throwaway phrases you are authorized to test; never a phrase that protects funds.";
 
-#[derive(Clone, Copy)]
-enum BrainwalletFocus {
-    All,
-    Bitcoin,
-    Ethereum,
-}
-
-impl BrainwalletFocus {
-    fn path(self) -> &'static str {
-        match self {
-            Self::All => "/brainwallet",
-            Self::Bitcoin => "/brainwallet/bitcoin",
-            Self::Ethereum => "/brainwallet/ethereum",
-        }
-    }
-
-    fn focus_key(self) -> &'static str {
-        match self {
-            Self::All => "all",
-            Self::Bitcoin => "bitcoin",
-            Self::Ethereum => "ethereum",
-        }
-    }
-
-    fn title(self) -> &'static str {
-        match self {
-            Self::All => BRAINWALLET_TITLE,
-            Self::Bitcoin => BRAINWALLET_BITCOIN_TITLE,
-            Self::Ethereum => BRAINWALLET_ETHEREUM_TITLE,
-        }
-    }
-
-    fn description(self) -> &'static str {
-        match self {
-            Self::All => BRAINWALLET_DESCRIPTION,
-            Self::Bitcoin => BRAINWALLET_BITCOIN_DESCRIPTION,
-            Self::Ethereum => BRAINWALLET_ETHEREUM_DESCRIPTION,
-        }
-    }
-
-    fn heading(self) -> &'static str {
-        match self {
-            Self::All => "Brainwallet checker",
-            Self::Bitcoin => "Bitcoin brainwallet calculator",
-            Self::Ethereum => "Ethereum brainwallet calculator",
-        }
-    }
-
-    fn tagline(self) -> &'static str {
-        match self {
-            Self::All => {
-                "A passphrase becomes a private key through one SHA-256 hash, and that key becomes a Bitcoin and Ethereum address. Everything below is derived in this browser."
-            }
-            Self::Bitcoin => {
-                "A passphrase becomes a private key through one SHA-256 hash, and that key becomes a Bitcoin legacy, SegWit and Taproot address. Everything below is derived in this browser."
-            }
-            Self::Ethereum => {
-                "A passphrase becomes a private key through one SHA-256 hash, and that key becomes an Ethereum address. Everything below is derived in this browser."
-            }
-        }
-    }
-
-    fn crumb(self) -> &'static str {
-        match self {
-            Self::All => "Brainwallet",
-            Self::Bitcoin => "Bitcoin brainwallet",
-            Self::Ethereum => "Ethereum brainwallet",
-        }
+fn brainwallet_page_href(slug: &str, page: u32) -> String {
+    if page <= 1 {
+        format!("/brainwallet/{slug}")
+    } else {
+        format!("/brainwallet/{slug}/{page}")
     }
 }
 
-fn render_brainwallet(base: &str, focus: BrainwalletFocus) -> String {
-    let canonical = format!("{base}{}", focus.path());
-    let mut ld_entries = vec![
-        ("Home", Some("/")),
-        ("Tools", None),
-        ("Brainwallet", Some("/brainwallet")),
-    ];
-    if !matches!(focus, BrainwalletFocus::All) {
-        ld_entries.push((focus.crumb(), Some(focus.path())));
+fn brainwallet_chain_tabs(active: Option<&str>) -> String {
+    let mut out = String::from(
+        "<div class=\"chain-tabs\" id=\"brainwallet-chain-tabs\" role=\"navigation\" aria-label=\"Chains\">",
+    );
+    for chain in &CHAINS {
+        let is_active = active == Some(chain.slug);
+        out.push_str(&format!(
+            "<a class=\"chain-tab{}\" href=\"/brainwallet/{}\" style=\"--chain:{}\"{}>{}{}</a>",
+            if is_active { " active" } else { "" },
+            chain.slug,
+            chain.color,
+            if is_active {
+                " aria-current=\"page\""
+            } else {
+                ""
+            },
+            chain_icon(chain, "chain-tab-icon"),
+            chain.name,
+        ));
     }
-    let ld_crumbs = breadcrumb_ld(base, &ld_entries);
-    let head = hub_head(&canonical, focus.title(), focus.description(), &[ld_crumbs]);
-    let crumbs = if matches!(focus, BrainwalletFocus::All) {
-        "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
+    out.push_str("</div>");
+    out
+}
+
+fn brainwallet_pager(slug: &str, page: u32) -> String {
+    let previous = page.saturating_sub(1).max(1);
+    let next = (page + 1).min(BRAINWALLET_TOTAL_PAGES);
+    let at_first = page <= 1;
+    let at_last = page >= BRAINWALLET_TOTAL_PAGES;
+    format!(
+        "<div class=\"pager\">\
+         <a class=\"pager-btn{}\" data-bw-first href=\"{}\" aria-disabled=\"{}\">{}First</a>\
+         <a class=\"pager-btn{}\" data-bw-prev href=\"{}\" aria-disabled=\"{}\">{}Previous</a>\
+         <a class=\"pager-btn random\" data-bw-random href=\"{}\" aria-disabled=\"false\">{}Random</a>\
+         <a class=\"pager-btn{}\" data-bw-next href=\"{}\" aria-disabled=\"{}\">Next{}</a>\
+         <a class=\"pager-btn{}\" data-bw-last href=\"{}\" aria-disabled=\"{}\">Last{}</a>\
+         </div>",
+        if at_first { " disabled" } else { "" },
+        brainwallet_page_href(slug, 1),
+        at_first,
+        ui_icon("ui-first", "icon"),
+        if at_first { " disabled" } else { "" },
+        brainwallet_page_href(slug, previous),
+        at_first,
+        ui_icon("ui-prev", "icon"),
+        brainwallet_page_href(slug, page),
+        ui_icon("ui-random", "icon"),
+        if at_last { " disabled" } else { "" },
+        brainwallet_page_href(slug, next),
+        at_last,
+        ui_icon("ui-next", "icon"),
+        if at_last { " disabled" } else { "" },
+        brainwallet_page_href(slug, BRAINWALLET_TOTAL_PAGES),
+        at_last,
+        ui_icon("ui-last", "icon"),
+    )
+}
+
+fn brainwallet_jump(suffix: &str, page: u32) -> String {
+    format!(
+        "<form class=\"page-jump bw-jump\">\
+         <label for=\"brainwallet-page-input-{suffix}\">Page</label>\
+         <input id=\"brainwallet-page-input-{suffix}\" inputmode=\"numeric\" autocomplete=\"off\" value=\"{page}\">\
+         <button type=\"submit\" class=\"primary\">Jump {}</button>\
+         </form>",
+        ui_icon("ui-arrow-right", "icon"),
+    )
+}
+
+fn brainwallet_pager_block(slug: &str, page: u32, suffix: &str) -> String {
+    format!(
+        "<section class=\"browse-controls bw-pager-block\">{} {}</section>",
+        brainwallet_pager(slug, page),
+        brainwallet_jump(suffix, page),
+    )
+}
+
+fn brainwallet_warning() -> String {
+    format!("<p class=\"notice brainwallet-warning\" role=\"note\">{BRAINWALLET_WARNING}</p>")
+}
+
+fn brainwallet_address_types(chain: &ChainHub) -> String {
+    let types = chain.kind.types();
+    if types.len() <= 1 {
+        return String::new();
+    }
+    let mut out = String::from(
+        "<div class=\"bw-controls\"><span class=\"bw-type-label\">Address type</span>\
+         <div class=\"bw-type-tabs\" role=\"group\" aria-label=\"Bitcoin address type\">",
+    );
+    for (index, kind) in types.iter().enumerate() {
+        out.push_str(&format!(
+            "<button type=\"button\" class=\"bw-type-btn{}\" data-type=\"{}\" aria-pressed=\"{}\">{}</button>",
+            if index == 0 { " active" } else { "" },
+            kind.value,
+            index == 0,
+            kind.label,
+        ));
+    }
+    out.push_str(
+        "</div><a class=\"bw-generator-link\" href=\"/brainwallet-generator\">One passphrase? Open the generator</a></div>",
+    );
+    out
+}
+
+fn render_brainwallet_index(base: &str) -> String {
+    let canonical = format!("{base}/brainwallet");
+    let ld_crumbs = breadcrumb_ld(
+        base,
+        &[
+            ("Home", Some("/")),
+            ("Tools", Some("/tools")),
+            ("Brainwallet", Some("/brainwallet")),
+        ],
+    );
+    let mut head = hub_head(
+        &canonical,
+        BRAINWALLET_TITLE,
+        BRAINWALLET_DESCRIPTION,
+        &[ld_crumbs],
+    );
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261121e\">\n");
+    let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
-         <span aria-current=\"page\">Brainwallet</span></nav>"
-            .to_string()
+         <span aria-current=\"page\">Brainwallet</span></nav>";
+    let mut cards = String::new();
+    for chain in &CHAINS {
+        cards.push_str(&format!(
+            "<a class=\"chain-card directory-card\" href=\"/brainwallet/{}\" style=\"--chain:{}\" title=\"{} brainwallet directory\">\
+             <span class=\"chain-icon-wrap\">{}</span>\
+             <span class=\"chain-name\">{}</span>\
+             <span class=\"chain-meta\">{} · 18,890 passphrases</span>\
+             </a>",
+            chain.slug,
+            chain.color,
+            escape_attr(chain.name),
+            chain_icon(chain, "chain-card-icon"),
+            chain.name,
+            chain.symbol,
+        ));
+    }
+    let body = format!(
+        "{}<main class=\"browse-page brainwallet-page brainwallet-index\">\
+         {crumbs}\
+         <section class=\"browse-hero\">\
+           <div class=\"browse-hero-title\"><svg class=\"browse-hero-icon\" aria-hidden=\"true\"><use href=\"/icons.svg#ui-key\"></use></svg><h1>Brainwallet directory</h1></div>\
+           <p>18,890 deterministic two-word passphrases across 18 chains, 60 per page. Pick a chain, derive its addresses locally and optionally check public balances.</p>\
+           <span class=\"bw-index-count\">18,890 passphrases · 315 pages per chain · 18 chains</span>\
+         </section>\
+         {warning}\
+         <section class=\"directory-links\">\
+           <a href=\"/brainwallet-generator\">Brainwallet generator</a>\
+           <a href=\"/key\">Key calculator</a>\
+           <a href=\"/seed\">Seed phrase</a>\
+           <a href=\"/private-keys\">Private key directory</a>\
+         </section>\
+         <div class=\"chain-grid directory-grid\">{cards}</div>\
+         <section class=\"card brainwallet-index-note\">\
+           <h2>How the directory works</h2>\
+           <p>Each chain page enumerates the same deterministic corpus: two words from a fixed 138-word list, sliced to 18,890 unique phrases and split into 315 pages of 60 rows. The page hashes each phrase with SHA-256 in your browser, derives the chain address with the shared WebAssembly core, and can check public balances.</p>\
+           <p>The passphrase, SHA-256 key and derived private keys never leave the page. They are not stored, not put in the URL, and are cleared when you leave. Balance lookups send only the public address, and only when the visible toggle is on. Use the <a href=\"/brainwallet-generator\">generator</a> for a single passphrase of your own.</p>\
+         </section>\
+         <aside class=\"edu-note\"><strong>Educational purpose.</strong> Finding a funded brainwallet by enumeration is infeasible. These pages are a derivation reference, not a wallet and not a recovery service.</aside>\
+         </main>",
+        site_header(),
+        warning = brainwallet_warning(),
+    );
+    html_document(BRAINWALLET_TITLE, &head, &body)
+}
+
+fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -> String {
+    let page = parse_page_number(requested)
+        .and_then(|value| value.to_u32())
+        .unwrap_or(1)
+        .clamp(1, BRAINWALLET_TOTAL_PAGES);
+    let self_url = format!("{base}{}", brainwallet_page_href(chain.slug, page));
+    let title = if page == 1 {
+        format!(
+            "{} brainwallet directory — 60 passphrases per page | Rotor",
+            chain.name
+        )
     } else {
         format!(
-            "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
-             <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
-             <a href=\"/brainwallet\">Brainwallet</a> / \
-             <span aria-current=\"page\">{}</span></nav>",
-            focus.crumb()
+            "{} brainwallet directory — page {} of {} | Rotor",
+            chain.name, page, BRAINWALLET_TOTAL_PAGES
         )
     };
+    let description = format!(
+        "Browse 18,890 deterministic {} brainwallet passphrases, 60 per page. SHA-256 keys and addresses are derived locally in your browser; balance checks are optional. Page {} of {}.",
+        chain.name, page, BRAINWALLET_TOTAL_PAGES
+    );
+    let robots = if page == 1 {
+        "index,follow"
+    } else {
+        "noindex,follow"
+    };
+    let curve = chain.kind.curve();
+    let initial_type = chain
+        .kind
+        .types()
+        .first()
+        .map(|kind| kind.value)
+        .unwrap_or("legacy");
+    let ld_app = json!({
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": format!("{} brainwallet directory", chain.name),
+        "url": self_url,
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebAssembly",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": description,
+    });
+    let chain_path = format!("/brainwallet/{}", chain.slug);
+    let ld_crumbs = breadcrumb_ld(
+        base,
+        &[
+            ("Home", Some("/")),
+            ("Brainwallet", Some("/brainwallet")),
+            (chain.name, Some(chain_path.as_str())),
+        ],
+    );
+    let head = format!(
+        "<meta name=\"description\" content=\"{}\">\n\
+         <link rel=\"canonical\" href=\"{}\">\n\
+         <meta name=\"robots\" content=\"{}\">\n\
+         <meta property=\"og:type\" content=\"website\">\n\
+         <meta property=\"og:title\" content=\"{}\">\n\
+         <meta property=\"og:description\" content=\"{}\">\n\
+         <meta property=\"og:url\" content=\"{}\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261121e\">\n\
+         {}{}",
+        escape_attr(&description),
+        escape_attr(&self_url),
+        robots,
+        escape_attr(&title),
+        escape_attr(&description),
+        escape_attr(&self_url),
+        json_ld(&ld_app),
+        json_ld(&ld_crumbs),
+    );
+    let chain_href = format!("/brainwallet/{}", chain.slug);
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Brainwallet", Some("/brainwallet")),
+        (chain.name, Some(&chain_href)),
+    ]);
     let body = format!(
-        "{}{}<main class=\"key-page\">{crumbs}<section class=\"hero\">\
-         <h1>{heading}</h1>\
-         <p>{tagline}</p>\
-         <p class=\"notice brainwallet-warning\" role=\"note\">Brainwallets are unsafe for real funds. \
-         A phrase people can remember is guessable and such keys are swept quickly. Use only \
-         throwaway phrases you are authorized to test; never a phrase that protects funds.</p></section>\
-         <nav class=\"entity-links\" aria-label=\"Brainwallet pages\">\
-         <span>Brainwallet pages</span>\
-         <a href=\"/brainwallet\">All chains</a>\
-         <a href=\"/brainwallet/bitcoin\">Bitcoin</a>\
-         <a href=\"/brainwallet/ethereum\">Ethereum</a>\
-         <a href=\"/key\">Key explorer</a>\
-         <a href=\"/seed\">Seed phrase</a></nav>\
-         <section class=\"card\"><h2>Passphrase</h2>\
-         <form id=\"brainwallet-form\" class=\"key-form\" autocomplete=\"off\" data-brain-chain=\"{focus_key}\">\
-         <label>Passphrase\
-         <input id=\"brainwallet-input\" type=\"password\" class=\"mono\" autocomplete=\"new-password\" spellcheck=\"false\" autocapitalize=\"off\" data-lpignore=\"true\" data-1p-ignore=\"true\" aria-describedby=\"brainwallet-help\">\
-         </label>\
-         <div class=\"key-buttons\">\
-         <button type=\"submit\" class=\"primary\" id=\"brainwallet-derive\">Derive</button>\
-         <button type=\"button\" id=\"brainwallet-generate\" title=\"Fill a random test phrase; nothing is derived until you press Derive\">Generate random phrase</button>\
-         <button type=\"button\" id=\"brainwallet-clear\" title=\"Clear the phrase and results\">Clear</button>\
-         </div>\
-         </form>\
-         <p id=\"brainwallet-help\" class=\"muted key-help\">The key is SHA-256 of the UTF-8 phrase, exactly like the key search brainwallet path. The phrase stays in this browser, is never stored and is never put in the URL; results are cleared when you leave the page.</p>\
-         <p id=\"brainwallet-status\" class=\"muted key-help\" role=\"status\" hidden></p>\
-         <p id=\"brainwallet-error\" class=\"error brainwallet-error\" role=\"alert\" hidden></p></section>\
-         <section class=\"card\"><h2>Results</h2>\
-         <div id=\"brainwallet-results\" class=\"mono\" data-brain-chain=\"{focus_key}\">Enter a throwaway passphrase and press Derive.</div></section>\
+        "{}<main class=\"browse-page brainwallet-page brainwallet-directory\" \
+         data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-curve=\"{}\" \
+         data-page=\"{}\" data-type=\"{}\" style=\"--chain:{}\">\
+         {crumbs}\
+         <section class=\"browse-hero\">\
+           <div class=\"browse-hero-title\">{icon}<h1>{} brainwallet directory</h1></div>\
+           <p>Deterministic two-word passphrases, 60 per page. Each row shows its SHA-256 private key, the {} address and an optional public balance. Everything is derived in this browser.</p>\
+         </section>\
+         {warning}\
+         {tabs}\
+         <section class=\"page-info\">\
+           <div class=\"page-info-text\">\
+             <svg class=\"page-info-icon\" aria-hidden=\"true\"><use href=\"/icons.svg#ui-key\"></use></svg>\
+             <span>Page <strong id=\"brainwallet-page-number\">#{page}</strong> of <strong id=\"brainwallet-total-pages\">#{total_pages}</strong> (<strong id=\"brainwallet-total-count\">18,890</strong> passphrases)</span>\
+             <span class=\"page-percent\" id=\"brainwallet-page-percent\"></span>\
+           </div>\
+           <div class=\"progress-track\" id=\"brainwallet-page-progress\" role=\"progressbar\" aria-label=\"Position in the corpus\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\"><span id=\"brainwallet-page-bar\" style=\"width:0%\"></span></div>\
+         </section>\
+         {pager_top}\
+         {types}\
+         <section class=\"balance-summary\" aria-label=\"Balance summary\">\
+           <div class=\"stat-card\"><span class=\"stat-label\">Balance</span><span class=\"stat-value\" id=\"brainwallet-total-balance\">—</span></div>\
+           <div class=\"stat-card\"><span class=\"stat-label\">Active</span><span class=\"stat-value\" id=\"brainwallet-total-active\">—</span></div>\
+           <div class=\"stat-card\"><span class=\"stat-label\">Received</span><span class=\"stat-value\" id=\"brainwallet-total-received\">—</span></div>\
+           <div class=\"stat-card\"><span class=\"stat-label\">Transactions</span><span class=\"stat-value\" id=\"brainwallet-total-tx\">—</span></div>\
+           <p class=\"balance-note\" id=\"brainwallet-note\"><label class=\"bw-auto-balance\"><input type=\"checkbox\" id=\"brainwallet-balance-toggle\" checked> Check balances for BTC and EVM rows after deriving.</label> <span class=\"bw-badge\" id=\"brainwallet-balance-badge\" data-state=\"on\">auto</span> <span id=\"brainwallet-note-text\">Public addresses only; passphrases and keys stay in this browser.</span></p>\
+         </section>\
+         <section class=\"keys-panel\">\
+           <div class=\"keys-header bw-rows-header\">\
+             <div>Private key / passphrase</div>\
+             <div>Address</div>\
+             <div class=\"bw-balance\">Balance</div>\
+           </div>\
+           <div id=\"brainwallet-rows\" class=\"bw-rows\"></div>\
+           <div class=\"bw-derive\">\
+             <span class=\"bw-derive-text\" id=\"brainwallet-derive-text\">Preparing the derivation core…</span>\
+             <div class=\"progress-track\" role=\"progressbar\" aria-label=\"Derivation progress\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\" id=\"brainwallet-derive-progress\"><span id=\"brainwallet-derive-bar\" style=\"width:0%\"></span></div>\
+           </div>\
+         </section>\
+         {pager_bottom}\
+         <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
+         </main>\
+         <script src=\"/brainwallet-engine.js?v=20261121e\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261121e\" defer></script>",
+        site_header(),
+        escape_attr(chain.slug),
+        escape_attr(chain.symbol),
+        escape_attr(chain.explorer),
+        curve,
+        page,
+        escape_attr(initial_type),
+        escape_attr(chain.color),
+        chain.name,
+        chain.name,
+        warning = brainwallet_warning(),
+        tabs = brainwallet_chain_tabs(Some(chain.slug)),
+        pager_top = brainwallet_pager_block(chain.slug, page, "top"),
+        types = brainwallet_address_types(chain),
+        pager_bottom = brainwallet_pager_block(chain.slug, page, "bottom"),
+        icon = chain_icon(chain, "browse-hero-icon"),
+        total_pages = BRAINWALLET_TOTAL_PAGES,
+    );
+    html_document(&title, &head, &body)
+}
+
+fn render_brainwallet_generator(base: &str) -> String {
+    let canonical = format!("{base}/brainwallet-generator");
+    let ld_crumbs = breadcrumb_ld(
+        base,
+        &[
+            ("Home", Some("/")),
+            ("Brainwallet", Some("/brainwallet")),
+            ("Generator", Some("/brainwallet-generator")),
+        ],
+    );
+    let mut head = hub_head(
+        &canonical,
+        BRAINWALLET_GENERATOR_TITLE,
+        BRAINWALLET_GENERATOR_DESCRIPTION,
+        &[ld_crumbs],
+    );
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261121e\">\n");
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Brainwallet", Some("/brainwallet")),
+        ("Generator", Some("/brainwallet-generator")),
+    ]);
+    let mut options = String::new();
+    for chain in &CHAINS {
+        options.push_str(&format!(
+            "<option value=\"{}\">{} ({})</option>",
+            escape_attr(chain.slug),
+            escape_attr(chain.name),
+            escape_attr(chain.symbol),
+        ));
+    }
+    let body = format!(
+        "{}<main class=\"key-page brainwallet-generator\">\
+         {crumbs}\
+         <section class=\"hero\">\
+           <h1>Brainwallet generator</h1>\
+           <p>Turn one passphrase into its SHA-256 private key and an address on any of 18 chains. Pick one, three, five or ten addresses; everything is derived in this browser.</p>\
+         </section>\
+         {warning}\
+         <section class=\"card\" aria-label=\"Passphrase input\">\
+           <h2>Passphrase</h2>\
+           <form id=\"brainwallet-form\" class=\"key-form\" autocomplete=\"off\" data-brain-mode=\"generator\">\
+             <div class=\"bw-form-grid\">\
+               <label>Network<select id=\"brainwallet-network\" class=\"mono\">{options}</select></label>\
+               <label>Passphrase<input id=\"brainwallet-input\" type=\"password\" class=\"mono\" autocomplete=\"new-password\" spellcheck=\"false\" autocapitalize=\"off\" data-lpignore=\"true\" data-1p-ignore=\"true\" aria-describedby=\"brainwallet-help\"></label>\
+               <label>Addresses<select id=\"brainwallet-count\"><option value=\"1\" selected>1</option><option value=\"3\">3</option><option value=\"5\">5</option><option value=\"10\">10</option></select></label>\
+             </div>\
+             <div class=\"bw-actions\">\
+               <button type=\"submit\" class=\"primary\" id=\"brainwallet-derive\">Generate &amp; Check Balance</button>\
+               <button type=\"button\" id=\"brainwallet-generate\" title=\"Fill a random test phrase; nothing is derived until you press Generate\">Generate random phrase</button>\
+               <button type=\"button\" id=\"brainwallet-clear\" title=\"Clear the phrase and results\">Clear</button>\
+             </div>\
+             <label class=\"bw-auto-balance\"><input type=\"checkbox\" id=\"brainwallet-auto-balance\"> Check the public balance for BTC and EVM after generating (opt-in; sends only the public address)</label>\
+           </form>\
+           <p id=\"brainwallet-help\" class=\"muted key-help\">The key is SHA-256 of the UTF-8 phrase, exactly like the key search brainwallet path. Extra addresses use key + n and are labelled. The phrase stays in this browser, is never stored and is never put in the URL; results are cleared when you leave.</p>\
+           <p id=\"brainwallet-status\" class=\"muted key-help\" role=\"status\" hidden></p>\
+           <p id=\"brainwallet-error\" class=\"error brainwallet-error\" role=\"alert\" hidden></p>\
+         </section>\
+         <section class=\"card\" aria-label=\"Results\">\
+           <div class=\"brainwallet-results-head\">\
+             <button type=\"button\" id=\"brainwallet-copy-all\" disabled>Copy all</button>\
+             <button type=\"button\" id=\"brainwallet-csv\" disabled>Download CSV</button>\
+           </div>\
+           <div id=\"brainwallet-results\" class=\"mono\">Enter a throwaway passphrase and press Generate.</div>\
+         </section>\
+         <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
          <script src=\"/brainwallet-engine.js?v=20261121e\" defer></script>\
          <script src=\"/brainwallet.js?v=20261121e\" defer></script>",
         site_header(),
-        "",
-        heading = focus.heading(),
-        tagline = focus.tagline(),
-        focus_key = focus.focus_key(),
+        warning = brainwallet_warning(),
     );
-    html_document(focus.title(), &head, &body)
+    html_document(BRAINWALLET_GENERATOR_TITLE, &head, &body)
 }
 
 fn chain_icon(chain: &ChainHub, class: &str) -> String {
@@ -3399,6 +3674,21 @@ fn render_sitemap(base: &str) -> String {
         ));
     }
     urls.push_str(&format!(
+        "  <url><loc>{}/brainwallet</loc></url>\n",
+        escape_attr(base)
+    ));
+    urls.push_str(&format!(
+        "  <url><loc>{}/brainwallet-generator</loc></url>\n",
+        escape_attr(base)
+    ));
+    for chain in &CHAINS {
+        urls.push_str(&format!(
+            "  <url><loc>{}/brainwallet/{}</loc></url>\n",
+            escape_attr(base),
+            chain.slug
+        ));
+    }
+    urls.push_str(&format!(
         "  <url><loc>{}/bitcoin-puzzle</loc></url>
 ",
         escape_attr(base)
@@ -3418,9 +3708,6 @@ fn render_sitemap(base: &str) -> String {
         "/faq",
         "/disclaimer",
         "/donate",
-        "/brainwallet",
-        "/brainwallet/bitcoin",
-        "/brainwallet/ethereum",
         "/seed",
         "/mnemonic-converter",
         "/vanity",
@@ -4373,90 +4660,171 @@ mod tests {
     }
 
     #[test]
-    fn brainwallet_shell_has_form_and_client_script() {
+    fn brainwallet_index_lists_18_chains_and_links_the_generator() {
         let base = "https://rotor.pxbt.app";
-        let (body, _, _) = seo_asset(base, "/brainwallet", "").expect("/brainwallet");
+        let (body, content_type, status) =
+            seo_asset(base, "/brainwallet", "").expect("/brainwallet");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(body.contains(&format!("<title>{BRAINWALLET_TITLE}</title>")));
+        assert!(body.contains("<span aria-current=\"page\">Brainwallet</span>"));
+        assert!(body.contains("18,890"));
+        assert!(body.contains("315 pages"));
+        assert!(body.contains("href=\"/brainwallet-generator\""));
+        assert!(body.contains("brainwallet.css?v=20261121e"));
         assert!(body.contains("<span>Tools</span>"));
-        assert!(body.contains("type=\"password\""));
-        assert!(body.contains(">Derive</button>"));
-        assert!(body.contains("id=\"brainwallet-generate\""));
-        assert!(body.contains("id=\"brainwallet-results\""));
-        assert!(body.contains("data-brain-chain=\"all\""));
-        assert!(
-            body.contains("<script src=\"/brainwallet-engine.js?v=20261121e\" defer></script>")
+        for chain in &CHAINS {
+            assert!(
+                body.contains(&format!("href=\"/brainwallet/{}\"", chain.slug)),
+                "missing chain tile {}",
+                chain.slug
+            );
+        }
+        assert_eq!(
+            body.matches("class=\"chain-card directory-card\"").count(),
+            CHAINS.len()
         );
-        assert!(body.contains("<script src=\"/brainwallet.js?v=20261121e\" defer></script>"));
-        assert!(body.contains("/theme.js?v=20261121e"));
-        assert!(body.contains("Brainwallets are unsafe"));
-        // No server-side derivation: the page carries no key payload.
-        assert!(!body.contains("window.__ROTOR_KEY__"));
-
-        let (script, content_type) =
-            static_asset("/brainwallet.js").expect("/brainwallet.js is embedded");
-        assert_eq!(content_type, "application/javascript; charset=utf-8");
-        let needle = b"brainwallet-results";
-        assert!(script.windows(needle.len()).any(|w| w == needle));
-        let (engine, content_type) =
-            static_asset("/brainwallet-engine.js").expect("/brainwallet-engine.js is embedded");
-        assert_eq!(content_type, "application/javascript; charset=utf-8");
-        let needle = b"phraseKey";
-        assert!(engine.windows(needle.len()).any(|w| w == needle));
+        // The index is a directory, not the calculator.
+        assert!(!body.contains("id=\"brainwallet-form\""));
+        assert!(!body.contains("type=\"password\""));
+        assert!(!body.contains("brainwallet-directory.js"));
+        assert!(body.contains("robots\" content=\"index,follow\""));
+        assert!(body.contains("\"@type\":\"BreadcrumbList\""));
+        assert!(body.contains(BRAINWALLET_WARNING));
+        assert!(body.contains("brainwallet.css?v=20261121e"));
     }
 
     #[test]
-    fn brainwallet_chain_pages_and_alias_are_served_and_indexed() {
+    fn brainwallet_directory_pages_paginate_and_link_assets() {
         let base = "https://rotor.pxbt.app";
-        let pages = [
-            ("/brainwallet/bitcoin", BRAINWALLET_BITCOIN_TITLE, "bitcoin"),
-            (
-                "/brainwallet/ethereum",
-                BRAINWALLET_ETHEREUM_TITLE,
-                "ethereum",
-            ),
-            ("/brainwallet-generator", BRAINWALLET_TITLE, "all"),
-        ];
-        for (path, title, focus) in pages {
+        for (path, slug) in [
+            ("/brainwallet/bitcoin", "bitcoin"),
+            ("/brainwallet/ethereum", "ethereum"),
+            ("/brainwallet/solana", "solana"),
+            ("/brainwallet/ton", "ton"),
+        ] {
             let (body, content_type, status) = seo_asset(base, path, "").expect(path);
             assert_eq!(status, 200, "{path}");
             assert_eq!(content_type, "text/html; charset=utf-8", "{path}");
+            assert!(body.contains(&format!("data-chain=\"{slug}\"")), "{path}");
+            assert!(body.contains("data-page=\"1\""), "{path}");
+            assert!(body.contains("id=\"brainwallet-rows\""), "{path}");
+            assert!(body.contains("id=\"brainwallet-balance-toggle\""), "{path}");
+            assert!(body.contains("id=\"brainwallet-chain-tabs\""), "{path}");
             assert!(
-                body.contains(&format!("<title>{title}</title>")),
-                "{path} title"
+                body.contains("id=\"brainwallet-total-pages\">#315<"),
+                "{path}"
             );
             assert!(
-                body.contains(&format!("data-brain-chain=\"{focus}\"")),
-                "{path} focus"
+                body.contains("id=\"brainwallet-total-count\">18,890<"),
+                "{path}"
             );
-            assert!(body.contains("Brainwallets are unsafe"), "{path} warning");
+            assert!(body.contains("Brainwallets are unsafe"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261121e"), "{path}");
             assert!(
-                body.contains("brainwallet-engine.js?v=20261121e"),
-                "{path} engine"
+                body.contains("brainwallet-directory.js?v=20261121e"),
+                "{path}"
             );
-            assert!(body.contains("brainwallet.js?v=20261121e"), "{path} script");
+            assert!(body.contains("brainwallet.css?v=20261121e"), "{path}");
+            // The directory has no Derive button.
+            assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
-        // The alias canonicalizes to the index, not to itself.
-        let (alias, _, _) = seo_asset(base, "/brainwallet-generator", "").expect("alias");
-        assert!(
-            alias.contains("<link rel=\"canonical\" href=\"https://rotor.pxbt.app/brainwallet\">")
+
+        // Page 1 is indexable; page 315 is the 50-row tail and is noindex.
+        let (page1, _, _) = seo_asset(base, "/brainwallet/bitcoin", "").expect("page 1");
+        assert!(page1.contains("robots\" content=\"index,follow\""));
+        let (page315, _, status) =
+            seo_asset(base, "/brainwallet/bitcoin/315", "").expect("page 315");
+        assert_eq!(status, 200);
+        assert!(page315.contains("data-page=\"315\""));
+        assert!(page315.contains("id=\"brainwallet-page-number\">#315<"));
+        assert!(page315.contains("robots\" content=\"noindex,follow\""));
+        let (clamped, _, _) = seo_asset(base, "/brainwallet/bitcoin/999", "").expect("clamped");
+        assert!(clamped.contains("data-page=\"315\""));
+        assert_eq!(
+            seo_asset(base, "/brainwallet/unknown", "").map(|(_, _, status)| status),
+            Some(404)
         );
-        let (ethereum, _, _) = seo_asset(base, "/brainwallet/ethereum", "").expect("ethereum");
-        assert!(ethereum.contains(
-            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/brainwallet/ethereum\">"
-        ));
+        assert_eq!(
+            seo_asset(base, "/brainwallet/bitcoin/nope", "").map(|(_, _, status)| status),
+            Some(404)
+        );
+
+        // Bitcoin and Litecoin expose the address-type switch; EVM chains do not.
+        let (btc, _, _) = seo_asset(base, "/brainwallet/bitcoin", "").expect("btc");
+        for kind in ["legacy", "segwit", "script", "taproot"] {
+            assert!(btc.contains(&format!("data-type=\"{kind}\"")), "{kind}");
+        }
+        let (ltc, _, _) = seo_asset(base, "/brainwallet/litecoin", "").expect("ltc");
+        for kind in ["legacy", "segwit", "script"] {
+            assert!(ltc.contains(&format!("data-type=\"{kind}\"")), "{kind}");
+        }
+        let (eth, _, _) = seo_asset(base, "/brainwallet/ethereum", "").expect("eth");
+        assert!(!eth.contains("data-type=\"segwit\""));
+    }
+
+    #[test]
+    fn brainwallet_generator_is_the_canonical_calculator() {
+        let base = "https://rotor.pxbt.app";
+        let (body, content_type, status) =
+            seo_asset(base, "/brainwallet-generator", "").expect("/brainwallet-generator");
+        assert_eq!(status, 200);
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert!(body.contains(&format!("<title>{BRAINWALLET_GENERATOR_TITLE}</title>")));
+        assert!(body.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/brainwallet-generator\">"
+        )));
+        assert!(body.contains("robots\" content=\"index,follow\""));
+        assert!(body.contains("id=\"brainwallet-network\""));
+        for chain in &CHAINS {
+            assert!(
+                body.contains(&format!("<option value=\"{}\">", chain.slug)),
+                "missing network option {}",
+                chain.slug
+            );
+        }
+        assert!(body.contains("id=\"brainwallet-count\""));
+        assert!(body.contains(">Generate &amp; Check Balance</button>"));
+        assert!(body.contains("id=\"brainwallet-auto-balance\""));
+        assert!(body.contains("id=\"brainwallet-copy-all\""));
+        assert!(body.contains("id=\"brainwallet-csv\""));
+        assert!(body.contains("type=\"password\""));
+        assert!(body.contains("brainwallet-engine.js?v=20261121e"));
+        assert!(body.contains("brainwallet.js?v=20261121e"));
+        assert!(body.contains("brainwallet.css?v=20261121e"));
+        // Trailing slash resolves to the same canonical page.
+        assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
+
+        let (directory, content_type) =
+            static_asset("/brainwallet-directory.js").expect("/brainwallet-directory.js");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(String::from_utf8_lossy(directory).contains("brainwallet-balance-toggle"));
+        let (css, content_type) = static_asset("/brainwallet.css").expect("/brainwallet.css");
+        assert_eq!(content_type, "text/css; charset=utf-8");
+        assert!(String::from_utf8_lossy(css).contains(".bw-row"));
+        let (engine, _) = static_asset("/brainwallet-engine.js").expect("/brainwallet-engine.js");
+        let engine = String::from_utf8_lossy(engine);
+        assert!(engine.contains("pageRows"));
+        assert!(engine.contains("corpusPhrase"));
+        let (generator, _) = static_asset("/brainwallet.js").expect("/brainwallet.js");
+        let generator = String::from_utf8_lossy(generator);
+        assert!(generator.contains("brainwallet-results"));
+        assert!(generator.contains("brainwallet-network"));
 
         let sitemap = render_sitemap(base);
-        for path in [
-            "/brainwallet",
-            "/brainwallet/bitcoin",
-            "/brainwallet/ethereum",
-        ] {
+        for path in ["/brainwallet", "/brainwallet-generator"] {
             assert!(
                 sitemap.contains(&format!("<loc>{base}{path}</loc>")),
                 "sitemap missing {path}"
             );
         }
-        assert!(!sitemap.contains("/brainwallet-generator"));
+        for chain in &CHAINS {
+            assert!(
+                sitemap.contains(&format!("<loc>{base}/brainwallet/{}</loc>", chain.slug)),
+                "sitemap missing /brainwallet/{}",
+                chain.slug
+            );
+        }
     }
 
     #[test]

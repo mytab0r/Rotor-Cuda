@@ -1,0 +1,305 @@
+/* Brainwallet directory and generator additions. Loaded after site.css, so it
+ * only adds the directory table, address-type switch and result blocks that
+ * are not part of the shared stylesheet. Every colour comes from the site
+ * custom properties, so light and dark themes both follow theme.js. */
+
+.brainwallet-directory .bw-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  padding: 4px 0;
+}
+
+/* Four summary cards: Balance / Active / Received / Transactions. */
+.brainwallet-directory .balance-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.bw-type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.bw-type-btn {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.bw-type-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.bw-type-btn.active {
+  border-color: color-mix(in srgb, var(--chain, var(--accent)) 62%, var(--border));
+  background: color-mix(in srgb, var(--chain, var(--accent)) 14%, var(--panel));
+  color: var(--text);
+}
+
+.bw-type-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.bw-rows-header,
+.bw-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.35fr) 126px;
+  align-items: start;
+  gap: 14px;
+  padding: 0 18px;
+}
+
+.bw-rows-header {
+  min-height: 42px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.bw-rows-header .bw-balance { text-align: right; }
+.bw-row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(31, 42, 56, .7);
+}
+.bw-row:last-child { border-bottom: 0; }
+.bw-row:hover { background: rgba(255, 255, 255, .022); }
+html[data-theme="light"] .bw-row { border-bottom-color: var(--border); }
+html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
+
+.bw-cell { min-width: 0; }
+.bw-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.bw-phrase-line { margin-top: 4px; }
+
+.bw-key-value,
+.bw-phrase-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+}
+.bw-key-value { color: var(--text); }
+.bw-phrase-value { color: var(--text-2); }
+
+.bw-address-line { gap: 5px; }
+.bw-address-link {
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.bw-address-line .bw-copy {
+  flex: none;
+}
+
+.bw-explorer {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  background: var(--panel-2);
+}
+.bw-explorer:hover { color: var(--text); border-color: var(--border-strong); }
+.bw-explorer .icon { width: 15px; height: 15px; }
+
+.bw-copy.copied { color: var(--ok); border-color: var(--ok); }
+.bw-copy { width: 40px; min-height: 40px; flex: none; }
+
+.bw-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.bw-balance-value { font-size: 12px; }
+.bw-balance-value.has-balance { color: var(--ok); }
+
+.bw-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.bw-badge[data-state="derived"],
+.bw-badge[data-state="local"] { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 45%, var(--border)); }
+.bw-badge[data-state="checking"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.bw-badge[data-state="active"],
+.bw-badge[data-state="on"] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 55%, var(--border)); }
+.bw-badge[data-state="error"] { color: var(--error, #f87171); border-color: color-mix(in srgb, var(--error, #f87171) 55%, var(--border)); }
+.bw-badge[data-state="off"],
+.bw-badge[data-state="pending"],
+.bw-badge[data-state="empty"] { color: var(--muted); }
+.bw-missing { color: var(--muted); font-size: 12px; }
+.bw-row-error { color: var(--error, #f87171); font-size: 12px; overflow-wrap: anywhere; }
+
+.bw-derive {
+  display: grid;
+  gap: 8px;
+  padding: 12px 18px 16px;
+}
+.bw-derive-text { color: var(--muted); font-size: 12.5px; }
+
+.bw-pager-block { display: grid; gap: 10px; }
+
+/* Generator page */
+
+.brainwallet-generator .bw-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) minmax(0, 120px);
+  gap: 14px 18px;
+  align-items: end;
+}
+.brainwallet-generator .bw-form-grid label { display: grid; gap: 6px; }
+.brainwallet-generator .bw-form-grid select,
+.brainwallet-generator .bw-form-grid input { min-height: 42px; }
+.brainwallet-generator .key-form { display: block; }
+.brainwallet-generator .bw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.brainwallet-generator .bw-actions button { min-height: 40px; }
+.bw-auto-balance {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+}
+.bw-auto-balance input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  margin-top: 2px;
+  flex: none;
+}
+
+.brainwallet-results-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.brainwallet-results-head button { min-height: 36px; }
+
+.brainwallet-result {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel-2);
+}
+.brainwallet-result-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.brainwallet-result .brainwallet-row { padding: 7px 0; }
+.brainwallet-result .brainwallet-copy { min-height: 30px; padding: 0 10px; }
+
+.brainwallet-generator .brainwallet-actions[disabled] { opacity: .55; }
+
+.bw-index-count {
+  grid-column: 1 / -1;
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* The light theme needs a darker warning and address link than the dark
+ * defaults in site.css. */
+html[data-theme="light"] .brainwallet-warning {
+  border-color: #d6a13a;
+  background: #fff7e6;
+  color: #7a4b00;
+}
+html[data-theme="light"] .bw-address-link,
+html[data-theme="light"] .brainwallet-addr { color: #1f5f9e; }
+
+.brainwallet-directory .balance-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.brainwallet-directory .balance-note .bw-auto-balance { margin-top: 0; }
+.brainwallet-directory .balance-note #brainwallet-note-text { flex: 1 1 280px; }
+
+@media (max-width: 860px) {
+  .bw-rows-header { display: none; }
+  .bw-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .bw-balance { align-items: flex-start; text-align: left; }
+  .brainwallet-directory .balance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .brainwallet-generator .bw-form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (pointer: coarse) {
+  .bw-copy,
+  .bw-explorer { width: 44px; min-height: 44px; }
+}
+
+@media (max-width: 520px) {
+  .bw-type-btn { flex: 1 1 auto; justify-content: center; }
+  .bw-explorer { width: 44px; min-height: 44px; }
+  .bw-copy { width: 44px; min-height: 44px; }
+  .bw-address-line { flex-wrap: wrap; }
+}
