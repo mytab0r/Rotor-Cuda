@@ -2,6 +2,7 @@ pub mod base58;
 pub mod benchmark;
 pub mod bsgs;
 pub mod bsgs_workfile;
+pub mod chain;
 pub mod checkpoint;
 pub mod cli;
 pub mod coordinator;

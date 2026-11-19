@@ -73,8 +73,14 @@ pub fn address_from_hash160(hash: &[u8; 20], _compressed: bool) -> String {
 }
 
 pub fn wif_encode(key: &Scalar, compressed: bool) -> String {
+    wif_encode_with_version(key, compressed, WIF_VERSION)
+}
+
+/// Encode a WIF private key with an explicit version byte (for example
+/// Litecoin `0xb0` or Dogecoin `0x9e`).
+pub fn wif_encode_with_version(key: &Scalar, compressed: bool, version: u8) -> String {
     let mut payload = [0u8; 34];
-    payload[0] = WIF_VERSION;
+    payload[0] = version;
     payload[1..33].copy_from_slice(&key.to_bytes_be());
     let length = if compressed {
         payload[33] = WIF_COMPRESSED_FLAG;
@@ -83,4 +89,35 @@ pub fn wif_encode(key: &Scalar, compressed: bool) -> String {
         33
     };
     encode_check(&payload[..length])
+}
+
+/// Ripple's base58 alphabet, used by XRP classic addresses.
+const RIPPLE_ALPHABET: &[u8; 58] = b"rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+
+/// Encode bytes with Ripple's base58 alphabet. The checksum is the caller's
+/// responsibility; this only replaces the alphabet, so the same bytes encode
+/// differently from Bitcoin base58.
+pub fn encode_ripple(data: &[u8]) -> String {
+    let zeros = data.iter().take_while(|&&byte| byte == 0).count();
+    let mut digits: Vec<u8> = Vec::with_capacity(data.len() * 138 / 100 + 1);
+    for &byte in &data[zeros..] {
+        let mut carry = u32::from(byte);
+        for digit in &mut digits {
+            let value = (u32::from(*digit) << 8) | carry;
+            *digit = (value % 58) as u8;
+            carry = value / 58;
+        }
+        while carry > 0 {
+            digits.push((carry % 58) as u8);
+            carry /= 58;
+        }
+    }
+    let mut out = String::with_capacity(zeros + digits.len());
+    for _ in 0..zeros {
+        out.push(char::from(RIPPLE_ALPHABET[0]));
+    }
+    for &digit in digits.iter().rev() {
+        out.push(char::from(RIPPLE_ALPHABET[digit as usize]));
+    }
+    out
 }

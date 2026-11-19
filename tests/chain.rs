@@ -1,0 +1,283 @@
+//! Chain descriptor registry and family derivation fixtures.
+//!
+//! The expected addresses are the site's key-1 fixtures (see
+//! `crates/rotor-wasm/smoke.mjs`) and the RFC8032 ed25519 vector, so a desktop
+//! change that drifts from the site fails here.
+
+use std::collections::HashSet;
+
+use rotor::chain::{self, AddressEncoding, Curve, Family, KeyMaterial};
+use rotor::scalar::Scalar;
+use rotor::secp;
+
+fn secp_derive(id: &str, key: &Scalar, compressed: bool) -> chain::DerivedAddress {
+    let descriptor = chain::by_id(id).expect("known chain");
+    let point = secp::mul_g(key);
+    descriptor
+        .derive(KeyMaterial::Secp {
+            key,
+            point: &point,
+            compressed,
+        })
+        .expect("secp derivation")
+}
+
+#[test]
+fn registry_covers_all_eighteen_site_networks() {
+    let ids: Vec<&str> = chain::all()
+        .iter()
+        .map(|descriptor| descriptor.id)
+        .collect();
+    assert_eq!(ids.len(), 18, "one descriptor per site network");
+
+    let unique: HashSet<&str> = ids.iter().copied().collect();
+    assert_eq!(unique.len(), ids.len(), "chain ids must be unique");
+
+    for expected in [
+        "bitcoin",
+        "ethereum",
+        "bnb",
+        "arbitrum",
+        "optimism",
+        "base",
+        "polygon",
+        "avalanche",
+        "zksync",
+        "solana",
+        "tron",
+        "xrp",
+        "litecoin",
+        "bitcoin-cash",
+        "dogecoin",
+        "zcash",
+        "sui",
+        "ton",
+    ] {
+        assert!(unique.contains(expected), "missing chain {expected}");
+    }
+}
+
+#[test]
+fn family_mapping_is_explicit() {
+    let expected: &[(&str, Family)] = &[
+        ("bitcoin", Family::SecpHash160),
+        ("litecoin", Family::SecpHash160),
+        ("dogecoin", Family::SecpHash160),
+        ("bitcoin-cash", Family::SecpHash160),
+        ("zcash", Family::SecpHash160),
+        ("xrp", Family::SecpHash160),
+        ("ethereum", Family::EvmKeccak),
+        ("bnb", Family::EvmKeccak),
+        ("arbitrum", Family::EvmKeccak),
+        ("optimism", Family::EvmKeccak),
+        ("base", Family::EvmKeccak),
+        ("polygon", Family::EvmKeccak),
+        ("avalanche", Family::EvmKeccak),
+        ("zksync", Family::EvmKeccak),
+        ("tron", Family::TronKeccak),
+        ("solana", Family::Ed25519),
+        ("sui", Family::Ed25519),
+        ("ton", Family::Ton),
+    ];
+    assert_eq!(expected.len(), chain::all().len());
+
+    for (id, family) in expected {
+        let descriptor = chain::by_id(id).expect("known chain");
+        assert_eq!(descriptor.family, *family, "{id}");
+    }
+}
+
+#[test]
+fn descriptor_fields_are_populated() {
+    for descriptor in chain::all() {
+        assert!(!descriptor.id.is_empty());
+        assert!(!descriptor.name.is_empty());
+        assert!(
+            descriptor.explorer.contains("{address}"),
+            "{} explorer must be a template",
+            descriptor.id
+        );
+        assert!(
+            descriptor.hd_path.is_some(),
+            "{} needs an HD path",
+            descriptor.id
+        );
+
+        let expected_curve = match descriptor.family {
+            Family::SecpHash160 | Family::EvmKeccak | Family::TronKeccak => Curve::Secp256k1,
+            Family::Ed25519 | Family::Ton => Curve::Ed25519,
+        };
+        assert_eq!(descriptor.curve, expected_curve, "{}", descriptor.id);
+
+        let encoding_matches_family = match descriptor.family {
+            Family::SecpHash160 => matches!(
+                descriptor.encoding,
+                AddressEncoding::Base58Check(_) | AddressEncoding::RippleBase58
+            ),
+            Family::EvmKeccak => descriptor.encoding == AddressEncoding::EvmHex,
+            Family::TronKeccak => descriptor.encoding == AddressEncoding::TronBase58,
+            Family::Ed25519 => matches!(
+                descriptor.encoding,
+                AddressEncoding::SolanaBase58 | AddressEncoding::SuiHex
+            ),
+            Family::Ton => descriptor.encoding == AddressEncoding::TonUserFriendly,
+        };
+        assert!(
+            encoding_matches_family,
+            "{} encoding does not match its family",
+            descriptor.id
+        );
+    }
+
+    let bitcoin = chain::by_id("bitcoin").expect("known chain");
+    assert_eq!(
+        bitcoin.explorer_url("1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"),
+        "https://mempool.space/address/1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
+    );
+}
+
+#[test]
+fn bitcoin_and_ethereum_key_one_vectors() {
+    let key = Scalar::from_u64(1);
+
+    let bitcoin = secp_derive("bitcoin", &key, true);
+    assert_eq!(bitcoin.address, "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH");
+    assert_eq!(
+        bitcoin.secret.as_deref(),
+        Some("KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn")
+    );
+    assert_eq!(
+        bitcoin.public_hex,
+        "0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798"
+    );
+
+    let uncompressed = secp_derive("bitcoin", &key, false);
+    assert_eq!(uncompressed.address, "1EHNa6Q4Jz2uvNExL497mE43ikXhwF6kZm");
+
+    let ethereum = secp_derive("ethereum", &key, true);
+    assert_eq!(
+        ethereum.address,
+        "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+    );
+    assert_eq!(ethereum.secret, None);
+    assert_eq!(
+        ethereum.public_hex,
+        "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798\
+         483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8"
+    );
+}
+
+#[test]
+fn secp_hash160_and_keccak_family_vectors() {
+    let key = Scalar::from_u64(1);
+
+    // Site fixtures for key 1, one per non-BTC family member.
+    let vectors: &[(&str, &str)] = &[
+        ("litecoin", "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ"),
+        ("dogecoin", "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE"),
+        ("bitcoin-cash", "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"),
+        ("xrp", "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH"),
+        ("zcash", "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs"),
+        ("tron", "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"),
+    ];
+
+    for (id, address) in vectors {
+        assert_eq!(&secp_derive(id, &key, true).address, address, "{id}");
+    }
+
+    // Every EVM chain shares the account; only the explorer differs.
+    for id in [
+        "bnb",
+        "arbitrum",
+        "optimism",
+        "base",
+        "polygon",
+        "avalanche",
+        "zksync",
+    ] {
+        assert_eq!(
+            secp_derive(id, &key, true).address,
+            "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+            "{id}"
+        );
+    }
+
+    // XRP is the one secp-hash160 chain without a WIF secret.
+    assert_eq!(secp_derive("xrp", &key, true).secret, None);
+    assert!(secp_derive("litecoin", &key, true).secret.is_some());
+}
+
+#[test]
+fn ed25519_family_uses_the_rfc8032_vector() {
+    let seed_hex = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
+    let mut seed = [0u8; 32];
+    for (index, byte) in seed.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&seed_hex[index * 2..index * 2 + 2], 16).expect("hex byte");
+    }
+
+    let solana = chain::by_id("solana").expect("known chain");
+    let derived = solana
+        .derive(KeyMaterial::Seed(&seed))
+        .expect("solana derivation");
+    assert_eq!(
+        derived.address,
+        "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z"
+    );
+    assert_eq!(
+        derived.public_hex,
+        "D75A980182B10AB7D54BFED3C964073A0EE172F3DAA62325AF021A68F707511A"
+    );
+
+    let sui = chain::by_id("sui").expect("known chain");
+    let derived = sui
+        .derive(KeyMaterial::Seed(&seed))
+        .expect("sui derivation");
+    assert_eq!(
+        derived.address,
+        "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d"
+    );
+    assert_eq!(derived.secret, None);
+}
+
+#[test]
+fn ton_derivation_is_an_explicit_unsupported_error() {
+    let ton = chain::by_id("ton").expect("known chain");
+    assert!(!ton.enabled, "TON is not enabled until v4R2 exists");
+
+    let seed = [0u8; 32];
+    let error = ton
+        .derive(KeyMaterial::Seed(&seed))
+        .expect_err("TON must not fake an address");
+    assert!(
+        error.contains("not implemented") && error.contains("v4R2"),
+        "unexpected TON error: {error}"
+    );
+
+    // Every other descriptor is enabled.
+    for descriptor in chain::all()
+        .iter()
+        .filter(|descriptor| descriptor.id != "ton")
+    {
+        assert!(descriptor.enabled, "{} should be enabled", descriptor.id);
+    }
+}
+
+#[test]
+fn wrong_key_material_is_rejected() {
+    let seed = [0u8; 32];
+    let bitcoin = chain::by_id("bitcoin").expect("known chain");
+    assert!(bitcoin.derive(KeyMaterial::Seed(&seed)).is_err());
+
+    let key = Scalar::from_u64(1);
+    let point = secp::mul_g(&key);
+    let solana = chain::by_id("solana").expect("known chain");
+    assert!(
+        solana
+            .derive(KeyMaterial::Secp {
+                key: &key,
+                point: &point,
+                compressed: true,
+            })
+            .is_err()
+    );
+}
