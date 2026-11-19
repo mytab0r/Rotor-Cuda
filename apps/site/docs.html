@@ -141,6 +141,15 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
     </ul>
 
+    <h2>Site map and donor parity</h2>
+    <p>
+      <a href="/site-map">/site-map</a> maps every Rotor route to its
+      privatekeyfinder.io and secretscan.org equivalent. It also carries the
+      feature matrix: parity, partial and missing capabilities with a priority,
+      kept in <code>apps/site/site-map-data.js</code> so a gap closes only when
+      the data says so.
+    </p>
+
     <h2>Security and disclaimer</h2>
     <ul>
       <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
