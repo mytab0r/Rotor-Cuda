@@ -149,12 +149,31 @@ browser capture in the PR.
       or only address encoding is in scope.
 - [x] Per-chain address-generator pages that reuse `/key` with a chain preset:
       Ethereum, BNB, Tron, Solana, XRP, TON, Bitcoin Cash, Taproot/SegWit.
+- [x] Per-chain address-generator pages that reuse `/key` with a chain preset:
+      Ethereum, BNB, Tron, Solana, XRP, TON, Bitcoin Cash, Taproot/SegWit.
       `/key?chain=<slug>` (plus `&type=taproot|segwit`) preselects the chain,
       address row and ed25519 curve in `key.js`; entry cards live on `/tools`.
       Evidence: `theme_script_and_chain_generator_entries_are_served`.
-- [ ] `/hex-dec-bin` converter and `/reconstruction` private-key reconstruction.
-- [ ] `/public-key` (public key → addresses) and `/pubkey-add` (P + Q).
-- [ ] `/keystore-parser` local UTC/JSON keystore decrypt; no upload.
+- [x] `/hex-dec-bin` converter and `/reconstruction` private-key reconstruction.
+      Hex/dec/bin handles unsigned values up to 256 bits with validation and copy.
+      `/reconstruction` is a known-byte assembler (`offset:format:value`, hex/
+      bin/dec/ascii); missing or overlapping bytes are reported and never
+      guessed, so it does not claim key recovery.
+      Evidence: `apps/site/key-tools-test.mjs` (parser, assembly, wasm report);
+      `key_utility_pages_are_served_and_indexed` route test.
+- [x] `/public-key` (public key → addresses) and `/pubkey-add` (P + Q).
+      Both use new wasm exports `public_key_report` / `public_key_add`; key 1
+      test vectors for BTC P2PKH/P2WPKH/P2SH/P2TR, EVM and TRON, and G + G = 2G;
+      invalid, off-curve and infinity results are rejected.
+      Evidence: `cargo test -p rotor-wasm` (`public_key_*` tests) and
+      `apps/site/key-tools-test.mjs`.
+- [x] `/keystore-parser` local UTC/JSON keystore decrypt; no upload.
+      V3 `aes-128-ctr` with `scrypt` or `pbkdf2` (HMAC-SHA256), 32-byte derived
+      key and MAC check run inside the wasm core; the page passes the password
+      only to local memory and clears it on `pagehide`. Unsupported versions,
+      ciphers, KDFs and oversized scrypt parameters get an explicit message.
+      Evidence: scrypt and PBKDF2 fixtures decrypt to the published key and EVM
+      address (`keystore::tests`, `apps/site/key-tools-test.mjs`).
 - [ ] Transaction builders/decoders per secretscan route, reusing the
       tx-sign-broadcast review gate; no server-side signing.
 - [ ] `/wallets` in-site rich-list catalogue with search/filter and explicit
