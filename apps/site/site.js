@@ -265,10 +265,10 @@
         return parser.detect(value);
       }).then(function (result) {
         if (result.kind === 'mnemonic') {
-          if (selectedChain) {
-            window.location.href = '/mnemonic-seeds/' + encodeURIComponent(selectedChain);
-            return;
-          }
+          /* Never drop the phrase: /seed restores it from sessionStorage,
+           * fills the field and derives immediately. The phrase stays out of
+           * the URL. The chain strip does not change seed derivation, so the
+           * selected chain is intentionally not forwarded. */
           try { sessionStorage.setItem('rotor-seed-phrase', result.phrase); } catch (err) { /* private mode */ }
           window.location.href = '/seed';
           return;
