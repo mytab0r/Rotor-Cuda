@@ -4663,6 +4663,9 @@ mod tests {
         let script = std::str::from_utf8(script).expect("utf-8 js");
         assert!(script.contains("entropyToMnemonic"));
         assert!(script.contains("mnemonic-seeds"));
+        assert!(script.contains("privateKeyFor"));
+        assert!(script.contains("Copy mnemonic"));
+        assert!(directory.contains("mnemonic-key-line"));
 
         let (body, _, status) = seo_asset(base, "/mnemonic-seeds/bitcoin", "").expect("chain page");
         assert_eq!(status, 200);
