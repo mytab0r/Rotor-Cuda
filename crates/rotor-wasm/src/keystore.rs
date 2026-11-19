@@ -6,8 +6,10 @@
 //! the result is the 32-byte private key, or an error that explains the first
 //! failed check.
 //!
-//! MAC: `keccak256(derived_key[16..32] || ciphertext)[..16]` (constant-time
-//! comparison). Wrong password and wrong MAC are the same error on purpose.
+//! MAC: `keccak256(derived_key[16..32] || ciphertext)`. Standard keystores
+//! written by geth and MetaMask store the full 32-byte hash; older ones store
+//! only its leftmost 16 bytes, which is accepted as well. Both are compared in
+//! constant time. Wrong password and wrong MAC are the same error on purpose.
 
 use aes::cipher::{KeyIvInit, StreamCipher};
 use sha2_010::Sha256;
@@ -73,9 +75,9 @@ pub fn decrypt(request: &Request<'_>) -> Result<[u8; 32], String> {
             request.ciphertext.len()
         ));
     }
-    if request.mac.len() != 16 {
+    if request.mac.len() != 16 && request.mac.len() != 32 {
         return Err(format!(
-            "Invalid keystore: the MAC is {} bytes, expected 16.",
+            "Invalid keystore: the MAC is {} bytes, expected 16 (legacy) or 32.",
             request.mac.len()
         ));
     }
@@ -91,7 +93,13 @@ pub fn decrypt(request: &Request<'_>) -> Result<[u8; 32], String> {
     mac_input.extend_from_slice(&derived[16..]);
     mac_input.extend_from_slice(request.ciphertext);
     let expected = hashes::keccak256(&mac_input);
-    if !constant_time_eq(&expected[..16], request.mac) {
+    // Legacy keystores store the 16-byte prefix; current ones store all 32.
+    let mac_matches = if request.mac.len() == 16 {
+        constant_time_eq(&expected[..16], request.mac)
+    } else {
+        constant_time_eq(&expected, request.mac)
+    };
+    if !mac_matches {
         return Err("Wrong password, or the keystore is corrupt: the MAC check failed.".to_owned());
     }
 
@@ -206,6 +214,72 @@ mod tests {
     }
 
     #[test]
+    fn scrypt_fixture_decrypts_with_a_full_32_byte_mac() {
+        let salt = bytes("dc4503dd74699a901de4d508c404856188e305edba9c4883eb076ff63d052e5f");
+        let iv = bytes("298f88b92ccc0d3a00d9c9740083aaf3");
+        let ciphertext = bytes("d0529445d0ea0ac164cd2e33b8f2fbb290d512a525124035cacf7de3e10b709e");
+        let mac = scrypt_full_mac();
+        // The same frame: its leftmost 16 bytes are the legacy fixture MAC;
+        // the full hash is pinned as a regression vector.
+        assert_eq!(
+            crate::derive::hex(&mac),
+            "3a5cc2cde46413afd05a8cc3b2bb836c1b9e669776d9a1be80d45cae5cfcf221"
+        );
+        let key = decrypt(&Request {
+            kdf: 0,
+            n: 1024,
+            r: 8,
+            p: 1,
+            c: 0,
+            dklen: 32,
+            salt: &salt,
+            iv: &iv,
+            ciphertext: &ciphertext,
+            mac: &mac,
+            password: b"testpassword",
+        })
+        .expect("scrypt fixture decrypts with a full MAC");
+        assert_eq!(crate::derive::hex(&key), PRIVATE_KEY);
+    }
+
+    #[test]
+    fn wrong_32_byte_mac_fails() {
+        let salt = bytes("dc4503dd74699a901de4d508c404856188e305edba9c4883eb076ff63d052e5f");
+        let iv = bytes("298f88b92ccc0d3a00d9c9740083aaf3");
+        let ciphertext = bytes("d0529445d0ea0ac164cd2e33b8f2fbb290d512a525124035cacf7de3e10b709e");
+        let mut mac = scrypt_full_mac();
+        mac[31] ^= 0xff;
+        let error = decrypt(&Request {
+            kdf: 0,
+            n: 1024,
+            r: 8,
+            p: 1,
+            c: 0,
+            dklen: 32,
+            salt: &salt,
+            iv: &iv,
+            ciphertext: &ciphertext,
+            mac: &mac,
+            password: b"testpassword",
+        })
+        .expect_err("a corrupt full MAC is rejected");
+        assert!(error.contains("MAC"));
+    }
+
+    /// The fixture's full MAC: `keccak256(dk[16..32] || ciphertext)`.
+    fn scrypt_full_mac() -> [u8; 32] {
+        let salt = bytes("dc4503dd74699a901de4d508c404856188e305edba9c4883eb076ff63d052e5f");
+        let ciphertext = bytes("d0529445d0ea0ac164cd2e33b8f2fbb290d512a525124035cacf7de3e10b709e");
+        let params = scrypt::Params::new(10, 8, 1, 32).expect("valid scrypt params");
+        let mut derived = [0u8; 32];
+        scrypt::scrypt(b"testpassword", &salt, &params, &mut derived).expect("scrypt derives");
+        let mut input = Vec::with_capacity(48);
+        input.extend_from_slice(&derived[16..]);
+        input.extend_from_slice(&ciphertext);
+        hashes::keccak256(&input)
+    }
+
+    #[test]
     fn pbkdf2_fixture_decrypts() {
         let salt = bytes("f8bb8267db01439b94e5cb7f32b9c745adb219c65531c0e59e9a5d326ca423f8");
         let iv = bytes("aa1a4975ed2552d141c2b0efb697227e");
@@ -268,6 +342,13 @@ mod tests {
             password: b"x",
         };
         assert!(decrypt(&empty).unwrap_err().contains("salt"));
+
+        let bad_mac = Request {
+            salt: b"s",
+            mac: &[0u8; 20],
+            ..empty
+        };
+        assert!(decrypt(&bad_mac).unwrap_err().contains("MAC is 20 bytes"));
 
         let bad_n = Request {
             salt: b"s",
