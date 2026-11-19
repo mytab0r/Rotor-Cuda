@@ -81,6 +81,11 @@ const KEYSTORE_PARSER_PAGE: &str = include_str!("../../apps/site/keystore-parser
 const KEYSTORE_PARSER_JS: &str = include_str!("../../apps/site/keystore-parser.js");
 const RECONSTRUCTION_PAGE: &str = include_str!("../../apps/site/reconstruction.html");
 const RECONSTRUCTION_JS: &str = include_str!("../../apps/site/reconstruction.js");
+const TX_PAGE: &str = include_str!("../../apps/site/tx.html");
+const TX_BITCOIN_PAGE: &str = include_str!("../../apps/site/tx-bitcoin.html");
+const TX_ETHEREUM_PAGE: &str = include_str!("../../apps/site/tx-ethereum.html");
+const TX_DECODERS_JS: &str = include_str!("../../apps/site/tx-decoders.js");
+const TX_PAGE_JS: &str = include_str!("../../apps/site/tx-page.js");
 const CABINET_WALLET_PAGE: &str = include_str!("../../apps/site/wallet.html");
 const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
@@ -849,6 +854,17 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/reconstruction" => Some((RECONSTRUCTION_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/reconstruction.js" => Some((
             RECONSTRUCTION_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/tx" => Some((TX_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tx/bitcoin" => Some((TX_BITCOIN_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tx/ethereum" => Some((TX_ETHEREUM_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tx-decoders.js" => Some((
+            TX_DECODERS_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/tx-page.js" => Some((
+            TX_PAGE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/search.js" => Some((
@@ -1716,9 +1732,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261122e\">\n\
-         <script src=\"/theme.js?v=20261122e\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261122e\"></script>\n<script src=\"/site.js?v=20261122e\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261123c\">\n\
+         <script src=\"/theme.js?v=20261123c\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261123c\"></script>\n<script src=\"/site.js?v=20261123c\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2406,7 +2422,7 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261122e\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261123c\">\n");
     let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
          <span aria-current=\"page\">Brainwallet</span></nav>";
@@ -2516,7 +2532,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261122e\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261123c\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2576,8 +2592,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261122e\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261122e\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261123c\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261123c\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2615,7 +2631,7 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261122e\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261123c\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
@@ -2666,8 +2682,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261122e\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261122e\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261123c\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261123c\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -3008,7 +3024,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261122e\"></script>\n         <script src=\"/browse.js?v=20261122e\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261123c\"></script>\n         <script src=\"/browse.js?v=20261123c\"></script>",
         site_header(),
         "",
         chain.color,
@@ -4062,6 +4078,9 @@ fn render_sitemap(base: &str) -> String {
         "/pubkey-add",
         "/reconstruction",
         "/keystore-parser",
+        "/tx",
+        "/tx/bitcoin",
+        "/tx/ethereum",
         "/wallets",
         "/cabinet/wallet",
         "/key/wif",
@@ -4778,7 +4797,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261122e"),
+                page.contains("/theme.js?v=20261123c"),
                 "{path} does not load the theme script"
             );
         }
@@ -4820,8 +4839,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261122e\"></script>"));
-        assert!(page.contains("/site.css?v=20261122e"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261123c\"></script>"));
+        assert!(page.contains("/site.css?v=20261123c"));
     }
 
     #[test]
@@ -4907,7 +4926,7 @@ mod tests {
             assert!(browse.contains(needle), "chain page misses {needle}");
         }
         for needle in [
-            "<section class=\"address-type-panel key-address-panel\"",
+            "<div class=\"address-type-panel key-address-panel\"",
             "class=\"address-type-card\"",
             "class=\"type-name\"",
             "class=\"type-desc\"",
@@ -5054,7 +5073,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261122e"));
+        assert!(body.contains("brainwallet.css?v=20261123c"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5074,7 +5093,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261122e"));
+        assert!(body.contains("brainwallet.css?v=20261123c"));
     }
 
     #[test]
@@ -5103,12 +5122,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261122e"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261123c"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261122e"),
+                body.contains("brainwallet-directory.js?v=20261123c"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261122e"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261123c"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -5172,9 +5191,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261122e"));
-        assert!(body.contains("brainwallet.js?v=20261122e"));
-        assert!(body.contains("brainwallet.css?v=20261122e"));
+        assert!(body.contains("brainwallet-engine.js?v=20261123c"));
+        assert!(body.contains("brainwallet.js?v=20261123c"));
+        assert!(body.contains("brainwallet.css?v=20261123c"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -5503,11 +5522,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261122e\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261122e\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261122e\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261122e\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261122e\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261123c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261123c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261123c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261123c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261123c\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 
@@ -5623,6 +5642,58 @@ mod tests {
             "/keystore-parser",
             "/reconstruction",
         ] {
+            assert!(
+                sitemap.contains(&format!("<loc>{base}{path}</loc>")),
+                "sitemap is missing {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn tx_decoder_pages_and_assets_are_served() {
+        let (index, content_type) = static_asset("/tx").expect("/tx is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        let index = std::str::from_utf8(index).expect("tx.html is UTF-8");
+        for href in ["href=\"/tx/bitcoin\"", "href=\"/tx/ethereum\""] {
+            assert!(index.contains(href), "/tx is missing {href}");
+        }
+
+        for (path, marker) in [
+            ("/tx/bitcoin", "id=\"btc-form\""),
+            ("/tx/ethereum", "id=\"evm-form\""),
+        ] {
+            let (page, content_type) =
+                static_asset(path).unwrap_or_else(|| panic!("{path} is embedded"));
+            assert_eq!(content_type, "text/html; charset=utf-8");
+            let page = std::str::from_utf8(page).expect("tx page is UTF-8");
+            assert!(page.contains(marker), "{path} is missing {marker}");
+            for script in ["/tx-decoders.js", "/tx-page.js"] {
+                assert!(page.contains(script), "{path} does not load {script}");
+            }
+        }
+
+        let (decoders, content_type) =
+            static_asset("/tx-decoders.js").expect("/tx-decoders.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let decoders = std::str::from_utf8(decoders).expect("tx-decoders.js is UTF-8");
+        assert!(decoders.contains("decodeBitcoin"));
+        assert!(decoders.contains("decodeEthereum"));
+        assert!(decoders.contains("fee unavailable without prevouts"));
+        assert!(decoders.contains("RLP is truncated"));
+
+        let (page_script, content_type) =
+            static_asset("/tx-page.js").expect("/tx-page.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!page_script.is_empty());
+
+        let tools = std::str::from_utf8(TOOLS_PAGE.as_bytes()).expect("tools page is UTF-8");
+        for href in ["href=\"/tx/bitcoin\"", "href=\"/tx/ethereum\""] {
+            assert!(tools.contains(href), "tools page is missing {href}");
+        }
+
+        let base = "https://rotor.pxbt.app";
+        let sitemap = render_sitemap(base);
+        for path in ["/tx", "/tx/bitcoin", "/tx/ethereum"] {
             assert!(
                 sitemap.contains(&format!("<loc>{base}{path}</loc>")),
                 "sitemap is missing {path}"
