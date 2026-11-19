@@ -161,6 +161,24 @@
 
 
   /* Global search: Ctrl/Cmd+K from any page, parsed entirely in the browser. */
+  var SEARCH_CHAINS = [
+    ['bitcoin', 'Bitcoin'], ['ethereum', 'Ethereum'], ['bnb', 'BNB'],
+    ['arbitrum', 'Arbitrum'], ['optimism', 'Optimism'], ['base', 'Base'],
+    ['polygon', 'Polygon'], ['avalanche', 'Avalanche'], ['zksync', 'zkSync'],
+    ['solana', 'Solana'], ['tron', 'TRON'], ['xrp', 'XRP'],
+    ['litecoin', 'Litecoin'], ['bitcoin-cash', 'Bitcoin Cash'], ['dogecoin', 'Dogecoin'],
+    ['zcash', 'Zcash'], ['sui', 'Sui'], ['ton', 'TON']
+  ];
+
+  function searchChainButtons() {
+    return SEARCH_CHAINS.map(function (item) {
+      return '<button type="button" class="search-chain" data-chain="' + item[0] + '" ' +
+        'aria-pressed="false" aria-label="Search ' + item[1] + ' only" title="' + item[1] + '">' +
+        '<svg class="crypto" aria-hidden="true"><use href="/icons.svg#chain-' + item[0] + '"></use></svg>' +
+        '</button>';
+    }).join('');
+  }
+
   function installGlobalSearch() {
     if (document.getElementById('global-search')) return;
     var dialog = document.createElement('dialog');
@@ -172,17 +190,8 @@
       '<textarea id="global-search-input" rows="3" autocomplete="off" spellcheck="false" ' +
       'aria-label="Enter a private key, mnemonic or brainwallet text" placeholder="Enter private key, mnemonic, or any text (brainwallet)…"></textarea>' +
       '<p class="global-search-hint">Auto-detect: HEX, WIF, Keypair, XRP Secret, Mnemonic, Brainwallet</p>' +
-      '<div class="global-search-chains" aria-label="Supported chains">' +
-      '<svg class="crypto"><use href="/icons.svg#chain-bitcoin"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-ethereum"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-bnb"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-solana"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-tron"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-xrp"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-litecoin"></use></svg>' +
-      '<svg class="crypto"><use href="/icons.svg#chain-dogecoin"></use></svg>' +
-      '<button type="button" class="search-more" disabled>+ more</button>' +
-      '</div>' +
+      '<div class="global-search-chains" role="group" aria-label="Supported chains">' + searchChainButtons() + '</div>' +
+      '<p class="global-search-scope" id="global-search-scope">Searching all chains</p>' +
       '<button type="submit" class="primary global-search-submit">Search all chains</button>' +
       '<p class="global-search-error" id="global-search-error" role="alert" hidden></p>' +
       '</form>';
@@ -191,12 +200,38 @@
     var input = dialog.querySelector('#global-search-input');
     var form = dialog.querySelector('#global-search-form');
     var error = dialog.querySelector('#global-search-error');
+    var scope = dialog.querySelector('#global-search-scope');
+    var submit = dialog.querySelector('.global-search-submit');
+    var chainButtons = Array.prototype.slice.call(dialog.querySelectorAll('.search-chain'));
+    var selectedChain = '';
+
+    function chainLabel(slug) {
+      var entry = SEARCH_CHAINS.filter(function (item) { return item[0] === slug; })[0];
+      return entry ? entry[1] : slug;
+    }
+
+    function updateScope() {
+      var label = selectedChain ? chainLabel(selectedChain) : '';
+      if (scope) scope.textContent = selectedChain ? 'Searching ' + label + ' only' : 'Searching all chains';
+      if (submit) submit.textContent = selectedChain ? 'Search ' + label : 'Search all chains';
+    }
+
+    chainButtons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        var slug = button.getAttribute('data-chain');
+        selectedChain = slug === selectedChain ? '' : slug;
+        chainButtons.forEach(function (other) {
+          other.setAttribute('aria-pressed', String(other.getAttribute('data-chain') === selectedChain));
+        });
+        updateScope();
+      });
+    });
 
     function ensureParser() {
       if (window.RotorSearch) return Promise.resolve(window.RotorSearch);
       return new Promise(function (resolve, reject) {
         var script = document.createElement('script');
-        script.src = '/search.js?v=20261118w';
+        script.src = '/search.js?v=20261120a';
         script.onload = function () {
           if (window.RotorSearch) resolve(window.RotorSearch);
           else reject(new Error('Search did not load.'));
@@ -218,21 +253,35 @@
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
+      error.hidden = true;
       var value = input.value.trim();
-      if (!value) return;
-      var words = value.split(/\s+/);
-      if (words.length === 12 || words.length === 15 || words.length === 18 || words.length === 21 || words.length === 24) {
-        try { sessionStorage.setItem('rotor-seed-phrase', value); } catch (err) { /* private mode */ }
-        window.location.href = '/seed';
+      if (!value) {
+        error.textContent = 'Paste a key, WIF, mnemonic or brainwallet text first.';
+        error.hidden = false;
+        input.focus();
         return;
       }
       ensureParser().then(function (parser) {
-        return parser.resolve(value);
-      }).then(function (hex) {
-        window.location.href = '/key/' + hex;
+        return parser.detect(value);
+      }).then(function (result) {
+        if (result.kind === 'mnemonic') {
+          /* Never drop the phrase: /seed restores it from sessionStorage,
+           * fills the field and derives immediately. The phrase stays out of
+           * the URL. The chain strip does not change seed derivation, so the
+           * selected chain is intentionally not forwarded. */
+          try { sessionStorage.setItem('rotor-seed-phrase', result.phrase); } catch (err) { /* private mode */ }
+          window.location.href = '/seed';
+          return;
+        }
+        var chain = result.chain || selectedChain;
+        var query = [];
+        if (result.curve === 'ed25519') query.push('curve=ed25519');
+        if (chain) query.push('chain=' + encodeURIComponent(chain));
+        window.location.href = '/key/' + result.hex + (query.length ? '?' + query.join('&') : '');
       }).catch(function (err) {
-        error.textContent = err && err.message ? err.message : 'Cannot read that key.';
+        error.textContent = err && err.message ? err.message : 'Cannot read that value.';
         error.hidden = false;
+        input.focus();
       });
     });
 

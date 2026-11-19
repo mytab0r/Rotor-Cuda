@@ -1509,8 +1509,11 @@
     if (!match && !wifMatch) return;
     state.urlKey = match ? match[1].toLowerCase() : wifMatch[1];
     input.value = state.urlKey;
-    var curveParam = new URLSearchParams(window.location.search).get('curve');
-    curveSelect.value = curveParam === 'ed25519' ? '1' : '0';
+    var params = new URLSearchParams(window.location.search);
+    var curveParam = params.get('curve');
+    var chainParam = params.get('chain');
+    curveSelect.value = (curveParam === 'ed25519' || (chainParam && ED25519_CHAINS[chainParam])) ? '1' : '0';
+    syncCurveChoices();
     renderCurve();
     if (urlNotice) urlNotice.hidden = false;
     deriveFromInput();
@@ -1578,18 +1581,61 @@
     });
   }
 
-  (function focusRequestedType() {
-    var type = new URLSearchParams(window.location.search).get('type');
-    if (!type) return;
-    var chain = {
-      legacy: 'btc', segwit: 'btc', script: 'btc', taproot: 'btc',
-      evm: 'evm', tron: 'tron', solana: 'solana',
-      ltc_p2pkh: 'ltc', ltc_p2wpkh: 'ltc', ltc_p2sh_p2wpkh: 'ltc',
-      doge_p2pkh: 'doge', bch_legacy: 'bch', xrp_classic: 'xrp'
-    }[type];
-    if (!chain) return;
-    var button = chainButtons.filter(function (item) { return item.getAttribute('data-chain') === chain; })[0];
-    if (button) selectChain(button);
+  /* Per-chain generator entry points reuse this page: ?chain=<slug> (or a
+   * legacy ?type=<row>) preselects the chain filter and, for ed25519 chains,
+   * the curve. The derivation itself is unchanged. */
+  var CHAIN_PRESETS = {
+    bitcoin: 'btc', btc: 'btc',
+    ethereum: 'evm', evm: 'evm', bnb: 'evm', arbitrum: 'evm', optimism: 'evm',
+    base: 'evm', polygon: 'evm', avalanche: 'evm', zksync: 'evm',
+    solana: 'solana', tron: 'tron', xrp: 'xrp',
+    litecoin: 'ltc', ltc: 'ltc',
+    'bitcoin-cash': 'bch', bch: 'bch',
+    dogecoin: 'doge', doge: 'doge',
+    zcash: 'zcash', sui: 'sui', ton: 'ton'
+  };
+  var TYPE_ROWS = {
+    legacy: ['btc', 'btc_p2pkh'],
+    segwit: ['btc', 'btc_p2wpkh'],
+    script: ['btc', 'btc_p2sh_p2wpkh'],
+    taproot: ['btc', 'btc_p2tr'],
+    evm: ['evm', 'evm'],
+    tron: ['tron', 'tron'],
+    solana: ['solana', 'solana'],
+    ltc_p2pkh: ['ltc', 'ltc_p2pkh'],
+    ltc_p2wpkh: ['ltc', 'ltc_p2wpkh'],
+    ltc_p2sh_p2wpkh: ['ltc', 'ltc_p2sh_p2wpkh'],
+    doge_p2pkh: ['doge', 'doge_p2pkh'],
+    bch_legacy: ['bch', 'bch_legacy'],
+    xrp_classic: ['xrp', 'xrp_classic'],
+    zcash_p2pkh: ['zcash', 'zcash_p2pkh'],
+    sui: ['sui', 'sui'],
+    ton: ['ton', 'ton']
+  };
+  var ED25519_CHAINS = { solana: true, sui: true, ton: true };
+
+  (function applyQueryPreset() {
+    var params = new URLSearchParams(window.location.search);
+    var chainParam = params.get('chain');
+    var typeParam = params.get('type');
+    var curveParam = params.get('curve');
+    var chainId = chainParam
+      ? (CHAIN_PRESETS[chainParam] || (CHAIN_PREFIXES[chainParam] ? chainParam : null))
+      : null;
+    var row = typeParam ? TYPE_ROWS[typeParam] : null;
+    if (row && !chainId) chainId = row[0];
+    var wantsEd25519 = curveParam === 'ed25519' ||
+      (chainId && ED25519_CHAINS[chainId]) ||
+      (chainParam && ED25519_CHAINS[chainParam]);
+    if (wantsEd25519 && curveSelect.value !== '1') {
+      curveSelect.value = '1';
+      syncCurveChoices();
+    }
+    if (chainId) {
+      var button = chainButtons.filter(function (item) { return item.getAttribute('data-chain') === chainId; })[0];
+      if (button) selectChain(button);
+    }
+    if (row && row[1]) focusTarget(row[1]);
   })();
 
   pathChips.forEach(function (chip) {
