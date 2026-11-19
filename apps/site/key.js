@@ -1818,9 +1818,9 @@
     if (id.indexOf('btc_') === 0) {
       provider = 'mempool';
       chain = 'bitcoin';
-    } else if (id === 'evm') {
+    } else if (EVM_CHAINS[id]) {
       provider = 'evm';
-      chain = 'ethereum';
+      chain = EVM_CHAINS[id].slug;
     } else if (id === 'tron') {
       provider = 'tronscan';
       chain = 'tron';
