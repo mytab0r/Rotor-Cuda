@@ -10,7 +10,7 @@ Crawled `privatekeyfinder.io/sitemap.xml` and representative pages on
 | direct key search modal (`Ctrl+K`, auto-detect HEX/WIF/keypair/XRP secret/mnemonic/brainwallet, 18 chain icons, “Search All Chains”) | partial: HEX/WIF/brainwallet only, no mnemonic/keypair/XRP secret, no chain icon strip | P0 |
 | `/mnemonic-seeds`, `/mnemonic-seeds/<chain>` | done: directory, 60-per-page seed space, 12/18/24 words, BIP-32 path, address type, pager and BTC/EVM balances; TON is an explicit unsupported state | — |
 | `/mnemonic-converter` | missing (converter lives only in `/seed`) | P1 |
-| `/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum`, `/brainwallet-generator` | only one generic `/brainwallet` page | P1 |
+| `/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum`, `/brainwallet-generator` | done: one shared client-side SHA-256 engine; per-page BTC legacy/SegWit/Taproot or ETH rows, explorer links, copy, fill-only random phrase; no URL/storage/server | — |
 | `/keystore-parser` | done: local V3 keystore decrypt (`scrypt`/`pbkdf2` + AES-128-CTR) with MAC check; unsupported variants get an explicit state | — |
 | `/hex-dec-bin` | done: unsigned 0..2^256-1 conversion with validation and copy | — |
 | `/public-key` | done: compressed/uncompressed secp256k1 → BTC P2PKH/P2WPKH/P2SH/P2TR, EVM, TRON; no private key | — |

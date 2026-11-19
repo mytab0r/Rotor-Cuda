@@ -5,8 +5,10 @@ Owns `apps/site/**`. Read `../../PROJECTS.md` first.
 ## Commands
 
 ```sh
-node --check apps/site/site.js apps/site/key.js apps/site/rotor-worker.js
+node --check apps/site/site.js apps/site/key.js apps/site/rotor-worker.js \
+  apps/site/brainwallet.js apps/site/brainwallet-engine.js
 node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm
+node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm
 ```
 
 ## Gotchas
