@@ -1424,7 +1424,7 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 }
 .edu-note strong { color: var(--accent-2); }
 .directory-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; padding: 4px 0; }
-.directory-links a { color: var(--muted); font-size: 13.5px; }
+.directory-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--muted); font-size: 13.5px; }
 .directory-links a:hover { color: var(--text); }
 
 /* -------------------------------------------------------------- browser */
