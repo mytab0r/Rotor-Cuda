@@ -1,5 +1,6 @@
-/* Validates the /site-map data file: route coverage, donor links and honest
- * status values. Run with: node apps/site/site-map-test.mjs */
+/* Validates the site-map data file used by docs/site-map/index.html: route
+ * coverage, donor links and honest status values.
+ * Run with: node docs/site-map/site-map-test.mjs */
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
