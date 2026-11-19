@@ -2949,7 +2949,7 @@ html[data-theme="light"] .range-page {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 4px 3px 10px;
+  padding: 0 4px 0 10px;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--panel-2);
@@ -2958,7 +2958,7 @@ html[data-theme="light"] .range-page {
 .key-step-label { color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
 .key-step-group button {
   min-width: 44px;
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 9px;
   border: 1px solid transparent;
   border-radius: 8px;
