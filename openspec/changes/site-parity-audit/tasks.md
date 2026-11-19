@@ -38,6 +38,10 @@
 
 ## Verification
 
+- [x] Durable UI self-review harness: `scripts/ui-audit.mjs` (zero-dep CDP,
+      375/768/1280, dark/light, screenshots + JSON), project skill
+      `.claude/skills/ui-self-review/SKILL.md`, wired into the UI gate and
+      `projects.json` site build/test.
 - [ ] `/site-map` updated for every completed row; no false parity.
 - [ ] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
 - [ ] `node scripts/check-projects.mjs`, site tests, cargo tests, clippy.

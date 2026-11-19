@@ -4,6 +4,17 @@ The site has no build step: plain HTML/CSS/JS in `apps/site/`, served by the
 coordinator. Before calling a UI change done, walk this list and keep the
 evidence (a screenshot or the DOM check below).
 
+## Automated audit (required)
+
+- [ ] `node scripts/ui-audit.mjs --serve` passes (exit 0) for the affected
+      routes at 375/768/1280 in dark and light mode. Details and the violation
+      table are in `.claude/skills/ui-self-review/SKILL.md`.
+- [ ] If the change fixed a shared component, run the full default route set,
+      not only the page you touched.
+- [ ] If a genuine violation remains outside the change, name its exact ID in
+      the PR; do not weaken the threshold in `scripts/ui-audit.mjs` or add a
+      page-local bypass.
+
 ## States
 - [ ] Every async surface has loading, empty, error and success states with
       actionable text; a failed fetch never leaves a blank card.
@@ -15,7 +26,7 @@ evidence (a screenshot or the DOM check below).
 - [ ] No horizontal overflow at 375 px:
       `document.documentElement.scrollWidth === clientWidth`.
 - [ ] Long mono values (addresses, keys, tokens) wrap inside cards.
-- [ ] Tap targets are at least ~40 px; the nav is usable at 375 px.
+- [ ] Tap targets are at least 44×44 px; the nav is usable at 375 px.
 - [ ] Breakpoints: 375 (phone), 768 (tablet), 1280 (desktop); check all three.
 
 ## Hierarchy and text

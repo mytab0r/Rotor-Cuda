@@ -1,0 +1,1155 @@
+#!/usr/bin/env node
+// UI self-review harness for the Rotor site.
+//
+// Zero dependencies: drives headless Chrome/Edge over the DevTools protocol with
+// Node's built-in WebSocket and fetch. It looks for the inconsistencies that keep
+// slipping through page-local reviews: overflow, tiny text/targets, unlabeled
+// icon controls, duplicated or uneven address-type components, half-empty cards,
+// manual balance controls, and route-specific parity checks.
+//
+// Usage:
+//   node scripts/ui-audit.mjs                       # audit a running coordinator on :7879
+//   node scripts/ui-audit.mjs --serve               # build-free: start target/release/rotor-coord on :7899
+//   node scripts/ui-audit.mjs --routes /key,/seed --viewports 375,1280 --themes dark
+//
+// Exit codes: 0 = no violations, 1 = violations found, 2 = harness/environment error.
+
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
+const DEFAULT_ROUTES = [
+  "/",
+  "/key",
+  "/private-keys/bitcoin",
+  "/seed",
+  "/mnemonic-seeds/bitcoin",
+  "/brainwallet/bitcoin",
+  "/bitcoin-puzzle",
+  "/bitcoin-puzzle/71/random",
+  "/tools",
+  "/cabinet/wallet",
+];
+const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
+const DEFAULT_SETTLE_MS = 700;
+const NAV_TIMEOUT_MS = 20000;
+const SELECTOR_TIMEOUT_MS = 12000;
+const CDP_TIMEOUT_MS = 20000;
+
+const HELP = `ui-audit - headless UI self-review for the Rotor site
+
+Options:
+  --base URL            site origin (default http://127.0.0.1:7879, or :7899 with --serve)
+  --routes a,b,c        comma-separated routes (default: key public routes)
+  --viewports 375,768,1280   widths to test; heights are preset (default 375,768,1280)
+  --themes dark,light   colour schemes to test (default dark,light)
+  --serve               spawn target/release/rotor-coord on 127.0.0.1:7899 with temp state
+  --json PATH           write the machine-readable summary
+  -h, --help            show this help
+
+Exit: 0 = pass, 1 = violations, 2 = harness error (no browser, server, etc.).`;
+
+function parseArgs(argv) {
+  const options = {
+    base: null,
+    routes: DEFAULT_ROUTES,
+    viewports: [375, 768, 1280],
+    themes: ["dark", "light"],
+    serve: false,
+    json: null,
+    help: false,
+  };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    const [name, inline] = arg.includes("=") ? arg.split(/=(.*)/s, 2) : [arg, null];
+    const value = () => {
+      if (inline !== null) return inline;
+      i += 1;
+      if (i >= argv.length) throw new Error(`${name} needs a value`);
+      return argv[i];
+    };
+    switch (name) {
+      case "-h":
+      case "--help":
+        options.help = true;
+        break;
+      case "--base":
+        options.base = value().replace(/\/+$/, "");
+        break;
+      case "--routes":
+        options.routes = value()
+          .split(",")
+          .map((route) => route.trim())
+          .filter(Boolean)
+          .map((route) => (route.startsWith("/") ? route : `/${route}`));
+        break;
+      case "--viewports":
+        options.viewports = value()
+          .split(",")
+          .map((width) => Number.parseInt(width.trim(), 10))
+          .filter((width) => Number.isFinite(width) && width > 0);
+        break;
+      case "--themes":
+        options.themes = value()
+          .split(",")
+          .map((theme) => theme.trim())
+          .filter((theme) => theme === "dark" || theme === "light");
+        break;
+      case "--serve":
+        options.serve = true;
+        break;
+      case "--json":
+        options.json = value();
+        break;
+      default:
+        throw new Error(`unknown argument: ${arg}`);
+    }
+  }
+  if (options.help) return options;
+  if (options.routes.length === 0) throw new Error("--routes must contain at least one route");
+  if (options.viewports.length === 0) throw new Error("--viewports must contain at least one width");
+  if (options.themes.length === 0) throw new Error("--themes must contain dark and/or light");
+  if (!options.base) options.base = options.serve ? "http://127.0.0.1:7899" : "http://127.0.0.1:7879";
+  return options;
+}
+
+function log(message) {
+  process.stdout.write(`${message}\n`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function killTree(child, signal = "SIGTERM") {
+  if (!child || child.exitCode !== null || child.killed) return;
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    return;
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    /* already gone */
+  }
+}
+
+async function waitForHttp(url, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "no response";
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(3000) });
+      if (response.status < 500) return response;
+      lastError = `HTTP ${response.status}`;
+    } catch (error) {
+      lastError = error.message;
+    }
+    await sleep(250);
+  }
+  throw new Error(`server did not answer ${url} within ${timeoutMs}ms (${lastError})`);
+}
+
+function findBrowser() {
+  const candidate = (value) => value && existsSync(value) && value;
+  const env = candidate(process.env.CHROME_PATH) || candidate(process.env.EDGE_PATH);
+  if (env) return env;
+
+  if (process.platform === "win32") {
+    const roots = [
+      process.env.PROGRAMFILES,
+      process.env["PROGRAMFILES(X86)"],
+      process.env.LOCALAPPDATA,
+    ].filter(Boolean);
+    const relative = [
+      "Google/Chrome/Application/chrome.exe",
+      "Microsoft/Edge/Application/msedge.exe",
+    ];
+    for (const root of roots) {
+      for (const rel of relative) {
+        const found = candidate(path.join(root, rel));
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  if (process.platform === "darwin") {
+    return (
+      candidate("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome") ||
+      candidate("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge") ||
+      candidate("/Applications/Chromium.app/Contents/MacOS/Chromium") ||
+      null
+    );
+  }
+
+  const names = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge"];
+  for (const name of names) {
+    const result = spawnSync("which", [name], { encoding: "utf8" });
+    const found = result.status === 0 ? result.stdout.trim() : "";
+    if (candidate(found)) return found;
+  }
+  return null;
+}
+
+async function launchBrowser(browserPath, userDataDir) {
+  const args = [
+    "--headless=new",
+    "--remote-debugging-port=0",
+    `--user-data-dir=${userDataDir}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--mute-audio",
+    "--window-size=1280,900",
+    "about:blank",
+  ];
+  const child = spawn(browserPath, args, { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+    if (stderr.length > 8000) stderr = stderr.slice(-8000);
+  });
+
+  const portFile = path.join(userDataDir, "DevToolsActivePort");
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`browser exited with code ${child.exitCode}: ${stderr.trim()}`);
+    }
+    if (existsSync(portFile)) {
+      const text = await readFile(portFile, "utf8").catch(() => "");
+      const [portText, wsPath] = text.split("\n");
+      const port = Number.parseInt(portText, 10);
+      if (port > 0 && wsPath) {
+        const target = await createPageTarget(port, child, stderr).catch(async (error) => {
+          throw new Error(`cannot open a DevTools page target: ${error.message}\n${stderr.trim()}`);
+        });
+        return { child, port, wsUrl: target.webSocketDebuggerUrl, stderr: () => stderr };
+      }
+    }
+    await sleep(100);
+  }
+  killTree(child);
+  throw new Error(`browser did not expose a DevTools port within 20s: ${stderr.trim()}`);
+}
+
+async function createPageTarget(port, child, stderr) {
+  // Chrome 111+ requires PUT for /json/new.
+  const response = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" });
+  if (!response.ok) {
+    throw new Error(`/json/new returned HTTP ${response.status}: ${stderr.trim()}`);
+  }
+  const target = await response.json();
+  if (!target.webSocketDebuggerUrl) throw new Error("DevTools target has no webSocketDebuggerUrl");
+  if (child.exitCode !== null) throw new Error("browser exited while creating the target");
+  return target;
+}
+
+function createCdp(wsUrl) {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(wsUrl);
+    const pending = new Map();
+    const listeners = new Map();
+    let nextId = 0;
+
+    const onMessage = (event) => {
+      let message;
+      try {
+        message = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+      } catch {
+        return;
+      }
+      if (message.id !== undefined) {
+        const request = pending.get(message.id);
+        if (!request) return;
+        pending.delete(message.id);
+        clearTimeout(request.timer);
+        if (message.error) request.reject(new Error(`${message.error.message || "CDP error"}`));
+        else request.resolve(message.result || {});
+        return;
+      }
+      const handlers = listeners.get(message.method);
+      if (handlers) {
+        for (const handler of handlers) {
+          try {
+            handler(message.params || {});
+          } catch {
+            /* a broken listener must not kill the session */
+          }
+        }
+      }
+    };
+
+    const api = {
+      send(method, params = {}, timeoutMs = CDP_TIMEOUT_MS) {
+        return new Promise((resolveCommand, rejectCommand) => {
+          const id = ++nextId;
+          const timer = setTimeout(() => {
+            pending.delete(id);
+            rejectCommand(new Error(`CDP ${method} timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+          pending.set(id, { resolve: resolveCommand, reject: rejectCommand, timer });
+          socket.send(JSON.stringify({ id, method, params }));
+        });
+      },
+      on(method, handler) {
+        if (!listeners.has(method)) listeners.set(method, []);
+        listeners.get(method).push(handler);
+        return () => {
+          const handlers = listeners.get(method) || [];
+          const index = handlers.indexOf(handler);
+          if (index >= 0) handlers.splice(index, 1);
+        };
+      },
+      waitEvent(method, timeoutMs = CDP_TIMEOUT_MS, predicate = () => true) {
+        return new Promise((resolveEvent, rejectEvent) => {
+          const timer = setTimeout(() => {
+            off();
+            rejectEvent(new Error(`event ${method} timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+          const off = api.on(method, (params) => {
+            if (!predicate(params)) return;
+            clearTimeout(timer);
+            off();
+            resolveEvent(params);
+          });
+        });
+      },
+      close() {
+        try {
+          socket.close();
+        } catch {
+          /* already closed */
+        }
+      },
+    };
+
+    socket.addEventListener("open", () => resolve(api));
+    socket.addEventListener("message", onMessage);
+    socket.addEventListener("error", () => reject(new Error("DevTools WebSocket error")));
+    socket.addEventListener("close", () => {
+      for (const request of pending.values()) {
+        clearTimeout(request.timer);
+        request.reject(new Error("DevTools WebSocket closed"));
+      }
+      pending.clear();
+      reject(new Error("DevTools WebSocket closed before opening"));
+    });
+  });
+}
+
+async function evaluate(cdp, expression, timeoutMs = CDP_TIMEOUT_MS) {
+  const result = await cdp.send(
+    "Runtime.evaluate",
+    { expression, awaitPromise: true, returnByValue: true, userGesture: true },
+    timeoutMs,
+  );
+  if (result.exceptionDetails) {
+    const detail = result.exceptionDetails.exception?.description || result.exceptionDetails.text;
+    throw new Error(`page evaluation failed: ${detail}`);
+  }
+  return result.result?.value;
+}
+
+async function waitForSelector(cdp, selector, timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const found = await evaluate(
+      cdp,
+      `(() => { const el = document.querySelector(${JSON.stringify(selector)}); return el ? el.getBoundingClientRect().height >= 0 : false; })()`,
+      5000,
+    ).catch(() => false);
+    if (found) return true;
+    await sleep(120);
+  }
+  return false;
+}
+
+async function goto(cdp, url) {
+  const loaded = cdp.waitEvent("Page.loadEventFired", NAV_TIMEOUT_MS);
+  const navigation = await cdp.send("Page.navigate", { url }, NAV_TIMEOUT_MS);
+  if (navigation.errorText) throw new Error(`navigation failed: ${navigation.errorText}`);
+  await loaded.catch(() => {
+    /* the page can still be inspected after a load timeout */
+  });
+  // Give inline scripts and deferred bundles a beat to run.
+  await sleep(DEFAULT_SETTLE_MS);
+  await evaluate(
+    cdp,
+    `Promise.race([
+       (document.fonts && document.fonts.ready) || Promise.resolve(),
+       new Promise((resolve) => setTimeout(resolve, 3000)),
+     ]).then(() => document.readyState)`,
+    6000,
+  ).catch(() => {});
+}
+
+function slugify(route) {
+  const slug = route.replace(/^\/+|\/+$/g, "").replace(/[^a-z0-9]+/gi, "-");
+  return slug || "home";
+}
+
+// Runs inside the page. Keep every helper inside so the function can be
+// serialized without closing over the Node scope.
+function auditPage(args) {
+  const { route, theme } = args;
+  const violations = [];
+  const metrics = {
+    theme: document.documentElement.getAttribute("data-theme") || null,
+    colorScheme: document.documentElement.style.colorScheme || null,
+  };
+  const add = (id, message, detail) => violations.push({ id, message, detail });
+
+  if (theme && metrics.theme && metrics.theme !== theme) {
+    add("theme-not-applied", `expected ${theme} theme, page rendered ${metrics.theme}`, metrics);
+  }
+
+  function visible(el) {
+    if (!el || !el.isConnected) return false;
+    if (el.closest("[hidden]")) return false;
+    if (el.getAttribute("aria-hidden") === "true") return false;
+    if (el.classList.contains("visually-hidden") || el.classList.contains("sr-only")) return false;
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    if (Number.parseFloat(style.opacity || "1") < 0.05) return false;
+    const box = el.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return false;
+    if (box.bottom < 0 || box.right < 0) return false;
+    return true;
+  }
+
+  function boxOf(el) {
+    const box = el.getBoundingClientRect();
+    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+  }
+
+  function selectorOf(el) {
+    if (!el || el.nodeType !== 1) return "";
+    if (el.id) return `#${el.id}`;
+    const parts = [];
+    let node = el;
+    for (let depth = 0; node && node.nodeType === 1 && depth < 4; depth += 1) {
+      let part = node.tagName.toLowerCase();
+      if (node.classList.length) part += `.${[...node.classList].slice(0, 2).join(".")}`;
+      const parent = node.parentElement;
+      if (parent) {
+        const siblings = [...parent.children].filter((child) => child.tagName === node.tagName);
+        if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+      }
+      parts.unshift(part);
+      node = node.parentElement;
+    }
+    return parts.join(" > ");
+  }
+
+  function textOf(el) {
+    return (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function directText(el) {
+    return [...el.childNodes]
+      .filter((node) => node.nodeType === 3)
+      .map((node) => node.textContent)
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  // 1. Horizontal overflow.
+  const docEl = document.documentElement;
+  const body = document.body;
+  const scrollWidth = Math.max(docEl.scrollWidth, body ? body.scrollWidth : 0);
+  const clientWidth = docEl.clientWidth;
+  metrics.overflow = { scrollWidth, clientWidth, excess: Math.max(0, scrollWidth - clientWidth) };
+  if (scrollWidth > clientWidth + 1) {
+    const offenders = [...document.body.querySelectorAll("*")]
+      .filter(visible)
+      .map((el) => ({ el, box: boxOf(el) }))
+      .filter(({ box }) => box.right > clientWidth + 1 && box.width > 1)
+      .slice(0, 5)
+      .map(({ el, box }) => `${selectorOf(el)} (${Math.round(box.left)}..${Math.round(box.right)}px)`);
+    add(
+      "horizontal-overflow",
+      `page scrolls horizontally: ${scrollWidth}px content in ${clientWidth}px viewport`,
+      offenders.length ? { offenders } : undefined,
+    );
+  }
+
+  // 2. Body text below 12px.
+  const smallText = [];
+  const seenText = new Set();
+  for (const el of document.querySelectorAll("body *")) {
+    if (["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "BR", "HR"].includes(el.tagName)) continue;
+    if (el.closest("svg")) continue;
+    if (!visible(el)) continue;
+    const text = directText(el);
+    if (!text) continue;
+    const size = Number.parseFloat(getComputedStyle(el).fontSize);
+    if (!Number.isFinite(size) || size <= 0 || size >= 12) continue;
+    const selector = selectorOf(el);
+    if (seenText.has(selector)) continue;
+    seenText.add(selector);
+    smallText.push({ selector, size, text: text.slice(0, 48) });
+  }
+  metrics.smallText = smallText;
+  if (smallText.length) {
+    add("small-text", `${smallText.length} visible text element(s) below 12px`, smallText.slice(0, 8));
+  }
+
+  // 3. Touch targets below 44x44. Inline prose links are exempt (WCAG 2.5.8
+  //    inline-text exception); they are not standalone controls.
+  function inlineTextLink(el) {
+    if (el.tagName !== "A") return false;
+    if (el.querySelector("svg, img")) return false;
+    if (!textOf(el)) return false;
+    const style = getComputedStyle(el);
+    if (style.display !== "inline") return false;
+    return Boolean(el.closest("p, li, dd, dt, figcaption"));
+  }
+
+  const smallTargets = [];
+  const interactive = document.querySelectorAll(
+    'button, a[href], [role="button"], input[type="checkbox"], input[type="radio"], select, summary',
+  );
+  for (const el of interactive) {
+    if (!visible(el)) continue;
+    if (el.type === "hidden") continue;
+    if (el.closest("[aria-hidden='true']")) continue;
+    if (inlineTextLink(el)) continue;
+    // A checkbox/radio wrapped in a >=44px label is effectively a large target.
+    if (el.matches("input[type='checkbox'], input[type='radio']") && el.labels) {
+      const labels = [...el.labels].filter(visible);
+      if (labels.some((label) => boxOf(label).width >= 44 && boxOf(label).height >= 44)) continue;
+    }
+    const box = boxOf(el);
+    if (box.width >= 44 && box.height >= 44) continue;
+    smallTargets.push({
+      selector: selectorOf(el),
+      text: textOf(el).slice(0, 40),
+      width: Math.round(box.width),
+      height: Math.round(box.height),
+    });
+  }
+  metrics.smallTargets = smallTargets;
+  if (smallTargets.length) {
+    add("small-touch-target", `${smallTargets.length} visible control(s) below 44x44`, smallTargets.slice(0, 8));
+  }
+
+  // 4. Icon-only controls without an accessible name.
+  const unlabeledIcons = [];
+  for (const el of document.querySelectorAll('button, a[href], [role="button"]')) {
+    if (!visible(el)) continue;
+    if (textOf(el)) continue;
+    if (!el.querySelector("svg, img")) continue;
+    const label =
+      el.getAttribute("aria-label") ||
+      el.getAttribute("aria-labelledby") ||
+      el.getAttribute("title");
+    if (!label) {
+      unlabeledIcons.push({ selector: selectorOf(el), html: el.outerHTML.slice(0, 160) });
+    }
+  }
+  metrics.unlabeledIcons = unlabeledIcons;
+  if (unlabeledIcons.length) {
+    add("unlabeled-icon-control", `${unlabeledIcons.length} icon-only control(s) without aria-label/title`, unlabeledIcons.slice(0, 8));
+  }
+
+  // 5. Duplicate address-type implementations on one page.
+  const keyFamily = document.querySelector(".key-types, .key-btc-panel");
+  const panelFamily = document.querySelector(".address-type-panel");
+  metrics.addressTypeFamilies = {
+    keyTypes: Boolean(keyFamily),
+    addressTypePanel: Boolean(panelFamily),
+  };
+  if (keyFamily && panelFamily) {
+    add(
+      "duplicate-address-type-implementation",
+      "page mixes .key-types/.key-btc-panel with .address-type-panel",
+      { keyTypes: selectorOf(keyFamily), addressTypePanel: selectorOf(panelFamily) },
+    );
+  }
+
+  // 6. Address-type card widths must not diverge inside one row. 15% is the
+  //    documented tolerance; above that one card looks like a different widget.
+  function unionArea(rects) {
+    if (!rects.length) return 0;
+    const xs = [...new Set(rects.flatMap((rect) => [rect.left, rect.right]))].sort((a, b) => a - b);
+    let area = 0;
+    for (let index = 0; index < xs.length - 1; index += 1) {
+      const left = xs[index];
+      const right = xs[index + 1];
+      if (right <= left) continue;
+      const spans = rects
+        .filter((rect) => rect.left < right && rect.right > left)
+        .map((rect) => [rect.top, rect.bottom])
+        .sort((a, b) => a[0] - b[0]);
+      let covered = 0;
+      let start = null;
+      let end = null;
+      for (const [spanStart, spanEnd] of spans) {
+        if (start === null) {
+          start = spanStart;
+          end = spanEnd;
+        } else if (spanStart <= end) {
+          end = Math.max(end, spanEnd);
+        } else {
+          covered += end - start;
+          start = spanStart;
+          end = spanEnd;
+        }
+      }
+      if (start !== null) covered += end - start;
+      area += (right - left) * covered;
+    }
+    return area;
+  }
+
+  const spreadIssues = [];
+  const containers = [];
+  for (const container of document.querySelectorAll(".key-types, .address-type-cards")) {
+    containers.push({ el: container, cards: [...container.children] });
+  }
+  for (const panel of document.querySelectorAll(".address-type-panel")) {
+    const cards = [...panel.children].filter((child) => child.classList.contains("address-type-card"));
+    if (cards.length) containers.push({ el: panel, cards });
+  }
+  for (const { el, cards } of containers) {
+    if (!visible(el)) continue;
+    const rows = new Map();
+    for (const card of cards) {
+      if (!visible(card)) continue;
+      const box = boxOf(card);
+      if (box.width <= 0) continue;
+      const rowKey = Math.round(box.top / 4);
+      if (!rows.has(rowKey)) rows.set(rowKey, []);
+      rows.get(rowKey).push({ card, width: box.width });
+    }
+    for (const entries of rows.values()) {
+      if (entries.length < 2) continue;
+      const widths = entries.map((entry) => entry.width);
+      const max = Math.max(...widths);
+      const min = Math.min(...widths);
+      const spread = max > 0 ? (max - min) / max : 0;
+      if (spread > 0.15) {
+        spreadIssues.push({
+          container: selectorOf(el),
+          widths: widths.map((width) => Math.round(width)),
+          spread: Number(spread.toFixed(2)),
+        });
+      }
+    }
+  }
+  metrics.addressTypeSpread = spreadIssues;
+  if (spreadIssues.length) {
+    add("address-type-width-spread", `address-type cards differ by more than 15% inside a row`, spreadIssues);
+  }
+
+  // 7. Large blocks that are mostly empty. Threshold: a card/section taller
+  //    than 220px with less than 55% of its content box covered by visible
+  //    direct children. This is intentionally conservative to avoid flagging
+  //    normal spacing.
+  const emptyBlocks = [];
+  for (const el of document.querySelectorAll("section, .card")) {
+    if (!visible(el)) continue;
+    const outer = boxOf(el);
+    if (outer.height <= 220) continue;
+    const style = getComputedStyle(el);
+    const inner = {
+      left: outer.left + Number.parseFloat(style.paddingLeft || "0") + Number.parseFloat(style.borderLeftWidth || "0"),
+      top: outer.top + Number.parseFloat(style.paddingTop || "0") + Number.parseFloat(style.borderTopWidth || "0"),
+      right: outer.right - Number.parseFloat(style.paddingRight || "0") - Number.parseFloat(style.borderRightWidth || "0"),
+      bottom: outer.bottom - Number.parseFloat(style.paddingBottom || "0") - Number.parseFloat(style.borderBottomWidth || "0"),
+    };
+    const innerWidth = inner.right - inner.left;
+    const innerHeight = inner.bottom - inner.top;
+    if (innerWidth <= 0 || innerHeight <= 0) continue;
+    const children = [...el.children]
+      .filter(visible)
+      .map((child) => {
+        const box = boxOf(child);
+        return {
+          left: Math.max(inner.left, box.left),
+          top: Math.max(inner.top, box.top),
+          right: Math.min(inner.right, box.right),
+          bottom: Math.min(inner.bottom, box.bottom),
+        };
+      })
+      .filter((rect) => rect.right > rect.left && rect.bottom > rect.top);
+    const covered = unionArea(children);
+    const ratio = 1 - covered / (innerWidth * innerHeight);
+    if (ratio > 0.45) {
+      emptyBlocks.push({
+        selector: selectorOf(el),
+        height: Math.round(outer.height),
+        emptyRatio: Number(ratio.toFixed(2)),
+      });
+    }
+  }
+  metrics.emptyBlocks = emptyBlocks;
+  if (emptyBlocks.length) {
+    add("mostly-empty-block", `${emptyBlocks.length} large block(s) more than 45% empty`, emptyBlocks.slice(0, 8));
+  }
+
+  // 8. Visible manual balance controls. Balance must be automatic; these
+  //    controls are the regression this harness exists to catch.
+  const manualIds = new Set(["check-balances", "seed-balances", "online-toggle"]);
+  const manualTexts = new Set(["check balances", "check public balances", "online balance lookups"]);
+  const balanceControls = [];
+  const seenControl = new Set();
+  for (const el of document.querySelectorAll("button, a, label, input, p, span, div")) {
+    if (!visible(el)) continue;
+    const id = el.id || "";
+    const text = textOf(el);
+    const lower = text.toLowerCase();
+    const idHit = manualIds.has(id);
+    const textHit =
+      manualTexts.has(lower) ||
+      (el.matches("button, a[role='button'], input[type='submit']") && lower.startsWith("check balances"));
+    if (!idHit && !textHit) continue;
+    const key = id || lower.slice(0, 60);
+    if (seenControl.has(key)) continue;
+    seenControl.add(key);
+    balanceControls.push({ selector: selectorOf(el), text: text.slice(0, 80) });
+  }
+  metrics.balanceControls = balanceControls;
+  if (balanceControls.length) {
+    add("manual-balance-control", `${balanceControls.length} visible manual balance control(s)`, balanceControls.slice(0, 8));
+  }
+
+  // 9. Route-specific parity checks.
+  metrics.routeChecks = {};
+  if (route === "/key") {
+    const calculate = [...document.querySelectorAll("button, input[type='submit'], a[role='button']")]
+      .filter(visible)
+      .filter((el) => /^calculate$/i.test(textOf(el)) || /calculate/i.test(el.id || ""));
+    metrics.routeChecks.calculateButtons = calculate.map((el) => selectorOf(el));
+    if (calculate.length) {
+      add("key-calculate-button", "/key still exposes a Calculate button; derivation must follow the input", metrics.routeChecks.calculateButtons);
+    }
+    metrics.routeChecks.hasPrivateInput = Boolean(document.getElementById("priv"));
+  }
+
+  if (route === "/seed") {
+    const checkbox = document.getElementById("seed-balances");
+    metrics.routeChecks.seedBalanceCheckbox = Boolean(checkbox && visible(checkbox));
+    const form = document.querySelector("#seed-form, .seed-studio-form");
+    const card = form ? form.closest(".card, section") : null;
+    if (form && card) {
+      const style = getComputedStyle(card);
+      const contentWidth =
+        card.clientWidth -
+        Number.parseFloat(style.paddingLeft || "0") -
+        Number.parseFloat(style.paddingRight || "0");
+      const formWidth = boxOf(form).width;
+      const ratio = contentWidth > 0 ? formWidth / contentWidth : 0;
+      metrics.routeChecks.seedFormWidthRatio = Number(ratio.toFixed(2));
+      if (ratio <= 0.8) {
+        add("seed-form-narrow", `/seed form uses ${Math.round(ratio * 100)}% of the card width (expected >80%)`, {
+          formWidth: Math.round(formWidth),
+          contentWidth: Math.round(contentWidth),
+        });
+      }
+    }
+  }
+
+  if (route.startsWith("/brainwallet/") && route !== "/brainwallet/") {
+    const rows = document.querySelectorAll(".bw-row").length;
+    metrics.routeChecks.brainwalletRows = rows;
+    if (rows !== 60) {
+      add("brainwallet-row-count", `/brainwallet page has ${rows} rows (expected 60)`, { rows });
+    }
+  }
+
+  if (route === "/bitcoin-puzzle") {
+    const rows = document.querySelectorAll("[data-puzzle-row]").length;
+    metrics.routeChecks.puzzleRows = rows;
+    if (rows !== 160) {
+      add("puzzle-row-count", `/bitcoin-puzzle has ${rows} data-puzzle rows (expected 160)`, { rows });
+    }
+  }
+
+  return { violations, metrics };
+}
+
+async function auditKeyAutoDerive(cdp) {
+  return evaluate(
+    cdp,
+    `(async () => {
+      const input = document.getElementById('priv');
+      if (!input) return { ok: false, reason: 'missing #priv' };
+      // Keep the audit offline: balance lookups hit public providers and add
+      // CORS noise that is unrelated to layout/parity.
+      const toggle = document.getElementById('online-toggle');
+      if (toggle && toggle.checked) {
+        toggle.checked = false;
+        toggle.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, '${"0".repeat(63)}1');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      const started = Date.now();
+      while (Date.now() - started < 6000) {
+        const card = document.getElementById('summary-card');
+        const rows = document.querySelectorAll('#addr-rows .key-row');
+        if (card && !card.hidden && rows.length > 0) {
+          return { ok: true, rows: rows.length, ms: Date.now() - started };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const card = document.getElementById('summary-card');
+      return {
+        ok: false,
+        reason: 'no derived rows within 6s',
+        summaryHidden: card ? card.hidden : null,
+        rows: document.querySelectorAll('#addr-rows .key-row').length,
+        status: (document.getElementById('key-status-text') || {}).textContent || '',
+      };
+    })()`,
+    10000,
+  );
+}
+
+function viewportFor(width) {
+  const height = VIEWPORT_HEIGHTS[width] || 900;
+  return { width, height };
+}
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help) {
+    log(HELP);
+    return 0;
+  }
+
+  let server = null;
+  let browser = null;
+  let cdp = null;
+  let chromeProfile = null;
+  const tempRoot = await mkdtemp(path.join(tmpdir(), "rotor-ui-audit-"));
+  const screenshotsDir = path.join(tempRoot, "screenshots");
+  await mkdir(screenshotsDir, { recursive: true });
+
+  const cleanup = () => {
+    if (cdp) cdp.close();
+    if (browser) killTree(browser);
+    if (server) killTree(server);
+  };
+
+  try {
+    if (options.serve) {
+      const baseUrl = new URL(options.base);
+      if (baseUrl.port !== "7899") {
+        throw new Error(
+          `--serve binds 127.0.0.1:7899; use --base http://127.0.0.1:7899 or drop --serve (got ${options.base})`,
+        );
+      }
+      const alreadyUp = await fetch(`${options.base}/`, {
+        signal: AbortSignal.timeout(1000),
+      }).then((response) => response.status < 500).catch(() => false);
+      if (alreadyUp) {
+        throw new Error(
+          `--serve cannot start: something is already listening on ${options.base}; stop it or run without --serve`,
+        );
+      }
+      const exe = path.join(
+        REPO_ROOT,
+        "target",
+        "release",
+        process.platform === "win32" ? "rotor-coord.exe" : "rotor-coord",
+      );
+      if (!existsSync(exe)) {
+        throw new Error(`--serve needs ${exe}; run: cargo build --release --bin rotor-coord`);
+      }
+      const stateDir = path.join(tempRoot, "state");
+      await mkdir(stateDir, { recursive: true });
+      server = spawn(
+        exe,
+        [
+          "--bind",
+          "127.0.0.1:7899",
+          "--token",
+          "ui-audit-token",
+          "--state",
+          path.join(stateDir, "coordinator.json"),
+          "--monitor-state",
+          path.join(stateDir, "monitor.json"),
+          "--monitor-interval",
+          "300",
+          "--monitor-rpc",
+          "http://127.0.0.1:1",
+          "--monitor-btc-rpc",
+          "http://127.0.0.1:1",
+        ],
+        { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
+      );
+      let serverLog = "";
+      server.stdout.on("data", (chunk) => {
+        serverLog += chunk.toString();
+      });
+      server.stderr.on("data", (chunk) => {
+        serverLog += chunk.toString();
+      });
+      server.on("exit", (code) => {
+        if (code !== null && code !== 0) serverLog += `\ncoordinator exited with ${code}`;
+      });
+      await waitForHttp(`${options.base}/`, 25000).catch((error) => {
+        throw new Error(`${error.message}\ncoordinator log:\n${serverLog.trim()}`);
+      });
+    } else {
+      await waitForHttp(`${options.base}/`, 10000).catch((error) => {
+        throw new Error(`${error.message}\nstart the coordinator or pass --serve`);
+      });
+    }
+
+    const browserPath = findBrowser();
+    if (!browserPath) {
+      throw new Error(
+        "no Chrome/Edge found; set CHROME_PATH or install Chrome/Chromium/Microsoft Edge",
+      );
+    }
+
+    chromeProfile = await mkdtemp(path.join(tmpdir(), "rotor-ui-audit-chrome-"));
+    const launched = await launchBrowser(browserPath, chromeProfile);
+    browser = launched.child;
+    cdp = await createCdp(launched.wsUrl);
+
+    await cdp.send("Page.enable");
+    await cdp.send("Runtime.enable");
+    await cdp.send("Log.enable").catch(() => {});
+
+    let consoleErrors = [];
+    cdp.on("Runtime.exceptionThrown", (params) => {
+      const text =
+        params.exceptionDetails?.exception?.description ||
+        params.exceptionDetails?.text ||
+        "uncaught exception";
+      consoleErrors.push(text.split("\n")[0].slice(0, 200));
+    });
+    cdp.on("Runtime.consoleAPICalled", (params) => {
+      if (params.type !== "error" && params.type !== "assert") return;
+      const text = (params.args || [])
+        .map((arg) => arg.value ?? arg.description ?? "")
+        .join(" ")
+        .slice(0, 200);
+      consoleErrors.push(text);
+    });
+    cdp.on("Log.entryAdded", (params) => {
+      if (params.entry?.level !== "error") return;
+      consoleErrors.push(`${params.entry.text || ""}`.slice(0, 200));
+    });
+
+    // /site-map is expected to disappear after the docs move; probe it once.
+    const siteMapResponse = await fetch(`${options.base}/site-map`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => null);
+    const siteMapStatus = siteMapResponse ? siteMapResponse.status : null;
+    const globalViolations = [];
+    if (siteMapStatus !== 404) {
+      globalViolations.push({
+        id: "site-map-still-served",
+        message: `GET /site-map returned ${siteMapStatus ?? "no response"}; expected 404 after the docs move`,
+        detail: { status: siteMapStatus },
+      });
+    }
+
+    const routes = options.routes;
+    const viewports = options.viewports.map(viewportFor);
+    const runs = [];
+
+    for (const route of routes) {
+      const url = `${options.base}${route}`;
+      for (const viewport of viewports) {
+        for (const theme of options.themes) {
+          const started = Date.now();
+          consoleErrors = [];
+          const run = {
+            route,
+            viewport,
+            theme,
+            url,
+            violations: [],
+            warnings: [],
+            metrics: {},
+            screenshot: null,
+            durationMs: 0,
+            status: "ok",
+          };
+
+          try {
+            await cdp.send("Emulation.setDeviceMetricsOverride", {
+              width: viewport.width,
+              height: viewport.height,
+              deviceScaleFactor: 1,
+              mobile: viewport.width < 600,
+              screenWidth: viewport.width,
+              screenHeight: viewport.height,
+            });
+            await cdp.send("Emulation.setEmulatedMedia", {
+              media: "screen",
+              features: [{ name: "prefers-color-scheme", value: theme }],
+            });
+
+            await goto(cdp, url);
+
+            // Route-aware readiness: generated rows must exist before counting.
+            if (route.startsWith("/brainwallet/")) {
+              await waitForSelector(cdp, ".bw-row", SELECTOR_TIMEOUT_MS);
+            } else if (route === "/bitcoin-puzzle") {
+              await waitForSelector(cdp, "[data-puzzle-row]", SELECTOR_TIMEOUT_MS);
+            } else if (route === "/key") {
+              await waitForSelector(cdp, "#priv", SELECTOR_TIMEOUT_MS);
+            }
+
+            if (route === "/key") {
+              const derive = await auditKeyAutoDerive(cdp);
+              run.metrics.autoDerive = derive;
+              if (!derive.ok) {
+                run.violations.push({
+                  id: "key-auto-derive",
+                  message: `/key did not derive from the input: ${derive.reason}`,
+                  detail: derive,
+                });
+              }
+            }
+
+            // Audit after the interaction so /key results are inspected too.
+            const result = await evaluate(
+              cdp,
+              `(${auditPage.toString()})(${JSON.stringify({ route, theme })})`,
+            );
+            run.violations.push(...result.violations);
+            run.metrics = { ...result.metrics, ...run.metrics };
+
+            const shot = await cdp.send("Page.captureScreenshot", {
+              format: "png",
+              fromSurface: true,
+            });
+            const shotName = `${slugify(route)}-${viewport.width}-${theme}.png`;
+            const shotPath = path.join(screenshotsDir, shotName);
+            await writeFile(shotPath, Buffer.from(shot.data, "base64"));
+            run.screenshot = shotPath;
+          } catch (error) {
+            run.status = "error";
+            run.violations.push({
+              id: "navigation-or-evaluation-failed",
+              message: error.message,
+            });
+          }
+
+          run.durationMs = Date.now() - started;
+          if (consoleErrors.length) {
+            run.warnings.push({
+              id: "console-error",
+              message: `${consoleErrors.length} console error(s) during this run`,
+              detail: [...new Set(consoleErrors)].slice(0, 5),
+            });
+          }
+          runs.push(run);
+          const mark = run.violations.length ? "FAIL" : "ok  ";
+          log(
+            `${mark} ${route} ${viewport.width}px ${theme} (${run.durationMs}ms, ${run.violations.length} violation(s))`,
+          );
+        }
+      }
+    }
+
+    // Cross-route duplicate component families: the same address-type concept
+    // implemented with two different markup families is a parity bug even when
+    // each page looks fine alone.
+    const familyRoutes = { keyTypes: [], addressTypePanel: [] };
+    for (const run of runs) {
+      const families = run.metrics.addressTypeFamilies;
+      if (!families) continue;
+      if (families.keyTypes && !familyRoutes.keyTypes.includes(run.route)) {
+        familyRoutes.keyTypes.push(run.route);
+      }
+      if (families.addressTypePanel && !familyRoutes.addressTypePanel.includes(run.route)) {
+        familyRoutes.addressTypePanel.push(run.route);
+      }
+    }
+    if (familyRoutes.keyTypes.length && familyRoutes.addressTypePanel.length) {
+      globalViolations.push({
+        id: "duplicate-address-type-implementation",
+        message:
+          "address type is implemented with two different component families across audited routes",
+        detail: familyRoutes,
+      });
+    }
+
+    const violations = runs.reduce((sum, run) => sum + run.violations.length, 0) + globalViolations.length;
+    const warnings = runs.reduce((sum, run) => sum + run.warnings.length, 0);
+
+    const summary = {
+      generatedAt: new Date().toISOString(),
+      base: options.base,
+      browser: browserPath,
+      routes,
+      viewports: viewports.map((viewport) => viewport.width),
+      themes: options.themes,
+      screenshotsDir,
+      runs,
+      globalViolations,
+      totals: {
+        pageRuns: runs.length,
+        violations,
+        warnings,
+        failedRuns: runs.filter((run) => run.violations.length > 0 || run.status !== "ok").length,
+      },
+      ok: violations === 0,
+    };
+
+    if (options.json) {
+      await mkdir(path.dirname(path.resolve(options.json)), { recursive: true });
+      await writeFile(path.resolve(options.json), `${JSON.stringify(summary, null, 2)}\n`);
+    }
+
+    log("");
+    if (violations === 0) {
+      log(`ui-audit PASS: ${runs.length} page runs across ${routes.length} route(s), no violations.`);
+    } else {
+      log(`ui-audit FAIL: ${violations} violation(s) in ${summary.totals.failedRuns}/${runs.length} page runs.`);
+    }
+    for (const violation of globalViolations) {
+      log(`VIOLATION [${violation.id}] ${violation.message}`);
+    }
+    for (const run of runs) {
+      for (const violation of run.violations) {
+        log(`VIOLATION [${violation.id}] ${run.route} ${run.viewport.width}px ${run.theme}: ${violation.message}`);
+      }
+    }
+    if (warnings) {
+      log(`warnings: ${warnings} (console errors are recorded in the JSON report, not failed on)`);
+    }
+    log(`screenshots: ${screenshotsDir}`);
+    if (options.json) log(`json: ${path.resolve(options.json)}`);
+
+    return violations === 0 ? 0 : 1;
+  } finally {
+    cleanup();
+    if (chromeProfile) {
+      await rm(chromeProfile, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
+main()
+  .then((code) => {
+    process.exitCode = code;
+    // DevTools/undici sockets can keep the loop alive on Windows; exit once
+    // the report is written.
+    setTimeout(() => process.exit(code), 50).unref();
+  })
+  .catch((error) => {
+    console.error(`ui-audit: ${error.message}`);
+    process.exit(2);
+  });
