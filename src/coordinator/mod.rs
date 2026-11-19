@@ -82,6 +82,7 @@ const CABINET_WALLET_PAGE: &str = include_str!("../../apps/site/wallet.html");
 const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
+const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
@@ -863,6 +864,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-evm.js" => Some((
             WALLET_EVM_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-btc.js" => Some((
+            WALLET_BTC_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/cabinet.js" | "/monitor.js" => Some((
@@ -4746,7 +4751,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-unlock-form\""));
         assert!(html.contains("<script src=\"/theme.js?v=20261120a\"></script>"));
         assert!(html.contains("<script src=\"/wallet-vault.js?v=20261120a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261120a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261120a\"></script>"));
         assert!(html.contains("<script src=\"/wallet.js?v=20261120a\"></script>"));
+        assert!(html.contains("id=\"wallet-btc-send\""));
+        assert!(html.contains("id=\"wallet-btc-form\""));
 
         let (script, content_type) = static_asset("/wallet.js").expect("/wallet.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
@@ -4763,6 +4772,14 @@ mod tests {
         assert!(codec.contains("PBKDF2-SHA256"));
         assert!(codec.contains("MIN_ITERATIONS = 600000"));
         assert!(codec.contains("AES-GCM"));
+
+        let (btc, content_type) =
+            static_asset("/wallet-btc.js").expect("/wallet-btc.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let btc = std::str::from_utf8(btc).expect("wallet-btc.js is utf-8");
+        assert!(btc.contains("RotorBtcSend"));
+        assert!(btc.contains("mempool.space/testnet/api"));
+        assert!(btc.contains("btc_sign_tx"));
 
         let sitemap = render_sitemap("https://rotor.pxbt.app");
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/cabinet/wallet</loc>"));
