@@ -118,8 +118,15 @@ browser capture in the PR.
       Evidence: `theme.js`, `theme_script_and_chain_generator_entries_are_served`,
       `rendered_documents_load_the_theme_script`.
 - [ ] `/mnemonic-converter` as a standalone page reusing the seed form.
-- [ ] `/brainwallet/bitcoin`, `/brainwallet/ethereum` and
-      `/brainwallet-generator` aliases/variants.
+- [x] `/brainwallet` index plus `/brainwallet/bitcoin`, `/brainwallet/ethereum`
+      and the donor alias `/brainwallet-generator`. Every page hashes the
+      trimmed passphrase with SHA-256 (same path as search.js), derives through
+      the shared wasm `derive_report`, shows the private hex/WIF plus the
+      chain's addresses with explorer links and copy actions, offers a
+      fill-only random phrase, and clears input/results on `pagehide`.
+      Evidence: `apps/site/brainwallet-test.mjs` known vector
+      (`correct horse battery staple` → `1JwSSubhmg6iPtRjtyqhUYYH7bZg3Lfy1T`),
+      `coordinator::tests::brainwallet_chain_pages_and_alias_are_served_and_indexed`.
 - [ ] `/richest` and `/richest/<chain>` in-site lists with search/filter and
       the Rich-Address-Wallet attribution; do not proxy balances.
 - [ ] `/keystore-parser` accepting a UTC/JSON keystore and decrypting locally;
