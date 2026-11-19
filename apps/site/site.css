@@ -2380,7 +2380,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-chain-icon { flex: none; width: 16px; height: 16px; }
 .key-chain-ticker { white-space: nowrap; }
 .key-cell-type { color: var(--text-2); font-size: 12px; white-space: nowrap; }
-.key-type-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.key-format-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .key-cell-path { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .key-cell-addr .key-addr {
   display: block;
