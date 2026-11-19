@@ -166,7 +166,10 @@
     focusId: null,
     balances: {},
     checking: false,
-    deriving: false,
+    status: 'idle',
+    detected: null,
+    deriveSeq: 0,
+    debounceTimer: null,
     generation: 0,
     controllers: [],
     exposureTimer: null,
@@ -176,16 +179,19 @@
     urlExposurePosted: false
   };
 
+  var AUTO_DERIVE_MS = 200;
+
   function byId(id) { return document.getElementById(id); }
 
   var input = byId('priv');
   var curveSelect = byId('curve');
-  var deriveBtn = byId('derive-btn');
   var randomBtn = byId('random-btn');
   var stepDownBtn = byId('step-down');
   var stepUpBtn = byId('step-up');
+  var stepGroup = byId('step-group');
   var clearBtn = byId('clear-btn');
-  var errorBox = byId('key-error');
+  var statusEl = byId('key-status');
+  var statusTextEl = byId('key-status-text');
   var summaryEl = byId('summary');
   var summaryCard = byId('summary-card');
   var addressesCard = byId('addresses-card');
@@ -216,13 +222,114 @@
   /* ------------------------------------------------------------ key parsing */
 
   function showError(message) {
-    errorBox.textContent = message;
-    errorBox.hidden = false;
+    setStatus('invalid', 'Invalid key — ' + message);
   }
 
-  function hideError() {
-    errorBox.textContent = '';
-    errorBox.hidden = true;
+  /* -------------------------------------------------- input format detection */
+  /* Recognises complete and in-progress input without deriving anything.
+   * Order preserves the old page: exactly 64 hex characters win over decimal,
+   * and every other plain number is decimal. Any other text is a brainwallet
+   * phrase. The hint never includes the key itself. */
+  var WIF_RE = /^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  var WIF_PARTIAL_RE = /^[5KL][1-9A-HJ-NP-Za-km-z]{8,49}$/;
+
+  function detectFormat(raw) {
+    var value = String(raw == null ? '' : raw).trim();
+    if (!value) return { kind: 'empty' };
+    if (value.charAt(0) === '[') {
+      var closed = /\]\s*$/.test(value);
+      if (!/^\[[\d,\s]*\]?\s*$/.test(value)) {
+        return { kind: 'keypair', error: 'Keypair JSON must be a flat array of byte values 0–255.' };
+      }
+      if (!closed) return { kind: 'keypair', incomplete: true };
+      var parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch (err) {
+        parsed = null;
+      }
+      if (!Array.isArray(parsed) || (parsed.length !== 32 && parsed.length !== 64) ||
+          !parsed.every(function (n) { return Number.isInteger(n) && n >= 0 && n <= 255; })) {
+        return { kind: 'keypair', error: 'Keypair must be a JSON array of 32 (seed) or 64 (secret key) byte values 0–255.' };
+      }
+      return { kind: 'keypair', bytes: parsed };
+    }
+    if (value.slice(0, 2).toLowerCase() === '0x') {
+      var hex = value.slice(2);
+      if (!/^[0-9a-fA-F]*$/.test(hex)) {
+        return { kind: 'hex', error: 'A 0x key may only contain hex digits 0-9 and a-f.' };
+      }
+      if (hex.length === 64) return { kind: 'hex', length: 64 };
+      return {
+        kind: 'hex',
+        incomplete: hex.length < 64,
+        length: hex.length,
+        error: hex.length > 64 ? 'Hex keys are exactly 64 characters (you have ' + hex.length + ').' : null
+      };
+    }
+    if (/^[0-9a-fA-F]{64}$/.test(value)) return { kind: 'hex', length: 64 };
+    if (/^[0-9]+$/.test(value)) return { kind: 'decimal', length: value.length };
+    if (/^[0-9a-fA-F]+$/.test(value)) {
+      return {
+        kind: 'hex',
+        incomplete: value.length < 64,
+        length: value.length,
+        error: value.length > 64 ? 'Hex keys are exactly 64 characters (you have ' + value.length + ').' : null
+      };
+    }
+    if (WIF_RE.test(value)) return { kind: 'wif', length: value.length };
+    if (WIF_PARTIAL_RE.test(value)) return { kind: 'wif', incomplete: true, length: value.length };
+    return { kind: 'brainwallet', length: value.length };
+  }
+
+  function formatHint(detected) {
+    if (!detected) return '';
+    if (detected.kind === 'hex') {
+      return detected.length === 64 ? '64-character hex key'
+        : 'hex key (' + detected.length + '/64 characters)';
+    }
+    if (detected.kind === 'wif') {
+      return detected.incomplete ? 'Bitcoin WIF (' + detected.length + ' characters so far)'
+        : 'Bitcoin WIF (secp256k1)';
+    }
+    if (detected.kind === 'decimal') return 'decimal integer';
+    if (detected.kind === 'keypair') {
+      var size = detected.bytes && detected.bytes.length === 64 ? '64-byte secret key; first 32 bytes used' : '32-byte seed';
+      return 'Solana keypair (' + size + ') — ed25519';
+    }
+    if (detected.kind === 'brainwallet') return 'brainwallet phrase — key = SHA-256 of the trimmed text';
+    return '';
+  }
+
+  function setStatus(kind, message) {
+    state.status = kind;
+    if (statusEl) {
+      statusEl.className = 'key-input-status is-' + kind;
+      statusEl.setAttribute('aria-live', kind === 'invalid' ? 'assertive' : 'polite');
+    }
+    if (statusTextEl) statusTextEl.textContent = message;
+    var form = byId('key-form');
+    if (form) form.setAttribute('aria-busy', kind === 'deriving' ? 'true' : 'false');
+    if (!input) return;
+    if (kind === 'invalid') input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+  }
+
+  function updateInputState() {
+    var detected = detectFormat(input.value);
+    state.detected = detected;
+    if (detected.kind === 'empty') {
+      return detected;
+    }
+    if (detected.error) {
+      showError(detected.error);
+      return detected;
+    }
+    var label = formatHint(detected);
+    setStatus('typing', detected.incomplete
+      ? 'Detected: ' + label + ' — keep typing'
+      : 'Detected: ' + label);
+    return detected;
   }
 
   function hexToBytes(hex) {
@@ -293,16 +400,33 @@
   async function parseKey(raw, curve) {
     var text = raw.trim();
     if (!text) throw new Error('Enter a private key.');
-    var parsed = null;
-
-    if (/^0[xX][0-9a-fA-F]{64}$/.test(text)) parsed = { bytes: hexToBytes(text.slice(2)), format: 'hex' };
-    else if (/^[0-9a-fA-F]{64}$/.test(text)) parsed = { bytes: hexToBytes(text), format: 'hex' };
-    else if (/^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(text)) parsed = { bytes: await decodeWif(text), format: 'wif' };
-    else if (/^[0-9]+$/.test(text)) parsed = { bytes: decimalToBytes(text), format: 'decimal' };
-    else throw new Error('Unrecognized format. Use 64 hex characters (optionally 0x-prefixed), a decimal integer, or a Bitcoin WIF.');
+    var detected = detectFormat(text);
+    if (detected.kind === 'empty') throw new Error('Enter a private key.');
+    if (detected.error) throw new Error(detected.error);
+    if (detected.incomplete) throw new Error('The key is incomplete — keep typing or press Enter to derive.');
+    var parsed;
+    if (detected.kind === 'hex') {
+      parsed = { bytes: hexToBytes(text.replace(/^0[xX]/, '')), format: 'hex' };
+    } else if (detected.kind === 'wif') {
+      parsed = { bytes: await decodeWif(text), format: 'wif' };
+    } else if (detected.kind === 'decimal') {
+      parsed = { bytes: decimalToBytes(text), format: 'decimal' };
+    } else if (detected.kind === 'keypair') {
+      parsed = { bytes: Uint8Array.from(detected.bytes.slice(0, 32)), format: 'keypair' };
+    } else {
+      var encoded = new TextEncoder().encode(text);
+      try {
+        parsed = { bytes: await sha256(encoded), format: 'brainwallet' };
+      } finally {
+        encoded.fill(0);
+      }
+    }
 
     if (parsed.format === 'wif' && curve !== 0) {
       throw new Error('A WIF encodes a secp256k1 key; switch the curve to secp256k1.');
+    }
+    if (parsed.format === 'keypair' && curve !== 1) {
+      throw new Error('A Solana keypair is an ed25519 seed; switch the curve to ed25519.');
     }
     var value = bytesToBigInt(parsed.bytes);
     if (curve === 0 && (value === 0n || value >= SECP_N)) {
@@ -386,13 +510,29 @@
   /* ---------------------------------------------------------------- deriving */
 
   function setBusy(busy) {
-    state.deriving = busy;
-    deriveBtn.disabled = busy;
-    deriveBtn.textContent = busy ? 'Calculating…' : 'Calculate';
     randomBtn.disabled = busy;
     stepDownBtn.disabled = busy;
     stepUpBtn.disabled = busy;
     clearBtn.disabled = busy;
+  }
+
+  function syncStepGroup(visible) {
+    if (stepGroup) stepGroup.hidden = !visible;
+  }
+
+  function cancelDebounce() {
+    if (state.debounceTimer !== null) {
+      window.clearTimeout(state.debounceTimer);
+      state.debounceTimer = null;
+    }
+  }
+
+  function scheduleDerive() {
+    cancelDebounce();
+    state.debounceTimer = window.setTimeout(function () {
+      state.debounceTimer = null;
+      deriveFromInput();
+    }, AUTO_DERIVE_MS);
   }
 
   function summaryPlaceholder() {
@@ -433,46 +573,89 @@
     updateChainAvailability([], null);
     syncSelection(false, false);
     syncBitcoinPanel();
+    syncStepGroup(false);
     presetEmpty.hidden = true;
     checkBtn.disabled = true;
     checkBtn.textContent = 'Check balances';
   }
 
-  async function runDerive(bytes, curve) {
+  function updateDerivedStatus() {
+    var count = rowsEl.querySelectorAll('.key-row').length;
+    setStatus('derived', 'Derived ' + count + ' address row' + (count === 1 ? '' : 's') +
+      ' from a ' + formatHint(detectFormat(input.value)) + '.');
+  }
+
+  async function runDerive(bytes, curve, seq) {
     cancelBalances();
-    hideError();
     setBusy(true);
+    setStatus('deriving', 'Deriving addresses…');
     try {
       var wasm = await loadWasm();
-      renderReport(deriveReport(wasm, bytes, curve));
+      if (seq !== state.deriveSeq) return;
+      var report = deriveReport(wasm, bytes, curve);
+      if (seq !== state.deriveSeq) return;
+      renderReport(report);
+      updateDerivedStatus();
+      syncStepGroup(true);
     } catch (err) {
+      if (seq !== state.deriveSeq) return;
       clearResults();
       showError(err && err.message ? err.message : String(err));
     } finally {
-      setBusy(false);
+      if (seq === state.deriveSeq) setBusy(false);
     }
   }
 
   async function deriveFromInput() {
-    if (state.deriving) return;
-    hideError();
+    cancelDebounce();
+    var detected = updateInputState();
+    var seq = ++state.deriveSeq;
+    if (detected.kind === 'empty') {
+      state.keyBytes = null;
+      setBusy(false);
+      clearResults();
+      setStatus('idle', 'Paste a key to derive automatically.');
+      return;
+    }
+    if (detected.incomplete) {
+      state.keyBytes = null;
+      setBusy(false);
+      clearResults();
+      setStatus('typing', 'Detected: ' + formatHint(detected) + ' — keep typing');
+      return;
+    }
+    if (detected.error) {
+      state.keyBytes = null;
+      setBusy(false);
+      clearResults();
+      showError(detected.error);
+      return;
+    }
     var curve = Number(curveSelect.value);
+    if (detected.kind === 'keypair' && curve !== 1) {
+      /* A Solana keypair is an ed25519 seed; follow the detected format. */
+      curveSelect.value = '1';
+      syncCurveChoices();
+      renderCurve();
+      curve = 1;
+    }
     var parsed;
     try {
       parsed = await parseKey(input.value, curve);
     } catch (err) {
+      if (seq !== state.deriveSeq) return;
       state.keyBytes = null;
       clearResults();
-      showError(err.message);
+      showError(err && err.message ? err.message : String(err));
       return;
     }
+    if (seq !== state.deriveSeq) return;
     state.keyBytes = parsed.bytes;
-    await runDerive(parsed.bytes, curve);
+    await runDerive(parsed.bytes, curve, seq);
   }
 
   function randomKey() {
-    if (state.deriving) return;
-    hideError();
+    cancelDebounce();
     var curve = Number(curveSelect.value);
     var bytes;
     try {
@@ -486,20 +669,23 @@
       showError('This browser cannot generate a random key: ' + err.message);
       return;
     }
+    var seq = ++state.deriveSeq;
     input.value = bytesToHex(bytes);
     state.keyBytes = bytes;
-    runDerive(bytes, curve);
+    updateInputState();
+    runDerive(bytes, curve, seq);
   }
 
   async function stepKey(delta) {
-    if (state.deriving) return;
-    hideError();
+    cancelDebounce();
+    var seq = ++state.deriveSeq;
     var curve = Number(curveSelect.value);
     var parsed;
     try {
       parsed = await parseKey(input.value, curve);
     } catch (err) {
-      showError(err.message);
+      if (seq !== state.deriveSeq) return;
+      showError(err && err.message ? err.message : String(err));
       return;
     }
     var value = bytesToBigInt(parsed.bytes);
@@ -513,15 +699,24 @@
     var bytes = hexToBytes(value.toString(16).padStart(64, '0'));
     input.value = bytesToHex(bytes);
     state.keyBytes = bytes;
-    await runDerive(bytes, curve);
+    updateInputState();
+    await runDerive(bytes, curve, seq);
   }
 
   function clearKey() {
-    hideError();
+    cancelDebounce();
+    cancelPlannedDerive();
+    setBusy(false);
     input.value = '';
     state.keyBytes = null;
+    state.detected = null;
     clearResults();
+    setStatus('idle', 'Paste a key to derive automatically.');
     input.focus();
+  }
+
+  function cancelPlannedDerive() {
+    state.deriveSeq += 1;
   }
 
   /* ---------------------------------------------------------------- results */
@@ -683,6 +878,7 @@
       if (!address || state.report !== report) return;
       report.addresses.push({ id: 'ton', label: 'TON wallet v4R2', address: address, steps: {} });
       renderAddresses(report);
+      updateDerivedStatus();
     }).catch(function () {
       /* Solana and Sui remain usable without the TON bundle */
     });
@@ -1593,6 +1789,29 @@
     deriveFromInput();
   });
 
+  input.addEventListener('input', function () {
+    var detected = updateInputState();
+    if (detected.kind === 'empty' || detected.incomplete || detected.error) {
+      cancelDebounce();
+      cancelPlannedDerive();
+      setBusy(false);
+      state.keyBytes = null;
+      clearResults();
+      if (detected.kind === 'empty') setStatus('idle', 'Paste a key to derive automatically.');
+      return;
+    }
+    /* Drop any in-flight result for the previous text before waiting. */
+    cancelPlannedDerive();
+    scheduleDerive();
+  });
+
+  input.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    cancelDebounce();
+    deriveFromInput();
+  });
+
   randomBtn.addEventListener('click', randomKey);
   stepDownBtn.addEventListener('click', function () { stepKey(-1); });
   stepUpBtn.addEventListener('click', function () { stepKey(1); });
@@ -1603,12 +1822,16 @@
     if (input.value.trim()) {
       /* Re-parse the current field so an edited but unsubmitted key is not
        * silently replaced by the last derived one. */
+      cancelDebounce();
       deriveFromInput();
       return;
     }
+    cancelDebounce();
+    cancelPlannedDerive();
+    setBusy(false);
     state.keyBytes = null;
-    hideError();
     clearResults();
+    setStatus('idle', 'Paste a key to derive automatically.');
   });
 
   presetButtons.forEach(function (button) {
@@ -1751,6 +1974,8 @@
   slider.addEventListener('input', renderCurve);
 
   window.addEventListener('pagehide', function () {
+    cancelDebounce();
+    cancelPlannedDerive();
     cancelBalances();
     cancelExposure(false);
     input.value = '';
