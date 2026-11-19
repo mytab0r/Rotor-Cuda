@@ -1,5 +1,5 @@
 {
-  "asset_version": "20261122e",
+  "asset_version": "20261123b",
   "areas": [
     {
       "id": "site",
@@ -34,6 +34,8 @@
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-evm.js",
         "node --check apps/site/wallet-btc.js",
+        "node --check apps/site/tx-decoders.js",
+        "node --check apps/site/tx-page.js",
         "node --check scripts/ui-audit.mjs"
       ],
       "test": [
@@ -47,6 +49,7 @@
         "node apps/site/wallet-vault-test.mjs",
         "node apps/site/wallet-evm-test.mjs",
         "node apps/site/wallet-btc-test.mjs",
+        "node apps/site/tx-test.mjs",
         "node apps/site/search-test.mjs apps/site/rotor_wasm.wasm"
       ],
       "consumes": [
@@ -145,6 +148,7 @@
       "paths": [
         ".github/**",
         ".claude/skills/**",
+        ".impeccable/**",
         "deploy/**",
         "scripts/**",
         "openspec/**",
