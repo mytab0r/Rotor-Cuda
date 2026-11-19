@@ -319,29 +319,9 @@
     }
   }
 
-  function wasmStringCall(wasm, name, request) {
-    var bytes = new TextEncoder().encode(request);
-    var pointer = wasm.alloc(bytes.length) >>> 0;
-    if (!pointer) throw new Error('WASM memory exhausted.');
-    try {
-      new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
-      var status = wasm[name](pointer, bytes.length) >>> 0;
-      if (status !== 0) {
-        var detail = wasmText(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
-        throw new Error('The local core rejected the transaction' +
-          (detail ? ': ' + detail : ' (status ' + status + ')'));
-      }
-      return wasmText(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0);
-    } finally {
-      wasm.dealloc(pointer, bytes.length);
-      /* The unsigned/signed result is read above; do not leave it in wasm memory. */
-      if (typeof wasm.clear_result === 'function') wasm.clear_result();
-    }
-  }
-
   function unsignedTx(fields) {
     return loadWasm().then(function (wasm) {
-      return wasmStringCall(wasm, 'evm_unsigned_tx', JSON.stringify(fields));
+      return evmSend.callWasmString(wasm, 'evm_unsigned_tx', JSON.stringify(fields));
     });
   }
 
@@ -362,7 +342,7 @@
     var text = JSON.stringify(request);
     try {
       var wasm = await loadWasm();
-      return wasmStringCall(wasm, 'evm_sign_tx', text);
+      return evmSend.callWasmString(wasm, 'evm_sign_tx', text);
     } finally {
       /* The key crossed only this tab's memory and the wasm request; drop it. */
       parsed.key.fill(0);

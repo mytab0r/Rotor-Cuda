@@ -263,6 +263,42 @@
     return text;
   }
 
+  function wasmText(wasm, pointer, length) {
+    if (!pointer || !length) return '';
+    return new TextDecoder('utf-8').decode(new Uint8Array(wasm.memory.buffer, pointer, length));
+  }
+
+  /* Call a wasm string entry point and erase the request afterwards.
+   *
+   * The signing request carries the private key as text. Parsing happens in
+   * wasm, but the raw bytes stay in linear memory until the allocation is
+   * reused, so the finally block zeroes the wasm copy and the JS `bytes`
+   * before deallocating. The finally also runs when the wasm call rejects or
+   * traps; `clear_result` still wipes the result buffer. */
+  function callWasmString(wasm, name, request) {
+    if (!wasm || typeof wasm[name] !== 'function') {
+      throw new Error('The local core has no "' + name + '" export.');
+    }
+    var bytes = new TextEncoder().encode(request);
+    var pointer = wasm.alloc(bytes.length) >>> 0;
+    if (!pointer) throw new Error('WASM memory exhausted.');
+    try {
+      new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
+      var status = wasm[name](pointer, bytes.length) >>> 0;
+      if (status !== 0) {
+        var detail = wasmText(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
+        throw new Error('The local core rejected the transaction' +
+          (detail ? ': ' + detail : ' (status ' + status + ')'));
+      }
+      return wasmText(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0);
+    } finally {
+      new Uint8Array(wasm.memory.buffer, pointer, bytes.length).fill(0);
+      bytes.fill(0);
+      wasm.dealloc(pointer, bytes.length);
+      if (typeof wasm.clear_result === 'function') wasm.clear_result();
+    }
+  }
+
   function chooseProvider(fetchJson, providers, expectedChainId) {
     var failures = [];
 
@@ -510,6 +546,7 @@
     parseChainId: parseChainId,
     assertChainId: assertChainId,
     validateForm: validateForm,
+    callWasmString: callWasmString,
     prepareTransaction: prepareTransaction,
     confirmTransaction: confirmTransaction,
     providerLabel: providerLabel
