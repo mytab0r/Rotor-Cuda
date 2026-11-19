@@ -58,6 +58,9 @@ const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
 const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
 const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
 const SEED_PAGE_JS: &str = include_str!("../../apps/site/seed-page.js");
+const SEED_CRYPTO_JS: &str = include_str!("../../apps/site/seed-crypto.js");
+const SEED_STUDIO_CSS: &str = include_str!("../../apps/site/seed-studio.css");
+const MNEMONIC_CONVERTER_PAGE: &str = include_str!("../../apps/site/mnemonic-converter.html");
 const MNEMONIC_SEEDS_PAGE: &str = include_str!("../../apps/site/mnemonic-seeds.html");
 const MNEMONIC_SEEDS_JS: &str = include_str!("../../apps/site/mnemonic-seeds.js");
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
@@ -775,6 +778,15 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/seed-page.js" => Some((
             SEED_PAGE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
+        )),
+        "/seed-crypto.js" => Some((
+            SEED_CRYPTO_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/seed-studio.css" => Some((SEED_STUDIO_CSS.as_bytes(), "text/css; charset=utf-8")),
+        "/mnemonic-converter" => Some((
+            MNEMONIC_CONVERTER_PAGE.as_bytes(),
+            "text/html; charset=utf-8",
         )),
         "/mnemonic-seeds" => Some((MNEMONIC_SEEDS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/mnemonic-seeds.js" => Some((
@@ -3259,6 +3271,7 @@ fn render_sitemap(base: &str) -> String {
         "/donate",
         "/brainwallet",
         "/seed",
+        "/mnemonic-converter",
         "/vanity",
         "/milk-sad",
         "/tools",
@@ -3947,12 +3960,73 @@ mod tests {
             "/key?chain=bitcoin-cash",
             "/key?chain=bitcoin&amp;type=taproot",
             "/key?chain=bitcoin&amp;type=segwit",
+            "/mnemonic-converter",
         ] {
             assert!(
                 page.contains(href),
                 "generator link {href} must be on /tools"
             );
         }
+    }
+
+    #[test]
+    fn seed_studio_and_mnemonic_converter_are_served() {
+        for (path, marker, extra) in [
+            ("/seed", "id=\"seed-form\"", "/mnemonic-converter"),
+            ("/mnemonic-converter", "id=\"seed-form\"", "/seed"),
+        ] {
+            let (page, content_type) =
+                static_asset(path).unwrap_or_else(|| panic!("{path} is embedded"));
+            assert_eq!(content_type, "text/html; charset=utf-8");
+            let page = std::str::from_utf8(page).expect("page is UTF-8");
+            assert!(page.contains(marker), "{path} is missing {marker}");
+            assert!(page.contains(extra), "{path} is missing a link to {extra}");
+            for asset in [
+                "/seed.js",
+                "/seed-crypto.js",
+                "/seed-page.js",
+                "/seed-studio.css",
+            ] {
+                assert!(page.contains(asset), "{path} does not load {asset}");
+            }
+            assert!(
+                page.contains("/theme.js?v=20261120a"),
+                "{path} does not load the theme script"
+            );
+        }
+
+        let (script, content_type) =
+            static_asset("/seed-crypto.js").expect("/seed-crypto.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let script = std::str::from_utf8(script).expect("seed-crypto.js is UTF-8");
+        assert!(script.contains("RotorSeedCrypto"));
+        assert!(script.contains("oldPrivateKeys"));
+        assert!(script.contains("electrumSeedType"));
+
+        let (engine, content_type) =
+            static_asset("/seed-page.js").expect("/seed-page.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let engine = std::str::from_utf8(engine).expect("seed-page.js is UTF-8");
+        assert!(engine.contains("RotorSeedCrypto"));
+        assert!(engine.contains("checkBalances"));
+
+        let (css, content_type) =
+            static_asset("/seed-studio.css").expect("/seed-studio.css is embedded");
+        assert_eq!(content_type, "text/css; charset=utf-8");
+        assert!(
+            std::str::from_utf8(css)
+                .expect("css is UTF-8")
+                .contains(".seed-count-btn")
+        );
+
+        let base = "https://rotor.pxbt.app";
+        let (sitemap, _, 200) = seo_asset(base, "/sitemap.xml", "").expect("sitemap") else {
+            panic!("sitemap status");
+        };
+        assert!(
+            sitemap.contains(&format!("<loc>{base}/mnemonic-converter</loc>")),
+            "sitemap is missing /mnemonic-converter"
+        );
     }
 
     #[test]

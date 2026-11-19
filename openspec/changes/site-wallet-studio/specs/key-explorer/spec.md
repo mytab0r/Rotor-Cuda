@@ -73,10 +73,24 @@ all-path presets, chain filter, and an address count of 1/3/5/10, then derive
 and check balances for the resulting addresses. It MUST NOT store or upload the
 phrase; it clears on pagehide.
 
+The schemes MUST be real: BIP39 uses the BIP39 wordlist, checksum and
+`mnemonic` PBKDF2 salt; Electrum BIP39 uses the BIP39 wordlist with Electrum's
+seed-version check (`01` standard, `100` segwit) and `electrum` PBKDF2 salt;
+Electrum old uses the 1626-word legacy list, its hex seed and the old
+stretch/sequence derivation. Electrum old accepts 12 or 24 words and has no
+passphrase. Electrum 2FA seed versions are an explicit unsupported state, not
+a fallback to another scheme.
+
 #### Scenario: BIP39 24 words
 - GIVEN 256-bit entropy and a passphrase
 - WHEN the visitor derives
 - THEN the page shows the 24-word phrase, selected paths and N addresses
+
+#### Scenario: Electrum old phrase
+- GIVEN a 12-word legacy Electrum phrase
+- WHEN the visitor derives
+- THEN the Bitcoin address comes from the old Electrum stretch and sequence
+  scheme and the page reports the legacy seed type
 
 ### Requirement: transaction entry
 The key page MUST expose the signing entry defined by
