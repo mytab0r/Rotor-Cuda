@@ -903,10 +903,7 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/send" | "/send/bitcoin" | "/send/ethereum" => {
             Some((SEND_PAGE.as_bytes(), "text/html; charset=utf-8"))
         }
-        "/send.js" => Some((
-            SEND_JS.as_bytes(),
-            "application/javascript; charset=utf-8",
-        )),
+        "/send.js" => Some((SEND_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/cabinet.js" | "/monitor.js" => Some((
             MONITOR_JS.as_bytes(),
             "application/javascript; charset=utf-8",
