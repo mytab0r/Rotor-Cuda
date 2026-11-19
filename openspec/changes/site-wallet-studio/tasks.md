@@ -6,6 +6,12 @@ Every unchecked task has a concrete artifact; checked tasks need a test or a
 browser capture in the PR.
 
 ## 1. Explorer links and WIF rows [front]
+- [x] `/mnemonic-seeds/<chain>` rows show the derived private key (compressed
+      WIF on Bitcoin, hex elsewhere) and the mnemonic with icon-only copy
+      buttons; the BTC WIF keeps its `/key/<WIF>` link, address copy and
+      explorer icons stay. Evidence: `apps/site/mnemonic-seeds-test.mjs`,
+      `mnemonic_seed_directory_routes_and_assets_are_served` in
+      `src/coordinator/mod.rs`.
 - [ ] Add one explorer map in `apps/site/browse.js` and use it for chain rows;
       add the same map to `key.js` for derived rows. (blocked by: -)
 - [ ] Address text itself links to the explorer; external icon and
@@ -37,6 +43,17 @@ browser capture in the PR.
       show a one-line explanation.
 - [ ] Add `Master key`, BIP44, BIP49, BIP84, BIP86 path chips; custom path input
       validates `m/…` and is informational (the page takes a final key).
+- [x] Replace the `key-advanced` details with one compact derivation block:
+      editable path input + icon Copy with `m/…` validation on blur/Enter,
+      one preset chip row (All, Ledger / Trezor, MetaMask, SafePal, TronLink,
+      Phantom) and the curve beside it. A preset changes the informational path
+      and keeps row filtering and `#preset-select` sync unchanged; longer path
+      lists live in `title`/`aria-description`.
+      Evidence: `node --check apps/site/key.js`; `browser_client_assets_are_served`
+      and `seo_key_page_injects_key_and_robots_policy` coordinator tests;
+      headless Chrome at 375/768/1280 in both themes (no overflow, chips in
+      1–2 rows, no text under 12px, preset→path/filter sequence, valid/invalid
+      path states, icon copy → check).
 - Evidence: same visual snapshot of the toolbar on `/key/<hex>`, chain browser,
       seed page.
 
