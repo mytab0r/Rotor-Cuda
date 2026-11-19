@@ -27,6 +27,9 @@ evidence (a screenshot or the DOM check below).
       `document.documentElement.scrollWidth === clientWidth`.
 - [ ] Long mono values (addresses, keys, tokens) wrap inside cards.
 - [ ] Tap targets are at least 44×44 px; the nav is usable at 375 px.
+      The 44 px box must be the control's own element box: a `::before`
+      overlay with a negative inset does not count (the audit measures
+      `getBoundingClientRect`), so size icon buttons themselves.
 - [ ] Breakpoints: 375 (phone), 768 (tablet), 1280 (desktop); check all three.
 
 ## Hierarchy and text
