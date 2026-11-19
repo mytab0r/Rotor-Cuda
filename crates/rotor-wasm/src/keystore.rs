@@ -232,6 +232,9 @@ mod tests {
             c: 0,
             dklen: 32,
             salt: &[],
+            // Dummy bytes for the invalid-parameter path; this request never
+            // reaches the cipher, so the value is not used as an IV.
+            // codeql[rust/hard-coded-cryptographic-value]
             iv: &[0u8; 16],
             ciphertext: &[0u8; 32],
             mac: &[0u8; 16],
