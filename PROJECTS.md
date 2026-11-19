@@ -31,7 +31,10 @@ owned by exactly one area; the most-specific glob wins.
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
   coordinator + site change. Key utility pages `/hex-dec-bin`, `/public-key`,
   `/pubkey-add`, `/reconstruction` and `/keystore-parser` (plus `key-tools.js`
-  and their per-page scripts) follow the same rule. The seed studio is served
+  and their per-page scripts) follow the same rule. The cabinet wallet lives on
+  `/cabinet/wallet` and shares `wallet-vault.js` (the pure encrypted-vault
+  codec) and `wallet.js` (page logic); the coordinator never receives a key,
+  WIF or passphrase. The seed studio is served
   on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
   `seed-page.js` and `seed-studio.css`; the directory remains on
   `/mnemonic-seeds`. Brainwallet pages `/brainwallet`, `/brainwallet/bitcoin`,

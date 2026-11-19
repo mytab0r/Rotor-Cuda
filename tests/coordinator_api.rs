@@ -1012,7 +1012,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 6] = [
+    let checks: [(&str, &[&str]); 7] = [
         (
             "/",
             &[
@@ -1043,6 +1043,15 @@ fn public_pages_and_assets_are_served() {
             "/docs",
             &["--coordinator", "--token", "-m addresses", "--client-id"],
         ),
+        (
+            "/cabinet/wallet",
+            &[
+                "id=\"wallet-panel\"",
+                "id=\"wallet-unlock-form\"",
+                "/wallet-vault.js?v=20261120a",
+                "/theme.js?v=20261120a",
+            ],
+        ),
         ("/site.css", &[":root", "--bg", "@media"]),
         ("/site.js", &["window.Rotor", "sparkline", "TOKEN_KEY"]),
     ];
@@ -1058,6 +1067,22 @@ fn public_pages_and_assets_are_served() {
         for needle in needles {
             assert!(body.contains(needle), "{path} misses {needle}");
         }
+    }
+
+    // The wallet vault codec and page script are served as JavaScript.
+    for (path, needle) in [
+        ("/wallet.js", "rotor-wallet"),
+        ("/wallet-vault.js", "PBKDF2-SHA256"),
+    ] {
+        let (status, headers, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        assert!(
+            headers
+                .to_ascii_lowercase()
+                .contains("application/javascript"),
+            "{path}: {headers}"
+        );
+        assert!(body.contains(needle), "{path} misses {needle}");
     }
 
     // Unknown non-API paths are a real 404, not a landing-page fallback.
