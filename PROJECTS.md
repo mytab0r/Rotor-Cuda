@@ -50,6 +50,9 @@ owned by exactly one area; the most-specific glob wins.
   `/brainwallet/<chain>/<page>` are the directory pages. SEO routes include
   `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
+  The canonical `/site-map` page is a static route with `site-map.css`,
+  `site-map.js` and the single data file `site-map-data.js`; update that file
+  when a route or feature status changes.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
   `Rotor-Cuda/`; moving them requires `build.rs`, `Cargo.toml` and
   `gpu-bsgs-compile.yml` in the same change.
