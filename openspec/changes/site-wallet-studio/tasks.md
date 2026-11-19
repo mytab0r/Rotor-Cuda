@@ -104,9 +104,19 @@ browser capture in the PR.
       12/18/24-word entropy, BIP-32 path, address type, balances and pager.
       (blocked by: 5 — seed studio engine; delivered on top of `seed.js`)
       Evidence: `mnemonic_seed_directory_routes_and_assets_are_served` route test.
-- [ ] Header icon-only search + 18-chain icon strip modal with auto-detect
+- [x] Header icon-only search + 18-chain icon strip modal with auto-detect
       HEX/WIF/Keypair/XRP secret/Mnemonic/Brainwallet and `Search All Chains`.
       (blocked by: 12 seed directory for mnemonic results)
+      Evidence: `site.js` modal + `search.js` `detect`; a mnemonic goes to
+      `/mnemonic-seeds/<chain>` or `/seed` with no phrase in the URL; a keypair
+      opens `/key/<hex>?curve=ed25519&chain=solana`; XRP family seeds and bad
+      keypairs raise precise inline errors instead of a brainwallet hash.
+- [x] Header theme toggle next to the icon-only search: light theme built from
+      `html[data-theme="light"]` custom properties, default follows
+      `prefers-color-scheme`, the visitor's choice persists in `localStorage`,
+      and the toggle is a 40px keyboard-accessible button on every page.
+      Evidence: `theme.js`, `theme_script_and_chain_generator_entries_are_served`,
+      `rendered_documents_load_the_theme_script`.
 - [ ] `/mnemonic-converter` as a standalone page reusing the seed form.
 - [ ] `/brainwallet/bitcoin`, `/brainwallet/ethereum` and
       `/brainwallet-generator` aliases/variants.
@@ -137,8 +147,11 @@ browser capture in the PR.
 ## 14. Secretscan calculator catalogue (from donor-map.md)
 - [ ] `/monero-address-generator`; decide whether view-key/spend-key derivation
       or only address encoding is in scope.
-- [ ] Per-chain address-generator pages that reuse `/key` with a chain preset:
+- [x] Per-chain address-generator pages that reuse `/key` with a chain preset:
       Ethereum, BNB, Tron, Solana, XRP, TON, Bitcoin Cash, Taproot/SegWit.
+      `/key?chain=<slug>` (plus `&type=taproot|segwit`) preselects the chain,
+      address row and ed25519 curve in `key.js`; entry cards live on `/tools`.
+      Evidence: `theme_script_and_chain_generator_entries_are_served`.
 - [ ] `/hex-dec-bin` converter and `/reconstruction` private-key reconstruction.
 - [ ] `/public-key` (public key → addresses) and `/pubkey-add` (P + Q).
 - [ ] `/keystore-parser` local UTC/JSON keystore decrypt; no upload.
