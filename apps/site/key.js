@@ -234,6 +234,7 @@
   var addressesCard = byId('addresses-card');
   var rowsEl = byId('addr-rows');
   var presetEmpty = byId('preset-empty');
+  var evmSharedNote = byId('evm-shared-note');
   var plotEl = byId('curve-plot');
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
@@ -593,6 +594,7 @@
     setExportStatus('');
     state.report = null;
     state.focusId = null;
+    if (evmSharedNote) evmSharedNote.hidden = true;
     summaryPlaceholder();
     rowsPlaceholder();
     updateChainAvailability([], null);
@@ -950,6 +952,7 @@
     var addresses = displayAddresses(report);
     if (!addresses.length) {
       state.focusId = null;
+      if (evmSharedNote) evmSharedNote.hidden = true;
       var note = document.createElement('p');
       note.className = 'muted key-empty';
       note.textContent = 'The derivation core returned no address rows.';
@@ -963,6 +966,9 @@
       rowsEl.appendChild(buildRow(addr));
     });
     rowsEl.insertBefore(buildTableHead(), rowsEl.firstChild);
+    if (evmSharedNote) {
+      evmSharedNote.hidden = !addresses.some(function (addr) { return addr.sharedEvm; });
+    }
     hydrateWifLinks();
     resetBalanceBadges();
     updateChainAvailability(Array.isArray(report.addresses) ? report.addresses : [], report.curve);
@@ -1122,11 +1128,6 @@
     return head;
   }
 
-  function statusFor(addr) {
-    if (addr.sharedEvm) return 'Every EVM row shares this account address; each row is a different network.';
-    return '';
-  }
-
   function copyIconText(text, button, label) {
     writeClipboard(text, function done() {
       var use = button.querySelector('use');
@@ -1233,13 +1234,6 @@
     title.className = 'key-row-title visually-hidden';
     title.textContent = name;
     typeCell.appendChild(title);
-    if (addr.sharedEvm) {
-      var shared = document.createElement('span');
-      shared.className = 'key-row-tag';
-      shared.textContent = 'same';
-      shared.title = 'Every EVM row shares this account address; each row is a different network.';
-      typeCell.appendChild(shared);
-    }
     main.appendChild(typeCell);
 
     var pathCell = document.createElement('span');
@@ -1269,8 +1263,6 @@
     var badge = document.createElement('span');
     badge.className = 'key-balance';
     badge.hidden = true;
-    var sharedNote = statusFor(addr);
-    if (sharedNote) badge.title = sharedNote;
     statusCell.appendChild(badge);
     main.appendChild(statusCell);
 
@@ -1770,6 +1762,7 @@
     badge.className = 'key-balance' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
     badge.textContent = text;
     badge.title = text;
+    badge.removeAttribute('aria-label');
     if (age) {
       var ageEl = document.createElement('span');
       ageEl.className = 'balance-age';
@@ -1786,6 +1779,12 @@
       button.addEventListener('click', onRetry);
       badge.appendChild(button);
     }
+  }
+
+  function setNoProvider(badge) {
+    setBalance(badge, 'muted', '—');
+    badge.title = 'No balance provider for this chain yet';
+    badge.setAttribute('aria-label', 'No balance provider for this chain yet');
   }
 
   function resetBalanceBadges() {
@@ -2135,7 +2134,7 @@
     if (!badge || !address || generation !== state.generation) return;
     if (!rowHasProvider(id)) {
       row.dataset.balanceState = 'off';
-      setBalance(badge, 'muted', 'no provider in v1');
+      setNoProvider(badge);
       updateCounters();
       return;
     }
@@ -2190,7 +2189,7 @@
       var badge = row.querySelector('.key-balance');
       if (!badge) return;
       row.dataset.balanceState = 'off';
-      setBalance(badge, 'muted', 'no provider in v1');
+      setNoProvider(badge);
     });
     var only = opts.onlyRows && opts.onlyRows.length ? opts.onlyRows : null;
     var candidates = rowList().filter(function (row) {
