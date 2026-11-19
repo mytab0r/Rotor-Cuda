@@ -650,7 +650,7 @@ fn tagged_hash(tag: &[u8], message: &[u8]) -> [u8; 32] {
 }
 
 /// Reduce a 256-bit big-endian hash modulo the secp256k1 order.
-fn reduce_mod_n(bytes: &[u8; 32]) -> Scalar {
+pub(crate) fn reduce_mod_n(bytes: &[u8; 32]) -> Scalar {
     let mut value = *bytes;
     while Scalar::from_bytes_be(&value).is_none() {
         let mut borrow = 0i16;

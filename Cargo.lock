@@ -950,6 +950,7 @@ dependencies = [
  "bs58",
  "ctr",
  "ed25519-dalek",
+ "hmac",
  "pbkdf2",
  "ripemd",
  "scrypt",
