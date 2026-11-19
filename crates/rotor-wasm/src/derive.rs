@@ -9,6 +9,7 @@ use std::fmt::Write as _;
 use blake2::{Blake2b, Digest as _, digest::consts::U32};
 use ed25519_dalek::SigningKey;
 
+use crate::point::Affine;
 use crate::scalar::Scalar;
 use crate::{base58, bech32, hashes, secp};
 
@@ -25,6 +26,163 @@ pub fn report(key: &[u8; 32], curve: u32) -> Result<String, String> {
         1 => ed25519_report(key),
         other => Err(format!("unsupported curve: {other}")),
     }
+}
+
+/// JSON address report derived from a secp256k1 public key alone.
+///
+/// The public key may be compressed (02/03) or uncompressed (04); no private
+/// key, WIF or decimal form is produced because none can be recovered from a
+/// public key.
+pub fn pubkey_report(text: &str) -> Result<String, String> {
+    let mut was_compressed = true;
+    let point = secp::parse_pubkey_hex(text.trim(), &mut was_compressed)?;
+    let compressed = secp::compress(&point);
+    let uncompressed = secp::uncompress(&point);
+    let compressed_hex = hex(&compressed);
+    let uncompressed_hex = hex(&uncompressed);
+    let hash_compressed = hashes::hash160(&compressed);
+    let hash_uncompressed = hashes::hash160(&uncompressed);
+    let hash_compressed_hex = hex(&hash_compressed);
+    let hash_uncompressed_hex = hex(&hash_uncompressed);
+    let x_hex = hex(&point.x.to_bytes_be());
+    let y_hex = hex(&point.y.to_bytes_be());
+
+    let (compressed_payload, compressed_checksum, compressed_address) =
+        p2pkh_parts(&hash_compressed, 0x00);
+    let (uncompressed_payload, uncompressed_checksum, uncompressed_address) =
+        p2pkh_parts(&hash_uncompressed, 0x00);
+    let (redeem, script_hash, p2sh_payload, p2sh_checksum, p2sh_address) =
+        p2sh_p2wpkh_parts(&hash_compressed, 0x05);
+    let (p2wpkh_address, p2wpkh_checksum) = bech32::encode_segwit("bc", 0, &hash_compressed, false);
+    let taproot = taproot_parts(&point)?;
+
+    let keccak = hashes::keccak256(&uncompressed[1..]);
+    let mut last20 = [0u8; 20];
+    last20.copy_from_slice(&keccak[12..]);
+    let evm_address = eip55(&last20);
+    let mut tron_payload = [0u8; 21];
+    tron_payload[0] = 0x41;
+    tron_payload[1..].copy_from_slice(&last20);
+    let tron_address = base58::encode_check(&tron_payload);
+
+    let addresses = [
+        address_object(
+            "btc_p2pkh",
+            "Bitcoin legacy (compressed)",
+            &compressed_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &hex(&compressed_payload)),
+                ("checksum", &hex(&compressed_checksum)),
+                ("base58", &compressed_address),
+            ],
+        ),
+        address_object(
+            "btc_p2pkh_uncompressed",
+            "Bitcoin legacy (uncompressed)",
+            &uncompressed_address,
+            &[
+                ("pubkey", &uncompressed_hex),
+                ("hash160", &hash_uncompressed_hex),
+                ("payload", &hex(&uncompressed_payload)),
+                ("checksum", &hex(&uncompressed_checksum)),
+                ("base58", &uncompressed_address),
+            ],
+        ),
+        address_object(
+            "btc_p2sh_p2wpkh",
+            "Bitcoin P2SH-P2WPKH",
+            &p2sh_address,
+            &[
+                ("redeem", &hex(&redeem)),
+                ("script_hash", &hex(&script_hash)),
+                ("payload", &hex(&p2sh_payload)),
+                ("checksum", &hex(&p2sh_checksum)),
+            ],
+        ),
+        address_object(
+            "btc_p2wpkh",
+            "Bitcoin native segwit",
+            &p2wpkh_address,
+            &[
+                ("hrp", "bc"),
+                ("witness_version", "0"),
+                ("program", &hash_compressed_hex),
+                ("checksum", &p2wpkh_checksum),
+            ],
+        ),
+        address_object(
+            "btc_p2tr",
+            "Bitcoin taproot",
+            &taproot.address,
+            &[
+                ("internal_x", &taproot.internal_x_hex),
+                ("tweak", &taproot.tweak_hex),
+                ("output_x", &taproot.output_x_hex),
+                ("parity", taproot.parity),
+                ("program", &taproot.output_x_hex),
+                ("checksum", &taproot.checksum),
+            ],
+        ),
+        address_object(
+            "evm",
+            "Ethereum / EVM",
+            &evm_address,
+            &[("keccak", &hex(&keccak)), ("last20", &hex(&last20))],
+        ),
+        address_object(
+            "tron",
+            "TRON",
+            &tron_address,
+            &[("payload", &hex(&tron_payload))],
+        ),
+    ];
+
+    let mut out = String::with_capacity(3072);
+    out.push('{');
+    push_field(&mut out, "curve", "secp256k1");
+    push_field(
+        &mut out,
+        "input_format",
+        if was_compressed {
+            "compressed"
+        } else {
+            "uncompressed"
+        },
+    );
+    push_field(&mut out, "pubkey_compressed", &compressed_hex);
+    push_field(&mut out, "pubkey_uncompressed", &uncompressed_hex);
+    push_field(&mut out, "x", &x_hex);
+    push_field(&mut out, "y", &y_hex);
+    push_addresses(&mut out, &addresses);
+    Ok(out)
+}
+
+/// JSON for `P + Q`: the sum of two secp256k1 public keys as a new public key.
+pub fn pubkey_add_report(first: &str, second: &str) -> Result<String, String> {
+    let mut ignored = true;
+    let a = secp::parse_pubkey_hex(first.trim(), &mut ignored)?;
+    let b = secp::parse_pubkey_hex(second.trim(), &mut ignored)?;
+    let sum = secp::add(&a, &b).ok_or_else(|| {
+        "The sum of these public keys is the point at infinity, which has no serialized public key."
+            .to_owned()
+    })?;
+
+    let mut out = String::with_capacity(512);
+    out.push('{');
+    push_field(&mut out, "curve", "secp256k1");
+    push_field(&mut out, "pubkey_compressed", &hex(&secp::compress(&sum)));
+    push_field(
+        &mut out,
+        "pubkey_uncompressed",
+        &hex(&secp::uncompress(&sum)),
+    );
+    push_field(&mut out, "x", &hex(&sum.x.to_bytes_be()));
+    push_field(&mut out, "y", &hex(&sum.y.to_bytes_be()));
+    out.pop();
+    out.push('}');
+    Ok(out)
 }
 
 fn secp_report(key: &[u8; 32]) -> Result<String, String> {
@@ -118,27 +276,15 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
     let zcash_payload_hex = hex(&zcash_payload);
     let zcash_checksum_hex = hex(&zcash_checksum);
 
-    // P2TR: BIP341 key path with an empty script tree. The internal key is the
-    // x-only key, so it is lift_x(x(P)): a point with odd y is negated before
-    // the tweak is added.
-    let internal_x = point.x.to_bytes_be();
-    let internal_x_hex = hex(&internal_x);
-    let tweak = tagged_hash(b"TapTweak", &internal_x);
-    let tweak_hex = hex(&tweak);
-    let tweak_scalar = reduce_mod_n(&tweak);
-    let internal = if point.y.is_odd() { point.neg() } else { point };
-    let output = if tweak_scalar.is_zero() {
-        internal
-    } else {
-        let tweak_point = secp::mul(&secp::g(), &tweak_scalar)
-            .ok_or_else(|| "taproot tweak is the point at infinity".to_owned())?;
-        secp::add(&internal, &tweak_point)
-            .ok_or_else(|| "taproot output key is the point at infinity".to_owned())?
-    };
-    let output_x = output.x.to_bytes_be();
-    let output_x_hex = hex(&output_x);
-    let parity = if output.y.is_odd() { "1" } else { "0" };
-    let (p2tr_address, p2tr_checksum) = bech32::encode_segwit("bc", 1, &output_x, true);
+    // P2TR: BIP341 key path with an empty script tree, over the x-only key.
+    let TaprootParts {
+        internal_x_hex,
+        tweak_hex,
+        output_x_hex,
+        parity,
+        address: p2tr_address,
+        checksum: p2tr_checksum,
+    } = taproot_parts(&point)?;
 
     // EVM: last 20 bytes of keccak256(x || y), EIP-55 displayed. TRON reuses
     // the same twenty bytes behind the 0x41 version byte.
@@ -421,6 +567,48 @@ fn p2sh_p2wpkh_parts(
     (redeem, script_hash, payload, checksum, address)
 }
 
+/// BIP341 taproot output for an empty script tree: internal x-only key, tweak,
+/// output key, parity and the bech32m address.
+struct TaprootParts {
+    internal_x_hex: String,
+    tweak_hex: String,
+    output_x_hex: String,
+    parity: &'static str,
+    address: String,
+    checksum: String,
+}
+
+/// Compute the taproot output key from any point. The internal key is
+/// lift_x(x(P)): a point with odd y is negated before the tweak is added.
+fn taproot_parts(point: &Affine) -> Result<TaprootParts, String> {
+    let internal_x = point.x.to_bytes_be();
+    let tweak = tagged_hash(b"TapTweak", &internal_x);
+    let tweak_scalar = reduce_mod_n(&tweak);
+    let internal = if point.y.is_odd() {
+        point.neg()
+    } else {
+        *point
+    };
+    let output = if tweak_scalar.is_zero() {
+        internal
+    } else {
+        let tweak_point = secp::mul(&secp::g(), &tweak_scalar)
+            .ok_or_else(|| "taproot tweak is the point at infinity".to_owned())?;
+        secp::add(&internal, &tweak_point)
+            .ok_or_else(|| "taproot output key is the point at infinity".to_owned())?
+    };
+    let output_x = output.x.to_bytes_be();
+    let (address, checksum) = bech32::encode_segwit("bc", 1, &output_x, true);
+    Ok(TaprootParts {
+        internal_x_hex: hex(&internal_x),
+        tweak_hex: hex(&tweak),
+        output_x_hex: hex(&output_x),
+        parity: if output.y.is_odd() { "1" } else { "0" },
+        address,
+        checksum,
+    })
+}
+
 /// Ripple's base58 alphabet, used by XRP classic addresses.
 const RIPPLE_ALPHABET: &[u8; 58] = b"rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
 
@@ -501,7 +689,7 @@ fn eip55(address: &[u8; 20]) -> String {
     out
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         let _ = write!(out, "{byte:02x}");

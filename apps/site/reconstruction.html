@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Byte-fragment assembler — rebuild a 32-byte key from known parts | Rotor</title>
+<meta name="description" content="Assemble a 32-byte value from known hex, binary, decimal or ASCII fragments at explicit byte offsets. Missing or overlapping bytes are reported, never guessed.">
+<link rel="canonical" href="https://rotor.pxbt.app/reconstruction">
+<link rel="stylesheet" href="/site.css?v=20261120a">
+<script src="/theme.js?v=20261120a"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
+      <div>
+        <h1>Byte-fragment assembler</h1>
+        <p class="key-tagline">Rebuild a 32-byte key from the fragments you already know. This page assembles bytes at explicit offsets; it does not search for, guess or recover unknown bytes.</p>
+        <div class="key-badges"><span>32 bytes</span><span>Runs locally</span><span>No guessing</span></div>
+      </div>
+    </div>
+    <p class="notice key-warning" role="note">Scope limit: known-byte assembly only. If bytes are missing, the page lists them and refuses to produce a key. It never claims to have recovered a key from partial information.</p>
+  </section>
+
+  <section class="card">
+    <h2>Fragments</h2>
+    <form id="rebuild-form" class="key-form seed-form" autocomplete="off">
+      <label class="seed-phrase-label">One fragment per line: <code class="mono">offset:format:value</code>
+        <textarea id="rebuild-input" class="mono" rows="6" spellcheck="false" autocapitalize="off" placeholder="0:hex:4c0883a69102937d6231471b5dbb6204&#10;16:hex:fe5129617082792ae468d01a3f362318"></textarea>
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="rebuild-submit">Assemble</button>
+        <button type="button" id="rebuild-example">Load example</button>
+        <button type="button" id="rebuild-clear">Clear</button>
+      </div>
+    </form>
+    <p id="rebuild-error" class="error key-error" role="alert" hidden></p>
+    <p class="muted key-help">
+      Offset is the byte position 0-31. Format is <code class="mono">hex</code>, <code class="mono">bin</code>,
+      <code class="mono">dec</code> (one byte, 0-255) or <code class="mono">ascii</code>. Overlapping fragments are
+      rejected, and every one of the 32 bytes must be supplied. Lines starting with <code class="mono">#</code> are ignored.
+    </p>
+  </section>
+
+  <section class="card" id="rebuild-result" hidden>
+    <h2>Assembled value</h2>
+    <dl class="key-form-list" id="rebuild-facts"></dl>
+    <p class="muted key-help" id="rebuild-status"></p>
+  </section>
+
+  <p class="muted key-help">Related: <a href="/hex-dec-bin">integer converter</a>, <a href="/public-key">public key to addresses</a>, <a href="/key">key explorer</a>.</p>
+</main>
+
+<script src="/key-tools.js?v=20261120a"></script>
+<script src="/reconstruction.js?v=20261120a"></script>
+<script src="/site.js?v=20261120a"></script>
+</body>
+</html>
