@@ -4,6 +4,7 @@
 // Usage: node apps/site/key-tools-test.mjs [apps/site/rotor_wasm.wasm]
 
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -401,7 +402,106 @@ assert(
   `a 48-hex MAC must name both accepted sizes, got ${badMacMessage}`,
 );
 
+// ------------------------------------------------- key facts and counters
+
+const sha256Double = async (bytes) => {
+  const first = createHash("sha256").update(bytes).digest();
+  return createHash("sha256").update(first).digest();
+};
+
+function deriveFor(hex, curve) {
+  const buffer = upload(hexToBytes(hex));
+  try {
+    assert(wasm.derive_report(buffer.pointer, curve) === 0, `derive_report curve ${curve}: ${wasmError()}`);
+    return resultJson();
+  } finally {
+    wasm.dealloc(buffer.pointer, buffer.length);
+  }
+}
+
+const BTC58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const RIPPLE58 = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+
+function decodeAlphabet(text, alphabet) {
+  let value = 0n;
+  for (const char of text) {
+    const index = alphabet.indexOf(char);
+    assert(index >= 0, `invalid base58 character ${char}`);
+    value = value * 58n + BigInt(index);
+  }
+  let hex = value === 0n ? "" : value.toString(16);
+  if (hex.length % 2) hex = "0" + hex;
+  const leading = text.length - text.replace(new RegExp(`^${alphabet[0]}+`), "").length;
+  return Uint8Array.from(Buffer.from("00".repeat(leading) + hex, "hex"));
+}
+
+function factById(facts, id) {
+  return facts.find((fact) => fact.id === id) || {};
+}
+
+const KEY_ONE = "00".repeat(31) + "01";
+const secpReport = deriveFor(KEY_ONE, 0);
+const edReport = deriveFor(KEY_ONE, 1);
+
+const secpFacts = await tools.buildKeyFacts(secpReport, sha256Double);
+assert(factById(secpFacts, "hex").value === KEY_ONE, "secp HEX fact is the report key");
+assert(factById(secpFacts, "hex").href === "/key/hex", "HEX links to the hex calculator");
+assert(factById(secpFacts, "decimal").value === "1", "secp DECIMAL fact is 1");
+assert(factById(secpFacts, "wif").value === secpReport.wif_compressed, "compressed WIF fact");
+assert(factById(secpFacts, "wif").href === "/key/wif", "WIF links to the WIF calculator");
+assert(factById(secpFacts, "wif_u").value === secpReport.wif_uncompressed, "uncompressed WIF fact");
+assert(factById(secpFacts, "pubkey").value === secpReport.pubkey_compressed, "PUBKEY fact");
+assert(!factById(secpFacts, "keypair").value && factById(secpFacts, "keypair").unavailable.includes("ed25519"),
+  "KEYPAIR is explicitly unavailable on secp256k1");
+assert(factById(secpFacts, "page").value === "/private-keys/bitcoin", "key 1 page is directory page 1");
+
+const xrp = factById(secpFacts, "xrp");
+assert(typeof xrp.value === "string" && xrp.value.startsWith("p"), `XRP secret starts with p, got ${xrp.value}`);
+assert(/^[rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz]+$/.test(xrp.value),
+  "XRP secret uses the Ripple alphabet");
+const xrpBytes = decodeAlphabet(xrp.value, RIPPLE58);
+assert(xrpBytes.length === 37, `XRP secret payload is 37 bytes, got ${xrpBytes.length}`);
+assert(xrpBytes[0] === 0x23, "XRP secret carries the private-key type byte 0x23");
+assert(Buffer.from(xrpBytes.slice(1, 33)).equals(Buffer.from(hexToBytes(KEY_ONE))), "XRP secret embeds the key");
+const xrpChecksum = await sha256Double(Uint8Array.from([0x23, ...hexToBytes(KEY_ONE)]));
+assert(Buffer.from(xrpBytes.slice(33)).equals(Buffer.from(xrpChecksum.slice(0, 4))),
+  "XRP secret checksum is the first four double-SHA256 bytes");
+
+const edFacts = await tools.buildKeyFacts(edReport, sha256Double);
+assert(!factById(edFacts, "wif").value && factById(edFacts, "wif").unavailable.includes("secp256k1"),
+  "WIF is explicitly unavailable on ed25519");
+assert(!factById(edFacts, "wif_u").value && factById(edFacts, "wif_u").unavailable.includes("secp256k1"),
+  "WIF (U) is explicitly unavailable on ed25519");
+assert(!factById(edFacts, "xrp").value && factById(edFacts, "xrp").unavailable.includes("secp256k1"),
+  "XRP secret is explicitly unavailable on ed25519");
+assert(factById(edFacts, "pubkey").value === edReport.ed_pubkey, "ed25519 PUBKEY fact");
+assert(factById(edFacts, "page").value === "/private-keys/solana", "ed25519 page is the Solana directory");
+const keypairBytes = decodeAlphabet(factById(edFacts, "keypair").value, BTC58);
+assert(keypairBytes.length === 64, `Solana keypair is 64 bytes, got ${keypairBytes.length}`);
+assert(Buffer.from(keypairBytes.slice(0, 32)).equals(Buffer.from(hexToBytes(KEY_ONE))),
+  "Solana keypair starts with the seed");
+assert(Buffer.from(keypairBytes.slice(32)).equals(Buffer.from(hexToBytes(edReport.ed_pubkey))),
+  "Solana keypair ends with the ed25519 public key");
+
+const key60 = "00".repeat(31) + "3c";
+const key61 = "00".repeat(31) + "3d";
+assert(tools.privateKeyPage(key60, "secp256k1").href === "/private-keys/bitcoin", "key 60 is page 1");
+assert(tools.privateKeyPage(key61, "secp256k1").href === "/private-keys/bitcoin/2", "key 61 is page 2");
+assert(tools.privateKeyPage("00".repeat(32), "ed25519") === null, "key 0 has no directory page");
+
+const counters = tools.balanceCounters([
+  { address: "A", state: "ok", amount: 5n, chain: "btc", checkable: true, visible: true },
+  { address: "A", state: "ok", amount: "5", chain: "evm", checkable: true, visible: true },
+  { address: "B", state: "ok", amount: 0n, chain: "evm", checkable: true, visible: true },
+  { address: "C", state: "err", amount: undefined, chain: "tron", checkable: true, visible: true },
+  { address: "D", state: "", amount: undefined, chain: "btc", checkable: true, visible: false },
+  { address: "E", state: "off", amount: undefined, chain: "xrp", checkable: false, visible: true },
+]);
+assert(counters.withBalance === 1, `one unique funded address, got ${counters.withBalance}`);
+assert(counters.activeChains === 2, `two funded chains, got ${counters.activeChains}`);
+assert(counters.checked === 4 && counters.total === 4, `4/4 visible provider rows, got ${counters.checked}/${counters.total}`);
+
 console.log(
   "key-tools ok: integer, fragments, pubkey report/add, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
-    "JSON parser (64-hex MAC, array kdfparams)",
+    "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/DEC/WIF/WIF-u/keypair/XRP/PAGE), counters",
 );
