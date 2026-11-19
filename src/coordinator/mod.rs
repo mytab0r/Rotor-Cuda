@@ -1531,7 +1531,10 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
     // the version byte is decoded to the same 32-byte secp256k1 key here.
     if curve != "ed25519"
         && (51..=52).contains(&hex.len())
-        && matches!(hex.as_bytes().first(), Some(b'5' | b'K' | b'L' | b'T' | b'Q'))
+        && matches!(
+            hex.as_bytes().first(),
+            Some(b'5' | b'K' | b'L' | b'T' | b'Q')
+        )
     {
         let decoded = bs58::decode(hex).with_check(None).into_vec().ok()?;
         let key = match decoded.as_slice() {
