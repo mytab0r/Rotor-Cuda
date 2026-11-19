@@ -80,6 +80,11 @@ const KEYSTORE_PARSER_PAGE: &str = include_str!("../../apps/site/keystore-parser
 const KEYSTORE_PARSER_JS: &str = include_str!("../../apps/site/keystore-parser.js");
 const RECONSTRUCTION_PAGE: &str = include_str!("../../apps/site/reconstruction.html");
 const RECONSTRUCTION_JS: &str = include_str!("../../apps/site/reconstruction.js");
+const TX_PAGE: &str = include_str!("../../apps/site/tx.html");
+const TX_BITCOIN_PAGE: &str = include_str!("../../apps/site/tx-bitcoin.html");
+const TX_ETHEREUM_PAGE: &str = include_str!("../../apps/site/tx-ethereum.html");
+const TX_DECODERS_JS: &str = include_str!("../../apps/site/tx-decoders.js");
+const TX_PAGE_JS: &str = include_str!("../../apps/site/tx-page.js");
 const CABINET_WALLET_PAGE: &str = include_str!("../../apps/site/wallet.html");
 const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
@@ -844,6 +849,17 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/reconstruction" => Some((RECONSTRUCTION_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/reconstruction.js" => Some((
             RECONSTRUCTION_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/tx" => Some((TX_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tx/bitcoin" => Some((TX_BITCOIN_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tx/ethereum" => Some((TX_ETHEREUM_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/tx-decoders.js" => Some((
+            TX_DECODERS_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/tx-page.js" => Some((
+            TX_PAGE_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/search.js" => Some((
@@ -4052,6 +4068,9 @@ fn render_sitemap(base: &str) -> String {
         "/pubkey-add",
         "/reconstruction",
         "/keystore-parser",
+        "/tx",
+        "/tx/bitcoin",
+        "/tx/ethereum",
         "/wallets",
         "/cabinet/wallet",
         "/key/wif",
@@ -5608,6 +5627,58 @@ mod tests {
             "/keystore-parser",
             "/reconstruction",
         ] {
+            assert!(
+                sitemap.contains(&format!("<loc>{base}{path}</loc>")),
+                "sitemap is missing {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn tx_decoder_pages_and_assets_are_served() {
+        let (index, content_type) = static_asset("/tx").expect("/tx is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        let index = std::str::from_utf8(index).expect("tx.html is UTF-8");
+        for href in ["href=\"/tx/bitcoin\"", "href=\"/tx/ethereum\""] {
+            assert!(index.contains(href), "/tx is missing {href}");
+        }
+
+        for (path, marker) in [
+            ("/tx/bitcoin", "id=\"btc-form\""),
+            ("/tx/ethereum", "id=\"evm-form\""),
+        ] {
+            let (page, content_type) =
+                static_asset(path).unwrap_or_else(|| panic!("{path} is embedded"));
+            assert_eq!(content_type, "text/html; charset=utf-8");
+            let page = std::str::from_utf8(page).expect("tx page is UTF-8");
+            assert!(page.contains(marker), "{path} is missing {marker}");
+            for script in ["/tx-decoders.js", "/tx-page.js"] {
+                assert!(page.contains(script), "{path} does not load {script}");
+            }
+        }
+
+        let (decoders, content_type) =
+            static_asset("/tx-decoders.js").expect("/tx-decoders.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let decoders = std::str::from_utf8(decoders).expect("tx-decoders.js is UTF-8");
+        assert!(decoders.contains("decodeBitcoin"));
+        assert!(decoders.contains("decodeEthereum"));
+        assert!(decoders.contains("fee unavailable without prevouts"));
+        assert!(decoders.contains("RLP is truncated"));
+
+        let (page_script, content_type) =
+            static_asset("/tx-page.js").expect("/tx-page.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!page_script.is_empty());
+
+        let tools = std::str::from_utf8(TOOLS_PAGE.as_bytes()).expect("tools page is UTF-8");
+        for href in ["href=\"/tx/bitcoin\"", "href=\"/tx/ethereum\""] {
+            assert!(tools.contains(href), "tools page is missing {href}");
+        }
+
+        let base = "https://rotor.pxbt.app";
+        let sitemap = render_sitemap(base);
+        for path in ["/tx", "/tx/bitcoin", "/tx/ethereum"] {
             assert!(
                 sitemap.contains(&format!("<loc>{base}{path}</loc>")),
                 "sitemap is missing {path}"
