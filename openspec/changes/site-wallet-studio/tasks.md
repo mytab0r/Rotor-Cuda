@@ -64,7 +64,10 @@ browser capture in the PR.
 - [x] Never store/upload phrase; clear on pagehide; no key in URL.
 - Evidence: BIP39 key 1 (`abandon…about` -> `1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA`),
       Electrum old (`hardly point…` -> `18v3oDeH9LCmeKrbC2nYgLP5UKva1NpMG`),
-      Electrum master-seed vectors in `seed-test.mjs`; browser capture is for QA.
+      Electrum master-seed vectors in `seed-test.mjs`. Electrum BIP39 validation
+      accepts the native 13-word standard vector `cram…able` and the 12-word
+      segwit vector `wild father…`, while plain BIP39, 13-word BIP39 and 2FA
+      phrases are rejected (`seed-test.mjs`). Browser capture is for QA.
 
 ## 6. Milk Sad seed studio parity [front]
 - [ ] Reuse the seed toolbar: entropy, mnemonic type, passphrase, path, count.

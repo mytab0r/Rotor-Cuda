@@ -11,6 +11,7 @@
   var OLD_INDEX = Object.create(null);
   for (var wi = 0; wi < OLD_WORDS.length; wi += 1) OLD_INDEX[OLD_WORDS[wi]] = wi;
   var OLD_N = OLD_WORDS.length;
+  var BIP39_INDEX = null;
 
   var CURVE_N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
   var HARDENED = 0x80000000;
@@ -398,6 +399,38 @@
     return global.RotorSeed.wordlist;
   }
 
+  function bip39WordSet() {
+    if (!BIP39_INDEX) {
+      var words = bip39Words();
+      BIP39_INDEX = Object.create(null);
+      for (var i = 0; i < words.length; i += 1) BIP39_INDEX[words[i]] = true;
+    }
+    return BIP39_INDEX;
+  }
+
+  /* Electrum standard/segwit seeds may use word counts outside the BIP39
+   * entropy set (a native standard seed can be 13 words). They are validated
+   * by the BIP39 wordlist plus the Electrum seed-version check, not by the
+   * BIP39 checksum or word-count list. */
+  async function validateElectrumBip39(phrase) {
+    var words = normalizeElectrum(phrase).split(' ').filter(Boolean);
+    if (words.length < 2) {
+      throw new Error('An Electrum seed phrase needs at least two words.');
+    }
+    var known = bip39WordSet();
+    for (var i = 0; i < words.length; i += 1) {
+      if (!known[words[i]]) throw new Error('Unknown BIP39 word: "' + words[i] + '".');
+    }
+    var type = await electrumSeedType(words.join(' '));
+    if (type === '2fa' || type === '2fa_segwit') {
+      throw new Error('Electrum 2FA seeds are not supported here. Use a standard or segwit Electrum seed.');
+    }
+    if (type !== 'standard' && type !== 'segwit') {
+      throw new Error('This is not an Electrum BIP39 seed: its seed-version check does not match standard (01) or segwit (100).');
+    }
+    return { words: words, phrase: words.join(' '), seedType: type };
+  }
+
   var api = {
     CURVE_N: CURVE_N,
     OLD_WORDS: OLD_WORDS,
@@ -424,7 +457,8 @@
     generateBip39: generateBip39,
     generateElectrumBip39: generateElectrumBip39,
     entropyBytesForWords: entropyBytesForWords,
-    bip39Words: bip39Words
+    bip39Words: bip39Words,
+    validateElectrumBip39: validateElectrumBip39
   };
 
   global.RotorSeedCrypto = api;

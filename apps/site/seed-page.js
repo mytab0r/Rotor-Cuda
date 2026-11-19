@@ -318,30 +318,33 @@
       return { scheme: scheme, phrase: old.words.join(' '), seedHex: old.seedHex, seedType: 'old' };
     }
 
+    if (scheme === 'electrum-bip39') {
+      var electrum = await window.RotorSeedCrypto.validateElectrumBip39(phrase);
+      return {
+        scheme: scheme,
+        phrase: electrum.phrase,
+        passphrase: passphraseEl ? passphraseEl.value : '',
+        seedType: electrum.seedType
+      };
+    }
+
     var words = phrase.split(' ');
     if (WORDS.indexOf(words.length) < 0) {
-      throw new Error('A mnemonic has 12, 15, 18, 21 or 24 words; this one has ' + words.length + '.');
+      throw new Error('A BIP39 mnemonic has 12, 15, 18, 21 or 24 words; this one has ' + words.length + '.');
     }
     var known = bip39WordSet();
     for (var i = 0; i < words.length; i += 1) {
       if (!known[words[i]]) throw new Error('Unknown BIP39 word: "' + words[i] + '".');
     }
-
-    if (scheme === 'bip39') {
-      if (!window.RotorSeed.validate(words.join(' '))) {
-        throw new Error('BIP39 checksum does not match. Check the words and their order.');
-      }
-      return { scheme: scheme, phrase: words.join(' '), passphrase: passphraseEl ? passphraseEl.value : '', seedType: 'bip39' };
+    if (!window.RotorSeed.validate(words.join(' '))) {
+      throw new Error('BIP39 checksum does not match. Check the words and their order.');
     }
-
-    var type = await window.RotorSeedCrypto.electrumSeedType(words.join(' '));
-    if (type === '2fa' || type === '2fa_segwit') {
-      throw new Error('Electrum 2FA seeds are not supported here. Use a standard or segwit Electrum seed.');
-    }
-    if (!type) {
-      throw new Error('This is not an Electrum BIP39 seed: its seed-version check does not match standard (01) or segwit (100).');
-    }
-    return { scheme: scheme, phrase: words.join(' '), passphrase: passphraseEl ? passphraseEl.value : '', seedType: type };
+    return {
+      scheme: 'bip39',
+      phrase: words.join(' '),
+      passphrase: passphraseEl ? passphraseEl.value : '',
+      seedType: 'bip39'
+    };
   }
 
   /* ------------------------------------------------------------ selection */

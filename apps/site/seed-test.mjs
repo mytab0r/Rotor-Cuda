@@ -59,6 +59,17 @@ function assertEqual(actual, expected, message) {
   if (actual !== expected) throw new Error(`${message}\n  expected: ${expected}\n  actual:   ${actual}`);
 }
 
+async function assertRejects(fn, pattern, message) {
+  try {
+    await fn();
+  } catch (error) {
+    const text = error && error.message ? error.message : String(error);
+    assert(pattern.test(text), `${message}: unexpected error "${text}"`);
+    return;
+  }
+  throw new Error(`${message}: expected a rejection`);
+}
+
 async function pubkeyFor(keyHex) {
   const report = reportFor(keyHex);
   return hexToBytes(report.pubkey_compressed);
@@ -155,6 +166,40 @@ test("Electrum seed versions match the Electrum test vectors", async () => {
 });
 
 /* ------------------------------------------------------------------ bip39 */
+
+test("Electrum BIP39 validation accepts native standard and segwit word counts", async () => {
+  const standard = await crypto.validateElectrumBip39(
+    "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"
+  );
+  assertEqual(standard.seedType, "standard", "13-word standard seed type");
+  assertEqual(standard.words.length, 13, "13-word standard length");
+
+  const segwit = await crypto.validateElectrumBip39(
+    "wild father tree among universe such mobile favorite target dynamic credit identify"
+  );
+  assertEqual(segwit.seedType, "segwit", "12-word segwit seed type");
+  assertEqual(segwit.words.length, 12, "12-word segwit length");
+});
+
+test("Electrum BIP39 validation rejects BIP39-only, 2FA and short phrases", async () => {
+  await assertRejects(
+    () => crypto.validateElectrumBip39("abandon ".repeat(11) + "about"),
+    /not an Electrum BIP39 seed/,
+    "plain BIP39 phrase"
+  );
+  await assertRejects(
+    () => crypto.validateElectrumBip39("science dawn member doll dutch real can brick knife deny drive list"),
+    /2FA/,
+    "2FA seed version"
+  );
+  await assertRejects(() => crypto.validateElectrumBip39(""), /at least two words/, "empty phrase");
+  await assertRejects(() => crypto.validateElectrumBip39("abandon"), /at least two words/, "one word");
+
+  assert(
+    !window.RotorSeed.validate("cram swing cover prefer miss modify ritual silly deliver chunk behind inform able"),
+    "a 13-word phrase must still fail BIP39 checksum validation"
+  );
+});
 
 test("the seed bundle exposes the BIP39 wordlist for Electrum word checks", () => {
   assert(Array.isArray(window.RotorSeed.wordlist), "RotorSeed.wordlist must be an array");
