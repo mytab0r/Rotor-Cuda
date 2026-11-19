@@ -92,6 +92,21 @@ browser capture in the PR.
       failure renders one retry icon that recovers, empty key = 0 calls), and
       generated `/private-keys/bitcoin` + `/mnemonic-seeds/bitcoin` pages
       loading balances with no balance toggle.
+- [x] Global balance refresh and local cache: `/private-keys/<chain>`,
+      `/mnemonic-seeds/<chain>` and `/key` expose one "Refresh failed / stale"
+      action with a live count. It retries only rows whose balance is missing,
+      failed or older than the provider TTL; the per-row retry icon stays for a
+      single row. `apps/site/balance-cache.js` is a DOM-free pure codec
+      (IndexedDB store with memory fallback) keyed by provider + chain +
+      address with `{value, fetchedAt, source, error?}`; BTC and other providers
+      use 60 s, EVM 30 s. Cached values render immediately with a 12 px age
+      label, stale entries refresh in the background with jitter, requests are
+      bounded to 4–5, and transient failures retry once with exponential
+      backoff + jitter (429/5xx stop after the attempt budget). Provider errors
+      stay visible per row and are never cached as success. Evidence:
+      `apps/site/balance-cache-test.mjs` (hit/miss, TTL, error-not-success,
+      refresh selection, concurrency, backoff), `node --check` for the three
+      page scripts, coordinator asset/route tests and the UI audit.
 - Evidence: BIP39 key 1 (`abandon…about` -> `1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA`),
       Electrum old (`hardly point…` -> `18v3oDeH9LCmeKrbC2nYgLP5UKva1NpMG`),
       Electrum master-seed vectors in `seed-test.mjs`. Electrum BIP39 validation

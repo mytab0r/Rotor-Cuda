@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Rotor</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261122d">
-<script src="/theme.js?v=20261122d"></script>
+<link rel="stylesheet" href="/site.css?v=20261122e">
+<script src="/theme.js?v=20261122e"></script>
 <style>
 .mnemonic-directory-only { display: none; }
 body.mnemonic-directory-mode .mnemonic-directory-only { display: block; }
@@ -257,6 +257,14 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
     <div class="stat-card"><span class="stat-label">Balance</span><span class="stat-value" id="mnemonic-total-balance">—</span></div>
     <div class="stat-card"><span class="stat-label">Received</span><span class="stat-value" id="mnemonic-total-received">—</span></div>
     <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-value" id="mnemonic-total-tx">—</span></div>
+    <div class="balance-refresh">
+      <button type="button" class="balance-refresh-btn" id="mnemonic-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
+        <span>Refresh failed / stale</span>
+        <span class="balance-refresh-count" id="mnemonic-balance-refresh-count" aria-hidden="true">0</span>
+      </button>
+      <span class="visually-hidden" id="mnemonic-balance-refresh-status" role="status" aria-atomic="true"></span>
+    </div>
     <p class="balance-note" id="mnemonic-note"><span id="mnemonic-note-text">Balances load automatically for BTC and EVM addresses after deriving. Public addresses only; keys and phrases stay in this browser.</span></p>
   </section>
 
@@ -277,8 +285,9 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261122d"></script>
-<script src="/mnemonic-seeds.js?v=20261122d"></script>
-<script src="/site.js?v=20261122d"></script>
+<script src="/seed.js?v=20261122e"></script>
+<script src="/balance-cache.js?v=20261122e"></script>
+<script src="/mnemonic-seeds.js?v=20261122e"></script>
+<script src="/site.js?v=20261122e"></script>
 </body>
 </html>

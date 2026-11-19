@@ -17,6 +17,9 @@
   var WEI_PER_MICRO = 1000000000000n;
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var DECODER = new TextDecoder('utf-8');
+  var cacheApi = window.RotorBalanceCache || null;
+  var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
+  var BALANCE_LIMIT = 4;
 
   var PRESETS = {
     all: null,
@@ -165,6 +168,8 @@
     chain: 'all',
     focusId: null,
     balances: {},
+    cached: {},
+    balanceBusy: false,
     checking: false,
     status: 'idle',
     detected: null,
@@ -214,6 +219,9 @@
   var btcReceived = byId('btc-received');
   var btcTx = byId('btc-tx');
   var btcHint = byId('btc-summary-hint');
+  var balanceRefreshButton = byId('key-balance-refresh');
+  var balanceRefreshCount = byId('key-balance-refresh-count');
+  var balanceRefreshStatus = byId('key-balance-refresh-status');
   var exposureToggle = byId('exposure-toggle');
   var exposureStatus = byId('exposure-status');
   var urlNotice = byId('key-url-notice');
@@ -1342,10 +1350,16 @@
     return svg;
   }
 
-  function setBalance(badge, kind, text, onRetry) {
+  function setBalance(badge, kind, text, onRetry, age) {
     badge.hidden = false;
     badge.className = 'key-balance' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
     badge.textContent = text;
+    if (age) {
+      var ageEl = document.createElement('span');
+      ageEl.className = 'balance-age';
+      ageEl.textContent = age;
+      badge.appendChild(ageEl);
+    }
     if (onRetry) {
       var button = document.createElement('button');
       button.type = 'button';
@@ -1518,6 +1532,129 @@
     return text;
   }
 
+  function rowCacheInfo(row) {
+    var id = row.getAttribute('data-id');
+    var address = row.getAttribute('data-address');
+    if (!id || !address) return null;
+    var provider = null;
+    var chain = null;
+    if (id.indexOf('btc_') === 0) {
+      provider = 'mempool';
+      chain = 'bitcoin';
+    } else if (id === 'evm') {
+      provider = 'evm';
+      chain = 'ethereum';
+    } else if (id === 'tron') {
+      provider = 'tronscan';
+      chain = 'tron';
+    } else {
+      return null;
+    }
+    return {
+      provider: provider,
+      chain: chain,
+      address: address,
+      key: cacheApi
+        ? cacheApi.cacheKey(provider, chain, address)
+        : provider + '|' + chain + '|' + address
+    };
+  }
+
+  async function cacheGet(key) {
+    if (!cacheApi) return null;
+    var store = await cacheStore;
+    if (!store) return null;
+    try { return await store.get(key); } catch (err) { return null; }
+  }
+
+  async function cachePut(key, entry) {
+    if (!cacheApi) return;
+    var store = await cacheStore;
+    if (!store) return;
+    try { await store.put(key, entry); } catch (err) { /* memory store fallback */ }
+  }
+
+  function cachedSummary(value) {
+    var summary = value && value.summary;
+    if (!summary) return null;
+    try {
+      return {
+        balanceSat: BigInt(String(summary.balanceSat || '0')),
+        receivedSat: BigInt(String(summary.receivedSat || '0')),
+        txs: Number(summary.txs || 0)
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function serializeResult(result) {
+    var value = { text: typeof result === 'string' ? result : (result && result.text ? result.text : '') };
+    if (result && result.summary) {
+      value.summary = {
+        balanceSat: String(result.summary.balanceSat),
+        receivedSat: String(result.summary.receivedSat),
+        txs: Number(result.summary.txs)
+      };
+    }
+    return value;
+  }
+
+  function renderCachedRow(row, entry, now) {
+    var badge = row.querySelector('.key-balance');
+    var info = rowCacheInfo(row);
+    if (!badge || !info) return false;
+    var value = entry.value || {};
+    if (!value.text) return false;
+    var summary = cachedSummary(value);
+    if (summary) state.balances[row.getAttribute('data-id')] = summary;
+    row.dataset.balanceState = 'ok';
+    row.dataset.balanceAt = String(entry.fetchedAt || '');
+    setBalance(badge, 'ok', value.text, null, cacheApi ? cacheApi.ageLabel(entry, now) : '');
+    if (summary) renderBalanceCards();
+    return true;
+  }
+
+  function keyPendingCount() {
+    var now = Date.now();
+    var count = 0;
+    Array.prototype.forEach.call(rowsEl.children, function (row) {
+      if (row.classList.contains('hidden')) return;
+      var stateName = row.dataset.balanceState;
+      if (stateName === 'off' || stateName === 'loading') return;
+      var info = rowCacheInfo(row);
+      if (!info) return;
+      if (stateName === 'err') {
+        count += 1;
+        return;
+      }
+      if (!cacheApi) {
+        count += 1;
+        return;
+      }
+      if (cacheApi.shouldRefresh(state.cached[info.key], info.provider, now)) count += 1;
+    });
+    return count;
+  }
+
+  function updateKeyRefreshButton() {
+    var count = keyPendingCount();
+    if (balanceRefreshCount) balanceRefreshCount.textContent = String(count);
+    if (balanceRefreshButton) {
+      balanceRefreshButton.disabled = count === 0 || state.balanceBusy;
+      balanceRefreshButton.setAttribute(
+        'aria-label',
+        'Refresh ' + count + ' failed or stale ' + (count === 1 ? 'balance' : 'balances')
+      );
+      balanceRefreshButton.classList.toggle('busy', Boolean(state.balanceBusy));
+    }
+    if (balanceRefreshStatus) {
+      balanceRefreshStatus.textContent = count
+        ? count + ' ' + (count === 1 ? 'balance needs' : 'balances need') + ' refresh'
+        : 'All visible balances are fresh';
+    }
+  }
+
   async function checkRow(row, generation, signal) {
     var badge = row.querySelector('.key-balance');
     var id = row.getAttribute('data-id');
@@ -1534,6 +1671,7 @@
       setBalance(badge, 'muted', 'no provider in v1');
       return;
     }
+    var info = rowCacheInfo(row);
     row.dataset.balanceState = 'loading';
     setBalance(badge, 'loading', 'checking…');
     var request = async function () {
@@ -1543,21 +1681,22 @@
       throw new Error('no provider in v1');
     };
     try {
-      var result;
-      try {
-        result = await request();
-      } catch (err) {
-        if (signal && signal.aborted) throw err;
-        /* Transient provider failures get one automatic retry. */
-        await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
-        if (signal && signal.aborted) throw err;
-        result = await request();
-      }
+      var result = cacheApi
+        ? await cacheApi.withRetry(request, { attempts: 2, baseDelay: 600, maxDelay: 4000 })
+        : await request();
       if (generation !== state.generation || signal.aborted) return;
       if (result && result.summary) state.balances[id] = result.summary;
       row.dataset.balanceState = 'ok';
-      setBalance(badge, 'ok', typeof result === 'string' ? result : result.text);
+      var value = serializeResult(result);
+      var entry = null;
+      if (cacheApi && info) {
+        entry = cacheApi.makeEntry(value, info.provider, Date.now());
+        state.cached[info.key] = entry;
+        await cachePut(info.key, entry);
+      }
+      setBalance(badge, 'ok', value.text, null, entry ? cacheApi.ageLabel(entry, Date.now()) : '');
       if (result && result.summary) renderBalanceCards();
+      updateKeyRefreshButton();
     } catch (err) {
       if (generation !== state.generation || signal.aborted) return;
       var message = err && err.name === 'AbortError'
@@ -1565,40 +1704,97 @@
         : (err && err.message ? err.message : 'unknown error');
       row.dataset.balanceState = 'err';
       setBalance(badge, 'err', 'lookup failed: ' + message, function () {
-        var retryController = new AbortController();
-        state.controllers.push(retryController);
-        checkRow(row, state.generation, retryController.signal).finally(function () {
-          var index = state.controllers.indexOf(retryController);
-          if (index >= 0) state.controllers.splice(index, 1);
-        });
+        checkVisibleBalances({ onlyRows: [row] });
       });
+      updateKeyRefreshButton();
     }
   }
 
-  function checkVisibleBalances() {
-    if (state.checking || !state.report) return;
-    var rows = Array.prototype.filter.call(rowsEl.children, function (row) {
-      var stateName = row.dataset.balanceState;
-      return !row.classList.contains('hidden') &&
-        stateName !== 'loading' && stateName !== 'ok' && stateName !== 'off' && stateName !== 'err';
+  async function checkVisibleBalances(options) {
+    var opts = options || {};
+    if (!state.report) return;
+    if (state.checking && !opts.onlyRows) return;
+    Array.prototype.forEach.call(rowsEl.children, function (row) {
+      if (row.classList.contains('hidden') || rowCacheInfo(row)) return;
+      var badge = row.querySelector('.key-balance');
+      if (!badge) return;
+      row.dataset.balanceState = 'off';
+      setBalance(badge, 'muted', 'no provider in v1');
     });
-    if (!rows.length) return;
+    var only = opts.onlyRows && opts.onlyRows.length ? opts.onlyRows : null;
+    var candidates = Array.prototype.filter.call(rowsEl.children, function (row) {
+      if (row.classList.contains('hidden')) return false;
+      if (only && only.indexOf(row) < 0) return false;
+      var stateName = row.dataset.balanceState;
+      if (stateName === 'loading' || stateName === 'off') return false;
+      if (!rowCacheInfo(row)) return false;
+      if (!only && !opts.force && (stateName === 'ok' || stateName === 'err')) return false;
+      return true;
+    });
+    if (!candidates.length) {
+      updateKeyRefreshButton();
+      return;
+    }
     var generation = state.generation;
+    if (cacheApi) {
+      await Promise.all(candidates.map(async function (row) {
+        var info = rowCacheInfo(row);
+        try {
+          var entry = await cacheGet(info.key);
+          if (entry) state.cached[info.key] = entry;
+        } catch (err) { /* miss */ }
+      }));
+    }
+    if (generation !== state.generation) return;
+    var now = Date.now();
+    candidates.forEach(function (row) {
+      var info = rowCacheInfo(row);
+      var entry = state.cached[info.key];
+      if (cacheApi && cacheApi.isSuccess(entry)) renderCachedRow(row, entry, now);
+    });
+    updateKeyRefreshButton();
+    var pending = candidates.filter(function (row) {
+      if (only) return true;
+      var info = rowCacheInfo(row);
+      if (row.dataset.balanceState === 'err') return true;
+      if (cacheApi) return cacheApi.shouldRefresh(state.cached[info.key], info.provider, Date.now());
+      return true;
+    });
+    if (!pending.length) {
+      updateKeyRefreshButton();
+      return;
+    }
     var controllers = [];
     state.checking = true;
-    Promise.all(rows.map(function (row) {
-      var controller = new AbortController();
-      controllers.push(controller);
-      state.controllers.push(controller);
-      return checkRow(row, generation, controller.signal).catch(function () { /* per-row failures render inline */ });
-    })).finally(function () {
-      controllers.forEach(function (controller) {
-        var index = state.controllers.indexOf(controller);
-        if (index >= 0) state.controllers.splice(index, 1);
+    state.balanceBusy = true;
+    updateKeyRefreshButton();
+    var limit = cacheApi
+      ? cacheApi.createLimiter(BALANCE_LIMIT)
+      : function (task) { return task(); };
+    await Promise.all(pending.map(function (row) {
+      return limit(function () {
+        if (generation !== state.generation) return;
+        var controller = new AbortController();
+        controllers.push(controller);
+        state.controllers.push(controller);
+        return checkRow(row, generation, controller.signal).catch(function () {
+          /* per-row failures render inline */
+        }).finally(function () {
+          var index = state.controllers.indexOf(controller);
+          if (index >= 0) state.controllers.splice(index, 1);
+        });
       });
-      state.checking = false;
-      /* A filter change during the check may reveal rows that were skipped. */
-      checkVisibleBalances();
+    }));
+    state.checking = false;
+    state.balanceBusy = false;
+    updateKeyRefreshButton();
+    /* A filter change during the check may reveal rows that were skipped. */
+    if (!only && generation === state.generation) checkVisibleBalances();
+  }
+
+  if (balanceRefreshButton) {
+    balanceRefreshButton.addEventListener('click', function () {
+      checkVisibleBalances({ force: true });
     });
   }
 

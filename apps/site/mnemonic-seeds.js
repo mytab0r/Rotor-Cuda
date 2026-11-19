@@ -207,11 +207,20 @@
   var typeCards = byId('mnemonic-type-cards');
   var pageInput = byId('mnemonic-page-input');
   var wordButtons = Array.prototype.slice.call(document.querySelectorAll('.mnemonic-word-btn'));
+  var refreshButton = byId('mnemonic-balance-refresh');
+  var refreshCount = byId('mnemonic-balance-refresh-count');
+  var refreshStatus = byId('mnemonic-balance-refresh-status');
+  var cacheApi = window.RotorBalanceCache || null;
+  var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
+  var BALANCE_LIMIT = 5;
+  var BALANCE_JITTER_MS = 400;
 
   var state = {
     disposed: false,
     wasmPromise: null,
     entries: [],
+    cached: {},
+    balanceBusy: false,
     run: 0,
     balanceRun: 0
   };
@@ -691,10 +700,28 @@
     return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
   }
 
-  function setBalance(entry, text, raw) {
-    entry.balanceCell.textContent = text;
-    entry.balanceCell.className = 'mnemonic-balance' + (text !== '—' && text !== '0' ? ' has-balance' : '');
-    if (raw !== undefined) entry.balanceCell.title = raw;
+  function providerMeta() {
+    if (chain === 'bitcoin') {
+      return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
+    }
+    if (RPC[chain]) {
+      return { provider: 'evm', chain: chain, decimals: 18, symbol: root.getAttribute('data-symbol') || '' };
+    }
+    return null;
+  }
+
+  function setBalance(entry, text, raw, age) {
+    var cell = entry.balanceCell;
+    if (!cell) return;
+    cell.textContent = text;
+    cell.className = 'mnemonic-balance' + (text !== '—' && text !== '0' ? ' has-balance' : '');
+    if (raw !== undefined) cell.title = raw;
+    if (age) {
+      var ageEl = document.createElement('span');
+      ageEl.className = 'balance-age';
+      ageEl.textContent = age;
+      cell.appendChild(ageEl);
+    }
   }
 
   function setBalanceError(entry, message) {
@@ -709,59 +736,116 @@
     button.setAttribute('aria-label', 'Retry balance check for this address');
     button.appendChild(iconUse('ui-retry'));
     button.addEventListener('click', function () {
-      setBalance(entry, 'Checking…');
-      singleBalance(entry);
+      loadBalances({ manual: true, onlyEntries: [entry], force: true });
     });
     cell.appendChild(button);
   }
 
-  async function retryOnce(task) {
-    try {
-      return await task();
-    } catch (err) {
-      await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
-      if (state.disposed) throw err;
-      return task();
+  async function fetchJson(url, options) {
+    var response = await fetch(url, options);
+    if (!response.ok) {
+      var err = new Error('HTTP ' + response.status);
+      err.status = response.status;
+      throw err;
     }
+    return response.json();
   }
 
-  async function singleBalance(entry) {
-    if (!entry.address) return;
-    try {
-      if (chain === 'bitcoin') {
-        var info = await retryOnce(function () {
-          return fetchJson('https://blockchain.info/balance?cors=true&active=' + encodeURIComponent(entry.address));
-        });
-        if (state.disposed) return;
-        var row = info[entry.address];
-        if (!row) {
-          setBalanceError(entry, 'Balance row missing from the provider.');
-          return;
-        }
-        setBalance(entry, coin(row.final_balance, 8) + ' BTC', Number(row.n_tx || 0) + ' tx');
-        return;
+  function retryOptions() {
+    return { attempts: 2, baseDelay: 500, maxDelay: 4000 };
+  }
+
+  function requestJson(url, options) {
+    if (!cacheApi) return fetchJson(url, options);
+    return cacheApi.withRetry(function () { return fetchJson(url, options); }, retryOptions());
+  }
+
+  function errorMessage(err) {
+    return err && err.message ? err.message : 'Balance unavailable.';
+  }
+
+  async function cacheGet(key) {
+    if (!cacheApi) return null;
+    var store = await cacheStore;
+    if (!store) return null;
+    try { return await store.get(key); } catch (err) { return null; }
+  }
+
+  async function cachePut(key, entry) {
+    if (!cacheApi) return;
+    var store = await cacheStore;
+    if (!store) return;
+    try { await store.put(key, entry); } catch (err) { /* memory store fallback */ }
+  }
+
+  function balanceRecords(meta) {
+    return state.entries.filter(function (entry) {
+      return entry && entry.address;
+    }).map(function (entry) {
+      return {
+        entry: entry,
+        address: entry.address,
+        key: cacheApi ? cacheApi.cacheKey(meta.provider, meta.chain, entry.address) : entry.address
+      };
+    });
+  }
+
+  async function readCached(records) {
+    var out = {};
+    if (!cacheApi) return out;
+    await Promise.all(records.map(async function (record) {
+      out[record.key] = await cacheGet(record.key);
+    }));
+    return out;
+  }
+
+  function renderEntryFromCache(record, cached, meta, now) {
+    var entry = cached[record.key];
+    if (!cacheApi || !cacheApi.isSuccess(entry)) return false;
+    var value = entry.value || {};
+    if (value.balance === undefined) return false;
+    var text = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    var raw = value.tx !== undefined && value.tx !== null ? value.tx + ' tx' : String(value.balance);
+    setBalance(record.entry, text, raw, cacheApi.ageLabel(entry, now));
+    record.entry.balanceState = 'ok';
+    record.entry.balanceAt = entry.fetchedAt;
+    return true;
+  }
+
+  function renderSummary(records, cached, meta) {
+    var big = meta.provider === 'evm';
+    var sumBig = 0n;
+    var sumNum = 0;
+    var received = 0;
+    var tx = 0;
+    var any = false;
+    var hasReceived = false;
+    var hasTx = false;
+    records.forEach(function (record) {
+      var entry = cached[record.key];
+      if (!cacheApi || !cacheApi.isSuccess(entry)) return;
+      var value = entry.value || {};
+      any = true;
+      if (big) sumBig += BigInt(value.balance || 0);
+      else sumNum += Number(value.balance || 0);
+      if (value.received !== undefined) {
+        received += Number(value.received);
+        hasReceived = true;
       }
-      var rpc = RPC[chain];
-      if (!rpc) return;
-      var list = await retryOnce(function () {
-        return fetchJson(rpc, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify([{ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [entry.address, 'latest'] }])
-        });
-      });
-      if (state.disposed) return;
-      var item = Array.isArray(list) ? list[0] : list;
-      if (!item || typeof item.result !== 'string') {
-        setBalanceError(entry, 'Balance row missing from the provider.');
-        return;
+      if (value.tx !== undefined) {
+        tx += Number(value.tx);
+        hasTx = true;
       }
-      var symbol = root.getAttribute('data-symbol') || '';
-      var value = BigInt(item.result || '0x0');
-      setBalance(entry, coin(value, 18) + ' ' + symbol, value.toString() + ' wei');
-    } catch (err) {
-      if (!state.disposed) setBalanceError(entry, 'Balance unavailable.');
+    });
+    if (!any) {
+      setSummary('—', '—', '—');
+      return;
     }
+    setSummary(
+      coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
+      hasReceived ? coin(received, meta.decimals) + ' ' + meta.symbol : '—',
+      hasTx ? String(tx) : '—'
+    );
   }
 
   function setSummary(balance, received, tx) {
@@ -773,92 +857,205 @@
     if (txEl) txEl.textContent = tx;
   }
 
-  async function fetchJson(url, options) {
-    var response = await fetch(url, options);
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    return response.json();
-  }
-
-  async function btcBalances(run) {
-    var addresses = state.entries.map(function (entry) { return entry.address; }).filter(Boolean);
-    if (!addresses.length) return;
-    var url = 'https://blockchain.info/balance?cors=true&active=' +
-      addresses.map(encodeURIComponent).join('|');
-    var data = await fetchJson(url);
-    if (run !== state.balanceRun || state.disposed) return;
-    var sum = 0;
-    var received = 0;
-    var tx = 0;
-    state.entries.forEach(function (entry) {
-      var info = data[entry.address];
-      if (!info) return;
-      sum += Number(info.final_balance || 0);
-      received += Number(info.total_received || 0);
-      tx += Number(info.n_tx || 0);
-      setBalance(entry, coin(info.final_balance, 8) + ' BTC', Number(info.n_tx || 0) + ' tx');
+  function refreshPendingCount(records, meta) {
+    if (!meta) return 0;
+    var now = Date.now();
+    var count = 0;
+    records.forEach(function (record) {
+      if (record.entry.balanceState === 'err') {
+        count += 1;
+        return;
+      }
+      if (!cacheApi) {
+        count += 1;
+        return;
+      }
+      if (cacheApi.shouldRefresh(state.cached[record.key], meta.provider, now)) count += 1;
     });
-    setSummary(coin(sum, 8) + ' BTC', coin(received, 8) + ' BTC', String(tx));
+    return count;
   }
 
-  async function evmBalances(run) {
+  function updateRefreshButton(records, meta) {
+    var count = refreshPendingCount(records || [], meta);
+    if (refreshCount) refreshCount.textContent = String(count);
+    if (refreshButton) {
+      refreshButton.disabled = !meta || count === 0 || state.balanceBusy;
+      refreshButton.setAttribute(
+        'aria-label',
+        'Refresh ' + count + ' failed or stale ' + (count === 1 ? 'balance' : 'balances')
+      );
+      refreshButton.classList.toggle('busy', Boolean(state.balanceBusy));
+    }
+    if (refreshStatus) {
+      refreshStatus.textContent = count
+        ? count + ' ' + (count === 1 ? 'balance needs' : 'balances need') + ' refresh'
+        : 'All visible balances are fresh';
+    }
+  }
+
+  function applyView(records, cached, meta, errors) {
+    var now = Date.now();
+    records.forEach(function (record) {
+      if (errors && errors[record.address]) {
+        setBalanceError(record.entry, errors[record.address]);
+        return;
+      }
+      renderEntryFromCache(record, cached, meta, now);
+    });
+    renderSummary(records, cached, meta);
+    updateRefreshButton(records, meta);
+  }
+
+  async function btcProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = Array.from(new Set(addresses.filter(Boolean)));
+    if (!unique.length) return { values: values, errors: errors };
+    var url = 'https://blockchain.info/balance?cors=true&active=' + unique.map(encodeURIComponent).join('|');
+    var data = await requestJson(url);
+    unique.forEach(function (address) {
+      var info = data[address];
+      if (!info) {
+        errors[address] = 'Balance row missing from the provider.';
+        return;
+      }
+      values[address] = {
+        balance: String(info.final_balance || 0),
+        received: String(info.total_received || 0),
+        tx: Number(info.n_tx || 0)
+      };
+    });
+    return { values: values, errors: errors };
+  }
+
+  async function evmProvider(addresses) {
+    var values = {};
+    var errors = {};
     var rpc = RPC[chain];
-    if (!rpc) return;
-    var addresses = state.entries.map(function (entry) { return entry.address; }).filter(Boolean);
-    if (!addresses.length) return;
-    var unique = Array.from(new Set(addresses));
+    if (!rpc) throw new Error('No RPC for this chain');
+    var unique = Array.from(new Set(addresses.filter(Boolean)));
+    if (!unique.length) return { values: values, errors: errors };
     var payload = unique.map(function (address, index) {
       return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
     });
-    var list = await fetchJson(rpc, {
+    var list = await requestJson(rpc, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (run !== state.balanceRun || state.disposed) return;
-    var byAddress = {};
-    (Array.isArray(list) ? list : []).forEach(function (item) {
-      var address = unique[item.id - 1];
-      if (address) byAddress[address] = BigInt(item.result || '0x0');
+    var byId = {};
+    (Array.isArray(list) ? list : [list]).forEach(function (item) {
+      if (item && item.id !== undefined) byId[item.id] = item;
     });
-    var symbol = root.getAttribute('data-symbol') || '';
-    var sum = 0n;
-    state.entries.forEach(function (entry) {
-      var value = byAddress[entry.address];
-      if (value === undefined) return;
-      sum += value;
-      setBalance(entry, coin(value, 18) + ' ' + symbol, value.toString() + ' wei');
-    });
-    setSummary(coin(sum, 18) + ' ' + symbol, '—', '—');
-  }
-
-  async function loadBalances() {
-    var run = ++state.balanceRun;
-    var addresses = state.entries.map(function (entry) { return entry.address; }).filter(Boolean);
-    if (!addresses.length) {
-      setSummary('—', '—', '—');
-      setNote('No derived public address to send; nothing was sent. Each address links to its explorer.');
-      return;
-    }
-    setNote('Checking public balances in your browser…');
-    try {
-      if (chain === 'bitcoin') {
-        await retryOnce(function () { return btcBalances(run); });
-      } else if (RPC[chain]) {
-        await retryOnce(function () { return evmBalances(run); });
-      } else {
-        setSummary('—', '—', '—');
-        setNote('Live balance lookup is not available for this chain here; each address links to its explorer.');
+    unique.forEach(function (address, index) {
+      var item = byId[index + 1];
+      if (!item || typeof item.result !== 'string') {
+        errors[address] = item && item.error && item.error.message
+          ? item.error.message
+          : 'Balance row missing from the provider.';
         return;
       }
-      if (run !== state.balanceRun || state.disposed) return;
-      setNote('Balances loaded from public providers in your browser. They can lag the chain; only public addresses were sent.');
+      values[address] = { balance: BigInt(item.result).toString() };
+    });
+    return { values: values, errors: errors };
+  }
+
+  function fetchProvider(meta, addresses) {
+    if (meta.provider === 'blockchain.info') return btcProvider(addresses);
+    if (meta.provider === 'evm') return evmProvider(addresses);
+    return Promise.resolve({ values: {}, errors: {} });
+  }
+
+  async function fetchAndApply(records, pending, run, meta) {
+    var addresses = [];
+    pending.forEach(function (record) {
+      if (addresses.indexOf(record.address) < 0) addresses.push(record.address);
+    });
+    if (!addresses.length) return;
+    state.balanceBusy = true;
+    updateRefreshButton(records, meta);
+    var result;
+    try {
+      result = await fetchProvider(meta, addresses);
     } catch (err) {
-      if (run !== state.balanceRun || state.disposed) return;
-      state.entries.forEach(function (entry) {
-        if (entry.address) setBalanceError(entry, 'Balance unavailable.');
-      });
-      setNote('Balance lookup is unavailable right now. The addresses are still derived locally.', true);
+      result = { values: {}, errors: {} };
+      addresses.forEach(function (address) { result.errors[address] = errorMessage(err); });
     }
+    if (state.disposed || run !== state.balanceRun) {
+      state.balanceBusy = false;
+      return;
+    }
+    var now = Date.now();
+    var entries = {};
+    records.forEach(function (record) {
+      if (!cacheApi || result.values[record.address] === undefined) return;
+      var entry = cacheApi.makeEntry(result.values[record.address], meta.provider, now);
+      state.cached[record.key] = entry;
+      entries[record.key] = entry;
+    });
+    await Promise.all(Object.keys(entries).map(function (key) {
+      return cachePut(key, entries[key]);
+    }));
+    state.balanceBusy = false;
+    applyView(records, state.cached, meta, result.errors);
+    var failed = Object.keys(result.errors).length;
+    setNote(
+      failed
+        ? 'Some balances could not be refreshed (' + failed + '); cached values stay visible.'
+        : 'Balances loaded from public providers in your browser; only public addresses were sent.',
+      failed > 0
+    );
+  }
+
+  async function loadBalances(options) {
+    var opts = options || {};
+    var run = ++state.balanceRun;
+    if (state.disposed) return;
+    var meta = providerMeta();
+    if (!meta) {
+      setSummary('—', '—', '—');
+      setNote('Live balance lookup is not available for this chain here; each address links to its explorer.');
+      updateRefreshButton([], null);
+      return;
+    }
+    var records = balanceRecords(meta);
+    if (!records.length) {
+      setSummary('—', '—', '—');
+      setNote('No derived public address to send; nothing was sent. Each address links to its explorer.');
+      updateRefreshButton([], meta);
+      return;
+    }
+    var only = opts.onlyEntries && opts.onlyEntries.length ? opts.onlyEntries : null;
+    var cached = await readCached(records);
+    if (state.disposed || run !== state.balanceRun) return;
+    state.cached = cached;
+    applyView(records, cached, meta, null);
+    var pending = records.filter(function (record) {
+      if (only && only.indexOf(record.entry) < 0) return false;
+      if (opts.force) return true;
+      if (!cacheApi) return true;
+      return cacheApi.shouldRefresh(cached[record.key], meta.provider, Date.now());
+    });
+    updateRefreshButton(records, meta);
+    if (!pending.length) {
+      setNote(opts.manual
+        ? 'All selected balances are fresh; no request was sent.'
+        : 'Balances loaded from the local cache; nothing was sent.');
+      return;
+    }
+    setNote(opts.manual ? 'Refreshing failed or stale balances…' : 'Checking public balances in your browser…');
+    if (!opts.manual) {
+      var wait = cacheApi ? cacheApi.jitterDelay(BALANCE_JITTER_MS) : 0;
+      await new Promise(function (resolve) { window.setTimeout(resolve, wait); });
+      if (state.disposed || run !== state.balanceRun) return;
+    }
+    await fetchAndApply(records, pending, run, meta);
+  }
+
+  if (refreshButton) {
+    refreshButton.addEventListener('click', function () {
+      loadBalances({ manual: true });
+    });
   }
 
   /* ----------------------------------------------------------------- boot */
@@ -902,7 +1099,7 @@
     if (deriveText) deriveText.textContent = 'Derived ' + total + ' seeds in this browser.';
     if (deriveBar) deriveBar.style.width = '100%';
     if (deriveProgress) deriveProgress.setAttribute('aria-valuenow', '100');
-    await loadBalances();
+    loadBalances();
   }
 
   async function boot() {
