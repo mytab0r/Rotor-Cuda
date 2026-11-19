@@ -2270,8 +2270,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   padding: 9px 0;
   border-bottom: 1px solid rgba(31, 42, 56, .7);
 }
-.key-form-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.key-form-row:first-child { padding-top: 2px; }
+.key-form-row:last-child { border-bottom: 0; }
+.key-form-row:first-child { padding-top: 9px; }
 .key-form-row dt { color: var(--muted); font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
 .key-form-row dd { margin: 0; min-width: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; }
 .key-form-row .key-copy { min-height: 44px; padding: 0 9px; border-radius: 7px; font-size: 12px; }
@@ -2347,7 +2347,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-table-head,
 .key-row-main {
   display: grid;
-  grid-template-columns: 84px 104px 150px minmax(0, 1fr) minmax(0, 172px) auto;
+  grid-template-columns: 84px 104px 150px minmax(0, 1fr) minmax(0, 210px) auto;
   align-items: center;
   gap: 10px;
   padding: 0 8px;
@@ -2408,9 +2408,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .key-rows .key-balance.ok { color: var(--ok); }
 .key-rows .key-balance.err { color: var(--err); }
@@ -2430,27 +2430,46 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-details .key-step-list { margin: 6px 0 0; }
 @media (max-width: 860px) {
   .key-table-head,
-  .key-row-main { grid-template-columns: 80px 100px minmax(0, 1fr) minmax(0, 146px) auto; }
-  .key-cell-path { display: none; }
-}
-@media (max-width: 640px) {
-  .key-table-head,
-  .key-row-main { grid-template-columns: 62px minmax(0, 1fr) minmax(0, 118px) auto; }
-  .key-cell-type { display: none; }
-}
-@media (max-width: 560px) {
-  .key-table-head { display: none; }
   .key-row-main {
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    grid-template-areas: "chain addr act" "chain status act";
-    gap: 0 4px;
-    min-height: 52px;
-    padding: 4px;
+    grid-template-columns: 70px 96px 130px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "chain type path addr act"
+      "chain type status status act";
+    column-gap: 10px;
+    row-gap: 0;
+    padding: 4px 8px;
   }
   .key-cell-chain { grid-area: chain; }
-  .key-cell-addr { grid-area: addr; align-self: center; }
-  .key-cell-status { grid-area: status; justify-content: flex-start; align-self: start; }
+  .key-cell-type { grid-area: type; }
+  .key-cell-path { display: block; grid-area: path; }
+  .key-cell-addr { grid-area: addr; }
+  .key-cell-status { grid-area: status; justify-content: flex-start; }
   .key-cell-act { grid-area: act; }
+}
+@media (max-width: 640px) {
+  .key-table-head { display: none; }
+  .key-row-main {
+    grid-template-columns: 40px minmax(0, 1fr) 88px;
+    grid-template-areas:
+      "chain addr act"
+      "chain status act";
+    min-height: 88px;
+    padding: 6px;
+  }
+  .key-cell-type,
+  .key-cell-path { display: none; }
+  .key-cell-chain { grid-area: chain; }
+  .key-cell-addr { grid-area: addr; align-self: center; }
+  .key-cell-status { grid-area: status; justify-content: flex-start; align-self: start; text-align: left; }
+  .key-cell-act {
+    grid-area: act;
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
+    justify-content: end;
+    align-content: center;
+    gap: 0;
+  }
+  .key-cell-addr .key-addr { white-space: normal; overflow-wrap: anywhere; }
   .key-chain-id { flex-direction: column; gap: 1px; }
   .key-chain-ticker { font-size: 12px; line-height: 1; }
   .key-details { padding: 8px 6px 10px; }
@@ -2505,7 +2524,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-stats-note { margin: 0 0 14px; font-size: 12px; }
 .key-facts-group dd a { color: var(--accent-2); }
 .key-fact-unavailable { color: var(--muted); font-size: 12px; line-height: 1.5; }
-.key-row-tag { padding: 1px 7px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.key-evm-note { margin: 8px 0 0; font-size: 12px; }
 .key-export { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .key-export-status { min-height: 0; margin: 6px 0 0; font-size: 12px; }
 
