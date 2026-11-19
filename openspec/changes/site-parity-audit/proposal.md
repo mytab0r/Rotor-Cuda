@@ -11,7 +11,8 @@ ordered rollout so a page is either at parity or explicitly partial/missing.
 - `ref-site-a/sitemap.xml` (58 routes) and live pages.
 - `ref-site-b` navigation and its transaction/tool pages.
 - Our route inventory and live pages.
-- Interactive map: `/site-map` (route ↔ route, feature matrix).
+- Interactive map: internal docs page `docs/site-map/index.html` (route ↔
+  route, feature matrix); not a public route.
 
 ## P0 gaps
 
@@ -42,7 +43,8 @@ ordered rollout so a page is either at parity or explicitly partial/missing.
 
 - Do not copy donor text or dark patterns (bulk key export, server-side key
   search, account walls, gamified key theft).
-- Every new page gets a row in `/site-map` and an honest status.
+- Every new page gets a row in the internal map
+  (`docs/site-map/index.html`) and an honest status.
 - A page is `parity` only when its interaction model, empty/loading/error states,
   mobile layout and icon/action grammar match or beat the donor.
 
