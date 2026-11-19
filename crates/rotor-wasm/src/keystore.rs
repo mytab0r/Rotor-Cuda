@@ -224,6 +224,7 @@ mod tests {
 
     #[test]
     fn rejects_bad_parameters() {
+        let iv = bytes("298f88b92ccc0d3a00d9c9740083aaf3");
         let empty = Request {
             kdf: 0,
             n: 1024,
@@ -232,10 +233,7 @@ mod tests {
             c: 0,
             dklen: 32,
             salt: &[],
-            // Dummy bytes for the invalid-parameter path; this request never
-            // reaches the cipher, so the value is not used as an IV.
-            // codeql[rust/hard-coded-cryptographic-value]
-            iv: &[0u8; 16],
+            iv: &iv,
             ciphertext: &[0u8; 32],
             mac: &[0u8; 16],
             password: b"x",
