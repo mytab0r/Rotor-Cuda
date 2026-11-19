@@ -1090,6 +1090,23 @@ fn public_pages_and_assets_are_served() {
     let (status, _, _) = raw(addr, "GET", "/anything", None, None);
     assert_eq!(status, 404);
 
+    // The parity map is internal docs now; its old public route is gone.
+    for path in [
+        "/site-map",
+        "/site-map.css",
+        "/site-map.js",
+        "/site-map-data.js",
+    ] {
+        let (status, _, _) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 404, "{path} must not be served");
+    }
+    let (status, _, sitemap) = raw(addr, "GET", "/sitemap.xml", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        !sitemap.contains("/site-map"),
+        "sitemap.xml must not list the internal parity map"
+    );
+
     // The authenticated API is still protected.
     let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);
     assert_eq!(status, 401);

@@ -69,10 +69,6 @@ const MNEMONIC_SEEDS_JS: &str = include_str!("../../apps/site/mnemonic-seeds.js"
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
 const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
-const SITE_MAP_PAGE: &str = include_str!("../../apps/site/site-map.html");
-const SITE_MAP_CSS: &str = include_str!("../../apps/site/site-map.css");
-const SITE_MAP_JS: &str = include_str!("../../apps/site/site-map.js");
-const SITE_MAP_DATA_JS: &str = include_str!("../../apps/site/site-map-data.js");
 const KEY_TOOLS_JS: &str = include_str!("../../apps/site/key-tools.js");
 const HEX_DEC_BIN_PAGE: &str = include_str!("../../apps/site/hex-dec-bin.html");
 const HEX_DEC_BIN_JS: &str = include_str!("../../apps/site/hex-dec-bin.js");
@@ -821,16 +817,6 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/milk-sad" => Some((MILK_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/milk-sad.js" => Some((MILK_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/tools" => Some((TOOLS_PAGE.as_bytes(), "text/html; charset=utf-8")),
-        "/site-map" => Some((SITE_MAP_PAGE.as_bytes(), "text/html; charset=utf-8")),
-        "/site-map.css" => Some((SITE_MAP_CSS.as_bytes(), "text/css; charset=utf-8")),
-        "/site-map.js" => Some((
-            SITE_MAP_JS.as_bytes(),
-            "application/javascript; charset=utf-8",
-        )),
-        "/site-map-data.js" => Some((
-            SITE_MAP_DATA_JS.as_bytes(),
-            "application/javascript; charset=utf-8",
-        )),
         "/key-tools.js" => Some((
             KEY_TOOLS_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -4061,7 +4047,6 @@ fn render_sitemap(base: &str) -> String {
         "/vanity",
         "/milk-sad",
         "/tools",
-        "/site-map",
         "/hex-dec-bin",
         "/public-key",
         "/pubkey-add",
@@ -5367,57 +5352,6 @@ mod tests {
             assert_eq!(status, 200);
             assert!(body.contains("private keys"));
         }
-    }
-
-    #[test]
-    fn site_map_route_assets_and_sitemap_are_served() {
-        let (page, content_type) = static_asset("/site-map").expect("/site-map is embedded");
-        assert_eq!(content_type, "text/html; charset=utf-8");
-        let page = std::str::from_utf8(page).expect("site-map.html is UTF-8");
-        for marker in [
-            "id=\"sitemap-summary\"",
-            "id=\"sitemap-query\"",
-            "id=\"ours-grid\"",
-            "id=\"donors-grid\"",
-            "id=\"pairs-body\"",
-            "id=\"features-body\"",
-            "/site-map-data.js?v=20261122a",
-            "/site-map.js?v=20261122a",
-            "/site-map.css?v=20261122a",
-            "/site.css?v=20261122a",
-            "href=\"/tools\"",
-        ] {
-            assert!(page.contains(marker), "/site-map is missing {marker}");
-        }
-
-        for path in ["/site-map.css", "/site-map.js", "/site-map-data.js"] {
-            assert!(static_asset(path).is_some(), "{path} must be embedded");
-        }
-        let (css, content_type) = static_asset("/site-map.css").expect("site-map.css");
-        assert_eq!(content_type, "text/css; charset=utf-8");
-        assert!(
-            std::str::from_utf8(css)
-                .expect("css is UTF-8")
-                .contains(".sitemap-row")
-        );
-        let (data, content_type) = static_asset("/site-map-data.js").expect("site-map-data.js");
-        assert_eq!(content_type, "application/javascript; charset=utf-8");
-        let data = std::str::from_utf8(data).expect("data is UTF-8");
-        for marker in [
-            "window.RotorSiteMapData",
-            "privatekeyfinder.io",
-            "secretscan.org",
-            "ours-only",
-            "features",
-        ] {
-            assert!(
-                data.contains(marker),
-                "site-map-data.js is missing {marker}"
-            );
-        }
-
-        let base = "https://rotor.pxbt.app";
-        assert!(render_sitemap(base).contains("<loc>https://rotor.pxbt.app/site-map</loc>"));
     }
 
     #[test]

@@ -33,8 +33,6 @@
         "node --check apps/site/wallet.js",
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-evm.js",
-        "node --check apps/site/site-map.js",
-        "node --check apps/site/site-map-data.js",
         "node --check apps/site/wallet-btc.js"
       ],
       "test": [
@@ -46,7 +44,6 @@
         "node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/wallet-vault-test.mjs",
         "node apps/site/wallet-evm-test.mjs",
-        "node apps/site/site-map-test.mjs",
         "node apps/site/wallet-btc-test.mjs"
       ],
       "consumes": [
@@ -159,9 +156,13 @@
         "PRODUCT.md"
       ],
       "build": [
+        "node --check docs/site-map/site-map.js",
+        "node --check docs/site-map/site-map-data.js",
+        "node --check docs/site-map/theme.js",
         "node scripts/check-projects.mjs"
       ],
       "test": [
+        "node docs/site-map/site-map-test.mjs",
         "node scripts/check-projects.mjs"
       ],
       "consumes": [],

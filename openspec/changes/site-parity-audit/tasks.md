@@ -38,6 +38,16 @@
 
 ## Verification
 
-- [ ] `/site-map` updated for every completed row; no false parity.
+- [ ] `docs/site-map/index.html` updated for every completed row; no false parity.
 - [ ] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
 - [ ] `node scripts/check-projects.mjs`, site tests, cargo tests, clippy.
+
+## Relocation to internal docs (done)
+
+- [x] Move the parity map from the public site to `docs/site-map/`
+  (`index.html`, `site-map.css`, `site-map.js`, `site-map-data.js`,
+  `site-map-test.mjs`, local `icons.svg` and `theme.js`); relative assets only.
+- [x] Drop `/site-map`, `/site-map.css`, `/site-map.js` and `/site-map-data.js`
+  from the coordinator routes, embedded assets and sitemap; route tests and
+  `/docs`/`/tools` links no longer reference the public path.
+- [x] Run the data test from `docs/`: `node docs/site-map/site-map-test.mjs`.
