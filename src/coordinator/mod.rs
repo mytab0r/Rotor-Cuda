@@ -5381,10 +5381,10 @@ mod tests {
             "id=\"donors-grid\"",
             "id=\"pairs-body\"",
             "id=\"features-body\"",
-            "/site-map-data.js?v=20261121a",
-            "/site-map.js?v=20261121a",
-            "/site-map.css?v=20261121a",
-            "/site.css?v=20261120a",
+            "/site-map-data.js?v=20261122a",
+            "/site-map.js?v=20261122a",
+            "/site-map.css?v=20261122a",
+            "/site.css?v=20261122a",
             "href=\"/tools\"",
         ] {
             assert!(page.contains(marker), "/site-map is missing {marker}");
