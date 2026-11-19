@@ -1,0 +1,214 @@
+// Rotor shared edge balance cache.
+//
+// Public, read-mostly cache in front of public balance providers. Only public
+// chain data crosses this worker: chain id, public address, balance, unit,
+// fetchedAt. Client reports are hints, never truth.
+//
+// Routes:
+//   GET  /v1/balance?chain=<chain>&address=<addr>
+//   POST /v1/report   {chain,address,value,fetchedAt}
+//   GET  /healthz
+
+import {
+  CLIENT_TTL_MS,
+  PROVIDER_TTL_MS,
+  STALE_MAX_MS,
+  buildCacheKey,
+  decideCache,
+  readCache,
+  writeCache,
+} from "./cache.mjs";
+import { isKnownChain, isValidAddress, normalizeAddress, unitFor } from "./chains.mjs";
+import { validateHint } from "./hint.mjs";
+import { findSensitiveMaterial } from "./security.mjs";
+import { ProviderError, fetchProviderBalance, providerHealth, resolveProvider } from "./providers.mjs";
+
+const MAX_BODY_BYTES = 4096;
+
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
+
+const BASE_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff",
+  ...CORS_HEADERS,
+};
+
+export default {
+  async fetch(request, env = {}, ctx = {}) {
+    return handleRequest(request, env, ctx);
+  },
+};
+
+export async function handleRequest(request, env = {}, ctx = {}) {
+  const url = new URL(request.url);
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: { ...CORS_HEADERS, "access-control-max-age": "86400" },
+    });
+  }
+  if (url.pathname === "/healthz" && request.method === "GET") {
+    return json({ ok: true, providers: providerHealth(env) });
+  }
+  if (url.pathname === "/v1/balance" && request.method === "GET") {
+    return handleBalance(url, env, ctx);
+  }
+  if (url.pathname === "/v1/report" && request.method === "POST") {
+    return handleReport(request);
+  }
+  return json({ error: "not_found" }, 404);
+}
+
+export async function handleBalance(url, env = {}, ctx = {}) {
+  const chain = (url.searchParams.get("chain") ?? "").trim().toLowerCase();
+  const rawAddress = (url.searchParams.get("address") ?? "").trim();
+  if (!isKnownChain(chain)) return json({ error: "bad_chain" }, 400);
+  if (!isValidAddress(chain, rawAddress)) return json({ error: "bad_address" }, 400);
+
+  const address = normalizeAddress(chain, rawAddress);
+  const key = buildCacheKey(chain, address);
+  const cached = await readCache(key);
+  const state = decideCache(cached, Date.now());
+
+  if (state === "fresh") {
+    return json(balanceBody(cached, false));
+  }
+  if (state === "stale") {
+    schedule(ctx, refreshBalance(chain, address, key, env));
+    return json(balanceBody(cached, true));
+  }
+
+  const result = await refreshBalance(chain, address, key, env);
+  if (result.ok) return json(balanceBody(result.entry, false));
+  if (cached) return json({ ...balanceBody(cached, true), error: result.error });
+  if (result.error === "no_provider") return json({ error: "no_provider" }, 501);
+  return json(
+    {
+      chain,
+      address,
+      value: null,
+      unit: unitFor(chain),
+      fetchedAt: null,
+      source: "none",
+      stale: true,
+      error: result.error,
+    },
+    result.status,
+  );
+}
+
+export async function handleReport(request) {
+  const read = await readLimitedBody(request);
+  if (!read.ok) return json({ error: read.error }, read.status);
+
+  // Scan the raw body before parsing so key-shaped strings never reach the
+  // validator, the cache or a log line.
+  if (findSensitiveMaterial(read.text).length > 0) {
+    return json({ error: "invalid_hint", reasons: ["sensitive_material"] }, 400);
+  }
+
+  let body;
+  try {
+    body = JSON.parse(read.text);
+  } catch {
+    return json({ error: "invalid_hint", reasons: ["bad_json"] }, 400);
+  }
+
+  const validated = validateHint(body, Date.now());
+  if (!validated.ok) return json({ error: "invalid_hint", reasons: validated.reasons }, 400);
+
+  const { hint } = validated;
+  const key = buildCacheKey(hint.chain, hint.address);
+  const existing = await readCache(key);
+
+  // Provider values are authoritative: a hint never replaces one, and among
+  // hints only a newer one wins. Either way the hint is accepted (204).
+  if (existing && existing.source === "provider") return accepted();
+  if (existing && existing.source === "client" && Number(existing.fetchedAt) >= hint.fetchedAt) {
+    return accepted();
+  }
+
+  await writeCache(
+    key,
+    {
+      chain: hint.chain,
+      address: hint.address,
+      value: hint.value,
+      unit: hint.unit,
+      fetchedAt: hint.fetchedAt,
+      source: "client",
+    },
+    CLIENT_TTL_MS,
+  );
+  return accepted();
+}
+
+async function refreshBalance(chain, address, key, env) {
+  const provider = resolveProvider(chain, env);
+  if (!provider) return { ok: false, error: "no_provider", status: 501 };
+
+  try {
+    const fetched = await fetchProviderBalance(provider, address);
+    const entry = {
+      chain,
+      address,
+      value: fetched.value,
+      unit: fetched.unit,
+      fetchedAt: fetched.fetchedAt,
+      source: "provider",
+    };
+    await writeCache(key, entry, PROVIDER_TTL_MS);
+    return { ok: true, entry };
+  } catch (error) {
+    const code = error instanceof ProviderError ? error.code : "provider_error";
+    const status = error instanceof ProviderError ? error.status : 502;
+    return { ok: false, error: code === "rate_limited" ? "rate_limited" : "provider_error", status };
+  }
+}
+
+function balanceBody(entry, stale) {
+  return {
+    chain: entry.chain,
+    address: entry.address,
+    value: entry.value,
+    unit: entry.unit,
+    fetchedAt: entry.fetchedAt,
+    source: entry.source,
+    stale,
+  };
+}
+
+function schedule(ctx, promise) {
+  const guarded = Promise.resolve(promise).catch(() => {});
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(guarded);
+  return guarded;
+}
+
+async function readLimitedBody(request) {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    return { ok: false, status: 413, error: "body_too_large" };
+  }
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
+    return { ok: false, status: 413, error: "body_too_large" };
+  }
+  return { ok: true, text };
+}
+
+function accepted() {
+  return new Response(null, {
+    status: 204,
+    headers: { ...CORS_HEADERS, "cache-control": "no-store", "x-content-type-options": "nosniff" },
+  });
+}
+
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: BASE_HEADERS });
+}
