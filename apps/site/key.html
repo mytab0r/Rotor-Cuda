@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261121e">
-<script src="/theme.js?v=20261121e"></script>
+<link rel="stylesheet" href="/site.css?v=20261122a">
+<script src="/theme.js?v=20261122a"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -42,12 +42,19 @@
     <h2>Key input</h2>
     <p id="key-url-notice" class="notice key-url-notice" role="note" hidden>This key is in the page URL. Derivation runs locally; only the derived public addresses are checked against the registry so a registered owner can be warned.</p>
     <p id="exposure-status" class="muted key-help" role="status" hidden></p>
-    <form id="key-form" class="key-form" autocomplete="off">
-      <label class="key-input-label">Private key
-        <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
-               autocomplete="new-password" spellcheck="false" autocapitalize="off"
-               data-lpignore="true" data-1p-ignore="true" aria-describedby="key-format">
-      </label>
+    <form id="key-form" class="key-form" autocomplete="off" novalidate>
+      <div class="key-input-block">
+        <label class="key-input-label">Private key
+          <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
+                 autocomplete="new-password" spellcheck="false" autocapitalize="off"
+                 data-lpignore="true" data-1p-ignore="true" aria-describedby="key-status key-format">
+        </label>
+        <p id="key-status" class="key-input-status is-idle" role="status" aria-live="polite">
+          <span class="key-status-dot" aria-hidden="true"></span>
+          <span id="key-status-text">Paste a key to derive automatically.</span>
+          <span class="key-status-skeleton" aria-hidden="true"></span>
+        </p>
+      </div>
       <div class="key-curve-field">
         <span class="key-field-label">Curve</span>
         <div class="key-segmented" role="group" aria-label="Curve">
@@ -59,16 +66,21 @@
           <option value="1">ed25519</option>
         </select>
       </div>
-      <div class="key-buttons">
-        <button type="submit" class="primary" id="derive-btn">Calculate</button>
-        <button type="button" id="step-down" title="Decrease the key by one">−1</button>
-        <button type="button" id="step-up" title="Increase the key by one">+1</button>
-        <button type="button" id="random-btn" title="Generate a random key">Generate</button>
-        <button type="button" id="clear-btn" title="Clear the key and results">Clear</button>
+      <div class="key-buttons key-actions" role="group" aria-label="Key actions">
+        <button type="button" id="random-btn" class="key-icon-btn" aria-label="Generate random key" title="Generate random key">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
+        </button>
+        <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261122a#ui-close"></use></svg>
+        </button>
+        <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
+          <span class="key-step-label" aria-hidden="true">±1</span>
+          <button type="button" id="step-down" aria-label="Decrease the key by one" title="Decrease the key by one">−1</button>
+          <button type="button" id="step-up" aria-label="Increase the key by one" title="Increase the key by one">+1</button>
+        </div>
       </div>
     </form>
-    <p id="key-format" class="muted key-help">Accepts 64 hex characters with an optional 0x prefix, a decimal integer, or a Bitcoin WIF. The key stays in memory only and is cleared when you leave the page.</p>
-    <p id="key-error" class="error key-error" role="alert" hidden></p>
+    <p id="key-format" class="muted key-help">Derives automatically as you type: 64 hex characters (optional 0x), a decimal integer, a Bitcoin WIF, a Solana keypair JSON array, or any other text as a brainwallet phrase (key = SHA-256 of the text). The key stays in memory only and is cleared when you leave the page.</p>
   </section>
 
   <nav class="entity-links" aria-label="Entity calculators">
@@ -200,6 +212,6 @@
 
 </main>
 
-<script src="/key.js?v=20261121e"></script>
+<script src="/key.js?v=20261122a"></script>
 </body>
 </html>
