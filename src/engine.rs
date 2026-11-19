@@ -22,6 +22,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::base58;
+use crate::chain;
 use crate::checkpoint;
 use crate::cli::{self, Coin, CompMode, Config, SearchMode, U256};
 use crate::coordinator::client::{CoordinatorClient, JobInfo};
@@ -1379,35 +1380,42 @@ pub(crate) fn emit_hit(
     coin: Coin,
 ) -> io::Result<()> {
     let private_hex = scalar_hex_trimmed(key);
-    let (address, wif, public_hex) = match coin {
-        Coin::Btc => (
-            base58::address_from_hash160(&secp::hash160(point, compressed), compressed),
-            Some(base58::wif_encode(key, compressed)),
-            if compressed {
-                hex_upper(&secp::compress(point))
-            } else {
-                hex_upper(&secp::uncompress(point))
-            },
-        ),
-        Coin::Eth => {
-            let public = secp::uncompress(point);
-            (
-                format!("0x{}", hex_lower(&secp::eth_address(point))),
-                None,
-                hex_upper(&public[1..]),
-            )
-        }
+    let chain_id = match coin {
+        Coin::Btc => "bitcoin",
+        Coin::Eth => "ethereum",
+    };
+    let descriptor = chain::by_id(chain_id)
+        .ok_or_else(|| io::Error::other(format!("missing chain descriptor: {chain_id}")))?;
+    let derived = descriptor
+        .derive(chain::KeyMaterial::Secp {
+            key,
+            point,
+            compressed,
+        })
+        .map_err(io::Error::other)?;
+    // The legacy key report printed EVM addresses in lowercase; keep that output
+    // byte-for-byte while the descriptor itself carries the EIP-55 form.
+    let address = if coin == Coin::Eth {
+        derived.address.to_ascii_lowercase()
+    } else {
+        derived.address
     };
 
-    write_block(file, &address, wif.as_deref(), &private_hex, &public_hex)?;
+    write_block(
+        file,
+        &address,
+        derived.secret.as_deref(),
+        &private_hex,
+        &derived.public_hex,
+    )?;
 
     print!("\n  {}\n", "=".repeat(96));
     println!("  PubAddress: {address}");
-    if let Some(wif) = &wif {
+    if let Some(wif) = &derived.secret {
         println!("  Priv (WIF): {wif}");
     }
     println!("  Priv (HEX): {private_hex}");
-    println!("  PubK (HEX): {public_hex}");
+    println!("  PubK (HEX): {}", derived.public_hex);
     println!();
     let _ = io::stdout().flush();
     Ok(())
@@ -1888,22 +1896,6 @@ fn scalar_hex_trimmed(key: &Scalar) -> String {
             out
         }
     }
-}
-
-fn hex_upper(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        let _ = write!(out, "{byte:02X}");
-    }
-    out
-}
-
-fn hex_lower(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
 }
 
 /// `HH:MM:SS` elapsed time, as `toTimeStr` in the C++ code.
