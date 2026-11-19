@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Send Bitcoin testnet — TESTNET only | Rotor</title>
+<meta name="description" content="Send Bitcoin testnet or Ethereum Sepolia coins from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
+<link rel="canonical" href="https://rotor.pxbt.app/send">
+<link rel="stylesheet" href="/site.css?v=20261123c">
+<script src="/theme.js?v=20261123c"></script>
+<style>
+/* Send page: one form, review and signed steps. All sizes follow the shared
+ * 44px touch target and 12px minimum text rules. */
+.send-page .key-chain[aria-current="page"] {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--panel-2);
+}
+.send-page .key-chain[data-send-chain="bitcoin-testnet"][aria-current="page"] {
+  border-color: var(--key-btc);
+  background: rgba(247, 147, 26, .14);
+}
+.send-page .key-chain[data-send-chain="ethereum-sepolia"][aria-current="page"] {
+  border-color: #8f9eff;
+  background: rgba(143, 158, 255, .14);
+}
+.send-testnet-banner {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(247, 147, 26, .45);
+  border-radius: 12px;
+  background: rgba(247, 147, 26, .1);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.send-key-field { grid-column: 1 / -1; display: grid; gap: 8px; }
+.send-key-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.send-key-row input { flex: 1; min-width: 0; }
+.send-key-row button {
+  flex: none;
+  min-width: 72px;
+  min-height: 56px;
+  padding: 0 14px;
+}
+.send-key-row button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.send-address-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 4px 6px 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--input-bg);
+}
+.send-address-row code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.send-address-row .icon-btn { flex: none; }
+.send-hex {
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.send-warnings {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  font-size: 12.5px;
+}
+.send-warnings h3 { margin: 0 0 6px; font-size: 13px; }
+.send-warnings ul { margin: 0; padding-left: 18px; }
+.send-warnings li { margin: 4px 0; line-height: 1.5; }
+.send-status { min-height: 20px; margin: 12px 0 0; font-size: 12.5px; color: var(--muted); }
+.send-result-hash { overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .send-key-row { flex-wrap: wrap; }
+  .send-key-row button { width: 100%; }
+}
+</style>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page send-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg></span>
+      <div>
+        <h1 id="send-title">Send Bitcoin testnet</h1>
+        <p class="key-tagline">Paste a testnet key, derive the address locally through the WASM core, review the exact transaction, sign in this tab and broadcast only if you choose to. Keys never leave the page.</p>
+        <div class="key-badges"><span>TESTNET ONLY</span><span>Local signing</span><span>No upload</span></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="send-testnet-banner" role="note">TESTNET ONLY. Bitcoin testnet (tBTC) and Ethereum Sepolia are the only networks here. Mainnet keys, mainnet RPC endpoints and mainnet broadcasts are rejected in code; nothing on this page can sign a mainnet transaction.</p>
+
+  <nav class="key-chains" aria-label="Testnet chain">
+    <a class="key-chain" href="/send/bitcoin" data-send-chain="bitcoin-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin testnet</a>
+    <a class="key-chain" href="/send/ethereum" data-send-chain="ethereum-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum Sepolia</a>
+  </nav>
+
+  <p id="send-unavailable" class="notice" role="alert" hidden></p>
+
+  <section class="card">
+    <h2>1. Key and destination</h2>
+    <p class="muted key-help" id="send-fee-help">Leave the fee rate empty to use mempool.space testnet recommendations; the review shows the exact fee.</p>
+    <form id="send-form" class="key-form" autocomplete="off">
+      <div class="send-key-field">
+        <label class="key-field-label" id="send-key-label" for="send-key">Bitcoin testnet WIF or 64-hex key</label>
+        <div class="send-key-row">
+          <input id="send-key" type="password" spellcheck="false" autocapitalize="off" placeholder="Paste a testnet key">
+          <button type="button" id="send-key-toggle" aria-pressed="false" aria-label="Show private key" title="Show private key">Show</button>
+        </div>
+      </div>
+
+      <div class="send-key-field">
+        <span class="key-field-label">Derived sending address</span>
+        <div class="send-address-row">
+          <code id="send-address" class="mono">—</code>
+          <button type="button" class="icon-btn" id="send-address-copy" aria-label="Copy derived address" title="Copy derived address" disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </div>
+
+      <label class="key-input-label" for="send-to">Recipient address
+        <input id="send-to" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="tb1q… or 0x…">
+      </label>
+
+      <label class="key-input-label" data-chain-only="bitcoin-testnet" for="send-amount">Amount (BTC testnet)
+        <input id="send-amount" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="0.0001">
+      </label>
+
+      <label class="key-input-label" data-chain-only="bitcoin-testnet" for="send-fee-rate">Fee rate (sat/vB, optional)
+        <input id="send-fee-rate" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="2">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-value">Value (ETH, optional for a call)
+        <input id="send-value" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="0.001">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-data">Call data (0x…, optional)
+        <input id="send-data" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="0x">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-gas">Gas limit (optional)
+        <input id="send-gas" class="mono" type="text" inputmode="numeric" spellcheck="false" placeholder="21000">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-max-fee">Max fee (gwei, optional)
+        <input id="send-max-fee" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="auto">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-priority">Priority fee (gwei, optional)
+        <input id="send-priority" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="auto">
+      </label>
+
+      <div class="key-buttons">
+        <button type="button" id="send-clear">Clear</button>
+        <button type="button" class="primary" id="send-prepare">Prepare review</button>
+      </div>
+    </form>
+    <p id="send-error" class="error key-error" role="alert" hidden></p>
+    <p id="send-status" class="send-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card" id="send-review" hidden>
+    <div class="key-row-head">
+      <h2 class="key-row-title" id="send-review-title" tabindex="-1">2. Review — nothing signed yet</h2>
+      <button type="button" class="icon-btn" id="send-review-copy" aria-label="Copy unsigned transaction" title="Copy unsigned transaction"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+    </div>
+    <dl class="key-form-list" id="send-review-list"></dl>
+    <div id="send-review-warnings" class="send-warnings" hidden></div>
+    <h3>Unsigned transaction</h3>
+    <div id="send-review-unsigned" class="send-hex mono"></div>
+    <div class="key-buttons">
+      <button type="button" id="send-review-cancel">Cancel</button>
+      <button type="button" class="primary" id="send-sign">Sign locally</button>
+    </div>
+  </section>
+
+  <section class="card" id="send-signed" hidden>
+    <div class="key-row-head">
+      <h2 class="key-row-title" tabindex="-1">3. Signed transaction</h2>
+      <button type="button" class="icon-btn" id="send-signed-copy" aria-label="Copy signed transaction" title="Copy signed transaction"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+    </div>
+    <p class="muted key-help">The key was cleared after signing. Copy the signed hex to keep it, or broadcast it to the public testnet endpoint below.</p>
+    <div id="send-signed-hex" class="send-hex mono"></div>
+    <div class="key-buttons">
+      <button type="button" id="send-signed-clear">Discard</button>
+      <button type="button" class="primary" id="send-broadcast">Broadcast to testnet</button>
+    </div>
+  </section>
+
+  <section class="card" id="send-result" hidden>
+    <h2>4. Broadcast result</h2>
+    <dl class="key-form-list">
+      <div class="key-form-row">
+        <dt>Transaction id</dt>
+        <dd><code id="send-result-hash" class="mono detail-value send-result-hash"></code></dd>
+      </div>
+    </dl>
+    <p class="muted key-help">The signed transaction was accepted by the public testnet endpoint. <a id="send-result-link" href="#" hidden target="_blank" rel="noopener">Open the testnet explorer</a>.</p>
+  </section>
+
+  <p class="muted key-help">Related: <a href="/cabinet/wallet">cabinet wallet</a>, <a href="/tx">transaction decoders</a>, <a href="/tools">tools index</a>. The same testnet flow lives inside the encrypted cabinet vault when you prefer a stored key.</p>
+</main>
+
+<script src="/wallet-btc.js"></script>
+<script src="/wallet-evm.js"></script>
+<script src="/send.js"></script>
+<script src="/site.js?v=20261123c"></script>
+</body>
+</html>

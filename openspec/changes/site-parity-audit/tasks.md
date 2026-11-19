@@ -14,8 +14,14 @@
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
   explorer.
 - [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
-- [ ] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
-  core; mainnet stays gated.
+- [x] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
+  core; mainnet stays gated. Evidence: `apps/site/send.html` (one page on
+  `/send`, `/send/bitcoin`, `/send/ethereum`), `apps/site/send.js` (testnet
+  chain and endpoint gates, local derivation, sign-only and optional
+  broadcast), `src/coordinator/mod.rs` (routes, embedded assets, sitemap),
+  `apps/site/send-test.mjs` (mainnet WIF/RPC rejection and no-key-outbound
+  proof), `tests/coordinator_api.rs` (three routes return 200 with TESTNET
+  copy).
 - [ ] `/key` debounced auto-derive, icon-only utility actions, full formats and
   counters.
 - [x] Global search results in place: interpret-as, 1/3/5/10 addresses, table,

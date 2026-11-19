@@ -1123,6 +1123,56 @@ fn public_pages_and_assets_are_served() {
     handle.shutdown();
 }
 
+#[test]
+fn send_routes_are_served_with_testnet_only_copy() {
+    let temp = TempState::new("send");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    for path in ["/send", "/send/bitcoin", "/send/ethereum"] {
+        let (status, headers, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        assert!(
+            headers.to_ascii_lowercase().contains("text/html"),
+            "{path}: {headers}"
+        );
+        assert!(body.contains("TESTNET"), "{path} must say TESTNET");
+        assert!(
+            body.contains("id=\"send-key\""),
+            "{path} misses the key input"
+        );
+        assert!(body.contains("id=\"send-prepare\""), "{path} misses prepare");
+        assert!(body.contains("/send.js"), "{path} misses /send.js");
+        assert!(body.contains("/wallet-btc.js"), "{path} misses the BTC kernel");
+        assert!(body.contains("/wallet-evm.js"), "{path} misses the EVM kernel");
+    }
+
+    let (status, headers, script) = raw(addr, "GET", "/send.js", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("application/javascript"),
+        "/send.js: {headers}"
+    );
+    // The mainnet gates are in the served script, not just in the tests.
+    assert!(script.contains("assertTestnetChain"));
+    assert!(script.contains("Mainnet sending is disabled"));
+    assert!(script.contains("mempool.space/testnet/api"));
+    assert!(script.contains("Blocked an Ethereum RPC outside the Sepolia allowlist"));
+
+    let (status, _, sitemap) = raw(addr, "GET", "/sitemap.xml", None, None);
+    assert_eq!(status, 200);
+    for path in ["/send", "/send/bitcoin", "/send/ethereum"] {
+        assert!(
+            sitemap.contains(&format!("{path}</loc>")),
+            "sitemap missing {path}"
+        );
+    }
+
+    handle.shutdown();
+}
+
 /// Minimal HTTP upstream used to prove the wallet download route streams
 /// through the coordinator and maps upstream failures to clean statuses.
 struct MockUpstream {
