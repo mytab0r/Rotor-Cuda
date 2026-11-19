@@ -2101,6 +2101,30 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-derive-intro { max-width: 1040px; margin: 0 auto 14px; }
 /* Nested variant of the shared address-type component. */
 .address-type-panel.key-address-panel { padding: 13px 14px 15px; }
+/* Inside the Derivation card the type selector is a flat segmented control, not
+ * a second row of cards. Same DOM/component, different depth. */
+.key-derive-block .key-address-panel { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
+.key-derive-block .key-address-panel .address-type-cards {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.key-derive-block .key-address-panel .address-type-card {
+  border: 0;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.key-derive-block .key-address-panel .address-type-card:last-child { border-right: 0; }
+.key-derive-block .key-address-panel .address-type-card:hover { background: var(--panel-3); }
+.key-derive-block .key-address-panel .address-type-card.active,
+.key-derive-block .key-address-panel .address-type-card[aria-pressed="true"] {
+  background: var(--accent-soft);
+  box-shadow: none;
+}
 .key-derive-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
