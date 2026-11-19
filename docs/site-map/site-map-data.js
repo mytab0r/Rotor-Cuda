@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Missing WIF(u), XRP secret and public-key formats, Total Value/Has Balance/Active/Checked aggregates, CSV and eight EVM chain rows.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (Total Value stays blank without a price source, Has Balance, Active Chains, Checked), eight EVM chain rows and public-row Copy All/CSV are in place. The interactive curve editor and signing entry remain.'
   });
 
   oursRoute({
@@ -129,7 +129,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyHex'],
-    note: 'Auto-derives from 64 hex characters to WIF, public key and addresses. Aggregates, CSV and eight EVM rows are still missing.'
+    note: 'Auto-derives from 64 hex characters to WIF, public key and addresses. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
   oursRoute({
@@ -139,7 +139,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyWif', 'ss:/PrivateKey_wif_to_hex'],
-    note: 'Auto-derives from 5…, K… or L… to hex and addresses. Aggregates, CSV and eight EVM rows are still missing.'
+    note: 'Auto-derives from 5…, K… or L… to hex and addresses. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
   oursRoute({
@@ -149,7 +149,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>'],
-    note: 'Auto-derives from a decimal integer below the curve order. Aggregates, CSV and eight EVM rows are still missing.'
+    note: 'Auto-derives from a decimal integer below the curve order. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
   oursRoute({
