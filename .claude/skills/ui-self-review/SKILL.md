@@ -37,6 +37,9 @@ node scripts/ui-audit.mjs --serve --routes key,seed --viewports 375,1280 --theme
 node scripts/ui-audit.mjs --serve --json .claude/ui-audit/report.json
 ```
 
+On Git Bash, write route values without the leading slash (`--routes key,seed`):
+MSYS rewrites a bare `/key` argument into a Windows path.
+
 The script auto-detects Chrome/Edge (override with `CHROME_PATH`). It returns
 exit 0 only when there are no violations, 1 on violations, 2 when the harness
 itself cannot run. Screenshots and the JSON report are written under a temp
