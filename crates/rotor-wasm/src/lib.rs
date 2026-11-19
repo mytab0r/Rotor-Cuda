@@ -400,6 +400,13 @@ impl Session {
         }
     }
 
+    /// Zero and drop the last result blob. The keystore page calls this after
+    /// reading a decrypted private key so it does not linger in wasm memory.
+    pub fn clear_result(&mut self) {
+        self.result.fill(0);
+        self.result.clear();
+    }
+
     fn write_scan_result(&mut self, scanned: u64, found: Option<(Scalar, String)>) {
         let mut out = Vec::with_capacity(128);
         out.extend_from_slice(&scanned.to_le_bytes());
@@ -712,8 +719,9 @@ pub extern "C" fn public_key_add(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32)
 /// Decrypt an Ethereum V3 keystore locally.
 ///
 /// `kdf`: 0 scrypt, 1 PBKDF2-HMAC-SHA256. `dklen` must be 32, `iv_len` 16,
-/// `ct_len` 32 and `mac_len` 16. Returns the hex private key in the result
-/// buffer on success, or a nonzero status with the error buffer set.
+/// `ct_len` 32 and `mac_len` 16 (legacy truncated MAC) or 32 (full MAC).
+/// Returns the hex private key in the result buffer on success, or a nonzero
+/// status with the error buffer set.
 #[unsafe(no_mangle)]
 #[allow(clippy::too_many_arguments)]
 pub extern "C" fn keystore_decrypt(
@@ -767,6 +775,12 @@ pub extern "C" fn result_ptr() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn result_len() -> u32 {
     session().result.len() as u32
+}
+
+/// Zero and truncate the result buffer once the caller has copied it out.
+#[unsafe(no_mangle)]
+pub extern "C" fn clear_result() {
+    session_mut().clear_result();
 }
 
 #[unsafe(no_mangle)]

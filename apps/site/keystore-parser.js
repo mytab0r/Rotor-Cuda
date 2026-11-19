@@ -3,6 +3,13 @@
 (function () {
   'use strict';
 
+  // The JSON parser is also required from a Node test; the page code below
+  // needs a DOM, so stop after exporting when there is none.
+  if (typeof module === 'object' && module.exports) {
+    module.exports = { parseKeystore: parseKeystore };
+  }
+  if (typeof document === 'undefined') return;
+
   var byId = function (id) { return document.getElementById(id); };
   var form = byId('keystore-form');
   if (!form) return;
@@ -38,6 +45,16 @@
     var text = String(value == null ? '' : value).trim().replace(/^0x/i, '');
     if (!/^[0-9a-fA-F]*$/.test(text) || text.length !== bytes * 2) {
       throw new Error('The keystore field "' + label + '" must be ' + bytes * 2 + ' hex characters.');
+    }
+    return text.toLowerCase();
+  }
+
+  /* Standard keystores store a full 32-byte MAC; legacy ones store the first
+   * 16 bytes. Both are accepted by the wasm core. */
+  function macField(value) {
+    var text = String(value == null ? '' : value).trim().replace(/^0x/i, '');
+    if (!/^[0-9a-fA-F]*$/.test(text) || (text.length !== 32 && text.length !== 64)) {
+      throw new Error('The keystore field "mac" must be 32 (16-byte legacy) or 64 (32-byte) hex characters.');
     }
     return text.toLowerCase();
   }
@@ -98,9 +115,22 @@
       throw new Error('Unsupported cipher "' + crypto.cipher + '". Only aes-128-ctr is handled.');
     }
     var cipherparams = crypto.cipherparams || {};
-    var params = crypto.kdfparams || {};
+    var params = crypto.kdfparams;
+    var arrayForm = Array.isArray(params);
+    if (arrayForm) {
+      if (params.length !== 3) {
+        throw new Error('The keystore field "kdfparams" as an array must be [n, r, p].');
+      }
+      // Legacy positional scrypt form: n, r, p; salt and dklen stay on "crypto".
+      params = { n: params[0], r: params[1], p: params[2], salt: crypto.salt, dklen: crypto.dklen };
+    } else if (!params || typeof params !== 'object') {
+      throw new Error('The keystore has no "kdfparams" object or array.');
+    }
     var dklen = intField(params.dklen, 'kdfparams.dklen', 1);
     var kdf = String(params.kdf || crypto.kdf || '').toLowerCase();
+    if (arrayForm && kdf !== 'scrypt') {
+      throw new Error('The array "kdfparams" form is only valid for scrypt.');
+    }
     var saltHex = String(params.salt == null ? '' : params.salt).trim().replace(/^0x/i, '');
     if (!/^[0-9a-fA-F]+$/.test(saltHex) || saltHex.length % 2 !== 0) {
       throw new Error('The keystore field "kdfparams.salt" must be a non-empty even-length hex string.');
@@ -115,7 +145,7 @@
       salt: saltHex.toLowerCase(),
       iv: hexField(cipherparams.iv, 16, 'cipherparams.iv'),
       ciphertext: hexField(crypto.ciphertext, 32, 'ciphertext'),
-      mac: hexField(crypto.mac, 16, 'mac')
+      mac: macField(crypto.mac)
     };
     if (kdf === 'scrypt') {
       request.kdfId = 0;
@@ -145,7 +175,9 @@
       wasm.dealloc(upload.pointer, upload.length);
     }
     if (code !== 0) throw new Error('The decrypted key could not be derived: ' + window.RotorKeyTools.wasmError(wasm));
-    return window.RotorKeyTools.wasmResultJson(wasm);
+    var report = window.RotorKeyTools.wasmResultJson(wasm);
+    if (typeof wasm.clear_result === 'function') wasm.clear_result();
+    return report;
   }
 
   async function decrypt(request) {
@@ -170,12 +202,16 @@
       ) >>> 0;
       if (code !== 0) throw new Error(window.RotorKeyTools.wasmError(wasm));
       var keyHex = window.RotorKeyTools.wasmText(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0);
+      if (typeof wasm.clear_result === 'function') wasm.clear_result();
       return await deriveAddress(wasm, keyHex);
     } finally {
       wasm.dealloc(salt.pointer, salt.length);
       wasm.dealloc(iv.pointer, iv.length);
       wasm.dealloc(ciphertext.pointer, ciphertext.length);
       wasm.dealloc(mac.pointer, mac.length);
+      if (password.length > 0) {
+        new Uint8Array(wasm.memory.buffer, password.pointer, password.length).fill(0);
+      }
       wasm.dealloc(password.pointer, password.length);
     }
   }
@@ -196,6 +232,7 @@
     submit.textContent = 'Decrypting…';
     try {
       var report = await decrypt(request);
+      passwordInput.value = '';
       var entries = {};
       report.addresses.forEach(function (entry) { entries[entry.id] = entry.address; });
       var evm = entries.evm || '';

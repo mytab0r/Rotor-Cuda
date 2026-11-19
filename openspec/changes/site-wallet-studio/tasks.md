@@ -173,7 +173,10 @@ browser capture in the PR.
       only to local memory and clears it on `pagehide`. Unsupported versions,
       ciphers, KDFs and oversized scrypt parameters get an explicit message.
       Evidence: scrypt and PBKDF2 fixtures decrypt to the published key and EVM
-      address (`keystore::tests`, `apps/site/key-tools-test.mjs`).
+      address (`keystore::tests`, `apps/site/key-tools-test.mjs`). Both the
+      standard 32-byte MAC (geth/MetaMask) and the 16-byte legacy MAC are
+      accepted, and the legacy positional scrypt `kdfparams` array `[n, r, p]`
+      is parsed.
 - [ ] Transaction builders/decoders per secretscan route, reusing the
       tx-sign-broadcast review gate; no server-side signing.
 - [ ] `/wallets` in-site rich-list catalogue with search/filter and explicit
