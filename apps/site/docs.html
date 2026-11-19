@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - docs</title>
-<link rel="stylesheet" href="/site.css?v=20261122e">
-<script src="/theme.js?v=20261122e"></script>
+<link rel="stylesheet" href="/site.css?v=20261123a">
+<script src="/theme.js?v=20261123a"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -141,6 +141,31 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
     </ul>
 
+    <h2>Transaction decoders</h2>
+    <p>
+      <a href="/tx/bitcoin">/tx/bitcoin</a> decodes a raw Bitcoin legacy or
+      SegWit transaction in the browser: version, SegWit marker and flag, every
+      input and witness item, every output with its value and script type
+      (P2PKH, P2SH, P2WPKH, P2WSH, P2TR, P2PK, OP_RETURN or unknown), the
+      decoded address where the script has one, locktime, serialized size,
+      weight and virtual size. A fee is reported only when you supply one
+      satoshi value per input; without prevouts the page says the fee is
+      unavailable and does not guess.
+    </p>
+    <p>
+      <a href="/tx/ethereum">/tx/ethereum</a> decodes a raw EIP-2718 legacy,
+      access-list (type 1) or EIP-1559 (type 2) transaction: chain id, nonce,
+      gas price or max priority/max fee, gas limit, destination or contract
+      creation, value in wei and ETH, data length/selector/first bytes, access
+      list and the y-parity or v, r and s fields. RLP is validated for
+      canonical encoding; signature recovery and verification are not
+      performed.
+    </p>
+    <p class="muted">
+      Both pages are client-side only: no key, network request, storage or URL
+      payload. <a href="/tx">/tx</a> is the shared index.
+    </p>
+
     <h2>Site map and donor parity</h2>
     <p>
       The parity audit maps every Rotor route to its ref-site-a and
@@ -162,6 +187,6 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
   </section>
 </main>
 
-<script src="/site.js?v=20261122e"></script>
+<script src="/site.js?v=20261123a"></script>
 </body>
 </html>
