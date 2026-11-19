@@ -26,13 +26,16 @@
         "node --check apps/site/public-key.js",
         "node --check apps/site/pubkey-add.js",
         "node --check apps/site/keystore-parser.js",
-        "node --check apps/site/reconstruction.js"
+        "node --check apps/site/reconstruction.js",
+        "node --check apps/site/brainwallet.js",
+        "node --check apps/site/brainwallet-engine.js"
       ],
       "test": [
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",
-        "node apps/site/seed-test.mjs apps/site/rotor_wasm.wasm"
+        "node apps/site/seed-test.mjs apps/site/rotor_wasm.wasm",
+        "node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm"
       ],
       "consumes": [
         "wasm-core"

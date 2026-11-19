@@ -19,7 +19,7 @@
       `Ton`) for address derivation, wired into the desktop key report
       (`engine::emit_hit`); BTC/ETH output is unchanged.
 - [x] Descriptor/family tests: 18 unique ids, family mapping, key-1 BTC/ETH
-      and secp/ed25519 fixtures from the site, explicit unsupported TON error
+      and secp/ed25519 fixtures from the site, TON v4R2 vectors
       (`tests/chain.rs`).
 - [ ] Replace `enum Coin` with the `Chain` descriptor table covering all 18
       slugs; keep `--coin` as an alias. (blocked by: 1 for GPU phase; CPU work
@@ -60,11 +60,13 @@
 - [ ] GPU ed25519 kernel spike; enable only if it passes the same 98% floor.
 
 ## 6. TON v4 [desktop]
-- [x] TON v4R2 derivation remains an explicit unsupported error in the chain
-      descriptor (`enabled: false`); no addresses are faked. Porting StateInit
-      serialization is still open below.
-- [ ] Port v4R2 StateInit serialization and CRC16/base64url display; fixture
-      against the site's tonweb output for key 1. (blocked by: 5)
+- [x] TON v4R2 derivation in the chain descriptor (`enabled: true`): pinned
+      v4R2 code-cell hash/depth with provenance, data cell (seqno 0,
+      subwallet 698983191, ed25519 key, empty plugins dict), StateInit
+      SHA-256, user-friendly base64url/CRC16 address.
+- [x] Port v4R2 StateInit serialization and CRC16/base64url display; fixture
+      against the site's tonweb output for the RFC8032 seed and ed25519 seed 1,
+      cross-checked with `@ton/ton` 16.3.0 (`tests/chain.rs`).
 - [ ] CPU search over seed ranges; address hash compare.
 - [ ] GPU post-hash only after correctness; otherwise TON stays CPU-only and
       the CLI says so.

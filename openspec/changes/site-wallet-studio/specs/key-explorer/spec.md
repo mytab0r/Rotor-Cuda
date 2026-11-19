@@ -92,6 +92,29 @@ a fallback to another scheme.
 - THEN the Bitcoin address comes from the old Electrum stretch and sequence
   scheme and the page reports the legacy seed type
 
+### Requirement: brainwallet calculator pages
+`/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum` and the donor
+alias `/brainwallet-generator` MUST derive the key as SHA-256 of the trimmed
+UTF-8 passphrase, using the same text hash as the key search and the shared
+wasm `derive_report` for all address encoding. The pages MUST show the private
+hex (and WIF on Bitcoin pages), the chain's addresses with explorer links and
+copy actions, and a prominent warning that brainwallets are unsafe for real
+funds. A random phrase action MAY fill the input but MUST NOT derive until the
+visitor presses Derive. The passphrase and key MUST NOT be stored, logged, put
+in the URL or sent to the coordinator; results MUST clear on `pagehide`.
+Out-of-range keys MUST show the core's explicit error.
+
+#### Scenario: known vector
+- GIVEN the phrase `correct horse battery staple`
+- WHEN the visitor presses Derive on `/brainwallet/bitcoin`
+- THEN the page shows SHA-256 key `c4bbcb1f…`, its WIF and the legacy, SegWit
+  and Taproot addresses, each with a mempool.space link
+
+#### Scenario: out of range
+- GIVEN a 32-byte value at or above the secp256k1 order
+- WHEN the visitor presses Derive
+- THEN the page shows the core's `not below the curve order` error and no key
+
 ### Requirement: transaction entry
 The key page MUST expose the signing entry defined by
 `openspec/changes/tx-sign-broadcast/` behind its explicit gate. Signing and
