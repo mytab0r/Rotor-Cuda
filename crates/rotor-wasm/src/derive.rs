@@ -28,6 +28,139 @@ pub fn report(key: &[u8; 32], curve: u32) -> Result<String, String> {
     }
 }
 
+/// Build the JSON report for a network: 0 mainnet, 1 Bitcoin testnet.
+///
+/// Mainnet output is [`report`] plus a leading `network` field, so its
+/// addresses and WIFs are unchanged. Testnet output is defined for secp256k1
+/// keys only and carries the Bitcoin testnet P2PKH/P2SH-P2WPKH/P2WPKH/P2TR
+/// rows with version bytes 0x6f/0xc4 and hrp `tb`, plus the testnet WIF
+/// (version 0xef).
+pub fn report_network(key: &[u8; 32], curve: u32, network: u32) -> Result<String, String> {
+    match network {
+        0 => {
+            let json = report(key, curve)?;
+            let mut out = String::with_capacity(json.len() + 24);
+            out.push('{');
+            out.push_str("\"network\":\"mainnet\",");
+            out.push_str(&json[1..]);
+            Ok(out)
+        }
+        1 => match curve {
+            0 => testnet_report(key),
+            other => Err(format!(
+                "unsupported curve for testnet: {other} (Bitcoin testnet is secp256k1)"
+            )),
+        },
+        other => Err(format!("unsupported network: {other}")),
+    }
+}
+
+fn testnet_report(key: &[u8; 32]) -> Result<String, String> {
+    let scalar = Scalar::from_bytes_be(key)
+        .ok_or_else(|| "secp256k1 private key is not below the curve order".to_owned())?;
+    if scalar.is_zero() {
+        return Err("secp256k1 private key must be in the range 1..n-1".to_owned());
+    }
+
+    let point = secp::mul_g(&scalar);
+    let compressed = secp::compress(&point);
+    let uncompressed = secp::uncompress(&point);
+    let hash_compressed = hashes::hash160(&compressed);
+    let compressed_hex = hex(&compressed);
+    let uncompressed_hex = hex(&uncompressed);
+    let hash_compressed_hex = hex(&hash_compressed);
+    let x_hex = hex(&point.x.to_bytes_be());
+    let y_hex = hex(&point.y.to_bytes_be());
+
+    let (p2pkh_payload, p2pkh_checksum, p2pkh_address) = p2pkh_parts(&hash_compressed, 0x6f);
+    let (redeem, script_hash, p2sh_payload, p2sh_checksum, p2sh_address) =
+        p2sh_p2wpkh_parts(&hash_compressed, 0xc4);
+    let (p2wpkh_address, p2wpkh_checksum) = bech32::encode_segwit("tb", 0, &hash_compressed, false);
+    let TaprootParts {
+        internal_x_hex,
+        tweak_hex,
+        output_x_hex,
+        parity,
+        address: p2tr_address,
+        checksum: p2tr_checksum,
+    } = taproot_parts(&point, "tb")?;
+
+    let addresses = [
+        address_object(
+            "btc_p2pkh",
+            "Bitcoin testnet legacy (compressed)",
+            &p2pkh_address,
+            &[
+                ("pubkey", &compressed_hex),
+                ("hash160", &hash_compressed_hex),
+                ("payload", &hex(&p2pkh_payload)),
+                ("checksum", &hex(&p2pkh_checksum)),
+                ("base58", &p2pkh_address),
+            ],
+        ),
+        address_object(
+            "btc_p2sh_p2wpkh",
+            "Bitcoin testnet P2SH-P2WPKH",
+            &p2sh_address,
+            &[
+                ("redeem", &hex(&redeem)),
+                ("script_hash", &hex(&script_hash)),
+                ("payload", &hex(&p2sh_payload)),
+                ("checksum", &hex(&p2sh_checksum)),
+            ],
+        ),
+        address_object(
+            "btc_p2wpkh",
+            "Bitcoin testnet native segwit",
+            &p2wpkh_address,
+            &[
+                ("hrp", "tb"),
+                ("witness_version", "0"),
+                ("program", &hash_compressed_hex),
+                ("checksum", &p2wpkh_checksum),
+            ],
+        ),
+        address_object(
+            "btc_p2tr",
+            "Bitcoin testnet taproot",
+            &p2tr_address,
+            &[
+                ("internal_x", &internal_x_hex),
+                ("tweak", &tweak_hex),
+                ("output_x", &output_x_hex),
+                ("parity", parity),
+                ("program", &output_x_hex),
+                ("checksum", &p2tr_checksum),
+            ],
+        ),
+    ];
+
+    let mut out = String::with_capacity(2048);
+    out.push('{');
+    push_field(&mut out, "network", "testnet");
+    push_field(&mut out, "curve", "secp256k1");
+    push_field(&mut out, "priv_hex", &hex(key));
+    push_field(&mut out, "priv_dec", &decimal(key));
+    push_field(&mut out, "priv_bin", &binary(key));
+    push_field(&mut out, "pubkey_compressed", &compressed_hex);
+    push_field(&mut out, "pubkey_uncompressed", &uncompressed_hex);
+    push_field(&mut out, "x", &x_hex);
+    push_field(&mut out, "y", &y_hex);
+    push_field(&mut out, "ed_pubkey", "");
+    push_field(
+        &mut out,
+        "wif_compressed",
+        &base58::wif_encode_with_version(&scalar, true, 0xef),
+    );
+    push_field(
+        &mut out,
+        "wif_uncompressed",
+        &base58::wif_encode_with_version(&scalar, false, 0xef),
+    );
+    push_addresses(&mut out, &addresses);
+    Ok(out)
+}
+
 /// JSON address report derived from a secp256k1 public key alone.
 ///
 /// The public key may be compressed (02/03) or uncompressed (04); no private
@@ -54,7 +187,7 @@ pub fn pubkey_report(text: &str) -> Result<String, String> {
     let (redeem, script_hash, p2sh_payload, p2sh_checksum, p2sh_address) =
         p2sh_p2wpkh_parts(&hash_compressed, 0x05);
     let (p2wpkh_address, p2wpkh_checksum) = bech32::encode_segwit("bc", 0, &hash_compressed, false);
-    let taproot = taproot_parts(&point)?;
+    let taproot = taproot_parts(&point, "bc")?;
 
     let keccak = hashes::keccak256(&uncompressed[1..]);
     let mut last20 = [0u8; 20];
@@ -284,7 +417,7 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
         parity,
         address: p2tr_address,
         checksum: p2tr_checksum,
-    } = taproot_parts(&point)?;
+    } = taproot_parts(&point, "bc")?;
 
     // EVM: last 20 bytes of keccak256(x || y), EIP-55 displayed. TRON reuses
     // the same twenty bytes behind the 0x41 version byte.
@@ -580,7 +713,7 @@ struct TaprootParts {
 
 /// Compute the taproot output key from any point. The internal key is
 /// lift_x(x(P)): a point with odd y is negated before the tweak is added.
-fn taproot_parts(point: &Affine) -> Result<TaprootParts, String> {
+fn taproot_parts(point: &Affine, hrp: &str) -> Result<TaprootParts, String> {
     let internal_x = point.x.to_bytes_be();
     let tweak = tagged_hash(b"TapTweak", &internal_x);
     let tweak_scalar = reduce_mod_n(&tweak);
@@ -598,7 +731,7 @@ fn taproot_parts(point: &Affine) -> Result<TaprootParts, String> {
             .ok_or_else(|| "taproot output key is the point at infinity".to_owned())?
     };
     let output_x = output.x.to_bytes_be();
-    let (address, checksum) = bech32::encode_segwit("bc", 1, &output_x, true);
+    let (address, checksum) = bech32::encode_segwit(hrp, 1, &output_x, true);
     Ok(TaprootParts {
         internal_x_hex: hex(&internal_x),
         tweak_hex: hex(&tweak),
