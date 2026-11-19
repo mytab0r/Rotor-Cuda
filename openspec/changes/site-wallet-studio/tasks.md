@@ -63,7 +63,7 @@ browser capture in the PR.
 - [x] Results grouped by chain: path, address, balance, explorer link; CSV.
 - [x] Never store/upload phrase; clear on pagehide; no key in URL.
 - Evidence: BIP39 key 1 (`abandon…about` -> `1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA`),
-      Electrum old (`hardly point…` -> `1ArkKc14Smo7Dw7vyrZuX6DkqYvZAp8XXk`),
+      Electrum old (`hardly point…` -> `18v3oDeH9LCmeKrbC2nYgLP5UKva1NpMG`),
       Electrum master-seed vectors in `seed-test.mjs`; browser capture is for QA.
 
 ## 6. Milk Sad seed studio parity [front]
