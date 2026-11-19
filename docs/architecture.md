@@ -75,6 +75,13 @@ datasets or advanced tools.
 jobs and stats. The coordinator can run locally with a JSON state file or on a
 server with a reverse proxy.
 
+## Internal documentation artifacts
+
+The site parity audit (every Rotor route and feature compared with
+privatekeyfinder.io and secretscan.org) is internal documentation, not a public
+route. It lives at `docs/site-map/index.html` and is opened directly or through
+a local static server; the coordinator does not embed or serve it.
+
 ## Current coupling and target boundary
 
 Today the coordinator binary embeds `apps/site` assets (`include_str!`) and
