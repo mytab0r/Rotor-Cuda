@@ -19,11 +19,18 @@
         "node --check apps/site/seed-page.js",
         "node --check apps/site/puzzle-browser.js",
         "node --check apps/site/puzzle-worker.js",
-        "node --check apps/site/mnemonic-seeds.js"
+        "node --check apps/site/mnemonic-seeds.js",
+        "node --check apps/site/key-tools.js",
+        "node --check apps/site/hex-dec-bin.js",
+        "node --check apps/site/public-key.js",
+        "node --check apps/site/pubkey-add.js",
+        "node --check apps/site/keystore-parser.js",
+        "node --check apps/site/reconstruction.js"
       ],
       "test": [
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
-        "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm"
+        "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
+        "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm"
       ],
       "consumes": [
         "wasm-core"

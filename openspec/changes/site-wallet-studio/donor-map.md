@@ -11,7 +11,11 @@ Crawled `ref-site-a/sitemap.xml` and representative pages on
 | `/mnemonic-seeds`, `/mnemonic-seeds/<chain>` | done: directory, 60-per-page seed space, 12/18/24 words, BIP-32 path, address type, pager and BTC/EVM balances; TON is an explicit unsupported state | — |
 | `/mnemonic-converter` | missing (converter lives only in `/seed`) | P1 |
 | `/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum`, `/brainwallet-generator` | only one generic `/brainwallet` page | P1 |
-| `/keystore-parser` | missing | P2 |
+| `/keystore-parser` | done: local V3 keystore decrypt (`scrypt`/`pbkdf2` + AES-128-CTR) with MAC check; unsupported variants get an explicit state | — |
+| `/hex-dec-bin` | done: unsigned 0..2^256-1 conversion with validation and copy | — |
+| `/public-key` | done: compressed/uncompressed secp256k1 → BTC P2PKH/P2WPKH/P2SH/P2TR, EVM, TRON; no private key | — |
+| `/pubkey-add` | done: P + Q with infinity/invalid rejection | — |
+| `/reconstruction` | done as a known-byte assembler only (`offset:format:value`); it does not search for or guess unknown bytes | — |
 | `/richest`, `/richest/{bitcoin,bnb,ethereum,solana,tron}` | in-domain `/wallets` storefront with proxied Rich-Address-Wallet downloads; no browsable/filterable in-site rich-list pages yet | P1 |
 | `/wallet-viewer` | missing | P2 |
 | `/whale-tracker` | missing | P3 |
@@ -91,7 +95,8 @@ calculator menu. Features worth taking (not necessarily the paid marketplace):
 
 Rotor already has: key/WIF/hex/decimal/brainwallet/seed/vanity, BTC/EVM/TRON/
 SOL/XRP/LTC/DOGE/BCH/ZEC/SUI/TON address derivation, local balances, and a
-pooled puzzle board. Missing or thin: Monero, per-chain address-generator pages,
-hex/dec/bin converter, private-key reconstruction, public-key calculator,
-add-public-keys, keystore parser, transaction builders/decoders, in-site
-rich-list marketplace, scanner/results UX.
+pooled puzzle board, plus the hex/dec/bin converter, a known-byte assembler
+(`/reconstruction`), the public-key and add-public-keys calculators, and a
+local keystore parser. Missing or thin: Monero, per-chain
+address-generator pages, transaction builders/decoders, in-site rich-list
+marketplace, scanner/results UX.

@@ -37,6 +37,7 @@ mod secp;
 
 mod bech32;
 mod derive;
+mod keystore;
 
 use std::alloc::{Layout, alloc as rust_alloc, dealloc as rust_dealloc};
 use std::cell::UnsafeCell;
@@ -348,6 +349,57 @@ impl Session {
         }
     }
 
+    /// Public-key report: addresses only, no private material.
+    pub fn pubkey_report(&mut self, text: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match derive::pubkey_report(text) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Add two secp256k1 public keys and report the compressed/uncompressed sum.
+    pub fn pubkey_add(&mut self, first: &str, second: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match derive::pubkey_add_report(first, second) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Decrypt a V3 keystore; the result is the 64-character hex private key.
+    pub fn keystore_decrypt(&mut self, request: &keystore::Request<'_>) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match keystore::decrypt(request) {
+            Ok(key) => {
+                self.result = derive::hex(&key).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
     fn write_scan_result(&mut self, scanned: u64, found: Option<(Scalar, String)>) {
         let mut out = Vec::with_capacity(128);
         out.extend_from_slice(&scanned.to_le_bytes());
@@ -626,6 +678,85 @@ pub extern "C" fn derive_report(priv_ptr: u32, curve: u32) -> u32 {
         return ERR_BAD_TARGET;
     };
     session_mut().derive_report(&key, curve)
+}
+
+/// Address report for one secp256k1 public key (66 or 130 hex characters).
+#[unsafe(no_mangle)]
+pub extern "C" fn public_key_report(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes(ptr, len) else {
+        session_mut().set_error("invalid public key pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        session_mut().set_error("public key is not valid UTF-8");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().pubkey_report(text)
+}
+
+/// Add two public keys: `P + Q`, both 66 or 130 hex characters.
+#[unsafe(no_mangle)]
+pub extern "C" fn public_key_add(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) -> u32 {
+    let (Some(a_bytes), Some(b_bytes)) = (read_bytes(a_ptr, a_len), read_bytes(b_ptr, b_len))
+    else {
+        session_mut().set_error("invalid public key pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let (Ok(a), Ok(b)) = (std::str::from_utf8(a_bytes), std::str::from_utf8(b_bytes)) else {
+        session_mut().set_error("public keys are not valid UTF-8");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().pubkey_add(a, b)
+}
+
+/// Decrypt an Ethereum V3 keystore locally.
+///
+/// `kdf`: 0 scrypt, 1 PBKDF2-HMAC-SHA256. `dklen` must be 32, `iv_len` 16,
+/// `ct_len` 32 and `mac_len` 16. Returns the hex private key in the result
+/// buffer on success, or a nonzero status with the error buffer set.
+#[unsafe(no_mangle)]
+#[allow(clippy::too_many_arguments)]
+pub extern "C" fn keystore_decrypt(
+    kdf: u32,
+    n: u32,
+    r: u32,
+    p: u32,
+    c: u32,
+    dklen: u32,
+    salt_ptr: u32,
+    salt_len: u32,
+    iv_ptr: u32,
+    iv_len: u32,
+    ct_ptr: u32,
+    ct_len: u32,
+    mac_ptr: u32,
+    mac_len: u32,
+    pw_ptr: u32,
+    pw_len: u32,
+) -> u32 {
+    let (Some(salt), Some(iv), Some(ciphertext), Some(mac), Some(password)) = (
+        read_bytes(salt_ptr, salt_len),
+        read_bytes(iv_ptr, iv_len),
+        read_bytes(ct_ptr, ct_len),
+        read_bytes(mac_ptr, mac_len),
+        read_bytes(pw_ptr, pw_len),
+    ) else {
+        session_mut().set_error("invalid keystore pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().keystore_decrypt(&keystore::Request {
+        kdf,
+        n,
+        r,
+        p,
+        c,
+        dklen,
+        salt,
+        iv,
+        ciphertext,
+        mac,
+        password,
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -1319,5 +1450,97 @@ mod tests {
         assert_eq!(session.derive_report(&KEY1_BYTES, 2), ERR_UNSUPPORTED);
         assert!(!session.error.is_empty());
         assert!(session.result.is_empty());
+    }
+
+    #[test]
+    fn public_key_report_key_one_matches_the_private_report() {
+        let mut session = Session::new();
+        assert_eq!(session.pubkey_report(KEY1_PUB_COMPRESSED), OK);
+        assert!(session.error.is_empty());
+        let value: serde_json::Value =
+            serde_json::from_slice(&session.result).expect("public key report JSON");
+
+        assert_eq!(value["curve"], "secp256k1");
+        assert_eq!(value["input_format"], "compressed");
+        assert_eq!(value["pubkey_compressed"], KEY1_PUB_COMPRESSED);
+        assert_eq!(value["pubkey_uncompressed"], KEY1_PUB_UNCOMPRESSED);
+        assert_eq!(
+            address(&value, "btc_p2pkh")["address"],
+            "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
+        );
+        assert_eq!(
+            address(&value, "btc_p2wpkh")["address"],
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+        );
+        assert_eq!(
+            address(&value, "evm")["address"],
+            "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+        );
+        assert_eq!(
+            address(&value, "tron")["address"],
+            "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"
+        );
+
+        // The same point sent uncompressed is accepted and reported as such.
+        assert_eq!(session.pubkey_report(KEY1_PUB_UNCOMPRESSED), OK);
+        let uncompressed: serde_json::Value =
+            serde_json::from_slice(&session.result).expect("uncompressed report JSON");
+        assert_eq!(uncompressed["input_format"], "uncompressed");
+        assert_eq!(uncompressed["pubkey_compressed"], KEY1_PUB_COMPRESSED);
+        assert_eq!(
+            address(&uncompressed, "btc_p2pkh")["address"],
+            "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
+        );
+    }
+
+    #[test]
+    fn public_key_report_rejects_invalid_keys() {
+        let mut session = Session::new();
+        let zero_prefix = format!("00{}", "00".repeat(32));
+        assert_eq!(session.pubkey_report(&zero_prefix), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+
+        // A point with a valid prefix but an off-curve X coordinate.
+        let off_curve = format!("02{}", "00".repeat(32));
+        assert_eq!(session.pubkey_report(&off_curve), ERR_BAD_TARGET);
+
+        assert_eq!(session.pubkey_report("02"), ERR_BAD_TARGET);
+    }
+
+    #[test]
+    fn public_key_add_returns_the_sum_and_rejects_infinity() {
+        let mut session = Session::new();
+        assert_eq!(
+            session.pubkey_add(KEY1_PUB_COMPRESSED, KEY1_PUB_COMPRESSED),
+            OK
+        );
+        let doubled: serde_json::Value =
+            serde_json::from_slice(&session.result).expect("pubkey add JSON");
+        let expected = derive_value(&key_bytes(2), 0);
+        assert_eq!(
+            doubled["pubkey_compressed"], expected["pubkey_compressed"],
+            "G + G must be key 2"
+        );
+        assert_eq!(
+            doubled["pubkey_uncompressed"],
+            expected["pubkey_uncompressed"]
+        );
+        assert_eq!(doubled["x"], expected["x"]);
+        assert_eq!(doubled["y"], expected["y"]);
+
+        // G + (-G) is the point at infinity and is not a public key.
+        let negated_g = "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        assert_eq!(
+            session.pubkey_add(KEY1_PUB_COMPRESSED, negated_g),
+            ERR_BAD_TARGET
+        );
+        assert!(String::from_utf8_lossy(&session.error).contains("infinity"));
+        assert!(session.result.is_empty());
+
+        assert_eq!(
+            session.pubkey_add("not-hex", KEY1_PUB_COMPRESSED),
+            ERR_BAD_TARGET
+        );
     }
 }

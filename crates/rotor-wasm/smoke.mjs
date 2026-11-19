@@ -376,6 +376,52 @@ if (zeroError.length === 0) {
 wasm.dealloc(zeroPtr, 32);
 console.log(`derive_report rejected zero key: ${zeroError}`);
 
+// Public-key ABI: key 1 compressed in, the same addresses as derive_report
+// out, and G + G must equal the key-2 public key.
+const KEY1_PUB_COMPRESSED =
+  "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+if (typeof wasm.public_key_report !== "function" || typeof wasm.public_key_add !== "function") {
+  throw new Error("wasm does not export the public key ABI");
+}
+const pubUpload = upload(KEY1_PUB_COMPRESSED);
+const pubStatus = wasm.public_key_report(pubUpload.ptr, pubUpload.len);
+if (pubStatus !== 0) {
+  fail(pubStatus, "public_key_report");
+}
+const pubReport = readJson();
+wasm.dealloc(pubUpload.ptr, pubUpload.len);
+const pubByAddress = Object.fromEntries(
+  pubReport.addresses.map((entry) => [entry.id, entry.address]),
+);
+if (
+  pubReport.pubkey_uncompressed !==
+    "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8" ||
+  pubByAddress.btc_p2pkh !== KEY1 ||
+  pubByAddress.evm !== "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+) {
+  throw new Error(`public_key_report: unexpected result ${JSON.stringify(pubReport)}`);
+}
+
+const pubA = upload(KEY1_PUB_COMPRESSED);
+const pubB = upload(KEY1_PUB_COMPRESSED);
+const addStatus = wasm.public_key_add(pubA.ptr, pubA.len, pubB.ptr, pubB.len);
+wasm.dealloc(pubA.ptr, pubA.len);
+wasm.dealloc(pubB.ptr, pubB.len);
+if (addStatus !== 0) {
+  fail(addStatus, "public_key_add");
+}
+const doubled = readJson();
+if (
+  doubled.pubkey_compressed !==
+  "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+) {
+  throw new Error(`public_key_add: unexpected result ${JSON.stringify(doubled)}`);
+}
+console.log(
+  `public_key_report: p2pkh=${pubByAddress.btc_p2pkh} evm=${pubByAddress.evm}; ` +
+    `G + G = ${doubled.pubkey_compressed}`,
+);
+
 const artifactSize = (await stat(wasmPath)).size;
 console.log(`artifact=${artifactSize} bytes`);
 
