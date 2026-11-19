@@ -140,6 +140,7 @@
         "deploy/**",
         "scripts/**",
         "openspec/**",
+        "docs/**",
         "Dockerfile",
         "README.md",
         "LICENSE",
