@@ -79,6 +79,19 @@ browser capture in the PR.
       `Convert & Check Balance`.
 - [x] Results grouped by chain: path, address, balance, explorer link; CSV.
 - [x] Never store/upload phrase; clear on pagehide; no key in URL.
+- [x] Balances start automatically on `/seed`, `/mnemonic-converter`, `/key`,
+      `/private-keys/<chain>` and `/mnemonic-seeds/<chain>`: no visible
+      checkbox or "Check balances" button; per-row checking/value/error; one
+      automatic retry on transient failure; compact per-row retry icon; no
+      request without a derived public address and no seed/key in requests.
+      The seed form is a dense full-width grid (five controls, full-width
+      mnemonic, passphrase/count/actions row) at 375/768/1280 in both themes.
+      Evidence: headless Chrome DOM measurements (`fillRatio` 100 at
+      375/768/1280, `scrollWidth == clientWidth`), mocked fetch counts
+      (seed derive = 2 provider calls, retry-once = 2 BTC calls, persistent
+      failure renders one retry icon that recovers, empty key = 0 calls), and
+      generated `/private-keys/bitcoin` + `/mnemonic-seeds/bitcoin` pages
+      loading balances with no balance toggle.
 - Evidence: BIP39 key 1 (`abandon…about` -> `1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA`),
       Electrum old (`hardly point…` -> `18v3oDeH9LCmeKrbC2nYgLP5UKva1NpMG`),
       Electrum master-seed vectors in `seed-test.mjs`. Electrum BIP39 validation

@@ -2,12 +2,13 @@
  * and /mnemonic-converter. One engine, two pages.
  *
  * The phrase, passphrase, seed and private keys stay in this tab. Only public
- * addresses are sent, and only when the visitor opts into a balance check. */
+ * addresses are sent, and they are sent automatically after a derivation. */
 (function () {
   'use strict';
 
   var WASM_URL = '/rotor_wasm.wasm';
   var DECODER = new TextDecoder('utf-8');
+  var BALANCE_TIMEOUT_MS = 12000;
 
   var CHAINS = {
     bitcoin: {
@@ -69,7 +70,6 @@
   var chainEl = byId('seed-chain');
   var pathEl = byId('seed-path');
   var allPathsEl = byId('seed-all-paths');
-  var balancesEl = byId('seed-balances');
   var phraseEl = byId('seed-phrase');
   var passphraseEl = byId('seed-passphrase');
   var errorEl = byId('seed-error');
@@ -89,7 +89,8 @@
     busy: false,
     count: 1,
     results: [],
-    run: 0
+    run: 0,
+    balanceAbort: null
   };
 
   function fail(message) {
@@ -282,6 +283,10 @@
     state.run += 1;
     state.busy = false;
     state.results = [];
+    if (state.balanceAbort) {
+      try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
+      state.balanceAbort = null;
+    }
     if (rowsEl) rowsEl.textContent = '';
     if (resultEl) resultEl.hidden = true;
     if (csvBtn) csvBtn.hidden = true;
@@ -479,13 +484,9 @@
         old: 'Electrum old (1626-word legacy scheme)'
       };
 
-      if (balancesEl && balancesEl.checked) {
-        await checkBalances();
-      } else {
-        note('Derived ' + results.length + ' address' + (results.length === 1 ? '' : 'es') +
-          '. Seed type: ' + versions[info.seedType] +
-          '. Balance checks are off; no address was sent anywhere.');
-      }
+      note('Derived ' + results.length + ' address' + (results.length === 1 ? '' : 'es') +
+        '. Seed type: ' + versions[info.seedType] + '. Checking public balances…');
+      await checkBalances();
     } catch (err) {
       if (run === state.run) {
         state.results = [];
@@ -643,13 +644,10 @@
     details.appendChild(body);
     row.appendChild(details);
 
-    var balance = null;
-    if (balancesEl && balancesEl.checked) {
-      balance = document.createElement('p');
-      balance.className = 'seed-balance';
-      balance.textContent = 'Checking the public balance…';
-      row.appendChild(balance);
-    }
+    var balance = document.createElement('p');
+    balance.className = 'seed-balance';
+    balance.textContent = 'Waiting for the public balance…';
+    row.appendChild(balance);
     entry.balanceEl = balance;
     entry.rowEl = row;
     return row;
@@ -663,6 +661,16 @@
     if (number === 0) return '0';
     if (number < 0.00000001) return '<0.00000001';
     return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
+  }
+
+  function iconUse(name) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '/icons.svg#' + name);
+    svg.appendChild(use);
+    return svg;
   }
 
   function ensureBalance(entry) {
@@ -679,74 +687,167 @@
   function setBalance(entry, text, isError) {
     var element = ensureBalance(entry);
     if (!element) return;
+    element.className = 'seed-balance' + (isError ? ' err' : '');
     element.textContent = text;
-    element.classList.toggle('err', Boolean(isError));
+  }
+
+  function showBalanceError(entry, message) {
+    var element = ensureBalance(entry);
+    if (!element) return;
+    element.className = 'seed-balance err';
+    element.textContent = message + ' ';
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'seed-balance-retry';
+    button.title = 'Retry this balance';
+    button.setAttribute('aria-label', 'Retry balance check for this address');
+    button.appendChild(iconUse('ui-retry'));
+    button.addEventListener('click', function () {
+      setBalance(entry, 'Checking the public balance…');
+      retryEntry(entry);
+    });
+    element.appendChild(button);
+  }
+
+  function balanceFetch(url, options, signal) {
+    var controller = new AbortController();
+    var timer = window.setTimeout(function () { controller.abort(); }, BALANCE_TIMEOUT_MS);
+    var onAbort = null;
+    if (signal) {
+      if (signal.aborted) {
+        window.clearTimeout(timer);
+        controller.abort();
+      } else {
+        onAbort = function () { controller.abort(); };
+        signal.addEventListener('abort', onAbort);
+      }
+    }
+    var settings = options || {};
+    settings.signal = controller.signal;
+    return fetch(url, settings).finally(function () {
+      window.clearTimeout(timer);
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+    });
+  }
+
+  async function withAutoRetry(task, signal) {
+    try {
+      return await task();
+    } catch (err) {
+      if (signal && signal.aborted) throw err;
+      await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
+      if (signal && signal.aborted) throw err;
+      return task();
+    }
+  }
+
+  async function checkBtcRows(entries, run, signal) {
+    var addresses = Array.from(new Set(entries.map(function (entry) { return entry.address; })));
+    try {
+      var response = await withAutoRetry(function () {
+        return balanceFetch(BTC_BALANCE_URL + addresses.map(encodeURIComponent).join('|'), null, signal);
+      }, signal);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var data = await response.json();
+      if (run !== state.run) return;
+      entries.forEach(function (entry) {
+        var info = data[entry.address];
+        if (!info) {
+          showBalanceError(entry, 'Balance row missing from the provider.');
+          return;
+        }
+        setBalance(entry, coin(info.final_balance, 8) + ' BTC · ' + Number(info.n_tx || 0) + ' tx');
+      });
+    } catch (err) {
+      if (run !== state.run || (signal && signal.aborted)) return;
+      entries.forEach(function (entry) { showBalanceError(entry, 'Balance lookup failed.'); });
+    }
+  }
+
+  async function checkEvmRows(entries, run, signal) {
+    var addresses = Array.from(new Set(entries.map(function (entry) { return entry.address; })));
+    var payload = addresses.map(function (address, index) {
+      return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
+    });
+    try {
+      var response = await withAutoRetry(function () {
+        return balanceFetch(EVM_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }, signal);
+      }, signal);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var list = await response.json();
+      if (run !== state.run) return;
+      var byAddress = Object.create(null);
+      (Array.isArray(list) ? list : []).forEach(function (item) {
+        var address = addresses[item.id - 1];
+        if (address) byAddress[address] = BigInt(item.result || '0x0');
+      });
+      entries.forEach(function (entry) {
+        var value = byAddress[entry.address];
+        if (value === undefined) {
+          showBalanceError(entry, 'Balance row missing from the provider.');
+          return;
+        }
+        setBalance(entry, coin(value, 18) + ' ETH');
+      });
+    } catch (err) {
+      if (run !== state.run || (signal && signal.aborted)) return;
+      entries.forEach(function (entry) { showBalanceError(entry, 'Balance lookup failed.'); });
+    }
+  }
+
+  function balanceRows(chain) {
+    return state.results.filter(function (entry) {
+      return entry.chain === chain && entry.address && entry.balanceEl;
+    });
+  }
+
+  function retryEntry(entry) {
+    if (!entry.address) return;
+    var run = state.run;
+    if (entry.chain === 'bitcoin') checkBtcRows([entry], run, null);
+    else if (entry.chain === 'ethereum') checkEvmRows([entry], run, null);
+    else setBalance(entry, 'Explorer only — no public balance adapter here.');
   }
 
   async function checkBalances() {
     if (!state.results.length) return;
-    note('Checking public balances. Only the derived addresses are sent: blockchain.info for BTC and a public Ethereum JSON-RPC endpoint for EVM addresses.');
+    if (state.balanceAbort) {
+      try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
+    }
+    var controller = new AbortController();
+    state.balanceAbort = controller;
+    var run = state.run;
 
-    var btc = state.results.filter(function (entry) { return entry.chain === 'bitcoin' && entry.address; });
-    var evm = state.results.filter(function (entry) { return entry.chain === 'ethereum' && entry.address; });
+    var btc = balanceRows('bitcoin');
+    var evm = balanceRows('ethereum');
     state.results.forEach(function (entry) {
       if (entry.chain !== 'bitcoin' && entry.chain !== 'ethereum') {
         setBalance(entry, 'Explorer only — no public balance adapter here.');
+      } else if (!entry.address) {
+        setBalance(entry, 'No public address for this derivation type.');
+      } else {
+        setBalance(entry, 'Checking the public balance…');
       }
     });
 
-    if (btc.length) {
-      try {
-        var btcAddresses = Array.from(new Set(btc.map(function (entry) { return entry.address; })));
-        var response = await fetch(BTC_BALANCE_URL + btcAddresses.map(encodeURIComponent).join('|'));
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        var data = await response.json();
-        btc.forEach(function (entry) {
-          var info = data[entry.address];
-          if (!info) {
-            setBalance(entry, 'Balance check returned no row.', true);
-            return;
-          }
-          var amount = coin(info.final_balance, 8) + ' BTC';
-          setBalance(entry, amount + ' · ' + Number(info.n_tx || 0) + ' tx');
-        });
-      } catch (err) {
-        btc.forEach(function (entry) { setBalance(entry, 'Balance check failed. Retry by deriving again.', true); });
-      }
+    if (!btc.length && !evm.length) {
+      note('No public address to check for this selection. Only derived addresses are ever sent.');
+      state.balanceAbort = null;
+      return;
     }
 
-    if (evm.length) {
-      try {
-        var evmAddresses = Array.from(new Set(evm.map(function (entry) { return entry.address; })));
-        var payload = evmAddresses.map(function (address, index) {
-          return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
-        });
-        var rpcResponse = await fetch(EVM_RPC, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!rpcResponse.ok) throw new Error('HTTP ' + rpcResponse.status);
-        var list = await rpcResponse.json();
-        var byAddress = Object.create(null);
-        (Array.isArray(list) ? list : []).forEach(function (item) {
-          var address = evmAddresses[item.id - 1];
-          if (address) byAddress[address] = BigInt(item.result || '0x0');
-        });
-        evm.forEach(function (entry) {
-          var value = byAddress[entry.address];
-          if (value === undefined) {
-            setBalance(entry, 'Balance check returned no row.', true);
-            return;
-          }
-          setBalance(entry, coin(value, 18) + ' ETH');
-        });
-      } catch (err) {
-        evm.forEach(function (entry) { setBalance(entry, 'Balance check failed. Retry by deriving again.', true); });
-      }
-    }
-
-    note('Balance checks finished. Providers can lag the chain; only public addresses were sent.');
+    note('Checking public balances. Only the derived public addresses are sent: blockchain.info for BTC and a public Ethereum JSON-RPC endpoint for EVM.');
+    await Promise.all([
+      btc.length ? checkBtcRows(btc, run, controller.signal) : Promise.resolve(),
+      evm.length ? checkEvmRows(evm, run, controller.signal) : Promise.resolve()
+    ]);
+    if (run !== state.run) return;
+    if (state.balanceAbort === controller) state.balanceAbort = null;
+    note('Balances loaded from public providers. They can lag the chain; only public addresses were sent.');
   }
 
   /* ------------------------------------------------------------------ csv */
@@ -811,6 +912,10 @@
   function clearAll() {
     state.run += 1;
     state.results = [];
+    if (state.balanceAbort) {
+      try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
+      state.balanceAbort = null;
+    }
     if (phraseEl) phraseEl.value = '';
     if (passphraseEl) passphraseEl.value = '';
     if (rowsEl) rowsEl.textContent = '';
@@ -827,12 +932,6 @@
   if (chainEl) chainEl.addEventListener('change', function () { invalidate(); populatePaths(); });
   if (pathEl) pathEl.addEventListener('change', invalidate);
   if (allPathsEl) allPathsEl.addEventListener('change', invalidate);
-  if (balancesEl) {
-    balancesEl.addEventListener('change', function () {
-      if (balancesEl.checked && state.results.length) checkBalances();
-      else if (!balancesEl.checked) note('Balance checks are off; no address is sent anywhere.');
-    });
-  }
   countButtons.forEach(function (button) {
     button.addEventListener('click', function () {
       setCount(Number(button.getAttribute('data-count')) || 1);
@@ -878,6 +977,10 @@
   window.addEventListener('pagehide', function () {
     state.run += 1;
     state.results = [];
+    if (state.balanceAbort) {
+      try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
+      state.balanceAbort = null;
+    }
     if (phraseEl) phraseEl.value = '';
     if (passphraseEl) passphraseEl.value = '';
     if (rowsEl) rowsEl.textContent = '';
