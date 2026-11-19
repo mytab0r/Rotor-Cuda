@@ -124,6 +124,7 @@
     else if (path.indexOf('/tools') === 0 || path.indexOf('/brainwallet') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0) section = 'tools';
     else if (path.indexOf('/docs') === 0) section = 'docs';
     else if (path.indexOf('/key') === 0) section = 'search';
+    else if (path.indexOf('/cabinet/wallet') === 0) section = 'wallet';
     else if (path.indexOf('/cabinet') === 0 || path.indexOf('/monitor') === 0 || path.indexOf('/me') === 0) section = 'cabinet';
     Array.prototype.forEach.call(document.querySelectorAll('.site-nav [data-nav]'), function (link) {
       var active = link.getAttribute('data-nav') === section;

@@ -2,12 +2,12 @@
 
 ## 1. Vault and watch-only wallet
 
-- [ ] `/cabinet/wallet` page and nav entry; empty state and import dialog.
-- [ ] IndexedDB vault with PBKDF2-SHA256 600k + AES-GCM-256, random salt/IV.
-- [ ] Import WIF/hex, validate via WASM, auto-map WIF networks, label and remove.
-- [ ] Lock/unlock, idle auto-lock, pagehide cleanup, encrypted export/import.
-- [ ] Address list grouped by chain with balance, explorer link and copy.
-- [ ] No secret in URL, localStorage, logs or network; tests for the vault codec.
+- [x] `/cabinet/wallet` page and nav entry; empty state and import dialog.
+- [x] IndexedDB vault with PBKDF2-SHA256 600k + AES-GCM-256, random salt/IV.
+- [x] Import WIF/hex, validate via WASM, auto-map WIF networks, label and remove.
+- [x] Lock/unlock, idle auto-lock, pagehide cleanup, encrypted export/import.
+- [x] Address list grouped by chain with balance, explorer link and copy.
+- [x] No secret in URL, localStorage, logs or network; tests for the vault codec.
 
 ## 2. WASM signing core
 
