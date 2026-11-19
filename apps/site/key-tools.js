@@ -243,6 +243,82 @@
     return base58Encode(bytes, RIPPLE_BASE58);
   }
 
+  function base58Decode(text) {
+    var value = 0n;
+    for (var index = 0; index < text.length; index += 1) {
+      var digit = BITCOIN_BASE58.indexOf(text.charAt(index));
+      if (digit < 0) throw new Error('Invalid base58 character in the WIF.');
+      value = value * 58n + BigInt(digit);
+    }
+    var leading = 0;
+    while (leading < text.length && text.charAt(leading) === '1') leading += 1;
+    var hex = value === 0n ? '' : value.toString(16);
+    if (hex.length % 2) hex = '0' + hex;
+    var body = hex ? hexToBytes(hex) : new Uint8Array(0);
+    var out = new Uint8Array(leading + body.length);
+    out.set(body, leading);
+    return out;
+  }
+
+  /* Mainnet Wallet Import Format versions for the secp256k1 UTXO chains this
+   * site derives. BCH uses the Bitcoin byte, so its WIF is identical to BTC's. */
+  var WIF_VERSIONS = { bitcoin: 0x80, litecoin: 0xb0, dogecoin: 0x9e };
+  var WIF_NETWORKS = {};
+  Object.keys(WIF_VERSIONS).forEach(function (name) {
+    WIF_NETWORKS[WIF_VERSIONS[name]] = name;
+  });
+
+  /* Compressed mainnet WIF: version || 32-byte key || 0x01 || first four bytes
+   * of double-SHA256. doubleSha256 is injected so the same code runs in the
+   * browser (crypto.subtle) and under Node tests (node:crypto). */
+  async function wifEncode(keyBytes, network, doubleSha256) {
+    var version = WIF_VERSIONS[network];
+    if (version === undefined) {
+      throw new Error('Unknown WIF network "' + network + '". Use bitcoin, litecoin or dogecoin.');
+    }
+    if (!keyBytes || keyBytes.length !== 32) {
+      throw new Error('A WIF needs a 32-byte private key.');
+    }
+    if (typeof doubleSha256 !== 'function') {
+      throw new Error('The WIF checksum needs SHA-256 support in this browser.');
+    }
+    var payload = new Uint8Array(34);
+    payload[0] = version;
+    payload.set(keyBytes, 1);
+    payload[33] = 0x01;
+    var digest = await doubleSha256(payload);
+    if (!digest || typeof digest.length !== 'number' || digest.length < 4) {
+      throw new Error('The checksum function returned no digest.');
+    }
+    var data = new Uint8Array(38);
+    data.set(payload, 0);
+    data.set(digest.slice(0, 4), 34);
+    return base58Encode(data);
+  }
+
+  async function wifDecode(text, doubleSha256) {
+    if (typeof doubleSha256 !== 'function') {
+      throw new Error('The WIF checksum needs SHA-256 support in this browser.');
+    }
+    var raw = base58Decode(String(text == null ? '' : text).trim());
+    if (raw.length !== 37 && raw.length !== 38) throw new Error('Not a valid WIF length.');
+    var network = WIF_NETWORKS[raw[0]];
+    if (!network) throw new Error('Not a Bitcoin, Litecoin or Dogecoin mainnet WIF.');
+    if (raw.length === 38 && raw[33] !== 0x01) throw new Error('Invalid WIF compression marker.');
+    var payload = raw.slice(0, raw.length - 4);
+    var checksum = raw.slice(raw.length - 4);
+    var digest = await doubleSha256(payload);
+    for (var index = 0; index < 4; index += 1) {
+      if (digest[index] !== checksum[index]) throw new Error('WIF checksum mismatch.');
+    }
+    return {
+      bytes: raw.slice(1, 33),
+      version: raw[0],
+      network: network,
+      compressed: raw.length === 38
+    };
+  }
+
   function solanaKeypair(seedHex, pubHex) {
     var seed = hexToBytes(String(seedHex || ''));
     var publicKey = hexToBytes(String(pubHex || ''));
@@ -413,6 +489,9 @@
     wasmError: wasmError,
     scrollBehavior: scrollBehavior,
     base58Encode: base58Encode,
+    base58Decode: base58Decode,
+    wifEncode: wifEncode,
+    wifDecode: wifDecode,
     rippleBase58Encode: rippleBase58Encode,
     solanaKeypair: solanaKeypair,
     xrpSecret: xrpSecret,
