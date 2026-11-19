@@ -1,8 +1,9 @@
-/* Brainwallet calculator pages. Runs entirely in the browser; no build step,
- * no dependencies. The passphrase, its SHA-256 key and the derived key stay in
- * memory only: no URL, no storage, no logs and no network lookup of results.
- * Address math comes from the shared wasm `derive_report` export, the same
- * engine the /key page uses. */
+/* Brainwallet generator page: one passphrase, SHA-256 key and chain address.
+ * Runs entirely in the browser; no build step, no dependencies. The
+ * passphrase, its SHA-256 key and the derived keys stay in memory only: no
+ * URL, no storage, no logs and no network lookup of results. Address math
+ * comes from the shared wasm `derive_report` export, the same engine the /key
+ * page uses. A balance check is opt-in and sends only public addresses. */
 (function () {
   'use strict';
 
@@ -13,20 +14,27 @@
   var state = {
     wasm: null,
     wasmPromise: null,
-    busy: false
+    tonPromise: null,
+    busy: false,
+    disposed: false,
+    rows: []
   };
 
   function byId(id) { return document.getElementById(id); }
 
-  var input = byId('brainwallet-input') || byId('brain-pass');
-  var deriveBtn = byId('brainwallet-derive') || byId('brain-derive');
-  var errorBox = byId('brainwallet-error') || byId('brain-error');
+  var form = byId('brainwallet-form');
+  var input = byId('brainwallet-input');
+  var network = byId('brainwallet-network');
+  var countSelect = byId('brainwallet-count');
+  var deriveBtn = byId('brainwallet-derive');
+  var errorBox = byId('brainwallet-error');
   var statusBox = byId('brainwallet-status');
-  var resultsEl = byId('brainwallet-results') || byId('brain-results');
-  if (!input || !deriveBtn || !resultsEl) return;
+  var resultsEl = byId('brainwallet-results');
+  var autoBalance = byId('brainwallet-auto-balance');
+  var copyAllBtn = byId('brainwallet-copy-all');
+  var csvBtn = byId('brainwallet-csv');
+  if (!form || !input || !deriveBtn || !resultsEl) return;
 
-  var form = input.form || (input.closest ? input.closest('form') : null);
-  var idleLabel = deriveBtn.textContent || 'Derive';
   if (!engine) {
     if (errorBox) {
       errorBox.textContent = 'The brainwallet engine did not load. Reload the page.';
@@ -35,31 +43,16 @@
     deriveBtn.disabled = true;
     return;
   }
-  var focus = (form && form.getAttribute('data-brain-chain')) ||
-    resultsEl.getAttribute('data-brain-chain') || 'all';
 
-  if (form) form.classList.add('brainwallet-form');
-  resultsEl.classList.add('brainwallet-results');
+  var idleLabel = 'Generate';
   if (!errorBox) {
     errorBox = document.createElement('p');
     errorBox.id = 'brainwallet-error';
     errorBox.className = 'error brainwallet-error';
     errorBox.setAttribute('role', 'alert');
     errorBox.hidden = true;
-    (form || input).parentNode.insertBefore(errorBox, (form || input).nextSibling);
+    form.parentNode.insertBefore(errorBox, form.nextSibling);
   }
-
-  /* Legacy page shells may not carry the static warning; add it once. */
-  (function ensureWarning() {
-    if (document.querySelector('#brain-warning, .brainwallet-warning, [data-brain-warning]')) return;
-    var warning = document.createElement('p');
-    warning.id = 'brain-warning';
-    warning.className = 'notice brainwallet-warning';
-    warning.setAttribute('role', 'note');
-    warning.textContent = engine.WARNING_TEXT;
-    var anchor = form || input;
-    anchor.parentNode.insertBefore(warning, anchor);
-  })();
 
   /* -------------------------------------------------------------- wasm core */
 
@@ -101,33 +94,30 @@
     return state.wasmPromise;
   }
 
-  function readWasmString(wasm, ptr, length) {
-    if (!ptr || !length) return '';
-    return DECODER.decode(new Uint8Array(wasm.memory.buffer, ptr, length));
+  function ensureTon() {
+    if (window.RotorTon) return Promise.resolve(window.RotorTon);
+    if (state.tonPromise) return state.tonPromise;
+    state.tonPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = '/ton.js';
+      script.async = true;
+      script.onload = function () {
+        if (window.RotorTon) resolve(window.RotorTon);
+        else reject(new Error('The TON bundle did not load.'));
+      };
+      script.onerror = function () { reject(new Error('Cannot load /ton.js.')); };
+      document.head.appendChild(script);
+    });
+    state.tonPromise.catch(function () { state.tonPromise = null; });
+    return state.tonPromise;
   }
 
-  function deriveReport(wasm, bytes, curve) {
-    var ptr = wasm.alloc(bytes.length) >>> 0;
-    if (!ptr) throw new Error('WASM memory exhausted.');
-    try {
-      new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
-      var status = wasm.derive_report(ptr, curve) >>> 0;
-      if (status !== 0) {
-        var detail = readWasmString(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
-        throw new Error('Derivation failed' + (detail ? ': ' + detail : ' (status ' + status + ')'));
-      }
-      var text = readWasmString(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0);
-      try {
-        return JSON.parse(text);
-      } catch (err) {
-        throw new Error('The derivation core returned invalid JSON.');
-      }
-    } finally {
-      try {
-        new Uint8Array(wasm.memory.buffer, ptr, bytes.length).fill(0);
-      } catch (err) { /* memory may have grown; nothing else to wipe */ }
-      wasm.dealloc(ptr, bytes.length);
+  function hexToBytes(hex) {
+    var out = new Uint8Array(hex.length / 2);
+    for (var i = 0; i < out.length; i += 1) {
+      out[i] = parseInt(hex.substr(i * 2, 2), 16);
     }
+    return out;
   }
 
   /* ----------------------------------------------------------------- output */
@@ -151,8 +141,12 @@
   function setBusy(busy) {
     state.busy = busy;
     deriveBtn.disabled = busy;
-    deriveBtn.textContent = busy ? 'Deriving…' : idleLabel;
+    deriveBtn.textContent = busy ? 'Generating…' : buttonLabel();
     resultsEl.setAttribute('aria-busy', busy ? 'true' : 'false');
+  }
+
+  function buttonLabel() {
+    return autoBalance && autoBalance.checked ? 'Generate & Check Balance' : idleLabel;
   }
 
   function note(text) {
@@ -165,10 +159,11 @@
   function copyText(text, button) {
     var original = button.textContent;
     function done() {
-      button.textContent = 'Copied';
+      button.classList.add('copied');
       button.disabled = true;
       window.setTimeout(function () {
         button.textContent = original;
+        button.classList.remove('copied');
         button.disabled = false;
       }, 1200);
     }
@@ -225,21 +220,8 @@
     body.appendChild(code);
 
     row.appendChild(body);
-    row.appendChild(copyButton(value, label));
+    if (value) row.appendChild(copyButton(value, label));
     return row;
-  }
-
-  function fieldGroup(title, fields) {
-    var group = document.createElement('section');
-    group.className = 'brainwallet-group';
-    var heading = document.createElement('h3');
-    heading.className = 'brainwallet-group-title';
-    heading.textContent = title;
-    group.appendChild(heading);
-    fields.forEach(function (field) {
-      group.appendChild(fieldRow(field[0], field[1]));
-    });
-    return group;
   }
 
   function addressRow(row) {
@@ -273,42 +255,117 @@
     return item;
   }
 
-  function addressGroup(rows) {
-    var group = document.createElement('section');
-    group.className = 'brainwallet-group';
+  function resultBlock(chain, phrase, rows) {
+    var fragment = document.createDocumentFragment();
     var heading = document.createElement('h3');
     heading.className = 'brainwallet-group-title';
-    heading.textContent = 'Derived addresses';
-    group.appendChild(heading);
+    heading.textContent = chain.name + ' (' + chain.symbol + ')';
+    fragment.appendChild(heading);
+    fragment.appendChild(fieldRow('Passphrase', phrase));
 
-    if (!rows.length) {
-      group.appendChild(note('The derivation core returned no address rows for this page. ' +
-        'That is not a safety result: it does not mean the phrase is unused or that the address is empty.'));
-      return group;
-    }
-    rows.forEach(function (row) { group.appendChild(addressRow(row)); });
-    return group;
+    rows.forEach(function (row) {
+      var group = document.createElement('section');
+      group.className = 'brainwallet-result';
+      var title = document.createElement('h4');
+      title.className = 'brainwallet-result-title';
+      title.textContent = row.offset === 0
+        ? 'SHA-256 key'
+        : 'Key + ' + row.offset;
+      group.appendChild(title);
+
+      group.appendChild(fieldRow('Private key (hex)', row.hex));
+      if (row.wifCompressed) group.appendChild(fieldRow('WIF (compressed)', row.wifCompressed));
+      if (row.wifUncompressed) group.appendChild(fieldRow('WIF (uncompressed)', row.wifUncompressed));
+      if (row.address) {
+        group.appendChild(addressRow({
+          label: chain.name + ' address',
+          address: row.address,
+          explorer: engine.explorerFor(chain.slug, row.address)
+        }));
+      } else {
+        group.appendChild(note('This chain has no address row for the derived key.'));
+      }
+      if (row.balance) {
+        group.appendChild(fieldRow('Balance', row.balance));
+      }
+      fragment.appendChild(group);
+    });
+
+    fragment.appendChild(note('No key or passphrase was sent to a server. A balance lookup, when enabled, ' +
+      'sends only the public address to a public provider; it can lag the chain.'));
+    return fragment;
   }
 
-  function renderReport(report, hashHex) {
+  function renderResults(chain, phrase, rows) {
+    state.rows = rows;
     resultsEl.textContent = '';
-    var fragment = document.createDocumentFragment();
-
-    fragment.appendChild(fieldGroup('Phrase hash', [
-      ['SHA-256 of the UTF-8 passphrase', hashHex]
-    ]));
-    fragment.appendChild(fieldGroup('Private key', engine.keyFields(report, focus)));
-    fragment.appendChild(addressGroup(engine.addressRows(report, focus)));
-
-    fragment.appendChild(note('No balance, registry or network lookup was performed. An address ' +
-      'that appears unused does not make this phrase safe; a phrase that matches nothing here ' +
-      'was simply never checked against the chain.'));
-    resultsEl.appendChild(fragment);
+    resultsEl.appendChild(resultBlock(chain, phrase, rows));
+    if (copyAllBtn) copyAllBtn.disabled = false;
+    if (csvBtn) csvBtn.disabled = false;
   }
 
   function placeholder(text) {
+    state.rows = [];
+    if (copyAllBtn) copyAllBtn.disabled = true;
+    if (csvBtn) csvBtn.disabled = true;
     resultsEl.textContent = '';
     resultsEl.appendChild(note(text));
+  }
+
+  /* ------------------------------------------------------------- balances */
+
+  function coin(value, decimals) {
+    var number = Number(value) / Math.pow(10, decimals);
+    if (!isFinite(number)) return '0';
+    if (number === 0) return '0';
+    if (number < 0.00000001) return '<0.00000001';
+    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
+  }
+
+  async function fetchJson(url, options) {
+    var response = await fetch(url, options);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+  }
+
+  async function loadBalances(chain, rows) {
+    var addresses = rows.map(function (row) { return row.address; }).filter(Boolean);
+    if (!addresses.length) return;
+    if (chain.balance === 'btc') {
+      var url = 'https://blockchain.info/balance?cors=true&active=' +
+        addresses.map(encodeURIComponent).join('|');
+      var data = await fetchJson(url);
+      rows.forEach(function (row) {
+        var info = data[row.address];
+        if (info) row.balance = coin(info.final_balance, 8) + ' BTC';
+      });
+    } else if (chain.balance === 'evm') {
+      var unique = Array.from(new Set(addresses));
+      var byAddress = {};
+      for (var i = 0; i < unique.length; i += 20) {
+        var chunk = unique.slice(i, i + 20);
+        var payload = chunk.map(function (address, index) {
+          return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
+        });
+        var list = await fetchJson(chain.rpc, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        (Array.isArray(list) ? list : []).forEach(function (item) {
+          var address = chunk[item.id - 1];
+          if (address) byAddress[address] = BigInt(item.result || '0x0');
+        });
+      }
+      rows.forEach(function (row) {
+        var value = byAddress[row.address];
+        if (value !== undefined) row.balance = coin(value, 18) + ' ' + chain.symbol;
+      });
+    } else {
+      rows.forEach(function (row) {
+        if (!row.balance) row.balance = 'not available here';
+      });
+    }
   }
 
   /* ---------------------------------------------------------------- deriving */
@@ -325,6 +382,10 @@
       input.focus();
       return;
     }
+    var chain = engine.chainConfig(network ? network.value : '');
+    if (!chain) chain = engine.chainConfig('bitcoin');
+    var count = countSelect ? Number(countSelect.value) : 1;
+    if ([1, 3, 5, 10].indexOf(count) === -1) count = 1;
 
     var subtle = window.crypto && window.crypto.subtle;
     setBusy(true);
@@ -332,13 +393,37 @@
     var keyBytes = null;
     try {
       keyBytes = await engine.phraseKey(phrase, subtle);
-      var hashHex = engine.bytesToHex(keyBytes);
+      var baseHex = engine.bytesToHex(keyBytes);
       var wasm = await loadWasm();
-      var report = deriveReport(wasm, keyBytes, 0);
-      if (!report || typeof report !== 'object') {
-        throw new Error('The derivation core returned an unexpected report.');
+      var ton = chain.ton ? await ensureTon() : null;
+      var rows = [];
+      for (var offset = 0; offset < count; offset += 1) {
+        setStatus('Deriving address ' + (offset + 1) + ' of ' + count + '…');
+        var hex = engine.addToKey(baseHex, offset, chain.curve);
+        var report = engine.deriveReport(wasm, hexToBytes(hex), chain.curve);
+        var address = chain.ton
+          ? await ton.address(report.ed_pubkey)
+          : engine.addressOf(report, chain.slug);
+        rows.push({
+          offset: offset,
+          hex: hex,
+          wifCompressed: report.wif_compressed || '',
+          wifUncompressed: report.wif_uncompressed || '',
+          address: address || '',
+          balance: ''
+        });
       }
-      renderReport(report, hashHex);
+      if (autoBalance && autoBalance.checked) {
+        setStatus('Checking the public balance…');
+        try {
+          await loadBalances(chain, rows);
+        } catch (err) {
+          setStatus('Balance lookup is unavailable right now; the addresses are still derived locally.');
+        }
+      }
+      if (state.disposed) return;
+      renderResults(chain, phrase, rows);
+      setStatus('Derived ' + rows.length + ' address' + (rows.length === 1 ? '' : 'es') + ' in this browser.');
     } catch (err) {
       resultsEl.textContent = '';
       placeholder('No result. Nothing was derived.');
@@ -353,7 +438,7 @@
     input.value = '';
     hideError();
     setStatus('');
-    placeholder('Enter a throwaway passphrase and press Derive.');
+    placeholder('Enter a throwaway passphrase and press Generate.');
   }
 
   function generatePhrase() {
@@ -365,28 +450,80 @@
       showError(err && err.message ? err.message : String(err));
       return;
     }
-    resultsEl.textContent = '';
-    placeholder('Random test phrase filled in. Press Derive to calculate — nothing is derived until you do.');
+    placeholder('Random test phrase filled in. Press Generate to calculate — nothing is derived until you do.');
     input.focus();
   }
 
-  if (form) {
-    form.addEventListener('submit', onSubmit);
-    deriveBtn.addEventListener('click', function (event) {
-      if (deriveBtn.type === 'submit') return;
-      onSubmit(event);
+  function copyAllText() {
+    var chain = engine.chainConfig(network ? network.value : '') || engine.chainConfig('bitcoin');
+    var lines = ['Network: ' + chain.name + ' (' + chain.symbol + ')', 'Passphrase: ' + input.value.trim()];
+    state.rows.forEach(function (row) {
+      lines.push('Key + ' + row.offset + ': ' + row.hex);
+      if (row.wifCompressed) lines.push('WIF (compressed): ' + row.wifCompressed);
+      if (row.wifUncompressed) lines.push('WIF (uncompressed): ' + row.wifUncompressed);
+      lines.push('Address: ' + row.address);
+      if (row.balance) lines.push('Balance: ' + row.balance);
     });
-  } else {
-    deriveBtn.addEventListener('click', onSubmit);
+    return lines.join('\n');
   }
 
+  function copyAll() {
+    if (!state.rows.length) return;
+    copyText(copyAllText(), copyAllBtn);
+  }
+
+  function downloadCsv() {
+    if (!state.rows.length) return;
+    var chain = engine.chainConfig(network ? network.value : '') || engine.chainConfig('bitcoin');
+    var header = ['network', 'passphrase', 'key_offset', 'private_key_hex', 'wif_compressed', 'wif_uncompressed', 'address', 'balance'];
+    var rows = state.rows.map(function (row) {
+      return [chain.slug, input.value.trim(), row.offset, row.hex, row.wifCompressed, row.wifUncompressed, row.address, row.balance];
+    });
+    var csv = engine.toCsv(header, rows);
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'brainwallet-' + chain.slug + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  form.addEventListener('submit', onSubmit);
+  if (deriveBtn.type !== 'submit') {
+    deriveBtn.addEventListener('click', onSubmit);
+  }
   var generateBtn = byId('brainwallet-generate');
   if (generateBtn) generateBtn.addEventListener('click', generatePhrase);
   var clearBtn = byId('brainwallet-clear');
   if (clearBtn) clearBtn.addEventListener('click', clearAll);
+  if (copyAllBtn) copyAllBtn.addEventListener('click', copyAll);
+  if (csvBtn) csvBtn.addEventListener('click', downloadCsv);
+  if (autoBalance) {
+    autoBalance.addEventListener('change', function () {
+      deriveBtn.textContent = buttonLabel();
+    });
+  }
+  if (network) {
+    network.addEventListener('change', function () {
+      var chain = engine.chainConfig(network.value) || engine.chainConfig('bitcoin');
+      placeholder('Network set to ' + chain.name + '. Enter a throwaway passphrase and press Generate.');
+    });
+  }
+  if (countSelect) {
+    countSelect.addEventListener('change', function () {
+      placeholder('Address count set to ' + countSelect.value + '. Press Generate when ready.');
+    });
+  }
+  deriveBtn.textContent = buttonLabel();
+  placeholder('Enter a throwaway passphrase and press Generate.');
 
   /* The passphrase and every derived value live only while the page is open. */
   window.addEventListener('pagehide', function () {
+    state.disposed = true;
+    state.rows = [];
     input.value = '';
     hideError();
     setStatus('');

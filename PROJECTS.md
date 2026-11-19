@@ -38,10 +38,13 @@ owned by exactly one area; the most-specific glob wins.
   the coordinator never receives a key, WIF or passphrase. The seed studio is served
   on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
   `seed-page.js` and `seed-studio.css`; the directory remains on
-  `/mnemonic-seeds`. Brainwallet pages `/brainwallet`, `/brainwallet/bitcoin`,
-  `/brainwallet/ethereum` and the donor alias `/brainwallet-generator` share
-  `brainwallet-engine.js` (phrase hash, row selection, explorer links) and
-  `brainwallet.js` (wasm report rendering). SEO routes include
+  `/mnemonic-seeds`. Brainwallet pages share `brainwallet-engine.js`
+  (138-word corpus, BigInt page math, phrase hash, chain row selection,
+  explorer links), `brainwallet-directory.js` (18,890-passphrase directory,
+  60 rows per page, 315 pages, optional balances) and `brainwallet.js` (the
+  single-passphrase generator on `/brainwallet-generator`). `/brainwallet` is
+  the index of 18 chain directories; `/brainwallet/<chain>` and
+  `/brainwallet/<chain>/<page>` are the directory pages. SEO routes include
   `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
