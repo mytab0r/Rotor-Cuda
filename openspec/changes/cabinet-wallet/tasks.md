@@ -11,10 +11,10 @@
 
 ## 2. WASM signing core
 
-- [ ] secp256k1 deterministic ECDSA (RFC6979) sign/recover in `rotor-wasm`.
-- [ ] RLP encoder and EVM type-2 unsigned/signed serialization.
+- [x] secp256k1 deterministic ECDSA (RFC6979) sign/recover in `rotor-wasm`.
+- [x] RLP encoder and EVM type-2 unsigned/signed serialization.
 - [ ] Bitcoin P2WPKH BIP143 sighash, DER with low-R, transaction serialization.
-- [ ] Unit tests with published vectors; no network in the crate.
+- [x] Unit tests with published vectors; no network in the crate.
 
 ## 3. EVM send flow (testnet first)
 

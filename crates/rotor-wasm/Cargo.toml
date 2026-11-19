@@ -20,6 +20,9 @@ ed25519-dalek = { version = "2", default-features = false }
 blake2 = "0.10"
 scrypt = { version = "0.11", default-features = false }
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+# RFC 6979 nonces are HMAC-SHA256 over the digest 0.10 family (the same HMAC
+# that pbkdf2 uses); this is the only addition the signing core needs.
+hmac = "0.12"
 aes = "0.8"
 ctr = "0.9"
 
