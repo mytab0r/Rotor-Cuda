@@ -20,7 +20,7 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 | Wallet viewer | wallet.dat import, password, address table | absent (ETH keystore only) | missing | P2 |
 | Wallets storefront | privatekeyfinder 404; secretscan market table | real mirrored downloads, no prices | ours-only/partial | P2 |
 | Send transactions | 9 secretscan `Easy_*` pages, fee/bytes/total/signed hex | Sepolia + BTC testnet inside cabinet only | partial | P0 |
-| Tx decoders | BTC raw + EVM RLP decoders | absent | missing | P0 |
+| Tx decoders | BTC raw + EVM RLP decoders | `/tx/bitcoin` + `/tx/ethereum`, client-side, JSON view | parity | - |
 | Vanity | threads/ETA/difficulty/save/recent/QR | 6 chains, no threads/ETA/save | partial | P1 |
 | Keystore | drag-drop file, examples, metadata | paste/password, no file/examples | partial | P1 |
 | Pubkey add | P+Q, P−Q, scalar multiply | P+Q only | partial | P1 |
@@ -32,7 +32,6 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 
 `/richest`, `/richest/<chain>`, `/bitcoin-dormant`, `/satoshi-wallets`,
 `/whale-tracker`, `/wallet-viewer`, `Easy_*_transaction_online`,
-`Transaction_decoded_Bitcoin`, `decode_ethereum_transaction`,
 `transaction_to_bitcoin_address_p2pkh`, `usdt-trc20-calculator`,
 `benchmark`, `programs`, `rent`, `scaner`.
 

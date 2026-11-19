@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261122e">
-<script src="/theme.js?v=20261122e"></script>
+<link rel="stylesheet" href="/site.css?v=20261123c">
+<script src="/theme.js?v=20261123c"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -71,7 +71,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261122e#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261123c#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -97,6 +97,25 @@
 
   <section class="card" id="summary-card" hidden>
     <h2>Key summary</h2>
+    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" hidden>
+      <div class="key-stat">
+        <span class="key-stat-label">Total value</span>
+        <strong class="key-stat-value empty" id="stat-total" title="No price source is connected, so Rotor does not show a USD total.">—</strong>
+      </div>
+      <div class="key-stat">
+        <span class="key-stat-label">Has balance</span>
+        <strong class="key-stat-value" id="stat-has-balance">0</strong>
+      </div>
+      <div class="key-stat">
+        <span class="key-stat-label">Active chains</span>
+        <strong class="key-stat-value" id="stat-active">0</strong>
+      </div>
+      <div class="key-stat">
+        <span class="key-stat-label">Checked</span>
+        <strong class="key-stat-value" id="stat-checked">0/0</strong>
+      </div>
+    </div>
+    <p class="muted key-help key-stats-note">Total value stays blank without a price source; balances are shown per chain.</p>
     <div class="key-summary" id="summary">
       <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
     </div>
@@ -108,7 +127,7 @@
       <div class="key-chains" role="group" aria-label="Chains">
         <button type="button" class="key-chain" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
         <button type="button" class="key-chain" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
-        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>Ethereum</button>
+        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>EVM</button>
         <button type="button" class="key-chain" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
         <button type="button" class="key-chain" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
         <button type="button" class="key-chain" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
@@ -130,8 +149,13 @@
           <option value="phantom">Phantom</option>
         </select>
       </div>
+      <div class="key-export" role="group" aria-label="Export public address rows">
+        <button type="button" id="copy-all-rows" class="key-copy">Copy all</button>
+        <button type="button" id="csv-rows" class="key-copy">CSV</button>
+      </div>
     </div>
     <p class="muted key-help" id="balance-help">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
+    <p class="muted key-help key-export-status" id="key-export-status" role="status"></p>
 
     <div class="balance-refresh">
       <button type="button" class="balance-refresh-btn" id="key-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
@@ -161,7 +185,7 @@
   <section class="card key-derive-block" aria-labelledby="derive-title">
     <h2 class="key-derive-title key-derive-heading" id="derive-title">Derivation</h2>
     <div class="key-derive-intro" id="btc-panel" hidden>
-      <section class="address-type-panel key-address-panel" aria-label="Bitcoin address type">
+      <div class="address-type-panel key-address-panel" role="group" aria-label="Bitcoin address type">
         <div class="panel-label"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg>Bitcoin address type</div>
         <div class="address-type-cards" role="group" aria-label="Bitcoin address type">
           <button type="button" class="address-type-card" data-row="btc_p2pkh" aria-pressed="false"><span class="type-name">Legacy</span><span class="type-desc">P2PKH · 1…</span></button>
@@ -169,7 +193,7 @@
           <button type="button" class="address-type-card" data-row="btc_p2sh_p2wpkh" aria-pressed="false"><span class="type-name">Nested SegWit</span><span class="type-desc">P2SH · 3…</span></button>
           <button type="button" class="address-type-card" data-row="btc_p2tr" aria-pressed="false"><span class="type-name">Taproot</span><span class="type-desc">P2TR · bc1p…</span></button>
         </div>
-      </section>
+      </div>
     </div>
     <div class="key-derive-grid">
       <div class="key-derive-col">
@@ -219,7 +243,8 @@
 
 </main>
 
-<script src="/balance-cache.js?v=20261122e"></script>
-<script src="/key.js?v=20261122e"></script>
+<script src="/key-tools.js?v=20261123c"></script>
+<script src="/balance-cache.js?v=20261123c"></script>
+<script src="/key.js?v=20261123c"></script>
 </body>
 </html>

@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Missing WIF(u), XRP secret and public-key formats, Total Value/Has Balance/Active/Checked aggregates, CSV and eight EVM chain rows.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (Total Value stays blank without a price source, Has Balance, Active Chains, Checked), eight EVM chain rows and public-row Copy All/CSV are in place. The interactive curve editor and signing entry remain.'
   });
 
   oursRoute({
@@ -129,7 +129,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyHex'],
-    note: 'Auto-derives from 64 hex characters to WIF, public key and addresses. Aggregates, CSV and eight EVM rows are still missing.'
+    note: 'Auto-derives from 64 hex characters to WIF, public key and addresses. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
   oursRoute({
@@ -139,7 +139,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyWif', 'ss:/PrivateKey_wif_to_hex'],
-    note: 'Auto-derives from 5…, K… or L… to hex and addresses. Aggregates, CSV and eight EVM rows are still missing.'
+    note: 'Auto-derives from 5…, K… or L… to hex and addresses. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
   oursRoute({
@@ -149,7 +149,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>'],
-    note: 'Auto-derives from a decimal integer below the curve order. Aggregates, CSV and eight EVM rows are still missing.'
+    note: 'Auto-derives from a decimal integer below the curve order. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
   oursRoute({
@@ -339,6 +339,36 @@
     priority: 'P1',
     donorIds: ['pkf:/keystore-parser', 'ss:/keystore-parser'],
     note: 'Local V3 decrypt is present. Missing drag-and-drop file input, examples and metadata display.'
+  });
+
+  oursRoute({
+    path: '/tx',
+    title: 'Transaction decoders',
+    area: 'tools',
+    status: 'parity',
+    priority: '-',
+    donorIds: ['ss:/Transaction_decoded_Bitcoin', 'ss:/decode_ethereum_transaction'],
+    note: 'Shared index for the two client-side decoders.'
+  });
+
+  oursRoute({
+    path: '/tx/bitcoin',
+    title: 'Bitcoin transaction decoder',
+    area: 'tools',
+    status: 'parity',
+    priority: '-',
+    donorIds: ['ss:/Transaction_decoded_Bitcoin'],
+    note: 'Raw legacy or SegWit hex to inputs, outputs, script types/addresses, locktime, size/weight/vsize and JSON. A fee appears only when prevout values are supplied; no guessing.'
+  });
+
+  oursRoute({
+    path: '/tx/ethereum',
+    title: 'Ethereum transaction decoder',
+    area: 'tools',
+    status: 'parity',
+    priority: '-',
+    donorIds: ['ss:/decode_ethereum_transaction'],
+    note: 'Raw legacy, EIP-2930 and EIP-1559 hex to chain id, gas/fee fields, destination or contract creation, value, data, access list, signature fields and JSON. Canonical RLP is validated; no signature recovery.'
   });
 
   oursRoute({
@@ -714,8 +744,8 @@
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Rotor only adds (P + Q); the donor also subtracts and multiplies.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
     ['/HexDecBin', 'Hex / decimal / binary', 'tools', '/hex-dec-bin', 'parity', '-', ''],
-    ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', null, 'missing', 'P0', 'Raw hex to inputs, outputs, scripts, fees and JSON.'],
-    ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', null, 'missing', 'P0', 'Raw hex to inputs, outputs, scripts, fees and JSON.'],
+    ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', '/tx/bitcoin', 'parity', '-', 'Raw hex to inputs, outputs, scripts, fee (with supplied prevouts) and JSON.'],
+    ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', '/tx/ethereum', 'parity', '-', 'Raw hex to type, gas/fee fields, access list, signature and JSON. No signature recovery.'],
     ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', null, 'missing', 'P0', 'Rotor only has the Sepolia flow inside /cabinet/wallet.'],
     ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', null, 'missing', 'P0', 'Rotor only has the Sepolia flow inside /cabinet/wallet.'],
     ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', null, 'missing', 'P0', 'No BNB builder in Rotor.'],
@@ -1089,11 +1119,11 @@
     area: 'wallet',
     capability: 'BTC and EVM transaction decoders',
     donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-b'],
-    note: 'Raw hex to inputs, outputs, scripts, fees and JSON is absent.'
+    note: 'Public client-side decoders on /tx/bitcoin and /tx/ethereum. Bitcoin fee needs supplied prevouts; EVM signature recovery is not performed.'
   });
 
   feature({
@@ -1113,11 +1143,11 @@
     area: 'site',
     capability: 'Global auto-detect wallet search with interpret-as, address counts, results table, Copy All/CSV',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
+    rotor: 'present',
+    status: 'parity',
     priority: 'P0',
     sources: ['ref-site-a'],
-    note: 'The Ctrl+K modal covers HEX, WIF, keypair, mnemonic and brainwallet and redirects to /key; it has no interpret-as selector, 1/3/5/10 address counts, results table, Copy All or CSV.'
+    note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. Mnemonics still hand off to /seed; keys never enter the URL or storage.'
   });
 
   feature({

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ethereum transaction decoder — legacy, EIP-2930 and EIP-1559 | Rotor</title>
+<meta name="description" content="Decode a raw Ethereum transaction in your browser: type, chain id, nonce, gas, max fee, destination or contract creation, value, data, access list and signature, with a JSON view.">
+<link rel="canonical" href="https://rotor.pxbt.app/tx/ethereum">
+<link rel="stylesheet" href="/site.css?v=20261123c">
+<script src="/theme.js?v=20261123c"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <nav class="key-chains" aria-label="Transaction decoders">
+    <a class="key-chain" href="/tx">Overview</a>
+    <a class="key-chain" href="/tx/bitcoin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
+    <a class="key-chain" href="/tx/ethereum" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a>
+  </nav>
+
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
+      <div>
+        <h1>Ethereum transaction decoder</h1>
+        <p class="key-tagline">Paste a raw EIP-2718 transaction. Legacy, access-list (type 1) and EIP-1559 (type 2) payloads are decoded in this tab, with canonical RLP validation.</p>
+        <div class="key-badges"><span>Type 0 · 1 · 2</span><span>Canonical RLP</span><span>Local only</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Raw transaction</h2>
+    <form id="evm-form" class="key-form seed-form" autocomplete="off">
+      <label class="key-input-label">Raw transaction hex
+        <textarea id="evm-hex" class="mono" rows="6" spellcheck="false" autocapitalize="off" placeholder="0x02f8... or 0xf8..."></textarea>
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="evm-submit">Decode transaction</button>
+        <button type="button" id="evm-clear">Clear</button>
+      </div>
+    </form>
+    <p id="evm-error" class="error key-error" role="alert" hidden></p>
+    <p class="muted key-help">Malformed or non-canonical RLP is rejected with the byte offset. Signature recovery and verification are not performed; y-parity, v, r and s are shown exactly as encoded. No key, network or storage is involved.</p>
+  </section>
+
+  <section class="card" id="evm-result" hidden>
+    <div class="key-row-head">
+      <h2 class="key-row-title" id="evm-result-title" tabindex="-1">Decoded transaction</h2>
+      <button type="button" class="icon-btn" id="evm-copy-json" aria-label="Copy result JSON" title="Copy result JSON"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+    </div>
+    <dl class="key-form-list" id="evm-summary"></dl>
+    <div id="evm-access-section" hidden>
+      <h3>Access list</h3>
+      <div id="evm-access"></div>
+    </div>
+    <h3>JSON</h3>
+    <div id="evm-json" class="mono detail-value"></div>
+  </section>
+
+  <p class="muted key-help">Related: <a href="/tx/bitcoin">Bitcoin decoder</a>, <a href="/tx">transaction decoders overview</a>, <a href="/tools">tools index</a>.</p>
+</main>
+
+<script src="/tx-decoders.js?v=20261123c"></script>
+<script src="/tx-page.js?v=20261123c"></script>
+<script src="/site.js?v=20261123c"></script>
+</body>
+</html>

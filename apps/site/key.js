@@ -21,11 +21,25 @@
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
   var BALANCE_LIMIT = 4;
 
+  /* One EVM account, eight networks. Every row carries the same address; the
+   * balance is read from each network's public RPC, never assumed. */
+  var EVM_CHAINS = {
+    evm: { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', explorer: 'https://etherscan.io/address/' },
+    evm_bnb: { slug: 'bnb', label: 'BNB Chain', symbol: 'BNB', rpc: 'https://bsc-rpc.publicnode.com', explorer: 'https://bscscan.com/address/' },
+    evm_arbitrum: { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ETH', rpc: 'https://arbitrum-one-rpc.publicnode.com', explorer: 'https://arbiscan.io/address/' },
+    evm_optimism: { slug: 'optimism', label: 'Optimism', symbol: 'ETH', rpc: 'https://optimism-rpc.publicnode.com', explorer: 'https://optimistic.etherscan.io/address/' },
+    evm_base: { slug: 'base', label: 'Base', symbol: 'ETH', rpc: 'https://base-rpc.publicnode.com', explorer: 'https://basescan.org/address/' },
+    evm_polygon: { slug: 'polygon', label: 'Polygon', symbol: 'POL', rpc: 'https://polygon-bor-rpc.publicnode.com', explorer: 'https://polygonscan.com/address/' },
+    evm_avalanche: { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', rpc: 'https://avalanche-c-chain-rpc.publicnode.com', explorer: 'https://snowtrace.io/address/' },
+    evm_zksync: { slug: 'zksync', label: 'zkSync Era', symbol: 'ETH', rpc: 'https://mainnet.era.zksync.io', explorer: 'https://explorer.zksync.io/address/' }
+  };
+  var EVM_IDS = Object.keys(EVM_CHAINS);
+
   var PRESETS = {
     all: null,
     ledger: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr'],
-    metamask: ['evm'],
-    safepal: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr', 'evm', 'tron', 'ltc_p2pkh', 'ltc_p2sh_p2wpkh', 'ltc_p2wpkh', 'doge_p2pkh', 'bch_legacy', 'xrp_classic'],
+    metamask: EVM_IDS.slice(),
+    safepal: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr'].concat(EVM_IDS, ['tron', 'ltc_p2pkh', 'ltc_p2sh_p2wpkh', 'ltc_p2wpkh', 'doge_p2pkh', 'bch_legacy', 'xrp_classic']),
     tronlink: ['tron'],
     phantom: ['solana']
   };
@@ -49,7 +63,14 @@
     btc_p2sh_p2wpkh: 'Bitcoin P2SH-P2WPKH',
     btc_p2wpkh: 'Bitcoin native segwit',
     btc_p2tr: 'Bitcoin taproot',
-    evm: 'Ethereum / EVM',
+    evm: 'Ethereum',
+    evm_bnb: 'BNB Chain',
+    evm_arbitrum: 'Arbitrum',
+    evm_optimism: 'Optimism',
+    evm_base: 'Base',
+    evm_polygon: 'Polygon',
+    evm_avalanche: 'Avalanche',
+    evm_zksync: 'zkSync Era',
     tron: 'TRON',
     solana: 'Solana (ed25519)',
     ltc_p2pkh: 'Litecoin legacy (compressed)',
@@ -99,6 +120,9 @@
     bch_legacy: "P2PKH · m/44'/145'/0'/0/0",
     xrp_classic: "XRP · m/44'/144'/0'/0/0"
   };
+  EVM_IDS.forEach(function (id) {
+    PATHS[id] = PATHS.evm;
+  });
 
   var STEP_ORDER = {
     btc_p2pkh: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
@@ -199,6 +223,14 @@
   var statusTextEl = byId('key-status-text');
   var summaryEl = byId('summary');
   var summaryCard = byId('summary-card');
+  var keyStats = byId('key-stats');
+  var statTotal = byId('stat-total');
+  var statHasBalance = byId('stat-has-balance');
+  var statActive = byId('stat-active');
+  var statChecked = byId('stat-checked');
+  var copyAllBtn = byId('copy-all-rows');
+  var csvBtn = byId('csv-rows');
+  var exportStatus = byId('key-export-status');
   var addressesCard = byId('addresses-card');
   var rowsEl = byId('addr-rows');
   var presetEmpty = byId('preset-empty');
@@ -573,6 +605,8 @@
     cancelBalances();
     if (summaryCard) summaryCard.hidden = true;
     if (addressesCard) addressesCard.hidden = true;
+    if (keyStats) keyStats.hidden = true;
+    setExportStatus('');
     state.report = null;
     state.focusId = null;
     summaryPlaceholder();
@@ -599,7 +633,8 @@
       if (seq !== state.deriveSeq) return;
       var report = deriveReport(wasm, bytes, curve);
       if (seq !== state.deriveSeq) return;
-      renderReport(report);
+      await renderReport(report);
+      if (seq !== state.deriveSeq) return;
       updateDerivedStatus();
       syncStepGroup(true);
     } catch (err) {
@@ -726,12 +761,13 @@
 
   /* ---------------------------------------------------------------- results */
 
-  function renderReport(report) {
+  async function renderReport(report) {
     state.report = report;
+    state.balances = {};
+    setExportStatus('');
+    await renderSummary(report);
     if (summaryCard) summaryCard.hidden = false;
     if (addressesCard) addressesCard.hidden = false;
-    state.balances = {};
-    renderSummary(report);
     renderAddresses(report);
     attachTon(report);
     if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
@@ -739,14 +775,17 @@
     checkVisibleBalances();
   }
 
+  function doubleSha256(bytes) {
+    if (!(window.crypto && window.crypto.subtle)) {
+      return Promise.reject(new Error('The XRP checksum needs SHA-256 (a secure context: https or localhost).'));
+    }
+    return sha256(bytes).then(function (first) {
+      return sha256(first);
+    });
+  }
+
   function summaryFields(report) {
     return {
-      key: [
-        ['Curve', report.curve || ''],
-        ['Hex', report.priv_hex || ''],
-        ['WIF (compressed)', report.wif_compressed || ''],
-        ['WIF (uncompressed)', report.wif_uncompressed || '']
-      ],
       point: [
         ['Compressed', report.pubkey_compressed || ''],
         ['Uncompressed', report.pubkey_uncompressed || ''],
@@ -807,19 +846,115 @@
     return group;
   }
 
-  function renderSummary(report) {
+  function keyFactsGroup(facts) {
+    var group = document.createElement('section');
+    group.className = 'key-summary-group key-facts-group';
+    var heading = document.createElement('h3');
+    heading.className = 'key-group-title';
+    heading.textContent = 'Key facts';
+    group.appendChild(heading);
+
+    var dl = document.createElement('dl');
+    dl.className = 'key-form-list';
+    facts.forEach(function (fact) {
+      if (!fact || !fact.label) return;
+      var row = document.createElement('div');
+      row.className = 'key-form-row';
+      row.setAttribute('data-fact', fact.id || '');
+      var dt = document.createElement('dt');
+      if (fact.href) {
+        var labelLink = document.createElement('a');
+        labelLink.href = fact.href;
+        labelLink.textContent = fact.label;
+        labelLink.title = 'Open the ' + fact.label.toLowerCase() + ' calculator';
+        dt.appendChild(labelLink);
+      } else {
+        dt.textContent = fact.label;
+      }
+      var dd = document.createElement('dd');
+      dd.className = 'mono';
+      if (fact.unavailable) {
+        dd.className = 'key-fact-unavailable';
+        dd.textContent = 'Not available — ' + fact.unavailable;
+      } else if (fact.valueHref) {
+        var valueLink = document.createElement('a');
+        valueLink.href = fact.valueHref;
+        valueLink.textContent = fact.value;
+        dd.appendChild(valueLink);
+      } else {
+        dd.textContent = fact.value;
+      }
+      row.appendChild(dt);
+      row.appendChild(dd);
+      if (fact.unavailable) {
+        var spacer = document.createElement('span');
+        spacer.className = 'key-copy-spacer';
+        row.appendChild(spacer);
+      } else {
+        var copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'key-copy key-copy-sm';
+        copy.textContent = 'Copy';
+        copy.setAttribute('aria-label', 'Copy ' + fact.label + ' value');
+        copy.addEventListener('click', function () { copyText(fact.value, copy); });
+        row.appendChild(copy);
+      }
+      dl.appendChild(row);
+    });
+    group.appendChild(dl);
+    return group;
+  }
+
+  async function renderSummary(report) {
+    var helper = window.RotorKeyTools;
+    var facts;
+    if (helper && typeof helper.buildKeyFacts === 'function') {
+      facts = await helper.buildKeyFacts(report, doubleSha256);
+    } else {
+      facts = [{
+        id: 'error',
+        label: 'Key facts',
+        unavailable: 'The key-facts helper (/key-tools.js) did not load.'
+      }];
+    }
+    if (keyStats) keyStats.hidden = false;
     summaryEl.textContent = '';
     var fields = summaryFields(report);
     var grid = document.createElement('div');
     grid.className = 'key-summary-grid';
-    grid.appendChild(summaryGroup('Key', fields.key));
+    grid.appendChild(keyFactsGroup(facts));
     grid.appendChild(summaryGroup('Public point', fields.point));
     summaryEl.appendChild(grid);
+    updateCounters();
+  }
+
+  /* Public display rows: the single EVM account is shown once per network so
+   * every chain keeps its own explorer and balance, all with the same address. */
+  function displayAddresses(report) {
+    var addresses = Array.isArray(report.addresses) ? report.addresses : [];
+    var out = [];
+    addresses.forEach(function (addr) {
+      if (!addr || !addr.id || !addr.address) return;
+      if (addr.id === 'evm') {
+        EVM_IDS.forEach(function (id, index) {
+          out.push({
+            id: id,
+            label: EVM_CHAINS[id].label,
+            address: addr.address,
+            steps: index === 0 ? addr.steps : null,
+            sharedEvm: true
+          });
+        });
+        return;
+      }
+      out.push(addr);
+    });
+    return out;
   }
 
   function renderAddresses(report) {
     rowsEl.textContent = '';
-    var addresses = Array.isArray(report.addresses) ? report.addresses : [];
+    var addresses = displayAddresses(report);
     if (!addresses.length) {
       state.focusId = null;
       var note = document.createElement('p');
@@ -832,11 +967,10 @@
       return;
     }
     addresses.forEach(function (addr) {
-      if (!addr || !addr.id || !addr.address) return;
       rowsEl.appendChild(buildRow(addr));
     });
     resetBalanceBadges();
-    updateChainAvailability(addresses, report.curve);
+    updateChainAvailability(Array.isArray(report.addresses) ? report.addresses : [], report.curve);
     ensureBtcFocus();
     applyFilters();
     syncSelection(false, false);
@@ -888,6 +1022,7 @@
   }
 
   function explorerFor(id) {
+    if (EVM_CHAINS[id]) return EVM_CHAINS[id].explorer;
     if (typeof id === 'string') {
       if (id.indexOf('btc_') === 0) return 'https://mempool.space/address/';
       if (id.indexOf('ltc_') === 0) return 'https://blockchair.com/litecoin/address/';
@@ -918,6 +1053,13 @@
     title.className = 'key-row-title';
     title.textContent = addr.label || ID_LABELS[addr.id] || addr.id;
     head.appendChild(title);
+    if (addr.sharedEvm) {
+      var shared = document.createElement('span');
+      shared.className = 'key-row-tag';
+      shared.textContent = 'same address';
+      shared.title = 'Every EVM row shares this account address; each row is a different network.';
+      head.appendChild(shared);
+    }
     if (PATHS[addr.id]) {
       var path = document.createElement('span');
       path.className = 'key-row-path';
@@ -983,10 +1125,11 @@
     var summary = document.createElement('summary');
     summary.textContent = 'Details';
     details.appendChild(summary);
-    if (EXPLAIN[addr.id]) {
+    var explain = EXPLAIN[addr.id] || (addr.sharedEvm ? EXPLAIN.evm : '');
+    if (explain) {
       var sentence = document.createElement('p');
       sentence.className = 'muted key-explain';
-      sentence.textContent = EXPLAIN[addr.id];
+      sentence.textContent = explain;
       details.appendChild(sentence);
     }
 
@@ -1084,6 +1227,83 @@
     }
   }
 
+  /* ------------------------------------------------- public row export */
+  /* Only derived public data leaves the page: label, address, explorer link
+   * and the visible balance. Private keys, WIFs and the key facts are never
+   * included. */
+
+  function setExportStatus(message) {
+    if (exportStatus) exportStatus.textContent = message;
+  }
+
+  function visibleRowData() {
+    return Array.prototype.filter.call(rowsEl.children, function (row) {
+      return row.classList.contains('key-row') && !row.classList.contains('hidden');
+    }).map(function (row) {
+      var title = row.querySelector('.key-row-title');
+      var address = row.querySelector('.key-addr');
+      var badge = row.querySelector('.key-balance');
+      var explorer = row.querySelector('.key-addr-line a[target="_blank"]');
+      return {
+        chain: row.getAttribute('data-id') || '',
+        label: title ? title.textContent : '',
+        address: address ? address.textContent : (row.getAttribute('data-address') || ''),
+        explorer: explorer ? explorer.href : '',
+        balance: badge && !badge.hidden ? badge.textContent.trim() : ''
+      };
+    });
+  }
+
+  function copyAllRows() {
+    var rows = visibleRowData();
+    if (!rows.length) {
+      setExportStatus('No public address rows are visible to copy.');
+      return;
+    }
+    var text = rows.map(function (row) {
+      return row.label + '\t' + row.address + (row.balance ? '\t' + row.balance : '');
+    }).join('\n');
+    writeClipboard(text, function done() {
+      setExportStatus('Copied ' + rows.length + ' public address row' + (rows.length === 1 ? '' : 's') + '.');
+    });
+    if (copyAllBtn) {
+      var original = copyAllBtn.textContent;
+      copyAllBtn.textContent = 'Copied';
+      copyAllBtn.disabled = true;
+      window.setTimeout(function () {
+        copyAllBtn.textContent = original;
+        copyAllBtn.disabled = false;
+      }, 1200);
+    }
+  }
+
+  function csvCell(value) {
+    var text = String(value == null ? '' : value);
+    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+
+  function downloadRowsCsv() {
+    var rows = visibleRowData();
+    if (!rows.length) {
+      setExportStatus('No public address rows are visible to export.');
+      return;
+    }
+    var lines = ['chain,label,address,explorer,balance'];
+    rows.forEach(function (row) {
+      lines.push([row.chain, row.label, row.address, row.explorer, row.balance].map(csvCell).join(','));
+    });
+    var blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'rotor-key-addresses.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+    setExportStatus('CSV with ' + rows.length + ' public address row' + (rows.length === 1 ? '' : 's') + ' downloaded.');
+  }
+
   /* ------------------------------------------------------- filters/selection */
 
   function btcRowIds() {
@@ -1172,6 +1392,7 @@
     });
     if (visible === 0) presetEmpty.textContent = emptyMessage();
     presetEmpty.hidden = visible > 0;
+    updateCounters();
     checkVisibleBalances();
   }
 
@@ -1444,11 +1665,11 @@
     var txs = numberOrZero(chain.tx_count) + numberOrZero(mempool.tx_count);
     return {
       text: sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx',
-      summary: { balanceSat: sats, receivedSat: funded, txs: txs }
+      summary: { balanceSat: sats, receivedSat: funded, txs: txs, amount: sats, chain: 'btc', symbol: 'BTC' }
     };
   }
 
-  async function evmBatch(address, url, signal) {
+  async function evmBatch(address, url, signal, chain) {
     var body = [
       { jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [address, 'latest'] },
       { jsonrpc: '2.0', id: 2, method: 'eth_getTransactionCount', params: [address, 'latest'] }
@@ -1472,19 +1693,27 @@
         : (data && data.error && data.error.message ? data.error.message : 'unexpected response');
       throw new Error(reason);
     }
-    var text = formatEth(BigInt(balance.result)) + ' ETH';
+    var wei = BigInt(balance.result);
+    var text = formatEth(wei) + ' ' + chain.symbol;
     var nonce = byId[2];
     if (nonce && typeof nonce.result === 'string') text += ' · nonce ' + BigInt(nonce.result).toString();
-    return text;
+    return {
+      text: text,
+      summary: { amount: wei, chain: chain.slug, symbol: chain.symbol }
+    };
   }
 
-  async function fetchEvm(address, signal) {
+  async function fetchEvm(address, signal, id) {
+    var chain = EVM_CHAINS[id] || EVM_CHAINS.evm;
+    /* Ethereum keeps the endpoint fallback; every other network has one
+     * public endpoint mapped to it. */
+    var urls = id === 'evm' ? EVM_RPC_URLS : [chain.rpc];
     var lastError = null;
     var lastUrl = '';
-    for (var i = 0; i < EVM_RPC_URLS.length; i++) {
-      var url = EVM_RPC_URLS[i];
+    for (var i = 0; i < urls.length; i++) {
+      var url = urls[i];
       try {
-        return await evmBatch(address, url, signal);
+        return await evmBatch(address, url, signal, chain);
       } catch (err) {
         /* Network/CORS errors, non-OK HTTP, JSON-RPC errors and malformed
          * results all fall through to the next public endpoint. */
@@ -1496,7 +1725,7 @@
     var message = lastError && lastError.name === 'AbortError'
       ? 'timeout after ' + (TIMEOUT_MS / 1000) + ' s'
       : (lastError && lastError.message ? lastError.message : 'unknown error');
-    throw new Error('no EVM endpoint answered (last: ' + lastUrl + ': ' + message + ')');
+    throw new Error('no ' + chain.label + ' endpoint answered (last: ' + lastUrl + ': ' + message + ')');
   }
 
   function tronTxCount(data) {
@@ -1516,7 +1745,12 @@
 
   async function fetchTron(address, signal) {
     var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address), null, signal);
-    if (response.status === 404) return '0 TRX · account not activated';
+    if (response.status === 404) {
+      return {
+        text: '0 TRX · account not activated',
+        summary: { amount: 0n, chain: 'tron', symbol: 'TRX' }
+      };
+    }
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var raw = await response.text();
     var data;
@@ -1526,10 +1760,53 @@
       throw new Error('unexpected response');
     }
     if (!data || typeof data !== 'object') throw new Error('unexpected response');
-    var text = formatUnits6(rawTronBalance(raw), 1000000n) + ' TRX';
+    var sun = rawTronBalance(raw);
+    var text = formatUnits6(sun, 1000000n) + ' TRX';
     var txs = tronTxCount(data);
     if (txs !== null) text += ' · ' + txs + ' tx';
-    return text;
+    return {
+      text: text,
+      summary: { amount: sun, chain: 'tron', symbol: 'TRX' }
+    };
+  }
+
+  /* Rows whose identifiers have a working public provider. Kept in one place
+   * so the counters and the checks agree on what "N" means. */
+  function rowHasProvider(id) {
+    if (!id) return false;
+    if (id === 'solana' || id === 'sui' || id === 'ton') return false;
+    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0 ||
+        id.indexOf('bch_') === 0 || id.indexOf('xrp_') === 0) return false;
+    return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
+  }
+
+  function updateCounters() {
+    if (!keyStats || !state.report) return;
+    var entries = [];
+    Array.prototype.forEach.call(rowsEl.children, function (row) {
+      var id = row.getAttribute('data-id');
+      if (!id) return;
+      var summary = state.balances[id];
+      entries.push({
+        address: row.getAttribute('data-address'),
+        chain: summary && summary.chain,
+        amount: summary && summary.amount,
+        state: row.dataset.balanceState || '',
+        checkable: rowHasProvider(id),
+        visible: !row.classList.contains('hidden')
+      });
+    });
+    var helper = window.RotorKeyTools;
+    var counters = helper && typeof helper.balanceCounters === 'function'
+      ? helper.balanceCounters(entries)
+      : { withBalance: 0, activeChains: 0, checked: 0, total: 0 };
+    if (statTotal) {
+      statTotal.textContent = '—';
+      statTotal.classList.add('empty');
+    }
+    if (statHasBalance) statHasBalance.textContent = String(counters.withBalance);
+    if (statActive) statActive.textContent = String(counters.activeChains);
+    if (statChecked) statChecked.textContent = counters.checked + '/' + counters.total;
   }
 
   function rowCacheInfo(row) {
@@ -1660,23 +1937,19 @@
     var id = row.getAttribute('data-id');
     var address = row.getAttribute('data-address');
     if (!badge || !address || generation !== state.generation) return;
-    if (id === 'solana') {
+    if (!rowHasProvider(id)) {
       row.dataset.balanceState = 'off';
       setBalance(badge, 'muted', 'no provider in v1');
-      return;
-    }
-    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0 ||
-        id.indexOf('bch_') === 0 || id.indexOf('xrp_') === 0) {
-      row.dataset.balanceState = 'off';
-      setBalance(badge, 'muted', 'no provider in v1');
+      updateCounters();
       return;
     }
     var info = rowCacheInfo(row);
     row.dataset.balanceState = 'loading';
     setBalance(badge, 'loading', 'checking…');
+    updateCounters();
     var request = async function () {
       if (id.indexOf('btc_') === 0) return fetchBtc(address, signal);
-      if (id === 'evm') return fetchEvm(address, signal);
+      if (EVM_CHAINS[id]) return fetchEvm(address, signal, id);
       if (id === 'tron') return fetchTron(address, signal);
       throw new Error('no provider in v1');
     };
@@ -1696,6 +1969,7 @@
       }
       setBalance(badge, 'ok', value.text, null, entry ? cacheApi.ageLabel(entry, Date.now()) : '');
       if (result && result.summary) renderBalanceCards();
+      updateCounters();
       updateKeyRefreshButton();
     } catch (err) {
       if (generation !== state.generation || signal.aborted) return;
@@ -1706,6 +1980,7 @@
       setBalance(badge, 'err', 'lookup failed: ' + message, function () {
         checkVisibleBalances({ onlyRows: [row] });
       });
+      updateCounters();
       updateKeyRefreshButton();
     }
   }
@@ -1752,6 +2027,7 @@
       var entry = state.cached[info.key];
       if (cacheApi && cacheApi.isSuccess(entry)) renderCachedRow(row, entry, now);
     });
+    updateCounters();
     updateKeyRefreshButton();
     var pending = candidates.filter(function (row) {
       if (only) return true;
@@ -2055,6 +2331,8 @@
   stepDownBtn.addEventListener('click', function () { stepKey(-1); });
   stepUpBtn.addEventListener('click', function () { stepKey(1); });
   clearBtn.addEventListener('click', clearKey);
+  if (copyAllBtn) copyAllBtn.addEventListener('click', copyAllRows);
+  if (csvBtn) csvBtn.addEventListener('click', downloadRowsCsv);
 
   curveSelect.addEventListener('change', function () {
     renderCurve();

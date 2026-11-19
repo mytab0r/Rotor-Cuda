@@ -13,13 +13,15 @@
 - [ ] Puzzle random: Community Hunt counters and a live result table.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
   explorer.
-- [ ] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
+- [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
 - [ ] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
   core; mainnet stays gated.
 - [ ] `/key` debounced auto-derive, icon-only utility actions, full formats and
   counters.
-- [ ] Global search results in place: interpret-as, 1/3/5/10 addresses, table,
-  Copy All/CSV.
+- [x] Global search results in place: interpret-as, 1/3/5/10 addresses, table,
+  Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
+  shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
+  and the `key` route UI audit at 375/1280 in both themes.
 
 ## P1 — shell and templates
 
