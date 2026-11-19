@@ -7,7 +7,13 @@
   First/Prev/Random/Next/Last + Jump.
 - [ ] Brainwallet single calculator on `/brainwallet-generator` with network,
   passphrase, 1/3/5/10 addresses, Copy All/CSV.
-- [ ] Seed rows: private key/WIF + copy icons; compact reveal for the phrase.
+- [x] Seed rows: private key/WIF + copy icons; compact reveal for the phrase.
+  Each row starts as the first two and last word (`abandon ability … zoo`)
+  behind a 44px `aria-expanded` Reveal/Hide button; expanding swaps the row's
+  text in place (no re-render, refetch, storage or URL change) and collapsing
+  restores the compact form. Evidence: `mnemonic-seeds.js:178-187,601-670`
+  (`compactPhrase`, `renderPhrase`, `resetPhrase`), inline styles in
+  `mnemonic-seeds.html:76-95`.
 - [ ] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
   Balance/TX/Actions.
 - [ ] Puzzle random: Community Hunt counters and a live result table.
