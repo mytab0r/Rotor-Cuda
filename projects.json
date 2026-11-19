@@ -1,5 +1,5 @@
 {
-  "asset_version": "20261120b",
+  "asset_version": "20261121e",
   "areas": [
     {
       "id": "site",
@@ -39,6 +39,7 @@
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/seed-test.mjs apps/site/rotor_wasm.wasm",
+        "node apps/site/mnemonic-seeds-test.mjs",
         "node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/wallet-vault-test.mjs",
         "node apps/site/wallet-evm-test.mjs",

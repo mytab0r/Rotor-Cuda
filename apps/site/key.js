@@ -27,6 +27,19 @@
     phantom: ['solana']
   };
 
+  /* Primary preset path shown in the derivation row. The page takes a final
+   * key, so these labels never change what is derived. */
+  var DERIVATION_PATHS = {
+    all: "m/44'/0'/0'/0/0",
+    ledger: "m/84'/0'/0'/0/0",
+    metamask: "m/44'/60'/0'/0/0",
+    safepal: "m/44'/0'/0'/0/0",
+    tronlink: "m/44'/195'/0'/0/0",
+    phantom: "m/501'/0'/0'/0'"
+  };
+  var DERIVATION_PATH_RE = /^m(?:\/\d+['hH]?)+$/;
+  var DERIVATION_PATH_HINT = 'Informational: this page derives addresses from the final key, not from this path.';
+
   var ID_LABELS = {
     btc_p2pkh: 'Bitcoin legacy (compressed)',
     btc_p2pkh_uncompressed: 'Bitcoin legacy (uncompressed)',
@@ -183,7 +196,10 @@
   var plotEl = byId('curve-plot');
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
-  var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-presets button'));
+  var derivePathInput = byId('derivation-path');
+  var derivePathHint = byId('derivation-path-hint');
+  var copyPathBtn = byId('copy-derivation-path');
+  var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-preset-chips button'));
   var chainButtons = Array.prototype.slice.call(document.querySelectorAll('.key-chain'));
   var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
   var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.key-type'));
@@ -805,16 +821,7 @@
     return row;
   }
 
-  function copyText(text, button) {
-    var original = button.textContent;
-    function done() {
-      button.textContent = 'Copied';
-      button.disabled = true;
-      window.setTimeout(function () {
-        button.textContent = original;
-        button.disabled = false;
-      }, 1200);
-    }
+  function writeClipboard(text, done) {
     function fallback() {
       legacyCopy(text);
       done();
@@ -824,6 +831,42 @@
     } else {
       fallback();
     }
+  }
+
+  function copyText(text, button) {
+    var original = button.textContent;
+    writeClipboard(text, function done() {
+      button.textContent = 'Copied';
+      button.disabled = true;
+      window.setTimeout(function () {
+        button.textContent = original;
+        button.disabled = false;
+      }, 1200);
+    });
+  }
+
+  function copyDerivationPath() {
+    if (!derivePathInput || !copyPathBtn) return;
+    var value = derivePathInput.value.trim();
+    if (!value) {
+      commitDerivationPath();
+      return;
+    }
+    var use = copyPathBtn.querySelector('use');
+    writeClipboard(value, function done() {
+      if (use) use.setAttribute('href', '/icons.svg#ui-check');
+      copyPathBtn.classList.add('is-copied');
+      copyPathBtn.setAttribute('aria-label', 'Derivation path copied');
+      copyPathBtn.setAttribute('title', 'Derivation path copied');
+      copyPathBtn.disabled = true;
+      window.setTimeout(function () {
+        if (use) use.setAttribute('href', '/icons.svg#ui-copy');
+        copyPathBtn.classList.remove('is-copied');
+        copyPathBtn.setAttribute('aria-label', 'Copy derivation path');
+        copyPathBtn.setAttribute('title', 'Copy derivation path');
+        copyPathBtn.disabled = false;
+      }, 1200);
+    });
   }
 
   function legacyCopy(text) {
@@ -932,6 +975,35 @@
     presetEmpty.hidden = visible > 0;
   }
 
+  function clearPathError() {
+    if (!derivePathInput) return;
+    derivePathInput.removeAttribute('aria-invalid');
+    if (!derivePathHint) return;
+    derivePathHint.textContent = DERIVATION_PATH_HINT;
+    derivePathHint.classList.remove('is-error');
+  }
+
+  function commitDerivationPath() {
+    if (!derivePathInput) return;
+    var value = derivePathInput.value.trim();
+    derivePathInput.value = value;
+    if (DERIVATION_PATH_RE.test(value)) {
+      clearPathError();
+      return;
+    }
+    derivePathInput.setAttribute('aria-invalid', 'true');
+    if (derivePathHint) {
+      derivePathHint.textContent = "Use a BIP32 path such as m/44'/0'/0'/0/0.";
+      derivePathHint.classList.add('is-error');
+    }
+  }
+
+  function setDerivationPath(preset) {
+    if (!derivePathInput) return;
+    derivePathInput.value = DERIVATION_PATHS[preset] || DERIVATION_PATHS.all;
+    clearPathError();
+  }
+
   function selectPreset(button) {
     state.preset = button.getAttribute('data-preset');
     var presetSelect = byId('preset-select');
@@ -939,6 +1011,7 @@
     presetButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
+    setDerivationPath(state.preset);
     applyFilters();
     syncBitcoinPanel();
   }
@@ -990,6 +1063,9 @@
       presetButtons.forEach(function (button) {
         button.setAttribute('aria-pressed', String(button.getAttribute('data-preset') === 'all'));
       });
+      var presetSelect = byId('preset-select');
+      if (presetSelect) presetSelect.value = 'all';
+      setDerivationPath('all');
       if (id.indexOf('btc_') === 0) {
         state.chain = 'btc';
         chainButtons.forEach(function (button) {
@@ -1465,10 +1541,6 @@
     return parts.join('');
   }
 
-  function coord(value) {
-    return (Math.round(value * 1000) / 1000).toString();
-  }
-
   function renderCurve() {
     var kind = Number(curveSelect.value) === 0 ? 'secp' : 'ed';
     var dom = plotDomains(kind);
@@ -1491,12 +1563,7 @@
     parts.push('</svg>');
     plotEl.innerHTML = parts.join('');
 
-    var equation = kind === 'secp'
-      ? 'y² = x³ + 7'
-      : 'x² + y² = 1 + d x²y², d = −121665/121666';
-    caption.textContent = 'Real-valued illustration: the ' + (kind === 'secp' ? 'secp256k1' : 'ed25519') +
-      ' shape (' + equation + '), highlighted point x = ' + coord(markerX) + ', y = ' + coord(markerY) +
-      '. Actual key arithmetic is over a finite field, not over the reals.';
+    caption.textContent = 'Real-valued view; keys use finite-field math.';
   }
 
   /* -------------------------------------------------------------- URL key */
@@ -1547,6 +1614,22 @@
   presetButtons.forEach(function (button) {
     button.addEventListener('click', function () { selectPreset(button); });
   });
+
+  if (copyPathBtn) {
+    copyPathBtn.addEventListener('click', copyDerivationPath);
+  }
+
+  if (derivePathInput) {
+    derivePathInput.addEventListener('blur', commitDerivationPath);
+    derivePathInput.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      commitDerivationPath();
+    });
+    derivePathInput.addEventListener('input', function () {
+      if (derivePathInput.getAttribute('aria-invalid') === 'true') clearPathError();
+    });
+  }
 
   chainButtons.forEach(function (button) {
     button.addEventListener('click', function () { selectChain(button); });

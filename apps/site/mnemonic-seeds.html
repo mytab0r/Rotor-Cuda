@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Rotor</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261120b">
-<script src="/theme.js?v=20261120b"></script>
+<link rel="stylesheet" href="/site.css?v=20261121e">
+<script src="/theme.js?v=20261121e"></script>
 <style>
 .mnemonic-directory-only { display: none; }
 body.mnemonic-directory-mode .mnemonic-directory-only { display: block; }
@@ -71,10 +71,27 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
 .mnemonic-row:last-child { border-bottom: 0; }
 .mnemonic-row:hover { background: rgba(255, 255, 255, .022); }
 .mnemonic-seed { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
-.mnemonic-phrase { margin: 0; color: var(--text-2); font-family: var(--mono); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.mnemonic-phrase { display: flex; align-items: flex-start; gap: 4px; margin: 0; color: var(--text-2); font-family: var(--mono); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.mnemonic-phrase-text { flex: 1 1 auto; min-width: 0; }
 .mnemonic-address { display: grid; gap: 4px; min-width: 0; }
+.mnemonic-addr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mnemonic-addr-line .address-link { flex: 1 1 auto; min-width: 0; }
 .mnemonic-address .address-link { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
-.mnemonic-wif { color: var(--accent-2); font-size: 12px; }
+.mnemonic-actions { display: inline-flex; align-items: center; gap: 14px; flex: none; }
+.mnemonic-actions .icon-btn { position: relative; width: 30px; height: 30px; min-height: 0; padding: 0; }
+.mnemonic-key-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mnemonic-key-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; text-transform: uppercase; }
+.mnemonic-key { flex: 1 1 auto; min-width: 0; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
+a.mnemonic-key { color: var(--accent-2); }
+.mnemonic-copy { position: relative; width: 30px; height: 30px; min-height: 0; padding: 0; }
+.mnemonic-copy::before,
+.mnemonic-actions .icon-btn::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 10px;
+}
+.icon-btn.copied { color: var(--ok); }
 .mnemonic-balance { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .mnemonic-balance.has-balance { color: var(--ok); }
 .mnemonic-derive { padding: 12px 18px 16px; display: grid; gap: 8px; }
@@ -245,8 +262,8 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261120b"></script>
-<script src="/mnemonic-seeds.js?v=20261120b"></script>
-<script src="/site.js?v=20261120b"></script>
+<script src="/seed.js?v=20261121e"></script>
+<script src="/mnemonic-seeds.js?v=20261121e"></script>
+<script src="/site.js?v=20261121e"></script>
 </body>
 </html>
