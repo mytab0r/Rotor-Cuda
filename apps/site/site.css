@@ -3235,8 +3235,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .search-chain {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 11px;
@@ -3248,6 +3248,109 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .search-chain .crypto { width: 21px; height: 21px; }
 .global-search-scope { margin: 0; padding: 0 3px; color: var(--muted); font-size: 12px; }
 .global-search { max-height: calc(100vh - 32px); overflow: auto; }
+
+/* Global search: interpret-as, address count and in-place public results */
+.global-search-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.global-search-interpret { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.global-search-interpret select { min-height: 44px; font-size: 13px; }
+.global-search-count { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.global-search-count-label { color: var(--muted); font-size: 12px; }
+.search-count {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.search-count:hover { border-color: var(--border-strong); color: var(--text); }
+.search-count[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+.global-search-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.global-search-results-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.global-search-results-title { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+.global-search-results-meta { color: var(--muted); font-size: 12px; }
+.global-search-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.global-search-table-wrap { overflow-x: auto; }
+.global-search-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.global-search-table th {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.global-search-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: normal; }
+.global-search-table tr:last-child td { border-bottom: 0; }
+.global-search-addr { display: block; font-family: var(--mono); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; word-break: break-all; }
+.global-search-table-actions { display: flex; justify-content: flex-end; gap: 4px; }
+.global-search-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  text-decoration: none;
+}
+.global-search-icon-btn:hover { border-color: var(--border-strong); color: var(--text); }
+.global-search-icon-btn.is-copied { border-color: var(--ok); color: var(--ok); }
+.global-search-icon-btn .icon { width: 15px; height: 15px; }
+.global-search-result-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.global-search-action {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.global-search-action:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 560px) {
+  .global-search-controls { grid-template-columns: minmax(0, 1fr); }
+  .global-search-table thead { display: none; }
+  .global-search-table, .global-search-table tbody { display: block; width: 100%; }
+  .global-search-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .global-search-table tr:last-child { border-bottom: 0; }
+  .global-search-table td { display: block; padding: 0; border: 0; }
+  .global-search-table td[data-label="Chain"] { font-weight: 700; }
+  .global-search-table td[data-label="Type"] { color: var(--muted); }
+  .global-search-table td.global-search-table-actions {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    justify-content: flex-end;
+  }
+}
 
 /* ------------------------------------------------ per-chain generator index */
 .generator-title { margin: 30px 0 12px; font-size: 22px; letter-spacing: -.02em; }
