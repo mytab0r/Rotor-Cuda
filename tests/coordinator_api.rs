@@ -1141,10 +1141,19 @@ fn send_routes_are_served_with_testnet_only_copy() {
             body.contains("id=\"send-key\""),
             "{path} misses the key input"
         );
-        assert!(body.contains("id=\"send-prepare\""), "{path} misses prepare");
+        assert!(
+            body.contains("id=\"send-prepare\""),
+            "{path} misses prepare"
+        );
         assert!(body.contains("/send.js"), "{path} misses /send.js");
-        assert!(body.contains("/wallet-btc.js"), "{path} misses the BTC kernel");
-        assert!(body.contains("/wallet-evm.js"), "{path} misses the EVM kernel");
+        assert!(
+            body.contains("/wallet-btc.js"),
+            "{path} misses the BTC kernel"
+        );
+        assert!(
+            body.contains("/wallet-evm.js"),
+            "{path} misses the EVM kernel"
+        );
     }
 
     let (status, headers, script) = raw(addr, "GET", "/send.js", None, None);
