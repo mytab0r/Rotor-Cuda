@@ -1244,7 +1244,9 @@
     addReviewRow('Value', evmSend.formatUnits(review.valueWei, 18) + ' ETH (' + review.valueWei + ' wei)');
     addReviewRow('Data', review.dataHex, true);
     addReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
-      ? ' (manual; node estimate ' + review.gasEstimate + ')'
+      ? (review.gasEstimate === null || review.gasEstimate === undefined
+        ? ' (manual; node estimate unavailable)'
+        : ' (manual; node estimate ' + review.gasEstimate + ')')
       : ' (eth_estimateGas)'));
     addReviewRow('Nonce', review.nonce.toString());
     addReviewRow('Max fee', evmSend.formatUnits(review.maxFeeWei, 9) + ' gwei (' + review.maxFeeWei + ' wei)');
