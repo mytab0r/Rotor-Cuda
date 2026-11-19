@@ -1695,9 +1695,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261120a\">\n\
-         <script src=\"/theme.js?v=20261120a\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261120a\"></script>\n<script src=\"/site.js?v=20261120a\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261120b\">\n\
+         <script src=\"/theme.js?v=20261120b\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261120b\"></script>\n<script src=\"/site.js?v=20261120b\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2383,8 +2383,8 @@ fn render_brainwallet(base: &str, focus: BrainwalletFocus) -> String {
          <section class=\"card\"><h2>Results</h2>\
          <div id=\"brainwallet-results\" class=\"mono\" data-brain-chain=\"{focus_key}\">Enter a throwaway passphrase and press Derive.</div></section>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261120a\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261120a\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261120b\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261120b\" defer></script>",
         site_header(),
         "",
         heading = focus.heading(),
@@ -2723,7 +2723,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261120a\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261120b\"></script>",
         site_header(),
         "",
         chain.color,
@@ -2797,10 +2797,73 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
 
 fn puzzle_badge(solved: bool) -> String {
     if solved {
-        "<span class=\"puzzle-badge solved\">Solved</span>".to_string()
+        "<span class=\"pz-pill solved\">Solved</span>".to_string()
     } else {
-        "<span class=\"puzzle-badge\">Unsolved</span>".to_string()
+        "<span class=\"pz-pill\">Unsolved</span>".to_string()
     }
+}
+
+/// Classic puzzle funding: puzzle `n` holds `n * 0.1 BTC`.
+///
+/// The 2015 puzzle transaction funds address `n` with `n` tenths of a coin, so
+/// the solved/unsolved split also yields the claimed/remaining prize totals.
+fn puzzle_prize_btc(number: u32) -> f64 {
+    f64::from(number) / 10.0
+}
+
+fn puzzle_prize_sum_btc(solved: bool) -> f64 {
+    puzzles::all()
+        .filter(|item| item.solved == solved)
+        .map(|item| puzzle_prize_btc(item.number))
+        .sum()
+}
+
+fn format_btc(value: f64) -> String {
+    format!("{value:.1} BTC")
+}
+
+fn group_digits(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + value.len() / 3);
+    let len = value.len();
+    for (index, byte) in value.bytes().enumerate() {
+        if index > 0 && (len - index).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(byte as char);
+    }
+    out
+}
+
+/// Number of scalar values in puzzle `n` as grouped decimal digits.
+fn puzzle_keyspace_decimal(number: u32) -> String {
+    let keys = BigUint::from(1u8) << (number - 1);
+    group_digits(&keys.to_string())
+}
+
+fn pz_copy_button(value: &str, label: &str) -> String {
+    format!(
+        "<button type=\"button\" class=\"pz-icon\" data-copy=\"{}\" aria-label=\"Copy {}\" title=\"Copy {}\">{}</button>",
+        escape_attr(value),
+        escape_attr(label),
+        escape_attr(label),
+        ui_icon("ui-copy", "icon")
+    )
+}
+
+fn pz_icon_link(href: &str, label: &str, icon: &str, external: bool) -> String {
+    let extra = if external {
+        " target=\"_blank\" rel=\"noopener noreferrer\""
+    } else {
+        ""
+    };
+    format!(
+        "<a class=\"pz-icon\" href=\"{}\" aria-label=\"{}\" title=\"{}\"{}>{}</a>",
+        escape_attr(href),
+        escape_attr(label),
+        escape_attr(label),
+        extra,
+        ui_icon(icon, "icon")
+    )
 }
 
 fn puzzle_picker(number: u32, tab: &str) -> String {
@@ -2893,20 +2956,93 @@ fn puzzle_tabs(number: u32, active: &str) -> String {
     out
 }
 
-fn puzzle_unsolved_grid() -> String {
-    let mut out = String::from("<div class=\"puzzle-grid\">");
-    for item in puzzles::all().filter(|item| !item.solved) {
-        out.push_str(&format!(
-            "<a class=\"puzzle-chip\" href=\"/bitcoin-puzzle/{0}/random\">\
-             <span class=\"puzzle-chip-number\">#{0}</span>\
-             <code class=\"puzzle-chip-target\">{1}</code>\
-             <span class=\"puzzle-chip-meta\">{0}-bit range · unsolved</span></a>",
-            item.number,
-            escape_attr(item.target)
-        ));
+fn puzzle_row(item: puzzles::Puzzle) -> String {
+    let (start_hex, end_hex) = puzzles::range_hex(item.number).expect("puzzle range");
+    let bits = item.number - 1;
+    let solved = if item.solved { "true" } else { "false" };
+    let status_word = if item.solved { "solved" } else { "unsolved" };
+    let search = format!(
+        "{} {} {}",
+        item.number,
+        item.target.to_lowercase(),
+        status_word
+    );
+    format!(
+        "<tr data-puzzle-row data-solved=\"{solved}\" data-search=\"{search}\">\
+         <td data-label=\"Puzzle\" class=\"pz-num\">#{number}</td>\
+         <td data-label=\"Status\">{status}</td>\
+         <td data-label=\"Address\" class=\"pz-addr\"><span class=\"pz-cell\"><code>{target}</code>{copy}</span></td>\
+         <td data-label=\"Range\" class=\"pz-range\" title=\"2^{bits} .. 2^{number} - 1\">\
+         <span class=\"pz-cell pz-range-stack\">\
+         <span class=\"pz-range-text\">2<sup>{bits}</sup>–2<sup>{number}</sup>−1</span>\
+         <span class=\"pz-range-hex\">{start_short}…{end_short}</span></span></td>\
+         <td data-label=\"Balance\" class=\"pz-balance\" data-balance-address=\"{target}\">—</td>\
+         <td data-label=\"TX\" class=\"pz-tx\"><a class=\"pz-tx-link\" data-tx-address=\"{target}\" \
+         href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">—</a></td>\
+         <td data-label=\"Actions\" class=\"pz-actions\"><span class=\"pz-cell pz-actions-stack\">\
+         <a class=\"pz-link\" href=\"/bitcoin-puzzle/{number}/detail\">Detail</a>\
+         <a class=\"pz-link\" href=\"/bitcoin-puzzle/{number}/random\">Random</a></span></td>\
+         </tr>",
+        solved = solved,
+        search = escape_attr(&search),
+        number = item.number,
+        status = puzzle_badge(item.solved),
+        target = escape_attr(item.target),
+        copy = pz_copy_button(item.target, "address"),
+        bits = bits,
+        start_short = &start_hex[48..],
+        end_short = &end_hex[48..],
+    )
+}
+
+fn puzzle_table(only_unsolved: bool) -> String {
+    let mut rows = String::new();
+    for item in puzzles::all().filter(|item| !only_unsolved || !item.solved) {
+        rows.push_str(&puzzle_row(item));
     }
-    out.push_str("</div>");
-    out
+    format!(
+        "<div class=\"pz-table-wrap\"><table class=\"pz-table\" aria-label=\"Bitcoin puzzles\">\
+         <thead><tr>\
+         <th scope=\"col\">#</th>\
+         <th scope=\"col\">Status</th>\
+         <th scope=\"col\">Address</th>\
+         <th scope=\"col\">Range</th>\
+         <th scope=\"col\">Balance</th>\
+         <th scope=\"col\">TX</th>\
+         <th scope=\"col\">Actions</th>\
+         </tr></thead><tbody data-puzzle-rows>{rows}</tbody></table></div>\
+         <p class=\"pz-empty\" data-puzzle-empty hidden>No puzzles match this filter.</p>"
+    )
+}
+
+fn puzzle_filter_bar(total: usize, solved: usize, unsolved: usize) -> String {
+    format!(
+        "<div class=\"pz-toolbar\">\
+         <div class=\"pz-seg\" role=\"group\" aria-label=\"Filter puzzles\">\
+         <button type=\"button\" class=\"pz-seg-btn active\" data-puzzle-filter=\"all\" aria-pressed=\"true\">All <span>{total}</span></button>\
+         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-filter=\"solved\" aria-pressed=\"false\">Solved <span>{solved}</span></button>\
+         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-filter=\"unsolved\" aria-pressed=\"false\">Unsolved <span>{unsolved}</span></button>\
+         </div>\
+         <label class=\"pz-search\">{icon}<span class=\"pz-visually-hidden\">Search puzzles</span>\
+         <input type=\"search\" data-puzzle-search placeholder=\"Search #, address or status\" autocomplete=\"off\" spellcheck=\"false\"></label>\
+         </div>",
+        icon = ui_icon("ui-search", "icon"),
+    )
+}
+
+fn puzzle_stat(label: &str, value: &str, note: &str) -> String {
+    format!(
+        "<div class=\"pz-stat\"><span class=\"pz-stat-label\">{label}</span>\
+         <span class=\"pz-stat-value\">{value}</span>\
+         <span class=\"pz-stat-note\">{note}</span></div>"
+    )
+}
+
+fn puzzle_picker_card(number: u32, tab: &str) -> String {
+    format!(
+        "<section class=\"card pz-picker-card\"><h2>Jump to a puzzle</h2>{}</section>",
+        puzzle_picker(number, tab)
+    )
 }
 
 /// Default `<title>` in the embedded mnemonic seed shell. Chain pages swap it
@@ -3053,7 +3189,7 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
 fn render_puzzle_home(base: &str) -> String {
     let canonical = format!("{base}/bitcoin-puzzle");
     let title = "Bitcoin puzzle browser — client-side key search | Rotor";
-    let description = "Browse all 160 public Bitcoin puzzles with target address, key range, balance and split presets. Scan a puzzle range locally in your browser with WebAssembly; the pooled team mode stays separate.";
+    let description = "Browse all 160 public Bitcoin puzzles in one table: target address, key range, live balance and transaction count. Filter solved and unsolved puzzles and scan a range locally in your browser with WebAssembly.";
     let ld_app = json!({
         "@context": "https://schema.org",
         "@type": "WebApplication",
@@ -3076,17 +3212,64 @@ fn render_puzzle_home(base: &str) -> String {
     let head = hub_head(&canonical, title, description, &[ld_app, ld_crumbs]);
     let crumbs = breadcrumb_nav(&[("Home", Some("/")), ("Bitcoin Puzzle", None)]);
     let solved = puzzles::all().filter(|item| item.solved).count();
-    let unsolved = puzzles::PUZZLE_COUNT as usize - solved;
+    let total = puzzles::PUZZLE_COUNT as usize;
+    let unsolved = total - solved;
+    let claimed = puzzle_prize_sum_btc(true);
+    let left = puzzle_prize_sum_btc(false);
+    let lowest_unsolved = puzzles::all()
+        .find(|item| !item.solved)
+        .map(|item| item.number)
+        .unwrap_or(1);
+    let stats = format!(
+        "{}{}{}{}",
+        puzzle_stat(
+            "BTC claimed",
+            &format_btc(claimed),
+            "sum of solved puzzle prizes"
+        ),
+        puzzle_stat(
+            "BTC left",
+            &format_btc(left),
+            "still locked in unsolved targets"
+        ),
+        puzzle_stat("Solved", &solved.to_string(), "targets already spent"),
+        puzzle_stat("Unsolved", &unsolved.to_string(), "still open to search"),
+    );
     let body = format!(
-        "{}{crumbs}<main class=\"key-page\">\
-         <section class=\"hero\"><h1>Bitcoin Puzzle</h1>\
-         <p>Pick any public puzzle from #1 to #160 and scan its key range in your browser. Random and sequential modes run locally with WebAssembly; no private key or scan result leaves the page.</p>\
-         <div class=\"actions\"><a class=\"button primary\" href=\"/bitcoin-puzzle/71/random\">Random Keys · Puzzle #71</a><a class=\"button\" href=\"#team\">Pooled team mode</a></div></section>\
-         <section class=\"card\"><h2>Puzzle selector</h2>{picker}\
-         <p class=\"puzzle-note\">Puzzle n covers the inclusive range 2^(n-1) to 2^n-1. The embedded target list contains {known} solved and {unsolved} unsolved puzzles, sourced from the public puzzle dataset (privatekeyfinder.io, crawled 2026-11-19).</p>\
-         {tabs}</section>\
-         <section class=\"card\" id=\"unsolved\"><h2>Unsolved puzzles</h2>\
-         <p class=\"puzzle-note\">Every puzzle below is still unsolved according to the public dataset. Open one to inspect its range or start a local random scan.</p>{grid}</section>\
+        "{}{crumbs}<main class=\"key-page puzzle-page\">\
+         <section class=\"puzzle-hero\">\
+         <div class=\"puzzle-hero-copy\">\
+         <span class=\"pz-eyebrow\">Public puzzle #1–#160</span>\
+         <h1>Bitcoin Puzzle</h1>\
+         <p>Every public puzzle in one table. Compare the target, range and on-chain balance, open a puzzle for detail, or start a random or sequential scan of its key range — all in your browser with WebAssembly. No private key or scan result leaves the page.</p>\
+         <div class=\"puzzle-hero-actions\">\
+         <a class=\"btn primary\" href=\"/bitcoin-puzzle/{lowest_unsolved}/random\">Start hunting · #{lowest_unsolved}</a>\
+         <a class=\"btn\" href=\"#puzzles\">Browse all {total}</a>\
+         </div></div>\
+         <div class=\"pz-stats\">{stats}</div></section>\
+         <div class=\"pz-intro\">\
+         <section class=\"card\"><h2>What is a Bitcoin puzzle?</h2>\
+         <p>Each puzzle is a public Bitcoin address whose private key sits inside a known bit range. Puzzle n covers every key from 2^(n−1) to 2^n−1, so the search space doubles with every step. A match is the single key whose public key hashes to the target address.</p>\
+         <p class=\"puzzle-note\">The embedded target list contains {solved} solved and {unsolved} unsolved puzzles, sourced from the public dataset (privatekeyfinder.io, crawled 2026-11-19). Prize totals assume the classic n × 0.1 BTC funding.</p></section>\
+         <section class=\"card\"><h2>Popular tools</h2>\
+         <div class=\"pz-tools\">\
+         <a class=\"pz-tool\" href=\"/private-keys\"><span>Private key browser</span><small>Derive addresses chain by chain</small></a>\
+         <a class=\"pz-tool\" href=\"/brainwallet\"><span>Brainwallet auditor</span><small>Test passphrase-derived keys</small></a>\
+         <a class=\"pz-tool\" href=\"/mnemonic-seeds\"><span>Mnemonic seeds</span><small>Browse BIP39 phrases and paths</small></a>\
+         <a class=\"pz-tool\" href=\"/vanity\"><span>Vanity generator</span><small>Search for a readable prefix</small></a>\
+         <a class=\"pz-tool\" href=\"/tools\"><span>All key tools</span><small>WIF, hex, decimal and more</small></a>\
+         <a class=\"pz-tool\" href=\"/run\"><span>Run a worker</span><small>Scan leased chunks for the pool</small></a>\
+         </div></section></div>\
+         {picker}\
+         <section class=\"puzzle-cta\">\
+         <div><h2>Ready to hunt?</h2><p>Open the lowest unsolved puzzle and scan its range locally.</p></div>\
+         <a class=\"btn primary\" href=\"/bitcoin-puzzle/{lowest_unsolved}/random\">Start Hunting · #{lowest_unsolved}</a>\
+         </section>\
+         <section class=\"card\" id=\"puzzles\">\
+         <div class=\"pz-section-head\"><div><h2>All puzzles</h2>\
+         <p class=\"puzzle-note\">Balances and transaction counts load live from mempool.space as rows scroll into view. Range is the inclusive bit span of each puzzle.</p></div>\
+         <span class=\"pz-live\">live via mempool.space</span></div>\
+         {filters}{table}</section>\
          <section class=\"card\" id=\"team\"><h2>Team mode — pooled chunk leasing</h2>\
          <p>Team mode is Rotor's coordinator pool: a job is split into fixed-size chunks, each contributor leases one chunk and scans it on their own hardware. A worker receives only its slice of the range, and an expired lease returns the chunk to the pool. This is separate from the local puzzle browser above; the two never mix in one run.</p>\
          <h3>Live public jobs</h3>\
@@ -3098,11 +3281,14 @@ fn render_puzzle_home(base: &str) -> String {
          <script src=\"/puzzle-browser.js\" defer></script>\
          <script src=\"/puzzle.js\" defer></script>",
         site_header(),
-        picker = puzzle_picker(71, "random"),
-        known = solved,
+        solved = solved,
         unsolved = unsolved,
-        tabs = puzzle_tabs(71, "home"),
-        grid = puzzle_unsolved_grid()
+        total = total,
+        lowest_unsolved = lowest_unsolved,
+        stats = stats,
+        picker = puzzle_picker_card(lowest_unsolved, "random"),
+        filters = puzzle_filter_bar(total, solved, unsolved),
+        table = puzzle_table(false),
     );
     html_document(title, &head, &body)
 }
@@ -3138,20 +3324,46 @@ fn render_puzzle_unsolved(base: &str) -> String {
         ("Unsolved", None),
     ]);
     let unsolved = puzzles::all().filter(|item| !item.solved).count();
+    let solved = puzzles::PUZZLE_COUNT as usize - unsolved;
     let body = format!(
-        "{}{crumbs}<main class=\"key-page\">\
-         <section class=\"hero\"><h1>Unsolved Bitcoin puzzles</h1>\
-         <p>There are {unsolved} unsolved puzzles in the public #1–#160 set. Each card links to a local browser scan for that puzzle's key range.</p></section>\
-         <section class=\"card\">{picker}{tabs}\
-         <p class=\"puzzle-note\">Ranges follow 2^(n-1) to 2^n-1. A puzzle leaves this list when its target address is spent; the embedded status comes from the public dataset (privatekeyfinder.io, crawled 2026-11-19).</p>{grid}</section>\
+        "{}{crumbs}<main class=\"key-page puzzle-page\">\
+         <section class=\"puzzle-hero puzzle-hero-compact\">\
+         <div class=\"puzzle-hero-copy\"><span class=\"pz-eyebrow\">Public puzzle #1–#160</span>\
+         <h1>Unsolved Bitcoin puzzles</h1>\
+         <p>{unsolved} puzzles in the public set are still unsolved. Their targets and ranges are listed below; open one to inspect it or start a local browser scan.</p>\
+         <div class=\"puzzle-hero-actions\"><a class=\"btn\" href=\"/bitcoin-puzzle\">Back to all {total}</a></div></div>\
+         <div class=\"pz-stats\">{unsolved_stat}{solved_stat}{claimed_stat}</div></section>\
+         {picker}\
+         <section class=\"card\" id=\"puzzles\">\
+         <div class=\"pz-section-head\"><div><h2>Unsolved targets</h2>\
+         <p class=\"puzzle-note\">Ranges follow 2^(n−1) to 2^n−1. A puzzle leaves this list when its target address is spent; balances load live from mempool.space as rows scroll into view.</p></div>\
+         <span class=\"pz-live\">live via mempool.space</span></div>\
+         <div class=\"pz-toolbar\"><div></div><label class=\"pz-search\">{icon}<span class=\"pz-visually-hidden\">Search unsolved puzzles</span>\
+         <input type=\"search\" data-puzzle-search placeholder=\"Search # or address\" autocomplete=\"off\" spellcheck=\"false\"></label></div>\
+         {table}</section>\
          </main>\
          <script src=\"/puzzle-browser.js\" defer></script>",
         site_header(),
-        picker = puzzle_picker(71, "random"),
-        tabs = puzzle_tabs(71, "unsolved"),
-        grid = puzzle_unsolved_grid()
+        unsolved = unsolved,
+        total = puzzles::PUZZLE_COUNT,
+        unsolved_stat = puzzle_stat("Unsolved", &unsolved.to_string(), "still open to search"),
+        solved_stat = puzzle_stat("Solved", &solved.to_string(), "already spent"),
+        claimed_stat = puzzle_stat(
+            "BTC left",
+            &format_btc(puzzle_prize_sum_btc(false)),
+            "still locked in these targets"
+        ),
+        picker = puzzle_picker_card(71, "random"),
+        icon = ui_icon("ui-search", "icon"),
+        table = puzzle_table(true),
     );
     html_document(title, &head, &body)
+}
+
+fn puzzle_fact(label: &str, value: &str) -> String {
+    format!(
+        "<div class=\"pz-fact\"><span class=\"pz-k\">{label}</span><span class=\"pz-v\">{value}</span></div>"
+    )
 }
 
 fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
@@ -3173,7 +3385,7 @@ fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
         )
     } else {
         format!(
-            "Puzzle #{number} detail: target {}, inclusive key range, balance and explorer links. The search runs locally in the browser.",
+            "Puzzle #{number} detail: target {}, inclusive key range, decimal key space, balance and explorer links. The search runs locally in the browser.",
             item.target
         )
     };
@@ -3219,82 +3431,197 @@ fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
             "Puzzle #{number} is unsolved. The target below is the only match; everything else in the range is noise."
         )
     };
-    let solved_pct = if item.solved { 100 } else { 0 };
-    let status_progress = if item.solved {
+
+    let header = format!(
+        "<section class=\"card puzzle-head\">\
+         <div class=\"puzzle-head-row\"><div><span class=\"pz-eyebrow\">Puzzle #{number}</span>\
+         <h1>Bitcoin Puzzle #{number}</h1>\
+         <p class=\"puzzle-note\">{status_sentence}</p></div>{status}</div>\
+         {picker}{tabs}</section>",
+        number = number,
+        status_sentence = status_sentence,
+        status = status,
+        picker = puzzle_picker(number, view),
+        tabs = puzzle_tabs(number, view),
+    );
+
+    let content = if random {
+        render_puzzle_random(number, item.target, &start_hex, &end_hex, item.solved)
+    } else {
+        render_puzzle_detail(number, item.target, &start_hex, &end_hex, item.solved)
+    };
+
+    let body = format!(
+        "{}{crumbs}<main class=\"key-page puzzle-page\">{header}{content}</main>\
+         <script src=\"/puzzle-browser.js\" defer></script>",
+        site_header(),
+    );
+    html_document(&title, &head, &body)
+}
+
+fn render_puzzle_detail(
+    number: u32,
+    target: &str,
+    start_hex: &str,
+    end_hex: &str,
+    solved: bool,
+) -> String {
+    let bits = number - 1;
+    let status = puzzle_badge(solved);
+    let solved_pct = if solved { 100 } else { 0 };
+    let status_progress = if solved {
         "Solved: the target address is spent. Global search progress is not published, so this bar shows the solved / unsolved status only."
     } else {
         "Unsolved: the target address still holds the prize. Global search progress is not published; Random Keys shows the progress of your own local run."
     };
-
-    let detail = format!(
-        "<section class=\"card\" data-puzzle-target=\"{target}\"><h2>Puzzle detail</h2>\
-         <div class=\"puzzle-facts\">\
-         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Target address</span><code class=\"puzzle-fact-value\">{target}</code></div>\
-         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Balance</span><strong class=\"puzzle-fact-value\" data-puzzle-balance>—</strong><span class=\"puzzle-fact-note\" data-puzzle-balance-state>loading via mempool.space</span></div>\
-         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Range start</span><code class=\"puzzle-fact-value mono\">{start_hex}</code></div>\
-         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Range end</span><code class=\"puzzle-fact-value mono\">{end_hex}</code></div>\
-         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Range size</span><strong class=\"puzzle-fact-value\">2^{bits} keys</strong></div>\
-         <div class=\"puzzle-fact\"><span class=\"puzzle-fact-label\">Status</span><span class=\"puzzle-fact-value\">{status}</span></div>\
-         </div>\
+    let facts = format!(
+        "{}{}{}{}{}{}{}{}",
+        puzzle_fact(
+            "Target address",
+            &format!(
+                "<code class=\"pz-mono\">{}</code>{}",
+                escape_attr(target),
+                pz_copy_button(target, "target address")
+            )
+        ),
+        puzzle_fact("Status", &status),
+        puzzle_fact(
+            "Range start",
+            &format!(
+                "<code class=\"pz-mono\">{start_hex}</code>{}",
+                pz_copy_button(start_hex, "range start")
+            )
+        ),
+        puzzle_fact(
+            "Range end",
+            &format!(
+                "<code class=\"pz-mono\">{end_hex}</code>{}",
+                pz_copy_button(end_hex, "range end")
+            )
+        ),
+        puzzle_fact(
+            "Difficulty",
+            &format!(
+                "<strong>2<sup>{bits}</sup> keys</strong><span class=\"pz-sub\">{bits}-bit scalar space</span>"
+            )
+        ),
+        puzzle_fact(
+            "Key space",
+            &format!(
+                "<code class=\"pz-mono pz-wrap\">{}</code>",
+                puzzle_keyspace_decimal(number)
+            )
+        ),
+        puzzle_fact(
+            "Balance",
+            "<strong data-puzzle-balance>—</strong><span class=\"pz-sub\" data-puzzle-balance-state>loading via mempool.space</span><button type=\"button\" class=\"pz-mini\" data-puzzle-check>Check</button>"
+        ),
+        puzzle_fact(
+            "Transactions",
+            &format!(
+                "<a data-tx-address=\"{target}\" href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">mempool.space</a><span class=\"pz-sub\">live transaction count</span>"
+            )
+        ),
+    );
+    format!(
+        "<section class=\"card\" data-puzzle-target=\"{target}\">\
+         <div class=\"pz-section-head\"><div><h2>Puzzle facts</h2>\
+         <p class=\"puzzle-note\">Copy any value with the icon next to it. Balance is read from mempool.space for this public address; the page never sends a private key or scan result.</p></div>\
+         <div class=\"pz-icon-row\">\
+         {blockchain}{mempool}</div></div>\
+         <div class=\"pz-facts\">{facts}</div>\
          <div class=\"puzzle-progress\"><div class=\"progress\" role=\"img\" aria-label=\"Puzzle solved status\"><span class=\"bar\" style=\"width:{solved_pct}%\"></span></div>\
          <p class=\"puzzle-progress-text\">{status_progress}</p></div>\
-         <p class=\"puzzle-actions\"><a class=\"button primary\" href=\"/bitcoin-puzzle/{number}/random\">Open Random Keys</a>\
-         <a class=\"button\" href=\"https://www.blockchain.com/btc/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">Blockchain</a>\
-         <a class=\"button\" href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">Mempool</a>\
-         <button type=\"button\" data-puzzle-check>Check</button></p>\
-         <p class=\"puzzle-note\">The balance line is read from mempool.space for this public puzzle address. The page never sends a private key or scan result.</p></section>\
+         <div class=\"pz-actions-row\">\
+         <a class=\"btn primary\" href=\"/bitcoin-puzzle/{number}/random\">Open Random Keys</a>\
+         <a class=\"btn\" href=\"/private-keys/bitcoin?key={start_hex}\">Derive start key</a>\
+         </div></section>\
          <section class=\"card\"><h2>How this range works</h2>\
-         <p class=\"puzzle-note\">Puzzle n spans every private key from 2^(n-1) to 2^n-1, so puzzle #{number} covers {bits} bits. A valid match is the single key whose public key hashes to the target address; every other key in the range is discarded.</p>\
+         <p class=\"puzzle-note\">Puzzle n spans every private key from 2^(n−1) to 2^n−1, so puzzle #{number} covers {bits} bits. A valid match is the single key whose public key hashes to the target address; every other key in the range is discarded.</p>\
          <p class=\"puzzle-note\">Splits only narrow the search window. They do not change the target, the range formula, or the difficulty per tested key.</p></section>",
-        target = escape_attr(item.target),
-        start_hex = start_hex,
-        end_hex = end_hex,
-        bits = number - 1,
-        status = status,
+        target = escape_attr(target),
+        blockchain = pz_icon_link(
+            &format!("https://www.blockchain.com/btc/address/{target}"),
+            "Open target on Blockchain.com",
+            "ui-blockchain",
+            true
+        ),
+        mempool = pz_icon_link(
+            &format!("https://mempool.space/address/{target}"),
+            "Open target on mempool.space",
+            "ui-mempool",
+            true
+        ),
+        facts = facts,
         solved_pct = solved_pct,
         status_progress = status_progress,
-        number = number
-    );
+        number = number,
+        start_hex = start_hex,
+    )
+}
 
-    let presets = "<div class=\"puzzle-presets\" role=\"group\" aria-label=\"Range presets\">\
+fn render_puzzle_random(
+    number: u32,
+    target: &str,
+    start_hex: &str,
+    end_hex: &str,
+    solved: bool,
+) -> String {
+    let mut worker_options = String::new();
+    for count in 1..=8 {
+        let selected = if count == 1 { " selected" } else { "" };
+        worker_options.push_str(&format!(
+            "<option value=\"{count}\"{selected}>{count}</option>"
+        ));
+    }
+    let presets = "<div class=\"pz-presets\" role=\"group\" aria-label=\"Range presets\">\
          <button type=\"button\" class=\"active\" data-range-preset=\"full\">Full</button>\
-         <button type=\"button\" data-range-preset=\"first\">1st Half</button>\
-         <button type=\"button\" data-range-preset=\"second\">2nd Half</button>\
+         <button type=\"button\" data-range-preset=\"first\">1st half</button>\
+         <button type=\"button\" data-range-preset=\"second\">2nd half</button>\
          <button type=\"button\" data-range-preset=\"q1\">Q1</button>\
          <button type=\"button\" data-range-preset=\"q2\">Q2</button>\
          <button type=\"button\" data-range-preset=\"q3\">Q3</button>\
          <button type=\"button\" data-range-preset=\"q4\">Q4</button>\
          </div>";
-    let worker = format!(
+    format!(
         "<section class=\"card puzzle-app\" data-puzzle-app data-puzzle-number=\"{number}\" data-puzzle-target=\"{target}\" data-puzzle-start=\"{start_hex}\" data-puzzle-end=\"{end_hex}\" data-puzzle-solved=\"{solved}\">\
-         <h2>Random keys — browser scan</h2>\
-         <p class=\"puzzle-balance-line\">Target balance <strong data-puzzle-balance>—</strong> <span class=\"puzzle-fact-note\" data-puzzle-balance-state>loading via mempool.space</span></p>\
-         <p class=\"puzzle-note\">The scan uses the Rotor WebAssembly core in local Web Workers. Keys are generated, tested and discarded inside this tab; the optional balance check only reads this public target address.</p>\
-         <div class=\"puzzle-controls\">\
-         <label>Mode <select data-puzzle-mode><option value=\"random\" selected>Solo Random</option><option value=\"seq\">Solo Seq</option><option value=\"team\">Team</option></select></label>\
-         <label>Workers <input type=\"number\" min=\"1\" max=\"8\" step=\"1\" value=\"1\" inputmode=\"numeric\" data-puzzle-workers></label>\
-         </div>\
-         {presets}\
-         <div class=\"puzzle-range\">\
+         <div class=\"pz-app-head\"><div><h2>Random keys — local WASM scan</h2>\
+         <p class=\"puzzle-note\">The scan generates keys inside the selected range, hashes them with the Rotor WebAssembly core and discards every miss. Nothing is uploaded; the optional balance check only reads this public target address.</p></div>\
+         <span class=\"pz-wasm\" data-puzzle-wasm>idle</span></div>\
+         <div class=\"pz-target-row\"><span class=\"pz-k\">Target</span>\
+         <code class=\"pz-mono\">{target}</code>{copy}{blockchain}{mempool}\
+         <span class=\"pz-target-balance\"><span class=\"pz-k\">Balance</span>\
+         <strong data-puzzle-balance>—</strong>\
+         <span class=\"pz-sub\" data-puzzle-balance-state>loading via mempool.space</span></span></div>\
+         <div class=\"pz-range-row\">\
          <label>Range start <input class=\"mono\" data-puzzle-start-input value=\"{start_hex}\" spellcheck=\"false\" autocomplete=\"off\" aria-label=\"Range start in hex\"></label>\
          <label>Range end <input class=\"mono\" data-puzzle-end-input value=\"{end_hex}\" spellcheck=\"false\" autocomplete=\"off\" aria-label=\"Range end in hex\"></label>\
          </div>\
-         <div class=\"puzzle-actions\">\
+         {presets}\
+         <div class=\"pz-control-row\">\
+         <button type=\"button\" data-puzzle-resume-btn disabled title=\"Restore the last range saved in this browser\">Resume</button>\
+         <button type=\"button\" data-puzzle-reset-btn>Reset</button>\
+         <button type=\"button\" data-puzzle-check>Check balance</button>\
+         </div>\
+         <div class=\"pz-control-row pz-run-row\">\
+         <div class=\"pz-seg\" role=\"group\" aria-label=\"Scan mode\">\
+         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-mode data-mode-value=\"team\" aria-pressed=\"false\">Team</button>\
+         <button type=\"button\" class=\"pz-seg-btn active\" data-puzzle-mode data-mode-value=\"random\" aria-pressed=\"true\">Solo Random</button>\
+         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-mode data-mode-value=\"seq\" aria-pressed=\"false\">Solo Seq</button>\
+         </div>\
+         <label class=\"pz-inline\">Workers <select data-puzzle-workers>{worker_options}</select></label>\
          <button type=\"button\" class=\"primary\" data-puzzle-start-btn>Start</button>\
          <button type=\"button\" data-puzzle-stop-btn disabled>Stop</button>\
-         <button type=\"button\" data-puzzle-reset-btn>Reset</button>\
-         <button type=\"button\" data-puzzle-check>Check</button>\
          </div>\
          <p class=\"puzzle-state\" data-puzzle-state role=\"status\" aria-live=\"polite\">Ready. Press Start or Space.</p>\
          <div class=\"puzzle-team-note\" data-puzzle-team-note hidden>Team mode is the coordinator pool, not this local scan. <a href=\"/bitcoin-puzzle#team\">Open the pooled job board</a> or <a href=\"/run\">run a lease worker</a>. Local and leased work never mix.</div>\
-         <div class=\"stat-grid puzzle-counters\">\
-         <div class=\"stat\"><span class=\"stat-label\">Generated</span><span class=\"stat-value small\" data-puzzle-generated>0</span></div>\
-         <div class=\"stat\"><span class=\"stat-label\">Speed /s</span><span class=\"stat-value small\" data-puzzle-speed>0</span></div>\
-         <div class=\"stat\"><span class=\"stat-label\">Workers</span><span class=\"stat-value small\" data-puzzle-worker-count>0</span></div>\
-         <div class=\"stat\"><span class=\"stat-label\">WASM</span><span class=\"stat-value small\" data-puzzle-wasm>loading</span></div>\
-         <div class=\"stat\"><span class=\"stat-label\">Match</span><span class=\"stat-value small\" data-puzzle-match-count>0</span></div>\
-         <div class=\"stat\"><span class=\"stat-label\">ETA</span><span class=\"stat-value small\" data-puzzle-eta>—</span></div>\
-         <div class=\"stat\"><span class=\"stat-label\">Network /s</span><span class=\"stat-value small\" data-puzzle-network title=\"Local-only scan; nothing is uploaded.\">0 · local</span></div>\
+         <div class=\"pz-metrics\">\
+         <div class=\"pz-metric\"><span class=\"pz-k\">Generated</span><strong data-puzzle-generated>0</strong></div>\
+         <div class=\"pz-metric\"><span class=\"pz-k\">Speed</span><strong><span data-puzzle-speed>0</span> <small>keys/s</small></strong></div>\
+         <div class=\"pz-metric\"><span class=\"pz-k\">Workers</span><strong data-puzzle-worker-count>0</strong></div>\
+         <div class=\"pz-metric\"><span class=\"pz-k\">Match</span><strong data-puzzle-match-count>0</strong></div>\
+         <div class=\"pz-metric\"><span class=\"pz-k\">ETA</span><strong data-puzzle-eta>—</strong></div>\
+         <div class=\"pz-metric\"><span class=\"pz-k\">Network</span><strong data-puzzle-network title=\"Local-only scan; nothing is uploaded.\">0 · local</strong></div>\
          </div>\
          <div class=\"puzzle-progress\"><div class=\"progress\" role=\"progressbar\" aria-label=\"Local scan progress\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"0\" data-puzzle-progress-bar><span class=\"bar\" data-puzzle-progress style=\"width:0%\"></span></div>\
          <p class=\"puzzle-progress-text\" data-puzzle-progress-text>No keys scanned yet.</p></div>\
@@ -3303,34 +3630,41 @@ fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
          <p class=\"puzzle-match-target\">Target <code>{target}</code></p>\
          <div class=\"puzzle-match-key\"><span>Private key</span><code data-puzzle-match-key></code><button type=\"button\" data-puzzle-copy>Copy</button></div>\
          <p class=\"puzzle-note\">The key stayed in this browser. Verify it against the target before using it anywhere.</p>\
-         </div></section>",
+         </div>\
+         <section class=\"pz-community\" data-puzzle-community aria-live=\"polite\">\
+         <div class=\"pz-section-head\"><div><h3>Community hunt</h3>\
+         <p class=\"puzzle-note\">Shared coordinator-pool progress from <code>/api/v1/summary</code>. It is separate from this local scan.</p></div></div>\
+         <p class=\"puzzle-state\" data-puzzle-community-state>Loading coordinator summary…</p>\
+         <div class=\"pz-community-stats\" data-puzzle-community-stats hidden></div></section>\
+         <section class=\"pz-results\">\
+         <div class=\"pz-section-head\"><div><h3>Live generated keys</h3>\
+         <p class=\"puzzle-note\">Sampled keys derived locally by the WASM core, newest first. Balances are not checked per sample; a row is marked Match only when it equals the target.</p></div>\
+         <span class=\"pz-live\" data-puzzle-results-count>0 rows</span></div>\
+         <div class=\"pz-table-wrap\"><table class=\"pz-table pz-results-table\" aria-label=\"Generated keys\">\
+         <thead><tr><th scope=\"col\">#</th><th scope=\"col\">Private key</th><th scope=\"col\">Address</th><th scope=\"col\">Balance</th><th scope=\"col\">Received</th><th scope=\"col\">Match</th></tr></thead>\
+         <tbody data-puzzle-results></tbody></table></div>\
+         <p class=\"pz-empty\" data-puzzle-results-empty>No sampled keys yet. Start a scan to fill this table.</p></section>\
+         </section>",
         number = number,
-        target = escape_attr(item.target),
+        target = escape_attr(target),
+        copy = pz_copy_button(target, "target address"),
+        blockchain = pz_icon_link(
+            &format!("https://www.blockchain.com/btc/address/{target}"),
+            "Open target on Blockchain.com",
+            "ui-blockchain",
+            true
+        ),
+        mempool = pz_icon_link(
+            &format!("https://mempool.space/address/{target}"),
+            "Open target on mempool.space",
+            "ui-mempool",
+            true
+        ),
         start_hex = start_hex,
         end_hex = end_hex,
-        solved = item.solved,
-        presets = presets
-    );
-
-    let content = if random { worker } else { detail };
-    let body = format!(
-        "{}{crumbs}<main class=\"key-page\">\
-         <section class=\"card puzzle-head\">\
-         <div class=\"puzzle-head-row\"><div><h1>Bitcoin Puzzle #{number}</h1>\
-         <p class=\"puzzle-note\">{status_sentence}</p></div>{status}</div>\
-         {picker}{tabs}</section>\
-         {content}\
-         </main>\
-         <script src=\"/puzzle-browser.js\" defer></script>",
-        site_header(),
-        number = number,
-        status_sentence = status_sentence,
-        status = status,
-        picker = puzzle_picker(number, view),
-        tabs = puzzle_tabs(number, view),
-        content = content
-    );
-    html_document(&title, &head, &body)
+        presets = presets,
+        worker_options = worker_options,
+    )
 }
 
 fn hub_head(
@@ -4142,7 +4476,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261120a"),
+                page.contains("/theme.js?v=20261120b"),
                 "{path} does not load the theme script"
             );
         }
@@ -4184,8 +4518,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261120a\"></script>"));
-        assert!(page.contains("/site.css?v=20261120a"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261120b\"></script>"));
+        assert!(page.contains("/site.css?v=20261120b"));
     }
 
     #[test]
@@ -4384,10 +4718,10 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-results\""));
         assert!(body.contains("data-brain-chain=\"all\""));
         assert!(
-            body.contains("<script src=\"/brainwallet-engine.js?v=20261120a\" defer></script>")
+            body.contains("<script src=\"/brainwallet-engine.js?v=20261120b\" defer></script>")
         );
-        assert!(body.contains("<script src=\"/brainwallet.js?v=20261120a\" defer></script>"));
-        assert!(body.contains("/theme.js?v=20261120a"));
+        assert!(body.contains("<script src=\"/brainwallet.js?v=20261120b\" defer></script>"));
+        assert!(body.contains("/theme.js?v=20261120b"));
         assert!(body.contains("Brainwallets are unsafe"));
         // No server-side derivation: the page carries no key payload.
         assert!(!body.contains("window.__ROTOR_KEY__"));
@@ -4430,10 +4764,10 @@ mod tests {
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path} warning");
             assert!(
-                body.contains("brainwallet-engine.js?v=20261120a"),
+                body.contains("brainwallet-engine.js?v=20261120b"),
                 "{path} engine"
             );
-            assert!(body.contains("brainwallet.js?v=20261120a"), "{path} script");
+            assert!(body.contains("brainwallet.js?v=20261120b"), "{path} script");
         }
         // The alias canonicalizes to the index, not to itself.
         let (alias, _, _) = seo_asset(base, "/brainwallet-generator", "").expect("alias");
@@ -4749,11 +5083,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261120a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261120a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261120a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261120a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261120a\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261120b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261120b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261120b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261120b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261120b\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 
@@ -5012,7 +5346,21 @@ mod tests {
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains("\"name\":\"Bitcoin Puzzle\""));
         assert!(body.contains("data-puzzle-picker"));
-        assert!(body.contains("id=\"unsolved\""));
+        assert!(body.contains("id=\"puzzles\""));
+        assert!(body.contains("class=\"pz-table\""));
+        assert_eq!(body.matches("data-puzzle-row data-solved").count(), 160);
+        assert!(body.contains("data-puzzle-filter=\"all\""));
+        assert!(body.contains("data-puzzle-filter=\"solved\""));
+        assert!(body.contains("data-puzzle-filter=\"unsolved\""));
+        assert!(body.contains("data-puzzle-search"));
+        assert!(body.contains("Start hunting"));
+        assert!(body.contains("BTC claimed"));
+        assert!(body.contains("BTC left"));
+        assert!(body.contains("What is a Bitcoin puzzle?"));
+        assert!(body.contains("Popular tools"));
+        assert!(body.contains("data-balance-address"));
+        assert!(body.contains("data-tx-address"));
+        assert!(body.contains("data-copy"));
         assert!(body.contains("data-puzzle-jobs"));
         assert!(body.contains("data-puzzle-summary"));
         assert!(body.contains("<script src=\"/puzzle.js\" defer></script>"));
@@ -5051,9 +5399,20 @@ mod tests {
         assert!(body.contains("0000000000000000000000000000000000000000000000400000000000000000"));
         assert!(body.contains("00000000000000000000000000000000000000000000007fffffffffffffffff"));
         assert!(body.contains("data-puzzle-mode"));
-        assert!(body.contains("Solo Random"));
-        assert!(body.contains("Solo Seq"));
-        assert!(body.contains(">Team</option>"));
+        assert!(body.contains("data-mode-value=\"random\""));
+        assert!(body.contains("data-mode-value=\"seq\""));
+        assert!(body.contains("data-mode-value=\"team\""));
+        assert!(body.contains("data-puzzle-resume-btn"));
+        assert!(body.contains("data-puzzle-results"));
+        assert!(body.contains("data-puzzle-community"));
+        assert!(body.contains("data-puzzle-check"));
+        assert!(body.contains("data-puzzle-match"));
+        assert!(body.contains("data-puzzle-copy"));
+        assert_eq!(body.matches("class=\"pz-metric\"").count(), 6);
+        assert!(body.contains(">Generated</span>"));
+        assert!(body.contains(">Speed</span>"));
+        assert!(body.contains(">ETA</span>"));
+        assert!(body.contains(">Network</span>"));
         assert!(body.contains("data-range-preset=\"full\""));
         assert!(body.contains("data-range-preset=\"first\""));
         assert!(body.contains("data-range-preset=\"second\""));
@@ -5061,9 +5420,6 @@ mod tests {
         assert!(body.contains("data-puzzle-start-btn"));
         assert!(body.contains("data-puzzle-stop-btn"));
         assert!(body.contains("data-puzzle-reset-btn"));
-        assert!(body.contains("data-puzzle-check"));
-        assert!(body.contains("data-puzzle-match"));
-        assert!(body.contains("data-puzzle-copy"));
         assert!(body.contains("<script src=\"/puzzle-browser.js\" defer></script>"));
 
         let (detail, _, status) =
@@ -5077,6 +5433,12 @@ mod tests {
         assert!(detail.contains(&format!("https://www.blockchain.com/btc/address/{target}")));
         assert!(detail.contains("data-puzzle-balance"));
         assert!(detail.contains("Puzzle #71 is unsolved"));
+        assert!(detail.contains("data-puzzle-check"));
+        assert!(detail.contains("data-copy"));
+        assert!(detail.contains("1,180,591,620,717,411,303,424"));
+        assert!(detail.contains(
+            "/private-keys/bitcoin?key=0000000000000000000000000000000000000000000000400000000000000000"
+        ));
         assert!(!detail.contains("data-puzzle-app"));
 
         let (short, _, status) =
