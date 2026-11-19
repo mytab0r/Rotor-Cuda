@@ -44,7 +44,8 @@ const HELP = `ui-audit - headless UI self-review for the Rotor site
 
 Options:
   --base URL            site origin (default http://127.0.0.1:7879, or :7899 with --serve)
-  --routes a,b,c        comma-separated routes (default: key public routes)
+  --routes a,b,c        comma-separated routes (default: key public routes;
+                        on Git Bash omit the leading slash: --routes key,seed)
   --viewports 375,768,1280   widths to test; heights are preset (default 375,768,1280)
   --themes dark,light   colour schemes to test (default dark,light)
   --serve               spawn target/release/rotor-coord on 127.0.0.1:7899 with temp state
