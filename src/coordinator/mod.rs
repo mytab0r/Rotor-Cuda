@@ -4722,7 +4722,6 @@ mod tests {
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
             assert!(body.contains("brainwallet-engine.js?v=20261121e"), "{path}");
             assert!(
-            assert!(
                 body.contains("brainwallet-directory.js?v=20261121e"),
                 "{path}"
             );
