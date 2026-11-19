@@ -83,6 +83,96 @@ assert.equal(
 );
 assert.equal(address(report, "evm"), "0xDCCD62d450c645f6437680b8A4DaA098396DcE0e");
 
+// 2b. The engine wraps the same wasm report and picks one row per chain.
+const engineReport = engine.deriveReport(wasm, key, 0);
+assert.equal(engine.addressOf(engineReport, "bitcoin"), "1C7zdTfnkzmr13HfA2vNm5SJYRK6nEKyq8");
+assert.equal(engine.addressOf(engineReport, "ethereum"), "0xDCCD62d450c645f6437680b8A4DaA098396DcE0e");
+assert.equal(engine.addressOf(engineReport, "bitcoin", "taproot"), address(report, "btc_p2tr"));
+assert.equal(engine.addressOf(engineReport, "ton"), "");
+
+// 3. Deterministic two-word corpus and BigInt page math.
+assert.equal(engine.WORDS.length, 138, "138-word list");
+assert.equal(new Set(engine.WORDS).size, 138, "words are unique");
+assert.equal(engine.corpusSize(), 18890n, "18,890 phrases");
+assert.equal(engine.rowsPerPage(), 60n, "60 rows per page");
+assert.equal(engine.totalPages(), 315n, "315 pages");
+assert.equal(engine.corpusPhrase(0), "amber amber");
+assert.equal(engine.corpusPhrase(1), "amber anchor");
+assert.equal(engine.corpusPhrase(18889), "velvet sage");
+assert.throws(() => engine.corpusPhrase(18890), /outside/);
+const corpus = new Set();
+for (let index = 0; index < 18890; index += 1) corpus.add(engine.corpusPhrase(index));
+assert.equal(corpus.size, 18890, "corpus phrases are unique");
+assert.ok([...corpus].every((phrase) => phrase.split(" ").length === 2), "two words per phrase");
+
+const firstPage = engine.pageRows(1);
+assert.equal(firstPage.length, 60);
+assert.equal(firstPage[0].index, 0);
+assert.equal(firstPage[0].phrase, "amber amber");
+assert.equal(firstPage[59].index, 59);
+const lastPage = engine.pageRows(315);
+assert.equal(lastPage.length, 50, "page 315 is the 50-row tail");
+assert.equal(lastPage[0].index, 18840);
+assert.equal(lastPage[49].index, 18889);
+assert.equal(lastPage[49].phrase, "velvet sage");
+assert.equal(engine.pageRows(0).length, 60, "page 0 clamps to 1");
+assert.equal(engine.pageRows(316).length, 50, "page 316 clamps to 315");
+assert.equal(engine.clampPage("0"), 1n);
+assert.equal(engine.clampPage("9999"), 315n);
+assert.equal(engine.pagePath("bitcoin", 1), "/brainwallet/bitcoin");
+assert.equal(engine.pagePath("bitcoin", 315), "/brainwallet/bitcoin/315");
+
+// 3b. Corpus address vector: corpus[0] = "amber amber".
+const corpusKey = await engine.phraseKey(engine.corpusPhrase(0), webcrypto.subtle);
+assert.equal(engine.bytesToHex(corpusKey), "ac230dc638a16f96dd3492a00840e3e923b39731c115b0dc2c79344ea015636a");
+const corpusReport = engine.deriveReport(wasm, corpusKey, 0);
+assert.equal(
+  engine.addressOf(corpusReport, "bitcoin"),
+  "1FUiEHnftmmkGrZQPzMXP977N1PhTYBMcM",
+  "bitcoin legacy address of corpus[0]",
+);
+assert.equal(
+  engine.addressOf(corpusReport, "bitcoin", "segwit"),
+  "bc1qnm8k3p23gscfdy79wc90wmv5d9krvcyrknyrdx",
+);
+assert.equal(
+  engine.addressOf(corpusReport, "bitcoin", "script"),
+  "3QWK7M7mwvPA8cQvaAmiMcUJDKVHqiu2DN",
+);
+assert.equal(
+  engine.addressOf(corpusReport, "bitcoin", "taproot"),
+  "bc1pfx64wlfyvadm3yfdsta8pd0wjmax6c65890tzzyal47uefqynmfqg598x6",
+);
+assert.equal(
+  engine.addressOf(corpusReport, "ethereum"),
+  "0x53652e65B2727D7dcf6A6157F6b095C9CC84d8d1",
+);
+assert.equal(engine.addressOf(corpusReport, "litecoin"), "LZhfVW6VyS1oXfFZa8LpfAAsaDkyaBiofr");
+assert.equal(engine.addressOf(corpusReport, "dogecoin"), "DKcomYjKCBg2ork18aM5vuGiF97znooGAH");
+assert.equal(
+  engine.explorerFor("bitcoin", "1FUiEHnftmmkGrZQPzMXP977N1PhTYBMcM"),
+  "https://mempool.space/address/1FUiEHnftmmkGrZQPzMXP977N1PhTYBMcM",
+);
+
+// 3c. Generator variants: offset 0 is the phrase key, offset 1 is key + 1.
+assert.equal(engine.addToKey(engine.bytesToHex(corpusKey), 0, 0), engine.bytesToHex(corpusKey));
+assert.equal(
+  engine.addToKey(engine.bytesToHex(corpusKey), 1, 0),
+  "ac230dc638a16f96dd3492a00840e3e923b39731c115b0dc2c79344ea015636b",
+);
+const secondReport = engine.deriveReport(
+  wasm,
+  Uint8Array.from(Buffer.from(engine.addToKey(engine.bytesToHex(corpusKey), 1, 0), "hex")),
+  0,
+);
+assert.equal(engine.addressOf(secondReport, "bitcoin"), "1HtSU5UQoHAHnq942p5PbVpUtAn4Knq4mW");
+assert.equal(engine.CHAIN_LIST.length, 18, "18 chain tabs");
+assert.equal(engine.chainSlugs().includes("bitcoin-cash"), true);
+assert.equal(engine.chainConfig("bitcoin").curve, 0);
+assert.equal(engine.chainConfig("solana").curve, 1);
+assert.equal(engine.chainConfig("ton").ton, true);
+assert.equal(engine.toCsv(["a", "b"], [["x,y", 'q"z']]), 'a,b\r\n"x,y","q""z"\r\n');
+
 // 3. Row selection and explorer links per page focus.
 const bitcoinRows = engine.addressRows(report, "bitcoin");
 assert.deepEqual(
