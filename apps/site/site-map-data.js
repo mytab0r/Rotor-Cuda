@@ -118,7 +118,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Local derivation and explorer links are present. Missing donor auto-compute with HEX/Decimal/WIF/WIF(u)/Keypair(SOL)/Secret(XRP)/PubKey formats, the Chain/Type/Address/Status table, eight EVM chain rows, Total Value/Has Balance/Active/Checked aggregates, CSV and Copy All.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Missing WIF(u), XRP secret and public-key formats, Total Value/Has Balance/Active/Checked aggregates, CSV and eight EVM chain rows.'
   });
 
   oursRoute({
@@ -128,7 +128,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyHex'],
-    note: '64 hexadecimal characters to WIF, public key and addresses.'
+    note: 'Auto-derives from 64 hex characters to WIF, public key and addresses. Aggregates, CSV and eight EVM rows are still missing.'
   });
 
   oursRoute({
@@ -138,7 +138,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyWif', 'ss:/PrivateKey_wif_to_hex'],
-    note: 'Wallet Import Format from 5…, K… or L… to hex and addresses.'
+    note: 'Auto-derives from 5…, K… or L… to hex and addresses. Aggregates, CSV and eight EVM rows are still missing.'
   });
 
   oursRoute({
@@ -148,31 +148,31 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['pkf:/key/<hex|wif|decimal>'],
-    note: 'A decimal integer below the curve order to hex, WIF and addresses.'
+    note: 'Auto-derives from a decimal integer below the curve order. Aggregates, CSV and eight EVM rows are still missing.'
   });
 
   oursRoute({
     path: '/mnemonic-seeds',
     title: 'Mnemonic seeds directory',
     area: 'seeds',
-    status: 'partial',
-    priority: 'P0',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with paths, address types and balances. Rows do not show the private key or WIF with a copy action; TON is an explicit unsupported state.'
+    note: '60 seed rows per page with phrase, private key/WIF copy, paths, address types and balances. TON is an explicit unsupported state.'
   });
 
   CHAINS.forEach(function (item) {
+    var ton = item[0] === 'ton';
     oursRoute({
       path: '/mnemonic-seeds/' + item[0],
       title: item[1] + ' mnemonic seeds',
       area: 'seeds',
-      status: 'partial',
-      priority: 'P0',
+      status: ton ? 'partial' : 'parity',
+      priority: ton ? 'P1' : '-',
       donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
-      note: 'Rows need the private key/WIF with a copy action. ' +
-        (item[0] === 'ton'
-          ? 'TON derivation is an explicit unsupported state.'
-          : 'Balances and the pager are present.')
+      note: ton
+        ? 'Seed derivation for TON is not implemented; the page shows an explicit unsupported state instead of a faked address.'
+        : 'Phrase, private key/WIF copy, path, address type and balances on every row.'
     });
   });
 
@@ -200,10 +200,10 @@
     path: '/bitcoin-puzzle',
     title: 'Bitcoin puzzle index',
     area: 'puzzle',
-    status: 'partial',
-    priority: 'P0',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/bitcoin-puzzle', 'ss:/bitcoin-puzzle'],
-    note: 'Missing the 160-puzzle table, All/Solved/Unsolved filters, search, Balance/TX/Actions columns and the BTC stats strip.'
+    note: '160-puzzle table with All/Solved/Unsolved filters, search, Balance/TX/Actions columns and BTC claimed/left stats.'
   });
 
   oursRoute({
@@ -211,10 +211,10 @@
     href: '/bitcoin-puzzle/71/detail',
     title: 'Puzzle detail',
     area: 'puzzle',
-    status: 'partial',
-    priority: 'P1',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/bitcoin-puzzle/<n>/detail'],
-    note: 'Missing copy actions for target/range, Difficulty/TX, decimal key space, the /private-keys cross-link and the 1–160 grid.'
+    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
   });
 
   oursRoute({
@@ -222,50 +222,42 @@
     href: '/bitcoin-puzzle/71/random',
     title: 'Puzzle random keys',
     area: 'puzzle',
-    status: 'partial',
-    priority: 'P0',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/bitcoin-puzzle/<n>/random'],
-    note: 'Local WASM worker is present. Missing Community Hunt (hunters, keys remaining, %, team speed), the results table and the offline advice block.'
+    note: 'Local WASM worker plus Community Hunt, live results table, range presets and a match panel with key copy.'
   });
 
   oursRoute({
     path: '/brainwallet',
-    title: 'Brainwallet index',
+    title: 'Brainwallet directory',
     area: 'brainwallet',
-    status: 'partial',
-    priority: 'P0',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/brainwallet'],
-    note: 'Rotor opens a calculator. The donor index has 18 chain tiles, an 18,890 counter and four explainer blocks.'
+    note: '18 chain tiles, an 18,890-passphrase counter, explainer blocks and links to the generator, key calculator and seed tool.'
   });
 
-  oursRoute({
-    path: '/brainwallet/bitcoin',
-    title: 'Bitcoin brainwallet',
-    area: 'brainwallet',
-    status: 'partial',
-    priority: 'P0',
-    donorIds: ['pkf:/brainwallet/bitcoin'],
-    note: 'Calculator only. The donor lists 60 rows × 315 pages with async address/balance, two copy icons per row, four BTC address types and a Balance/Received/TX summary.'
-  });
-
-  oursRoute({
-    path: '/brainwallet/ethereum',
-    title: 'Ethereum brainwallet',
-    area: 'brainwallet',
-    status: 'partial',
-    priority: 'P0',
-    donorIds: ['pkf:/brainwallet/ethereum'],
-    note: 'Calculator only. The donor has the same paginated address directory as Bitcoin.'
+  CHAINS.forEach(function (item) {
+    oursRoute({
+      path: '/brainwallet/' + item[0],
+      title: item[1] + ' brainwallets',
+      area: 'brainwallet',
+      status: 'parity',
+      priority: '-',
+      donorIds: ['pkf:/brainwallet/' + item[0]],
+      note: '60 rows × 315 pages: SHA-256 key and phrase copy, chain address with explorer and copy, address types where the chain supports them, optional balances.'
+    });
   });
 
   oursRoute({
     path: '/brainwallet-generator',
     title: 'Brainwallet generator',
     area: 'brainwallet',
-    status: 'partial',
-    priority: 'P1',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/brainwallet-generator'],
-    note: 'Donor alias to the calculator. Missing the network dropdown, Generate & Check Balance, 1/3/5/10 counts, Copy All and CSV.'
+    note: 'Network dropdown for 18 chains, 1/3/5/10 addresses, Generate & Check Balance, Copy all and CSV.'
   });
 
   oursRoute({
@@ -456,7 +448,8 @@
     title: 'Key entity pages',
     area: 'key',
     status: 'partial',
-    ours: '/key'
+    ours: '/key',
+    note: 'Auto-derive is present; aggregates, CSV and eight EVM chain rows are not.'
   });
 
   donorRoute({
@@ -464,7 +457,7 @@
     path: '/mnemonic-seeds',
     title: 'Mnemonic seeds directory',
     area: 'seeds',
-    status: 'partial',
+    status: 'parity',
     ours: '/mnemonic-seeds'
   });
 
@@ -474,8 +467,9 @@
       path: '/mnemonic-seeds/' + item[0],
       title: item[1] + ' mnemonic seeds',
       area: 'seeds',
-      status: 'partial',
-      ours: '/mnemonic-seeds/' + item[0]
+      status: item[0] === 'ton' ? 'partial' : 'parity',
+      ours: '/mnemonic-seeds/' + item[0],
+      note: item[0] === 'ton' ? 'Rotor shows an explicit TON-unsupported state.' : ''
     });
   });
 
@@ -493,7 +487,7 @@
     path: '/bitcoin-puzzle',
     title: 'Bitcoin puzzle index',
     area: 'puzzle',
-    status: 'partial',
+    status: 'parity',
     ours: '/bitcoin-puzzle'
   });
 
@@ -503,7 +497,7 @@
     href: '/bitcoin-puzzle/71/detail',
     title: 'Puzzle detail',
     area: 'puzzle',
-    status: 'partial',
+    status: 'parity',
     ours: '/bitcoin-puzzle/<n>/detail'
   });
 
@@ -513,7 +507,7 @@
     href: '/bitcoin-puzzle/71/random',
     title: 'Puzzle random keys',
     area: 'puzzle',
-    status: 'partial',
+    status: 'parity',
     ours: '/bitcoin-puzzle/<n>/random'
   });
 
@@ -522,25 +516,20 @@
     path: '/brainwallet',
     title: 'Brainwallet directory',
     area: 'brainwallet',
-    status: 'partial',
+    status: 'parity',
     ours: '/brainwallet'
   });
 
   CHAINS.forEach(function (item) {
-    var oursPath = item[0] === 'bitcoin' || item[0] === 'ethereum'
-      ? '/brainwallet/' + item[0]
-      : null;
     donorRoute({
       source: 'pkf',
       path: '/brainwallet/' + item[0],
       title: item[1] + ' brainwallets',
       area: 'brainwallet',
-      status: oursPath ? 'partial' : 'missing',
-      priority: 'P0',
-      ours: oursPath,
-      note: oursPath
-        ? 'Rotor has a calculator, not the donor listing.'
-        : 'No Rotor directory for this chain. Live on the donor but absent from its sitemap.'
+      status: 'parity',
+      priority: '-',
+      ours: '/brainwallet/' + item[0],
+      note: 'Live on the donor but absent from its sitemap.'
     });
   });
 
@@ -549,7 +538,7 @@
     path: '/brainwallet-generator',
     title: 'Brainwallet generator',
     area: 'brainwallet',
-    status: 'partial',
+    status: 'parity',
     ours: '/brainwallet-generator'
   });
 
@@ -713,13 +702,13 @@
 
   /* ref-site-b navigation, 2026-11-19. */
   [
-    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Rotor lacks the donor aggregates and CSV/Copy All.'],
-    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Rotor lacks the donor aggregates and CSV/Copy All.'],
+    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
+    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
     ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Rotor collapses EVM rows to Ethereum instead of showing eight chains.'],
-    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Rotor lacks the donor aggregates and CSV/Copy All.'],
-    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Rotor lacks the donor aggregates and CSV/Copy All.'],
-    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Rotor lacks the donor aggregates and CSV/Copy All.'],
-    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Rotor lacks the donor aggregates and CSV/Copy All.'],
+    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
+    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
+    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
+    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Rotor only adds (P + Q); the donor also subtracts and multiplies.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
@@ -733,7 +722,7 @@
     ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', null, 'missing', 'P0', 'No USDT builder in Rotor.'],
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Rotor mirrors real dataset downloads; ref-site-b shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The ref-site-b nav link currently answers 404.'],
-    ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'partial', 'P0', 'Rotor has a local worker but not the donor puzzle tables.'],
+    ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
     ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Rotor lacks threads, ETA, difficulty, save/recent and QR.'],
     ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Rotor lacks drag-and-drop, examples and metadata.'],
     ['/dashboard', 'Account dashboard', 'wallet', '/cabinet', 'partial', 'P2', 'Rotor /cabinet is an address monitor, not a calculator dashboard.'],
@@ -825,9 +814,9 @@
     donor: 'present',
     rotor: 'partial',
     status: 'partial',
-    priority: 'P0',
+    priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Rows, pager, word counts, path, address types and balances exist; TON is unsupported.'
+    note: 'All chains except TON: rows, pager, word counts, phrase/key/WIF copy, path, address types and balances are present; TON is an explicit unsupported state.'
   });
 
   feature({
@@ -835,11 +824,11 @@
     area: 'seeds',
     capability: 'Seed row private key/WIF and copy actions',
     donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'The seed directory row shows the address but not the private key/WIF with a copy action.'
+    note: 'Bitcoin rows expose the compressed WIF; other curves expose the derived hex key, each with a copy action.'
   });
 
   feature({
@@ -871,11 +860,11 @@
     area: 'puzzle',
     capability: 'Puzzle home: 160-table, All/Solved/Unsolved filters, search, stats',
     donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a', 'ref-site-b'],
-    note: 'Rotor has a puzzle worker entry, not the browsable 160-puzzle table.'
+    note: '160 rows with Balance/TX/Actions columns, solved filters, search and BTC claimed/left stats.'
   });
 
   feature({
@@ -883,11 +872,11 @@
     area: 'puzzle',
     capability: 'Puzzle random: Community Hunt, results table, offline advice',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'Local WASM start/stop/reset/check and match UI exist; community and results views do not.'
+    note: 'Community Hunt stats, live results table, presets, local WASM worker and a key-copy match panel.'
   });
 
   feature({
@@ -895,11 +884,11 @@
     area: 'puzzle',
     capability: 'Puzzle detail: copy target/range, difficulty/TX, decimal, grid',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'Balance, range, progress and explorer links exist; copy actions and metadata do not.'
+    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
   });
 
   feature({
@@ -919,11 +908,11 @@
     area: 'brainwallet',
     capability: 'Brainwallet directory index',
     donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'Donor has 18 chain tiles, a counter and explainer blocks; Rotor /brainwallet is a calculator.'
+    note: '18 chain tiles, an 18,890 counter, explainer blocks and links to the generator/key/seed tools.'
   });
 
   feature({
@@ -943,11 +932,11 @@
     area: 'brainwallet',
     capability: 'Per-chain brainwallet listing pages (18 chains)',
     donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P0',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'Donor lists 60 rows × 315 pages per chain; Rotor only has BTC/ETH calculators.'
+    note: '60 rows × 315 pages per chain with key and phrase copy, address/explorer/copy, address types and optional balances.'
   });
 
   feature({
@@ -955,11 +944,11 @@
     area: 'brainwallet',
     capability: 'Brainwallet generator: network dropdown, counts, Copy All, CSV',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'Rotor has a fill-only random phrase, not the donor generator controls.'
+    note: '18-chain network dropdown, 1/3/5/10 addresses, Generate & Check Balance, Copy all and CSV.'
   });
 
   feature({
@@ -1139,7 +1128,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['ref-site-a'],
-    note: 'Rotor still uses Calculate/±1/Generate/Clear buttons, collapses EVM to Ethereum and has no Total Value/Has Balance/Active/Checked aggregates.'
+    note: 'Auto-derive as you type shipped for hex, decimal, WIF, Solana keypair and brainwallet. Missing Total Value/Has Balance/Active/Checked aggregates, CSV/Copy All, WIF(u)/XRP-secret/public-key formats and eight EVM chain rows.'
   });
 
   feature({
@@ -1149,9 +1138,9 @@
     donor: 'present',
     rotor: 'partial',
     status: 'partial',
-    priority: 'P0',
+    priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Presets are duplicated between the toolbar select and the advanced block; the curve block should collapse into the path input. PR #67 is in progress.'
+    note: 'The compact derivation block with an editable path shipped. The wallet preset is still duplicated between the toolbar select and the preset chips.'
   });
 
   feature({
@@ -1187,7 +1176,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: ''
+    note: 'Copy feedback exists. Address copy targets are 34–40 px and addresses use end-ellipsis rather than a middle-ellipsis.'
   });
 
   feature({
@@ -1199,7 +1188,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: ''
+    note: 'Key/WIF copy and 44 px row icon buttons shipped. The phrase still renders in full instead of a collapsed/reveal row.'
   });
 
   feature({

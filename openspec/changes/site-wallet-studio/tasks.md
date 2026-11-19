@@ -259,3 +259,8 @@ browser capture in the PR.
       covers the route, assets and sitemap entry.
 - [x] Link the map from `/tools` and `/docs`; the page is listed in
       `sitemap.xml` and embedded by the coordinator.
+- [x] Refresh the statuses after PR66–PR74: brainwallet directory, 18 chain
+      listings and generator; seed key/WIF rows; key auto-derive; puzzle table,
+      detail and Community Hunt. Only the still-missing controls stay partial.
+      Evidence: `site-map OK: 83 ours, 117 donors, 41 features; ours parity 48,
+      partial 29, ours-only 6, donor-only missing 27`.

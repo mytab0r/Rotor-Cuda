@@ -45,6 +45,8 @@ for (const donor of data.donors) {
 for (const chain of data.chains) {
   assert.ok(oursByPath.has('/private-keys/' + chain[0]), `missing /private-keys/${chain[0]}`);
   assert.ok(oursByPath.has('/mnemonic-seeds/' + chain[0]), `missing /mnemonic-seeds/${chain[0]}`);
+  assert.ok(oursByPath.has('/brainwallet/' + chain[0]), `missing /brainwallet/${chain[0]}`);
+  assert.ok(donorById.has('pkf:/brainwallet/' + chain[0]), `missing donor /brainwallet/${chain[0]}`);
 }
 
 const requiredOurs = [
