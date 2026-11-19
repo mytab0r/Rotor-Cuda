@@ -1,5 +1,7 @@
-/* /site-map renderer. Data lives in site-map-data.js; this file only builds
- * DOM nodes, applies filters and copies paths. No innerHTML with data. */
+/* Internal docs site-map renderer. Data lives in site-map-data.js; this file
+ * only builds DOM nodes, applies filters and copies paths. No innerHTML with
+ * data. Runnable from docs/site-map/ directly: icons, data and links resolve
+ * relative to this directory, and route links point at the live site. */
 (function () {
   'use strict';
 
@@ -33,6 +35,9 @@
     pkf: 'ref-site-a',
     ss: 'ref-site-b'
   };
+  /* The docs page is not served by the coordinator, so internal route links
+   * open the live site rather than a path relative to this file. */
+  var SITE_ORIGIN = 'https://rotor.pxbt.app';
 
   var state = {
     view: 'ours',
@@ -60,7 +65,7 @@
     svg.setAttribute('class', className || 'icon');
     svg.setAttribute('aria-hidden', 'true');
     var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', '/icons.svg#' + name);
+    use.setAttribute('href', 'icons.svg#' + name);
     svg.appendChild(use);
     return svg;
   }
@@ -86,6 +91,11 @@
   function donorHref(donor) {
     var path = donor.href || donor.path;
     return SOURCE_ORIGINS[donor.source] + encodeURI(path);
+  }
+
+  function routeHref(route) {
+    var path = route.href || route.path;
+    return /^https?:\/\//i.test(path) ? path : SITE_ORIGIN + encodeURI(path);
   }
 
   function donorFor(id) {
@@ -230,7 +240,7 @@
   }
 
   function routeRow(route) {
-    var href = encodeURI(route.href || route.path);
+    var href = routeHref(route);
     var meta = [metaItem(areaLabel(route.area))];
     if (route.priority && route.priority !== '-') meta.push(metaItem(route.priority));
     if (route.donorIds.length) {
@@ -335,7 +345,7 @@
   }
 
   function pairRow(route) {
-    var href = encodeURI(route.href || route.path);
+    var href = routeHref(route);
     var donorText = route.donorIds.map(function (id) {
       var donor = donorFor(id);
       return donor ? SOURCE_LABELS[donor.source] + ' ' + donor.path : id;
