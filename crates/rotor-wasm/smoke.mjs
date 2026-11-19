@@ -471,6 +471,44 @@ console.log(
     `rejected empty request: ${badError}`,
 );
 
+// Unsigned review payload: the same transaction without the signature tail.
+if (typeof wasm.evm_unsigned_tx !== "function") {
+  throw new Error("wasm does not export evm_unsigned_tx");
+}
+const unsignedRequest = upload(
+  JSON.stringify({
+    chain_id: "11155111",
+    nonce: "0",
+    max_priority_fee: "1000000000",
+    max_fee: "2000000000",
+    gas_limit: "21000",
+    to: "0x3535353535353535353535353535353535353535",
+    value: "1000000000000000",
+    data: "0x",
+  }),
+);
+const unsignedStatus = wasm.evm_unsigned_tx(
+  unsignedRequest.ptr,
+  unsignedRequest.len,
+);
+wasm.dealloc(unsignedRequest.ptr, unsignedRequest.len);
+if (unsignedStatus !== 0) {
+  fail(unsignedStatus, "evm_unsigned_tx");
+}
+const unsignedTx = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.result_ptr(), wasm.result_len()),
+);
+const expectedUnsignedTx =
+  "0x02f183aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c0";
+if (unsignedTx !== expectedUnsignedTx) {
+  throw new Error(`evm_unsigned_tx: got ${unsignedTx}, want ${expectedUnsignedTx}`);
+}
+wasm.clear_result();
+if (wasm.result_len() !== 0) {
+  throw new Error("evm_unsigned_tx: clear_result left bytes behind");
+}
+console.log(`evm_unsigned_tx: ${unsignedTx.length} hex chars`);
+
 const artifactSize = (await stat(wasmPath)).size;
 console.log(`artifact=${artifactSize} bytes`);
 

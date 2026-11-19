@@ -14,6 +14,9 @@
 //! 0x02 || rlp([chain_id, nonce, max_priority_fee, max_fee, gas_limit, to,
 //!              value, data, access_list, y_parity, r, s])
 //! ```
+//!
+//! [`unsigned_request`] accepts the same object without `private_key` and
+//! returns the reviewed `0x02 || rlp([...access_list])` payload.
 
 use std::fmt::Write as _;
 
@@ -21,6 +24,7 @@ use crate::hashes;
 use crate::sign::{self, Signature};
 
 /// The fixed request fields, in the order used by [`Request::parse`].
+/// The first eight are the transaction itself; only signing adds a key.
 const FIELD_NAMES: [&str; 9] = [
     "chain_id",
     "nonce",
@@ -33,16 +37,12 @@ const FIELD_NAMES: [&str; 9] = [
     "private_key",
 ];
 
+/// Number of transaction fields; `private_key` is appended after these.
+const TX_FIELDS: usize = 8;
+
 /// A validated type-2 signing request.
 struct Request {
-    chain_id: u64,
-    nonce: u64,
-    max_priority_fee: u128,
-    max_fee: u128,
-    gas_limit: u64,
-    to: Option<[u8; 20]>,
-    value: u128,
-    data: Vec<u8>,
+    tx: Tx2,
     private_key: [u8; 32],
 }
 
@@ -110,58 +110,31 @@ pub fn sign_request(text: &str) -> Result<Vec<u8>, String> {
     result
 }
 
+/// Parse and serialize the unsigned type-2 transaction:
+/// `0x02 || rlp([chain_id, nonce, max_priority_fee, max_fee, gas_limit, to,
+/// value, data, access_list])`, without a prefix.
+///
+/// The request is the same flat JSON object as [`sign_request`] but without
+/// `private_key`; a key field is rejected so the caller cannot believe a
+/// signature was produced.
+pub fn unsigned_request(text: &str) -> Result<Vec<u8>, String> {
+    let slots = parse_slots(text, &FIELD_NAMES[..TX_FIELDS])?;
+    Ok(parse_tx(&slots)?.unsigned())
+}
+
 fn sign_parsed(request: &Request) -> Result<Vec<u8>, String> {
-    let tx = Tx2 {
-        chain_id: request.chain_id,
-        nonce: request.nonce,
-        max_priority_fee: request.max_priority_fee,
-        max_fee: request.max_fee,
-        gas_limit: request.gas_limit,
-        to: request.to,
-        value: request.value,
-        data: request.data.clone(),
-    };
-    let hash = tx.signing_hash();
+    let hash = request.tx.signing_hash();
     let signature = sign::sign(&hash, &request.private_key)?;
-    Ok(tx.signed(&signature))
+    Ok(request.tx.signed(&signature))
 }
 
 impl Request {
     fn parse(text: &str) -> Result<Request, String> {
-        let pairs = parse_flat_object(text)?;
-        let mut slots: [Option<&str>; FIELD_NAMES.len()] = [None; FIELD_NAMES.len()];
-        for (key, value) in pairs {
-            let index = FIELD_NAMES
-                .iter()
-                .position(|name| *name == key)
-                .ok_or_else(|| format!("unknown request field: \"{key}\""))?;
-            if slots[index].replace(value).is_some() {
-                return Err(format!("duplicate request field: \"{key}\""));
-            }
-        }
-
-        let required = |index: usize| {
-            slots[index].ok_or_else(|| format!("missing request field: \"{}\"", FIELD_NAMES[index]))
-        };
-
-        let chain_id = parse_u64(required(0)?, "chain_id")?;
-        let nonce = parse_u64(required(1)?, "nonce")?;
-        let max_priority_fee = parse_u128(required(2)?, "max_priority_fee")?;
-        let max_fee = parse_u128(required(3)?, "max_fee")?;
-        if max_priority_fee > max_fee {
-            return Err(
-                "max_priority_fee must not exceed max_fee (EIP-1559 priority fee is a tip)"
-                    .to_owned(),
-            );
-        }
-        let gas_limit = parse_u64(required(4)?, "gas_limit")?;
-        if gas_limit == 0 {
-            return Err("gas_limit must be greater than zero".to_owned());
-        }
-        let to = parse_to(required(5)?)?;
-        let value = parse_u128(required(6)?, "value")?;
-        let data = parse_bytes(required(7)?, "data")?;
-        let mut key_bytes = parse_bytes(required(8)?, "private_key")?;
+        let slots = parse_slots(text, &FIELD_NAMES)?;
+        let tx = parse_tx(&slots[..TX_FIELDS])?;
+        let key_text = slots[TX_FIELDS]
+            .ok_or_else(|| format!("missing request field: \"{}\"", FIELD_NAMES[TX_FIELDS]))?;
+        let mut key_bytes = parse_bytes(key_text, "private_key")?;
         let private_key: [u8; 32] = match key_bytes.as_slice().try_into() {
             Ok(key) => key,
             Err(_) => {
@@ -174,18 +147,56 @@ impl Request {
         };
         sign::wipe(&mut key_bytes);
 
-        Ok(Request {
-            chain_id,
-            nonce,
-            max_priority_fee,
-            max_fee,
-            gas_limit,
-            to,
-            value,
-            data,
-            private_key,
-        })
+        Ok(Request { tx, private_key })
     }
+}
+
+/// Match every `name: "value"` pair to its slot, rejecting unknown and
+/// duplicate names.
+fn parse_slots<'a>(text: &'a str, names: &[&str]) -> Result<Vec<Option<&'a str>>, String> {
+    let pairs = parse_flat_object(text)?;
+    let mut slots = vec![None; names.len()];
+    for (key, value) in pairs {
+        let index = names
+            .iter()
+            .position(|name| *name == key)
+            .ok_or_else(|| format!("unknown request field: \"{key}\""))?;
+        if slots[index].replace(value).is_some() {
+            return Err(format!("duplicate request field: \"{key}\""));
+        }
+    }
+    Ok(slots)
+}
+
+/// Validate the eight transaction fields and build the unsigned transaction.
+fn parse_tx(slots: &[Option<&str>]) -> Result<Tx2, String> {
+    let required = |index: usize| {
+        slots[index].ok_or_else(|| format!("missing request field: \"{}\"", FIELD_NAMES[index]))
+    };
+
+    let chain_id = parse_u64(required(0)?, "chain_id")?;
+    let nonce = parse_u64(required(1)?, "nonce")?;
+    let max_priority_fee = parse_u128(required(2)?, "max_priority_fee")?;
+    let max_fee = parse_u128(required(3)?, "max_fee")?;
+    if max_priority_fee > max_fee {
+        return Err(
+            "max_priority_fee must not exceed max_fee (EIP-1559 priority fee is a tip)".to_owned(),
+        );
+    }
+    let gas_limit = parse_u64(required(4)?, "gas_limit")?;
+    if gas_limit == 0 {
+        return Err("gas_limit must be greater than zero".to_owned());
+    }
+    Ok(Tx2 {
+        chain_id,
+        nonce,
+        max_priority_fee,
+        max_fee,
+        gas_limit,
+        to: parse_to(required(5)?)?,
+        value: parse_u128(required(6)?, "value")?,
+        data: parse_bytes(required(7)?, "data")?,
+    })
 }
 
 /// Parse a flat JSON object whose values are all strings without escapes.
@@ -496,7 +507,35 @@ mod tests {
         );
         // Empty data is accepted and encodes as 0x80 inside the payload.
         let request = Request::parse(valid).unwrap();
-        assert!(request.data.is_empty());
+        assert!(request.tx.data.is_empty());
+    }
+
+    /// The unsigned payload of the first pinned vector, i.e. the signed
+    /// transaction with the trailing `y_parity`, `r` and `s` list items
+    /// removed. ethers 6.17.0 reports the same bytes as
+    /// `Transaction.unsignedSerialized` for these fields.
+    #[test]
+    fn unsigned_type2_vector_matches_ethers() {
+        let request = r#"{"chain_id":"11155111","nonce":"0",
+            "max_priority_fee":"1000000000","max_fee":"2000000000",
+            "gas_limit":"21000",
+            "to":"0x3535353535353535353535353535353535353535",
+            "value":"1000000000000000","data":"0x"}"#;
+        let raw = unsigned_request(request).expect("unsigned transaction");
+        assert_eq!(
+            hex_prefixed(&raw),
+            "0x02f183aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c0"
+        );
+
+        // The unsigned request is exactly the signing request without a key:
+        // a key or any unknown field is a typo, not something to ignore.
+        let with_key = request.replace(
+            r#""data":"0x""#,
+            r#""data":"0x","private_key":"0x0000000000000000000000000000000000000000000000000000000000000001""#,
+        );
+        assert!(unsigned_request(&with_key).is_err());
+        assert!(unsigned_request("{}").is_err());
+        assert!(unsigned_request(&format!("{request}x")).is_err());
     }
 
     /// Raw signed transactions reproduced independently with ethers 6.17.0
