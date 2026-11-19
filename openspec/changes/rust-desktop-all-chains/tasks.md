@@ -12,6 +12,15 @@
       blocked. Record the verdict and the 98% floor in `design.md`.
 
 ## 2. Chain descriptors and CLI [desktop]
+- [x] Add `src/chain.rs`: a `ChainDescriptor` registry covering all 18 site
+      slugs (id, display name, family, curve, address encoding, default HD
+      path, explorer URL template, enabled flag).
+- [x] Family dispatch (`SecpHash160`, `EvmKeccak`, `TronKeccak`, `Ed25519`,
+      `Ton`) for address derivation, wired into the desktop key report
+      (`engine::emit_hit`); BTC/ETH output is unchanged.
+- [x] Descriptor/family tests: 18 unique ids, family mapping, key-1 BTC/ETH
+      and secp/ed25519 fixtures from the site, explicit unsupported TON error
+      (`tests/chain.rs`).
 - [ ] Replace `enum Coin` with the `Chain` descriptor table covering all 18
       slugs; keep `--coin` as an alias. (blocked by: 1 for GPU phase; CPU work
       may start)
@@ -51,6 +60,9 @@
 - [ ] GPU ed25519 kernel spike; enable only if it passes the same 98% floor.
 
 ## 6. TON v4 [desktop]
+- [x] TON v4R2 derivation remains an explicit unsupported error in the chain
+      descriptor (`enabled: false`); no addresses are faked. Porting StateInit
+      serialization is still open below.
 - [ ] Port v4R2 StateInit serialization and CRC16/base64url display; fixture
       against the site's tonweb output for key 1. (blocked by: 5)
 - [ ] CPU search over seed ranges; address hash compare.
