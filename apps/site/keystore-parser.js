@@ -44,8 +44,9 @@
 
   function intField(value, label, minimum) {
     var number = Number(value);
-    if (!Number.isSafeInteger(number) || number < minimum) {
-      throw new Error('The keystore field "' + label + '" must be an integer >= ' + minimum + '.');
+    if (!Number.isSafeInteger(number) || number < minimum || number > 0xffffffff) {
+      throw new Error('The keystore field "' + label + '" must be an integer >= ' + minimum +
+        ' and <= 4294967295.');
     }
     return number;
   }
@@ -247,5 +248,7 @@
   window.addEventListener('pagehide', function () {
     jsonInput.value = '';
     passwordInput.value = '';
+    facts.textContent = '';
+    result.hidden = true;
   });
 })();
