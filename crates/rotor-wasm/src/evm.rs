@@ -21,6 +21,7 @@
 use std::fmt::Write as _;
 
 use crate::hashes;
+use crate::json::{parse_bytes, parse_u64, parse_u128};
 use crate::sign::{self, Signature};
 
 /// The fixed request fields, in the order used by [`Request::parse`].
@@ -275,53 +276,6 @@ fn read_string(text: &str, start: usize) -> Result<(&str, usize), String> {
         }
     }
     Err("unterminated string in request".to_owned())
-}
-
-fn strip_0x(text: &str) -> Option<&str> {
-    text.strip_prefix("0x").or_else(|| text.strip_prefix("0X"))
-}
-
-fn parse_u128(text: &str, field: &str) -> Result<u128, String> {
-    let Some(hex) = strip_0x(text) else {
-        if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
-            return Err(format!(
-                "{field} must be a decimal or 0x-prefixed hexadecimal number"
-            ));
-        }
-        return text
-            .parse::<u128>()
-            .map_err(|_| format!("{field} does not fit in 128 bits"));
-    };
-    if hex.is_empty() {
-        return Ok(0);
-    }
-    if !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(format!("{field} is not hexadecimal"));
-    }
-    u128::from_str_radix(hex, 16).map_err(|_| format!("{field} does not fit in 128 bits"))
-}
-
-fn parse_u64(text: &str, field: &str) -> Result<u64, String> {
-    let value = parse_u128(text, field)?;
-    u64::try_from(value).map_err(|_| format!("{field} does not fit in 64 bits"))
-}
-
-fn parse_bytes(text: &str, field: &str) -> Result<Vec<u8>, String> {
-    let hex = strip_0x(text).unwrap_or(text);
-    if !hex.len().is_multiple_of(2) {
-        return Err(format!("{field} must have an even number of hex digits"));
-    }
-    if !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(format!("{field} is not hexadecimal"));
-    }
-    let mut out = Vec::with_capacity(hex.len() / 2);
-    for index in (0..hex.len()).step_by(2) {
-        out.push(
-            u8::from_str_radix(&hex[index..index + 2], 16)
-                .map_err(|_| format!("{field} is not hexadecimal"))?,
-        );
-    }
-    Ok(out)
 }
 
 /// `to` is either empty (contract creation) or a 20-byte address.
