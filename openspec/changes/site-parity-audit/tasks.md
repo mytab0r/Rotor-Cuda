@@ -27,9 +27,14 @@
   (`src/coordinator/wallets.rs:34-40`); top-100 ranks/labels/balances require a
   licensed third-party dataset or API. Not faked.
 - [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
-- [ ] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
-  core; mainnet stays gated. Kernel exists (`wallet-btc.js:473-624`,
-  `wallet-evm.js:338-553`); the page, routes and key-entry glue are missing.
+- [x] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
+  core; mainnet stays gated. Evidence: `apps/site/send.html` (one page on
+  `/send`, `/send/bitcoin`, `/send/ethereum`), `apps/site/send.js` (testnet
+  chain and endpoint gates, local derivation, sign-only and optional
+  broadcast), `src/coordinator/mod.rs` (routes, embedded assets, sitemap),
+  `apps/site/send-test.mjs` (mainnet WIF/RPC rejection and no-key-outbound
+  proof), `tests/coordinator_api.rs` (three routes return 200 with TESTNET
+  copy).
 - [x] `/key` debounced auto-derive, icon-only utility actions, full formats and
   counters. Evidence: `key.js:211,569-575` (debounce),
   `key.html:69-76` (icon actions), `key-tools.js:304-321` (formats).
