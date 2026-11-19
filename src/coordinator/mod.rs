@@ -4693,11 +4693,12 @@ mod tests {
         }
         let (css, content_type) = static_asset("/site-map.css").expect("site-map.css");
         assert_eq!(content_type, "text/css; charset=utf-8");
-        assert!(std::str::from_utf8(css)
-            .expect("css is UTF-8")
-            .contains(".sitemap-row"));
-        let (data, content_type) =
-            static_asset("/site-map-data.js").expect("site-map-data.js");
+        assert!(
+            std::str::from_utf8(css)
+                .expect("css is UTF-8")
+                .contains(".sitemap-row")
+        );
+        let (data, content_type) = static_asset("/site-map-data.js").expect("site-map-data.js");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         let data = std::str::from_utf8(data).expect("data is UTF-8");
         for marker in [
@@ -4707,7 +4708,10 @@ mod tests {
             "ours-only",
             "features",
         ] {
-            assert!(data.contains(marker), "site-map-data.js is missing {marker}");
+            assert!(
+                data.contains(marker),
+                "site-map-data.js is missing {marker}"
+            );
         }
 
         let base = "https://rotor.pxbt.app";
