@@ -15,6 +15,10 @@
 //! Result blob of [`derive_report`]: the UTF-8 JSON derivation report of one
 //! private key (see [`derive`]); on error the status is nonzero and the error
 //! buffer describes the problem.
+//!
+//! Result blob of [`evm_sign_tx`]: the `0x`-prefixed raw EIP-1559 type-2
+//! signed transaction, ready for `eth_sendRawTransaction`; on error the status
+//! is nonzero and the error buffer names the first invalid request field.
 
 #![allow(dead_code)]
 // the included parent modules expose more than this ABI uses
@@ -37,7 +41,9 @@ mod secp;
 
 mod bech32;
 mod derive;
+mod evm;
 mod keystore;
+mod sign;
 
 use std::alloc::{Layout, alloc as rust_alloc, dealloc as rust_dealloc};
 use std::cell::UnsafeCell;
@@ -391,6 +397,27 @@ impl Session {
         match keystore::decrypt(request) {
             Ok(key) => {
                 self.result = derive::hex(&key).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Parse, sign and serialize an EIP-1559 type-2 transaction.
+    ///
+    /// The request is a flat JSON object; the result is the `0x`-prefixed raw
+    /// signed transaction. The private key is wiped from the parsed request
+    /// before this returns.
+    pub fn evm_sign_tx(&mut self, request: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match evm::sign_request(request) {
+            Ok(raw) => {
+                self.result = evm::hex_prefixed(&raw).into_bytes();
                 OK
             }
             Err(message) => {
@@ -765,6 +792,27 @@ pub extern "C" fn keystore_decrypt(
         mac,
         password,
     })
+}
+
+/// Sign an EIP-1559 type-2 EVM transaction.
+///
+/// The request is a UTF-8 JSON object with the string fields `chain_id`,
+/// `nonce`, `max_priority_fee`, `max_fee`, `gas_limit`, `to`, `value`, `data`
+/// and `private_key`; numbers are decimal or `0x` hex, bytes are hex.
+/// On success the result buffer holds the `0x`-prefixed raw signed
+/// transaction, ready for `eth_sendRawTransaction`; otherwise a nonzero status
+/// is returned and the error buffer explains the first invalid field.
+#[unsafe(no_mangle)]
+pub extern "C" fn evm_sign_tx(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes(ptr, len) else {
+        session_mut().set_error("invalid signing request pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let Ok(request) = std::str::from_utf8(bytes) else {
+        session_mut().set_error("signing request is not valid UTF-8");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().evm_sign_tx(request)
 }
 
 #[unsafe(no_mangle)]
@@ -1505,6 +1553,25 @@ mod tests {
             address(&uncompressed, "btc_p2pkh")["address"],
             "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
         );
+    }
+
+    #[test]
+    fn evm_sign_tx_abi_returns_raw_hex_and_errors() {
+        let mut session = Session::new();
+        let request = r#"{"chain_id":"11155111","nonce":"0","max_priority_fee":"1000000000",
+            "max_fee":"2000000000","gas_limit":"21000",
+            "to":"0x3535353535353535353535353535353535353535","value":"1000000000000000",
+            "data":"0x","private_key":"0x0000000000000000000000000000000000000000000000000000000000000001"}"#;
+        assert_eq!(session.evm_sign_tx(request), OK);
+        assert!(session.error.is_empty());
+        assert_eq!(
+            String::from_utf8(session.result.clone()).unwrap(),
+            "0x02f87483aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c080a0d02b933531d628f5d2251fbf58903a4d720f9bd6c7c51f7578f7cf301f761263a012a7d571860bb8d7e71bcb6c63d265bc6fc57b250b9381cbc18c1543c282b147"
+        );
+
+        assert_eq!(session.evm_sign_tx("{}"), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
     }
 
     #[test]
