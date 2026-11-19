@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261120a">
-<script src="/theme.js?v=20261120a"></script>
+<link rel="stylesheet" href="/site.css?v=20261121e">
+<script src="/theme.js?v=20261121e"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -150,55 +150,56 @@
     <p id="preset-empty" class="muted key-empty" hidden>No rows match this chain and wallet preset on the selected curve.</p>
     <p class="muted key-preset-foot">Chain tabs, address types and path chips only filter or highlight rows; the derivation never changes. Chains marked “soon” appear once the derivation core exposes them.</p>
   </section>
-  <details class="card key-advanced">
-    <summary>Wallet presets and curve illustration</summary>
-
-    <div class="key-explore-grid">
-      <div class="key-preset-panel">
-        <h3 class="key-group-title">Presets</h3>
-        <div class="key-presets" role="group" aria-label="Wallet presets">
-          <div class="key-preset-item">
-            <button type="button" data-preset="all" aria-pressed="true">All</button>
-            <p class="key-preset-note">Every address row for the selected curve.</p>
-          </div>
-          <div class="key-preset-item">
-            <button type="button" data-preset="ledger" aria-pressed="false">Ledger / Trezor</button>
-            <p class="key-preset-note">BTC rows: P2PKH m/44'/0'/0'/0/0, P2SH-P2WPKH m/49'/0'/0'/0/0, P2WPKH m/84'/0'/0'/0/0, P2TR m/86'/0'/0'/0/0.</p>
-          </div>
-          <div class="key-preset-item">
-            <button type="button" data-preset="metamask" aria-pressed="false">MetaMask</button>
-            <p class="key-preset-note">EVM · m/44'/60'/0'/0/0.</p>
-          </div>
-          <div class="key-preset-item">
-            <button type="button" data-preset="safepal" aria-pressed="false">SafePal</button>
-            <p class="key-preset-note">All secp256k1 rows.</p>
-          </div>
-          <div class="key-preset-item">
-            <button type="button" data-preset="tronlink" aria-pressed="false">TronLink</button>
-            <p class="key-preset-note">TRON · m/44'/195'/0'/0/0.</p>
-          </div>
-          <div class="key-preset-item">
-            <button type="button" data-preset="phantom" aria-pressed="false">Phantom</button>
-            <p class="key-preset-note">Solana · ed25519 seed.</p>
-          </div>
+  <section class="card key-derive-block" aria-labelledby="derive-title">
+    <div class="key-derive-grid">
+      <div class="key-derive-col">
+        <h2 class="key-derive-title" id="derive-title">Derivation</h2>
+        <label class="key-path-field" for="derivation-path">
+          <span>Derivation path</span>
+          <span class="key-path-row">
+            <input id="derivation-path" class="mono key-path-input" type="text" value="m/44'/0'/0'/0/0"
+                   spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="derivation-path-hint">
+            <button type="button" class="key-path-copy" id="copy-derivation-path" aria-label="Copy derivation path" title="Copy derivation path">
+              <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+            </button>
+          </span>
+        </label>
+        <p class="muted key-path-hint" id="derivation-path-hint" aria-live="polite">Informational: this page derives addresses from the final key, not from this path.</p>
+        <div class="key-preset-chips" role="group" aria-label="Wallet presets">
+          <button type="button" data-preset="all" aria-pressed="true"
+                  title="Every address row for the selected curve."
+                  aria-description="Every address row for the selected curve.">All</button>
+          <button type="button" data-preset="ledger" aria-pressed="false"
+                  title="Ledger / Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0."
+                  aria-description="Ledger / Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0.">Ledger / Trezor</button>
+          <button type="button" data-preset="metamask" aria-pressed="false"
+                  title="MetaMask EVM path: m/44'/60'/0'/0/0."
+                  aria-description="MetaMask EVM path: m/44'/60'/0'/0/0.">MetaMask</button>
+          <button type="button" data-preset="safepal" aria-pressed="false"
+                  title="SafePal secp256k1 rows: BTC m/44'/0'/0'/0/0, EVM m/44'/60'/0'/0/0, TRON m/44'/195'/0'/0/0."
+                  aria-description="SafePal secp256k1 rows: BTC m/44'/0'/0'/0/0, EVM m/44'/60'/0'/0/0, TRON m/44'/195'/0'/0/0.">SafePal</button>
+          <button type="button" data-preset="tronlink" aria-pressed="false"
+                  title="TronLink TRON path: m/44'/195'/0'/0/0."
+                  aria-description="TronLink TRON path: m/44'/195'/0'/0/0.">TronLink</button>
+          <button type="button" data-preset="phantom" aria-pressed="false"
+                  title="Phantom Solana ed25519 seed; path m/501'/0'/0'/0'."
+                  aria-description="Phantom Solana ed25519 seed; path m/501'/0'/0'/0'.">Phantom</button>
         </div>
-        <p class="muted key-preset-foot">The paths are the standard wallet defaults for seed-derived keys; this page takes the final key, so the path line is informational.</p>
       </div>
-      <div class="key-plot-panel">
-        <h3 class="key-group-title">Curve shape</h3>
+      <div class="key-derive-col key-curve-col">
+        <h2 class="key-derive-title">Curve shape</h2>
         <div class="key-plot" id="curve-plot"></div>
         <label class="key-slider" for="curve-slider">Move the illustrative point
           <input type="range" id="curve-slider" min="1" max="100" value="50">
         </label>
-        <p class="muted key-help" id="curve-caption">Real-valued illustration. Actual key arithmetic is over a finite field.</p>
+        <p class="muted key-help key-curve-caption" id="curve-caption">Real-valued view; keys use finite-field math.</p>
       </div>
     </div>
-
-  </details>
+  </section>
 
 
 </main>
 
-<script src="/key.js?v=20261120a"></script>
+<script src="/key.js?v=20261121e"></script>
 </body>
 </html>

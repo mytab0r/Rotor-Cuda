@@ -6,8 +6,8 @@
 <title>Cabinet wallet — encrypted local vault | Rotor</title>
 <meta name="description" content="Keep WIF and hex keys in an encrypted local vault and watch their addresses across supported chains. Encryption and address derivation happen in your browser; no key or passphrase is sent to the server.">
 <link rel="canonical" href="https://rotor.pxbt.app/cabinet/wallet">
-<link rel="stylesheet" href="/site.css?v=20261120a">
-<script src="/theme.js?v=20261120a"></script>
+<link rel="stylesheet" href="/site.css?v=20261121e">
+<script src="/theme.js?v=20261121e"></script>
 <style>
 .wallet-groups { display: grid; gap: 14px; }
 .wallet-group h3 { margin: 0 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
@@ -34,7 +34,8 @@
 .wallet-field-error { margin: -4px 0 8px; }
 .wallet-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--danger, #e05353); font-size: 13px; }
 #wallet-send select { width: 100%; max-width: 100%; }
-#wallet-send-from, #wallet-send-provider-note, #wallet-send-hash { overflow-wrap: anywhere; }
+#wallet-send-from, #wallet-send-provider-note, #wallet-send-hash,
+#wallet-btc-from, #wallet-btc-provider-note, #wallet-btc-txid { overflow-wrap: anywhere; }
 @media (max-width: 560px) { .wallet-review { grid-template-columns: minmax(0, 1fr); gap: 2px; } .wallet-review dt { margin-top: 8px; } }
 </style>
 </head>
@@ -64,12 +65,12 @@
       <div>
         <h1>Cabinet wallet</h1>
         <p class="key-tagline">Keep WIF and hex keys in an encrypted vault on this device and watch the addresses they control. The vault is encrypted with a passphrase you choose; the server never receives the passphrase, a private key or a WIF.</p>
-        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia testnet send</span></div>
+        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia EVM send</span><span>Bitcoin testnet send</span></div>
       </div>
     </div>
   </section>
 
-  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can now send on Ethereum Sepolia: the page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public RPC. Mainnet signing stays disabled in this phase.</p>
+  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send on Ethereum Sepolia and Bitcoin keys can send on Bitcoin testnet: the page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. Mainnet signing stays disabled in this phase.</p>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
 
@@ -122,6 +123,7 @@
         <select id="wallet-chain">
           <option value="">Select a chain</option>
           <option value="bitcoin">Bitcoin</option>
+          <option value="bitcoin-testnet">Bitcoin testnet</option>
           <option value="ethereum">Ethereum</option>
           <option value="bnb">BNB Chain</option>
           <option value="arbitrum">Arbitrum</option>
@@ -149,7 +151,7 @@
       </div>
     </form>
     <p id="wallet-add-error" class="error" role="alert" hidden></p>
-    <p class="muted" id="wallet-import-help">A WIF is checked and mapped to Bitcoin, Litecoin or Dogecoin by its version byte: compressed Bitcoin WIFs use native SegWit, uncompressed ones use legacy P2PKH, Litecoin uses native SegWit and Dogecoin uses legacy. Testnet WIF versions (0xEF, 0xF1) are recognized but not stored in this phase because the local core returns mainnet addresses only. Any 64-character hex key needs an explicit chain. The address is derived with the local WASM core first; a key whose address cannot be derived is not stored.</p>
+    <p class="muted" id="wallet-import-help">A WIF is checked and mapped by its version byte: Bitcoin mainnet compressed WIFs use native SegWit and uncompressed ones use legacy P2PKH, Bitcoin testnet WIFs (version 0xEF) use testnet native SegWit (tb1), Litecoin uses native SegWit and Dogecoin uses legacy. Dogecoin testnet (0xF1) is not supported. Any 64-character hex key needs an explicit chain; choose Bitcoin testnet to derive a tb1 address. The address is derived with the local WASM core first (testnet through derive_report_network); a key whose address cannot be derived is not stored.</p>
 
     <h2>Addresses</h2>
     <label class="wallet-row-actions"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
@@ -239,6 +241,60 @@
     </div>
   </section>
 
+  <section class="card" id="wallet-btc-send" hidden>
+    <h2>Send a Bitcoin testnet transaction</h2>
+    <p class="muted">Only Bitcoin testnet is enabled; mainnet signing stays off until the testnet flow is verified end to end. UTXOs and the recommended fee are read from <code class="mono">mempool.space/testnet/api</code> and the signed raw transaction is posted back there, directly from this browser with its real <code class="mono">Origin</code>. The server never sees a key and does not proxy these requests.</p>
+    <form id="wallet-btc-form" class="key-form" autocomplete="off">
+      <label>From (unlocked vault entry)
+        <select id="wallet-btc-entry"></select>
+      </label>
+      <p class="muted" id="wallet-btc-from" role="status">Select a Bitcoin testnet key to see its tb1 address.</p>
+      <label>To (tb1q P2WPKH address)
+        <input id="wallet-btc-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="tb1q…">
+      </label>
+      <p class="error wallet-field-error" id="wallet-btc-to-error" role="alert" hidden></p>
+      <div class="wallet-split">
+        <label>Amount (BTC)
+          <input id="wallet-btc-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="0.0001">
+        </label>
+        <label>Fee rate (sat/vB, empty = recommended)
+          <input id="wallet-btc-fee-rate" type="text" inputmode="decimal" autocomplete="off" placeholder="auto">
+        </label>
+      </div>
+      <p class="error wallet-field-error" id="wallet-btc-amount-error" role="alert" hidden></p>
+      <p class="error wallet-field-error" id="wallet-btc-fee-rate-error" role="alert" hidden></p>
+      <p class="muted">The amount is parsed to satoshis exactly. Inputs are selected largest-first until the amount plus the estimated P2WPKH fee is covered; change goes back to the signing address. Change below the 294-sat dust limit is not created and is added to the fee. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-btc-prepare">Fetch UTXOs and review</button>
+      </div>
+    </form>
+    <p class="muted" id="wallet-btc-status" role="status"></p>
+    <p id="wallet-btc-error" class="error" role="alert" hidden></p>
+
+    <div id="wallet-btc-review" hidden>
+      <h3>Review before signing</h3>
+      <dl class="wallet-review" id="wallet-btc-review-list"></dl>
+      <ul class="wallet-warnings" id="wallet-btc-review-warnings" hidden></ul>
+      <p class="muted">Unsigned P2WPKH transaction — the exact bytes that will be signed:</p>
+      <code class="mono wallet-hex" id="wallet-btc-review-unsigned"></code>
+      <div class="key-buttons">
+        <button type="button" class="primary" id="wallet-btc-confirm">Sign and broadcast</button>
+        <button type="button" id="wallet-btc-cancel">Back to edit</button>
+      </div>
+      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to mempool.space testnet. No key leaves this tab.</p>
+      <p class="error" id="wallet-btc-confirm-error" role="alert" hidden></p>
+    </div>
+
+    <div id="wallet-btc-result" hidden>
+      <h3>Broadcast result</h3>
+      <p class="muted" id="wallet-btc-provider-note"></p>
+      <p>Transaction id: <code class="mono" id="wallet-btc-txid"></code></p>
+      <p><a id="wallet-btc-explorer" target="_blank" rel="noopener noreferrer">Open on mempool.space testnet</a></p>
+      <p class="muted">Signed raw transaction:</p>
+      <code class="mono wallet-hex" id="wallet-btc-signed"></code>
+    </div>
+  </section>
+
   <section class="card">
     <h2>Encrypted backup</h2>
     <div class="wallet-split">
@@ -259,7 +315,7 @@
       <div>
         <h3>What is stored</h3>
         <p class="muted">IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
-        <p class="muted">This page can sign and broadcast Sepolia EVM transactions only after the review screen. The signature and the raw transaction are created in this tab; only the signed raw transaction is sent to a public RPC. Watch-only still means address display and opt-in balances without signing.</p>
+        <p class="muted">This page can sign and broadcast Sepolia EVM and Bitcoin testnet transactions only after the review screen. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
       </div>
     </div>
   </section>
@@ -267,9 +323,10 @@
   <p class="muted key-help">Related: <a href="/cabinet">cabinet dashboard</a>, <a href="/key">key explorer</a>, <a href="/docs">documentation</a>.</p>
 </main>
 
-<script src="/wallet-vault.js?v=20261120a"></script>
-<script src="/wallet-evm.js?v=20261120a"></script>
-<script src="/wallet.js?v=20261120a"></script>
-<script src="/site.js?v=20261120a"></script>
+<script src="/wallet-vault.js?v=20261121e"></script>
+<script src="/wallet-evm.js?v=20261121e"></script>
+<script src="/wallet-btc.js?v=20261121e"></script>
+<script src="/wallet.js?v=20261121e"></script>
+<script src="/site.js?v=20261121e"></script>
 </body>
 </html>
