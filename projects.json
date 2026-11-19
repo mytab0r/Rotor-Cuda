@@ -33,9 +33,11 @@
         "node --check apps/site/wallet.js",
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-evm.js",
-        "node --check apps/site/wallet-btc.js"
+        "node --check apps/site/wallet-btc.js",
+        "node --check scripts/ui-audit.mjs"
       ],
       "test": [
+        "node scripts/ui-audit.mjs --help",
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",
@@ -141,6 +143,7 @@
       "owner": "ops/docs",
       "paths": [
         ".github/**",
+        ".claude/skills/**",
         "deploy/**",
         "scripts/**",
         "openspec/**",
