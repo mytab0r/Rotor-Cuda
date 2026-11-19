@@ -28,10 +28,12 @@ const DEFAULT_ROUTES = [
   "/private-keys/bitcoin",
   "/seed",
   "/mnemonic-seeds/bitcoin",
+  "/brainwallet",
   "/brainwallet/bitcoin",
   "/bitcoin-puzzle",
   "/bitcoin-puzzle/71/random",
   "/tools",
+  "/send",
   "/cabinet/wallet",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };

@@ -763,21 +763,21 @@
 
   /* secretscan.org navigation, 2026-11-19. */
   [
-    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
-    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
+    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
+    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
     ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Rotor collapses EVM rows to Ethereum instead of showing eight chains.'],
-    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
-    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
-    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
-    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive is present; aggregates and CSV/Copy All are not.'],
+    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
+    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
+    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
+    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Rotor only adds (P + Q); the donor also subtracts and multiplies.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
     ['/HexDecBin', 'Hex / decimal / binary', 'tools', '/hex-dec-bin', 'parity', '-', ''],
     ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', '/tx/bitcoin', 'parity', '-', 'Raw hex to inputs, outputs, scripts, fee (with supplied prevouts) and JSON.'],
     ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', '/tx/ethereum', 'parity', '-', 'Raw hex to type, gas/fee fields, access list, signature and JSON. No signature recovery.'],
-    ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', null, 'missing', 'P0', 'Rotor only has the Sepolia flow inside /cabinet/wallet.'],
-    ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', null, 'missing', 'P0', 'Rotor only has the Sepolia flow inside /cabinet/wallet.'],
+    ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', '/send/bitcoin', 'partial', 'P0', 'Top-level testnet-only /send/bitcoin page; the donor also covers mainnet.'],
+    ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', '/send/ethereum', 'partial', 'P0', 'Top-level Sepolia-only /send/ethereum page; mainnet RPCs are rejected in code.'],
     ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', null, 'missing', 'P0', 'No BNB builder in Rotor.'],
     ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', null, 'missing', 'P0', 'No TRON builder in Rotor.'],
     ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', null, 'missing', 'P0', 'No USDT builder in Rotor.'],
@@ -1141,7 +1141,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['secretscan.org'],
-    note: 'Rotor only has the Sepolia review/confirm flow inside /cabinet/wallet; no mainnet or USDT builders.'
+    note: 'Top-level /send covers BTC testnet and ETH Sepolia; BNB, TRON, USDT/USDC builders and all mainnet sends are still missing.'
   });
 
   feature({
@@ -1189,7 +1189,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['privatekeyfinder.io'],
-    note: 'Auto-derive as you type shipped for hex, decimal, WIF, Solana keypair and brainwallet. Missing Total Value/Has Balance/Active/Checked aggregates, CSV/Copy All, WIF(u)/XRP-secret/public-key formats and eight EVM chain rows.'
+    note: 'Auto-derive, counters, Copy All/CSV, WIF(u), XRP secret and public-key formats shipped; the donor\'s eight separate EVM chain rows are still missing, and Total value stays "—" because no price source is connected.'
   });
 
   feature({
