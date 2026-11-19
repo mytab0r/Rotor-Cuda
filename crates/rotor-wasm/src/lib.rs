@@ -19,6 +19,9 @@
 //! Result blob of [`evm_sign_tx`]: the `0x`-prefixed raw EIP-1559 type-2
 //! signed transaction, ready for `eth_sendRawTransaction`; on error the status
 //! is nonzero and the error buffer names the first invalid request field.
+//!
+//! Result blob of [`evm_unsigned_tx`]: the same request without `private_key`
+//! and the `0x`-prefixed unsigned type-2 payload for the review screen.
 
 #![allow(dead_code)]
 // the included parent modules expose more than this ABI uses
@@ -427,6 +430,26 @@ impl Session {
         }
     }
 
+    /// Parse and serialize an EIP-1559 type-2 transaction without signing it.
+    ///
+    /// The request is the flat JSON object of [`Session::evm_sign_tx`] minus
+    /// `private_key`; the result is the `0x`-prefixed unsigned type-2 payload.
+    pub fn evm_unsigned_tx(&mut self, request: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match evm::unsigned_request(request) {
+            Ok(raw) => {
+                self.result = evm::hex_prefixed(&raw).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
     /// Zero and drop the last result blob. The keystore page calls this after
     /// reading a decrypted private key so it does not linger in wasm memory.
     pub fn clear_result(&mut self) {
@@ -813,6 +836,19 @@ pub extern "C" fn evm_sign_tx(ptr: u32, len: u32) -> u32 {
         return ERR_BAD_TARGET;
     };
     session_mut().evm_sign_tx(request)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn evm_unsigned_tx(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes(ptr, len) else {
+        session_mut().set_error("invalid unsigned request pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let Ok(request) = std::str::from_utf8(bytes) else {
+        session_mut().set_error("unsigned request is not valid UTF-8");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().evm_unsigned_tx(request)
 }
 
 #[unsafe(no_mangle)]
@@ -1570,6 +1606,27 @@ mod tests {
         );
 
         assert_eq!(session.evm_sign_tx("{}"), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+    }
+
+    #[test]
+    fn evm_unsigned_tx_abi_returns_unsigned_hex_and_rejects_keys() {
+        let mut session = Session::new();
+        let request = r#"{"chain_id":"11155111","nonce":"0","max_priority_fee":"1000000000",
+            "max_fee":"2000000000","gas_limit":"21000",
+            "to":"0x3535353535353535353535353535353535353535","value":"1000000000000000",
+            "data":"0x"}"#;
+        assert_eq!(session.evm_unsigned_tx(request), OK);
+        assert!(session.error.is_empty());
+        assert_eq!(
+            String::from_utf8(session.result.clone()).unwrap(),
+            "0x02f183aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c0"
+        );
+
+        session.clear_result();
+        assert!(session.result.is_empty());
+        assert_eq!(session.evm_unsigned_tx("{}"), ERR_BAD_TARGET);
         assert!(!session.error.is_empty());
         assert!(session.result.is_empty());
     }
