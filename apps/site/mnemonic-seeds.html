@@ -77,12 +77,20 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
 .mnemonic-addr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mnemonic-addr-line .address-link { flex: 1 1 auto; min-width: 0; }
 .mnemonic-address .address-link { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
-.mnemonic-actions { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.mnemonic-actions { display: inline-flex; align-items: center; gap: 14px; flex: none; }
+.mnemonic-actions .icon-btn { position: relative; width: 30px; height: 30px; min-height: 0; padding: 0; }
 .mnemonic-key-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .mnemonic-key-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; text-transform: uppercase; }
 .mnemonic-key { flex: 1 1 auto; min-width: 0; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
 a.mnemonic-key { color: var(--accent-2); }
-.mnemonic-copy { width: 30px; height: 30px; min-height: 0; }
+.mnemonic-copy { position: relative; width: 30px; height: 30px; min-height: 0; padding: 0; }
+.mnemonic-copy::before,
+.mnemonic-actions .icon-btn::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 10px;
+}
 .icon-btn.copied { color: var(--ok); }
 .mnemonic-balance { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .mnemonic-balance.has-balance { color: var(--ok); }
@@ -105,7 +113,6 @@ a.mnemonic-key { color: var(--accent-2); }
   .mnemonic-balance { grid-column: 2; grid-row: 1; font-size: 12px; }
   .mnemonic-phrase { grid-column: 1 / -1; grid-row: 2; }
   .mnemonic-address { grid-column: 1 / -1; grid-row: 3; }
-  .mnemonic-copy { width: 34px; height: 34px; }
   .mnemonic-controls { padding: 14px; }
   .mnemonic-control-path { flex-basis: 100%; }
 }
