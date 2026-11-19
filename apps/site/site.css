@@ -394,10 +394,8 @@ p { text-wrap: pretty; }
 }
 .key-chain-soon { opacity: .82; }
 .key-chain:focus-visible,
-.key-path-chip:focus-visible,
-.key-type:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.key-path-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.key-btc-panel { margin: 10px 0 14px; padding: 12px 0 0; border-top: 1px solid var(--key-border); }
 .key-paths { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .key-path-chip {
   padding: 5px 10px;
@@ -410,22 +408,6 @@ p { text-wrap: pretty; }
 .key-path-chip .mono { margin-left: 4px; color: var(--text); }
 .key-path-chip[aria-pressed="true"] { color: var(--key-btc); border-color: var(--key-btc); background: rgba(247, 147, 26, .14); }
 .key-path-chip[aria-pressed="true"] .mono { color: var(--key-btc); }
-.key-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.key-type {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 9px 11px;
-  border: 1px solid var(--key-border);
-  border-radius: 8px;
-  background: var(--key-panel-2);
-  text-align: left;
-}
-.key-type-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.key-type-code { font-size: 11px; letter-spacing: .5px; color: var(--muted); }
-.key-type[aria-pressed="true"] { border-color: var(--key-btc); background: rgba(247, 147, 26, .14); box-shadow: inset 0 0 0 1px var(--key-btc); }
-.key-type[aria-pressed="true"] .key-type-code { color: var(--key-btc); }
 .key-selected { margin: 10px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .key-balance-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .key-balance-card { min-width: 0; padding: 9px 11px; border: 1px solid var(--key-border); border-radius: 8px; background: var(--key-panel-2); }
@@ -487,7 +469,6 @@ p { text-wrap: pretty; }
 @media (max-width: 760px) {
   .key-form { grid-template-columns: 1fr; }
   .key-buttons { justify-content: flex-start; }
-  .key-types { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
   .key-balance-cards { grid-template-columns: 1fr; }
@@ -1569,22 +1550,27 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
+  min-width: 0;
   min-height: 66px;
   padding: 11px 14px;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--panel-2);
   text-align: left;
+  cursor: pointer;
 }
 .address-type-card:hover { border-color: var(--border-strong); background: var(--panel-3); }
-.address-type-card.active {
+.address-type-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.address-type-card.active,
+.address-type-card[aria-pressed="true"] {
   border-color: rgba(245, 181, 68, .65);
   background: rgba(245, 181, 68, .1);
   box-shadow: inset 0 0 0 1px rgba(245, 181, 68, .16);
 }
 .address-type-card .type-name { font-size: 14px; font-weight: 700; color: var(--text); }
-.address-type-card .type-desc { color: var(--muted); font-family: var(--mono); font-size: 11px; }
-.address-type-card.active .type-name { color: var(--accent-2); }
+.address-type-card .type-desc { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.address-type-card.active .type-name,
+.address-type-card[aria-pressed="true"] .type-name { color: var(--accent-2); }
 
 .keys-panel { overflow: hidden; }
 .keys-header,
@@ -1774,8 +1760,8 @@ code { font-family: var(--mono); font-size: .92em; }
 .key-hero { border-radius: var(--radius); }
 .key-hero h1, .hero h1 { letter-spacing: -.035em; }
 .key-toolbar, .key-form { display: grid; gap: 10px; }
-.key-preset-chips, .key-types, .key-chains, .key-paths { display: flex; flex-wrap: wrap; gap: 7px; }
-.key-type, .key-chain, .key-path-chip {
+.key-preset-chips, .key-chains, .key-paths { display: flex; flex-wrap: wrap; gap: 7px; }
+.key-chain, .key-path-chip {
   min-height: 34px;
   padding: 6px 11px;
   border: 1px solid var(--border);
@@ -1784,8 +1770,8 @@ code { font-family: var(--mono); font-size: .92em; }
   color: var(--text-2);
   font-size: 12.5px;
 }
-.key-type:hover, .key-chain:hover, .key-path-chip:hover { border-color: var(--border-strong); color: var(--text); }
-.key-type.active, .key-chain.active, .key-path-chip.active { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
+.key-chain:hover, .key-path-chip:hover { border-color: var(--border-strong); color: var(--text); }
+.key-chain.active, .key-path-chip.active { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
 .key-rows { display: grid; gap: 8px; }
 .key-addr-line, .key-row { min-width: 0; }
 .key-balance-card { border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); }
@@ -1949,7 +1935,7 @@ code { font-family: var(--mono); font-size: .92em; }
   .balance-note { padding: 9px 12px 11px; font-size: 11px; }
   .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .address-type-card { min-height: 58px; padding: 9px 11px; }
-  .address-type-card .type-desc { font-size: 11px; }
+  .address-type-card .type-desc { font-size: 12px; }
   .key-row {
     grid-template-columns: minmax(0, 1fr) 104px;
     gap: 5px 8px;
@@ -2105,6 +2091,10 @@ code { font-family: var(--mono); font-size: .92em; }
 
 /* Derivation block: path presets and curve illustration side by side. */
 .key-derive-block { padding: 18px 20px; }
+.key-derive-heading { max-width: 1040px; margin: 0 auto 12px; }
+.key-derive-intro { max-width: 1040px; margin: 0 auto 14px; }
+/* Nested variant of the shared address-type component. */
+.address-type-panel.key-address-panel { padding: 13px 14px 15px; }
 .key-derive-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
@@ -2251,16 +2241,9 @@ code { font-family: var(--mono); font-size: .92em; }
 .key-exposure-status { margin: 8px 0 0; font-size: 12px; }
 
 /* Bitcoin panel */
-.key-btc-panel {
-  margin: 0 0 18px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--panel);
-}
 .key-group-title { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.key-paths, .key-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
-.key-path-chip, .key-type {
+.key-paths { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.key-path-chip {
   min-height: 36px;
   padding: 0 11px;
   border: 1px solid var(--border);
@@ -2270,11 +2253,9 @@ code { font-family: var(--mono); font-size: .92em; }
   font-size: 12px;
 }
 .key-path-chip .mono { color: var(--muted); font-size: 11px; }
-.key-type { display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 5px 12px; }
-.key-type-name { font-size: 12.5px; font-weight: 650; }
-.key-type-code { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; }
-.key-path-chip[aria-pressed="true"], .key-type[aria-pressed="true"] { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
+.key-path-chip[aria-pressed="true"] { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
 .key-selected { margin: 0 0 10px; color: var(--text-2); font-size: 12.5px; font-family: var(--mono); overflow-wrap: anywhere; }
+.key-btc-balance { margin-bottom: 12px; }
 .key-balance-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-bottom: 10px; }
 .key-balance-card { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
 .key-balance-label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
@@ -2492,17 +2473,6 @@ code { font-family: var(--mono); font-size: .92em; }
 .entity-links span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .entity-links a { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
 .entity-links a:hover { color: var(--accent-2); }
-
-/* One address-type button family across the key explorer and chain browser */
-.key-type {
-  min-height: 66px;
-  padding: 10px 14px;
-  border-radius: 11px;
-  align-items: flex-start;
-  gap: 3px;
-}
-.key-type-name { font-size: 14px; }
-.key-type-code { font-size: 11px; }
 
 /* Key form: one column, actions directly under the curve */
 .key-form { grid-template-columns: minmax(0, 1fr); }

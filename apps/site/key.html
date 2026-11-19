@@ -133,14 +133,7 @@
     </div>
     <p class="muted key-help" id="balance-help">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
 
-    <div class="key-btc-panel" id="btc-panel" hidden>
-      <h3 class="key-group-title">Bitcoin address type</h3>
-      <div class="key-types" role="group" aria-label="Bitcoin address type">
-        <button type="button" class="key-type" data-row="btc_p2pkh" aria-pressed="false"><span class="key-type-name">Legacy</span><span class="key-type-code">P2PKH</span></button>
-        <button type="button" class="key-type" data-row="btc_p2wpkh" aria-pressed="false"><span class="key-type-name">SegWit</span><span class="key-type-code">P2WPKH</span></button>
-        <button type="button" class="key-type" data-row="btc_p2sh_p2wpkh" aria-pressed="false"><span class="key-type-name">Nested SegWit</span><span class="key-type-code">P2SH</span></button>
-        <button type="button" class="key-type" data-row="btc_p2tr" aria-pressed="false"><span class="key-type-name">Taproot</span><span class="key-type-code">P2TR</span></button>
-      </div>
+    <div class="key-btc-balance" id="btc-balance-panel" hidden>
       <p class="key-selected" id="btc-selected"></p>
       <div class="key-balance-cards">
         <div class="key-balance-card"><span class="key-balance-label">Balance</span><span class="key-balance-value mono empty" id="btc-balance">—</span></div>
@@ -157,9 +150,20 @@
     <p class="muted key-preset-foot">Chain tabs, address types and path chips only filter or highlight rows; the derivation never changes. Chains marked “soon” appear once the derivation core exposes them.</p>
   </section>
   <section class="card key-derive-block" aria-labelledby="derive-title">
+    <h2 class="key-derive-title key-derive-heading" id="derive-title">Derivation</h2>
+    <div class="key-derive-intro" id="btc-panel" hidden>
+      <section class="address-type-panel key-address-panel" aria-label="Bitcoin address type">
+        <div class="panel-label"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg>Bitcoin address type</div>
+        <div class="address-type-cards" role="group" aria-label="Bitcoin address type">
+          <button type="button" class="address-type-card" data-row="btc_p2pkh" aria-pressed="false"><span class="type-name">Legacy</span><span class="type-desc">P2PKH · 1…</span></button>
+          <button type="button" class="address-type-card" data-row="btc_p2wpkh" aria-pressed="false"><span class="type-name">SegWit</span><span class="type-desc">P2WPKH · bc1q…</span></button>
+          <button type="button" class="address-type-card" data-row="btc_p2sh_p2wpkh" aria-pressed="false"><span class="type-name">Nested SegWit</span><span class="type-desc">P2SH · 3…</span></button>
+          <button type="button" class="address-type-card" data-row="btc_p2tr" aria-pressed="false"><span class="type-name">Taproot</span><span class="type-desc">P2TR · bc1p…</span></button>
+        </div>
+      </section>
+    </div>
     <div class="key-derive-grid">
       <div class="key-derive-col">
-        <h2 class="key-derive-title" id="derive-title">Derivation</h2>
         <label class="key-path-field" for="derivation-path">
           <span>Derivation path</span>
           <span class="key-path-row">

@@ -1012,7 +1012,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 7] = [
+    let checks: [(&str, &[&str]); 8] = [
         (
             "/",
             &[
@@ -1052,6 +1052,15 @@ fn public_pages_and_assets_are_served() {
                 "/theme.js?v=20261122b",
             ],
         ),
+        (
+            "/key",
+            &[
+                "class=\"address-type-panel key-address-panel\"",
+                "class=\"address-type-card\"",
+                "data-row=\"btc_p2pkh\"",
+                "id=\"btc-panel\"",
+            ],
+        ),
         ("/site.css", &[":root", "--bg", "@media"]),
         ("/site.js", &["window.Rotor", "sparkline", "TOKEN_KEY"]),
     ];
@@ -1089,6 +1098,23 @@ fn public_pages_and_assets_are_served() {
     // Unknown non-API paths are a real 404, not a landing-page fallback.
     let (status, _, _) = raw(addr, "GET", "/anything", None, None);
     assert_eq!(status, 404);
+
+    // The parity map is internal docs now; its old public route is gone.
+    for path in [
+        "/site-map",
+        "/site-map.css",
+        "/site-map.js",
+        "/site-map-data.js",
+    ] {
+        let (status, _, _) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 404, "{path} must not be served");
+    }
+    let (status, _, sitemap) = raw(addr, "GET", "/sitemap.xml", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        !sitemap.contains("/site-map"),
+        "sitemap.xml must not list the internal parity map"
+    );
 
     // The authenticated API is still protected.
     let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);

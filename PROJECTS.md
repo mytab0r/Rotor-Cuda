@@ -9,7 +9,7 @@ owned by exactly one area; the most-specific glob wins.
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
 | `wasm-core` | wasm-core | `crates/rotor-wasm/**` | `sh scripts/build-wasm.sh` | `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
 | `desktop` | desktop-tools | remaining `src/**` and `tests/**`, `Rotor-Cuda/**`, legacy trees, `build.rs`, `Cargo.toml` | `cargo build --release [--features gpu]` | `cargo test --release [--features gpu]` |
-| `ops` | ops/docs | `.github/**`, `deploy/**`, `scripts/**`, `openspec/**`, `Dockerfile`, root docs | `node scripts/check-projects.mjs` | `node scripts/check-projects.mjs` |
+| `ops` | ops/docs | `.github/**`, `deploy/**`, `scripts/**`, `openspec/**`, `docs/**`, `Dockerfile`, root docs | `node scripts/check-projects.mjs` | `node docs/site-map/site-map-test.mjs`; `node scripts/check-projects.mjs` |
 
 ## Cross-area contracts
 
@@ -50,9 +50,10 @@ owned by exactly one area; the most-specific glob wins.
   `/brainwallet/<chain>/<page>` are the directory pages. SEO routes include
   `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
-  The canonical `/site-map` page is a static route with `site-map.css`,
-  `site-map.js` and the single data file `site-map-data.js`; update that file
-  when a route or feature status changes.
+  The route/feature parity map is internal documentation, not a public route:
+  it lives in `docs/site-map/index.html` with `site-map.css`, `site-map.js` and
+  the single data file `site-map-data.js`. Update the data when a route or
+  feature status changes; the coordinator neither embeds nor serves it.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
   `Rotor-Cuda/`; moving them requires `build.rs`, `Cargo.toml` and
   `gpu-bsgs-compile.yml` in the same change.
