@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261123d">
-<script src="/theme.js?v=20261123c"></script>
+<link rel="stylesheet" href="/site.css?v=20261124a">
+<script src="/theme.js?v=20261124a"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -71,7 +71,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261123c#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261124a#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -179,6 +179,7 @@
     <div id="addr-rows" class="key-rows">
       <p class="muted key-empty">Derive a key to see its addresses.</p>
     </div>
+    <p id="evm-shared-note" class="muted key-help key-evm-note" hidden>All EVM networks share the same 0x address.</p>
     <p id="preset-empty" class="muted key-empty" hidden>No rows match this chain and wallet preset on the selected curve.</p>
     <p class="muted key-preset-foot">Chain tabs, address types and path chips only filter or highlight rows; the derivation never changes. Chains marked “soon” appear once the derivation core exposes them.</p>
   </section>
@@ -243,8 +244,8 @@
 
 </main>
 
-<script src="/key-tools.js?v=20261123c"></script>
-<script src="/balance-cache.js?v=20261123c"></script>
-<script src="/key.js?v=20261123c"></script>
+<script src="/key-tools.js?v=20261124a"></script>
+<script src="/balance-cache.js?v=20261124a"></script>
+<script src="/key.js?v=20261124a"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@
   var WASM_URL = '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
   var URL_KEY_RE = /^\/key\/([0-9a-fA-F]{64})$/;
-  var URL_WIF_RE = /^\/key\/([5KL][1-9A-HJ-NP-Za-km-z]{50,51})$/;
+  var URL_WIF_RE = /^\/key\/([5KLQT][1-9A-HJ-NP-Za-km-z]{50,51})$/;
   var EVM_RPC_URLS = [
     'https://ethereum-rpc.publicnode.com',
     'https://eth.drpc.org',
@@ -15,7 +15,6 @@
   var SECP_N = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
   var WEI = 1000000000000000000n;
   var WEI_PER_MICRO = 1000000000000n;
-  var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var DECODER = new TextDecoder('utf-8');
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
@@ -205,7 +204,8 @@
     exposureController: null,
     exposurePostedGeneration: -1,
     urlKey: null,
-    urlExposurePosted: false
+    urlExposurePosted: false,
+    wifNetwork: null
   };
 
   var AUTO_DERIVE_MS = 200;
@@ -234,6 +234,7 @@
   var addressesCard = byId('addresses-card');
   var rowsEl = byId('addr-rows');
   var presetEmpty = byId('preset-empty');
+  var evmSharedNote = byId('evm-shared-note');
   var plotEl = byId('curve-plot');
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
@@ -269,8 +270,12 @@
    * Order preserves the old page: exactly 64 hex characters win over decimal,
    * and every other plain number is decimal. Any other text is a brainwallet
    * phrase. The hint never includes the key itself. */
-  var WIF_RE = /^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/;
-  var WIF_PARTIAL_RE = /^[5KL][1-9A-HJ-NP-Za-km-z]{8,49}$/;
+  var WIF_RE = /^[5KLQT][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  var WIF_PARTIAL_RE = /^[5KLQT][1-9A-HJ-NP-Za-km-z]{8,49}$/;
+  var WIF_NETWORK_LABELS = { bitcoin: 'Bitcoin', litecoin: 'Litecoin', dogecoin: 'Dogecoin' };
+  /* UTXO rows whose chain can encode this 32-byte key as a mainnet WIF.
+   * BCH shares Bitcoin's version byte. */
+  var WIF_ROW_PREFIXES = { btc_: 'bitcoin', bch_: 'bitcoin', ltc_: 'litecoin', doge_: 'dogecoin' };
 
   function detectFormat(raw) {
     var value = String(raw == null ? '' : raw).trim();
@@ -328,8 +333,8 @@
         : 'hex key (' + detected.length + '/64 characters)';
     }
     if (detected.kind === 'wif') {
-      return detected.incomplete ? 'Bitcoin WIF (' + detected.length + ' characters so far)'
-        : 'Bitcoin WIF (secp256k1)';
+      return detected.incomplete ? 'WIF (' + detected.length + ' characters so far)'
+        : 'WIF (secp256k1)';
     }
     if (detected.kind === 'decimal') return 'decimal integer';
     if (detected.kind === 'keypair') {
@@ -397,43 +402,22 @@
     return hexToBytes(value.toString(16).padStart(64, '0'));
   }
 
-  function base58Decode(text) {
-    var value = 0n;
-    for (var i = 0; i < text.length; i++) {
-      var index = BASE58.indexOf(text.charAt(i));
-      if (index < 0) throw new Error('Invalid base58 character in the WIF.');
-      value = value * 58n + BigInt(index);
-    }
-    var leading = 0;
-    while (leading < text.length && text.charAt(leading) === '1') leading++;
-    var hex = value === 0n ? '' : value.toString(16);
-    if (hex.length % 2) hex = '0' + hex;
-    var body = hex ? hexToBytes(hex) : new Uint8Array(0);
-    var out = new Uint8Array(leading + body.length);
-    out.set(body, leading);
-    return out;
-  }
-
   async function sha256(bytes) {
     var digest = await window.crypto.subtle.digest('SHA-256', bytes);
     return new Uint8Array(digest);
   }
 
+  /* Mainnet WIF for Bitcoin, Litecoin and Dogecoin (the checksum is the same
+   * double SHA-256). Returns the 32-byte key plus the network it belongs to. */
   async function decodeWif(text) {
     if (!(window.crypto && window.crypto.subtle)) {
       throw new Error('WIF checksums need a secure context (https or localhost) in this browser.');
     }
-    var raw = base58Decode(text);
-    if (raw.length !== 37 && raw.length !== 38) throw new Error('Not a valid Bitcoin WIF length.');
-    if (raw[0] !== 0x80) throw new Error('Not a Bitcoin mainnet WIF.');
-    if (raw.length === 38 && raw[33] !== 0x01) throw new Error('Invalid WIF compression marker.');
-    var payload = raw.slice(0, raw.length - 4);
-    var checksum = raw.slice(raw.length - 4);
-    var hash = await sha256(await sha256(payload));
-    for (var i = 0; i < 4; i++) {
-      if (hash[i] !== checksum[i]) throw new Error('WIF checksum mismatch.');
+    var tools = window.RotorKeyTools;
+    if (!tools || typeof tools.wifDecode !== 'function') {
+      throw new Error('WIF support did not load (/key-tools.js).');
     }
-    return raw.slice(1, 33);
+    return tools.wifDecode(text, doubleSha256);
   }
 
   async function parseKey(raw, curve) {
@@ -447,7 +431,8 @@
     if (detected.kind === 'hex') {
       parsed = { bytes: hexToBytes(text.replace(/^0[xX]/, '')), format: 'hex' };
     } else if (detected.kind === 'wif') {
-      parsed = { bytes: await decodeWif(text), format: 'wif' };
+      var decoded = await decodeWif(text);
+      parsed = { bytes: decoded.bytes, format: 'wif', network: decoded.network };
     } else if (detected.kind === 'decimal') {
       parsed = { bytes: decimalToBytes(text), format: 'decimal' };
     } else if (detected.kind === 'keypair') {
@@ -609,6 +594,7 @@
     setExportStatus('');
     state.report = null;
     state.focusId = null;
+    if (evmSharedNote) evmSharedNote.hidden = true;
     summaryPlaceholder();
     rowsPlaceholder();
     updateChainAvailability([], null);
@@ -620,8 +606,10 @@
 
   function updateDerivedStatus() {
     var count = rowsEl.querySelectorAll('.key-row').length;
+    var network = state.wifNetwork && WIF_NETWORK_LABELS[state.wifNetwork];
     setStatus('derived', 'Derived ' + count + ' address row' + (count === 1 ? '' : 's') +
-      ' from a ' + formatHint(detectFormat(input.value)) + '.');
+      ' from a ' + formatHint(detectFormat(input.value)) +
+      (network ? ' (' + network + ' network)' : '') + '.');
   }
 
   async function runDerive(bytes, curve, seq) {
@@ -652,6 +640,7 @@
     var seq = ++state.deriveSeq;
     if (detected.kind === 'empty') {
       state.keyBytes = null;
+      state.wifNetwork = null;
       setBusy(false);
       clearResults();
       setStatus('idle', 'Paste a key to derive automatically.');
@@ -659,6 +648,7 @@
     }
     if (detected.incomplete) {
       state.keyBytes = null;
+      state.wifNetwork = null;
       setBusy(false);
       clearResults();
       setStatus('typing', 'Detected: ' + formatHint(detected) + ' — keep typing');
@@ -666,6 +656,7 @@
     }
     if (detected.error) {
       state.keyBytes = null;
+      state.wifNetwork = null;
       setBusy(false);
       clearResults();
       showError(detected.error);
@@ -691,6 +682,7 @@
     }
     if (seq !== state.deriveSeq) return;
     state.keyBytes = parsed.bytes;
+    state.wifNetwork = parsed.network || null;
     await runDerive(parsed.bytes, curve, seq);
   }
 
@@ -712,6 +704,7 @@
     var seq = ++state.deriveSeq;
     input.value = bytesToHex(bytes);
     state.keyBytes = bytes;
+    state.wifNetwork = null;
     updateInputState();
     runDerive(bytes, curve, seq);
   }
@@ -739,6 +732,7 @@
     var bytes = hexToBytes(value.toString(16).padStart(64, '0'));
     input.value = bytesToHex(bytes);
     state.keyBytes = bytes;
+    state.wifNetwork = null;
     updateInputState();
     await runDerive(bytes, curve, seq);
   }
@@ -749,6 +743,7 @@
     setBusy(false);
     input.value = '';
     state.keyBytes = null;
+    state.wifNetwork = null;
     state.detected = null;
     clearResults();
     setStatus('idle', 'Paste a key to derive automatically.');
@@ -957,6 +952,7 @@
     var addresses = displayAddresses(report);
     if (!addresses.length) {
       state.focusId = null;
+      if (evmSharedNote) evmSharedNote.hidden = true;
       var note = document.createElement('p');
       note.className = 'muted key-empty';
       note.textContent = 'The derivation core returned no address rows.';
@@ -969,6 +965,11 @@
     addresses.forEach(function (addr) {
       rowsEl.appendChild(buildRow(addr));
     });
+    rowsEl.insertBefore(buildTableHead(), rowsEl.firstChild);
+    if (evmSharedNote) {
+      evmSharedNote.hidden = !addresses.some(function (addr) { return addr.sharedEvm; });
+    }
+    hydrateWifLinks();
     resetBalanceBadges();
     updateChainAvailability(Array.isArray(report.addresses) ? report.addresses : [], report.curve);
     ensureBtcFocus();
@@ -1041,90 +1042,234 @@
     return map[id] || '';
   }
 
+  function rowList() {
+    return Array.prototype.slice.call(rowsEl.querySelectorAll('.key-row'));
+  }
+
+  function svgUse(href, className) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', className || 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', href);
+    svg.appendChild(use);
+    return svg;
+  }
+
+  /* Chain identity for one address row: icon id from /icons.svg plus ticker. */
+  function chainMeta(id) {
+    if (EVM_CHAINS[id]) {
+      return { ticker: EVM_CHAINS[id].symbol, icon: 'chain-' + EVM_CHAINS[id].slug };
+    }
+    var table = {
+      btc: { ticker: 'BTC', icon: 'chain-bitcoin' },
+      ltc: { ticker: 'LTC', icon: 'chain-litecoin' },
+      doge: { ticker: 'DOGE', icon: 'chain-dogecoin' },
+      bch: { ticker: 'BCH', icon: 'chain-bitcoin-cash' },
+      zcash: { ticker: 'ZEC', icon: 'chain-zcash' },
+      xrp: { ticker: 'XRP', icon: 'chain-xrp' },
+      solana: { ticker: 'SOL', icon: 'chain-solana' },
+      sui: { ticker: 'SUI', icon: 'chain-sui' },
+      ton: { ticker: 'TON', icon: 'chain-ton' },
+      tron: { ticker: 'TRX', icon: 'chain-tron' }
+    };
+    var prefix = String(id).split('_')[0];
+    return table[id] || table[prefix] || { ticker: String(id).toUpperCase(), icon: 'ui-blockchain' };
+  }
+
+  var TYPE_LABELS = {
+    btc_p2pkh: 'Legacy',
+    btc_p2pkh_uncompressed: 'Legacy (u)',
+    btc_p2sh_p2wpkh: 'Nested SegWit',
+    btc_p2wpkh: 'SegWit',
+    btc_p2tr: 'Taproot',
+    ltc_p2pkh: 'Legacy',
+    ltc_p2sh_p2wpkh: 'Nested SegWit',
+    ltc_p2wpkh: 'SegWit',
+    doge_p2pkh: 'Legacy',
+    bch_legacy: 'Legacy',
+    zcash_p2pkh: 'Transparent',
+    xrp_classic: 'Classic',
+    tron: 'Base58',
+    solana: 'ed25519',
+    sui: 'Account',
+    ton: 'v4R2'
+  };
+
+  function typeLabel(id) {
+    if (EVM_CHAINS[id]) return 'EIP-55';
+    return TYPE_LABELS[id] || String(id).replace(/_/g, ' ');
+  }
+
+  function pathLabel(id) {
+    var path = PATHS[id];
+    if (!path) return '';
+    var split = path.indexOf(' · ');
+    return split >= 0 ? path.slice(split + 3) : path;
+  }
+
+  function buildTableHead() {
+    var head = document.createElement('div');
+    head.className = 'key-table-head';
+    head.setAttribute('aria-hidden', 'true');
+    [
+      ['Chain', 'key-cell-chain'],
+      ['Type', 'key-cell-type'],
+      ['Path', 'key-cell-path'],
+      ['Address', 'key-cell-addr'],
+      ['Status', 'key-cell-status'],
+      ['', 'key-cell-act']
+    ].forEach(function (entry) {
+      var cell = document.createElement('span');
+      cell.className = 'key-cell ' + entry[1];
+      cell.textContent = entry[0];
+      head.appendChild(cell);
+    });
+    return head;
+  }
+
+  function copyIconText(text, button, label) {
+    writeClipboard(text, function done() {
+      var use = button.querySelector('use');
+      if (use) use.setAttribute('href', '/icons.svg#ui-check');
+      button.classList.add('is-copied');
+      button.setAttribute('aria-label', label + ' copied');
+      button.setAttribute('title', label + ' copied');
+      button.disabled = true;
+      window.setTimeout(function () {
+        if (use) use.setAttribute('href', '/icons.svg#ui-copy');
+        button.classList.remove('is-copied');
+        button.setAttribute('aria-label', label);
+        button.setAttribute('title', label);
+        button.disabled = false;
+      }, 1200);
+    });
+  }
+
+  function setRowDetails(row, open) {
+    var details = row.querySelector('.key-details');
+    var toggle = row.querySelector('.key-details-toggle');
+    if (!details) return;
+    details.hidden = !open;
+    if (!toggle) return;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.classList.toggle('is-open', open);
+    var name = toggle.getAttribute('data-name') || 'address';
+    toggle.setAttribute('aria-label', (open ? 'Hide' : 'Show') + ' details for ' + name);
+    toggle.setAttribute('title', (open ? 'Hide' : 'Show') + ' details for ' + name);
+  }
+
+  /* The WIF link needs a SHA-256 checksum, so it is filled in after the row is
+   * mounted. One promise per network is reused across that network's rows. */
+  function hydrateWifLinks() {
+    var tools = window.RotorKeyTools;
+    if (!state.keyBytes || !tools || typeof tools.wifEncode !== 'function') return;
+    var generation = state.generation;
+    var pending = {};
+    rowList().forEach(function (row) {
+      var network = null;
+      var id = row.getAttribute('data-id') || '';
+      Object.keys(WIF_ROW_PREFIXES).some(function (prefix) {
+        if (id.indexOf(prefix) === 0) {
+          network = WIF_ROW_PREFIXES[prefix];
+          return true;
+        }
+        return false;
+      });
+      var slot = row.querySelector('.key-wif-slot');
+      if (!network || !slot) return;
+      if (!pending[network]) {
+        pending[network] = tools.wifEncode(state.keyBytes, network, doubleSha256);
+      }
+      pending[network].then(function (wif) {
+        if (generation !== state.generation || !slot.isConnected) return;
+        var link = document.createElement('a');
+        link.className = 'key-wif';
+        link.href = '/key/' + encodeURIComponent(wif);
+        link.setAttribute('aria-label', 'Open the ' + WIF_NETWORK_LABELS[network] + ' WIF key page');
+        link.title = 'Open the ' + WIF_NETWORK_LABELS[network] + ' WIF key page';
+        link.textContent = 'WIF';
+        slot.textContent = '';
+        slot.appendChild(link);
+      }).catch(function () {
+        /* Leave the slot empty when a checksum cannot be computed. */
+      });
+    });
+  }
+
   function buildRow(addr) {
     var row = document.createElement('div');
     row.className = 'key-row';
     row.setAttribute('data-id', addr.id);
     row.setAttribute('data-address', addr.address);
 
-    var head = document.createElement('div');
-    head.className = 'key-row-head';
-    var title = document.createElement('h3');
-    title.className = 'key-row-title';
-    title.textContent = addr.label || ID_LABELS[addr.id] || addr.id;
-    head.appendChild(title);
-    if (addr.sharedEvm) {
-      var shared = document.createElement('span');
-      shared.className = 'key-row-tag';
-      shared.textContent = 'same address';
-      shared.title = 'Every EVM row shares this account address; each row is a different network.';
-      head.appendChild(shared);
-    }
-    if (PATHS[addr.id]) {
-      var path = document.createElement('span');
-      path.className = 'key-row-path';
-      path.textContent = PATHS[addr.id];
-      head.appendChild(path);
-    }
-    if (typeof addr.id === 'string' && addr.id.indexOf('btc_') === 0 && state.report && state.report.wif_compressed) {
-      var wif = document.createElement('a');
-      wif.className = 'key-wif';
-      wif.href = '/key/' + encodeURIComponent(state.report.wif_compressed);
-      wif.title = 'Open the WIF key page';
-      wif.textContent = 'WIF';
-      head.appendChild(wif);
-    }
-    var badge = document.createElement('span');
-    badge.className = 'key-balance';
-    badge.hidden = true;
-    head.appendChild(badge);
-    row.appendChild(head);
+    var main = document.createElement('div');
+    main.className = 'key-row-main';
 
-    var line = document.createElement('div');
-    line.className = 'key-addr-line';
+    var chain = chainMeta(addr.id);
+    var chainCell = document.createElement('span');
+    chainCell.className = 'key-cell key-cell-chain';
+    var chainLabel = document.createElement('span');
+    chainLabel.className = 'visually-hidden';
+    chainLabel.textContent = 'Chain: ';
+    chainCell.appendChild(chainLabel);
+    var chainId = document.createElement('span');
+    chainId.className = 'key-chain-id';
+    chainId.appendChild(svgUse('/icons.svg#' + chain.icon, 'key-chain-icon'));
+    var ticker = document.createElement('span');
+    ticker.className = 'key-chain-ticker';
+    ticker.textContent = chain.ticker;
+    chainId.appendChild(ticker);
+    chainCell.appendChild(chainId);
+    main.appendChild(chainCell);
+
+    var name = addr.label || ID_LABELS[addr.id] || addr.id;
+    var typeCell = document.createElement('span');
+    typeCell.className = 'key-cell key-cell-type';
+    var typeText = document.createElement('span');
+    typeText.className = 'key-format-text';
+    typeText.textContent = typeLabel(addr.id);
+    typeCell.appendChild(typeText);
+    var title = document.createElement('span');
+    title.className = 'key-row-title visually-hidden';
+    title.textContent = name;
+    typeCell.appendChild(title);
+    main.appendChild(typeCell);
+
+    var pathCell = document.createElement('span');
+    pathCell.className = 'key-cell key-cell-path mono';
+    pathCell.textContent = pathLabel(addr.id);
+    main.appendChild(pathCell);
+
+    var addrCell = document.createElement('span');
+    addrCell.className = 'key-cell key-cell-addr';
+    var addrLabel = document.createElement('span');
+    addrLabel.className = 'visually-hidden';
+    addrLabel.textContent = 'Address: ';
+    addrCell.appendChild(addrLabel);
     var code = document.createElement('code');
     code.className = 'mono key-addr';
     code.textContent = addr.address;
-    line.appendChild(code);
-    var explorer = explorerFor(addr.id);
-    if (explorer) {
-      var ext = document.createElement('a');
-      ext.className = 'key-copy key-copy-icon';
-      ext.href = explorer + encodeURIComponent(addr.address);
-      ext.target = '_blank';
-      ext.rel = 'noopener noreferrer';
-      ext.title = 'Open in explorer';
-      ext.setAttribute('aria-label', 'Open ' + (addr.label || addr.id) + ' in explorer');
-      var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('class', 'icon');
-      svg.setAttribute('aria-hidden', 'true');
-      var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-      use.setAttribute('href', '/icons.svg#ui-external');
-      svg.appendChild(use);
-      ext.appendChild(svg);
-      line.appendChild(ext);
-    }
-    var copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'key-copy key-copy-icon';
-    copy.title = 'Copy address';
-    copy.setAttribute('aria-label', 'Copy ' + (addr.label || addr.id) + ' address');
-    var copySvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    copySvg.setAttribute('class', 'icon');
-    copySvg.setAttribute('aria-hidden', 'true');
-    var copyUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    copyUse.setAttribute('href', '/icons.svg#ui-copy');
-    copySvg.appendChild(copyUse);
-    copy.appendChild(copySvg);
-    copy.addEventListener('click', function () { copyText(addr.address, copy); });
-    line.appendChild(copy);
-    row.appendChild(line);
+    code.title = addr.address;
+    addrCell.appendChild(code);
+    main.appendChild(addrCell);
 
-    var details = document.createElement('details');
-    details.className = 'key-steps';
-    var summary = document.createElement('summary');
-    summary.textContent = 'Details';
-    details.appendChild(summary);
+    var statusCell = document.createElement('span');
+    statusCell.className = 'key-cell key-cell-status';
+    var statusLabel = document.createElement('span');
+    statusLabel.className = 'visually-hidden';
+    statusLabel.textContent = 'Status: ';
+    statusCell.appendChild(statusLabel);
+    var badge = document.createElement('span');
+    badge.className = 'key-balance';
+    badge.hidden = true;
+    statusCell.appendChild(badge);
+    main.appendChild(statusCell);
+
+    var details = document.createElement('div');
+    details.className = 'key-details';
+    details.id = 'key-details-' + String(addr.id).replace(/[^a-z0-9_-]/gi, '-');
+    details.hidden = true;
     var explain = EXPLAIN[addr.id] || (addr.sharedEvm ? EXPLAIN.evm : '');
     if (explain) {
       var sentence = document.createElement('p');
@@ -1132,7 +1277,6 @@
       sentence.textContent = explain;
       details.appendChild(sentence);
     }
-
     var steps = addr.steps && typeof addr.steps === 'object' ? addr.steps : null;
     if (steps) {
       var keys = orderedSteps(addr.id, steps);
@@ -1159,6 +1303,49 @@
       }
     }
 
+    var actions = document.createElement('span');
+    actions.className = 'key-cell key-cell-act';
+    var explorer = explorerFor(addr.id);
+    if (explorer) {
+      var ext = document.createElement('a');
+      ext.className = 'icon-btn key-row-action';
+      ext.href = explorer + encodeURIComponent(addr.address);
+      ext.target = '_blank';
+      ext.rel = 'noopener noreferrer';
+      ext.title = 'Open ' + name + ' in explorer';
+      ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
+      ext.appendChild(svgUse('/icons.svg#ui-external'));
+      actions.appendChild(ext);
+    }
+    var wifSlot = document.createElement('span');
+    wifSlot.className = 'key-wif-slot';
+    actions.appendChild(wifSlot);
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'icon-btn key-row-action';
+    copy.title = 'Copy ' + name + ' address';
+    copy.setAttribute('aria-label', 'Copy ' + name + ' address');
+    copy.appendChild(svgUse('/icons.svg#ui-copy'));
+    copy.addEventListener('click', function () {
+      copyIconText(addr.address, copy, 'Copy ' + name + ' address');
+    });
+    actions.appendChild(copy);
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'icon-btn key-row-action key-details-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', details.id);
+    toggle.setAttribute('data-name', name);
+    toggle.setAttribute('aria-label', 'Show details for ' + name);
+    toggle.title = 'Show details for ' + name;
+    toggle.appendChild(svgUse('/icons.svg#ui-chevron'));
+    toggle.addEventListener('click', function () {
+      setRowDetails(row, details.hidden);
+    });
+    actions.appendChild(toggle);
+    main.appendChild(actions);
+
+    row.appendChild(main);
     row.appendChild(details);
     return row;
   }
@@ -1237,13 +1424,13 @@
   }
 
   function visibleRowData() {
-    return Array.prototype.filter.call(rowsEl.children, function (row) {
-      return row.classList.contains('key-row') && !row.classList.contains('hidden');
+    return rowList().filter(function (row) {
+      return !row.classList.contains('hidden');
     }).map(function (row) {
       var title = row.querySelector('.key-row-title');
       var address = row.querySelector('.key-addr');
       var badge = row.querySelector('.key-balance');
-      var explorer = row.querySelector('.key-addr-line a[target="_blank"]');
+      var explorer = row.querySelector('.key-cell-act a[target="_blank"]');
       return {
         chain: row.getAttribute('data-id') || '',
         label: title ? title.textContent : '',
@@ -1308,7 +1495,7 @@
 
   function btcRowIds() {
     var ids = [];
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       var id = row.getAttribute('data-id');
       if (id && id.indexOf('btc_') === 0) ids.push(id);
     });
@@ -1316,7 +1503,7 @@
   }
 
   function findRow(id) {
-    return Array.prototype.filter.call(rowsEl.children, function (row) {
+    return rowList().filter(function (row) {
       return row.getAttribute('data-id') === id;
     })[0] || null;
   }
@@ -1385,7 +1572,7 @@
       return;
     }
     var visible = 0;
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       var show = rowMatches(row.getAttribute('data-id'));
       row.classList.toggle('hidden', !show);
       if (show) visible++;
@@ -1460,7 +1647,7 @@
       tile.setAttribute('aria-pressed', String(active));
       tile.classList.toggle('active', active);
     });
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       row.classList.toggle('key-row-focus', !!state.focusId && row.getAttribute('data-id') === state.focusId);
     });
     summaryEl.classList.toggle('key-focus', state.focusId === 'summary');
@@ -1472,8 +1659,7 @@
     var row = findRow(state.focusId);
     if (!row) return;
     if (open) {
-      var details = row.querySelector('details');
-      if (details) details.open = true;
+      setRowDetails(row, true);
     }
     if (scroll) row.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
   }
@@ -1550,7 +1736,7 @@
 
   function syncBitcoinPanel() {
     if (!btcPanel) return;
-    var hasVisibleBtc = Array.prototype.some.call(rowsEl.children, function (row) {
+    var hasVisibleBtc = rowList().some(function (row) {
       var id = row.getAttribute('data-id');
       return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
     });
@@ -1575,6 +1761,8 @@
     badge.hidden = false;
     badge.className = 'key-balance' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
     badge.textContent = text;
+    badge.title = text;
+    badge.removeAttribute('aria-label');
     if (age) {
       var ageEl = document.createElement('span');
       ageEl.className = 'balance-age';
@@ -1593,13 +1781,20 @@
     }
   }
 
+  function setNoProvider(badge) {
+    setBalance(badge, 'muted', '—');
+    badge.title = 'No balance provider for this chain yet';
+    badge.setAttribute('aria-label', 'No balance provider for this chain yet');
+  }
+
   function resetBalanceBadges() {
     Array.prototype.forEach.call(rowsEl.querySelectorAll('.key-balance'), function (badge) {
       badge.textContent = '';
       badge.className = 'key-balance';
+      badge.title = '';
       badge.hidden = true;
     });
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       delete row.dataset.balanceState;
     });
   }
@@ -1783,7 +1978,7 @@
   function updateCounters() {
     if (!keyStats || !state.report) return;
     var entries = [];
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       var id = row.getAttribute('data-id');
       if (!id) return;
       var summary = state.balances[id];
@@ -1895,7 +2090,7 @@
   function keyPendingCount() {
     var now = Date.now();
     var count = 0;
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       if (row.classList.contains('hidden')) return;
       var stateName = row.dataset.balanceState;
       if (stateName === 'off' || stateName === 'loading') return;
@@ -1939,7 +2134,7 @@
     if (!badge || !address || generation !== state.generation) return;
     if (!rowHasProvider(id)) {
       row.dataset.balanceState = 'off';
-      setBalance(badge, 'muted', 'no provider in v1');
+      setNoProvider(badge);
       updateCounters();
       return;
     }
@@ -1989,15 +2184,15 @@
     var opts = options || {};
     if (!state.report) return;
     if (state.checking && !opts.onlyRows) return;
-    Array.prototype.forEach.call(rowsEl.children, function (row) {
+    rowList().forEach(function (row) {
       if (row.classList.contains('hidden') || rowCacheInfo(row)) return;
       var badge = row.querySelector('.key-balance');
       if (!badge) return;
       row.dataset.balanceState = 'off';
-      setBalance(badge, 'muted', 'no provider in v1');
+      setNoProvider(badge);
     });
     var only = opts.onlyRows && opts.onlyRows.length ? opts.onlyRows : null;
-    var candidates = Array.prototype.filter.call(rowsEl.children, function (row) {
+    var candidates = rowList().filter(function (row) {
       if (row.classList.contains('hidden')) return false;
       if (only && only.indexOf(row) < 0) return false;
       var stateName = row.dataset.balanceState;
@@ -2311,6 +2506,7 @@
       cancelPlannedDerive();
       setBusy(false);
       state.keyBytes = null;
+      state.wifNetwork = null;
       clearResults();
       if (detected.kind === 'empty') setStatus('idle', 'Paste a key to derive automatically.');
       return;
@@ -2347,6 +2543,7 @@
     cancelPlannedDerive();
     setBusy(false);
     state.keyBytes = null;
+    state.wifNetwork = null;
     clearResults();
     setStatus('idle', 'Paste a key to derive automatically.');
   });
