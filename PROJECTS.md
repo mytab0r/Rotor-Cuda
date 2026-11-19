@@ -29,8 +29,10 @@ owned by exactly one area; the most-specific glob wins.
   single-source.
 - **Routes.** `/`, `/app`, `/run`, `/me`, `/docs`, `/key` and the static asset
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
-  coordinator + site change. SEO routes include `/bitcoin-puzzle`,
-  `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
+  coordinator + site change. Key utility pages `/hex-dec-bin`, `/public-key`,
+  `/pubkey-add`, `/reconstruction` and `/keystore-parser` (plus `key-tools.js`
+  and their per-page scripts) follow the same rule. SEO routes include
+  `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
   `Rotor-Cuda/`; moving them requires `build.rs`, `Cargo.toml` and

@@ -63,6 +63,17 @@ const MNEMONIC_SEEDS_JS: &str = include_str!("../../apps/site/mnemonic-seeds.js"
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
 const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
+const KEY_TOOLS_JS: &str = include_str!("../../apps/site/key-tools.js");
+const HEX_DEC_BIN_PAGE: &str = include_str!("../../apps/site/hex-dec-bin.html");
+const HEX_DEC_BIN_JS: &str = include_str!("../../apps/site/hex-dec-bin.js");
+const PUBLIC_KEY_PAGE: &str = include_str!("../../apps/site/public-key.html");
+const PUBLIC_KEY_JS: &str = include_str!("../../apps/site/public-key.js");
+const PUBKEY_ADD_PAGE: &str = include_str!("../../apps/site/pubkey-add.html");
+const PUBKEY_ADD_JS: &str = include_str!("../../apps/site/pubkey-add.js");
+const KEYSTORE_PARSER_PAGE: &str = include_str!("../../apps/site/keystore-parser.html");
+const KEYSTORE_PARSER_JS: &str = include_str!("../../apps/site/keystore-parser.js");
+const RECONSTRUCTION_PAGE: &str = include_str!("../../apps/site/reconstruction.html");
+const RECONSTRUCTION_JS: &str = include_str!("../../apps/site/reconstruction.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
@@ -777,6 +788,35 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/milk-sad" => Some((MILK_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/milk-sad.js" => Some((MILK_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/tools" => Some((TOOLS_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/key-tools.js" => Some((
+            KEY_TOOLS_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/hex-dec-bin" => Some((HEX_DEC_BIN_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/hex-dec-bin.js" => Some((
+            HEX_DEC_BIN_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/public-key" => Some((PUBLIC_KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/public-key.js" => Some((
+            PUBLIC_KEY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/pubkey-add" => Some((PUBKEY_ADD_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/pubkey-add.js" => Some((
+            PUBKEY_ADD_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/keystore-parser" => Some((KEYSTORE_PARSER_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/keystore-parser.js" => Some((
+            KEYSTORE_PARSER_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/reconstruction" => Some((RECONSTRUCTION_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/reconstruction.js" => Some((
+            RECONSTRUCTION_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/search.js" => Some((
             SEARCH_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -3222,6 +3262,11 @@ fn render_sitemap(base: &str) -> String {
         "/vanity",
         "/milk-sad",
         "/tools",
+        "/hex-dec-bin",
+        "/public-key",
+        "/pubkey-add",
+        "/reconstruction",
+        "/keystore-parser",
         "/wallets",
         "/key/wif",
         "/key/hex",
@@ -4430,6 +4475,70 @@ mod tests {
     }
 
     #[test]
+    fn key_utility_pages_are_served_and_indexed() {
+        for (path, script, marker) in [
+            ("/hex-dec-bin", "/hex-dec-bin.js", "id=\"convert-form\""),
+            ("/public-key", "/public-key.js", "id=\"pubkey-form\""),
+            ("/pubkey-add", "/pubkey-add.js", "id=\"add-form\""),
+            (
+                "/keystore-parser",
+                "/keystore-parser.js",
+                "id=\"keystore-form\"",
+            ),
+            (
+                "/reconstruction",
+                "/reconstruction.js",
+                "id=\"rebuild-form\"",
+            ),
+        ] {
+            let (page, content_type) =
+                static_asset(path).unwrap_or_else(|| panic!("{path} is embedded"));
+            assert_eq!(content_type, "text/html; charset=utf-8");
+            let page = std::str::from_utf8(page).expect("page is UTF-8");
+            assert!(page.contains(marker), "{path} is missing {marker}");
+            assert!(page.contains(script), "{path} does not load {script}");
+
+            let (script_body, content_type) =
+                static_asset(script).unwrap_or_else(|| panic!("{script} is embedded"));
+            assert_eq!(content_type, "application/javascript; charset=utf-8");
+            assert!(!script_body.is_empty());
+        }
+
+        let (shared, _) = static_asset("/key-tools.js").expect("key-tools.js is embedded");
+        let shared = std::str::from_utf8(shared).expect("key-tools.js is UTF-8");
+        assert!(shared.contains("assembleKey"));
+        assert!(shared.contains("loadWasm"));
+
+        let tools = std::str::from_utf8(TOOLS_PAGE.as_bytes()).expect("tools page is UTF-8");
+        for href in [
+            "href=\"/hex-dec-bin\"",
+            "href=\"/public-key\"",
+            "href=\"/pubkey-add\"",
+            "href=\"/keystore-parser\"",
+            "href=\"/reconstruction\"",
+        ] {
+            assert!(tools.contains(href), "tools page is missing {href}");
+        }
+
+        let base = "https://rotor.pxbt.app";
+        let (sitemap, _, 200) = seo_asset(base, "/sitemap.xml", "").expect("sitemap") else {
+            panic!("sitemap status");
+        };
+        for path in [
+            "/hex-dec-bin",
+            "/public-key",
+            "/pubkey-add",
+            "/keystore-parser",
+            "/reconstruction",
+        ] {
+            assert!(
+                sitemap.contains(&format!("<loc>{base}{path}</loc>")),
+                "sitemap is missing {path}"
+            );
+        }
+    }
+
+    #[test]
     fn client_hashes_are_validated() {
         let hash = "0".repeat(64);
         let clients = Clients::parse(&format!(r#"{{"alpha":"{hash}"}}"#)).expect("parse");
@@ -4457,6 +4566,11 @@ mod tests {
             ("key.js", KEY_JS),
             ("monitor", MONITOR_PAGE),
             ("monitor.js", MONITOR_JS),
+            ("hex-dec-bin", HEX_DEC_BIN_PAGE),
+            ("public-key", PUBLIC_KEY_PAGE),
+            ("pubkey-add", PUBKEY_ADD_PAGE),
+            ("keystore-parser", KEYSTORE_PARSER_PAGE),
+            ("reconstruction", RECONSTRUCTION_PAGE),
         ];
         let forbidden = [
             "we detect leaked keys",

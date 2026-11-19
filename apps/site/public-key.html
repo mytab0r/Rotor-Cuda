@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Public key to addresses — secp256k1 calculator | Rotor</title>
+<meta name="description" content="Turn a compressed or uncompressed secp256k1 public key into Bitcoin P2PKH, P2WPKH, P2SH and P2TR, Ethereum and TRON addresses. No private key is used.">
+<link rel="canonical" href="https://rotor.pxbt.app/public-key">
+<link rel="stylesheet" href="/site.css?v=20261119z">
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <div>
+        <h1>Public key to addresses</h1>
+        <p class="key-tagline">Paste a secp256k1 public key and see every address it controls. A public key cannot be turned back into a private key, so this page never asks for one.</p>
+        <div class="key-badges"><span>secp256k1</span><span>Runs locally</span><span>No private key</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Public key</h2>
+    <form id="pubkey-form" class="key-form" autocomplete="off">
+      <label class="key-input-label">Compressed (66 hex) or uncompressed (130 hex)
+        <input id="pubkey-input" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="0279be667e… or 0479be667e…">
+      </label>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="pubkey-submit">Derive addresses</button>
+        <button type="button" id="pubkey-clear">Clear</button>
+      </div>
+    </form>
+    <p id="pubkey-error" class="error key-error" role="alert" hidden></p>
+    <p class="muted key-help">Accepts the 33-byte compressed form (02/03 prefix) and the 65-byte uncompressed form (04 prefix). Points that are not on the curve are rejected. The key and the results stay in this tab.</p>
+  </section>
+
+  <section class="card" id="pubkey-result" hidden>
+    <h2>Key facts</h2>
+    <dl class="key-form-list" id="pubkey-facts"></dl>
+    <h2>Addresses</h2>
+    <div class="seed-rows" id="pubkey-addresses"></div>
+    <p class="muted key-help">P2PKH and P2SH use the compressed key. The uncompressed P2PKH row is shown because old wallets derived legacy addresses that way.</p>
+  </section>
+
+  <p class="muted key-help">Related: <a href="/pubkey-add">add two public keys</a>, <a href="/hex-dec-bin">integer converter</a>, <a href="/key">key explorer</a>.</p>
+</main>
+
+<script src="/key-tools.js?v=20261119z"></script>
+<script src="/public-key.js?v=20261119z"></script>
+<script src="/site.js?v=20261119z"></script>
+</body>
+</html>
