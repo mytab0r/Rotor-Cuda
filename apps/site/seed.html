@@ -6,9 +6,9 @@
 <title>Seed studio: BIP39 and Electrum converter — derive addresses locally | Rotor</title>
 <meta name="description" content="Convert a BIP39, Electrum BIP39 or legacy Electrum seed phrase into Bitcoin, Ethereum, TRON, Litecoin, Dogecoin, Bitcoin Cash and XRP keys. Everything runs in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/seed">
-<link rel="stylesheet" href="/site.css?v=20261122a">
-<link rel="stylesheet" href="/seed-studio.css?v=20261122a">
-<script src="/theme.js?v=20261122a"></script>
+<link rel="stylesheet" href="/site.css?v=20261122b">
+<link rel="stylesheet" href="/seed-studio.css?v=20261122b">
+<script src="/theme.js?v=20261122b"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -44,53 +44,56 @@
   <section class="card">
     <h2>Seed studio</h2>
     <form id="seed-form" class="seed-form seed-studio-form" autocomplete="off">
-      <label>Mnemonic type
-        <select id="seed-scheme">
-          <option value="bip39" selected>BIP39</option>
-          <option value="electrum-bip39">Electrum BIP39</option>
-          <option value="electrum-old">Electrum old (1626)</option>
-        </select>
-      </label>
-      <label>Word count
-        <select id="seed-words">
-          <option value="12" selected>12 words (128 bits)</option>
-          <option value="15">15 words (160 bits)</option>
-          <option value="18">18 words (192 bits)</option>
-          <option value="21">21 words (224 bits)</option>
-          <option value="24">24 words (256 bits)</option>
-        </select>
-      </label>
-      <label>Chain
-        <select id="seed-chain"></select>
-      </label>
-      <label>Path preset
-        <select id="seed-path" class="mono"></select>
-      </label>
-      <label class="seed-check"><input type="checkbox" id="seed-all-paths"> All standard paths for the selected chain</label>
-      <label class="seed-check"><input type="checkbox" id="seed-balances"> Check public balances (optional)</label>
-      <label class="seed-phrase-label">Mnemonic
-        <textarea id="seed-phrase" class="mono" rows="3" spellcheck="false" autocapitalize="off" placeholder="word1 word2 word3 …"></textarea>
-      </label>
-      <label>Passphrase (optional)
-        <input id="seed-passphrase" type="password" class="mono" autocomplete="new-password" placeholder="leave empty if none">
-      </label>
-      <div class="seed-count-row" role="group" aria-label="Address count">
-        <span class="seed-count-label">Addresses</span>
-        <button type="button" class="seed-count-btn active" data-count="1" aria-pressed="true">1</button>
-        <button type="button" class="seed-count-btn" data-count="3" aria-pressed="false">3</button>
-        <button type="button" class="seed-count-btn" data-count="5" aria-pressed="false">5</button>
-        <button type="button" class="seed-count-btn" data-count="10" aria-pressed="false">10</button>
+      <div class="seed-controls">
+        <label>Mnemonic type
+          <select id="seed-scheme">
+            <option value="bip39" selected>BIP39</option>
+            <option value="electrum-bip39">Electrum BIP39</option>
+            <option value="electrum-old">Electrum old (1626)</option>
+          </select>
+        </label>
+        <label>Word count
+          <select id="seed-words">
+            <option value="12" selected>12 words (128 bits)</option>
+            <option value="15">15 words (160 bits)</option>
+            <option value="18">18 words (192 bits)</option>
+            <option value="21">21 words (224 bits)</option>
+            <option value="24">24 words (256 bits)</option>
+          </select>
+        </label>
+        <label>Chain
+          <select id="seed-chain"></select>
+        </label>
+        <label>Path preset
+          <select id="seed-path" class="mono"></select>
+        </label>
+        <label class="seed-check"><input type="checkbox" id="seed-all-paths"> All standard paths for the selected chain</label>
       </div>
-      <div class="key-buttons">
-        <button type="submit" class="primary" id="seed-derive">Convert &amp; derive</button>
-        <button type="button" id="seed-generate">Generate phrase</button>
-        <button type="button" id="seed-clear">Clear</button>
-        <button type="button" id="seed-csv" hidden>Download CSV</button>
+      <label class="seed-phrase-label">Mnemonic
+        <textarea id="seed-phrase" class="mono" rows="4" spellcheck="false" autocapitalize="off" placeholder="word1 word2 word3 …"></textarea>
+      </label>
+      <div class="seed-secondary">
+        <label class="seed-passphrase">Passphrase (optional)
+          <input id="seed-passphrase" type="password" class="mono" autocomplete="new-password" placeholder="leave empty if none">
+        </label>
+        <div class="seed-count-row" role="group" aria-label="Address count">
+          <span class="seed-count-label">Addresses</span>
+          <button type="button" class="seed-count-btn active" data-count="1" aria-pressed="true">1</button>
+          <button type="button" class="seed-count-btn" data-count="3" aria-pressed="false">3</button>
+          <button type="button" class="seed-count-btn" data-count="5" aria-pressed="false">5</button>
+          <button type="button" class="seed-count-btn" data-count="10" aria-pressed="false">10</button>
+        </div>
+        <div class="key-buttons">
+          <button type="submit" class="primary" id="seed-derive">Convert &amp; derive</button>
+          <button type="button" id="seed-generate">Generate phrase</button>
+          <button type="button" id="seed-clear">Clear</button>
+          <button type="button" id="seed-csv" hidden>Download CSV</button>
+        </div>
       </div>
     </form>
     <p id="seed-status" class="muted key-help" role="status" aria-live="polite"></p>
     <p id="seed-scheme-help" class="muted key-help"></p>
-    <p class="muted key-help">The same engine is available as a standalone <a href="/mnemonic-converter">mnemonic converter</a>. A phrase is never stored, logged or sent; the page clears it when you leave. Balance checks are opt-in and send only public addresses.</p>
+    <p class="muted key-help">The same engine is available as a standalone <a href="/mnemonic-converter">mnemonic converter</a>. A phrase is never stored, logged or sent; the page clears it when you leave. Balance lookups start automatically after deriving: only the derived public addresses go to public providers (blockchain.info and a public Ethereum JSON-RPC endpoint).</p>
     <p id="seed-error" class="error key-error" role="alert" hidden></p>
   </section>
 
@@ -100,9 +103,9 @@
   </section>
 </main>
 
-<script src="/seed.js?v=20261122a"></script>
-<script src="/seed-crypto.js?v=20261122a"></script>
-<script src="/seed-page.js?v=20261122a"></script>
-<script src="/site.js?v=20261122a"></script>
+<script src="/seed.js?v=20261122b"></script>
+<script src="/seed-crypto.js?v=20261122b"></script>
+<script src="/seed-page.js?v=20261122b"></script>
+<script src="/site.js?v=20261122b"></script>
 </body>
 </html>
