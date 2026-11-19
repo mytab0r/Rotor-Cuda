@@ -405,6 +405,124 @@ test("an RPC error during broadcast is reported with its provider", async () => 
   );
 });
 
+/* ------------------------------------------------------- wasm string call */
+
+function fakeWasm(name, options = {}) {
+  const memory = new Uint8Array(1024);
+  const resultBytes = new TextEncoder().encode(options.output || "0x02aa");
+  const errorBytes = new TextEncoder().encode(options.error || "bad request");
+  memory.set(resultBytes, 900);
+  memory.set(errorBytes, 800);
+  const log = { dealloc: [], clear: 0, wrote: "" };
+  const wasm = {
+    memory: { buffer: memory.buffer },
+    alloc() {
+      return 64;
+    },
+    dealloc(ptr, len) {
+      log.dealloc.push({ ptr, len, bytes: Array.from(memory.slice(ptr, ptr + len)) });
+    },
+    result_ptr() {
+      return 900;
+    },
+    result_len() {
+      return resultBytes.length;
+    },
+    error_ptr() {
+      return 800;
+    },
+    error_len() {
+      return errorBytes.length;
+    },
+    clear_result() {
+      log.clear += 1;
+    }
+  };
+  wasm[name] = (ptr, len) => {
+    log.wrote = new TextDecoder().decode(memory.slice(ptr, ptr + len));
+    return options.status === undefined ? 0 : options.status;
+  };
+  return { wasm, log };
+}
+
+function captureEncoder() {
+  const original = globalThis.TextEncoder;
+  const state = { bytes: null };
+  globalThis.TextEncoder = class {
+    encode(text) {
+      state.bytes = new Uint8Array(Buffer.from(text, "utf8"));
+      return state.bytes;
+    }
+  };
+  state.restore = () => {
+    globalThis.TextEncoder = original;
+  };
+  return state;
+}
+
+test("the wasm request buffer is zeroed in wasm and JS before dealloc", () => {
+  const { wasm, log } = fakeWasm("evm_sign_tx", { output: "0x02beef" });
+  const encoder = captureEncoder();
+  let output;
+  try {
+    output = evm.callWasmString(wasm, "evm_sign_tx", '{"private_key":"secret"}');
+  } finally {
+    encoder.restore();
+  }
+  assert.equal(output, "0x02beef");
+  assert.match(log.wrote, /private_key/);
+  assert.equal(log.dealloc.length, 1);
+  assert.ok(
+    log.dealloc[0].bytes.every((byte) => byte === 0),
+    "wasm input was not zeroed before dealloc"
+  );
+  assert.ok(encoder.bytes.every((byte) => byte === 0), "JS request bytes were not zeroed");
+  assert.equal(log.clear, 1);
+});
+
+test("a rejected wasm call still zeroes the request and clears the result", () => {
+  const { wasm, log } = fakeWasm("evm_sign_tx", {
+    status: 1,
+    error: "missing request field: chain_id"
+  });
+  const encoder = captureEncoder();
+  try {
+    assert.throws(
+      () => evm.callWasmString(wasm, "evm_sign_tx", '{"private_key":"secret"}'),
+      /missing request field: chain_id/
+    );
+  } finally {
+    encoder.restore();
+  }
+  assert.equal(log.dealloc.length, 1);
+  assert.ok(
+    log.dealloc[0].bytes.every((byte) => byte === 0),
+    "wasm input was not zeroed on the error path"
+  );
+  assert.ok(encoder.bytes.every((byte) => byte === 0), "JS request bytes were not zeroed");
+  assert.equal(log.clear, 1);
+});
+
+test("a wasm trap still zeroes the request and deallocates", () => {
+  const { wasm, log } = fakeWasm("evm_sign_tx");
+  wasm.evm_sign_tx = () => {
+    throw new Error("RuntimeError: unreachable");
+  };
+  const encoder = captureEncoder();
+  try {
+    assert.throws(
+      () => evm.callWasmString(wasm, "evm_sign_tx", '{"private_key":"secret"}'),
+      /unreachable/
+    );
+  } finally {
+    encoder.restore();
+  }
+  assert.equal(log.dealloc.length, 1);
+  assert.ok(log.dealloc[0].bytes.every((byte) => byte === 0));
+  assert.ok(encoder.bytes.every((byte) => byte === 0));
+  assert.equal(log.clear, 1);
+});
+
 let failed = 0;
 for (const { name, fn } of cases) {
   try {
