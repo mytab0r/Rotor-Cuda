@@ -443,6 +443,53 @@ const KEY_ONE = "00".repeat(31) + "01";
 const secpReport = deriveFor(KEY_ONE, 0);
 const edReport = deriveFor(KEY_ONE, 1);
 
+// ---------------------------------------------------------------- WIF vectors
+// key 1 and the well-known Bitcoin Wiki key, compressed, on each mainnet
+// version byte this site links. Values were cross-checked with an independent
+// Node BigInt implementation before being added here.
+const WIF_VECTORS = [
+  [KEY_ONE, "bitcoin", "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn"],
+  [KEY_ONE, "litecoin", "T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjV"],
+  [KEY_ONE, "dogecoin", "QNcdLVw8fHkixm6NNyN6nVwxKek4u7qrioRbQmjxac5TVoTtZuot"],
+  [
+    "0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d",
+    "bitcoin",
+    "KwdMAjGmerYanjeui5SHS7JkmpZvVipYvB2LJGU1ZxJwYvP98617",
+  ],
+  [
+    "0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d",
+    "litecoin",
+    "T3TccUZx4EXBZaHnFiP9eTr8igDEZoqSjNvbA56Z8vV74oyAcjTK",
+  ],
+  [
+    "0c28fca386c7a227600b2fe50b7cae11ec86d3bf1fbe471be89827e19d72aa1d",
+    "dogecoin",
+    "QP2GKa5kuU2i2G3xJMH5KL9NErbVYGxMoRiF5trrJJvHzrJ2Ebp7",
+  ],
+];
+for (const [hex, network, wif] of WIF_VECTORS) {
+  const encoded = await tools.wifEncode(hexToBytes(hex), network, sha256Double);
+  assert(encoded === wif, `${network} WIF ${encoded} !== ${wif}`);
+  const decoded = await tools.wifDecode(wif, sha256Double);
+  assert(decoded.network === network, `${wif} network ${decoded.network}`);
+  assert(decoded.compressed === true, `${wif} must be compressed`);
+  assert(Buffer.from(decoded.bytes).toString("hex") === hex, `${wif} key mismatch`);
+}
+const uncompressed = await tools.wifDecode(
+  "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf",
+  sha256Double,
+);
+assert(uncompressed.network === "bitcoin", "uncompressed BTC WIF network");
+assert(uncompressed.compressed === false, "uncompressed BTC WIF flag");
+assert(Buffer.from(uncompressed.bytes).toString("hex") === KEY_ONE, "uncompressed BTC WIF key");
+let wifRejected = false;
+try {
+  await tools.wifDecode("T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjW", sha256Double);
+} catch (err) {
+  wifRejected = true;
+}
+assert(wifRejected, "a corrupted WIF checksum must be rejected");
+
 const secpFacts = await tools.buildKeyFacts(secpReport, sha256Double);
 assert(factById(secpFacts, "hex").value === KEY_ONE, "secp HEX fact is the report key");
 assert(factById(secpFacts, "hex").href === "/key/hex", "HEX links to the hex calculator");
