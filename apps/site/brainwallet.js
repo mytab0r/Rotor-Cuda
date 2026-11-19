@@ -1,25 +1,14 @@
-/* Brainwallet calculator. Runs entirely in the browser; no build step, no deps.
- * The passphrase, its hash and the derived key stay in memory only: no URL,
- * no storage, no logs and no network lookup of the results. */
+/* Brainwallet calculator pages. Runs entirely in the browser; no build step,
+ * no dependencies. The passphrase, its SHA-256 key and the derived key stay in
+ * memory only: no URL, no storage, no logs and no network lookup of results.
+ * Address math comes from the shared wasm `derive_report` export, the same
+ * engine the /key page uses. */
 (function () {
   'use strict';
 
+  var engine = window.RotorBrainwallet;
   var WASM_URL = '/rotor_wasm.wasm';
   var DECODER = new TextDecoder('utf-8');
-  var ENCODER = typeof TextEncoder === 'function' ? new TextEncoder() : null;
-
-  var ADDRESSES = [
-    { id: 'btc_p2pkh', label: 'Bitcoin legacy (P2PKH)' },
-    { id: 'btc_p2wpkh', label: 'Bitcoin native segwit (P2WPKH)' },
-    { id: 'btc_p2tr', label: 'Bitcoin taproot (P2TR)' },
-    { id: 'evm', label: 'Ethereum / EVM' },
-    { id: 'tron', label: 'TRON' }
-  ];
-
-  var WARNING_TEXT = 'Brainwallets are unsafe. A SHA-256 passphrase can be guessed or ' +
-    'found in wordlists, and anyone who knows the phrase controls the funds. Do not use ' +
-    'this for real money. Only test phrases you are authorized to check. Nothing on this ' +
-    'page is sent anywhere; the derived addresses are not looked up.';
 
   var state = {
     wasm: null,
@@ -29,36 +18,48 @@
 
   function byId(id) { return document.getElementById(id); }
 
-  var input = byId('brain-pass') || byId('brainwallet-input');
-  var deriveBtn = byId('brain-derive') || byId('brainwallet-derive');
-  var errorBox = byId('brain-error');
-  var resultsEl = byId('brain-results') || byId('brainwallet-results');
+  var input = byId('brainwallet-input') || byId('brain-pass');
+  var deriveBtn = byId('brainwallet-derive') || byId('brain-derive');
+  var errorBox = byId('brainwallet-error') || byId('brain-error');
+  var statusBox = byId('brainwallet-status');
+  var resultsEl = byId('brainwallet-results') || byId('brain-results');
   if (!input || !deriveBtn || !resultsEl) return;
 
   var form = input.form || (input.closest ? input.closest('form') : null);
   var idleLabel = deriveBtn.textContent || 'Derive';
+  if (!engine) {
+    if (errorBox) {
+      errorBox.textContent = 'The brainwallet engine did not load. Reload the page.';
+      errorBox.hidden = false;
+    }
+    deriveBtn.disabled = true;
+    return;
+  }
+  var focus = (form && form.getAttribute('data-brain-chain')) ||
+    resultsEl.getAttribute('data-brain-chain') || 'all';
+
   if (form) form.classList.add('brainwallet-form');
   resultsEl.classList.add('brainwallet-results');
   if (!errorBox) {
     errorBox = document.createElement('p');
-    errorBox.id = 'brain-error';
+    errorBox.id = 'brainwallet-error';
     errorBox.className = 'error brainwallet-error';
     errorBox.setAttribute('role', 'alert');
     errorBox.hidden = true;
     (form || input).parentNode.insertBefore(errorBox, (form || input).nextSibling);
   }
 
-  function ensureWarning() {
-    if (document.querySelector('#brain-warning, .brainwallet-warning, [data-brain-warning], .key-page .notice[role="note"]')) return;
+  /* Legacy page shells may not carry the static warning; add it once. */
+  (function ensureWarning() {
+    if (document.querySelector('#brain-warning, .brainwallet-warning, [data-brain-warning]')) return;
     var warning = document.createElement('p');
     warning.id = 'brain-warning';
     warning.className = 'notice brainwallet-warning';
     warning.setAttribute('role', 'note');
-    warning.textContent = WARNING_TEXT;
+    warning.textContent = engine.WARNING_TEXT;
     var anchor = form || input;
     anchor.parentNode.insertBefore(warning, anchor);
-  }
-  ensureWarning();
+  })();
 
   /* -------------------------------------------------------------- wasm core */
 
@@ -139,6 +140,12 @@
   function hideError() {
     errorBox.hidden = true;
     errorBox.textContent = '';
+  }
+
+  function setStatus(text) {
+    if (!statusBox) return;
+    statusBox.textContent = text || '';
+    statusBox.hidden = !text;
   }
 
   function setBusy(busy) {
@@ -230,33 +237,43 @@
     heading.textContent = title;
     group.appendChild(heading);
     fields.forEach(function (field) {
-      if (!field[1]) return;
       group.appendChild(fieldRow(field[0], field[1]));
     });
     return group;
   }
 
-  function addressRow(label, address) {
-    var row = document.createElement('div');
-    row.className = 'brainwallet-address';
+  function addressRow(row) {
+    var item = document.createElement('div');
+    item.className = 'brainwallet-address';
     var caption = document.createElement('span');
     caption.className = 'brainwallet-row-label';
-    caption.textContent = label;
+    caption.textContent = row.label;
 
     var line = document.createElement('div');
     line.className = 'key-addr-line';
     var code = document.createElement('code');
     code.className = 'mono key-addr brainwallet-addr';
-    code.textContent = address;
+    code.textContent = row.address;
     line.appendChild(code);
-    line.appendChild(copyButton(address, label + ' address'));
+    line.appendChild(copyButton(row.address, row.label + ' address'));
 
-    row.appendChild(caption);
-    row.appendChild(line);
-    return row;
+    if (row.explorer) {
+      var link = document.createElement('a');
+      link.className = 'brainwallet-explorer';
+      link.href = row.explorer;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open in explorer';
+      link.setAttribute('aria-label', 'Open ' + row.label + ' in an external explorer');
+      line.appendChild(link);
+    }
+
+    item.appendChild(caption);
+    item.appendChild(line);
+    return item;
   }
 
-  function addressGroup(report) {
+  function addressGroup(rows) {
     var group = document.createElement('section');
     group.className = 'brainwallet-group';
     var heading = document.createElement('h3');
@@ -264,24 +281,12 @@
     heading.textContent = 'Derived addresses';
     group.appendChild(heading);
 
-    var byIdMap = {};
-    var entries = Array.isArray(report.addresses) ? report.addresses : [];
-    entries.forEach(function (entry) {
-      if (entry && entry.id) byIdMap[entry.id] = entry;
-    });
-
-    var shown = 0;
-    ADDRESSES.forEach(function (item) {
-      var entry = byIdMap[item.id];
-      if (!entry || !entry.address) return;
-      shown += 1;
-      group.appendChild(addressRow(entry.label || item.label, entry.address));
-    });
-
-    if (!shown) {
-      group.appendChild(note('Nothing was derived for this phrase. That is not a safety result: ' +
-        'it does not mean the phrase is unused or that the address is empty.'));
+    if (!rows.length) {
+      group.appendChild(note('The derivation core returned no address rows for this page. ' +
+        'That is not a safety result: it does not mean the phrase is unused or that the address is empty.'));
+      return group;
     }
+    rows.forEach(function (row) { group.appendChild(addressRow(row)); });
     return group;
   }
 
@@ -292,17 +297,12 @@
     fragment.appendChild(fieldGroup('Phrase hash', [
       ['SHA-256 of the UTF-8 passphrase', hashHex]
     ]));
-    fragment.appendChild(fieldGroup('Private key (WIF)', [
-      ['WIF compressed', report.wif_compressed || ''],
-      ['WIF uncompressed', report.wif_uncompressed || '']
-    ]));
-    fragment.appendChild(addressGroup(report));
+    fragment.appendChild(fieldGroup('Private key', engine.keyFields(report, focus)));
+    fragment.appendChild(addressGroup(engine.addressRows(report, focus)));
 
-    var tail = note('No balance, registry or network lookup was performed. An address that ' +
-      'appears unused does not make this phrase safe; a phrase that matches nothing here ' +
-      'was simply never checked against the chain.');
-    fragment.appendChild(tail);
-
+    fragment.appendChild(note('No balance, registry or network lookup was performed. An address ' +
+      'that appears unused does not make this phrase safe; a phrase that matches nothing here ' +
+      'was simply never checked against the chain.'));
     resultsEl.appendChild(fragment);
   }
 
@@ -313,19 +313,12 @@
 
   /* ---------------------------------------------------------------- deriving */
 
-  function bytesToHex(bytes) {
-    var out = '';
-    for (var i = 0; i < bytes.length; i++) {
-      out += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
-    }
-    return out;
-  }
-
   async function onSubmit(event) {
     if (event) event.preventDefault();
     if (state.busy) return;
 
     hideError();
+    setStatus('');
     var phrase = input.value.trim();
     if (!phrase) {
       showError('Enter a passphrase to test.');
@@ -334,25 +327,12 @@
     }
 
     var subtle = window.crypto && window.crypto.subtle;
-    if (!subtle || typeof subtle.digest !== 'function') {
-      showError('Web Crypto (SHA-256) is unavailable. Open this page over HTTPS or localhost in a modern browser.');
-      return;
-    }
-    if (!ENCODER) {
-      showError('TextEncoder is unavailable in this browser, so the phrase cannot be encoded.');
-      return;
-    }
-
     setBusy(true);
     placeholder('Hashing the phrase and deriving addresses in this browser…');
-    var encoded = null;
     var keyBytes = null;
     try {
-      encoded = ENCODER.encode(phrase);
-      keyBytes = new Uint8Array(await subtle.digest('SHA-256', encoded));
-      encoded.fill(0);
-      encoded = null;
-      var hashHex = bytesToHex(keyBytes);
+      keyBytes = await engine.phraseKey(phrase, subtle);
+      var hashHex = engine.bytesToHex(keyBytes);
       var wasm = await loadWasm();
       var report = deriveReport(wasm, keyBytes, 0);
       if (!report || typeof report !== 'object') {
@@ -364,10 +344,30 @@
       placeholder('No result. Nothing was derived.');
       showError(err && err.message ? err.message : String(err));
     } finally {
-      if (encoded) encoded.fill(0);
       if (keyBytes) keyBytes.fill(0);
       setBusy(false);
     }
+  }
+
+  function clearAll() {
+    input.value = '';
+    hideError();
+    setStatus('');
+    placeholder('Enter a throwaway passphrase and press Derive.');
+  }
+
+  function generatePhrase() {
+    hideError();
+    setStatus('');
+    try {
+      input.value = engine.randomPhrase(window.crypto);
+    } catch (err) {
+      showError(err && err.message ? err.message : String(err));
+      return;
+    }
+    resultsEl.textContent = '';
+    placeholder('Random test phrase filled in. Press Derive to calculate — nothing is derived until you do.');
+    input.focus();
   }
 
   if (form) {
@@ -379,4 +379,17 @@
   } else {
     deriveBtn.addEventListener('click', onSubmit);
   }
+
+  var generateBtn = byId('brainwallet-generate');
+  if (generateBtn) generateBtn.addEventListener('click', generatePhrase);
+  var clearBtn = byId('brainwallet-clear');
+  if (clearBtn) clearBtn.addEventListener('click', clearAll);
+
+  /* The passphrase and every derived value live only while the page is open. */
+  window.addEventListener('pagehide', function () {
+    input.value = '';
+    hideError();
+    setStatus('');
+    resultsEl.textContent = '';
+  });
 })();
