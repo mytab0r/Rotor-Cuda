@@ -13,7 +13,22 @@
 
 - [x] secp256k1 deterministic ECDSA (RFC6979) sign/recover in `rotor-wasm`.
 - [x] RLP encoder and EVM type-2 unsigned/signed serialization.
-- [ ] Bitcoin P2WPKH BIP143 sighash, DER with low-R, transaction serialization.
+- [x] Bitcoin P2WPKH BIP143 sighash, DER with low-R, transaction serialization.
+  - Published BIP143 Example 1 P2WPKH sighash
+    `c37af31116d1b27caf68aae9e3ac82f1477929014d5b917657d0eb49478cb670` is a
+    unit test; the unsigned serialization matches the BIP's transaction hex.
+  - Two-input/one-input testnet signed and unsigned vectors were reproduced
+    with bitcoinjs-lib 6 and pinned in `btc.rs` and `smoke.mjs`; every input
+    signature verifies with the existing ECDSA verify and is low-S.
+  - DER integers are minimal and low-S as produced by RFC6979. There is no
+    low-R nonce grinding: RFC6979 fixes `r`, so grinding would break
+    determinism and the published vectors.
+  - Testnet derivation vectors for key 1 (P2PKH 0x6f, P2SH-P2WPKH 0xc4, P2WPKH
+    and Taproot hrp `tb`, WIF 0xef) come from bitcoinjs-lib 6;
+    `derive_report` mainnet output is pinned byte-identical by SHA-256.
+  - ABI: `derive_report_network(ptr,len,curve,network)`, `btc_unsigned_tx`
+    and `btc_sign_tx` (unprefixed lower-case hex); the uploaded request and
+    the parsed key are wiped.
 - [x] Unit tests with published vectors; no network in the crate.
 
 ## 3. EVM send flow (testnet first)

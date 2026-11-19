@@ -509,6 +509,140 @@ if (wasm.result_len() !== 0) {
 }
 console.log(`evm_unsigned_tx: ${unsignedTx.length} hex chars`);
 
+// Network-aware derivation: mainnet keeps the existing addresses, testnet
+// returns the Bitcoin testnet rows. Vectors cross-checked with bitcoinjs-lib 6.
+if (typeof wasm.derive_report_network !== "function") {
+  throw new Error("wasm does not export derive_report_network");
+}
+const netKeyPtr = writeScalar(1n);
+const netMainnetStatus = wasm.derive_report_network(netKeyPtr, 32, 0, 0);
+if (netMainnetStatus !== 0) {
+  fail(netMainnetStatus, "derive_report_network(mainnet)");
+}
+const mainnetReport = readJson();
+const netTestnetStatus = wasm.derive_report_network(netKeyPtr, 32, 0, 1);
+wasm.dealloc(netKeyPtr, 32);
+if (netTestnetStatus !== 0) {
+  fail(netTestnetStatus, "derive_report_network(testnet)");
+}
+const testnetReport = readJson();
+const testnetAddresses = Object.fromEntries(
+  testnetReport.addresses.map((entry) => [entry.id, entry.address]),
+);
+const expectedTestnet = {
+  btc_p2pkh: "mrCDrCybB6J1vRfbwM5hemdJz73FwDBC8r",
+  btc_p2sh_p2wpkh: "2NAUYAHhujozruyzpsFRP63mbrdaU5wnEpN",
+  btc_p2wpkh: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+  btc_p2tr: "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
+};
+if (mainnetReport.network !== "mainnet" || testnetReport.network !== "testnet") {
+  throw new Error("derive_report_network: unexpected network field");
+}
+if (testnetReport.addresses.length !== 4) {
+  throw new Error(
+    `derive_report_network: got ${testnetReport.addresses.length} testnet addresses`,
+  );
+}
+for (const [id, address] of Object.entries(expectedTestnet)) {
+  if (testnetAddresses[id] !== address) {
+    throw new Error(
+      `derive_report_network ${id}: got ${testnetAddresses[id]}, want ${address}`,
+    );
+  }
+}
+if (
+  testnetReport.wif_compressed !==
+  "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN87JcbXMTcA"
+) {
+  throw new Error("derive_report_network: unexpected testnet WIF");
+}
+console.log(
+  `derive_report_network: p2pkh=${testnetAddresses.btc_p2pkh} ` +
+    `p2wpkh=${testnetAddresses.btc_p2wpkh} wif=${testnetReport.wif_compressed}`,
+);
+
+// BIP143 P2WPKH signing: a one-input, two-output testnet transaction. The
+// expected unsigned and signed hex come from bitcoinjs-lib 6 (see the crate's
+// pinned btc.rs tests).
+if (
+  typeof wasm.btc_unsigned_tx !== "function" ||
+  typeof wasm.btc_sign_tx !== "function"
+) {
+  throw new Error("wasm does not export the Bitcoin signing ABI");
+}
+const btcBody = {
+  network: "testnet",
+  inputs: [
+    {
+      txid: "11".repeat(32),
+      vout: 0,
+      value: "100000",
+      sequence: "4294967295",
+    },
+  ],
+  outputs: [
+    { address: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx", value: "99000" },
+    { address: "tb1qq6hag67dl53wl99vzg42z8eyzfz2xlkvvlryfj", value: "500" },
+  ],
+};
+const expectedUnsigned =
+  "020000000111111111111111111111111111111111111111111111111111111111111111110000000000ffffffff02b882010000000000160014751e76e8199196d454941c45d1b3a323f1433bd6f40100000000000016001406afd46bcdfd22ef94ac122aa11f241244a37ecc00000000";
+const expectedSigned =
+  "0200000000010111111111111111111111111111111111111111111111111111111111111111110000000000ffffffff02b882010000000000160014751e76e8199196d454941c45d1b3a323f1433bd6f40100000000000016001406afd46bcdfd22ef94ac122aa11f241244a37ecc02473044022010cb6b408ebf2006dc378e84bd73d7ec7c2c870eea081c2933766f4acfc3047a022034ccc43523dc610366f16bfbd48e73ab4995134dde016b304b3b3aac351504e401210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179800000000";
+
+const btcUnsignedRequest = upload(JSON.stringify(btcBody));
+const btcUnsignedStatus = wasm.btc_unsigned_tx(
+  btcUnsignedRequest.ptr,
+  btcUnsignedRequest.len,
+);
+wasm.dealloc(btcUnsignedRequest.ptr, btcUnsignedRequest.len);
+if (btcUnsignedStatus !== 0) {
+  fail(btcUnsignedStatus, "btc_unsigned_tx");
+}
+const unsignedBtc = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.result_ptr(), wasm.result_len()),
+);
+if (unsignedBtc !== expectedUnsigned) {
+  throw new Error(`btc_unsigned_tx: got ${unsignedBtc}, want ${expectedUnsigned}`);
+}
+
+const btcSignRequest = upload(
+  JSON.stringify({ ...btcBody, private_key: `0x${KEY1_HEX}` }),
+);
+const btcSignStatus = wasm.btc_sign_tx(btcSignRequest.ptr, btcSignRequest.len);
+const wiped = memory()
+  .slice(btcSignRequest.ptr, btcSignRequest.ptr + btcSignRequest.len)
+  .every((byte) => byte === 0);
+wasm.dealloc(btcSignRequest.ptr, btcSignRequest.len);
+if (btcSignStatus !== 0) {
+  fail(btcSignStatus, "btc_sign_tx");
+}
+const signedBtc = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.result_ptr(), wasm.result_len()),
+);
+if (signedBtc !== expectedSigned) {
+  throw new Error(`btc_sign_tx: got ${signedBtc}, want ${expectedSigned}`);
+}
+if (!wiped) {
+  throw new Error("btc_sign_tx did not wipe the request buffer");
+}
+
+const btcBadRequest = upload(
+  JSON.stringify({ ...btcBody, network: "mainnet", private_key: `0x${KEY1_HEX}` }),
+);
+const btcBadStatus = wasm.btc_sign_tx(btcBadRequest.ptr, btcBadRequest.len);
+wasm.dealloc(btcBadRequest.ptr, btcBadRequest.len);
+if (btcBadStatus === 0) {
+  throw new Error("btc_sign_tx accepted a mainnet request");
+}
+const btcBadError = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.error_ptr(), wasm.error_len()),
+);
+console.log(
+  `btc_sign_tx: ${signedBtc.length} hex chars; request wiped=${wiped}; ` +
+    `rejected mainnet: ${btcBadError}`,
+);
+
 const artifactSize = (await stat(wasmPath)).size;
 console.log(`artifact=${artifactSize} bytes`);
 

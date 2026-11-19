@@ -22,6 +22,16 @@
 //!
 //! Result blob of [`evm_unsigned_tx`]: the same request without `private_key`
 //! and the `0x`-prefixed unsigned type-2 payload for the review screen.
+//!
+//! Result blob of [`derive_report_network`]: the same JSON derivation report
+//! as [`derive_report`] with a `network` field. Network 1 returns the Bitcoin
+//! testnet P2PKH/P2SH-P2WPKH/P2WPKH/P2TR rows and the testnet WIF (secp256k1
+//! only). [`derive_report`] itself is unchanged.
+//!
+//! Result blob of [`btc_sign_tx`]: the unprefixed lower-case hex of the signed
+//! P2WPKH testnet transaction (segwit serialization with witnesses), ready for
+//! `POST /api/tx` on mempool.space. [`btc_unsigned_tx`] returns the same
+//! transaction before signing, without witness data, for review.
 
 #![allow(dead_code)]
 // the included parent modules expose more than this ABI uses
@@ -43,8 +53,10 @@ mod scalar;
 mod secp;
 
 mod bech32;
+mod btc;
 mod derive;
 mod evm;
+mod json;
 mod keystore;
 mod sign;
 
@@ -358,6 +370,31 @@ impl Session {
         }
     }
 
+    /// Derive the full key/address report as UTF-8 JSON for a network.
+    ///
+    /// `network`: 0 mainnet (the existing report plus a `network` field), 1
+    /// Bitcoin testnet (secp256k1 only). On success the report is in `result`;
+    /// on failure `error` explains why and the status is nonzero.
+    pub fn derive_report_network(&mut self, key: &[u8; 32], curve: u32, network: u32) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match derive::report_network(key, curve, network) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                if curve > 1 || network > 1 || (network == 1 && curve == 1) {
+                    ERR_UNSUPPORTED
+                } else {
+                    ERR_BAD_TARGET
+                }
+            }
+        }
+    }
+
     /// Public-key report: addresses only, no private material.
     pub fn pubkey_report(&mut self, text: &str) -> u32 {
         self.result.clear();
@@ -441,6 +478,49 @@ impl Session {
         match evm::unsigned_request(request) {
             Ok(raw) => {
                 self.result = evm::hex_prefixed(&raw).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Parse, sign and serialize a P2WPKH Bitcoin testnet transaction.
+    ///
+    /// The request is the flat JSON object of [`btc::sign_request`]; the result
+    /// is unprefixed lower-case hex of the signed segwit transaction. The
+    /// private key is wiped from the parsed request before this returns.
+    pub fn btc_sign_tx(&mut self, request: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match btc::sign_request(request) {
+            Ok(raw) => {
+                self.result = derive::hex(&raw).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Parse and serialize a P2WPKH Bitcoin testnet transaction without
+    /// signing it.
+    ///
+    /// The request is [`Session::btc_sign_tx`] without `private_key`; the
+    /// result is unprefixed lower-case hex of the transaction before signing,
+    /// for the review screen.
+    pub fn btc_unsigned_tx(&mut self, request: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match btc::unsigned_request(request) {
+            Ok(raw) => {
+                self.result = derive::hex(&raw).into_bytes();
                 OK
             }
             Err(message) => {
@@ -649,6 +729,22 @@ fn read_scalar(pointer: u32) -> Option<Scalar> {
     Scalar::from_bytes_be(array)
 }
 
+/// Mutable view of a caller allocation, used to wipe a signing request after
+/// it has been parsed.
+fn read_bytes_mut(pointer: u32, length: u32) -> Option<&'static mut [u8]> {
+    if length == 0 {
+        return Some(&mut []);
+    }
+    let end = u64::from(pointer) + u64::from(length);
+    if end > memory_len() {
+        return None;
+    }
+    // SAFETY: the caller passes an allocation from `alloc`; the bounds check
+    // keeps the slice inside wasm linear memory. The ABI is single-threaded,
+    // so no other borrow of this region is live.
+    Some(unsafe { std::slice::from_raw_parts_mut(pointer as *mut u8, length as usize) })
+}
+
 /// Allocate `len` bytes with 8-byte alignment for the JS side to fill.
 #[unsafe(no_mangle)]
 pub extern "C" fn alloc(len: u32) -> u32 {
@@ -735,6 +831,30 @@ pub extern "C" fn derive_report(priv_ptr: u32, curve: u32) -> u32 {
         return ERR_BAD_TARGET;
     };
     session_mut().derive_report(&key, curve)
+}
+
+/// Derive the JSON key/address report for a 32-byte private key.
+///
+/// `curve`: 0 secp256k1, 1 ed25519. `network`: 0 mainnet, 1 Bitcoin testnet.
+/// `len` must be 32. Returns 0 and stores UTF-8 JSON in the result buffer, or
+/// a nonzero status with the error buffer set. [`derive_report`] is unchanged
+/// and stays byte-identical for mainnet.
+#[unsafe(no_mangle)]
+pub extern "C" fn derive_report_network(
+    priv_ptr: u32,
+    priv_len: u32,
+    curve: u32,
+    network: u32,
+) -> u32 {
+    let Some(bytes) = read_bytes(priv_ptr, priv_len) else {
+        session_mut().set_error("invalid private key pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let Ok(key) = <[u8; 32]>::try_from(bytes) else {
+        session_mut().set_error("private key must be 32 bytes");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().derive_report_network(&key, curve, network)
 }
 
 /// Address report for one secp256k1 public key (66 or 130 hex characters).
@@ -849,6 +969,61 @@ pub extern "C" fn evm_unsigned_tx(ptr: u32, len: u32) -> u32 {
         return ERR_BAD_TARGET;
     };
     session_mut().evm_unsigned_tx(request)
+}
+
+/// Sign a P2WPKH Bitcoin testnet transaction.
+///
+/// The request is a UTF-8 JSON object:
+///
+/// ```text
+/// {"network":"testnet",
+///  "inputs":[{"txid":"...","vout":0,"value":"...","sequence":"4294967295"}],
+///  "outputs":[{"address":"tb1...","value":"..."}],
+///  "private_key":"0x..."}
+/// ```
+///
+/// On success the result buffer holds the unprefixed lower-case hex of the
+/// signed segwit transaction, ready for `POST /api/tx`; otherwise a nonzero
+/// status is returned and the error buffer names the first invalid field. The
+/// uploaded request bytes and the parsed private key are wiped before return.
+#[unsafe(no_mangle)]
+pub extern "C" fn btc_sign_tx(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes_mut(ptr, len) else {
+        session_mut().set_error("invalid signing request pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let result = match std::str::from_utf8(bytes) {
+        Ok(request) => session_mut().btc_sign_tx(request),
+        Err(_) => {
+            session_mut().set_error("signing request is not valid UTF-8");
+            ERR_BAD_TARGET
+        }
+    };
+    sign::wipe(bytes);
+    result
+}
+
+/// Serialize a P2WPKH Bitcoin testnet transaction for review without signing.
+///
+/// The request is [`btc_sign_tx`] minus `private_key`; a key field is rejected
+/// so the caller cannot believe a signature was produced. On success the result
+/// holds the unprefixed lower-case hex of the transaction before signing. The
+/// uploaded request bytes are wiped before return.
+#[unsafe(no_mangle)]
+pub extern "C" fn btc_unsigned_tx(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes_mut(ptr, len) else {
+        session_mut().set_error("invalid unsigned request pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let result = match std::str::from_utf8(bytes) {
+        Ok(request) => session_mut().btc_unsigned_tx(request),
+        Err(_) => {
+            session_mut().set_error("unsigned request is not valid UTF-8");
+            ERR_BAD_TARGET
+        }
+    };
+    sign::wipe(bytes);
+    result
 }
 
 #[unsafe(no_mangle)]
@@ -1627,6 +1802,177 @@ mod tests {
         session.clear_result();
         assert!(session.result.is_empty());
         assert_eq!(session.evm_unsigned_tx("{}"), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+    }
+
+    /// `derive_report` predates the network parameter and must keep emitting
+    /// byte-identical output. These hashes were captured from the build before
+    /// `derive_report_network` was added (SHA-256 of the whole JSON blob).
+    #[test]
+    fn derive_report_stays_byte_identical() {
+        for (curve, expected_len, expected_hash) in [
+            (
+                0u32,
+                5619usize,
+                "fd0d24d203008da46e0e261b3bf9bcce4f6ef7c623d2385fbeb0eb72e775c67a",
+            ),
+            (
+                1u32,
+                1046usize,
+                "b4e1a153fa8ff3b8550943c44d9936a7bd5b0825af590d9d45f60132d655a3aa",
+            ),
+        ] {
+            let mut session = Session::new();
+            assert_eq!(session.derive_report(&KEY1_BYTES, curve), OK);
+            assert_eq!(session.result.len(), expected_len, "curve {curve}");
+            assert_eq!(
+                derive::hex(&hashes::sha256(&session.result)),
+                expected_hash,
+                "curve {curve}"
+            );
+        }
+    }
+
+    /// Bitcoin testnet vectors for compressed key 1, produced independently
+    /// with bitcoinjs-lib 6 (`payments.p2pkh/p2sh/p2wpkh/p2tr` and
+    /// `ECPair.toWIF` on the testnet network) on 2026-11-19.
+    #[test]
+    fn derive_network_testnet_key_one_matches_bitcoinjs() {
+        let mut session = Session::new();
+        assert_eq!(session.derive_report_network(&KEY1_BYTES, 0, 1), OK);
+        assert!(session.error.is_empty());
+        let value: serde_json::Value =
+            serde_json::from_slice(&session.result).expect("testnet report JSON");
+
+        assert_eq!(value["network"], "testnet");
+        assert_eq!(value["curve"], "secp256k1");
+        assert_eq!(value["priv_dec"], "1");
+        assert_eq!(value["pubkey_compressed"], KEY1_PUB_COMPRESSED);
+        assert_eq!(
+            value["wif_compressed"],
+            "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN87JcbXMTcA"
+        );
+        assert_eq!(
+            value["wif_uncompressed"],
+            "91avARGdfge8E4tZfYLoxeJ5sGBdNJQH4kvjJoQFacbgwmaKkrx"
+        );
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 4);
+
+        assert_eq!(
+            address(&value, "btc_p2pkh")["address"],
+            "mrCDrCybB6J1vRfbwM5hemdJz73FwDBC8r"
+        );
+        assert_eq!(
+            address(&value, "btc_p2pkh")["steps"]["payload"],
+            format!("6f{H160_1_CMP}")
+        );
+        assert_eq!(
+            address(&value, "btc_p2sh_p2wpkh")["address"],
+            "2NAUYAHhujozruyzpsFRP63mbrdaU5wnEpN"
+        );
+        assert_eq!(
+            address(&value, "btc_p2sh_p2wpkh")["steps"]["payload"],
+            "c4bcfeb728b584253d5f3f70bcb780e9ef218a68f4"
+        );
+        assert_eq!(
+            address(&value, "btc_p2wpkh")["address"],
+            "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+        );
+        assert_eq!(address(&value, "btc_p2wpkh")["steps"]["hrp"], "tb");
+        assert_eq!(
+            address(&value, "btc_p2tr")["address"],
+            "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2"
+        );
+        assert_eq!(address(&value, "btc_p2tr")["steps"]["parity"], "1");
+
+        // The top-level shape is the existing report plus `network`; only the
+        // four Bitcoin testnet rows are returned.
+        let top = value.as_object().unwrap();
+        assert_eq!(top.len(), 13);
+    }
+
+    #[test]
+    fn derive_network_mainnet_returns_the_existing_report() {
+        let mut session = Session::new();
+        assert_eq!(session.derive_report_network(&KEY1_BYTES, 0, 0), OK);
+        let network_json = String::from_utf8(session.result.clone()).unwrap();
+        assert!(network_json.starts_with("{\"network\":\"mainnet\","));
+
+        let mut base = Session::new();
+        assert_eq!(base.derive_report(&KEY1_BYTES, 0), OK);
+        let base_json = String::from_utf8(base.result).unwrap();
+        assert_eq!(
+            network_json,
+            format!("{{\"network\":\"mainnet\",{}", &base_json[1..])
+        );
+
+        let value: serde_json::Value = serde_json::from_str(&network_json).unwrap();
+        assert_eq!(value["network"], "mainnet");
+        assert_eq!(
+            address(&value, "btc_p2wpkh")["address"],
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
+        );
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 15);
+    }
+
+    #[test]
+    fn derive_network_rejects_unsupported_combinations() {
+        let mut session = Session::new();
+        assert_eq!(
+            session.derive_report_network(&KEY1_BYTES, 0, 2),
+            ERR_UNSUPPORTED
+        );
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+
+        assert_eq!(
+            session.derive_report_network(&KEY1_BYTES, 1, 1),
+            ERR_UNSUPPORTED
+        );
+        assert!(!session.error.is_empty());
+
+        assert_eq!(
+            session.derive_report_network(&[0u8; 32], 0, 1),
+            ERR_BAD_TARGET
+        );
+        assert!(!session.error.is_empty());
+
+        assert_eq!(
+            session.derive_report_network(&KEY1_BYTES, 2, 0),
+            ERR_UNSUPPORTED
+        );
+    }
+
+    #[test]
+    fn btc_abi_returns_signed_and_unsigned_hex() {
+        let mut session = Session::new();
+        let unsigned = format!(
+            r#"{{"network":"testnet","inputs":[{{"txid":"{0}","vout":0,"value":"100000","sequence":"4294967295"}}],"outputs":[{{"address":"tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx","value":"99000"}},{{"address":"tb1qq6hag67dl53wl99vzg42z8eyzfz2xlkvvlryfj","value":"500"}}]}}"#,
+            "11".repeat(32),
+        );
+        let signed = format!(
+            r#"{{"network":"testnet","inputs":[{{"txid":"{0}","vout":0,"value":"100000","sequence":"4294967295"}}],"outputs":[{{"address":"tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx","value":"99000"}},{{"address":"tb1qq6hag67dl53wl99vzg42z8eyzfz2xlkvvlryfj","value":"500"}}],"private_key":"0x{1}"}}"#,
+            "11".repeat(32),
+            "00".repeat(31) + "01",
+        );
+        assert_eq!(session.btc_unsigned_tx(&unsigned), OK);
+        assert!(session.error.is_empty());
+        assert_eq!(
+            String::from_utf8(session.result.clone()).unwrap(),
+            "020000000111111111111111111111111111111111111111111111111111111111111111110000000000ffffffff02b882010000000000160014751e76e8199196d454941c45d1b3a323f1433bd6f40100000000000016001406afd46bcdfd22ef94ac122aa11f241244a37ecc00000000"
+        );
+
+        session.clear_result();
+        assert_eq!(session.btc_sign_tx(&signed), OK);
+        assert!(session.error.is_empty());
+        assert_eq!(
+            String::from_utf8(session.result.clone()).unwrap(),
+            "0200000000010111111111111111111111111111111111111111111111111111111111111111110000000000ffffffff02b882010000000000160014751e76e8199196d454941c45d1b3a323f1433bd6f40100000000000016001406afd46bcdfd22ef94ac122aa11f241244a37ecc02473044022010cb6b408ebf2006dc378e84bd73d7ec7c2c870eea081c2933766f4acfc3047a022034ccc43523dc610366f16bfbd48e73ab4995134dde016b304b3b3aac351504e401210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179800000000"
+        );
+
+        session.clear_result();
+        assert_eq!(session.btc_sign_tx("{}"), ERR_BAD_TARGET);
         assert!(!session.error.is_empty());
         assert!(session.result.is_empty());
     }
