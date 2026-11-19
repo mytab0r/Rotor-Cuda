@@ -3,11 +3,19 @@
  * Client-side only: the page spawns puzzle-worker.js instances that load
  * /rotor_wasm.wasm, generate keys inside the selected range and test them
  * against one public puzzle target. No key or scan result is uploaded. The
- * only network request is an optional read of the public mempool.space balance
- * for the target address.
+ * only network requests are an optional read of the public mempool.space
+ * balance for each visible puzzle address and the public /api/v1/summary
+ * counter feed.
  *
  * Host contracts:
  *   [data-puzzle-picker][data-puzzle-tab]  puzzle <select>; change navigates
+ *   [data-puzzle-row]                      one table row (data-solved,
+ *                                          data-search)
+ *   [data-puzzle-filter]                   All/Solved/Unsolved segmented tabs
+ *   [data-puzzle-search]                   table search input
+ *   [data-balance-address]                 balance cell; loaded when visible
+ *   [data-tx-address]                      transaction-count link for an address
+ *   [data-copy]                            copy-to-clipboard icon button
  *   [data-puzzle-app]                      random-scan root with
  *                                          data-puzzle-{number,target,start,end}
  *   [data-puzzle-target]                   element carrying data-puzzle-target
@@ -16,15 +24,24 @@
  *   counters: data-puzzle-{generated,speed,worker-count,wasm,match-count,eta}
  *   data-puzzle-progress / data-puzzle-progress-bar / data-puzzle-progress-text
  *   controls: data-puzzle-{mode,workers,start-input,end-input,start-btn,stop-btn,
- *                          reset-btn,team-note,state,match,match-key,copy}
+ *                          reset-btn,resume-btn,team-note,state,match,match-key,copy}
+ *   results: data-puzzle-results (tbody), data-puzzle-results-empty,
+ *            data-puzzle-results-count
+ *   community: data-puzzle-community, data-puzzle-community-state,
+ *              data-puzzle-community-stats
  *   [data-range-preset]
  */
 (function () {
   'use strict';
 
   var MEMPOOL_ADDRESS = 'https://mempool.space/api/address/';
+  var SUMMARY_ENDPOINT = '/api/v1/summary';
   var MAX_WORKERS = 8;
   var PROGRESS_REFRESH_MS = 200;
+  var BALANCE_CONCURRENCY = 3;
+  var SAMPLE_INTERVAL_MS = 1200;
+  var MAX_RESULT_ROWS = 25;
+  var SUMMARY_REFRESH_MS = 20000;
 
   function num(value) {
     var parsed = typeof value === 'number' ? value : Number(value);
@@ -67,13 +84,44 @@
     return years >= 1e6 ? years.toExponential(2) + ' years' : years.toFixed(1) + ' years';
   }
 
+  function randomInRange(min, max) {
+    var span = max - min + 1n;
+    if (span <= 0n) return min;
+    var bits = (span - 1n).toString(2).length;
+    var words = Math.max(1, Math.ceil(bits / 32));
+    var excess = BigInt(words * 32 - bits);
+    var buffer = new Uint32Array(words);
+    for (;;) {
+      if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+        window.crypto.getRandomValues(buffer);
+      } else {
+        for (var i = 0; i < words; i++) buffer[i] = Math.floor(Math.random() * 4294967296);
+      }
+      var value = 0n;
+      for (var j = 0; j < words; j++) value = (value << 32n) | BigInt(buffer[j]);
+      if (excess > 0n) value >>= excess;
+      if (value < span) return min + value;
+    }
+  }
+
   function copyText(text, button) {
+    var isIcon = button && button.hasAttribute('data-copy');
     var done = function () {
       if (!button) return;
-      var original = button.getAttribute('data-label') || button.textContent;
-      button.setAttribute('data-label', original);
-      button.textContent = 'Copied';
-      window.setTimeout(function () { button.textContent = original; }, 1400);
+      if (isIcon) {
+        button.classList.add('is-copied');
+        var hadLabel = button.getAttribute('aria-label');
+        button.setAttribute('aria-label', 'Copied');
+        window.setTimeout(function () {
+          button.classList.remove('is-copied');
+          if (hadLabel) button.setAttribute('aria-label', hadLabel);
+        }, 1400);
+      } else {
+        var original = button.getAttribute('data-label') || button.textContent;
+        button.setAttribute('data-label', original);
+        button.textContent = 'Copied';
+        window.setTimeout(function () { button.textContent = original; }, 1400);
+      }
     };
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
       navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
@@ -93,6 +141,23 @@
     try { document.execCommand('copy'); } catch (err) { /* ignore */ }
     document.body.removeChild(area);
     done();
+  }
+
+  function each(list, callback) {
+    for (var i = 0; i < list.length; i++) callback(list[i], i);
+  }
+
+  /* --------------------------------------------------------------- copy */
+
+  function initCopy() {
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target || typeof target.closest !== 'function') return;
+      var button = target.closest('[data-copy]');
+      if (!button) return;
+      event.preventDefault();
+      copyText(button.getAttribute('data-copy') || '', button);
+    });
   }
 
   /* --------------------------------------------------------------- picker */
@@ -149,8 +214,14 @@
         var btc = (sats / 1e8).toFixed(8);
         for (var i = 0; i < values.length; i++) values[i].textContent = btc + ' BTC';
         setState('live via mempool.space · ' + formatCount(stats.tx_count) + ' tx');
+        var links = document.querySelectorAll('[data-tx-address]');
+        for (var j = 0; j < links.length; j++) {
+          if (links[j].getAttribute('data-tx-address') === target) {
+            links[j].textContent = formatCount(stats.tx_count) + ' tx';
+          }
+        }
       } catch (err) {
-        for (var j = 0; j < values.length; j++) values[j].textContent = 'unavailable';
+        for (var k = 0; k < values.length; k++) values[k].textContent = 'unavailable';
         setState('balance unavailable — open Mempool');
       } finally {
         checking = false;
@@ -160,6 +231,223 @@
     var buttons = document.querySelectorAll('[data-puzzle-check]');
     for (var i = 0; i < buttons.length; i++) buttons[i].addEventListener('click', refresh);
     refresh();
+  }
+
+  /* --------------------------------------------------------- table filter */
+
+  function initFilter() {
+    var rows = Array.prototype.slice.call(document.querySelectorAll('[data-puzzle-row]'));
+    if (!rows.length) return;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('[data-puzzle-filter]'));
+    var search = document.querySelector('[data-puzzle-search]');
+    var empty = document.querySelector('[data-puzzle-empty]');
+    var filter = 'all';
+
+    function apply() {
+      var query = (search && search.value ? search.value : '').trim().toLowerCase();
+      if (query.charAt(0) === '#') query = query.slice(1);
+      var visible = 0;
+      each(rows, function (row) {
+        var solved = row.getAttribute('data-solved') === 'true';
+        var passFilter = filter === 'all' ||
+          (filter === 'solved' && solved) ||
+          (filter === 'unsolved' && !solved);
+        var haystack = (row.getAttribute('data-search') || '').toLowerCase();
+        var passSearch = !query || haystack.indexOf(query) !== -1;
+        var show = passFilter && passSearch;
+        row.hidden = !show;
+        if (show) visible += 1;
+      });
+      if (empty) empty.hidden = visible > 0;
+    }
+
+    each(buttons, function (button) {
+      button.addEventListener('click', function () {
+        filter = button.getAttribute('data-puzzle-filter') || 'all';
+        each(buttons, function (item) {
+          var active = item === button;
+          item.classList.toggle('active', active);
+          item.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        apply();
+      });
+    });
+    if (search) search.addEventListener('input', apply);
+    apply();
+  }
+
+  /* ------------------------------------------------- table balances (lazy) */
+
+  function initTableBalances() {
+    var cells = Array.prototype.slice.call(document.querySelectorAll('[data-balance-address]'));
+    if (!cells.length) return;
+    var txLinks = {};
+    each(document.querySelectorAll('[data-tx-address]'), function (link) {
+      txLinks[link.getAttribute('data-tx-address')] = link;
+    });
+
+    var queue = [];
+    var queued = {};
+    var active = 0;
+    var cache = {};
+
+    function paint(address, value) {
+      each(document.querySelectorAll('[data-balance-address]'), function (cell) {
+        if (cell.getAttribute('data-balance-address') !== address) return;
+        cell.textContent = value.balance;
+        cell.title = value.error ? value.error : 'live via mempool.space';
+      });
+      var link = txLinks[address];
+      if (link && value.tx) link.textContent = value.tx;
+    }
+
+    async function fetchOne(address) {
+      if (cache[address]) {
+        paint(address, cache[address]);
+        return;
+      }
+      active += 1;
+      try {
+        var response = await fetch(MEMPOOL_ADDRESS + encodeURIComponent(address), {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+          credentials: 'omit'
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        var stats = data && data.chain_stats;
+        if (!stats) throw new Error('unexpected response');
+        var sats = num(stats.funded_txo_sum) - num(stats.spent_txo_sum);
+        var value = {
+          balance: (sats / 1e8).toFixed(8) + ' BTC',
+          tx: formatCount(stats.tx_count) + ' tx'
+        };
+        cache[address] = value;
+        paint(address, value);
+      } catch (err) {
+        cache[address] = { balance: 'n/a', tx: '—', error: 'balance unavailable' };
+        paint(address, cache[address]);
+      } finally {
+        active -= 1;
+        pump();
+      }
+    }
+
+    function pump() {
+      while (active < BALANCE_CONCURRENCY && queue.length) {
+        fetchOne(queue.shift());
+      }
+    }
+
+    function enqueue(address) {
+      if (!address || queued[address]) return;
+      queued[address] = true;
+      queue.push(address);
+      pump();
+    }
+
+    if ('IntersectionObserver' in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        each(entries, function (entry) {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          enqueue(entry.target.getAttribute('data-balance-address'));
+        });
+      }, { rootMargin: '240px' });
+      each(cells, function (cell) { observer.observe(cell); });
+    } else {
+      each(cells.slice(0, 24), function (cell) {
+        enqueue(cell.getAttribute('data-balance-address'));
+      });
+    }
+  }
+
+  /* ------------------------------------------------------------ community */
+
+  function initCommunity(root, getStats) {
+    var box = root.querySelector('[data-puzzle-community]');
+    if (!box) return;
+    var state = box.querySelector('[data-puzzle-community-state]');
+    var statsBox = box.querySelector('[data-puzzle-community-stats]');
+    var sessionMode = false;
+    var timer = null;
+    var sessionTimer = null;
+
+    function clearStats() {
+      if (!statsBox) return;
+      while (statsBox.firstChild) statsBox.removeChild(statsBox.firstChild);
+    }
+
+    function addStat(label, value, note) {
+      var stat = document.createElement('div');
+      stat.className = 'pz-stat';
+      var name = document.createElement('span');
+      name.className = 'pz-stat-label';
+      name.textContent = label;
+      var amount = document.createElement('span');
+      amount.className = 'pz-stat-value';
+      amount.textContent = value;
+      stat.appendChild(name);
+      stat.appendChild(amount);
+      if (note) {
+        var small = document.createElement('span');
+        small.className = 'pz-stat-note';
+        small.textContent = note;
+        stat.appendChild(small);
+      }
+      if (statsBox) statsBox.appendChild(stat);
+    }
+
+    function renderSession(note) {
+      sessionMode = true;
+      var stats = getStats();
+      if (state) state.textContent = note;
+      clearStats();
+      if (statsBox) statsBox.hidden = false;
+      addStat('Session keys', formatCount(stats.generated), 'this tab only');
+      addStat('Session matches', stats.match ? '1' : '0', 'this tab only');
+      addStat('Workers', String(stats.workers), 'local WASM');
+      addStat('Network', '0', 'nothing uploaded');
+    }
+
+    function renderSummary(data) {
+      var totals = data && data.totals ? data.totals : {};
+      sessionMode = false;
+      if (state) state.textContent = 'Coordinator pool totals, refreshed every 20 s.';
+      clearStats();
+      if (statsBox) statsBox.hidden = false;
+      addStat('Keys scanned', formatCount(totals.scanned), 'pool-wide');
+      addStat('Active clients', formatCount(totals.clients_active), 'holding leases');
+      addStat('Results found', formatCount(totals.results), 'all jobs');
+      addStat('Public jobs', formatCount(totals.jobs), 'in the pool');
+    }
+
+    async function load() {
+      try {
+        var response = await fetch(SUMMARY_ENDPOINT, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+          credentials: 'omit'
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        renderSummary(await response.json());
+      } catch (err) {
+        renderSession('Coordinator summary unavailable — showing session-only counters.');
+      }
+    }
+
+    function tickSession() {
+      if (!sessionMode) return;
+      renderSession('Coordinator summary unavailable — showing session-only counters.');
+    }
+
+    load();
+    timer = window.setInterval(load, SUMMARY_REFRESH_MS);
+    sessionTimer = window.setInterval(tickSession, 3000);
+    window.addEventListener('pagehide', function () {
+      if (timer !== null) window.clearInterval(timer);
+      if (sessionTimer !== null) window.clearInterval(sessionTimer);
+    });
   }
 
   /* ------------------------------------------------------------------ app */
@@ -173,15 +461,16 @@
     var puzzleStart = parseHex(root.getAttribute('data-puzzle-start'));
     var puzzleEnd = parseHex(root.getAttribute('data-puzzle-end'));
     var supports = typeof BigInt === 'function' && typeof Worker === 'function';
+    var storageKey = 'rotor.puzzle.' + number + '.range';
 
     var els = {
-      mode: root.querySelector('[data-puzzle-mode]'),
       workerCount: root.querySelector('[data-puzzle-workers]'),
       startInput: root.querySelector('[data-puzzle-start-input]'),
       endInput: root.querySelector('[data-puzzle-end-input]'),
       startBtn: root.querySelector('[data-puzzle-start-btn]'),
       stopBtn: root.querySelector('[data-puzzle-stop-btn]'),
       resetBtn: root.querySelector('[data-puzzle-reset-btn]'),
+      resumeBtn: root.querySelector('[data-puzzle-resume-btn]'),
       teamNote: root.querySelector('[data-puzzle-team-note]'),
       state: root.querySelector('[data-puzzle-state]'),
       match: root.querySelector('[data-puzzle-match]'),
@@ -195,14 +484,21 @@
       eta: root.querySelector('[data-puzzle-eta]'),
       progress: root.querySelector('[data-puzzle-progress]'),
       progressBar: root.querySelector('[data-puzzle-progress-bar]'),
-      progressText: root.querySelector('[data-puzzle-progress-text]')
+      progressText: root.querySelector('[data-puzzle-progress-text]'),
+      results: root.querySelector('[data-puzzle-results]'),
+      resultsEmpty: root.querySelector('[data-puzzle-results-empty]'),
+      resultsCount: root.querySelector('[data-puzzle-results-count]')
     };
+    var modeButtons = Array.prototype.slice.call(root.querySelectorAll('[data-puzzle-mode]'));
     var presetButtons = root.querySelectorAll('[data-range-preset]');
 
     var workers = [];
     var running = false;
     var found = null;
     var progressTimer = null;
+    var sampleTimer = null;
+    var sampleCursor = 0;
+    var resultSeq = 0;
     var scanAnnounced = false;
 
     if (puzzleStart === null || puzzleEnd === null || puzzleEnd < puzzleStart) {
@@ -215,6 +511,23 @@
       if (els.state) els.state.textContent = text;
     }
 
+    function modeValue() {
+      for (var i = 0; i < modeButtons.length; i++) {
+        if (modeButtons[i].classList.contains('active')) {
+          return modeButtons[i].getAttribute('data-mode-value') || 'random';
+        }
+      }
+      return 'random';
+    }
+
+    function setMode(value) {
+      each(modeButtons, function (button) {
+        var active = button.getAttribute('data-mode-value') === value;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
     function setStartEnabled(enabled) {
       if (!els.startBtn) return;
       els.startBtn.disabled = !enabled || modeValue() === 'team';
@@ -224,8 +537,13 @@
       if (els.stopBtn) els.stopBtn.disabled = !enabled;
     }
 
+    function updateResume() {
+      if (!els.resumeBtn) return;
+      els.resumeBtn.disabled = running || !savedSession();
+    }
+
     function setControlsEnabled(enabled) {
-      if (els.mode) els.mode.disabled = !enabled;
+      each(modeButtons, function (button) { button.disabled = !enabled; });
       if (els.workerCount) els.workerCount.disabled = !enabled;
       if (els.startInput) els.startInput.disabled = !enabled;
       if (els.endInput) els.endInput.disabled = !enabled;
@@ -236,10 +554,7 @@
           presetButtons[i].disabled = true;
         }
       }
-    }
-
-    function modeValue() {
-      return els.mode ? els.mode.value : 'random';
+      updateResume();
     }
 
     function readWorkerCount() {
@@ -300,6 +615,58 @@
       }
     }
 
+    function savedSession() {
+      try {
+        var raw = window.localStorage.getItem(storageKey);
+        if (!raw) return null;
+        var saved = JSON.parse(raw);
+        var start = parseHex(saved && saved.start);
+        var end = parseHex(saved && saved.end);
+        if (start === null || end === null || start > end) return null;
+        if (start < puzzleStart || end > puzzleEnd) return null;
+        return { start: start, end: end, mode: saved.mode, workers: saved.workers };
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function saveSession() {
+      try {
+        var range = currentRange();
+        if (!range) return;
+        window.localStorage.setItem(storageKey, JSON.stringify({
+          start: padHex(range.start),
+          end: padHex(range.end),
+          mode: modeValue(),
+          workers: readWorkerCount()
+        }));
+      } catch (err) { /* storage disabled */ }
+      updateResume();
+    }
+
+    function clearSession() {
+      try { window.localStorage.removeItem(storageKey); } catch (err) { /* storage disabled */ }
+      updateResume();
+    }
+
+    function resumeSession() {
+      if (running) return;
+      var saved = savedSession();
+      if (!saved) {
+        setState('No saved range in this browser. Start a scan first.');
+        updateResume();
+        return;
+      }
+      if (els.startInput) els.startInput.value = padHex(saved.start);
+      if (els.endInput) els.endInput.value = padHex(saved.end);
+      if (saved.mode === 'team' || saved.mode === 'seq' || saved.mode === 'random') setMode(saved.mode);
+      if (els.workerCount && saved.workers >= 1 && saved.workers <= MAX_WORKERS) {
+        els.workerCount.value = String(saved.workers);
+      }
+      for (var i = 0; i < presetButtons.length; i++) presetButtons[i].classList.remove('active');
+      setState('Restored the last saved range. Press Start to continue.');
+    }
+
     function sequentialWindow(range, count, index) {
       var span = range.end - range.start + 1n;
       var per = span / BigInt(count);
@@ -355,6 +722,12 @@
         updateProgress();
         return;
       }
+      if (message.type === 'sample') {
+        if (message.address) {
+          addResult({ key: String(message.key || ''), address: String(message.address || '') });
+        }
+        return;
+      }
       if (message.type === 'match') {
         entry.generated = num(message.generated) || entry.generated;
         entry.done = true;
@@ -362,6 +735,7 @@
           key: String(message.key || ''),
           address: String(message.address || '')
         };
+        addResult({ key: found.key, address: found.address, match: true });
         showMatch(found);
         halt('MATCH FOUND for puzzle #' + number + '. The scan stopped.');
         renderStats();
@@ -470,8 +844,78 @@
       if (els.matchKey) els.matchKey.textContent = '';
     }
 
+    function updateResultCount() {
+      if (!els.results) return;
+      var count = els.results.children.length;
+      if (els.resultsCount) {
+        els.resultsCount.textContent = count === 1 ? '1 row' : count + ' rows';
+      }
+      if (els.resultsEmpty) els.resultsEmpty.hidden = count > 0;
+    }
+
+    function clearResults() {
+      if (els.results) {
+        while (els.results.firstChild) els.results.removeChild(els.results.firstChild);
+      }
+      resultSeq = 0;
+      updateResultCount();
+    }
+
+    function addResult(entry) {
+      if (!els.results) return;
+      resultSeq += 1;
+      var row = document.createElement('tr');
+      var values = [
+        ['#', '#' + resultSeq, 'pz-num'],
+        ['Private key', entry.key || '—', 'pz-key-cell'],
+        ['Address', entry.address || '—', 'pz-addr-cell'],
+        ['Balance', entry.balance || '—', null],
+        ['Received', entry.received || '—', null],
+        ['Match', entry.match ? 'Yes' : 'No', entry.match ? 'is-match' : null]
+      ];
+      for (var i = 0; i < values.length; i++) {
+        var cell = document.createElement('td');
+        cell.setAttribute('data-label', values[i][0]);
+        if (values[i][2]) cell.className = values[i][2];
+        cell.textContent = values[i][1];
+        row.appendChild(cell);
+      }
+      els.results.insertBefore(row, els.results.firstChild);
+      while (els.results.children.length > MAX_RESULT_ROWS) {
+        els.results.removeChild(els.results.lastChild);
+      }
+      updateResultCount();
+    }
+
+    function startSampling() {
+      stopSampling();
+      sampleCursor = 0;
+      sampleTimer = window.setInterval(function () {
+        if (!running || !workers.length) return;
+        var attempts = 0;
+        while (attempts < workers.length) {
+          var entry = workers[sampleCursor % workers.length];
+          sampleCursor += 1;
+          attempts += 1;
+          if (!entry || entry.done) continue;
+          try {
+            entry.worker.postMessage({ type: 'sample', key: padHex(randomInRange(puzzleStart, puzzleEnd)) });
+          } catch (err) { /* worker already gone */ }
+          return;
+        }
+      }, SAMPLE_INTERVAL_MS);
+    }
+
+    function stopSampling() {
+      if (sampleTimer !== null) {
+        window.clearInterval(sampleTimer);
+        sampleTimer = null;
+      }
+    }
+
     function halt(message) {
       running = false;
+      stopSampling();
       if (progressTimer !== null) {
         window.clearInterval(progressTimer);
         progressTimer = null;
@@ -487,6 +931,7 @@
       if (message) setState(message);
       renderStats();
       updateProgress();
+      updateResume();
     }
 
     function finish(message) {
@@ -513,10 +958,12 @@
         if (BigInt(count) > span) count = Math.max(1, Number(span));
       }
 
+      saveSession();
       workers = [];
       found = null;
       scanAnnounced = false;
       hideMatch();
+      clearResults();
       running = true;
       setStartEnabled(false);
       setStopEnabled(true);
@@ -537,6 +984,7 @@
       }
       renderStats();
       updateProgress();
+      startSampling();
       progressTimer = window.setInterval(function () {
         renderStats();
         updateProgress();
@@ -555,7 +1003,10 @@
       found = null;
       scanAnnounced = false;
       hideMatch();
+      clearResults();
+      clearSession();
       resetRange();
+      setMode('random');
       setState('Reset. Ready to start a fresh scan.');
       renderStats();
       updateProgress();
@@ -566,16 +1017,19 @@
     if (els.startBtn) els.startBtn.addEventListener('click', startScan);
     if (els.stopBtn) els.stopBtn.addEventListener('click', stopScan);
     if (els.resetBtn) els.resetBtn.addEventListener('click', resetScan);
+    if (els.resumeBtn) els.resumeBtn.addEventListener('click', resumeSession);
 
-    if (els.mode) {
-      els.mode.addEventListener('change', function () {
+    each(modeButtons, function (button) {
+      button.addEventListener('click', function () {
+        if (running) return;
+        setMode(button.getAttribute('data-mode-value'));
         var team = modeValue() === 'team';
         if (els.teamNote) els.teamNote.hidden = !team;
         setStartEnabled(!team);
         if (team) setState('Team mode selected. Local scanning is off; use the pooled job board for leased chunks.');
         else setState('Ready. Press Start or Space.');
       });
-    }
+    });
 
     for (var b = 0; b < presetButtons.length; b++) {
       (function (button) {
@@ -610,12 +1064,25 @@
     if (els.teamNote) els.teamNote.hidden = modeValue() !== 'team';
     setStartEnabled(!running && modeValue() !== 'team');
     setStopEnabled(false);
+    updateResultCount();
+    updateResume();
     renderStats();
     updateProgress();
+    initCommunity(root, function () {
+      var sums = totals();
+      return {
+        generated: sums.generated,
+        match: Boolean(found),
+        workers: running ? workers.length : 0
+      };
+    });
   }
 
   function boot() {
+    initCopy();
     initPicker();
+    initFilter();
+    initTableBalances();
     initBalance();
     initApp();
   }
