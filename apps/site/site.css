@@ -1627,6 +1627,17 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 }
 .icon-btn:hover { border-color: var(--border); background: var(--panel-2); color: var(--text); }
 .icon-btn .icon { width: 14px; height: 14px; transition: transform .16s ease; }
+.browse-balance-retry {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  margin-left: 2px;
+  padding: 0;
+  vertical-align: middle;
+}
+.browse-balance-retry::before { content: ""; position: absolute; inset: -9px; border-radius: 12px; }
+.col-balance .browse-balance-retry .icon { width: 13px; height: 13px; }
 .details-btn.open .icon { transform: rotate(180deg); }
 .col-address { min-width: 0; }
 .address-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c8d8ea; font-size: 12.5px; }
@@ -2268,6 +2279,25 @@ code { font-family: var(--mono); font-size: .92em; }
 .key-balance { margin-left: auto; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .key-balance.ok { color: var(--ok); border-color: rgba(69, 214, 160, .45); }
 .key-balance.err { color: var(--err); border-color: rgba(255, 112, 112, .4); }
+.key-balance-retry {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  margin: -2px -4px -2px 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--accent-2);
+  background: transparent;
+  vertical-align: middle;
+}
+.key-balance-retry::before { content: ""; position: absolute; inset: -10px; border-radius: 12px; }
+.key-balance-retry:hover { color: var(--accent); }
+.key-balance-retry .icon { width: 14px; height: 14px; }
 .key-addr-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .key-addr { flex: 1 1 auto; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg); color: var(--text); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
 .key-copy { flex: none; min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 12px; }

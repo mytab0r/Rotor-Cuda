@@ -130,14 +130,8 @@
           <option value="phantom">Phantom</option>
         </select>
       </div>
-      <div class="key-balance-controls">
-        <label class="key-toggle">Online balance lookups
-          <input type="checkbox" id="online-toggle" checked>
-        </label>
-        <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
-      </div>
     </div>
-    <p class="muted key-help" id="balance-help">Offline by default. A check sends only the shown public addresses to public providers; the key never leaves this page.</p>
+    <p class="muted key-help" id="balance-help">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
 
     <div class="key-btc-balance" id="btc-balance-panel" hidden>
       <p class="key-selected" id="btc-selected"></p>
@@ -146,7 +140,7 @@
         <div class="key-balance-card"><span class="key-balance-label">Received</span><span class="key-balance-value mono empty" id="btc-received">—</span></div>
         <div class="key-balance-card"><span class="key-balance-label">TX</span><span class="key-balance-value mono empty" id="btc-tx">—</span></div>
       </div>
-      <p class="muted key-help" id="btc-summary-hint">Enable online lookups and press Check balances to fill these values for the selected Bitcoin address.</p>
+      <p class="muted key-help" id="btc-summary-hint">Balances load automatically from mempool.space for the selected Bitcoin address.</p>
     </div>
 
     <div id="addr-rows" class="key-rows">

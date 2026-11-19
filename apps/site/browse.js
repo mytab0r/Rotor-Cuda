@@ -430,6 +430,30 @@
     cell.classList.toggle('has-balance', text !== '—' && text !== '0');
   }
 
+  function setRowBalanceError(row) {
+    var cell = row.querySelector('.col-balance');
+    if (!cell) return;
+    cell.textContent = 'unavailable ';
+    cell.classList.remove('has-balance');
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'icon-btn browse-balance-retry';
+    button.title = 'Retry this balance';
+    button.setAttribute('aria-label', 'Retry balance check for this address');
+    button.appendChild(iconUse('ui-retry', 'icon'));
+    button.addEventListener('click', function () { loadBalances(); });
+    cell.appendChild(button);
+  }
+
+  async function retryOnce(task) {
+    try {
+      return await task();
+    } catch (err) {
+      await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
+      return task();
+    }
+  }
+
   async function fetchJson(url, options) {
     var response = await fetch(url, options);
     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -637,7 +661,7 @@
       var slice = unique.slice(i, i + 5);
       await Promise.all(slice.map(async function (address) {
         try {
-          byAddress[address] = await fetcher(address);
+          byAddress[address] = await retryOnce(function () { return fetcher(address); });
         } catch (err) {
           failures += 1;
         }
@@ -649,7 +673,11 @@
     rows.forEach(function (row) {
       var address = state.addresses[row.getAttribute('data-key')];
       var value = byAddress[address];
-      if (value === undefined || value === null) return;
+      if (!address) return;
+      if (value === undefined || value === null) {
+        setRowBalanceError(row);
+        return;
+      }
       sum += Number(value);
       setRowBalance(row, coin(value, decimals) + ' ' + config.symbol, String(value));
     });
@@ -684,24 +712,25 @@
   async function loadBalances() {
     var run = ++state.balanceRun;
     var addresses = Object.keys(state.addresses).map(function (hex) { return state.addresses[hex]; });
-    if (!addresses.length) return;
+    if (!addresses.length) {
+      setSummary('—', '—', '—');
+      setNote('No derived public address to send; nothing was sent.');
+      return;
+    }
     setNote('Checking balances in your browser…');
     try {
-      if (config.chain === 'bitcoin') await btcBalances(run);
-      else if (config.chain === 'solana') await solBalances(addresses, run);
-      else if (RPC[config.chain]) await evmBalances(addresses, run);
-      else if (config.chain === 'bitcoin-cash') await bchBalances(addresses, run);
-      else if (config.chain === 'litecoin') await ltcBalances(addresses, run);
-      else if (BLOCKCHAIR[config.chain]) await blockchairBalances(addresses, run);
+      if (config.chain === 'bitcoin') await retryOnce(function () { return btcBalances(run); });
+      else if (config.chain === 'solana') await retryOnce(function () { return solBalances(addresses, run); });
+      else if (RPC[config.chain]) await retryOnce(function () { return evmBalances(addresses, run); });
+      else if (config.chain === 'bitcoin-cash') await retryOnce(function () { return bchBalances(addresses, run); });
+      else if (config.chain === 'litecoin') await retryOnce(function () { return ltcBalances(addresses, run); });
+      else if (BLOCKCHAIR[config.chain]) await retryOnce(function () { return blockchairBalances(addresses, run); });
       else if (config.chain === 'tron') {
-        var tronFailures = await perAddressBalances(addresses, tronBalance, 6, run);
-
+        await retryOnce(function () { return perAddressBalances(addresses, tronBalance, 6, run); });
       } else if (config.chain === 'xrp') {
-        var xrpFailures = await perAddressBalances(addresses, xrpBalance, 6, run);
-
+        await retryOnce(function () { return perAddressBalances(addresses, xrpBalance, 6, run); });
       } else if (config.chain === 'ton') {
-        var tonFailures = await perAddressBalances(addresses, tonCenterBalance, 9, run);
-
+        await retryOnce(function () { return perAddressBalances(addresses, tonCenterBalance, 9, run); });
       } else {
         setSummary('—', '—', '—');
         setNote('Live balance lookup is not available for ' + config.chain + ' on this page; each address links to its explorer.');
@@ -711,6 +740,9 @@
       setNote('Balances loaded in your browser from public providers. They can lag the chain.');
     } catch (err) {
       if (run !== state.balanceRun) return;
+      rows.forEach(function (row) {
+        if (state.addressSets[row.getAttribute('data-key')]) setRowBalanceError(row);
+      });
       setNote('Balance lookup is unavailable right now. The addresses are still derived locally.', 'err');
     }
   }
