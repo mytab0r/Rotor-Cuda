@@ -157,22 +157,21 @@
         <label class="key-path-field" for="derivation-path">
           <span>Derivation path</span>
           <span class="key-path-row">
-            <input id="derivation-path" class="mono key-path-input" type="text" value="m/44'/0'/0'/0/0" readonly
-                   spellcheck="false" autocomplete="off" aria-describedby="derivation-path-hint">
-            <button type="button" class="key-path-copy" id="copy-derivation-path" aria-label="Copy derivation path">Copy</button>
+            <input id="derivation-path" class="mono key-path-input" type="text" value="m/44'/0'/0'/0/0"
+                   spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="derivation-path-hint">
+            <button type="button" class="key-path-copy" id="copy-derivation-path" aria-label="Copy derivation path" title="Copy derivation path">
+              <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+            </button>
           </span>
         </label>
-        <p class="muted key-path-hint" id="derivation-path-hint">Informational: this page derives addresses from the final key, not from this path.</p>
+        <p class="muted key-path-hint" id="derivation-path-hint" aria-live="polite">Informational: this page derives addresses from the final key, not from this path.</p>
         <div class="key-preset-chips" role="group" aria-label="Wallet presets">
           <button type="button" data-preset="all" aria-pressed="true"
                   title="Every address row for the selected curve."
                   aria-description="Every address row for the selected curve.">All</button>
           <button type="button" data-preset="ledger" aria-pressed="false"
-                  title="Ledger BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0."
-                  aria-description="Ledger BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0.">Ledger</button>
-          <button type="button" data-preset="ledger" aria-pressed="false"
-                  title="Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0."
-                  aria-description="Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0.">Trezor</button>
+                  title="Ledger / Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0."
+                  aria-description="Ledger / Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0.">Ledger / Trezor</button>
           <button type="button" data-preset="metamask" aria-pressed="false"
                   title="MetaMask EVM path: m/44'/60'/0'/0/0."
                   aria-description="MetaMask EVM path: m/44'/60'/0'/0/0.">MetaMask</button>

@@ -37,6 +37,8 @@
     tronlink: "m/44'/195'/0'/0/0",
     phantom: "m/501'/0'/0'/0'"
   };
+  var DERIVATION_PATH_RE = /^m(?:\/\d+['hH]?)+$/;
+  var DERIVATION_PATH_HINT = 'Informational: this page derives addresses from the final key, not from this path.';
 
   var ID_LABELS = {
     btc_p2pkh: 'Bitcoin legacy (compressed)',
@@ -195,6 +197,7 @@
   var slider = byId('curve-slider');
   var caption = byId('curve-caption');
   var derivePathInput = byId('derivation-path');
+  var derivePathHint = byId('derivation-path-hint');
   var copyPathBtn = byId('copy-derivation-path');
   var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-preset-chips button'));
   var chainButtons = Array.prototype.slice.call(document.querySelectorAll('.key-chain'));
@@ -818,16 +821,7 @@
     return row;
   }
 
-  function copyText(text, button) {
-    var original = button.textContent;
-    function done() {
-      button.textContent = 'Copied';
-      button.disabled = true;
-      window.setTimeout(function () {
-        button.textContent = original;
-        button.disabled = false;
-      }, 1200);
-    }
+  function writeClipboard(text, done) {
     function fallback() {
       legacyCopy(text);
       done();
@@ -837,6 +831,42 @@
     } else {
       fallback();
     }
+  }
+
+  function copyText(text, button) {
+    var original = button.textContent;
+    writeClipboard(text, function done() {
+      button.textContent = 'Copied';
+      button.disabled = true;
+      window.setTimeout(function () {
+        button.textContent = original;
+        button.disabled = false;
+      }, 1200);
+    });
+  }
+
+  function copyDerivationPath() {
+    if (!derivePathInput || !copyPathBtn) return;
+    var value = derivePathInput.value.trim();
+    if (!value) {
+      commitDerivationPath();
+      return;
+    }
+    var use = copyPathBtn.querySelector('use');
+    writeClipboard(value, function done() {
+      if (use) use.setAttribute('href', '/icons.svg#ui-check');
+      copyPathBtn.classList.add('is-copied');
+      copyPathBtn.setAttribute('aria-label', 'Derivation path copied');
+      copyPathBtn.setAttribute('title', 'Derivation path copied');
+      copyPathBtn.disabled = true;
+      window.setTimeout(function () {
+        if (use) use.setAttribute('href', '/icons.svg#ui-copy');
+        copyPathBtn.classList.remove('is-copied');
+        copyPathBtn.setAttribute('aria-label', 'Copy derivation path');
+        copyPathBtn.setAttribute('title', 'Copy derivation path');
+        copyPathBtn.disabled = false;
+      }, 1200);
+    });
   }
 
   function legacyCopy(text) {
@@ -945,9 +975,33 @@
     presetEmpty.hidden = visible > 0;
   }
 
+  function clearPathError() {
+    if (!derivePathInput) return;
+    derivePathInput.removeAttribute('aria-invalid');
+    if (!derivePathHint) return;
+    derivePathHint.textContent = DERIVATION_PATH_HINT;
+    derivePathHint.classList.remove('is-error');
+  }
+
+  function commitDerivationPath() {
+    if (!derivePathInput) return;
+    var value = derivePathInput.value.trim();
+    derivePathInput.value = value;
+    if (DERIVATION_PATH_RE.test(value)) {
+      clearPathError();
+      return;
+    }
+    derivePathInput.setAttribute('aria-invalid', 'true');
+    if (derivePathHint) {
+      derivePathHint.textContent = "Use a BIP32 path such as m/44'/0'/0'/0/0.";
+      derivePathHint.classList.add('is-error');
+    }
+  }
+
   function setDerivationPath(preset) {
     if (!derivePathInput) return;
     derivePathInput.value = DERIVATION_PATHS[preset] || DERIVATION_PATHS.all;
+    clearPathError();
   }
 
   function selectPreset(button) {
@@ -1561,9 +1615,19 @@
     button.addEventListener('click', function () { selectPreset(button); });
   });
 
-  if (copyPathBtn && derivePathInput) {
-    copyPathBtn.addEventListener('click', function () {
-      copyText(derivePathInput.value, copyPathBtn);
+  if (copyPathBtn) {
+    copyPathBtn.addEventListener('click', copyDerivationPath);
+  }
+
+  if (derivePathInput) {
+    derivePathInput.addEventListener('blur', commitDerivationPath);
+    derivePathInput.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      commitDerivationPath();
+    });
+    derivePathInput.addEventListener('input', function () {
+      if (derivePathInput.getAttribute('aria-invalid') === 'true') clearPathError();
     });
   }
 
