@@ -211,6 +211,193 @@
     return 'smooth';
   }
 
+  /* ---------------------------------------------------- key-fact shaping */
+  /* Pure formatting for the key page summary: all key encodings the
+   * derivation report can support, with an explicit reason when a format is
+   * not defined for the current curve. */
+
+  var BITCOIN_BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  var RIPPLE_BASE58 = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+  var DIRECTORY_PAGE_SIZE = 60n;
+  /* A key's JSON secret envelope: a private-key type byte, the 32-byte key
+   * and a four-byte double-SHA256 checksum. */
+  var XRP_SECRET_PREFIX = 0x23;
+
+  function base58Encode(bytes, alphabet) {
+    var chars = alphabet || BITCOIN_BASE58;
+    var zeros = 0;
+    while (zeros < bytes.length && bytes[zeros] === 0) zeros += 1;
+    var value = 0n;
+    for (var index = zeros; index < bytes.length; index += 1) {
+      value = value * 256n + BigInt(bytes[index]);
+    }
+    var digits = '';
+    while (value > 0n) {
+      digits = chars[Number(value % 58n)] + digits;
+      value /= 58n;
+    }
+    return chars[0].repeat(zeros) + digits;
+  }
+
+  function rippleBase58Encode(bytes) {
+    return base58Encode(bytes, RIPPLE_BASE58);
+  }
+
+  function solanaKeypair(seedHex, pubHex) {
+    var seed = hexToBytes(String(seedHex || ''));
+    var publicKey = hexToBytes(String(pubHex || ''));
+    if (seed.length !== 32 || publicKey.length !== 32) {
+      throw new Error('A Solana keypair needs a 32-byte seed and a 32-byte public key.');
+    }
+    var data = new Uint8Array(64);
+    data.set(seed, 0);
+    data.set(publicKey, 32);
+    return base58Encode(data);
+  }
+
+  /* doubleSha256(bytes) must resolve to a 32-byte digest. The caller injects
+   * it because the browser uses crypto.subtle and tests use node:crypto. */
+  async function xrpSecret(keyHex, doubleSha256) {
+    var key = hexToBytes(String(keyHex || ''));
+    if (key.length !== 32) throw new Error('The XRP secret needs a 32-byte private key.');
+    if (typeof doubleSha256 !== 'function') {
+      throw new Error('The XRP checksum needs SHA-256 support in this browser.');
+    }
+    var payload = new Uint8Array(33);
+    payload[0] = XRP_SECRET_PREFIX;
+    payload.set(key, 1);
+    var digest = await doubleSha256(payload);
+    if (!digest || typeof digest.length !== 'number' || digest.length < 4) {
+      throw new Error('The checksum function returned no digest.');
+    }
+    var data = new Uint8Array(37);
+    data.set(payload, 0);
+    data.set(digest.slice(0, 4), 33);
+    return rippleBase58Encode(data);
+  }
+
+  /* The private-key directory page that lists this key: 60 keys per page,
+   * starting at key 1. Key 0 is not enumerated. */
+  function privateKeyPage(keyHex, curve) {
+    var text = String(keyHex || '');
+    if (text.length !== 64 || !/^[0-9a-fA-F]+$/.test(text)) return null;
+    var value = BigInt('0x' + text);
+    if (value < 1n) return null;
+    var page = (value - 1n) / DIRECTORY_PAGE_SIZE + 1n;
+    var chain = curve === 'ed25519' ? 'solana' : 'bitcoin';
+    return {
+      page: page.toString(),
+      href: '/private-keys/' + chain + (page === 1n ? '' : '/' + page)
+    };
+  }
+
+  /* Facts render in this order; `unavailable` replaces the value with a
+   * reason instead of leaving a blank. `href` links the label, `valueHref`
+   * links the value. */
+  async function buildKeyFacts(report, doubleSha256) {
+    report = report || {};
+    var curve = report.curve || 'secp256k1';
+    var secp = curve !== 'ed25519';
+    var facts = [];
+    facts.push({ id: 'curve', label: 'Curve', value: curve });
+    facts.push(report.priv_hex
+      ? { id: 'hex', label: 'HEX', value: report.priv_hex, href: '/key/hex' }
+      : { id: 'hex', label: 'HEX', href: '/key/hex', unavailable: 'The derivation report did not return a private key.' });
+    facts.push(report.priv_dec
+      ? { id: 'decimal', label: 'DECIMAL', value: report.priv_dec }
+      : { id: 'decimal', label: 'DECIMAL', unavailable: 'The derivation report did not return a decimal key.' });
+
+    if (secp && report.wif_compressed) {
+      facts.push({ id: 'wif', label: 'WIF', value: report.wif_compressed, href: '/key/wif' });
+    } else {
+      facts.push({
+        id: 'wif', label: 'WIF', href: '/key/wif',
+        unavailable: secp
+          ? 'The derivation report did not return a compressed WIF.'
+          : 'A WIF encodes a secp256k1 key; switch the curve to secp256k1.'
+      });
+    }
+    if (secp && report.wif_uncompressed) {
+      facts.push({ id: 'wif_u', label: 'WIF (U)', value: report.wif_uncompressed, href: '/key/wif' });
+    } else {
+      facts.push({
+        id: 'wif_u', label: 'WIF (U)', href: '/key/wif',
+        unavailable: secp
+          ? 'The derivation report did not return an uncompressed WIF.'
+          : 'An uncompressed WIF is secp256k1-only; switch the curve.'
+      });
+    }
+
+    if (!secp && report.priv_hex && report.ed_pubkey) {
+      try {
+        facts.push({ id: 'keypair', label: 'KEYPAIR (SOL)', value: solanaKeypair(report.priv_hex, report.ed_pubkey) });
+      } catch (err) {
+        facts.push({ id: 'keypair', label: 'KEYPAIR (SOL)', unavailable: err.message || String(err) });
+      }
+    } else {
+      facts.push({
+        id: 'keypair', label: 'KEYPAIR (SOL)',
+        unavailable: secp
+          ? 'Solana keypairs are ed25519; switch the curve to ed25519.'
+          : 'The derivation report did not return an ed25519 public key.'
+      });
+    }
+
+    if (secp && report.priv_hex && typeof doubleSha256 === 'function') {
+      try {
+        facts.push({ id: 'xrp', label: 'SECRET (XRP)', value: await xrpSecret(report.priv_hex, doubleSha256) });
+      } catch (err) {
+        facts.push({ id: 'xrp', label: 'SECRET (XRP)', unavailable: err && err.message ? err.message : String(err) });
+      }
+    } else {
+      facts.push({
+        id: 'xrp', label: 'SECRET (XRP)',
+        unavailable: secp
+          ? 'The XRP checksum needs SHA-256 (a secure context: https or localhost).'
+          : 'XRP classic accounts use secp256k1; switch the curve.'
+      });
+    }
+
+    var pubkey = secp ? report.pubkey_compressed : report.ed_pubkey;
+    facts.push(pubkey
+      ? { id: 'pubkey', label: 'PUBKEY', value: pubkey }
+      : { id: 'pubkey', label: 'PUBKEY', unavailable: 'The derivation report did not return a public key.' });
+
+    var page = privateKeyPage(report.priv_hex, curve);
+    facts.push(page
+      ? { id: 'page', label: 'PAGE', value: page.href, valueHref: page.href }
+      : { id: 'page', label: 'PAGE', unavailable: 'Key 0 is not listed in the integer private-key directory (it starts at 1).' });
+    return facts;
+  }
+
+  /* Counters over the visible address rows. `rows` entries:
+   * { address, state, amount, chain, checkable, visible }. Only completed
+   * lookups (ok/error) count as checked; a zero or hidden row never inflates
+   * the balance counts. */
+  function balanceCounters(rows) {
+    var addresses = {};
+    var chains = {};
+    var checked = 0;
+    var total = 0;
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (!row || !row.checkable || !row.visible) return;
+      total += 1;
+      if (row.state === 'ok' || row.state === 'err') checked += 1;
+      if (row.state !== 'ok' || row.amount === null || row.amount === undefined) return;
+      var amount;
+      try { amount = BigInt(row.amount); } catch (err) { return; }
+      if (amount <= 0n) return;
+      if (row.address) addresses[String(row.address).toLowerCase()] = true;
+      if (row.chain) chains[String(row.chain)] = true;
+    });
+    return {
+      withBalance: Object.keys(addresses).length,
+      activeChains: Object.keys(chains).length,
+      checked: checked,
+      total: total
+    };
+  }
+
   var api = {
     LIMIT: LIMIT,
     parseInteger: parseInteger,
@@ -224,7 +411,14 @@
     upload: upload,
     wasmResultJson: wasmResultJson,
     wasmError: wasmError,
-    scrollBehavior: scrollBehavior
+    scrollBehavior: scrollBehavior,
+    base58Encode: base58Encode,
+    rippleBase58Encode: rippleBase58Encode,
+    solanaKeypair: solanaKeypair,
+    xrpSecret: xrpSecret,
+    privateKeyPage: privateKeyPage,
+    buildKeyFacts: buildKeyFacts,
+    balanceCounters: balanceCounters
   };
 
   global.RotorKeyTools = api;
