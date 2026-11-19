@@ -81,6 +81,12 @@ stretch/sequence derivation. Electrum old accepts 12 or 24 words and has no
 passphrase. Electrum 2FA seed versions are an explicit unsupported state, not
 a fallback to another scheme.
 
+BIP39 validation keeps the 12/15/18/21/24 word list and checksum. Electrum
+BIP39 validation MUST NOT be limited to those counts: all words must be in the
+BIP39 wordlist, the phrase must have at least two words, and the Electrum
+seed-version check must report standard (`01`) or segwit (`100`). A native
+Electrum standard seed may be 13 words.
+
 #### Scenario: BIP39 24 words
 - GIVEN 256-bit entropy and a passphrase
 - WHEN the visitor derives
