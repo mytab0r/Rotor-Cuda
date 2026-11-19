@@ -1695,9 +1695,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261121d\">\n\
-         <script src=\"/theme.js?v=20261121d\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261121d\"></script>\n<script src=\"/site.js?v=20261121d\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261122a\">\n\
+         <script src=\"/theme.js?v=20261122a\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261122a\"></script>\n<script src=\"/site.js?v=20261122a\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -1757,7 +1757,7 @@ fn render_key_entity(base: &str, entity: &str) -> Option<String> {
         &format!("<label class=\"key-input-label\">{label}"),
     );
     page = page.replace(
-        "Accepts 64 hex characters with an optional 0x prefix, a decimal integer, or a Bitcoin WIF. The key stays in memory only and is cleared when you leave the page.",
+        "Derives automatically as you type: 64 hex characters (optional 0x), a decimal integer, a Bitcoin WIF, a Solana keypair JSON array, or any other text as a brainwallet phrase (key = SHA-256 of the text). The key stays in memory only and is cleared when you leave the page.",
         help,
     );
     page = page.replace(
@@ -2383,8 +2383,8 @@ fn render_brainwallet(base: &str, focus: BrainwalletFocus) -> String {
          <section class=\"card\"><h2>Results</h2>\
          <div id=\"brainwallet-results\" class=\"mono\" data-brain-chain=\"{focus_key}\">Enter a throwaway passphrase and press Derive.</div></section>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261121d\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261121d\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261122a\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261122a\" defer></script>",
         site_header(),
         "",
         heading = focus.heading(),
@@ -2723,7 +2723,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261121d\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261122a\"></script>",
         site_header(),
         "",
         chain.color,
@@ -4142,7 +4142,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261121d"),
+                page.contains("/theme.js?v=20261122a"),
                 "{path} does not load the theme script"
             );
         }
@@ -4184,8 +4184,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261121d\"></script>"));
-        assert!(page.contains("/site.css?v=20261121d"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261122a\"></script>"));
+        assert!(page.contains("/site.css?v=20261122a"));
     }
 
     #[test]
@@ -4384,10 +4384,10 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-results\""));
         assert!(body.contains("data-brain-chain=\"all\""));
         assert!(
-            body.contains("<script src=\"/brainwallet-engine.js?v=20261121d\" defer></script>")
+            body.contains("<script src=\"/brainwallet-engine.js?v=20261122a\" defer></script>")
         );
-        assert!(body.contains("<script src=\"/brainwallet.js?v=20261121d\" defer></script>"));
-        assert!(body.contains("/theme.js?v=20261121d"));
+        assert!(body.contains("<script src=\"/brainwallet.js?v=20261122a\" defer></script>"));
+        assert!(body.contains("/theme.js?v=20261122a"));
         assert!(body.contains("Brainwallets are unsafe"));
         // No server-side derivation: the page carries no key payload.
         assert!(!body.contains("window.__ROTOR_KEY__"));
@@ -4430,10 +4430,10 @@ mod tests {
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path} warning");
             assert!(
-                body.contains("brainwallet-engine.js?v=20261121d"),
+                body.contains("brainwallet-engine.js?v=20261122a"),
                 "{path} engine"
             );
-            assert!(body.contains("brainwallet.js?v=20261121d"), "{path} script");
+            assert!(body.contains("brainwallet.js?v=20261122a"), "{path} script");
         }
         // The alias canonicalizes to the index, not to itself.
         let (alias, _, _) = seo_asset(base, "/brainwallet-generator", "").expect("alias");
@@ -4749,11 +4749,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261121d\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261121d\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261121d\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261121d\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261121d\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261122a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261122a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261122a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261122a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261122a\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 
