@@ -422,6 +422,55 @@ console.log(
     `G + G = ${doubled.pubkey_compressed}`,
 );
 
+// EVM signing ABI: an EIP-1559 transfer signed with key 1. The expected raw
+// transaction comes from ethers 6.17.0 (see the crate's pinned vector test).
+if (typeof wasm.evm_sign_tx !== "function") {
+  throw new Error("wasm does not export evm_sign_tx");
+}
+const signRequest = upload(
+  JSON.stringify({
+    chain_id: "11155111",
+    nonce: "0",
+    max_priority_fee: "1000000000",
+    max_fee: "2000000000",
+    gas_limit: "21000",
+    to: "0x3535353535353535353535353535353535353535",
+    value: "1000000000000000",
+    data: "0x",
+    private_key: `0x${KEY1_HEX}`,
+  }),
+);
+const signStatus = wasm.evm_sign_tx(signRequest.ptr, signRequest.len);
+wasm.dealloc(signRequest.ptr, signRequest.len);
+if (signStatus !== 0) {
+  fail(signStatus, "evm_sign_tx");
+}
+const signedTx = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.result_ptr(), wasm.result_len()),
+);
+const expectedSignedTx =
+  "0x02f87483aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c080a0d02b933531d628f5d2251fbf58903a4d720f9bd6c7c51f7578f7cf301f761263a012a7d571860bb8d7e71bcb6c63d265bc6fc57b250b9381cbc18c1543c282b147";
+if (signedTx !== expectedSignedTx) {
+  throw new Error(`evm_sign_tx: got ${signedTx}, want ${expectedSignedTx}`);
+}
+
+const badRequest = upload("{}");
+const badStatus = wasm.evm_sign_tx(badRequest.ptr, badRequest.len);
+wasm.dealloc(badRequest.ptr, badRequest.len);
+if (badStatus === 0) {
+  throw new Error("evm_sign_tx accepted an empty request");
+}
+const badError = decoder.decode(
+  new Uint8Array(wasm.memory.buffer, wasm.error_ptr(), wasm.error_len()),
+);
+if (badError.length === 0) {
+  throw new Error("evm_sign_tx rejection left the error buffer empty");
+}
+console.log(
+  `evm_sign_tx: ${signedTx.length} hex chars; ` +
+    `rejected empty request: ${badError}`,
+);
+
 const artifactSize = (await stat(wasmPath)).size;
 console.log(`artifact=${artifactSize} bytes`);
 
