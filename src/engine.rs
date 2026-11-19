@@ -1412,8 +1412,10 @@ pub(crate) fn emit_hit(
     print!("\n  {}\n", "=".repeat(96));
     println!("  PubAddress: {address}");
     if let Some(wif) = &derived.secret {
+        // codeql[rust/cleartext-logging] Found keys are the intended key-finder output.
         println!("  Priv (WIF): {wif}");
     }
+    // codeql[rust/cleartext-logging] Found keys are the intended key-finder output.
     println!("  Priv (HEX): {private_hex}");
     println!("  PubK (HEX): {}", derived.public_hex);
     println!();
