@@ -34,6 +34,8 @@
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-evm.js",
         "node --check apps/site/wallet-btc.js",
+        "node --check apps/site/tx-decoders.js",
+        "node --check apps/site/tx-page.js",
         "node --check scripts/ui-audit.mjs"
       ],
       "test": [
@@ -46,7 +48,8 @@
         "node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/wallet-vault-test.mjs",
         "node apps/site/wallet-evm-test.mjs",
-        "node apps/site/wallet-btc-test.mjs"
+        "node apps/site/wallet-btc-test.mjs",
+        "node apps/site/tx-test.mjs"
       ],
       "consumes": [
         "wasm-core"
