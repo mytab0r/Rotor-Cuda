@@ -2786,12 +2786,12 @@ code { font-family: var(--mono); font-size: .92em; }
 .search-chain:hover { border-color: var(--border-strong); color: var(--text); }
 .search-chain[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .search-chain .crypto { width: 21px; height: 21px; }
-.global-search-scope { margin: 0; padding: 0 3px; color: var(--muted); font-size: 11px; }
+.global-search-scope { margin: 0; padding: 0 3px; color: var(--muted); font-size: 12px; }
 .global-search { max-height: calc(100vh - 32px); overflow: auto; }
 
 /* ------------------------------------------------ per-chain generator index */
 .generator-title { margin: 30px 0 12px; font-size: 22px; letter-spacing: -.02em; }
-.generator-card .tool-index-meta { color: var(--accent-2); }
+.generator-card .tool-index-meta { color: var(--accent-2); font-size: 12px; }
 
 /* --------------------------------------------------------------- theme toggle */
 .theme-toggle { flex: none; }
