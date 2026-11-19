@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261122a">
-<script src="/theme.js?v=20261122a"></script>
+<link rel="stylesheet" href="/site.css?v=20261122b">
+<script src="/theme.js?v=20261122b"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -71,7 +71,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261122a#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261122b#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -130,14 +130,8 @@
           <option value="phantom">Phantom</option>
         </select>
       </div>
-      <div class="key-balance-controls">
-        <label class="key-toggle">Online balance lookups
-          <input type="checkbox" id="online-toggle" checked>
-        </label>
-        <button type="button" id="check-balances" class="key-check" disabled>Check balances</button>
-      </div>
     </div>
-    <p class="muted key-help" id="balance-help">Offline by default. A check sends only the shown public addresses to public providers; the key never leaves this page.</p>
+    <p class="muted key-help" id="balance-help">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
 
     <div class="key-btc-panel" id="btc-panel" hidden>
       <h3 class="key-group-title">Bitcoin address type</h3>
@@ -153,7 +147,7 @@
         <div class="key-balance-card"><span class="key-balance-label">Received</span><span class="key-balance-value mono empty" id="btc-received">—</span></div>
         <div class="key-balance-card"><span class="key-balance-label">TX</span><span class="key-balance-value mono empty" id="btc-tx">—</span></div>
       </div>
-      <p class="muted key-help" id="btc-summary-hint">Enable online lookups and press Check balances to fill these values for the selected Bitcoin address.</p>
+      <p class="muted key-help" id="btc-summary-hint">Balances load automatically from mempool.space for the selected Bitcoin address.</p>
     </div>
 
     <div id="addr-rows" class="key-rows">
@@ -212,6 +206,6 @@
 
 </main>
 
-<script src="/key.js?v=20261122a"></script>
+<script src="/key.js?v=20261122b"></script>
 </body>
 </html>

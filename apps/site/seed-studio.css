@@ -1,35 +1,54 @@
 /* Seed studio controls shared by /seed and /mnemonic-converter. */
-.seed-studio-form { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-.seed-studio-form .seed-phrase-label { grid-column: 1 / -1; }
-.seed-studio-form .seed-phrase-label textarea { min-height: 108px; font-size: 14px; line-height: 1.7; resize: vertical; }
+.seed-studio-form { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.seed-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+.seed-controls > label { min-width: 0; }
+.seed-controls select,
+.seed-controls input[type="checkbox"] { min-height: 0; }
+.seed-controls select { min-height: 44px; }
+.seed-phrase-label textarea { min-height: 108px; font-size: 14px; line-height: 1.7; resize: vertical; }
+.seed-secondary {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(0, 1.8fr);
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+.seed-passphrase { min-width: 0; }
+.seed-passphrase input { min-height: 44px; }
 .seed-check {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
+  min-height: 44px;
   color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
 }
-.seed-check input { width: 16px; height: 16px; flex: 0 0 auto; }
+.seed-check input { width: 18px; height: 18px; flex: 0 0 auto; }
 .seed-count-row {
-  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 .seed-count-label {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: .07em;
   text-transform: uppercase;
 }
 .seed-count-btn {
   min-width: 44px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   font-family: var(--mono);
   color: var(--muted);
@@ -40,6 +59,8 @@
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.seed-studio-form .key-buttons { grid-column: auto; justify-content: flex-start; min-width: 0; }
+.seed-studio-form .key-buttons button { min-height: 44px; }
 .seed-group { display: grid; gap: 10px; min-width: 0; }
 .seed-group .seed-rows, .seed-group .seed-row { min-width: 0; }
 .seed-result-head { flex-wrap: wrap; }
@@ -48,10 +69,41 @@
 .seed-group-head span { color: var(--muted); font-family: var(--mono); font-size: 11px; }
 .seed-row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
 .seed-row-title h4 { margin: 0; font-size: 13px; font-weight: 700; }
-.seed-balance { margin: 8px 0 0; color: var(--text-2); font-size: 12px; }
+.seed-balance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--text-2); font-size: 12px; }
 .seed-balance.err { color: #ffb3b3; }
-.seed-provider { margin: 10px 0 0; color: var(--muted); font-size: 11.5px; }
+.seed-balance-retry {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent-2);
+  background: var(--panel-2);
+}
+.seed-balance-retry::before { content: ""; position: absolute; inset: -7px; border-radius: 10px; }
+.seed-balance-retry .icon { width: 16px; height: 16px; }
+.seed-provider { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 1100px) {
+  .seed-secondary { grid-template-columns: minmax(0, 1fr) auto; }
+  .seed-secondary .key-buttons { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .seed-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seed-controls .seed-check { grid-column: 1 / -1; }
+  .seed-secondary { grid-template-columns: minmax(0, 1fr) auto; }
+  .seed-secondary .key-buttons { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  .seed-secondary { grid-template-columns: minmax(0, 1fr); }
+  .seed-secondary .key-buttons { grid-column: auto; }
+}
 @media (max-width: 560px) {
-  .seed-studio-form { grid-template-columns: minmax(0, 1fr); }
+  .seed-controls { grid-template-columns: minmax(0, 1fr); }
+  .seed-controls .seed-check { grid-column: auto; }
   .seed-count-btn { flex: 1 1 44px; }
 }
