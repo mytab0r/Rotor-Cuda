@@ -49,14 +49,22 @@ browser capture in the PR.
 - Evidence: keyboard and pointer interaction script; mobile no overflow.
 
 ## 5. Seed studio [front+wasm]
-- [ ] Entropy 12/15/18/21/24 and BIP39 generation/validation. (blocked by: 3)
-- [ ] Electrum old (1626-word) and Electrum BIP39 derivation; separate
+- [x] Entropy 12/15/18/21/24 and BIP39 generation/validation. (blocked by: 3)
+      Evidence: `apps/site/seed-test.mjs`; checksum/word-list errors are inline.
+- [x] Electrum old (1626-word) and Electrum BIP39 derivation; separate
       wordlist and tests against published vectors.
-- [ ] Passphrase, all-paths toggle, chain selector, address count 1/3/5/10,
+      `seed-crypto.js` holds the legacy wordlist and Electrum's stretch/sequence
+      scheme; Electrum BIP39 uses the BIP39 wordlist with the `01`/`100`
+      seed-version check and the `electrum` PBKDF2 salt. 2FA prefixes are an
+      explicit unsupported state. Evidence: Electrum `Test_OldMnemonic` and
+      `SEED_TEST_CASES` vectors in `apps/site/seed-test.mjs`.
+- [x] Passphrase, all-paths toggle, chain selector, address count 1/3/5/10,
       `Convert & Check Balance`.
-- [ ] Results grouped by chain: path, address, balance, explorer link; CSV.
-- [ ] Never store/upload phrase; clear on pagehide; no key in URL.
-- Evidence: BIP39 vector, one Electrum vector, mobile capture.
+- [x] Results grouped by chain: path, address, balance, explorer link; CSV.
+- [x] Never store/upload phrase; clear on pagehide; no key in URL.
+- Evidence: BIP39 key 1 (`abandon…about` -> `1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA`),
+      Electrum old (`hardly point…` -> `18v3oDeH9LCmeKrbC2nYgLP5UKva1NpMG`),
+      Electrum master-seed vectors in `seed-test.mjs`; browser capture is for QA.
 
 ## 6. Milk Sad seed studio parity [front]
 - [ ] Reuse the seed toolbar: entropy, mnemonic type, passphrase, path, count.
@@ -117,7 +125,10 @@ browser capture in the PR.
       and the toggle is a 40px keyboard-accessible button on every page.
       Evidence: `theme.js`, `theme_script_and_chain_generator_entries_are_served`,
       `rendered_documents_load_the_theme_script`.
-- [ ] `/mnemonic-converter` as a standalone page reusing the seed form.
+- [x] `/mnemonic-converter` as a standalone page reusing the seed form.
+      It loads the same `seed.js`, `seed-crypto.js`, `seed-page.js` and
+      `seed-studio.css` as `/seed`; the page is linked from `/tools` and `/seed`.
+      Evidence: `seed_studio_and_mnemonic_converter_are_served`.
 - [x] `/brainwallet` index plus `/brainwallet/bitcoin`, `/brainwallet/ethereum`
       and the donor alias `/brainwallet-generator`. Every page hashes the
       trimmed passphrase with SHA-256 (same path as search.js), derives through

@@ -17,6 +17,7 @@
         "node --check apps/site/theme.js",
         "node --check apps/site/vanity.js",
         "node --check apps/site/seed-page.js",
+        "node --check apps/site/seed-crypto.js",
         "node --check apps/site/puzzle-browser.js",
         "node --check apps/site/puzzle-worker.js",
         "node --check apps/site/mnemonic-seeds.js",
@@ -33,6 +34,7 @@
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",
+        "node apps/site/seed-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/brainwallet-test.mjs apps/site/rotor_wasm.wasm"
       ],
       "consumes": [
