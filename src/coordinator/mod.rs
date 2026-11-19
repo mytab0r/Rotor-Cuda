@@ -64,6 +64,7 @@ const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
 const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
+const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
 const MANROPE_WOFF2: &[u8] = include_bytes!("../../apps/site/fonts/manrope-latin.woff2");
 const FAVICON_ICO: &[u8] = include_bytes!("../../apps/site/favicon.ico");
@@ -780,6 +781,7 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             SEARCH_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/theme.js" => Some((THEME_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/icons.svg" => Some((ICONS_SVG, "image/svg+xml")),
         "/wallets/LICENSE.txt" => Some((
             wallets::LICENSE_TEXT.as_bytes(),
@@ -1596,8 +1598,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261119z\">\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261119z\"></script>\n<script src=\"/site.js?v=20261119z\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261120a\">\n\
+         <script src=\"/theme.js?v=20261120a\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261120a\"></script>\n<script src=\"/site.js?v=20261120a\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2520,7 +2523,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/browse.js?v=20261119z\"></script>",
+         </main>\n         <script src=\"/browse.js?v=20261120a\"></script>",
         site_header(),
         "",
         chain.color,
@@ -3876,6 +3879,42 @@ mod tests {
             assert!(!body.is_empty());
         }
         assert!(static_asset("/monitor").is_none());
+    }
+
+    #[test]
+    fn theme_script_and_chain_generator_entries_are_served() {
+        let (body, content_type) = static_asset("/theme.js").expect("/theme.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let script = std::str::from_utf8(body).expect("theme.js is utf-8");
+        assert!(script.contains("rotor-theme"));
+        assert!(script.contains("data-theme"));
+
+        let (body, content_type) = static_asset("/tools").expect("/tools is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        let page = std::str::from_utf8(body).expect("tools.html is utf-8");
+        for href in [
+            "/key?chain=ethereum",
+            "/key?chain=bnb",
+            "/key?chain=tron",
+            "/key?chain=solana",
+            "/key?chain=xrp",
+            "/key?chain=ton",
+            "/key?chain=bitcoin-cash",
+            "/key?chain=bitcoin&amp;type=taproot",
+            "/key?chain=bitcoin&amp;type=segwit",
+        ] {
+            assert!(
+                page.contains(href),
+                "generator link {href} must be on /tools"
+            );
+        }
+    }
+
+    #[test]
+    fn rendered_documents_load_the_theme_script() {
+        let page = html_document("Test", "", "");
+        assert!(page.contains("<script src=\"/theme.js?v=20261120a\"></script>"));
+        assert!(page.contains("/site.css?v=20261120a"));
     }
 
     #[test]

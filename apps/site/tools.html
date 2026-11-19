@@ -6,7 +6,8 @@
 <title>Crypto calculators — keys, WIF, seeds, vanity | Rotor</title>
 <meta name="description" content="One page for every crypto calculator: hex and decimal private keys, WIF, brainwallets, BIP39 seed phrases, vanity addresses and the key explorer.">
 <link rel="canonical" href="https://rotor.pxbt.app/tools">
-<link rel="stylesheet" href="/site.css?v=20261119z">
+<link rel="stylesheet" href="/site.css?v=20261120a">
+<script src="/theme.js?v=20261120a"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -89,9 +90,68 @@
     </a>
   </div>
 
+  <h2 class="generator-title">Per-chain address generators</h2>
+  <p class="muted key-help">Each entry opens the key explorer with that chain (and address type) preselected. Derivation runs in this browser; the preset only filters the rows and never changes the math.</p>
+  <div class="tool-index-grid">
+    <a class="tool-index-card generator-card" href="/key?chain=ethereum">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
+      <span class="tool-index-title">Ethereum address generator</span>
+      <span class="tool-index-desc">Private key to the EIP-55 0x address shared by every EVM chain.</span>
+      <span class="tool-index-meta">KEY → ETH · L2s</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=bnb">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg></span>
+      <span class="tool-index-title">BNB Chain address generator</span>
+      <span class="tool-index-desc">The same secp256k1 key as Ethereum, shown with the BNB chain filter.</span>
+      <span class="tool-index-meta">KEY → BSC</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=tron">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg></span>
+      <span class="tool-index-title">TRON address generator</span>
+      <span class="tool-index-desc">Private key to the base58check T… address.</span>
+      <span class="tool-index-meta">KEY → TRX</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=solana">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg></span>
+      <span class="tool-index-title">Solana address generator</span>
+      <span class="tool-index-desc">Ed25519 key to the base58 Solana account, opened on the ed25519 curve.</span>
+      <span class="tool-index-meta">KEY → SOL · ed25519</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=xrp">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg></span>
+      <span class="tool-index-title">XRP address generator</span>
+      <span class="tool-index-desc">Private key to the classic r… address.</span>
+      <span class="tool-index-meta">KEY → XRP</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=ton">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg></span>
+      <span class="tool-index-title">TON address generator</span>
+      <span class="tool-index-desc">Ed25519 key to the standard v4R2 wallet address, opened on the ed25519 curve.</span>
+      <span class="tool-index-meta">KEY → TON · ed25519</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=bitcoin-cash">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg></span>
+      <span class="tool-index-title">Bitcoin Cash address generator</span>
+      <span class="tool-index-desc">Private key to the legacy Bitcoin Cash address.</span>
+      <span class="tool-index-meta">KEY → BCH</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=bitcoin&amp;type=taproot">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
+      <span class="tool-index-title">Taproot address generator</span>
+      <span class="tool-index-desc">Private key to the P2TR bc1p… address, with the Taproot row focused.</span>
+      <span class="tool-index-meta">KEY → P2TR</span>
+    </a>
+    <a class="tool-index-card generator-card" href="/key?chain=bitcoin&amp;type=segwit">
+      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
+      <span class="tool-index-title">SegWit address generator</span>
+      <span class="tool-index-desc">Private key to the native SegWit P2WPKH bc1q… address.</span>
+      <span class="tool-index-meta">KEY → P2WPKH</span>
+    </a>
+  </div>
+
   <p class="muted key-help">Every calculator derives in this browser. The server never receives a private key, WIF or seed phrase; only public addresses are sent during an opt-in balance check.</p>
 </main>
 
-<script src="/site.js?v=20261119z"></script>
+<script src="/site.js?v=20261120a"></script>
 </body>
 </html>
