@@ -17,7 +17,7 @@ Crawled `ref-site-a/sitemap.xml` and representative pages on
 | `/whale-tracker` | missing | P3 |
 | `/satoshi-wallets` | missing | P3 |
 | `/bitcoin-dormant` | missing | P3 |
-| `/bitcoin-puzzle` | done (pooled search, not donor's key list) | P1 parity |
+| `/bitcoin-puzzle` | done: #1..#160 browser with local WASM random/seq scan; pooled jobs kept as a separate Team tab | — |
 | `/vanity-generator` | done (`/vanity`) | — |
 | `/faq`, `/disclaimer`, `/donate`, `/docs` | done | — |
 
