@@ -130,6 +130,21 @@ Start with the local/serverless variant, keep storage behind repository
 interfaces (JSON → D1/Postgres, local files → R2/Blobs), and migration stays an
 adapter change rather than a rewrite.
 
+## Site UI self-review
+
+The web surface has a deterministic gate instead of a per-page visual opinion:
+`scripts/ui-audit.mjs` drives headless Chrome/Edge over the DevTools protocol
+(no Playwright/Puppeteer), opens each public route at 375/768/1280 in dark and
+light, and fails on horizontal overflow, text below 12px, controls below 44px,
+unlabeled icon controls, duplicated address-type components, uneven address-type
+card widths, half-empty cards, visible manual balance controls, and route
+contracts (`/key` auto-derive, `/seed` form width/no balance checkbox,
+`/brainwallet/<chain>` 60 rows, `/bitcoin-puzzle` 160 rows, `/site-map` 404).
+Screenshots and a JSON summary are written to a temp directory; CI or an agent
+can pass `--json` for a stable report. `--serve` starts
+`target/release/rotor-coord` on `127.0.0.1:7899` with temporary state. The
+workflow and violation table live in `.claude/skills/ui-self-review/SKILL.md`.
+
 ## Update rules
 
 - New page or route: add it to the product/entry table and, if it is a new

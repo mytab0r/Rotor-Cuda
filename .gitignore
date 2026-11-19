@@ -5,5 +5,9 @@
 /Rotor-Cuda_START.bat
 /Rotor-Cuda_Continue.bat
 
-# Local agent tooling (Impeccable skills, hooks, worktrees, scratch)
-/.claude/
+# Local agent tooling (Impeccable skills, hooks, worktrees, scratch).
+# Shared project skills are tracked; everything else stays local.
+/.claude/*
+!/.claude/skills/
+/.claude/skills/*
+!/.claude/skills/ui-self-review/
