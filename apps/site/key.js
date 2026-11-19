@@ -1227,7 +1227,7 @@
     var typeCell = document.createElement('span');
     typeCell.className = 'key-cell key-cell-type';
     var typeText = document.createElement('span');
-    typeText.className = 'key-type-text';
+    typeText.className = 'key-format-text';
     typeText.textContent = typeLabel(addr.id);
     typeCell.appendChild(typeText);
     var title = document.createElement('span');
