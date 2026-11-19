@@ -8,6 +8,70 @@
 <link rel="canonical" href="https://rotor.pxbt.app/tools">
 <link rel="stylesheet" href="/site.css?v=20261122d">
 <script src="/theme.js?v=20261122d"></script>
+<style>
+/* Tools index: eight scannable families, aliases as 44px chips. */
+.tool-family-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 12px;
+}
+.tool-family {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .02), transparent 60%), var(--panel);
+}
+.tool-family-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+.tool-family-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(245, 181, 68, .28);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tool-family-icon .icon { width: 21px; height: 21px; }
+.tool-family-title { margin: 0; font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
+.tool-family-desc { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+.tool-family-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tool-family-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.tool-family-links a:hover {
+  border-color: var(--border-strong);
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+.tool-family-links .icon { width: 18px; height: 18px; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .tool-family-links a { transition: none; }
+}
+</style>
 </head>
 <body>
 <header class="site-nav">
@@ -39,180 +103,122 @@
     </div>
   </section>
 
-  <div class="tool-index-grid">
-    <a class="tool-index-card" href="/key">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Key explorer</span>
-      <span class="tool-index-desc">Paste a private key in any supported format and derive every address with balances.</span>
-      <span class="tool-index-meta">HEX · WIF · decimal · byte array</span>
-    </a>
-    <a class="tool-index-card" href="/key/hex">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Private key (hex)</span>
-      <span class="tool-index-desc">64 hexadecimal characters to WIF, decimal, public key and addresses.</span>
-      <span class="tool-index-meta">HEX → WIF · public key · addresses</span>
-    </a>
-    <a class="tool-index-card" href="/key/wif">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">WIF calculator</span>
-      <span class="tool-index-desc">Decode a Bitcoin Wallet Import Format key from 5… or K/L… into hex and addresses.</span>
-      <span class="tool-index-meta">WIF → HEX · public key · addresses</span>
-    </a>
-    <a class="tool-index-card" href="/key/decimal">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Decimal key</span>
-      <span class="tool-index-desc">A decimal integer below the curve order to hex, WIF and addresses.</span>
-      <span class="tool-index-meta">DECIMAL → HEX · WIF · addresses</span>
-    </a>
-    <a class="tool-index-card" href="/brainwallet">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
-      <span class="tool-index-title">Brainwallet directory</span>
-      <span class="tool-index-desc">18,890 deterministic two-word passphrases on 18 chains, 60 rows per page. Keys and addresses are derived locally.</span>
-      <span class="tool-index-meta">18,890 phrases · 315 pages</span>
-    </a>
-    <a class="tool-index-card" href="/brainwallet/bitcoin">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
-      <span class="tool-index-title">Bitcoin brainwallet directory</span>
-      <span class="tool-index-desc">60 passphrases per page with Legacy, SegWit, Nested SegWit and Taproot addresses, explorer links and optional balances.</span>
-      <span class="tool-index-meta">TEXT → SHA-256 → BTC</span>
-    </a>
-    <a class="tool-index-card" href="/brainwallet/ethereum">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
-      <span class="tool-index-title">Ethereum brainwallet directory</span>
-      <span class="tool-index-desc">60 passphrases per page with SHA-256 keys and EIP-55 Ethereum addresses, explorer links and optional balances.</span>
-      <span class="tool-index-meta">TEXT → SHA-256 → ETH</span>
-    </a>
-    <a class="tool-index-card" href="/brainwallet-generator">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
-      <span class="tool-index-title">Brainwallet generator</span>
-      <span class="tool-index-desc">One passphrase to its SHA-256 key, WIF and an address on 18 networks. One, three, five or ten addresses, copy-all and CSV.</span>
-      <span class="tool-index-meta">PASSPHRASE → KEY · ADDRESS</span>
-    </a>
-    <a class="tool-index-card" href="/seed">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Seed phrase</span>
-      <span class="tool-index-desc">BIP39 phrase to the first key of the standard BTC, EVM, TRON and other paths.</span>
-      <span class="tool-index-meta">BIP39 → BIP32 → addresses</span>
-    </a>
-    <a class="tool-index-card" href="/mnemonic-converter">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Mnemonic converter</span>
-      <span class="tool-index-desc">BIP39, Electrum BIP39 and legacy 1626-word Electrum phrases with path presets and up to ten addresses.</span>
-      <span class="tool-index-meta">BIP39 · ELECTRUM → ADDRESSES</span>
-    </a>
-    <a class="tool-index-card" href="/vanity">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
-      <span class="tool-index-title">Vanity generator</span>
-      <span class="tool-index-desc">Generate a key whose address starts or ends with your text, locally.</span>
-      <span class="tool-index-meta">PREFIX / SUFFIX → key</span>
-    </a>
-    <a class="tool-index-card" href="/milk-sad">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg></span>
-      <span class="tool-index-title">Milk Sad audit</span>
-      <span class="tool-index-desc">What the Libbitcoin bx seed weak-entropy issue means and what an owner should do.</span>
-      <span class="tool-index-meta">CVE-2023-39910 · owner action</span>
-    </a>
-    <a class="tool-index-card" href="/public-key">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Public key to addresses</span>
-      <span class="tool-index-desc">A compressed or uncompressed secp256k1 public key to BTC P2PKH, SegWit, P2SH, Taproot, EVM and TRON addresses.</span>
-      <span class="tool-index-meta">PUBKEY → BTC · EVM · TRON</span>
-    </a>
-    <a class="tool-index-card" href="/pubkey-add">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
-      <span class="tool-index-title">Add public keys</span>
-      <span class="tool-index-desc">Compute P + Q on secp256k1 and read the sum in compressed and uncompressed form.</span>
-      <span class="tool-index-meta">P + Q → point</span>
-    </a>
-    <a class="tool-index-card" href="/hex-dec-bin">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
-      <span class="tool-index-title">Hex / decimal / binary</span>
-      <span class="tool-index-desc">Convert an unsigned 256-bit integer between hex, decimal and binary with validation.</span>
-      <span class="tool-index-meta">HEX ↔ DEC ↔ BIN</span>
-    </a>
-    <a class="tool-index-card" href="/reconstruction">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
-      <span class="tool-index-title">Byte-fragment assembler</span>
-      <span class="tool-index-desc">Assemble a 32-byte key from known hex, binary, decimal or ASCII fragments at fixed offsets. Missing bytes are listed, not guessed.</span>
-      <span class="tool-index-meta">KNOWN BYTES → 32-BYTE VALUE</span>
-    </a>
-    <a class="tool-index-card" href="/keystore-parser">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
-      <span class="tool-index-title">Keystore parser</span>
-      <span class="tool-index-desc">Decrypt an Ethereum V3 UTC/JSON keystore locally (scrypt or PBKDF2) and show the address.</span>
-      <span class="tool-index-meta">UTC/JSON + PASSWORD → ADDRESS</span>
-    </a>
-    <a class="tool-index-card" href="/tx/bitcoin">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
-      <span class="tool-index-title">Bitcoin transaction decoder</span>
-      <span class="tool-index-desc">Raw legacy or SegWit hex to inputs, outputs, script types, addresses, size, weight and vsize. A fee needs prevout values.</span>
-      <span class="tool-index-meta">RAW HEX → LEGACY · SEGWIT</span>
-    </a>
-    <a class="tool-index-card" href="/tx/ethereum">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
-      <span class="tool-index-title">Ethereum transaction decoder</span>
-      <span class="tool-index-desc">Raw type 0, access-list and EIP-1559 hex to chain id, nonce, gas, fees, value, data, access list and signature fields.</span>
-      <span class="tool-index-meta">RAW HEX → TYPE 0 · 1 · 2</span>
-    </a>
-  </div>
+  <div class="tool-family-grid">
+    <article class="tool-family" aria-labelledby="family-keys">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+        <h2 class="tool-family-title" id="family-keys">Key explorers</h2>
+      </div>
+      <p class="tool-family-desc">Turn a key in any format into hex, WIF, decimal, public key and every address.</p>
+      <ul class="tool-family-links">
+        <li><a href="/key">Key explorer</a></li>
+        <li><a href="/key/hex">Private key (hex)</a></li>
+        <li><a href="/key/wif">WIF calculator</a></li>
+        <li><a href="/key/decimal">Decimal key</a></li>
+        <li><a href="/hex-dec-bin">Hex / dec / bin</a></li>
+        <li><a href="/public-key">Public key</a></li>
+        <li><a href="/pubkey-add">Add public keys</a></li>
+      </ul>
+    </article>
 
-  <h2 class="generator-title">Per-chain address generators</h2>
-  <p class="muted key-help">Each entry opens the key explorer with that chain (and address type) preselected. Derivation runs in this browser; the preset only filters the rows and never changes the math.</p>
-  <div class="tool-index-grid">
-    <a class="tool-index-card generator-card" href="/key?chain=ethereum">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg></span>
-      <span class="tool-index-title">Ethereum address generator</span>
-      <span class="tool-index-desc">Private key to the EIP-55 0x address shared by every EVM chain.</span>
-      <span class="tool-index-meta">KEY → ETH · L2s</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=bnb">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg></span>
-      <span class="tool-index-title">BNB Chain address generator</span>
-      <span class="tool-index-desc">The same secp256k1 key as Ethereum, shown with the BNB chain filter.</span>
-      <span class="tool-index-meta">KEY → BSC</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=tron">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg></span>
-      <span class="tool-index-title">TRON address generator</span>
-      <span class="tool-index-desc">Private key to the base58check T… address.</span>
-      <span class="tool-index-meta">KEY → TRX</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=solana">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg></span>
-      <span class="tool-index-title">Solana address generator</span>
-      <span class="tool-index-desc">Ed25519 key to the base58 Solana account, opened on the ed25519 curve.</span>
-      <span class="tool-index-meta">KEY → SOL · ed25519</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=xrp">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg></span>
-      <span class="tool-index-title">XRP address generator</span>
-      <span class="tool-index-desc">Private key to the classic r… address.</span>
-      <span class="tool-index-meta">KEY → XRP</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=ton">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg></span>
-      <span class="tool-index-title">TON address generator</span>
-      <span class="tool-index-desc">Ed25519 key to the standard v4R2 wallet address, opened on the ed25519 curve.</span>
-      <span class="tool-index-meta">KEY → TON · ed25519</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=bitcoin-cash">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg></span>
-      <span class="tool-index-title">Bitcoin Cash address generator</span>
-      <span class="tool-index-desc">Private key to the legacy Bitcoin Cash address.</span>
-      <span class="tool-index-meta">KEY → BCH</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=bitcoin&amp;type=taproot">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
-      <span class="tool-index-title">Taproot address generator</span>
-      <span class="tool-index-desc">Private key to the P2TR bc1p… address, with the Taproot row focused.</span>
-      <span class="tool-index-meta">KEY → P2TR</span>
-    </a>
-    <a class="tool-index-card generator-card" href="/key?chain=bitcoin&amp;type=segwit">
-      <span class="tool-index-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg></span>
-      <span class="tool-index-title">SegWit address generator</span>
-      <span class="tool-index-desc">Private key to the native SegWit P2WPKH bc1q… address.</span>
-      <span class="tool-index-meta">KEY → P2WPKH</span>
-    </a>
+    <article class="tool-family" aria-labelledby="family-seeds">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+        <h2 class="tool-family-title" id="family-seeds">Seed tools</h2>
+      </div>
+      <p class="tool-family-desc">BIP39 and Electrum phrases to the first keys on the standard derivation paths.</p>
+      <ul class="tool-family-links">
+        <li><a href="/seed">Seed studio</a></li>
+        <li><a href="/mnemonic-converter">Mnemonic converter</a></li>
+        <li><a href="/mnemonic-seeds">Mnemonic seeds</a></li>
+      </ul>
+    </article>
+
+    <article class="tool-family" aria-labelledby="family-brainwallet">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
+        <h2 class="tool-family-title" id="family-brainwallet">Brainwallet</h2>
+      </div>
+      <p class="tool-family-desc">Deterministic passphrase directories on 18 chains, plus a one-passphrase generator.</p>
+      <ul class="tool-family-links">
+        <li><a href="/brainwallet">Directory</a></li>
+        <li><a href="/brainwallet/bitcoin">Bitcoin</a></li>
+        <li><a href="/brainwallet/ethereum">Ethereum</a></li>
+        <li><a href="/brainwallet-generator">Generator</a></li>
+      </ul>
+    </article>
+
+    <article class="tool-family" aria-labelledby="family-puzzle">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg></span>
+        <h2 class="tool-family-title" id="family-puzzle">Puzzle &amp; vanity</h2>
+      </div>
+      <p class="tool-family-desc">Scan the public puzzle ranges or grind a vanity prefix, both locally.</p>
+      <ul class="tool-family-links">
+        <li><a href="/bitcoin-puzzle">Bitcoin puzzle</a></li>
+        <li><a href="/vanity">Vanity generator</a></li>
+      </ul>
+    </article>
+
+    <article class="tool-family" aria-labelledby="family-wallet">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg></span>
+        <h2 class="tool-family-title" id="family-wallet">Wallet &amp; keystore</h2>
+      </div>
+      <p class="tool-family-desc">Encrypted local vault, UTC keystore decryption and wallet downloads.</p>
+      <ul class="tool-family-links">
+        <li><a href="/cabinet/wallet">Cabinet wallet</a></li>
+        <li><a href="/keystore-parser">Keystore parser</a></li>
+        <li><a href="/wallets">Wallets &amp; downloads</a></li>
+      </ul>
+    </article>
+
+    <article class="tool-family" aria-labelledby="family-tx">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-mempool"></use></svg></span>
+        <h2 class="tool-family-title" id="family-tx">Transaction tools</h2>
+      </div>
+      <p class="tool-family-desc">Decode a raw transaction, or build, review, sign and broadcast testnet sends in the local vault; mainnet signing stays off.</p>
+      <ul class="tool-family-links">
+        <li><a href="/tx">Decoders overview</a></li>
+        <li><a href="/tx/bitcoin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin decoder</a></li>
+        <li><a href="/tx/ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum decoder</a></li>
+        <li><a href="/cabinet/wallet#wallet-send">EVM send · Sepolia</a></li>
+        <li><a href="/cabinet/wallet#wallet-btc-send">BTC send · testnet</a></li>
+      </ul>
+    </article>
+
+    <article class="tool-family" aria-labelledby="family-research">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg></span>
+        <h2 class="tool-family-title" id="family-research">Reconstruction &amp; research</h2>
+      </div>
+      <p class="tool-family-desc">Assemble a key from known bytes, read the Milk Sad audit and browse the docs.</p>
+      <ul class="tool-family-links">
+        <li><a href="/reconstruction">Byte-fragment assembler</a></li>
+        <li><a href="/milk-sad">Milk Sad audit</a></li>
+        <li><a href="/docs">Docs</a></li>
+      </ul>
+    </article>
+
+    <article class="tool-family" aria-labelledby="family-chains">
+      <div class="tool-family-head">
+        <span class="tool-family-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg></span>
+        <h2 class="tool-family-title" id="family-chains">Per-chain generators</h2>
+      </div>
+      <p class="tool-family-desc">Open the key explorer with a chain or address type preselected; presets only filter rows.</p>
+      <ul class="tool-family-links">
+        <li><a href="/key?chain=ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a></li>
+        <li><a href="/key?chain=bnb"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB</a></li>
+        <li><a href="/key?chain=tron"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a></li>
+        <li><a href="/key?chain=solana"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a></li>
+        <li><a href="/key?chain=xrp"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a></li>
+        <li><a href="/key?chain=ton"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a></li>
+        <li><a href="/key?chain=bitcoin-cash"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>BCH</a></li>
+        <li><a href="/key?chain=bitcoin&amp;type=taproot"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Taproot</a></li>
+        <li><a href="/key?chain=bitcoin&amp;type=segwit"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>SegWit</a></li>
+      </ul>
+    </article>
   </div>
 
   <p class="muted key-help">Every calculator derives in this browser. The server never receives a private key, WIF or seed phrase; only public addresses are sent during an opt-in balance check.</p>
