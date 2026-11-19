@@ -2117,7 +2117,7 @@ code { font-family: var(--mono); font-size: .92em; }
 .key-path-input {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 42px;
+  min-height: 44px;
   padding: 9px 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -2132,9 +2132,9 @@ code { font-family: var(--mono); font-size: .92em; }
   display: inline-grid;
   place-items: center;
   flex: none;
-  width: 42px;
-  min-width: 42px;
-  min-height: 42px;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -2149,8 +2149,8 @@ code { font-family: var(--mono); font-size: .92em; }
 .key-path-hint.is-error { color: var(--err); }
 .key-preset-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .key-preset-chips button {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 0 14px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel-2);
