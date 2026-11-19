@@ -31,11 +31,13 @@ owned by exactly one area; the most-specific glob wins.
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
   coordinator + site change. Key utility pages `/hex-dec-bin`, `/public-key`,
   `/pubkey-add`, `/reconstruction` and `/keystore-parser` (plus `key-tools.js`
-  and their per-page scripts) follow the same rule. Brainwallet pages
-  `/brainwallet`, `/brainwallet/bitcoin`, `/brainwallet/ethereum` and the donor
-  alias `/brainwallet-generator` share `brainwallet-engine.js` (phrase hash,
-  row selection, explorer links) and `brainwallet.js` (wasm report rendering).
-  SEO routes include
+  and their per-page scripts) follow the same rule. The seed studio is served
+  on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
+  `seed-page.js` and `seed-studio.css`; the directory remains on
+  `/mnemonic-seeds`. Brainwallet pages `/brainwallet`, `/brainwallet/bitcoin`,
+  `/brainwallet/ethereum` and the donor alias `/brainwallet-generator` share
+  `brainwallet-engine.js` (phrase hash, row selection, explorer links) and
+  `brainwallet.js` (wasm report rendering). SEO routes include
   `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
