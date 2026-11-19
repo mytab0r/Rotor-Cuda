@@ -193,7 +193,6 @@
   var rowsEl = byId('mnemonic-rows');
   var errorBox = byId('mnemonic-error');
   var noteText = byId('mnemonic-note-text');
-  var balanceToggle = byId('mnemonic-balance-toggle');
   var deriveText = byId('mnemonic-derive-text');
   var deriveBar = byId('mnemonic-derive-bar');
   var deriveProgress = byId('mnemonic-derive-progress');
@@ -694,8 +693,75 @@
 
   function setBalance(entry, text, raw) {
     entry.balanceCell.textContent = text;
+    entry.balanceCell.className = 'mnemonic-balance' + (text !== '—' && text !== '0' ? ' has-balance' : '');
     if (raw !== undefined) entry.balanceCell.title = raw;
-    entry.balanceCell.classList.toggle('has-balance', text !== '—' && text !== '0');
+  }
+
+  function setBalanceError(entry, message) {
+    var cell = entry.balanceCell;
+    if (!cell) return;
+    cell.className = 'mnemonic-balance err';
+    cell.textContent = message + ' ';
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mnemonic-balance-retry';
+    button.title = 'Retry this balance';
+    button.setAttribute('aria-label', 'Retry balance check for this address');
+    button.appendChild(iconUse('ui-retry'));
+    button.addEventListener('click', function () {
+      setBalance(entry, 'Checking…');
+      singleBalance(entry);
+    });
+    cell.appendChild(button);
+  }
+
+  async function retryOnce(task) {
+    try {
+      return await task();
+    } catch (err) {
+      await new Promise(function (resolve) { window.setTimeout(resolve, 600); });
+      if (state.disposed) throw err;
+      return task();
+    }
+  }
+
+  async function singleBalance(entry) {
+    if (!entry.address) return;
+    try {
+      if (chain === 'bitcoin') {
+        var info = await retryOnce(function () {
+          return fetchJson('https://blockchain.info/balance?cors=true&active=' + encodeURIComponent(entry.address));
+        });
+        if (state.disposed) return;
+        var row = info[entry.address];
+        if (!row) {
+          setBalanceError(entry, 'Balance row missing from the provider.');
+          return;
+        }
+        setBalance(entry, coin(row.final_balance, 8) + ' BTC', Number(row.n_tx || 0) + ' tx');
+        return;
+      }
+      var rpc = RPC[chain];
+      if (!rpc) return;
+      var list = await retryOnce(function () {
+        return fetchJson(rpc, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([{ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [entry.address, 'latest'] }])
+        });
+      });
+      if (state.disposed) return;
+      var item = Array.isArray(list) ? list[0] : list;
+      if (!item || typeof item.result !== 'string') {
+        setBalanceError(entry, 'Balance row missing from the provider.');
+        return;
+      }
+      var symbol = root.getAttribute('data-symbol') || '';
+      var value = BigInt(item.result || '0x0');
+      setBalance(entry, coin(value, 18) + ' ' + symbol, value.toString() + ' wei');
+    } catch (err) {
+      if (!state.disposed) setBalanceError(entry, 'Balance unavailable.');
+    }
   }
 
   function setSummary(balance, received, tx) {
@@ -766,17 +832,19 @@
   }
 
   async function loadBalances() {
-    if (balanceToggle && !balanceToggle.checked) {
-      setNote('Balance lookup is off. The addresses still link to their explorers.');
+    var run = ++state.balanceRun;
+    var addresses = state.entries.map(function (entry) { return entry.address; }).filter(Boolean);
+    if (!addresses.length) {
+      setSummary('—', '—', '—');
+      setNote('No derived public address to send; nothing was sent. Each address links to its explorer.');
       return;
     }
-    var run = ++state.balanceRun;
     setNote('Checking public balances in your browser…');
     try {
       if (chain === 'bitcoin') {
-        await btcBalances(run);
+        await retryOnce(function () { return btcBalances(run); });
       } else if (RPC[chain]) {
-        await evmBalances(run);
+        await retryOnce(function () { return evmBalances(run); });
       } else {
         setSummary('—', '—', '—');
         setNote('Live balance lookup is not available for this chain here; each address links to its explorer.');
@@ -786,6 +854,9 @@
       setNote('Balances loaded from public providers in your browser. They can lag the chain; only public addresses were sent.');
     } catch (err) {
       if (run !== state.balanceRun || state.disposed) return;
+      state.entries.forEach(function (entry) {
+        if (entry.address) setBalanceError(entry, 'Balance unavailable.');
+      });
       setNote('Balance lookup is unavailable right now. The addresses are still derived locally.', true);
     }
   }
@@ -908,12 +979,6 @@
         });
       }
     });
-    if (balanceToggle) {
-      balanceToggle.addEventListener('change', function () {
-        if (balanceToggle.checked) loadBalances();
-      });
-    }
-
     rowsEl.textContent = '';
     var startIndex = (page - 1n) * ROWS_PER_PAGE;
     var remaining = totalEntropy - startIndex;

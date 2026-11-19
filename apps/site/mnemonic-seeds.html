@@ -94,10 +94,25 @@ a.mnemonic-key { color: var(--accent-2); }
 .icon-btn.copied { color: var(--ok); }
 .mnemonic-balance { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .mnemonic-balance.has-balance { color: var(--ok); }
+.mnemonic-balance.err { color: var(--err); }
+.mnemonic-balance-retry {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent-2);
+  background: var(--panel-2);
+}
+.mnemonic-balance-retry::before { content: ""; position: absolute; inset: -7px; border-radius: 10px; }
+.mnemonic-balance-retry .icon { width: 15px; height: 15px; }
 .mnemonic-derive { padding: 12px 18px 16px; display: grid; gap: 8px; }
 .mnemonic-derive-text { color: var(--muted); font-size: 12.5px; }
-.mnemonic-balance-toggle { display: inline-flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 12px; }
-.mnemonic-balance-toggle input { width: 16px; height: 16px; }
 .mnemonic-directory-card { display: grid; gap: 12px; }
 .mnemonic-directory-card h2 { margin: 0; }
 .mnemonic-directory-card p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
@@ -242,7 +257,7 @@ a.mnemonic-key { color: var(--accent-2); }
     <div class="stat-card"><span class="stat-label">Balance</span><span class="stat-value" id="mnemonic-total-balance">—</span></div>
     <div class="stat-card"><span class="stat-label">Received</span><span class="stat-value" id="mnemonic-total-received">—</span></div>
     <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-value" id="mnemonic-total-tx">—</span></div>
-    <p class="balance-note" id="mnemonic-note"><label class="mnemonic-balance-toggle"><input type="checkbox" id="mnemonic-balance-toggle" checked> Check balances for BTC and EVM addresses after deriving.</label> <span id="mnemonic-note-text">Public addresses only; keys and phrases stay in this browser.</span></p>
+    <p class="balance-note" id="mnemonic-note"><span id="mnemonic-note-text">Balances load automatically for BTC and EVM addresses after deriving. Public addresses only; keys and phrases stay in this browser.</span></p>
   </section>
 
   <section class="keys-panel mnemonic-chain-only">
