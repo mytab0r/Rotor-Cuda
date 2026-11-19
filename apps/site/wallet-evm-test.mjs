@@ -222,6 +222,60 @@ test("a manual gas limit below the estimate is shown as a warning", async () => 
   assert.match(review.warnings[0], /below the node estimate/);
 });
 
+test("a manual gas limit continues when the node estimate fails", async () => {
+  const mock = rpcMock({
+    ...BASE_ANSWERS,
+    eth_getBalance: "0x0",
+    eth_estimateGas: { rpcError: "EVM error: OutOfFunds" }
+  });
+  let unsignedFields = null;
+  const review = await evm.prepareTransaction({
+    form: baseForm({ gasLimit: "21000", maxFee: "10", priorityFee: "1" }),
+    from: FROM,
+    fetchJson: mock.fetchJson,
+    unsigned(fields) {
+      unsignedFields = fields;
+      return UNSIGNED;
+    }
+  });
+  assert.equal(review.gasLimit, 21000n);
+  assert.equal(review.gasEstimate, null);
+  assert.equal(review.gasLimitIsManual, true);
+  assert.equal(unsignedFields.gas_limit, "21000");
+  assert.match(
+    review.warnings.join(" "),
+    /Node estimate failed: publicnode\.com: EVM error: OutOfFunds; using the manual gas limit\./
+  );
+  assert.ok(mock.calls.some((call) => call.method === "eth_feeHistory"));
+});
+
+test("an automatic gas limit asks for a manual limit when estimation fails", async () => {
+  const mock = rpcMock({
+    ...BASE_ANSWERS,
+    eth_estimateGas: { rpcError: "EVM error: OutOfFunds" }
+  });
+  let unsignedCalls = 0;
+  await assert.rejects(
+    () =>
+      evm.prepareTransaction({
+        form: baseForm(),
+        from: FROM,
+        fetchJson: mock.fetchJson,
+        unsigned() {
+          unsignedCalls += 1;
+          return UNSIGNED;
+        }
+      }),
+    (err) => {
+      assert.match(err.message, /Cannot estimate gas; enter a gas limit manually/);
+      assert.match(err.message, /publicnode\.com: EVM error: OutOfFunds/);
+      return true;
+    }
+  );
+  assert.equal(unsignedCalls, 0);
+  assert.ok(!mock.calls.some((call) => call.method === "eth_feeHistory"));
+});
+
 test("a wrong chain id blocks the review before any unsigned/sign call", async () => {
   const mock = rpcMock({ ...BASE_ANSWERS, eth_chainId: "0x1" });
   let unsignedCalls = 0;
