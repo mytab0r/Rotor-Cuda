@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rotor Coordinator - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261122d">
-<script src="/theme.js?v=20261122d"></script>
+<link rel="stylesheet" href="/site.css?v=20261122e">
+<script src="/theme.js?v=20261122e"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -71,7 +71,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261122d#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261122e#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -132,6 +132,15 @@
       </div>
     </div>
     <p class="muted key-help" id="balance-help">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
+
+    <div class="balance-refresh">
+      <button type="button" class="balance-refresh-btn" id="key-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
+        <span>Refresh failed / stale</span>
+        <span class="balance-refresh-count" id="key-balance-refresh-count" aria-hidden="true">0</span>
+      </button>
+      <span class="visually-hidden" id="key-balance-refresh-status" role="status" aria-atomic="true"></span>
+    </div>
 
     <div class="key-btc-balance" id="btc-balance-panel" hidden>
       <p class="key-selected" id="btc-selected"></p>
@@ -210,6 +219,7 @@
 
 </main>
 
-<script src="/key.js?v=20261122d"></script>
+<script src="/balance-cache.js?v=20261122e"></script>
+<script src="/key.js?v=20261122e"></script>
 </body>
 </html>
