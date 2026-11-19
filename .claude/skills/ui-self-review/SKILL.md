@@ -69,7 +69,10 @@ look when it comes from the page you changed.
 
 - **Touch target:** visible box below 44px in either dimension. Inline prose
   links are exempt (WCAG inline-text exception), and a checkbox/radio inside a
-  label that is at least 44×44 inherits the label's hit area.
+  label that is at least 44×44 inherits the label's hit area. The box is the
+  control element itself: a `::before` overlay with a negative inset does not
+  enlarge it for this check, so give the button/link its own 44×44 box and set
+  the overlay to `inset: 0`.
 - **Small text:** visible element with its own text below 12px. Hidden,
   `aria-hidden` and `visually-hidden` text is ignored.
 - **Half-empty block:** `section`/`.card` taller than 220px where visible direct
