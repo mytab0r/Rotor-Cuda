@@ -364,7 +364,8 @@
     var providerUrl;
     var nonce;
     var balance;
-    var estimate;
+    var estimate = null;
+    var estimateError = null;
     var baseFee;
     var networkPriority;
     var feesSource = 'eth_feeHistory';
@@ -384,11 +385,26 @@
         balance = quantity(balanceHex, 'balance');
         var call = { from: from, to: values.to, value: toQuantity(values.value) };
         if (values.data !== '0x') call.data = values.data;
-        return read(settings.fetchJson, providerUrl, 'eth_estimateGas', [call], 'the gas estimate');
+        /* Best-effort estimate: with a manual gas limit its failure is only a
+         * warning, because the reviewed limit is what will be signed. Without
+         * one the estimate is required, since there is no limit to send. */
+        return rpcCall(settings.fetchJson, providerUrl, 'eth_estimateGas', [call])
+          .then(function (estimateHex) {
+            estimate = quantity(estimateHex, 'gas estimate');
+            if (estimate === 0n || estimate > U64_MAX) {
+              throw new Error('The gas estimate is out of range.');
+            }
+          })
+          .catch(function (err) {
+            estimate = null;
+            estimateError = providerLabel(providerUrl) + ': ' + errorText(err);
+            if (values.gasLimit === null) {
+              throw new Error('Cannot estimate gas; enter a gas limit manually (' +
+                estimateError + ').');
+            }
+          });
       })
-      .then(function (estimateHex) {
-        estimate = quantity(estimateHex, 'gas estimate');
-        if (estimate === 0n || estimate > U64_MAX) throw new Error('The gas estimate is out of range.');
+      .then(function () {
         return rpcCall(settings.fetchJson, providerUrl, 'eth_feeHistory', ['0x1', 'latest', []])
           .then(function (history) {
             if (!history || !Array.isArray(history.baseFeePerGas) || !history.baseFeePerGas.length) {
@@ -435,7 +451,11 @@
           assertType2Hex(unsignedHex, 'unsigned transaction');
 
           var warnings = [];
-          if (values.gasLimit !== null && gasLimit < estimate) {
+          if (estimateError !== null) {
+            warnings.push('Node estimate failed: ' + estimateError +
+              '; using the manual gas limit.');
+          }
+          if (values.gasLimit !== null && estimate !== null && gasLimit < estimate) {
             warnings.push('Gas limit ' + gasLimit.toString() +
               ' is below the node estimate of ' + estimate.toString() +
               '; the transaction may run out of gas.');
