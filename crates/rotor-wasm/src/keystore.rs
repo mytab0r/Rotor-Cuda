@@ -18,8 +18,16 @@ type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
 
 /// Upper bound on the scrypt working set, in bytes. A 256 MiB set covers the
 /// common `n=262144, r=8` keystores while keeping a hostile file from asking
-/// the browser to allocate gigabytes.
-const MAX_SCRYPT_BYTES: u64 = 512 * 1024 * 1024;
+/// the browser to allocate memory a phone cannot provide.
+const MAX_SCRYPT_BYTES: u64 = 320 * 1024 * 1024;
+/// Upper bound on scrypt `p`. Higher values keep memory small but multiply CPU
+/// time, so a tiny working set must not be able to pin the tab.
+const MAX_SCRYPT_P: u32 = 16;
+/// Upper bound on `n * r * p`. The common `262144 * 8 * 1` passes; a hostile
+/// combination that stays under the memory cap but runs for hours does not.
+const MAX_SCRYPT_WORK: u64 = 16_777_216;
+/// Upper bound on PBKDF2 iterations.
+const MAX_PBKDF2_ITERATIONS: u32 = 10_000_000;
 
 /// The fields read from a V3 keystore plus the password.
 pub struct Request<'a> {
@@ -105,6 +113,21 @@ fn derive_scrypt(request: &Request<'_>, out: &mut [u8; 32]) -> Result<(), String
     if request.r == 0 || request.p == 0 {
         return Err("Invalid keystore: scrypt r and p must be >= 1.".to_owned());
     }
+    if request.p > MAX_SCRYPT_P {
+        return Err(format!(
+            "This keystore sets scrypt p={}; the page limit is {MAX_SCRYPT_P}.",
+            request.p
+        ));
+    }
+    let work = u64::from(request.n)
+        .checked_mul(u64::from(request.r))
+        .and_then(|value| value.checked_mul(u64::from(request.p)))
+        .ok_or_else(|| "Invalid keystore: the scrypt work factor overflows.".to_owned())?;
+    if work > MAX_SCRYPT_WORK {
+        return Err(format!(
+            "This keystore asks for an scrypt work factor of {work} (n*r*p); the page limit is {MAX_SCRYPT_WORK}."
+        ));
+    }
     let log_n = request.n.trailing_zeros();
     if log_n >= 32 {
         return Err("Invalid keystore: scrypt n is too large.".to_owned());
@@ -124,6 +147,12 @@ fn derive_scrypt(request: &Request<'_>, out: &mut [u8; 32]) -> Result<(), String
 fn derive_pbkdf2(request: &Request<'_>, out: &mut [u8; 32]) -> Result<(), String> {
     if request.c == 0 {
         return Err("Invalid keystore: pbkdf2 iteration count must be >= 1.".to_owned());
+    }
+    if request.c > MAX_PBKDF2_ITERATIONS {
+        return Err(format!(
+            "This keystore asks for {} PBKDF2 iterations; the page limit is {MAX_PBKDF2_ITERATIONS}.",
+            request.c
+        ));
     }
     pbkdf2::pbkdf2_hmac::<Sha256>(request.password, request.salt, request.c, out);
     Ok(())
@@ -262,5 +291,62 @@ mod tests {
             ..empty
         };
         assert!(decrypt(&bad_kdf).unwrap_err().contains("KDF"));
+
+        // p is capped so a tiny working set cannot pin the CPU.
+        let too_parallel = Request {
+            salt: b"s",
+            n: 2,
+            r: 1,
+            p: u32::MAX,
+            ..empty
+        };
+        assert!(decrypt(&too_parallel).unwrap_err().contains("p="));
+
+        // n*r*p is capped even when the memory working set is small.
+        let too_much_work = Request {
+            salt: b"s",
+            n: 1 << 14,
+            r: 128,
+            p: 16,
+            ..empty
+        };
+        assert!(decrypt(&too_much_work).unwrap_err().contains("work factor"));
+
+        // A normal shape passes validation and only fails at the MAC.
+        let accepted = Request {
+            salt: b"s",
+            n: 1024,
+            r: 8,
+            p: 2,
+            ..empty
+        };
+        assert!(decrypt(&accepted).unwrap_err().contains("MAC"));
+
+        // PBKDF2 iterations are capped as well.
+        let too_many_iterations = Request {
+            salt: b"s",
+            kdf: 1,
+            n: 0,
+            r: 0,
+            p: 0,
+            c: 4_000_000_000,
+            ..empty
+        };
+        assert!(
+            decrypt(&too_many_iterations)
+                .unwrap_err()
+                .contains("iterations")
+        );
+
+        let accepted_pbkdf2 = Request {
+            salt: b"s",
+            kdf: 1,
+            n: 0,
+            r: 0,
+            p: 0,
+            c: 1024,
+            ..empty
+        };
+        assert!(decrypt(&accepted_pbkdf2).unwrap_err().contains("MAC"));
     }
 }
