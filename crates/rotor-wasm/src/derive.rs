@@ -654,6 +654,11 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
     let digest = hasher.finalize();
     let sui_address = format!("0x{}", hex(&digest));
 
+    // TON wallet v5 (W5): StateInit code is the official wallet_v5 cell and
+    // the data cell stores this public key under the default mainnet wallet id.
+    let ton = crate::ton::w5_address(&public)?;
+    let ton_state_init_hex = hex(&ton.state_init_hash);
+
     let addresses = [
         address_object(
             "solana",
@@ -666,6 +671,16 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
             "Sui (ed25519)",
             &sui_address,
             &[("pubkey", &public_hex), ("blake2b", &sui_address)],
+        ),
+        address_object(
+            "ton_w5",
+            "TON wallet W5",
+            &ton.address,
+            &[
+                ("pubkey", &public_hex),
+                ("state_init_hash", &ton_state_init_hex),
+                ("address", &ton.address),
+            ],
         ),
     ];
 
