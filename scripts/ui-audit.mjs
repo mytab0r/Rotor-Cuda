@@ -495,6 +495,58 @@ function auditPage(args) {
     );
   }
 
+  // 1b. Controls that spill outside their card's padding box.
+  const clippedControls = [];
+  const scrollableAncestor = (el) => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (["auto", "scroll"].includes(style.overflowX) || ["auto", "scroll"].includes(style.overflowY)) return true;
+    }
+    return false;
+  };
+  for (const card of [...document.querySelectorAll(".card")].filter(visible)) {
+    const cardBox = card.getBoundingClientRect();
+    for (const control of card.querySelectorAll("a, button, select, input, textarea")) {
+      if (!visible(control) || scrollableAncestor(control)) continue;
+      const controlBox = control.getBoundingClientRect();
+      let reason = "";
+      if (controlBox.right > cardBox.right + 1 || controlBox.bottom > cardBox.bottom + 1) {
+        reason = "outside the card border";
+      } else {
+        for (let node = control.parentElement; node && node !== card; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          const clips = ["hidden", "clip"].includes(style.overflowX);
+          if (!clips) continue;
+          const nodeBox = node.getBoundingClientRect();
+          if (controlBox.right > nodeBox.right + 1 || controlBox.left < nodeBox.left - 1) {
+            reason = `cut by ${selectorOf(node)}`;
+            break;
+          }
+        }
+      }
+      if (reason) clippedControls.push(`${selectorOf(control)} ${reason}`);
+    }
+  }
+  if (clippedControls.length) {
+    add(
+      "clipped-control",
+      `${clippedControls.length} control(s) extend past their card padding`,
+      clippedControls.slice(0, 6),
+    );
+  }
+
+  // 1c. Raw URL paths shown where a human label belongs (tables and fact rows).
+  const rawPaths = [];
+  for (const cell of document.querySelectorAll("td, dd, .key-form-row")) {
+    if (!visible(cell)) continue;
+    if (cell.closest("pre, code.docs, .docs")) continue;
+    const text = textOf(cell);
+    if (/^\/[a-z0-9][\w\-/]*$/i.test(text) && text.length > 14) rawPaths.push(`${selectorOf(cell)}: ${text.slice(0, 48)}`);
+  }
+  if (rawPaths.length) {
+    add("raw-path-text", `${rawPaths.length} cell(s) show a raw path instead of a label`, rawPaths.slice(0, 6));
+  }
+
   // 2. Body text below 12px.
   const smallText = [];
   const seenText = new Set();
@@ -747,6 +799,42 @@ function auditPage(args) {
       add("key-calculate-button", "/key still exposes a Calculate button; derivation must follow the input", metrics.routeChecks.calculateButtons);
     }
     metrics.routeChecks.hasPrivateInput = Boolean(document.getElementById("priv"));
+
+    const presetChips = document.querySelectorAll("[data-preset]").length;
+    const presetSelect = document.getElementById("preset-select");
+    metrics.routeChecks.presetChips = presetChips;
+    metrics.routeChecks.presetSelect = Boolean(presetSelect && visible(presetSelect));
+    if (presetChips > 0 && presetSelect && visible(presetSelect)) {
+      add("duplicate-preset-control", "/key shows both preset chips and a preset select for the same filter");
+    }
+
+    const summary = document.getElementById("summary");
+    if (summary) {
+      let columns = [...summary.children].filter(visible);
+      if (columns.length === 1) {
+        const nested = [...columns[0].children].filter(visible);
+        if (nested.length >= 2) columns = nested;
+      }
+      // Only boxes that share a grid row are columns; stacked groups in a
+      // single-column layout are not comparable.
+      const rows = [];
+      for (const column of columns) {
+        const box = boxOf(column);
+        const row = rows.find((entry) => Math.abs(entry.top - box.top) <= 2);
+        if (row) row.boxes.push(box);
+        else rows.push({ top: box.top, boxes: [box] });
+      }
+      const row = rows.find((entry) => entry.boxes.length >= 2);
+      if (row) {
+        const bottoms = row.boxes.map((box) => Math.round(box.bottom));
+        const spread = Math.round(Math.max(...bottoms) - Math.min(...bottoms));
+        const tallest = Math.round(Math.max(...row.boxes.map((box) => box.height)));
+        if (tallest > 150 && spread > 40) {
+          metrics.routeChecks.summaryColumnSpread = spread;
+          add("ragged-summary-columns", `/key Keys columns end ${spread}px apart`, { bottoms, spread });
+        }
+      }
+    }
   }
 
   if (route === "/seed") {
@@ -956,8 +1044,48 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
     await cdp.send("Log.enable").catch(() => {});
+    await cdp.send("Network.enable").catch(() => {});
 
     let consoleErrors = [];
+    let networkErrors = [];
+    const baseOrigin = new URL(options.base).origin;
+    const requestUrls = new Map();
+    cdp.on("Network.requestWillBeSent", (params) => {
+      if (params?.request?.url) requestUrls.set(params.requestId, params.request.url);
+    });
+    cdp.on("Network.responseReceived", (params) => {
+      const response = params?.response;
+      if (!response?.url) return;
+      let origin = null;
+      try {
+        origin = new URL(response.url).origin;
+      } catch {
+        return;
+      }
+      if (origin !== baseOrigin) return;
+      const pathname = (() => {
+        try {
+          return new URL(response.url).pathname;
+        } catch {
+          return "";
+        }
+      })();
+      const keylessProvider = response.status === 501 && pathname.startsWith("/api/v1/chain/");
+      if (response.status >= 400 && !keylessProvider) {
+        networkErrors.push(`${response.status} ${response.url.slice(0, 160)}`);
+      }
+    });
+    cdp.on("Network.loadingFailed", (params) => {
+      const url = requestUrls.get(params.requestId) || params.requestId;
+      let origin = null;
+      try {
+        origin = new URL(url).origin;
+      } catch {
+        origin = baseOrigin;
+      }
+      if (origin !== baseOrigin) return;
+      networkErrors.push(`failed ${params.errorText || "unknown"} ${url.slice(0, 160)}`);
+    });
     cdp.on("Runtime.exceptionThrown", (params) => {
       const text =
         params.exceptionDetails?.exception?.description ||
@@ -1004,6 +1132,7 @@ async function main() {
         for (const theme of options.themes) {
           const started = Date.now();
           consoleErrors = [];
+          networkErrors = [];
           const run = {
             route,
             viewport,
@@ -1089,6 +1218,14 @@ async function main() {
               id: "console-error",
               message: `${consoleErrors.length} console error(s) during this run`,
               detail: [...new Set(consoleErrors)].slice(0, 5),
+            });
+          }
+          if (networkErrors.length) {
+            const unique = [...new Set(networkErrors)];
+            run.violations.push({
+              id: "http-error",
+              message: `${unique.length} same-origin request(s) failed during this run`,
+              detail: unique.slice(0, 6),
             });
           }
           runs.push(run);
