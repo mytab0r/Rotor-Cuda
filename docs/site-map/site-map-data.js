@@ -793,13 +793,13 @@
 
   /* secretscan.org navigation, 2026-11-19. */
   [
-    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
-    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
-    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto collapses EVM rows to Ethereum instead of showing eight chains.'],
-    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
-    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
-    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
-    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
+    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
+    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
+    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto shows one shared `0x` EVM row plus the eight donor chain rows marked `↑ same`; the interactive curve editor and signing entry remain.'],
+    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
+    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
+    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
+    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Crypto only adds (P + Q); the donor also subtracts and multiplies.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
