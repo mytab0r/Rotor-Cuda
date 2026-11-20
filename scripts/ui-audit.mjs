@@ -800,16 +800,19 @@ function auditPage(args) {
       add("duplicate-preset-control", "/key shows both preset chips and a preset select for the same filter");
     }
 
-    const summary = document.querySelector("#summary .summary, .summary");
+    const summary = document.getElementById("summary");
     if (summary) {
-      const columns = [...summary.children].filter(visible);
-      if (columns.length >= 2) {
-        const bottoms = columns.map((child) => boxOf(child).bottom);
-        const spread = Math.round(Math.max(...bottoms) - Math.min(...bottoms));
+      let columns = [...summary.children].filter(visible);
+      if (columns.length === 1) {
+        const nested = [...columns[0].children].filter(visible);
+        if (nested.length >= 2) columns = nested;
+      }
+      const bottoms = columns.map((column) => Math.round(boxOf(column).bottom));
+      const spread = Math.round(Math.max(...bottoms) - Math.min(...bottoms));
+      const tallest = Math.round(Math.max(...columns.map((column) => boxOf(column).height)));
+      if (tallest > 150 && spread > 40) {
         metrics.routeChecks.summaryColumnSpread = spread;
-        if (spread > 40) {
-          add("ragged-summary-columns", `/key Keys columns end ${spread}px apart`, { spread });
-        }
+        add("ragged-summary-columns", `/key Keys columns end ${spread}px apart`, { bottoms, spread });
       }
     }
   }
