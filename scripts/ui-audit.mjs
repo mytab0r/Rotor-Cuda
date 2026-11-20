@@ -1024,8 +1024,48 @@ async function main() {
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
     await cdp.send("Log.enable").catch(() => {});
+    await cdp.send("Network.enable").catch(() => {});
 
     let consoleErrors = [];
+    let networkErrors = [];
+    const baseOrigin = new URL(options.base).origin;
+    const requestUrls = new Map();
+    cdp.on("Network.requestWillBeSent", (params) => {
+      if (params?.request?.url) requestUrls.set(params.requestId, params.request.url);
+    });
+    cdp.on("Network.responseReceived", (params) => {
+      const response = params?.response;
+      if (!response?.url) return;
+      let origin = null;
+      try {
+        origin = new URL(response.url).origin;
+      } catch {
+        return;
+      }
+      if (origin !== baseOrigin) return;
+      const pathname = (() => {
+        try {
+          return new URL(response.url).pathname;
+        } catch {
+          return "";
+        }
+      })();
+      const keylessProvider = response.status === 501 && pathname.startsWith("/api/v1/chain/");
+      if (response.status >= 400 && !keylessProvider) {
+        networkErrors.push(`${response.status} ${response.url.slice(0, 160)}`);
+      }
+    });
+    cdp.on("Network.loadingFailed", (params) => {
+      const url = requestUrls.get(params.requestId) || params.requestId;
+      let origin = null;
+      try {
+        origin = new URL(url).origin;
+      } catch {
+        origin = baseOrigin;
+      }
+      if (origin !== baseOrigin) return;
+      networkErrors.push(`failed ${params.errorText || "unknown"} ${url.slice(0, 160)}`);
+    });
     cdp.on("Runtime.exceptionThrown", (params) => {
       const text =
         params.exceptionDetails?.exception?.description ||
@@ -1072,6 +1112,7 @@ async function main() {
         for (const theme of options.themes) {
           const started = Date.now();
           consoleErrors = [];
+          networkErrors = [];
           const run = {
             route,
             viewport,
@@ -1157,6 +1198,14 @@ async function main() {
               id: "console-error",
               message: `${consoleErrors.length} console error(s) during this run`,
               detail: [...new Set(consoleErrors)].slice(0, 5),
+            });
+          }
+          if (networkErrors.length) {
+            const unique = [...new Set(networkErrors)];
+            run.violations.push({
+              id: "http-error",
+              message: `${unique.length} same-origin request(s) failed during this run`,
+              detail: unique.slice(0, 6),
             });
           }
           runs.push(run);
