@@ -7,6 +7,7 @@
 
 pub mod chunk_loop;
 pub mod client;
+pub mod orders;
 pub mod puzzles;
 pub mod state;
 pub mod wallets;
@@ -286,6 +287,9 @@ struct App {
     /// TronScan Pro API key from `TRONSCAN_API_KEY`. Never serialized or
     /// logged; `None` makes `/api/v1/chain/tron/address` answer `501`.
     tronscan_api_key: Option<String>,
+    /// Paid-download orders, when `ORDERS_CONFIG` is set. `None` keeps the
+    /// order routes answering `503` on coordinator-only servers and tests.
+    orders: Option<Arc<orders::Orders>>,
     /// Telegram Bot API configuration for monitor alert linking/delivery.
     telegram: Arc<crate::monitor::notify::TelegramConfig>,
 }
@@ -419,6 +423,10 @@ pub struct ServerOptions {
     /// Optional TronScan Pro API key. `None` (the default) reads
     /// `TRONSCAN_API_KEY`; it is never exposed in responses or errors.
     pub tronscan_api_key: Option<String>,
+    /// Preloaded paid-download configuration. `None` (the default) reads
+    /// `ORDERS_CONFIG` / `ORDERS_HMAC_SECRET` at startup; tests inject a store
+    /// here instead of touching the process environment.
+    pub orders: Option<Arc<orders::Orders>>,
 }
 
 impl std::fmt::Debug for ServerOptions {
@@ -432,6 +440,7 @@ impl std::fmt::Debug for ServerOptions {
                 "tronscan_api_key_configured",
                 &self.tronscan_api_key.is_some(),
             )
+            .field("orders_configured", &self.orders.is_some())
             .finish()
     }
 }
@@ -447,6 +456,7 @@ impl Default for ServerOptions {
                 .ok()
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty()),
+            orders: None,
         }
     }
 }
@@ -534,6 +544,10 @@ fn spawn_inner(
         .clone()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let orders = match options.orders.clone() {
+        Some(orders) => Some(orders),
+        None => orders::Orders::from_env(state_path)?.map(Arc::new),
+    };
     let mut state = state::State::open(state_path)?;
     if !clients.is_empty() {
         let entries = clients
@@ -562,8 +576,13 @@ fn spawn_inner(
             .unwrap_or_default(),
         wallets_upstream,
         tronscan_api_key,
+        orders,
         telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
     });
+    // The poller is detached and does nothing until an order exists.
+    if let Some(orders) = app.orders.clone() {
+        orders::spawn_poller(orders, app.tronscan_api_key.clone());
+    }
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
         for request in listener.incoming_requests() {
@@ -620,6 +639,10 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
         || path == "/api/v1/monitor/config"
         || path == "/api/v1/telegram/webhook"
         || path == "/api/v1/chain/tron/address"
+        || path == "/api/v1/orders"
+        || path.starts_with("/api/v1/orders/")
+        || path.starts_with("/api/v1/admin/orders/")
+        || path == "/api/v1/admin/payments/reconcile"
         || path.starts_with("/api/v1/wallets")
     {
         return 503;
@@ -716,6 +739,22 @@ fn handle(app: Arc<App>, request: Request) {
     // account, and the handler rate-limits per client IP itself.
     if method == Method::Get && path.starts_with("/api/v1/wallets") {
         wallets::handle(&app, request, path);
+        return;
+    }
+
+    // Paid downloads: buyers have no client account, so these routes bypass
+    // the client-token matrix like the public wallet catalogue. Without
+    // ORDERS_CONFIG the whole surface answers 503 rather than pretending to
+    // accept orders.
+    if path == "/api/v1/orders"
+        || path.starts_with("/api/v1/orders/")
+        || path.starts_with("/api/v1/admin/orders/")
+        || path == "/api/v1/admin/payments/reconcile"
+    {
+        match app.orders.clone() {
+            Some(orders) => orders::handle(&app, orders, request, method, path, query),
+            None => respond_json(request, 503, &json!({ "error": "orders_not_configured" })),
+        }
         return;
     }
 
