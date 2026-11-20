@@ -21,9 +21,9 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 | Wallets storefront | privatekeyfinder 404; secretscan market table | real mirrored downloads, no prices | ours-only/partial | P2 |
 | Send transactions | 9 secretscan `Easy_*` pages, fee/bytes/total/signed hex | top-level `/send/{bitcoin,ethereum,bnb,tron,usdt}` on testnets only; mainnet stays gated | partial | P0 |
 | Tx decoders | BTC raw + EVM RLP decoders | `/tx/bitcoin` + `/tx/ethereum`, client-side, JSON view | parity | - |
-| Vanity | threads/ETA/difficulty/save/recent/QR | 6 chains, no threads/ETA/save | partial | P1 |
+| Vanity | threads/ETA/difficulty/save/recent/QR | 6 chains, difficulty/ETA, recent addresses (keys never saved); no threads/QR | partial | P1 |
 | Keystore | drag-drop file, examples, metadata | paste/password, no file/examples | partial | P1 |
-| Pubkey add | P+Q, P−Q, scalar multiply | P+Q only | partial | P1 |
+| Pubkey add | P+Q, P−Q, scalar multiply | P+Q, P−Q and k·P | parity | - |
 | Reconstruction | ±a±λb formulas, 6 addresses | byte-fragment assembler (different tool) | ours-only | P1 |
 | Shell | icon actions, dense tables, Ctrl+K, consistent states | mixed words/icons, header overflow, 3 filter panels | partial | P1 |
 | i18n / admin | donor has no full admin; secretscan dashboard/rent | no i18n; cabinet wallet | gap | P2 |
