@@ -61,9 +61,13 @@ a worktree; one writer per area.
 ## 3. secretscan.org ideas
 - [ ] Lists/pricing pages, filters and density reviewed; adopted items listed
       in `docs/donor-parity/secretscan.md`.
+- Audit note (2026-11-20): mechanics of `/wallets`, `/results`, `/rent` and
+  `/scaner` recorded in `docs/donor-parity/secretscan.md`; no datasets or
+  prices copied.
 
 ## 4. Rename Rotor → Crypto
-- [ ] UI wordmark, `<title>`, meta descriptions, docs headers.
+- [x] UI wordmark, `<title>`, meta descriptions, docs headers.
+      Evidence: PR #104 merged as 98668a7; live serves `Crypto` at 20261124e.
 - [ ] Repo name and production domain are owner decisions — record them, do not
       change unilaterally.
 
@@ -77,6 +81,17 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
   and risk with no user-visible benefit.
 - Blocker: the word “Crypto” is generic for SEO. Record the owner's final
   wordmark choice before touching title/meta (titles are indexed).
+
+## 5. Paid datasets (design: docs/donor-parity/payments.md)
+- [ ] Implement the processor-free order flow: `POST /api/v1/orders`,
+      `GET /api/v1/orders/{id}` (order token), `GET /api/v1/orders/{id}/download`
+      (HMAC token, 7 days, 5 downloads), admin revoke/reconcile.
+- [ ] Per-order deposit address (watch-only xpub) or unique-amount fallback;
+      poller with BTC 3 / LTC 6 / TRON 19 / ETH 12 / BSC 15 confirmations.
+- [ ] Every delivered package carries the licence/attribution page (MIT notice
+      for our lists; CC0 provenance for donor-derived data).
+- [ ] Prices, accepted chains and refund policy are owner decisions; ship with
+      `active=false` lists until they are set.
 
 ## Gates
 - `node scripts/ui-audit.mjs --serve` — 0 violations at 375/768/1280, light/dark.
