@@ -26,6 +26,7 @@ use sha2::{Digest, Sha256};
 use tiny_http::{Method, Request, Response, StatusCode};
 
 use super::state;
+use super::tron_cache;
 use super::{
     App, TRONSCAN_API_BASE, bearer, client_ip, constant_time_eq, header, query_param, read_body,
     respond_body_error, respond_json, respond_rate_limited, tron_error_reason, tronscan_get,
@@ -1152,7 +1153,12 @@ pub(super) fn handle(
                 return respond_json(request, 401, &json!({ "error": "unauthorized" }));
             }
             let agent = build_agent();
-            match poll_once(&orders, &agent, app.tronscan_api_key.as_deref()) {
+            match poll_once(
+                &orders,
+                &agent,
+                app.tronscan_api_key.as_deref(),
+                &app.tron_limiter,
+            ) {
                 Ok(credits) => {
                     respond_json(request, 200, &json!({ "ok": true, "credits": credits }))
                 }
@@ -1272,7 +1278,11 @@ struct Incoming {
 }
 
 /// Start the poller thread. Detached; process exit ends it.
-pub(super) fn spawn_poller(orders: Arc<Orders>, tronscan_api_key: Option<String>) {
+pub(super) fn spawn_poller(
+    orders: Arc<Orders>,
+    tronscan_api_key: Option<String>,
+    tron_limiter: Arc<tron_cache::Limiter>,
+) {
     let _ = thread::Builder::new()
         .name("orders-poller".to_string())
         .spawn(move || {
@@ -1280,7 +1290,9 @@ pub(super) fn spawn_poller(orders: Arc<Orders>, tronscan_api_key: Option<String>
             let interval =
                 Duration::from_secs(orders.config.poll_interval_secs.max(MIN_POLL_INTERVAL_SECS));
             loop {
-                if let Err(err) = poll_once(&orders, &agent, tronscan_api_key.as_deref()) {
+                if let Err(err) =
+                    poll_once(&orders, &agent, tronscan_api_key.as_deref(), &tron_limiter)
+                {
                     eprintln!("rotor-coord: orders poller: {err}");
                 }
                 thread::sleep(interval);
@@ -1292,6 +1304,7 @@ fn poll_once(
     orders: &Orders,
     agent: &ureq::Agent,
     tronscan_key: Option<&str>,
+    tron_limiter: &Arc<tron_cache::Limiter>,
 ) -> Result<usize, String> {
     let now = state::now_secs();
     orders.expire(now)?;
@@ -1327,7 +1340,14 @@ fn poll_once(
                     );
                     continue;
                 };
-                fetch_tron(agent, key, &address, contract.as_deref(), required)?
+                fetch_tron(
+                    agent,
+                    key,
+                    &address,
+                    contract.as_deref(),
+                    required,
+                    tron_limiter,
+                )?
             }
             _ => continue,
         };
@@ -1386,20 +1406,21 @@ fn fetch_tron(
     address: &str,
     contract: Option<&str>,
     required: u32,
+    tron_limiter: &Arc<tron_cache::Limiter>,
 ) -> Result<Vec<Incoming>, String> {
     if let Some(contract) = contract {
         let url = format!(
             "{TRONSCAN_API_BASE}/api/token_trc20/transfers?limit=50&start=0&contract_address={contract}&relatedAddress={address}"
         );
-        let value =
-            tronscan_get(agent, key, &url).map_err(|error| tron_error_reason(error).to_string())?;
+        let value = tronscan_get(agent, key, &url, tron_limiter)
+            .map_err(|error| tron_error_reason(error).to_string())?;
         Ok(parse_trc20_transfers(&value, address, required))
     } else {
         let url = format!(
             "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit=50&start=0&address={address}"
         );
-        let value =
-            tronscan_get(agent, key, &url).map_err(|error| tron_error_reason(error).to_string())?;
+        let value = tronscan_get(agent, key, &url, tron_limiter)
+            .map_err(|error| tron_error_reason(error).to_string())?;
         Ok(parse_tron_transfers(&value, address, required))
     }
 }
