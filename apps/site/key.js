@@ -257,12 +257,6 @@
   var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
   var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
   var btcPanel = byId('btc-panel');
-  var btcBalancePanel = byId('btc-balance-panel');
-  var btcSelected = byId('btc-selected');
-  var btcBalance = byId('btc-balance');
-  var btcReceived = byId('btc-received');
-  var btcTx = byId('btc-tx');
-  var btcHint = byId('btc-summary-hint');
   var balanceRefreshButton = byId('key-balance-refresh');
   var balanceRefreshCount = byId('key-balance-refresh-count');
   var balanceRefreshStatus = byId('key-balance-refresh-status');
@@ -587,7 +581,6 @@
     });
     state.controllers = [];
     cancelExposure(true);
-    renderBalanceCards();
   }
 
   function clearResults() {
@@ -849,6 +842,7 @@
       var dd = document.createElement('dd');
       dd.className = 'mono';
       dd.textContent = value;
+      dd.title = value;
       row.appendChild(dt);
       row.appendChild(dd);
       var copy = document.createElement('button');
@@ -894,6 +888,7 @@
       if (fact.unavailable) {
         dd.className = 'key-fact-unavailable';
         dd.textContent = 'Not available — ' + fact.unavailable;
+        dd.title = dd.textContent;
       } else {
         var code = document.createElement('code');
         code.className = 'mono key-fact-value';
@@ -906,6 +901,7 @@
           code.textContent = fact.value;
         }
         dd.appendChild(code);
+        dd.title = fact.value;
       }
       row.appendChild(dt);
       row.appendChild(dd);
@@ -1728,53 +1724,6 @@
     syncBitcoinPanel();
   }
 
-  function selectedBtcId() {
-    var ids = btcRowIds();
-    if (state.focusId && ids.indexOf(state.focusId) >= 0) return state.focusId;
-    if (ids.indexOf('btc_p2pkh') >= 0) return 'btc_p2pkh';
-    return ids[0] || null;
-  }
-
-  function formatBtc(sats) {
-    var unit = 100000000n;
-    var whole = sats / unit;
-    var fraction = (sats % unit).toString().padStart(8, '0').replace(/0+$/, '');
-    return fraction ? whole.toString() + '.' + fraction : whole.toString();
-  }
-
-  function setCardValue(el, text) {
-    if (!el) return;
-    el.textContent = text;
-    el.classList.toggle('empty', text === '—');
-  }
-
-  function renderBalanceCards() {
-    if (!btcBalance || !btcPanel || btcPanel.hidden) return;
-    var id = selectedBtcId();
-    var summary = id ? state.balances[id] : null;
-    var row = id ? findRow(id) : null;
-    if (btcSelected) {
-      if (row) {
-        var title = row.querySelector('.key-row-title');
-        var addr = row.querySelector('.key-addr');
-        btcSelected.textContent = (title ? title.textContent : id) + (addr ? ' · ' + addr.textContent : '');
-      } else {
-        btcSelected.textContent = '';
-      }
-    }
-    if (summary) {
-      setCardValue(btcBalance, formatBtc(summary.balanceSat) + ' BTC');
-      setCardValue(btcReceived, summary.receivedSat.toLocaleString('en-US') + ' sat');
-      setCardValue(btcTx, String(summary.txs));
-      btcHint.textContent = 'Balance, received and transaction count come from mempool.space for the selected Bitcoin address.';
-    } else {
-      setCardValue(btcBalance, '—');
-      setCardValue(btcReceived, '—');
-      setCardValue(btcTx, '—');
-      btcHint.textContent = 'Balances load automatically from mempool.space for the selected Bitcoin address.';
-    }
-  }
-
   function syncBitcoinPanel() {
     if (!btcPanel) return;
     var hasVisibleBtc = rowList().some(function (row) {
@@ -1782,8 +1731,6 @@
       return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
     });
     btcPanel.hidden = !hasVisibleBtc;
-    if (btcBalancePanel) btcBalancePanel.hidden = !hasVisibleBtc;
-    renderBalanceCards();
   }
 
   /* --------------------------------------------------------------- balances */
@@ -2301,7 +2248,6 @@
     } else {
       setBalance(badge, 'ok', value.text, { title: value.text, age: cacheApi ? cacheApi.ageLabel(entry, now) : '' });
     }
-    if (summary) renderBalanceCards();
     return true;
   }
 
@@ -2385,7 +2331,6 @@
           age: entry ? cacheApi.ageLabel(entry, Date.now()) : '',
           detail: value.text
         });
-        renderBalanceCards();
       } else {
         setBalance(badge, 'ok', value.text, {
           title: value.text,
