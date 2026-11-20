@@ -1,0 +1,610 @@
+//! TRON Nile testnet TRX transfer signing.
+//!
+//! The request is a flat JSON object whose values are all strings:
+//!
+//! ```text
+//! {"owner_address":"T...","to_address":"T...","amount":"1000000",
+//!  "ref_block_bytes":"12ab","ref_block_hash":"0011223344556677",
+//!  "expiration":"1700000060000","timestamp":"1700000000000",
+//!  "fee_limit":"0","private_key":"0x...32-byte..."}
+//! ```
+//!
+//! `fee_limit` is optional and defaults to zero; `private_key` is only part of
+//! a signing request. The result is a UTF-8 JSON object with `txID`,
+//! `raw_data_hex`, `raw_data` and, when signing, `signature` (65 bytes
+//! `r || s || v` with `v = 27 + recovery_id`, RFC 6979 deterministic).
+//!
+//! Only the plain TRX `TransferContract` is encoded. The protobuf layout is
+//! hand-written and deterministic: fields are emitted in ascending order, and
+//! the `fee_limit` field is always present (even when zero) so the reviewed
+//! bytes never depend on an optional-field policy. Unknown, duplicate or
+//! missing request fields are rejected, matching the EVM signer's strictness.
+
+use std::fmt::Write as _;
+
+use crate::base58;
+use crate::derive::hex;
+use crate::evm::parse_slots;
+use crate::hashes;
+use crate::json;
+use crate::sign;
+
+/// Transaction field names in request order. `private_key` is appended after
+/// the eight transaction fields and is accepted only when signing.
+const FIELD_NAMES: [&str; 9] = [
+    "owner_address",
+    "to_address",
+    "amount",
+    "ref_block_bytes",
+    "ref_block_hash",
+    "expiration",
+    "timestamp",
+    "fee_limit",
+    "private_key",
+];
+
+/// Number of transaction fields; `private_key` follows these.
+const TX_FIELDS: usize = 8;
+
+/// `protocol.Transaction.Contract.ContractType.TransferContract`.
+const TRANSFER_CONTRACT_TYPE: u64 = 1;
+
+/// The protobuf `Any` type URL of a `TransferContract`.
+const TYPE_URL: &str = "type.googleapis.com/protocol.TransferContract";
+
+/// TRON base58check addresses carry the `0x41` (mainnet/testnet shared)
+/// prefix; the byte is part of the address payload and the signature hash.
+const ADDRESS_PREFIX: u8 = 0x41;
+
+/// A signed or unsigned 64-bit value must stay below this bound: the amount is
+/// an `int64` and the timestamps must be exactly representable as JSON numbers
+/// in JavaScript.
+const MAX_JSON_SAFE: u64 = 1 << 53;
+
+/// `2^63 - 1`, the largest positive `int64` amount.
+const MAX_AMOUNT: u64 = i64::MAX as u64;
+
+/// The wallet refuses a `fee_limit` above 100 TRX (100,000,000 sun).
+const MAX_FEE_LIMIT: u64 = 100_000_000;
+
+/// A validated transfer request.
+struct Tx {
+    owner_address: [u8; 21],
+    to_address: [u8; 21],
+    amount: u64,
+    ref_block_bytes: [u8; 2],
+    ref_block_hash: [u8; 8],
+    expiration: u64,
+    timestamp: u64,
+    fee_limit: u64,
+}
+
+/// A validated signing request.
+struct Request {
+    tx: Tx,
+    private_key: [u8; 32],
+}
+
+/// Parse, sign and serialize a request; the result is the JSON review object.
+pub fn sign_request(text: &str) -> Result<String, String> {
+    let mut request = Request::parse(text)?;
+    let result = sign_parsed(&request);
+    sign::wipe(&mut request.private_key);
+    result
+}
+
+/// Parse and serialize the transfer without signing it.
+///
+/// The request is the same flat JSON object as [`sign_request`] minus
+/// `private_key`; a key field is rejected so the caller cannot believe a
+/// signature was produced.
+pub fn unsigned_request(text: &str) -> Result<String, String> {
+    let slots = parse_slots(text, &FIELD_NAMES[..TX_FIELDS])?;
+    let tx = Tx::parse(&slots)?;
+    Ok(tx.to_json(None))
+}
+
+fn sign_parsed(request: &Request) -> Result<String, String> {
+    let raw_data = request.tx.raw_data();
+    let tx_id = hashes::sha256(&raw_data);
+    let signature = sign::sign(&tx_id, &request.private_key)?;
+    let mut signature_hex = hex(&signature.compact());
+    let _ = write!(signature_hex, "{:02x}", 27 + signature.recovery);
+    Ok(request.tx.to_json(Some(&signature_hex)))
+}
+
+impl Request {
+    fn parse(text: &str) -> Result<Request, String> {
+        let slots = parse_slots(text, &FIELD_NAMES)?;
+        let tx = Tx::parse(&slots[..TX_FIELDS])?;
+        let key_text = slots[TX_FIELDS]
+            .ok_or_else(|| format!("missing request field: \"{}\"", FIELD_NAMES[TX_FIELDS]))?;
+        let mut key_bytes = json::parse_bytes(key_text, "private_key")?;
+        let private_key: [u8; 32] = match key_bytes.as_slice().try_into() {
+            Ok(key) => key,
+            Err(_) => {
+                let length = key_bytes.len();
+                sign::wipe(&mut key_bytes);
+                return Err(format!(
+                    "private_key must be exactly 32 bytes, got {length}"
+                ));
+            }
+        };
+        sign::wipe(&mut key_bytes);
+
+        Ok(Request { tx, private_key })
+    }
+}
+
+impl Tx {
+    /// Validate the eight transaction fields.
+    fn parse(slots: &[Option<&str>]) -> Result<Tx, String> {
+        let required = |index: usize| {
+            slots[index].ok_or_else(|| format!("missing request field: \"{}\"", FIELD_NAMES[index]))
+        };
+
+        let amount = parse_u64(required(2)?, "amount")?;
+        if amount == 0 {
+            return Err("amount must be greater than zero".to_owned());
+        }
+        if amount > MAX_AMOUNT {
+            return Err("amount exceeds the int64 maximum (2^63 - 1 sun)".to_owned());
+        }
+
+        let expiration = parse_timestamp(required(5)?, "expiration")?;
+        let timestamp = parse_timestamp(required(6)?, "timestamp")?;
+
+        let fee_limit = match slots[7] {
+            Some(text) => parse_u64(text, "fee_limit")?,
+            None => 0,
+        };
+        if fee_limit > MAX_FEE_LIMIT {
+            return Err("fee_limit exceeds 100 TRX (100000000 sun)".to_owned());
+        }
+
+        Ok(Tx {
+            owner_address: parse_address(required(0)?, "owner_address")?,
+            to_address: parse_address(required(1)?, "to_address")?,
+            amount,
+            ref_block_bytes: parse_hex_fixed(required(3)?, "ref_block_bytes")?,
+            ref_block_hash: parse_hex_fixed(required(4)?, "ref_block_hash")?,
+            expiration,
+            timestamp,
+            fee_limit,
+        })
+    }
+
+    /// The serialized `Transaction.raw`: fields in ascending order.
+    fn raw_data(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(160);
+        push_bytes_field(&mut out, 1, &self.ref_block_bytes);
+        push_bytes_field(&mut out, 4, &self.ref_block_hash);
+        push_varint_field(&mut out, 8, self.expiration);
+        push_bytes_field(&mut out, 11, &self.contract());
+        push_varint_field(&mut out, 14, self.timestamp);
+        push_varint_field(&mut out, 18, self.fee_limit);
+        out
+    }
+
+    /// `Transaction.Contract` with one `TransferContract` parameter.
+    fn contract(&self) -> Vec<u8> {
+        let mut transfer = Vec::with_capacity(48);
+        push_bytes_field(&mut transfer, 1, &self.owner_address);
+        push_bytes_field(&mut transfer, 2, &self.to_address);
+        push_varint_field(&mut transfer, 3, self.amount);
+
+        let mut parameter = Vec::with_capacity(128);
+        push_bytes_field(&mut parameter, 1, TYPE_URL.as_bytes());
+        push_bytes_field(&mut parameter, 2, &transfer);
+
+        let mut contract = Vec::with_capacity(112);
+        push_varint_field(&mut contract, 1, TRANSFER_CONTRACT_TYPE);
+        push_bytes_field(&mut contract, 2, &parameter);
+        contract
+    }
+
+    /// The JSON review object shared by the signing and unsigned requests.
+    fn to_json(&self, signature_hex: Option<&str>) -> String {
+        let raw_data = self.raw_data();
+
+        let mut out = String::with_capacity(768);
+        out.push('{');
+        push_string_field(&mut out, "txID", &hex(&hashes::sha256(&raw_data)));
+        out.push(',');
+        push_string_field(&mut out, "raw_data_hex", &hex(&raw_data));
+        out.push_str(",\"raw_data\":{\"contract\":[{\"type\":\"TransferContract\",");
+        out.push_str("\"parameter\":{\"type_url\":\"");
+        out.push_str(TYPE_URL);
+        out.push_str("\",\"value\":{");
+        push_string_field(&mut out, "owner_address", &hex(&self.owner_address));
+        out.push(',');
+        push_string_field(&mut out, "to_address", &hex(&self.to_address));
+        let _ = write!(out, ",\"amount\":{}", self.amount);
+        out.push_str("}}}]");
+        out.push(',');
+        push_string_field(&mut out, "ref_block_bytes", &hex(&self.ref_block_bytes));
+        out.push(',');
+        push_string_field(&mut out, "ref_block_hash", &hex(&self.ref_block_hash));
+        let _ = write!(
+            out,
+            ",\"expiration\":{},\"timestamp\":{},\"fee_limit\":{}",
+            self.expiration, self.timestamp, self.fee_limit
+        );
+        out.push('}');
+        if let Some(signature) = signature_hex {
+            out.push(',');
+            push_string_field(&mut out, "signature", signature);
+        }
+        out.push('}');
+        out
+    }
+}
+
+/// Parse a decimal or `0x`-prefixed `u64`, as the other signing requests do.
+fn parse_u64(text: &str, field: &str) -> Result<u64, String> {
+    json::parse_u64(text, field)
+}
+
+/// Milliseconds since the Unix epoch: nonzero and exactly representable in a
+/// JavaScript number.
+fn parse_timestamp(text: &str, field: &str) -> Result<u64, String> {
+    let value = parse_u64(text, field)?;
+    if value == 0 {
+        return Err(format!("{field} must be greater than zero"));
+    }
+    if value > MAX_JSON_SAFE {
+        return Err(format!(
+            "{field} exceeds 2^53 milliseconds and is not JSON-safe"
+        ));
+    }
+    Ok(value)
+}
+
+/// Decode a base58check TRON address: 21 bytes with the `0x41` prefix.
+fn parse_address(text: &str, field: &str) -> Result<[u8; 21], String> {
+    if text.len() >= 2 && (text.starts_with("0x") || text.starts_with("0X")) {
+        return Err(format!(
+            "{field} must be a TRON base58 address (T...), not a hex address"
+        ));
+    }
+    let payload =
+        base58::decode_check(text).map_err(|error| format!("invalid {field}: {error}"))?;
+    if payload.len() != 21 || payload[0] != ADDRESS_PREFIX {
+        return Err(format!(
+            "{field} is not a TRON address (base58check payload must be 21 bytes with the 0x41 prefix)"
+        ));
+    }
+    let mut address = [0u8; 21];
+    address.copy_from_slice(&payload);
+    Ok(address)
+}
+
+/// Parse exactly `N` bytes of bare hexadecimal text.
+fn parse_hex_fixed<const N: usize>(text: &str, field: &str) -> Result<[u8; N], String> {
+    if text.len() != N * 2 || !text.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(format!(
+            "{field} must be exactly {} hexadecimal characters",
+            N * 2
+        ));
+    }
+    let mut out = [0u8; N];
+    for (index, byte) in out.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&text[index * 2..index * 2 + 2], 16)
+            .map_err(|_| format!("{field} is not hexadecimal"))?;
+    }
+    Ok(out)
+}
+
+/// Protobuf varint.
+fn push_varint(out: &mut Vec<u8>, mut value: u64) {
+    loop {
+        let byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value == 0 {
+            out.push(byte);
+            return;
+        }
+        out.push(byte | 0x80);
+    }
+}
+
+fn push_tag(out: &mut Vec<u8>, field: u64, wire: u64) {
+    push_varint(out, (field << 3) | wire);
+}
+
+/// Length-delimited field (wire type 2).
+fn push_bytes_field(out: &mut Vec<u8>, field: u64, data: &[u8]) {
+    push_tag(out, field, 2);
+    push_varint(out, data.len() as u64);
+    out.extend_from_slice(data);
+}
+
+/// Varint field (wire type 0).
+fn push_varint_field(out: &mut Vec<u8>, field: u64, value: u64) {
+    push_tag(out, field, 0);
+    push_varint(out, value);
+}
+
+/// Append `"key":"value"`; every value here is constrained ASCII (hex, a
+/// base58 address or the fixed type URL), so no JSON escaping is needed.
+fn push_string_field(out: &mut String, key: &str, value: &str) {
+    let _ = write!(out, "\"{key}\":\"{value}\"");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scalar::Scalar;
+    use crate::secp;
+
+    const KEY1: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+    const OWNER: &str = "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC";
+    const TO: &str = "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K";
+
+    /// Independent Python reference (`hashlib` + a hand-written protobuf
+    /// encoder) for this exact request on 2026-11-20.
+    const RAW_DATA_HEX: &str = "0a0212ab2208001122334455667740e0a499ffbc315a67080112630a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412320a15417e5f4552091a69125d5dfcb7b8c2659029395bdf1215412b5ad5c4795c026514f8317c7a215e218dccd6cf18c0843d7080d095ffbc31900100";
+    const TX_ID: &str = "ceff5238d3200e6ea4a23f8de6608e61aa6bb757a505e93f4fed422631a32c4e";
+    /// RFC 6979 deterministic signature for the vector above (`v = 28`); the
+    /// recovery test below proves it belongs to the owner address.
+    const SIGNATURE: &str = "d990cf8db49841329b06d1c2c50e43d9481a7f762df4f603d321b8578454c0e62fe71d4d72db7bc8f95ac9d60cf5da983ba64ea13d6325e36fc99d9e46bb8a631c";
+
+    fn body() -> String {
+        format!(
+            r#""owner_address":"{OWNER}","to_address":"{TO}","amount":"1000000",
+               "ref_block_bytes":"12ab","ref_block_hash":"0011223344556677",
+               "expiration":"1700000060000","timestamp":"1700000000000""#
+        )
+    }
+
+    fn unsigned() -> String {
+        format!("{{{}}}", body())
+    }
+
+    fn signed() -> String {
+        format!("{{{},\"private_key\":\"0x{KEY1}\"}}", body())
+    }
+
+    fn key_bytes() -> [u8; 32] {
+        let mut key = [0u8; 32];
+        key[31] = 1;
+        key
+    }
+
+    /// Derive the TRON address from a private key, so the pinned vector is
+    /// self-consistent with the signer that must recover it.
+    fn address_for_key(key: &[u8; 32]) -> String {
+        let scalar = Scalar::from_bytes_be(key).expect("valid scalar");
+        let last20 = secp::eth_address(&secp::mul_g(&scalar));
+        let mut payload = [0u8; 21];
+        payload[0] = ADDRESS_PREFIX;
+        payload[1..].copy_from_slice(&last20);
+        base58::encode_check(&payload)
+    }
+
+    #[test]
+    fn owner_address_is_derived_from_the_test_key() {
+        assert_eq!(address_for_key(&key_bytes()), OWNER);
+        // Key 2's TRON address is the pinned destination.
+        let mut key = [0u8; 32];
+        key[31] = 2;
+        assert_eq!(address_for_key(&key), TO);
+    }
+
+    #[test]
+    fn unsigned_vector_matches_the_independent_encoding() {
+        let result = unsigned_request(&unsigned()).expect("unsigned request");
+        assert!(result.starts_with(r#"{"txID":"ceff5238"#));
+
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(value["txID"], TX_ID);
+        assert_eq!(value["raw_data_hex"], RAW_DATA_HEX);
+        assert!(value.get("signature").is_none());
+
+        let raw = &value["raw_data"];
+        assert_eq!(raw["ref_block_bytes"], "12ab");
+        assert_eq!(raw["ref_block_hash"], "0011223344556677");
+        assert_eq!(raw["expiration"], 1_700_000_060_000u64);
+        assert_eq!(raw["timestamp"], 1_700_000_000_000u64);
+        assert_eq!(raw["fee_limit"], 0);
+        let contract = &raw["contract"][0];
+        assert_eq!(contract["type"], "TransferContract");
+        assert_eq!(
+            contract["parameter"]["type_url"],
+            "type.googleapis.com/protocol.TransferContract"
+        );
+        assert_eq!(
+            contract["parameter"]["value"]["owner_address"],
+            format!("41{}", "7e5f4552091a69125d5dfcb7b8c2659029395bdf")
+        );
+        assert_eq!(contract["parameter"]["value"]["amount"], 1_000_000u64);
+    }
+
+    #[test]
+    fn signature_is_deterministic_and_recovers_the_owner() {
+        let first = sign_request(&signed()).expect("sign");
+        let second = sign_request(&signed()).expect("sign again");
+        assert_eq!(first, second);
+
+        let value: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert_eq!(value["txID"], TX_ID);
+        assert_eq!(value["raw_data_hex"], RAW_DATA_HEX);
+        let signature_hex = value["signature"].as_str().unwrap();
+        assert_eq!(signature_hex, SIGNATURE);
+        assert_eq!(signature_hex.len(), 130, "65 bytes r||s||v");
+
+        let bytes: Vec<u8> = (0..signature_hex.len())
+            .step_by(2)
+            .map(|index| u8::from_str_radix(&signature_hex[index..index + 2], 16).unwrap())
+            .collect();
+        assert!(matches!(bytes[64], 27 | 28), "v = 27 + recovery_id");
+
+        let mut r = [0u8; 32];
+        r.copy_from_slice(&bytes[..32]);
+        let mut s = [0u8; 32];
+        s.copy_from_slice(&bytes[32..64]);
+        let signature = sign::Signature {
+            r: Scalar::from_bytes_be(&r).unwrap(),
+            s: Scalar::from_bytes_be(&s).unwrap(),
+            recovery: bytes[64] - 27,
+        };
+
+        let mut tx_id = [0u8; 32];
+        tx_id.copy_from_slice(&json::parse_bytes(TX_ID, "txID").unwrap());
+        assert!(sign::verify(
+            &secp::mul_g(&Scalar::from_u64(1)),
+            &tx_id,
+            &signature.r,
+            &signature.s
+        ));
+
+        let recovered = sign::recover(&tx_id, &signature).expect("recover");
+        let mut payload = [0u8; 21];
+        payload[0] = ADDRESS_PREFIX;
+        payload[1..].copy_from_slice(&secp::eth_address(&recovered));
+        assert_eq!(base58::encode_check(&payload), OWNER);
+    }
+
+    #[test]
+    fn unsigned_request_rejects_a_key_and_unknown_fields() {
+        assert!(unsigned_request(&signed()).is_err());
+        let unknown = format!("{{\"extra\":\"x\",{}}}", body());
+        assert!(unsigned_request(&unknown).is_err());
+        let duplicate = format!("{{{},\"amount\":\"1\"}}", body());
+        assert!(unsigned_request(&duplicate).is_err());
+        let missing = unsigned().replace(r#""amount":"1000000","#, "");
+        assert!(unsigned_request(&missing).is_err());
+        assert!(unsigned_request("{}").is_err());
+        assert!(unsigned_request(&format!("{}x", unsigned())).is_err());
+    }
+
+    #[test]
+    fn rejects_wrong_address_networks_and_checksums() {
+        let valid = unsigned();
+
+        // Bitcoin mainnet P2PKH: valid base58check, but a 0x00 payload prefix.
+        assert!(
+            unsigned_request(&valid.replace(TO, "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH")).is_err()
+        );
+        // EVM hex address.
+        assert!(
+            unsigned_request(&valid.replace(TO, "0x2b5ad5c4795c026514f8317c7a215e218dccd6cf"))
+                .is_err()
+        );
+        // A one-character checksum change.
+        let mut flipped = TO.to_owned();
+        flipped.pop();
+        flipped.push(if TO.ends_with('K') { 'L' } else { 'K' });
+        assert!(unsigned_request(&valid.replace(TO, &flipped)).is_err());
+        // Correct prefix but the wrong payload length.
+        let short = base58::encode_check(&[ADDRESS_PREFIX; 20]);
+        assert!(unsigned_request(&valid.replace(TO, &short)).is_err());
+        // Not base58 at all.
+        assert!(unsigned_request(&valid.replace(TO, "not-an-address")).is_err());
+    }
+
+    #[test]
+    fn rejects_out_of_range_amounts_and_fee_limits() {
+        let valid = unsigned();
+        for amount in ["0", "-1", "9223372036854775808", "1.5", "1e6", "hi"] {
+            assert!(
+                unsigned_request(
+                    &valid.replace(r#""amount":"1000000""#, &format!(r#""amount":"{amount}""#))
+                )
+                .is_err(),
+                "amount {amount}"
+            );
+        }
+        assert!(
+            unsigned_request(
+                &valid.replace(r#""amount":"1000000""#, r#""amount":"9223372036854775807""#)
+            )
+            .is_ok()
+        );
+
+        for fee in ["100000001", "-1", "x"] {
+            let request = format!(
+                "{{{},\"fee_limit\":\"{fee}\"}}",
+                body().trim_end_matches(',')
+            );
+            assert!(unsigned_request(&request).is_err(), "fee_limit {fee}");
+        }
+        let accepted = format!(
+            "{{{},\"fee_limit\":\"100000000\"}}",
+            body().trim_end_matches(',')
+        );
+        assert!(unsigned_request(&accepted).is_ok());
+    }
+
+    #[test]
+    fn rejects_bad_reference_blocks_and_timestamps() {
+        let valid = unsigned();
+        for (from, to) in [
+            (r#""ref_block_bytes":"12ab""#, r#""ref_block_bytes":"12""#),
+            (
+                r#""ref_block_bytes":"12ab""#,
+                r#""ref_block_bytes":"12abc""#,
+            ),
+            (r#""ref_block_bytes":"12ab""#, r#""ref_block_bytes":"12zz""#),
+            (
+                r#""ref_block_hash":"0011223344556677""#,
+                r#""ref_block_hash":"00112233445566""#,
+            ),
+            (
+                r#""ref_block_hash":"0011223344556677""#,
+                r#""ref_block_hash":"001122334455667788""#,
+            ),
+        ] {
+            assert!(unsigned_request(&valid.replace(from, to)).is_err(), "{to}");
+        }
+
+        for (field, original) in [
+            ("expiration", r#""expiration":"1700000060000""#),
+            ("timestamp", r#""timestamp":"1700000000000""#),
+        ] {
+            for value in ["0", "9007199254740993"] {
+                let replaced = valid.replace(original, &format!(r#""{field}":"{value}""#));
+                assert!(unsigned_request(&replaced).is_err(), "{field} {value}");
+            }
+        }
+        // The boundary itself is accepted.
+        let boundary = valid.replace(
+            r#""expiration":"1700000060000""#,
+            r#""expiration":"9007199254740992""#,
+        );
+        assert!(unsigned_request(&boundary).is_ok());
+    }
+
+    #[test]
+    fn rejects_invalid_private_keys() {
+        let valid = signed();
+        assert!(sign_request(&valid.replace(KEY1, &KEY1[2..])).is_err());
+        assert!(sign_request(&valid.replace(KEY1, "not-hex")).is_err());
+        let zero = "0".repeat(64);
+        assert!(sign_request(&valid.replace(KEY1, &zero)).is_err());
+        let order = "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141";
+        assert!(sign_request(&valid.replace(KEY1, order)).is_err());
+    }
+
+    #[test]
+    fn protobuf_helpers_match_reference_bytes() {
+        assert_eq!(push_varint_bytes(0), vec![0x00]);
+        assert_eq!(push_varint_bytes(127), vec![0x7f]);
+        assert_eq!(push_varint_bytes(128), vec![0x80, 0x01]);
+        assert_eq!(push_varint_bytes(300), vec![0xac, 0x02]);
+
+        let mut out = Vec::new();
+        push_bytes_field(&mut out, 1, &[0x12, 0xab]);
+        assert_eq!(out, vec![0x0a, 0x02, 0x12, 0xab]);
+
+        let mut out = Vec::new();
+        push_varint_field(&mut out, 18, 0);
+        assert_eq!(out, vec![0x90, 0x01, 0x00]);
+    }
+
+    fn push_varint_bytes(value: u64) -> Vec<u8> {
+        let mut out = Vec::new();
+        push_varint(&mut out, value);
+        out
+    }
+}
