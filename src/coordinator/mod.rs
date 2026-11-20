@@ -1921,7 +1921,10 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
     let end_short = &range.end[56..];
     let label = format!("0x{start_short}…–0x{end_short}…");
     let canonical = format!("{base}/keys/{}/{}-{}", chain.slug, range.start, range.end);
-    let title = format!("{} keys {label} — {} keys | Crypto", chain.name, range.count);
+    let title = format!(
+        "{} keys {label} — {} keys | Crypto",
+        chain.name, range.count
+    );
     let description = format!(
         "{} private keys from 0x{start_short}… to 0x{end_short}… (inclusive), derived locally in your browser. Crypto shows public addresses only; the keys are never sent to a server.",
         chain.name
@@ -3393,7 +3396,10 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
             chain.name
         )
     } else {
-        format!("{} mnemonic seeds — page {} | Crypto", chain.name, page_text)
+        format!(
+            "{} mnemonic seeds — page {} | Crypto",
+            chain.name, page_text
+        )
     };
     let description = format!(
         "Browse deterministic {} mnemonic seeds, 60 per page. Choose 12, 18 or 24 words, a BIP32 path and an address type, then derive addresses and balances in your browser. Page {}.",
@@ -5892,7 +5898,9 @@ mod tests {
         assert_eq!(status, 200);
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(
-            body.contains("<title>Bitcoin puzzle browser — client-side key search | Crypto</title>")
+            body.contains(
+                "<title>Bitcoin puzzle browser — client-side key search | Crypto</title>"
+            )
         );
         assert!(body.contains(&format!(
             "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle\">"
