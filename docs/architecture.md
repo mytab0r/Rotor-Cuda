@@ -1,4 +1,4 @@
-# Rotor architecture: four levels
+# Crypto architecture: four levels
 
 This document is the maintained map of the products and their optional
 connections. Update it whenever a new entry point, deployment target or
@@ -8,30 +8,30 @@ backend dependency is added.
 
 | Level | Product | What it is | Needs our domain? | Needs a backend? |
 |---|---|---|---|---|
-| 1 | **Rotor Desktop** (`src/`, `crates/`) | Self-contained Rust search tool and GPU/CPU engine. Solo puzzle/key search, all 18 chains. | No | No |
-| 2 | **Rotor Pool** (`src/coordinator/`) | Optional coordinator that leases ranges and aggregates results. You can self-host it or join ours. | Only for our hosted pool | Yes, the coordinator itself |
-| 3 | **Rotor Web** (`apps/site/`, cabinet) | Public calculators, seed studio, puzzle browser, key/chain pages, cabinet wallet, pool dashboard. | Yes for the hosted experience | Optional; static + serverless or the coordinator |
+| 1 | **Crypto Desktop** (`src/`, `crates/`) | Self-contained Rust search tool and GPU/CPU engine. Solo puzzle/key search, all 18 chains. | No | No |
+| 2 | **Crypto Pool** (`src/coordinator/`) | Optional coordinator that leases ranges and aggregates results. You can self-host it or join ours. | Only for our hosted pool | Yes, the coordinator itself |
+| 3 | **Crypto Web** (`apps/site/`, cabinet) | Public calculators, seed studio, puzzle browser, key/chain pages, cabinet wallet, pool dashboard. | Yes for the hosted experience | Optional; static + serverless or the coordinator |
 | 4 | **Shared core, data and ops** | Chain/address/WASM derivation, datasets, docs, deploy, CI. | No | No |
 
 The desktop app is **not** a client of the website. It works offline and never
-needs a Rotor account. Joining the pool is an explicit option; only then does it
+needs a Crypto account. Joining the pool is an explicit option; only then does it
 talk to a coordinator.
 
 ```mermaid
 flowchart TB
-  subgraph P1["1 · Rotor Desktop (self-contained)"]
+  subgraph P1["1 · Crypto Desktop (self-contained)"]
     D[CLI / GPU engine]
     D -->|solo| L[(local state)]
     D -->|optional --coordinator| P2
   end
 
-  subgraph P2["2 · Rotor Pool (optional coordinator)"]
+  subgraph P2["2 · Crypto Pool (optional coordinator)"]
     C[Coordinator API]
     C --> S[(leases / jobs / results)]
     C --> ST[stats + leaderboard]
   end
 
-  subgraph P3["3 · Rotor Web (optional front door)"]
+  subgraph P3["3 · Crypto Web (optional front door)"]
     W[Calculators / seeds / puzzles]
     K[Key + chain explorer]
     CAB[Cabinet wallet]
@@ -77,7 +77,7 @@ server with a reverse proxy.
 
 ## Internal documentation artifacts
 
-The site parity audit (every Rotor route and feature compared with
+The site parity audit (every Crypto route and feature compared with
 ref-site-a and ref-site-b) is internal documentation, not a public
 route. It lives at `docs/site-map/index.html` and is opened directly or through
 a local static server; the coordinator does not embed or serve it.
