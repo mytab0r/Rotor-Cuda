@@ -97,7 +97,8 @@
     xrp_classic: 'XRP classic address',
     zcash_p2pkh: 'Zcash transparent',
     sui: 'Sui account',
-    ton: 'TON wallet v4R2'
+    ton: 'TON wallet v4R2',
+    ton_w5: 'TON wallet W5'
   };
 
   var EXPLAIN = {
@@ -120,7 +121,8 @@
     xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).',
     zcash_p2pkh: 'Zcash transparent address: two-byte version 0x1cb8 || hash160(pubkey), base58check.',
     sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.',
-    ton: 'TON wallet: address of the standard v4R2 contract whose StateInit stores this ed25519 public key.'
+    ton: 'TON wallet: address of the standard v4R2 contract whose StateInit stores this ed25519 public key.',
+    ton_w5: 'TON wallet W5: address of the standard wallet_v5 contract whose StateInit stores this ed25519 public key.'
   };
 
   var STEP_ORDER = {
@@ -140,7 +142,9 @@
     bch_cashaddr: ['pubkey', 'hash160', 'cashaddr'],
     doge_p2pkh_uncompressed: ['pubkey', 'hash160', 'base58'],
     zcash_p2pkh_uncompressed: ['pubkey', 'hash160', 'base58'],
-    xrp_classic: ['pubkey', 'hash160', 'payload', 'checksum', 'base58']
+    xrp_classic: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
+    sui: ['pubkey', 'blake2b'],
+    ton_w5: ['pubkey', 'state_init_hash', 'address']
   };
 
   var STEP_LABELS = {
@@ -160,7 +164,10 @@
     output_x: 'output key x',
     parity: 'parity',
     keccak: 'Keccak-256',
-    last20: 'last 20 bytes'
+    last20: 'last 20 bytes',
+    blake2b: 'BLAKE2b-256',
+    state_init_hash: 'StateInit hash',
+    address: 'address'
   };
 
   /* Address-row ids grouped by chain tab. Prefixes match both exact ids
@@ -191,6 +198,11 @@
     wasmPromise: null,
     keyBytes: null,
     report: null,
+    secpReport: null,
+    edReport: null,
+    addressRows: [],
+    tonRow: null,
+    rangeNote: '',
     preset: 'all',
     chain: 'all',
     focusId: null,
@@ -444,10 +456,8 @@
     if (parsed.format === 'keypair' && curve !== 1) {
       throw new Error('A Solana keypair is an ed25519 seed; switch the curve to ed25519.');
     }
-    var value = bytesToBigInt(parsed.bytes);
-    if (curve === 0 && (value === 0n || value >= SECP_N)) {
-      throw new Error('secp256k1 keys must be in the range 1 .. n-1.');
-    }
+    /* An out-of-range secp256k1 value is not an input error: the page still
+     * renders the ed25519 rows and shows a note (see runDerive). */
     return parsed;
   }
 
@@ -588,6 +598,11 @@
     if (keyStats) keyStats.hidden = true;
     setExportStatus('');
     state.report = null;
+    state.secpReport = null;
+    state.edReport = null;
+    state.addressRows = [];
+    state.tonRow = null;
+    state.rangeNote = '';
     state.focusId = null;
     if (evmSharedNote) evmSharedNote.hidden = true;
     summaryPlaceholder();
@@ -602,9 +617,10 @@
   function updateDerivedStatus() {
     var count = rowsEl.querySelectorAll('.key-row').length;
     var network = state.wifNetwork && WIF_NETWORK_LABELS[state.wifNetwork];
+    var note = state.rangeNote ? ' ' + state.rangeNote : '';
     setStatus('derived', 'Derived ' + count + ' address row' + (count === 1 ? '' : 's') +
       ' from a ' + formatHint(detectFormat(input.value)) +
-      (network ? ' (' + network + ' network)' : '') + '.');
+      (network ? ' (' + network + ' network)' : '') + '.' + note);
   }
 
   async function runDerive(bytes, curve, seq) {
@@ -614,9 +630,27 @@
     try {
       var wasm = await loadWasm();
       if (seq !== state.deriveSeq) return;
-      var report = deriveReport(wasm, bytes, curve);
+      /* The donor derives every 32-byte value on both curves: the secp256k1
+       * report covers the UTXO/EVM chains and the ed25519 report covers SOL,
+       * SUI and the TON wallets. A value at or above the secp256k1 order has
+       * no secp report; the ed25519 rows still render and a note explains it. */
+      var secpReport = null;
+      var rangeNote = '';
+      try {
+        secpReport = deriveReport(wasm, bytes, 0);
+      } catch (err) {
+        rangeNote = 'This value is outside the secp256k1 range 1..n-1, so only ' +
+          'the ed25519 addresses are shown (' + (err && err.message ? err.message : String(err)) + ').';
+      }
       if (seq !== state.deriveSeq) return;
-      await renderReport(report);
+      var edReport = deriveReport(wasm, bytes, 1);
+      if (seq !== state.deriveSeq) return;
+      state.secpReport = secpReport;
+      state.edReport = edReport;
+      state.tonRow = null;
+      state.rangeNote = secpReport ? '' : rangeNote;
+      var primary = curve === 1 || !secpReport ? edReport : secpReport;
+      await renderReport(primary);
       if (seq !== state.deriveSeq) return;
       updateDerivedStatus();
       syncStepGroup(true);
@@ -758,10 +792,11 @@
     await renderSummary(report);
     if (summaryCard) summaryCard.hidden = false;
     if (addressesCard) addressesCard.hidden = false;
-    attachComputedTypes(report);
-    renderAddresses(report);
-    attachTon(report);
-    if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
+    state.addressRows = mergeAddressRows();
+    renderAddresses();
+    attachTon();
+    var exposureSource = { addresses: state.addressRows };
+    if (state.urlKey && !state.urlExposurePosted) scheduleExposure(exposureSource, true);
     else hideExposureStatus();
     checkVisibleBalances();
   }
@@ -918,44 +953,27 @@
     updateCounters();
   }
 
-  /* Public display rows: the single EVM account becomes the donor's ninth
-   * EVM row (a generic 0x parent) followed by eight network rows that show
-   * the same address as "↑ same". Chain groups follow the donor order. */
-  function displayAddresses(report) {
-    var addresses = Array.isArray(report.addresses) ? report.addresses : [];
-    var out = [];
-    addresses.forEach(function (addr) {
-      if (!addr || !addr.id || !addr.address) return;
-      if (addr.id === 'evm') {
-        out.push({
-          id: 'evm_parent',
-          label: 'EVM (shared 0x address)',
-          address: addr.address,
-          steps: addr.steps,
-          sharedParent: true
-        });
-        EVM_IDS.forEach(function (id) {
-          out.push({
-            id: id,
-            label: EVM_CHAINS[id].label,
-            address: addr.address,
-            steps: null,
-            sharedEvm: true
-          });
-        });
-        return;
-      }
-      out.push(addr);
-    });
+  /* Public display rows: both curves are merged into state.addressRows, the
+   * single EVM account becomes the donor's ninth EVM row (a generic 0x parent
+   * followed by eight network rows that show the same address as "↑ same"),
+   * and chain groups follow the donor order. */
+  function displayAddresses() {
+    var rows = Array.isArray(state.addressRows) ? state.addressRows : [];
     var helper = window.RotorKeyTools;
+    if (helper && typeof helper.expandEvmAddresses === 'function') {
+      var networks = EVM_IDS.map(function (id) {
+        return { id: id, label: EVM_CHAINS[id].label };
+      });
+      rows = helper.expandEvmAddresses(rows, networks, 'EVM (shared 0x address)');
+    }
     return helper && typeof helper.orderAddressRows === 'function'
-      ? helper.orderAddressRows(out)
-      : out;
+      ? helper.orderAddressRows(rows)
+      : rows;
   }
 
-  function renderAddresses(report) {
+  function renderAddresses() {
     rowsEl.textContent = '';
-    var addresses = displayAddresses(report);
+    var addresses = displayAddresses();
     if (!addresses.length) {
       state.focusId = null;
       if (evmSharedNote) evmSharedNote.hidden = true;
@@ -974,7 +992,7 @@
       });
     }
     resetBalanceBadges();
-    updateChainAvailability(Array.isArray(report.addresses) ? report.addresses : [], report.curve);
+    updateChainAvailability(addresses, state.report ? state.report.curve : null);
     ensureBtcFocus();
     applyFilters();
     syncSelection(false, false);
@@ -1010,37 +1028,51 @@
     return tonLoader;
   }
 
-  function attachTon(report) {
-    if (!report || report.curve !== 'ed25519' || !report.ed_pubkey) return;
-    if (Array.isArray(report.addresses) && report.addresses.some(function (row) { return row.id === 'ton'; })) return;
+  function attachTon() {
+    var report = state.edReport;
+    if (!report || !report.ed_pubkey) return;
+    if ((state.addressRows || []).some(function (row) { return row.id === 'ton'; })) return;
     loadTon().then(function (ton) {
       return ton.address(report.ed_pubkey);
     }).then(function (address) {
-      if (!address || state.report !== report) return;
-      report.addresses.push({ id: 'ton', label: 'TON wallet v4R2', address: address, steps: {} });
-      renderAddresses(report);
+      if (!address || state.edReport !== report) return;
+      state.tonRow = { id: 'ton', label: 'TON wallet v4R2', address: address, steps: {}, curve: 'ed25519' };
+      state.addressRows = mergeAddressRows();
+      renderAddresses();
       updateDerivedStatus();
     }).catch(function () {
-      /* Solana and Sui remain usable without the TON bundle */
+      /* Solana, Sui and the W5 row remain usable without the TON bundle */
     });
   }
 
   /* CashAddr and the uncompressed Dogecoin/Zcash rows are pure encodings of
-   * hash160 values the WASM report already returned, so they are appended
-   * synchronously before the rows are rendered. */
-  function attachComputedTypes(report) {
+   * hash160 values the WASM secp report already returned, so they join the
+   * merged rows without another derivation. */
+  function computedRows(report) {
     var types = window.RotorAddressCodecs;
-    if (!types || typeof types.derive !== 'function') return;
-    if (!report || !Array.isArray(report.addresses)) return;
+    if (!types || typeof types.derive !== 'function') return [];
+    if (!report || !Array.isArray(report.addresses)) return [];
     var derived = types.derive(report);
+    var rows = [];
     Object.keys(derived).forEach(function (id) {
       var row = derived[id];
-      if (!row || typeof row.address !== 'string' || !row.address) return;
-      var present = report.addresses.some(function (existing) {
-        return !!existing && existing.id === id;
-      });
-      if (!present) report.addresses.push(row);
+      if (row && typeof row.address === 'string' && row.address) rows.push(row);
     });
+    return rows;
+  }
+
+  /* One table for both curves, as the donor renders it. */
+  function mergeAddressRows() {
+    var helper = window.RotorKeyTools;
+    var extras = {
+      secp: computedRows(state.secpReport),
+      ed25519: state.tonRow ? [state.tonRow] : []
+    };
+    if (helper && typeof helper.mergeCurveAddresses === 'function') {
+      return helper.mergeCurveAddresses(state.secpReport, state.edReport, extras);
+    }
+    var report = state.report;
+    return report && Array.isArray(report.addresses) ? report.addresses.slice() : [];
   }
 
   function explorerFor(id) {
@@ -1058,7 +1090,8 @@
       tron: 'https://tronscan.org/#/address/',
       solana: 'https://solscan.io/account/',
       sui: 'https://suiscan.xyz/mainnet/account/',
-      ton: 'https://tonviewer.com/'
+      ton: 'https://tonviewer.com/',
+      ton_w5: 'https://tonviewer.com/'
     };
     return map[id] || '';
   }
@@ -1207,6 +1240,7 @@
     row.className = 'key-row';
     row.setAttribute('data-id', addr.id);
     row.setAttribute('data-address', addr.address);
+    row.setAttribute('data-curve', addr.curve || '');
     row.setAttribute('data-group', rowGroup(addr.id));
     if (addr.sharedParent) row.setAttribute('data-parent', '1');
 
@@ -1527,7 +1561,7 @@
   function emptyMessage() {
     var name = CHAIN_NAMES[state.chain];
     if (name && state.report && state.report.curve !== 'ed25519' &&
-        !chainHasRows(state.chain, state.report.addresses)) {
+        !chainHasRows(state.chain, state.addressRows)) {
       return name + ' addresses are coming soon. The derivation core does not report ' +
         state.chain + '_* rows yet.';
     }
