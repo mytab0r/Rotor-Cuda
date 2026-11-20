@@ -1049,25 +1049,25 @@ const BTC_TYPES: &[AddressType] = &[
     AddressType {
         value: "legacy",
         label: "Legacy",
-        desc: "P2PKH · 1…",
+        desc: "P2PKH · 1...",
         field: "btc_p2pkh",
     },
     AddressType {
         value: "segwit",
         label: "SegWit",
-        desc: "P2WPKH · bc1q…",
+        desc: "P2WPKH · bc1q...",
         field: "btc_p2wpkh",
     },
     AddressType {
         value: "script",
         label: "Nested SegWit",
-        desc: "P2SH · 3…",
+        desc: "P2SH · 3...",
         field: "btc_p2sh_p2wpkh",
     },
     AddressType {
         value: "taproot",
         label: "Taproot",
-        desc: "P2TR · bc1p…",
+        desc: "P2TR · bc1p...",
         field: "btc_p2tr",
     },
 ];
@@ -1180,7 +1180,6 @@ struct ChainHub {
     name: &'static str,
     symbol: &'static str,
     description: &'static str,
-    intro: &'static str,
     /// Solana key pages derive on ed25519; the others default to secp256k1.
     curve_suffix: &'static str,
     kind: AddressKind,
@@ -1195,7 +1194,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Bitcoin",
         symbol: "BTC",
         description: "Legacy P2PKH, SegWit, Nested SegWit and Taproot addresses derived from one key.",
-        intro: "Every private key maps to several Bitcoin addresses. Pick an address type, then open any key to derive it locally in your browser.",
         curve_suffix: "",
         kind: AddressKind::Bitcoin,
         color: "#f7931a",
@@ -1207,7 +1205,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Ethereum",
         symbol: "ETH",
         description: "EIP-55 checksummed Ethereum addresses on the secp256k1 curve.",
-        intro: "Ethereum addresses are the last 20 bytes of keccak256 of the public key. Every key page derives the checksummed address locally.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#8a9cf5",
@@ -1219,7 +1216,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "BNB Chain",
         symbol: "BNB",
         description: "BNB Smart Chain addresses shared with every EVM network.",
-        intro: "BNB Chain uses the same secp256k1 key and EVM address encoding as Ethereum. Switch the network in your wallet; the address stays the same.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#f3ba2f",
@@ -1231,7 +1227,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Arbitrum",
         symbol: "ETH",
         description: "Arbitrum One addresses derived on secp256k1.",
-        intro: "Arbitrum One is an EVM rollup: the private key derives the same 0x address as Ethereum, with fees paid on Arbitrum.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#28a0f0",
@@ -1243,7 +1238,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Optimism",
         symbol: "ETH",
         description: "OP Mainnet addresses derived on secp256k1.",
-        intro: "OP Mainnet is an EVM rollup. The key derives the same 0x address as Ethereum, and the address is controlled on the OP network.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#ff0420",
@@ -1255,7 +1249,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Base",
         symbol: "ETH",
         description: "Base addresses derived on secp256k1.",
-        intro: "Base is an EVM rollup by Coinbase. The same key gives the same 0x address as Ethereum; only the network changes.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#0052ff",
@@ -1267,7 +1260,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Polygon",
         symbol: "POL",
         description: "Polygon PoS addresses derived on secp256k1.",
-        intro: "Polygon PoS is EVM-compatible. One key derives the 0x address shown across Ethereum, Polygon and other EVM chains.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#a06ee8",
@@ -1279,7 +1271,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Avalanche",
         symbol: "AVAX",
         description: "Avalanche C-Chain addresses on secp256k1.",
-        intro: "The Avalanche C-Chain is EVM-compatible. The key derives a 0x address; the X-Chain uses a different encoding and is out of scope.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#e84142",
@@ -1291,7 +1282,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "zkSync Era",
         symbol: "ETH",
         description: "zkSync Era addresses derived on secp256k1.",
-        intro: "zkSync Era is an EVM rollup. The same key controls the same 0x address, with zkSync-specific account abstraction available on top.",
         curve_suffix: "",
         kind: AddressKind::Evm,
         color: "#8c8dfc",
@@ -1303,7 +1293,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Solana",
         symbol: "SOL",
         description: "ed25519 accounts encoded as base58 public keys.",
-        intro: "Solana accounts use ed25519. Every key page on this hub switches the derivation to ed25519 and runs locally in your browser.",
         curve_suffix: "?curve=ed25519",
         kind: AddressKind::Solana,
         color: "#14f195",
@@ -1315,7 +1304,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "TRON",
         symbol: "TRX",
         description: "Base58Check TRON addresses with the 0x41 version byte.",
-        intro: "TRON addresses use secp256k1 and the same keccak hash as EVM, then a 0x41 prefix and Base58Check. Derivation runs in your browser.",
         curve_suffix: "",
         kind: AddressKind::Tron,
         color: "#ff4d4d",
@@ -1323,11 +1311,32 @@ const CHAINS: [ChainHub; 18] = [
         explorer: "https://tronscan.org/#/address/",
     },
     ChainHub {
+        slug: "ton",
+        name: "TON",
+        symbol: "TON",
+        description: "TON Wallet v4R2 addresses derived from the ed25519 public key.",
+        curve_suffix: "?curve=ed25519",
+        kind: AddressKind::Ton,
+        color: "#0098ea",
+        icon: "chain-ton",
+        explorer: "https://tonviewer.com/",
+    },
+    ChainHub {
+        slug: "sui",
+        name: "Sui",
+        symbol: "SUI",
+        description: "Sui ed25519 accounts hashed with BLAKE2b-256.",
+        curve_suffix: "?curve=ed25519",
+        kind: AddressKind::Sui,
+        color: "#6fbcf0",
+        icon: "chain-sui",
+        explorer: "https://suiscan.xyz/mainnet/account/",
+    },
+    ChainHub {
         slug: "xrp",
         name: "XRP",
         symbol: "XRP",
         description: "Classic r-addresses with the Ripple Base58 alphabet.",
-        intro: "XRP classic addresses use secp256k1, hash160 and the Ripple Base58 alphabet. Open any key to derive its r-address locally.",
         curve_suffix: "",
         kind: AddressKind::Xrp,
         color: "#7fa8d9",
@@ -1339,7 +1348,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Litecoin",
         symbol: "LTC",
         description: "Legacy, Nested SegWit and native SegWit Litecoin addresses.",
-        intro: "Litecoin uses secp256k1 with its own version bytes. Switch the address type to derive legacy, P2SH-SegWit and ltc1 SegWit forms.",
         curve_suffix: "",
         kind: AddressKind::Litecoin,
         color: "#b8c2d6",
@@ -1351,7 +1359,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Bitcoin Cash",
         symbol: "BCH",
         description: "Legacy P2PKH addresses and the BCH derivation path.",
-        intro: "Bitcoin Cash shares the secp256k1 key format with Bitcoin. The legacy P2PKH address is derived locally in your browser.",
         curve_suffix: "",
         kind: AddressKind::BitcoinCash,
         color: "#8dc351",
@@ -1363,7 +1370,6 @@ const CHAINS: [ChainHub; 18] = [
         name: "Dogecoin",
         symbol: "DOGE",
         description: "Legacy Dogecoin addresses with the 0x1e version byte.",
-        intro: "Dogecoin uses secp256k1 and the 0x1e version byte. Open any key to see its Dogecoin address derived locally in your browser.",
         curve_suffix: "",
         kind: AddressKind::Dogecoin,
         color: "#c2a633",
@@ -1375,36 +1381,11 @@ const CHAINS: [ChainHub; 18] = [
         name: "Zcash",
         symbol: "ZEC",
         description: "Transparent Zcash t-addresses with the two-byte 0x1cb8 prefix.",
-        intro: "Zcash transparent addresses use secp256k1 and a two-byte version prefix. Shielded addresses are a separate protocol and are not derived here.",
         curve_suffix: "",
         kind: AddressKind::Zcash,
         color: "#ecb244",
         icon: "chain-zcash",
         explorer: "https://blockchair.com/zcash/address/",
-    },
-    ChainHub {
-        slug: "sui",
-        name: "Sui",
-        symbol: "SUI",
-        description: "Sui ed25519 accounts hashed with BLAKE2b-256.",
-        intro: "Sui derives an account address as BLAKE2b-256 of the ed25519 scheme flag plus the public key. Open any key to derive the 0x address locally.",
-        curve_suffix: "?curve=ed25519",
-        kind: AddressKind::Sui,
-        color: "#6fbcf0",
-        icon: "chain-sui",
-        explorer: "https://suiscan.xyz/mainnet/account/",
-    },
-    ChainHub {
-        slug: "ton",
-        name: "TON",
-        symbol: "TON",
-        description: "TON Wallet v4R2 addresses derived from the ed25519 public key.",
-        intro: "A TON wallet address is the hash of the wallet contract StateInit. Crypto builds the standard v4R2 wallet locally from the ed25519 key; the contract is not deployed until it receives funds.",
-        curve_suffix: "?curve=ed25519",
-        kind: AddressKind::Ton,
-        color: "#0098ea",
-        icon: "chain-ton",
-        explorer: "https://tonviewer.com/",
     },
 ];
 
@@ -2943,9 +2924,15 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         } else {
             ""
         };
+        // The donor's chain tabs default TON and Bitcoin Cash to the legacy
+        // address type with an explicit `?type=legacy`; the other 16 chains
+        // link to the bare slug.
+        let href = match other.slug {
+            "ton" | "bitcoin-cash" => format!("/private-keys/{}?type=legacy", other.slug),
+            _ => format!("/private-keys/{}", other.slug),
+        };
         tabs.push_str(&format!(
-            "<a class=\"chain-tab{active}\" href=\"/private-keys/{}\" style=\"--chain:{}\">{}<span>{}</span></a>",
-            other.slug,
+            "<a class=\"chain-tab{active}\" href=\"{href}\" style=\"--chain:{}\">{}<span>{}</span></a>",
             other.color,
             chain_icon(other, "chain-tab-icon"),
             other.name,
@@ -2967,14 +2954,11 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
              <div class=\"col-key\">\
              <a class=\"private-key mono\" href=\"/key/{hex}{curve_suffix}\" title=\"{hex}\">{hex}</a>\
              <button type=\"button\" class=\"icon-btn copy-btn\" data-copy=\"{hex}\" aria-label=\"Copy private key\">{copy}</button>\
-             <button type=\"button\" class=\"icon-btn details-btn\" aria-expanded=\"false\" aria-label=\"Show key details\">{chevron}</button>\
              </div>\
              <div class=\"col-address\"><span class=\"cell-skeleton\">Calculating…</span></div>\
              <div class=\"col-balance\"><span class=\"cell-skeleton\">—</span></div>\
-             <div class=\"key-details\" hidden></div>\
              </div>",
             copy = ui_icon("ui-copy", "icon"),
-            chevron = ui_icon("ui-chevron", "icon"),
         ));
     }
 
@@ -3006,6 +2990,14 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
 
     let mut search_options = String::new();
     for kind in chain.kind.types() {
+        // The donor's Bitcoin search select spells the address prefix out.
+        let label = match (chain.slug, kind.value) {
+            ("bitcoin", "legacy") => "Legacy (1...)",
+            ("bitcoin", "segwit") => "SegWit (bc1q...)",
+            ("bitcoin", "script") => "Nested (3...)",
+            ("bitcoin", "taproot") => "Taproot (bc1p...)",
+            _ => kind.label,
+        };
         search_options.push_str(&format!(
             "<option value=\"{}\"{}>{}</option>",
             kind.value,
@@ -3014,7 +3006,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
             } else {
                 ""
             },
-            kind.label
+            label
         ));
     }
     let search_select = if chain.kind.types().len() > 1 {
@@ -3043,14 +3035,17 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     let random = random_page(chain);
     let curve_data = chain.kind.curve();
     let retry_icon = ui_icon("ui-retry", "icon");
+    // The donor labels the balance column with the coin, not the chain.
+    let balance_label = if chain.slug == "bitcoin" {
+        "BTC"
+    } else {
+        chain.name
+    };
 
     let body = format!(
         "{}{}<main class=\"browse-page\" style=\"--chain:{}\" data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-type=\"{}\" data-field=\"{}\" data-curve=\"{}\" data-pages=\"{}\" data-page=\"{}\">\
          <nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><a href=\"/\">Home</a> <span>/</span> <a href=\"/private-keys\">Private Keys</a> <span>/</span> <span aria-current=\"page\">{}</span></nav>\
-         <section class=\"browse-hero\">\
-           <div class=\"browse-hero-title\">{}<h1>{} private keys</h1></div>\
-           <p>{}</p>\
-         </section>\
+         <h1 class=\"visually-hidden\">{} private keys</h1>\
          <div class=\"chain-tabs\" role=\"navigation\" aria-label=\"Chains\">{tabs}</div>\
          <section class=\"page-info\">\
            <div class=\"page-info-text\">{}<span>{} keys page <strong>#{}</strong> out of <strong>#{}</strong></span><span class=\"page-percent\">{}</span></div>\
@@ -3073,16 +3068,16 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
          <section class=\"search-panel\">\
            <form id=\"browse-search\" class=\"browse-search\">\
              <div class=\"search-leading\">{}</div>\
-             <input id=\"browse-search-input\" type=\"text\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"HEX, WIF (5/K/L), or brainwallet\" aria-label=\"Search a private key, WIF or brainwallet\">\
+             <input id=\"browse-search-input\" type=\"text\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"HEX, WIF (5/K/L), or Brainwallet\" aria-label=\"Search a private key, WIF or brainwallet\">\
              {search_select}\
              <button type=\"submit\" class=\"primary\">{} Search</button>\
            </form>\
-           <p class=\"search-hint\">Supports 64-char HEX, a Bitcoin WIF, a 32/64-number byte array, or any text as a brainwallet. Derivation runs in your browser.</p>\
+           <p class=\"search-hint\">Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet</p>\
          </section>\
          <section class=\"balance-summary\" aria-label=\"Balance summary\">\
            <div class=\"stat-card\"><span class=\"stat-label\">Balance</span><span class=\"stat-value\" id=\"total-balance\">—</span></div>\
            <div class=\"stat-card\"><span class=\"stat-label\">Received</span><span class=\"stat-value\" id=\"total-received\">—</span></div>\
-           <div class=\"stat-card\"><span class=\"stat-label\">Transactions</span><span class=\"stat-value\" id=\"total-tx\">—</span></div>\
+           <div class=\"stat-card\"><span class=\"stat-label\">TX</span><span class=\"stat-value\" id=\"total-tx\">—</span></div>\
            <div class=\"balance-refresh\">\
              <button type=\"button\" class=\"balance-refresh-btn\" id=\"balance-refresh\" aria-label=\"Refresh 0 failed or stale balances\" disabled>{retry_icon}<span>Refresh failed / stale</span><span class=\"balance-refresh-count\" id=\"balance-refresh-count\" aria-hidden=\"true\">0</span></button>\
              <span class=\"visually-hidden\" id=\"balance-refresh-status\" role=\"status\" aria-atomic=\"true\"></span>\
@@ -3091,7 +3086,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
          </section>\
          {type_selector}\
          <section class=\"keys-panel\">\
-           <div class=\"keys-header\"><div class=\"col-key\">{} Private key</div><div class=\"col-address\">{} Address</div><div class=\"col-balance\">{} Balance</div></div>\
+           <div class=\"keys-header\"><div class=\"col-key\">{} Private Key</div><div class=\"col-address\">{} Address</div><div class=\"col-balance\">{} {balance_label} Balance</div></div>\
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
@@ -3108,9 +3103,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         total,
         page_text,
         chain.name,
-        chain_icon(chain, "browse-hero-icon"),
         chain.name,
-        escape_attr(chain.intro),
         chain_icon(chain, "page-info-icon"),
         chain.name,
         page_text,
@@ -3540,8 +3533,11 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
         1,
     );
     html = html.replace(
-        "<span data-chain-name>Directory</span>",
-        &format!("<span data-chain-name>{}</span>", escape_attr(chain.name)),
+        "<span data-chain-name aria-current=\"page\">Directory</span>",
+        &format!(
+            "<span data-chain-name aria-current=\"page\">{}</span>",
+            escape_attr(chain.name)
+        ),
     );
     html = html.replace(
         "<span data-chain-name>Chain</span>",
@@ -5776,7 +5772,8 @@ mod tests {
         assert!(script.contains("mnemonic-seeds"));
         assert!(script.contains("privateKeyFor"));
         assert!(script.contains("Copy mnemonic"));
-        assert!(directory.contains("mnemonic-key-line"));
+        assert!(script.contains("phraseText.textContent = entry.phrase"));
+        assert!(directory.contains("col-mnemonic"));
 
         let (body, _, status) = seo_asset(base, "/mnemonic-seeds/bitcoin", "").expect("chain page");
         assert_eq!(status, 200);
