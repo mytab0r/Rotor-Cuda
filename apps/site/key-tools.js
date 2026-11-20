@@ -603,11 +603,12 @@
    * XRP, LTC, BCH, DOGE, ZEC. Within a family the report order is kept. */
   var GROUP_ORDER = ['btc', 'evm', 'tron', 'solana', 'ton', 'sui', 'xrp', 'ltc', 'bch', 'doge', 'zcash'];
   var CHAIN_GROUP_TOTAL = 18;
-  var FAMILY_PREFIXES = ['btc', 'ltc', 'doge', 'bch', 'zcash', 'xrp'];
+  var FAMILY_PREFIXES = ['btc', 'ltc', 'doge', 'bch', 'zcash', 'xrp', 'ton'];
 
   /* Chain family used for ordering and counters. EVM rows keep their own
    * identity: the eight networks are eight chain groups, the generic parent
-   * row is not a chain at all. */
+   * row is not a chain at all. TON V4R2 and W5 are one chain family, so they
+   * share a chain cell and a single counter group. */
   function rowFamily(id) {
     var text = String(id == null ? '' : id);
     if (!text) return '';
@@ -641,6 +642,77 @@
     }).map(function (entry) {
       return entry.row;
     });
+  }
+
+  /* The donor key page derives any 32-byte value on both curves, so its table
+   * always carries the secp256k1 rows and the ed25519-only rows together.
+   * `secpReport` and `edReport` are the two derive_report outputs (either may
+   * be null: an out-of-range value has no secp256k1 report), and `extras`
+   * carries rows the JS encoders add: { secp: [...], ed25519: [...] }. Each
+   * returned row is tagged with the curve that produced it; ids are unique. */
+  var ED25519_ONLY_IDS = ['solana', 'sui', 'ton_w5'];
+
+  function mergeCurveAddresses(secpReport, edReport, extras) {
+    var out = [];
+    var seen = {};
+    function add(row, curve) {
+      if (!row || typeof row.id !== 'string' || !row.id) return;
+      if (typeof row.address !== 'string' || !row.address) return;
+      if (seen[row.id]) return;
+      seen[row.id] = true;
+      out.push(Object.assign({}, row, { curve: curve }));
+    }
+    function rowsOf(report) {
+      return report && Array.isArray(report.addresses) ? report.addresses : [];
+    }
+    var extra = extras || {};
+    rowsOf(secpReport).forEach(function (row) { add(row, 'secp256k1'); });
+    (Array.isArray(extra.secp) ? extra.secp : []).forEach(function (row) { add(row, 'secp256k1'); });
+    /* The TON V4R2 row is built by the page (the ed25519 report carries W5
+     * only), so extras land before the report rows and keep V4R2 above W5 in
+     * the TON group. */
+    (Array.isArray(extra.ed25519) ? extra.ed25519 : []).forEach(function (row) { add(row, 'ed25519'); });
+    rowsOf(edReport).forEach(function (row) {
+      if (row && ED25519_ONLY_IDS.indexOf(row.id) >= 0) add(row, 'ed25519');
+    });
+    return out;
+  }
+
+  /* The single EVM account becomes the donor's generic 0x parent row followed
+   * by one row per network id, all showing the same address ("↑ same").
+   * `networks` is [{ id, label }] in display order. */
+  function expandEvmAddresses(rows, networks, parentLabel) {
+    var list = Array.isArray(rows) ? rows : [];
+    var ids = Array.isArray(networks) ? networks : [];
+    var out = [];
+    list.forEach(function (row) {
+      if (!row || !row.id) return;
+      if (row.id !== 'evm') {
+        out.push(row);
+        return;
+      }
+      out.push({
+        id: 'evm_parent',
+        label: parentLabel || 'EVM (shared 0x address)',
+        address: row.address,
+        steps: row.steps,
+        sharedParent: true,
+        curve: row.curve
+      });
+      ids.forEach(function (network) {
+        var id = typeof network === 'string' ? network : network && network.id;
+        if (!id) return;
+        out.push({
+          id: id,
+          label: network && network.label ? network.label : id,
+          address: row.address,
+          steps: null,
+          sharedEvm: true,
+          curve: row.curve
+        });
+      });
+    });
+    return out;
   }
 
   /* rows: [{ group, visible }] in DOM order. The returned array is aligned
@@ -682,6 +754,7 @@
     zcash_p2pkh: 't1 (c)',
     zcash_p2pkh_uncompressed: 't1 (u)',
     ton: 'V4R2',
+    ton_w5: 'W5',
     sui: '0x',
     tron: 'Base58',
     solana: 'Base58',
@@ -784,6 +857,8 @@
     rowFamily: rowFamily,
     rowGroup: rowGroup,
     orderAddressRows: orderAddressRows,
+    mergeCurveAddresses: mergeCurveAddresses,
+    expandEvmAddresses: expandEvmAddresses,
     groupAddressRows: groupAddressRows,
     addressTypeLabel: addressTypeLabel,
     counterChainKey: counterChainKey,
