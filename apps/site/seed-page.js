@@ -953,9 +953,15 @@
 
   (async function restoreSearchPhrase() {
     var phrase = '';
+    var passphrase = '';
+    var count = '';
     try {
       phrase = sessionStorage.getItem('rotor-seed-phrase') || '';
+      passphrase = sessionStorage.getItem('rotor-seed-passphrase') || '';
+      count = sessionStorage.getItem('rotor-seed-count') || '';
       sessionStorage.removeItem('rotor-seed-phrase');
+      sessionStorage.removeItem('rotor-seed-passphrase');
+      sessionStorage.removeItem('rotor-seed-count');
     } catch (err) { phrase = ''; }
     if (!phrase) return;
     phraseEl.value = phrase;
@@ -971,6 +977,9 @@
       }
     }
     refreshControls();
+    if (passphraseEl && passphrase) passphraseEl.value = passphrase;
+    var countValue = Number(count);
+    if ([1, 3, 5, 10].indexOf(countValue) >= 0) setCount(countValue);
     deriveAll();
   })();
 
