@@ -268,7 +268,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'Rotor-wide calculator catalogue and per-chain generator entry points.'
+    note: 'Crypto-wide calculator catalogue and per-chain generator entry points.'
   });
 
   oursRoute({
@@ -328,7 +328,7 @@
     status: 'partial',
     priority: 'P1',
     donorIds: ['pkf:/reconstruction', 'ss:/Reconstruction'],
-    note: 'Different semantics: Rotor assembles known bytes at fixed offsets and never guesses. Donor reconstruction uses ±a±λb formulas.'
+    note: 'Different semantics: Crypto assembles known bytes at fixed offsets and never guesses. Donor reconstruction uses ±a±λb formulas.'
   });
 
   oursRoute({
@@ -438,7 +438,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: ['ss:/wallets'],
-    note: 'Rotor mirrors six Rich-Address-Wallet downloads through its origin. privatekeyfinder.io has no real catalogue (soft landing); secretscan.org shows a market/price table.'
+    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. privatekeyfinder.io has no real catalogue (soft landing); secretscan.org shows a market/price table.'
   });
 
   oursRoute({
@@ -560,7 +560,7 @@
       area: 'seeds',
       status: item[0] === 'ton' ? 'partial' : 'parity',
       ours: '/mnemonic-seeds/' + item[0],
-      note: item[0] === 'ton' ? 'Rotor shows an explicit TON-unsupported state.' : ''
+      note: item[0] === 'ton' ? 'Crypto shows an explicit TON-unsupported state.' : ''
     });
   });
 
@@ -685,7 +685,7 @@
     area: 'tools',
     status: 'partial',
     ours: '/reconstruction',
-    note: 'Donor reconstructs from ±a±λb formulas; Rotor only assembles known bytes.'
+    note: 'Donor reconstructs from ±a±λb formulas; Crypto only assembles known bytes.'
   });
 
   donorRoute({
@@ -793,15 +793,15 @@
 
   /* secretscan.org navigation, 2026-11-19. */
   [
-    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
-    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
-    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Rotor collapses EVM rows to Ethereum instead of showing eight chains.'],
-    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
-    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
-    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
-    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Rotor shows one Ethereum row.'],
+    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
+    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
+    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto collapses EVM rows to Ethereum instead of showing eight chains.'],
+    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
+    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
+    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
+    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All and CSV are present; the donor splits EVM into eight chain rows, Crypto shows one Ethereum row.'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
-    ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Rotor only adds (P + Q); the donor also subtracts and multiplies.'],
+    ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Crypto only adds (P + Q); the donor also subtracts and multiplies.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
     ['/HexDecBin', 'Hex / decimal / binary', 'tools', '/hex-dec-bin', 'parity', '-', ''],
     ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', '/tx/bitcoin', 'parity', '-', 'Raw hex to inputs, outputs, scripts, fee (with supplied prevouts) and JSON.'],
@@ -811,18 +811,18 @@
     ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', '/send/bnb', 'partial', 'P0', 'Top-level BNB Smart Chain testnet-only /send/bnb page (chapel, chain id 97); BSC mainnet chain id 56 and mainnet RPCs are rejected. The donor also covers mainnet.'],
     ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', '/send/tron', 'partial', 'P0', 'Top-level TRON Nile testnet-only /send/tron page: TRX->sun conversion, local WASM TransferContract signing and an optional api.nileex.io broadcast; mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'],
     ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', '/send/usdt', 'partial', 'P0', 'Generic ERC-20 transfer builder on Ethereum Sepolia with a user-supplied contract; no canonical USDT on Sepolia is assumed. The donor covers mainnet USDT.'],
-    ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Rotor mirrors real dataset downloads; secretscan.org shows prices and terms.'],
+    ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; secretscan.org shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The secretscan.org nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
-    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Rotor lacks threads, ETA, difficulty, save/recent and QR.'],
-    ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Rotor lacks drag-and-drop, examples and metadata.'],
-    ['/dashboard', 'Account dashboard', 'wallet', '/cabinet', 'partial', 'P2', 'Rotor /cabinet is an address monitor, not a calculator dashboard.'],
-    ['/results', 'Scanner results', 'tools', null, 'missing', 'P2', 'No scanner in Rotor, so there is nothing honest to show.'],
+    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto lacks threads, ETA, difficulty, save/recent and QR.'],
+    ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Crypto lacks drag-and-drop, examples and metadata.'],
+    ['/dashboard', 'Account dashboard', 'wallet', '/cabinet', 'partial', 'P2', 'Crypto /cabinet is an address monitor, not a calculator dashboard.'],
+    ['/results', 'Scanner results', 'tools', null, 'missing', 'P2', 'No scanner in Crypto, so there is nothing honest to show.'],
     ['/scaner', 'Address scanner', 'tools', null, 'missing', 'P2', 'No fake progress: a real scanner is required first.'],
     ['/programs', 'Program catalogue', 'site', null, 'missing', 'P3', ''],
     ['/rent', 'Rental / paid compute', 'site', null, 'missing', 'P3', ''],
     ['/benchmark', 'Benchmark', 'tools', null, 'missing', 'P3', ''],
-    ['/about', 'About', 'site', null, 'missing', 'P3', 'Rotor docs are not an about page.']
+    ['/about', 'About', 'site', null, 'missing', 'P3', 'Crypto docs are not an about page.']
   ].forEach(function (row) {
     donorRoute({
       source: 'ss',
@@ -931,7 +931,7 @@
     status: 'parity',
     priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'Rotor adds Electrum old and Electrum BIP39 and all BIP39 entropy lengths.'
+    note: 'Crypto adds Electrum old and Electrum BIP39 and all BIP39 entropy lengths.'
   });
 
   feature({
@@ -943,7 +943,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Rotor has the conversion and up to 10 addresses, but not the full donor control set.'
+    note: 'Crypto has the conversion and up to 10 addresses, but not the full donor control set.'
   });
 
   feature({
@@ -1051,7 +1051,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Rotor supports six networks and local prefix/suffix generation.'
+    note: 'Crypto supports six networks and local prefix/suffix generation.'
   });
 
   feature({
@@ -1087,7 +1087,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Rotor implements P + Q only.'
+    note: 'Crypto implements P + Q only.'
   });
 
   feature({
@@ -1123,7 +1123,7 @@
     status: 'missing',
     priority: 'P0',
     sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Rotor only has dataset dumps under /wallets; privatekeyfinder.io has top-100 tables per chain.'
+    note: 'Crypto only has dataset dumps under /wallets; privatekeyfinder.io has top-100 tables per chain.'
   });
 
   feature({
@@ -1135,7 +1135,7 @@
     status: 'missing',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Stats, tables, filters and pagination on the donor; no Rotor data source yet.'
+    note: 'Stats, tables, filters and pagination on the donor; no Crypto data source yet.'
   });
 
   feature({
@@ -1255,7 +1255,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Rotor /tools renders 26 flat cards; aliases and family grouping are missing.'
+    note: 'Crypto /tools renders 26 flat cards; aliases and family grouping are missing.'
   });
 
   feature({
@@ -1327,7 +1327,7 @@
     status: 'partial',
     priority: 'P2',
     sources: ['secretscan.org'],
-    note: 'Rotor /cabinet is an address monitor; secretscan.org /dashboard is a calculator dashboard.'
+    note: 'Crypto /cabinet is an address monitor; secretscan.org /dashboard is a calculator dashboard.'
   });
 
   window.RotorSiteMapData = {
