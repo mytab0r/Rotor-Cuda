@@ -2346,7 +2346,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-addr-tbl th:nth-child(1) { width: 11%; }
 .key-addr-tbl th:nth-child(2) { width: 15%; }
 .key-addr-tbl th:nth-child(4) { width: 17%; }
-.key-addr-tbl th:nth-child(5) { width: 132px; }
+.key-addr-tbl th:nth-child(5) { width: 148px; }
 .key-addr-tbl th:nth-child(4),
 .key-addr-tbl th:nth-child(5) { text-align: right; }
 .key-addr-tbl .key-row {
@@ -2439,7 +2439,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .key-addr-tbl th:nth-child(1) { width: 64px; }
   .key-addr-tbl th:nth-child(2) { width: 88px; }
   .key-addr-tbl th:nth-child(4) { width: 100px; }
-  .key-addr-tbl th:nth-child(5) { width: 132px; }
+  .key-addr-tbl th:nth-child(5) { width: 144px; }
+  .key-page .key-addr-tbl td.key-cell-act { padding: 6px; }
   .key-details { margin-top: 6px; padding-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
