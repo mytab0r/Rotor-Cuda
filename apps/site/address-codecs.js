@@ -6,7 +6,7 @@
  * It does hash the checksum bytes, which is part of Base58Check. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.RotorKeyTypes = factory();
+  else root.RotorAddressCodecs = factory();
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
