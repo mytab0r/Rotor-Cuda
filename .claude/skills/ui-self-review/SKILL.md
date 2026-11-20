@@ -116,3 +116,18 @@ expected to be fixed once in the header/typography token, not page by page.
 
 The audit is the gate. A visual check in the browser pane is additional
 evidence, not a replacement.
+
+## 6. Independent review and the defect ledger
+
+- The author never signs off their own UI change. A second agent (`critic` or
+  a dedicated reviewer) opens the built page at 375/768/1280 in both themes,
+  screenshots the affected blocks, and pastes the computed geometry into the
+  PR: number of controls outside their scroll container, column spreads,
+  `scrollWidth/clientWidth`, and every remaining violation id.
+- Every defect, whether found by the owner or by a reviewer, adds a check
+  before it adds a fix: extend `scripts/ui-audit.mjs` (or another gate), add an
+  entry to `docs/process/defects.json`, and run
+  `node scripts/check-defect-ledger.mjs`. CI runs both on every PR
+  (`.github/workflows/ui.yml`).
+- A PR that only fixes the symptom without a detector and a ledger entry is
+  incomplete, even if the snapshot looks right.

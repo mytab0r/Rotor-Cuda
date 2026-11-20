@@ -10,6 +10,7 @@ pub mod client;
 pub mod orders;
 pub mod puzzles;
 pub mod state;
+pub mod tron_cache;
 pub mod wallets;
 
 use std::collections::HashMap;
@@ -122,7 +123,8 @@ const TRONSCAN_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const TRONSCAN_READ_TIMEOUT: Duration = Duration::from_secs(20);
 const TRONSCAN_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 const TRONSCAN_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
-const TRONSCAN_RETRY_DELAY: Duration = Duration::from_millis(250);
+/// Largest address list one batch lookup accepts.
+const TRON_BATCH_MAX: usize = 60;
 /// Number of request handlers currently running.
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
@@ -287,6 +289,12 @@ struct App {
     /// TronScan Pro API key from `TRONSCAN_API_KEY`. Never serialized or
     /// logged; `None` makes `/api/v1/chain/tron/address` answer `501`.
     tronscan_api_key: Option<String>,
+    /// Shared TronScan HTTP client, in-flight limiter and lookup cache. The
+    /// orders poller uses the same limiter, so provider calls stay bounded
+    /// across every route.
+    tronscan_agent: ureq::Agent,
+    tron_limiter: Arc<tron_cache::Limiter>,
+    tron_cache: Arc<tron_cache::Cache>,
     /// Paid-download orders, when `ORDERS_CONFIG` is set. `None` keeps the
     /// order routes answering `503` on coordinator-only servers and tests.
     orders: Option<Arc<orders::Orders>>,
@@ -576,12 +584,19 @@ fn spawn_inner(
             .unwrap_or_default(),
         wallets_upstream,
         tronscan_api_key,
+        tronscan_agent: tronscan_agent(),
+        tron_limiter: Arc::new(tron_cache::Limiter::default()),
+        tron_cache: Arc::new(tron_cache::Cache::default()),
         orders,
         telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
     });
     // The poller is detached and does nothing until an order exists.
     if let Some(orders) = app.orders.clone() {
-        orders::spawn_poller(orders, app.tronscan_api_key.clone());
+        orders::spawn_poller(
+            orders,
+            app.tronscan_api_key.clone(),
+            Arc::clone(&app.tron_limiter),
+        );
     }
     let listener = Arc::clone(&server);
     let join = thread::spawn(move || {
@@ -639,6 +654,7 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
         || path == "/api/v1/monitor/config"
         || path == "/api/v1/telegram/webhook"
         || path == "/api/v1/chain/tron/address"
+        || path == "/api/v1/chain/tron/addresses"
         || path == "/api/v1/orders"
         || path.starts_with("/api/v1/orders/")
         || path.starts_with("/api/v1/admin/orders/")
@@ -783,6 +799,12 @@ fn handle(app: Arc<App>, request: Request) {
 
     // Public TRON lookup. TronScan is called server-side with the operator's
     // API key; without a key the route refuses rather than inventing data.
+    if path == "/api/v1/chain/tron/addresses" {
+        if method == Method::Post {
+            return tron_addresses(&app, request);
+        }
+        return respond_json(request, 405, &json!({ "error": "method not allowed" }));
+    }
     if path == "/api/v1/chain/tron/address" {
         if method == Method::Get {
             return tron_address(&app, request, query);
@@ -4400,11 +4422,66 @@ fn tron_address(app: &App, request: Request, query: &str) {
     let Some(key) = app.tronscan_api_key.as_deref() else {
         return respond_json(request, 501, &json!({ "error": "no_provider" }));
     };
-    let agent = tronscan_agent();
-    match tron_lookup(&agent, key, address) {
+    match tron_lookup(app, key, address) {
         Ok(body) => respond_json(request, 200, &body),
-        Err(reason) => respond_json(request, 502, &json!({ "error": reason })),
+        Err(error) => respond_tron_error(request, error),
     }
+}
+
+#[derive(Deserialize)]
+struct TronBatchRequest {
+    addresses: Vec<String>,
+}
+
+/// `POST /api/v1/chain/tron/addresses` with `{"addresses": [...]}`.
+///
+/// A batch is one public request but still runs through the same limiter and
+/// cache as the per-address route, one address at a time. Per-address failures
+/// stay in the results map so one bad upstream answer does not drop the batch.
+fn tron_addresses(app: &App, mut request: Request) {
+    let ip = client_ip(&request, app.trust_proxy);
+    if !app.rate.allow(&format!("public-tron:{ip}")) {
+        return respond_rate_limited(request);
+    }
+    let body = match read_body(&mut request) {
+        Ok(body) => body,
+        Err(error) => return respond_body_error(request, error),
+    };
+    let addresses = match validate_tron_batch(&body) {
+        Ok(addresses) => addresses,
+        Err(message) => return respond_json(request, 400, &json!({ "error": message })),
+    };
+    let Some(key) = app.tronscan_api_key.as_deref() else {
+        return respond_json(request, 501, &json!({ "error": "no_provider" }));
+    };
+    let mut results = serde_json::Map::with_capacity(addresses.len());
+    for address in addresses {
+        let value = match tron_lookup(app, key, &address) {
+            Ok(value) => value,
+            Err(error) => json!({ "error": error.reason }),
+        };
+        results.insert(address, value);
+    }
+    respond_json(request, 200, &json!({ "results": results }));
+}
+
+/// Parse and validate a batch body. Duplicate addresses are folded into one
+/// lookup; a single malformed address rejects the whole request.
+fn validate_tron_batch(body: &str) -> Result<Vec<String>, &'static str> {
+    let batch: TronBatchRequest = serde_json::from_str(body).map_err(|_| "invalid JSON body")?;
+    if batch.addresses.len() > TRON_BATCH_MAX {
+        return Err("too many addresses (maximum 60)");
+    }
+    let mut unique: Vec<String> = Vec::with_capacity(batch.addresses.len());
+    for address in batch.addresses {
+        if !valid_tron_address(&address) {
+            return Err("invalid tron address");
+        }
+        if !unique.contains(&address) {
+            unique.push(address);
+        }
+    }
+    Ok(unique)
 }
 
 /// Base58 address shape: 34 characters starting with `T`. The checksum is
@@ -4452,80 +4529,156 @@ fn tronscan_agent() -> ureq::Agent {
     builder.build()
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TronFetchError {
     NotFound,
-    Status(u16),
+    RateLimited,
+    Unavailable,
+    Rejected,
     Transport,
     Body,
+    Busy,
 }
 
-/// One TronScan GET with a bounded body and a single retry on 429/5xx.
-/// Errors never contain the API key or the request headers.
+/// One TronScan GET through the shared limiter, with two retries on 429/5xx
+/// (250 ms, then 750 ms, both jittered). Errors never contain the API key or
+/// the request headers.
 fn tronscan_get(
     agent: &ureq::Agent,
     key: &str,
     url: &str,
+    limiter: &Arc<tron_cache::Limiter>,
 ) -> Result<serde_json::Value, TronFetchError> {
-    let mut retried = false;
+    let mut attempt = 0;
     loop {
-        match agent.get(url).set("TRON-PRO-API-KEY", key).call() {
+        let Some(slot) = limiter.acquire() else {
+            return Err(TronFetchError::Busy);
+        };
+        let status = match agent.get(url).set("TRON-PRO-API-KEY", key).call() {
             Ok(response) => {
                 let mut body = String::new();
-                response
+                let read = response
                     .into_reader()
                     .take(TRONSCAN_MAX_BODY_BYTES as u64 + 1)
-                    .read_to_string(&mut body)
-                    .map_err(|_| TronFetchError::Body)?;
+                    .read_to_string(&mut body);
+                drop(slot);
+                if read.is_err() {
+                    return Err(TronFetchError::Body);
+                }
                 if body.len() > TRONSCAN_MAX_BODY_BYTES {
                     return Err(TronFetchError::Body);
                 }
                 return serde_json::from_str(&body).map_err(|_| TronFetchError::Body);
             }
-            Err(ureq::Error::Status(status, _))
-                if !retried && (status == 429 || (500..=599).contains(&status)) =>
-            {
-                retried = true;
-                thread::sleep(TRONSCAN_RETRY_DELAY);
+            Err(ureq::Error::Status(status, _)) => {
+                drop(slot);
+                status
             }
-            Err(ureq::Error::Status(404, _)) => return Err(TronFetchError::NotFound),
-            Err(ureq::Error::Status(status, _)) => return Err(TronFetchError::Status(status)),
-            Err(ureq::Error::Transport(_)) => return Err(TronFetchError::Transport),
+            Err(ureq::Error::Transport(_)) => {
+                drop(slot);
+                return Err(TronFetchError::Transport);
+            }
+        };
+        if matches!(status, 429 | 500..=599) && attempt < tron_cache::MAX_RETRIES {
+            thread::sleep(tron_cache::retry_delay(attempt));
+            attempt += 1;
+            continue;
         }
+        return Err(match status {
+            404 => TronFetchError::NotFound,
+            429 => TronFetchError::RateLimited,
+            500..=599 => TronFetchError::Unavailable,
+            _ => TronFetchError::Rejected,
+        });
     }
 }
 
 fn tron_error_reason(error: TronFetchError) -> &'static str {
     match error {
         TronFetchError::NotFound => "provider returned no data",
-        TronFetchError::Status(429) => "provider rate limited",
-        TronFetchError::Status(status) if (500..=599).contains(&status) => "provider unavailable",
-        TronFetchError::Status(_) => "provider rejected the request",
+        TronFetchError::RateLimited => "provider rate limited",
+        TronFetchError::Unavailable => "provider unavailable",
+        TronFetchError::Rejected => "provider rejected the request",
         TronFetchError::Transport => "provider unreachable",
         TronFetchError::Body => "provider response timed out or was unreadable",
+        TronFetchError::Busy => "provider queue is full",
     }
 }
 
-fn tron_lookup(
+fn tron_error_status(error: TronFetchError) -> u16 {
+    match error {
+        TronFetchError::RateLimited | TronFetchError::Busy => 503,
+        _ => 502,
+    }
+}
+
+/// An error surfaced to a public client. Cached provider errors keep their
+/// original status and reason.
+struct TronLookupError {
+    status: u16,
+    reason: String,
+}
+
+fn respond_tron_error(request: Request, error: TronLookupError) {
+    let body = json!({ "error": error.reason }).to_string();
+    let mut response = Response::from_string(body)
+        .with_status_code(StatusCode(error.status))
+        .with_header(header("Content-Type", "application/json"));
+    if error.status == 503 {
+        response = response.with_header(header("Retry-After", "2"));
+    }
+    let _ = request.respond(response);
+}
+
+fn tron_lookup(app: &App, key: &str, address: &str) -> Result<serde_json::Value, TronLookupError> {
+    if let Some(hit) = app.tron_cache.get("tron", address) {
+        return match hit {
+            tron_cache::CacheHit::Success(value) => Ok(value),
+            tron_cache::CacheHit::Error { status, reason } => {
+                Err(TronLookupError { status, reason })
+            }
+        };
+    }
+    match tron_lookup_uncached(&app.tronscan_agent, key, address, &app.tron_limiter) {
+        Ok(value) => {
+            app.tron_cache.put_success("tron", address, value.clone());
+            Ok(value)
+        }
+        Err(error) => {
+            let status = tron_error_status(error);
+            let reason = tron_error_reason(error).to_string();
+            // A full local queue is not a provider answer; caching it would
+            // keep rejecting after capacity frees up.
+            if error != TronFetchError::Busy {
+                app.tron_cache.put_error("tron", address, status, &reason);
+            }
+            Err(TronLookupError { status, reason })
+        }
+    }
+}
+
+fn tron_lookup_uncached(
     agent: &ureq::Agent,
     key: &str,
     address: &str,
-) -> Result<serde_json::Value, &'static str> {
+    limiter: &Arc<tron_cache::Limiter>,
+) -> Result<serde_json::Value, TronFetchError> {
     let account_url = format!("{TRONSCAN_API_BASE}/api/accountv2?address={address}");
-    let account = match tronscan_get(agent, key, &account_url) {
+    let account = match tronscan_get(agent, key, &account_url, limiter) {
         Ok(value) => value,
         // An unknown account is an empty account, not an upstream failure.
         Err(TronFetchError::NotFound) => serde_json::Value::Null,
-        Err(error) => return Err(tron_error_reason(error)),
+        Err(error) => return Err(error),
     };
     let transaction_url = format!(
         "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit=1&start=0&address={address}"
     );
-    let transaction = match tronscan_get(agent, key, &transaction_url) {
+    let transaction = match tronscan_get(agent, key, &transaction_url, limiter) {
         Ok(value) => value,
         Err(TronFetchError::NotFound) => serde_json::Value::Null,
-        Err(error) => return Err(tron_error_reason(error)),
+        Err(error) => return Err(error),
     };
-    tron_response(address, &account, &transaction)
+    tron_response(address, &account, &transaction).map_err(|_| TronFetchError::Body)
 }
 
 /// TronScan reports the balance of very large accounts as a negative int64
@@ -6835,6 +6988,47 @@ mod tests {
         ] {
             assert!(!valid_tron_address(bad), "must reject {bad}");
         }
+    }
+
+    #[test]
+    fn tron_batch_body_is_validated_and_deduplicated() {
+        let address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+        let body = json!({ "addresses": [address, address] }).to_string();
+        assert_eq!(
+            validate_tron_batch(&body).expect("valid batch"),
+            vec![address.to_string()],
+            "duplicates fold into one lookup"
+        );
+
+        let sixty: Vec<&str> = (0..60).map(|_| address).collect();
+        let body = json!({ "addresses": sixty }).to_string();
+        assert_eq!(validate_tron_batch(&body).expect("60 is allowed").len(), 1);
+
+        let sixty_one: Vec<&str> = (0..61).map(|_| address).collect();
+        let body = json!({ "addresses": sixty_one }).to_string();
+        assert_eq!(
+            validate_tron_batch(&body),
+            Err("too many addresses (maximum 60)")
+        );
+
+        let body = json!({ "addresses": ["0R7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"] }).to_string();
+        assert_eq!(validate_tron_batch(&body), Err("invalid tron address"));
+
+        assert_eq!(
+            validate_tron_batch("not json"),
+            Err("invalid JSON body"),
+            "malformed JSON is a 400, not a provider error"
+        );
+        assert_eq!(
+            validate_tron_batch("{}"),
+            Err("invalid JSON body"),
+            "a missing addresses field is a 400"
+        );
+        assert_eq!(
+            validate_tron_batch(r#"{"addresses": [1]}"#),
+            Err("invalid JSON body"),
+            "non-string addresses are a 400"
+        );
     }
 
     #[test]
