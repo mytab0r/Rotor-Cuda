@@ -2136,7 +2136,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
    * otherwise round scrollWidth one pixel above clientWidth. */
   padding-right: 1px;
 }
-.key-filter-bar .key-address-panel { display: block; padding: 0; border: 0; }
+.key-filter-bar .key-address-panel { display: block; padding: 8px; border: 0; background: none; box-shadow: none; border-radius: 0; }
 .key-filter-bar .address-type-cards {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
