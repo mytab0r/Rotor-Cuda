@@ -505,18 +505,26 @@ function auditPage(args) {
     return false;
   };
   for (const card of [...document.querySelectorAll(".card")].filter(visible)) {
-    const style = getComputedStyle(card);
-    const box = card.getBoundingClientRect();
-    const limitRight = box.right - Number.parseFloat(style.paddingRight || "0") + 1;
-    const limitBottom = box.bottom - Number.parseFloat(style.paddingBottom || "0") + 1;
+    const cardBox = card.getBoundingClientRect();
     for (const control of card.querySelectorAll("a, button, select, input, textarea")) {
       if (!visible(control) || scrollableAncestor(control)) continue;
       const controlBox = control.getBoundingClientRect();
-      if (controlBox.right > limitRight || controlBox.bottom > limitBottom) {
-        clippedControls.push(
-          `${selectorOf(control)} right ${Math.round(controlBox.right)} > ${Math.round(limitRight)}`,
-        );
+      let reason = "";
+      if (controlBox.right > cardBox.right + 1 || controlBox.bottom > cardBox.bottom + 1) {
+        reason = "outside the card border";
+      } else {
+        for (let node = control.parentElement; node && node !== card; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          const clips = ["hidden", "clip"].includes(style.overflowX);
+          if (!clips) continue;
+          const nodeBox = node.getBoundingClientRect();
+          if (controlBox.right > nodeBox.right + 1 || controlBox.left < nodeBox.left - 1) {
+            reason = `cut by ${selectorOf(node)}`;
+            break;
+          }
+        }
       }
+      if (reason) clippedControls.push(`${selectorOf(control)} ${reason} [anc: ${(() => { let out = ""; for (let node = control.parentElement; node; node = node.parentElement) { const s = getComputedStyle(node); out += `${node.className || node.tagName}:${s.overflowX}/${s.overflowY} `; if (node === card) break; } return out; })()}]`);
     }
   }
   if (clippedControls.length) {
@@ -807,12 +815,24 @@ function auditPage(args) {
         const nested = [...columns[0].children].filter(visible);
         if (nested.length >= 2) columns = nested;
       }
-      const bottoms = columns.map((column) => Math.round(boxOf(column).bottom));
-      const spread = Math.round(Math.max(...bottoms) - Math.min(...bottoms));
-      const tallest = Math.round(Math.max(...columns.map((column) => boxOf(column).height)));
-      if (tallest > 150 && spread > 40) {
-        metrics.routeChecks.summaryColumnSpread = spread;
-        add("ragged-summary-columns", `/key Keys columns end ${spread}px apart`, { bottoms, spread });
+      // Only boxes that share a grid row are columns; stacked groups in a
+      // single-column layout are not comparable.
+      const rows = [];
+      for (const column of columns) {
+        const box = boxOf(column);
+        const row = rows.find((entry) => Math.abs(entry.top - box.top) <= 2);
+        if (row) row.boxes.push(box);
+        else rows.push({ top: box.top, boxes: [box] });
+      }
+      const row = rows.find((entry) => entry.boxes.length >= 2);
+      if (row) {
+        const bottoms = row.boxes.map((box) => Math.round(box.bottom));
+        const spread = Math.round(Math.max(...bottoms) - Math.min(...bottoms));
+        const tallest = Math.round(Math.max(...row.boxes.map((box) => box.height)));
+        if (tallest > 150 && spread > 40) {
+          metrics.routeChecks.summaryColumnSpread = spread;
+          add("ragged-summary-columns", `/key Keys columns end ${spread}px apart`, { bottoms, spread });
+        }
       }
     }
   }
