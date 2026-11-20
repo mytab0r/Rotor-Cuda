@@ -94,15 +94,29 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
   wordmark choice before touching title/meta (titles are indexed).
 
 ## 5. Paid datasets (design: docs/donor-parity/payments.md)
-- [ ] Implement the processor-free order flow: `POST /api/v1/orders`,
+- [x] Implement the processor-free order flow: `POST /api/v1/orders`,
       `GET /api/v1/orders/{id}` (order token), `GET /api/v1/orders/{id}/download`
       (HMAC token, 7 days, 5 downloads), admin revoke/reconcile.
-- [ ] Per-order deposit address (watch-only xpub) or unique-amount fallback;
+      Evidence: `src/coordinator/orders.rs` (routes, store, tokens), routes
+      registered before the client-token matrix in `src/coordinator/mod.rs`,
+      store `orders.json` written atomically next to the coordinator state;
+      tests in `src/coordinator/orders.rs` and
+      `tests/coordinator_api.rs::orders_are_public_but_need_configuration_and_an_active_list`.
+      Unconfigured `ORDERS_CONFIG` answers 503; inactive list answers 404.
+- [x] Per-order deposit address (watch-only xpub) or unique-amount fallback;
       poller with BTC 3 / LTC 6 / TRON 19 / ETH 12 / BSC 15 confirmations.
+      Fallback chosen for this iteration: fixed address + unique atomic-amount
+      suffix (no xpub derivation). Evidence: `quote_amount`/`allocate_amount`
+      and the pure `match_payment` rules in `src/coordinator/orders.rs`; the
+      poller polls Esplora (BTC/LTC) and TronScan (TRON) every 45 s;
+      confirmations come from config with the 3/6/19 defaults. One
+      `(chain,txid,vout)` pays one order. ETH/BSC remain config-only chains:
+      the current poller verifies BTC, LTC and TRON.
 - [ ] Every delivered package carries the licence/attribution page (MIT notice
       for our lists; CC0 provenance for donor-derived data).
 - [ ] Prices, accepted chains and refund policy are owner decisions; ship with
       `active=false` lists until they are set.
+      `deploy/orders.example.json` ships every list with `active: false`.
 
 ## Gates
 - `node scripts/ui-audit.mjs --serve` — 0 violations at 375/768/1280, light/dark.
