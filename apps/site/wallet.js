@@ -1081,7 +1081,7 @@
   }
 
   async function fetchTronBalance(address) {
-    var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
+    var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/accountv2?address=' + encodeURIComponent(address));
     if (response.status === 404) return '0 TRX · account not activated';
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var raw = await response.text();
