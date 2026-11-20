@@ -79,6 +79,7 @@ fn testnet_report(key: &[u8; 32]) -> Result<String, String> {
     let TaprootParts {
         internal_x_hex,
         tweak_hex,
+        output_x: _,
         output_x_hex,
         parity,
         address: p2tr_address,
@@ -410,14 +411,18 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
     let zcash_checksum_hex = hex(&zcash_checksum);
 
     // P2TR: BIP341 key path with an empty script tree, over the x-only key.
+    // The tweaked output key is chain-independent; Litecoin reuses it with
+    // its own human-readable part.
     let TaprootParts {
         internal_x_hex,
         tweak_hex,
+        output_x,
         output_x_hex,
         parity,
         address: p2tr_address,
         checksum: p2tr_checksum,
     } = taproot_parts(&point, "bc")?;
+    let (ltc_p2tr_address, ltc_p2tr_checksum) = bech32::encode_segwit("ltc", 1, &output_x, true);
 
     // EVM: last 20 bytes of keccak256(x || y), EIP-55 displayed. TRON reuses
     // the same twenty bytes behind the 0x41 version byte.
@@ -528,6 +533,19 @@ fn secp_report(key: &[u8; 32]) -> Result<String, String> {
                 ("witness_version", "0"),
                 ("program", &hash_compressed_hex),
                 ("checksum", &ltc_p2wpkh_checksum),
+            ],
+        ),
+        address_object(
+            "ltc_p2tr",
+            "Litecoin taproot",
+            &ltc_p2tr_address,
+            &[
+                ("internal_x", &internal_x_hex),
+                ("tweak", &tweak_hex),
+                ("output_x", &output_x_hex),
+                ("parity", parity),
+                ("program", &output_x_hex),
+                ("checksum", &ltc_p2tr_checksum),
             ],
         ),
         address_object(
@@ -705,6 +723,7 @@ fn p2sh_p2wpkh_parts(
 struct TaprootParts {
     internal_x_hex: String,
     tweak_hex: String,
+    output_x: [u8; 32],
     output_x_hex: String,
     parity: &'static str,
     address: String,
@@ -735,6 +754,7 @@ fn taproot_parts(point: &Affine, hrp: &str) -> Result<TaprootParts, String> {
     Ok(TaprootParts {
         internal_x_hex: hex(&internal_x),
         tweak_hex: hex(&tweak),
+        output_x,
         output_x_hex: hex(&output_x),
         parity: if output.y.is_odd() { "1" } else { "0" },
         address,

@@ -1522,7 +1522,7 @@ mod tests {
             value["wif_uncompressed"],
             "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf"
         );
-        assert_eq!(value["addresses"].as_array().unwrap().len(), 15);
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 16);
 
         let zcash = address(&value, "zcash_p2pkh");
         assert_eq!(zcash["address"], "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs");
@@ -1677,6 +1677,96 @@ mod tests {
             address(&value, "xrp_classic")["address"],
             "rcM6pp3HTU5AS3Z122kH3w3AzerJRnZ1P"
         );
+    }
+
+    #[test]
+    fn derive_litecoin_taproot_matches_bech32m() {
+        // Key 1, the same key the published vectors use. The taproot output
+        // key is chain-independent, so Litecoin reuses the Bitcoin one with
+        // hrp "ltc"; the address below was reproduced with a standalone BIP-350
+        // bech32m encoder over hrp "ltc" + version 1 + the 32-byte output_x.
+        let value = derive_value(&key_bytes(1), 0);
+        let p2tr = address(&value, "ltc_p2tr");
+        assert_eq!(p2tr["label"], "Litecoin taproot");
+        assert_eq!(
+            p2tr["address"],
+            "ltc1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5sszjagvq"
+        );
+        assert_eq!(
+            p2tr["steps"]["internal_x"],
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        );
+        assert_eq!(
+            p2tr["steps"]["output_x"],
+            "da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d21"
+        );
+        assert_eq!(p2tr["steps"]["program"], p2tr["steps"]["output_x"]);
+        assert_eq!(p2tr["steps"]["checksum"], "zjagvq");
+
+        // The Bitcoin row exposes the same taproot internals.
+        let btc = address(&value, "btc_p2tr");
+        assert_eq!(p2tr["steps"]["internal_x"], btc["steps"]["internal_x"]);
+        assert_eq!(p2tr["steps"]["tweak"], btc["steps"]["tweak"]);
+        assert_eq!(p2tr["steps"]["output_x"], btc["steps"]["output_x"]);
+        assert_eq!(p2tr["steps"]["parity"], btc["steps"]["parity"]);
+
+        // Independent BIP-350 check: rebuild the bech32m checksum here instead
+        // of trusting the encoder module, and confirm the pinned address ends
+        // with it.
+        let program = hex_to_bytes::<32>(p2tr["steps"]["program"].as_str().unwrap()).unwrap();
+        let checksum = bech32m_checksum("ltc", 1, &program);
+        assert_eq!(checksum, p2tr["steps"]["checksum"]);
+        let address_text = p2tr["address"].as_str().unwrap();
+        assert!(address_text.starts_with("ltc1p"));
+        assert!(address_text.ends_with(&checksum));
+    }
+
+    /// Local BIP-350 bech32m checksum, written from the spec to cross-check the
+    /// encoder module's output.
+    fn bech32m_checksum(hrp: &str, version: u8, program: &[u8]) -> String {
+        const CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+        const GENERATOR: [u32; 5] = [
+            0x3b6a_57b2,
+            0x2650_8e6d,
+            0x1ea1_19fa,
+            0x3d42_33dd,
+            0x2a14_62b3,
+        ];
+
+        let mut values: Vec<u8> = hrp.bytes().map(|byte| byte >> 5).collect();
+        values.push(0);
+        values.extend(hrp.bytes().map(|byte| byte & 0x1f));
+        values.push(version);
+
+        let mut accumulator = 0u32;
+        let mut bits = 0u32;
+        for &byte in program {
+            accumulator = (accumulator << 8) | u32::from(byte);
+            bits += 8;
+            while bits >= 5 {
+                bits -= 5;
+                values.push(((accumulator >> bits) & 0x1f) as u8);
+            }
+            accumulator &= (1 << bits) - 1;
+        }
+        if bits > 0 {
+            values.push(((accumulator << (5 - bits)) & 0x1f) as u8);
+        }
+
+        let mut checksum = 1u32;
+        for &value in values.iter().chain(&[0u8; 6]) {
+            let top = checksum >> 25;
+            checksum = ((checksum & 0x01ff_ffff) << 5) ^ u32::from(value);
+            for (index, generator) in GENERATOR.iter().enumerate() {
+                if (top >> index) & 1 == 1 {
+                    checksum ^= generator;
+                }
+            }
+        }
+        checksum ^= 0x2bc8_30a3;
+        (0..6)
+            .map(|index| char::from(CHARSET[((checksum >> (5 * (5 - index))) & 0x1f) as usize]))
+            .collect()
     }
 
     #[test]
@@ -1908,16 +1998,16 @@ mod tests {
         assert!(session.result.is_empty());
     }
 
-    /// `derive_report` predates the network parameter and must keep emitting
-    /// byte-identical output. These hashes were captured from the build before
-    /// `derive_report_network` was added (SHA-256 of the whole JSON blob).
+    /// `derive_report` must keep emitting a stable byte layout. The hashes were
+    /// recaptured when the Litecoin taproot row was added (SHA-256 of the whole
+    /// JSON blob).
     #[test]
     fn derive_report_stays_byte_identical() {
         for (curve, expected_len, expected_hash) in [
             (
                 0u32,
-                5619usize,
-                "fd0d24d203008da46e0e261b3bf9bcce4f6ef7c623d2385fbeb0eb72e775c67a",
+                6093usize,
+                "a6301ddf4b4f86643026733f80d781d0cf1030239324bf8b06a8dfc369935208",
             ),
             (
                 1u32,
@@ -2015,7 +2105,7 @@ mod tests {
             address(&value, "btc_p2wpkh")["address"],
             "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"
         );
-        assert_eq!(value["addresses"].as_array().unwrap().len(), 15);
+        assert_eq!(value["addresses"].as_array().unwrap().len(), 16);
     }
 
     #[test]
