@@ -154,7 +154,10 @@ impl Request {
 
 /// Match every `name: "value"` pair to its slot, rejecting unknown and
 /// duplicate names.
-fn parse_slots<'a>(text: &'a str, names: &[&str]) -> Result<Vec<Option<&'a str>>, String> {
+pub(crate) fn parse_slots<'a>(
+    text: &'a str,
+    names: &[&str],
+) -> Result<Vec<Option<&'a str>>, String> {
     let pairs = parse_flat_object(text)?;
     let mut slots = vec![None; names.len()];
     for (key, value) in pairs {
