@@ -76,17 +76,9 @@ function test(name, fn) {
   tests.push({ name, fn });
 }
 
-test("bitcoin rows show the compressed WIF", () => {
+test("bitcoin rows show the derived hex key", () => {
   const report = { priv_hex: HEX, wif_compressed: WIF };
-  assertEqual(api.privateKeyFor("bitcoin", report), WIF, "BTC key must be the WIF");
-});
-
-test("bitcoin rows fall back to hex when the WIF is absent", () => {
-  assertEqual(
-    api.privateKeyFor("bitcoin", { priv_hex: HEX, wif_compressed: "" }),
-    HEX,
-    "BTC key must fall back to hex"
-  );
+  assertEqual(api.privateKeyFor("bitcoin", report), HEX, "BTC key must be the hex");
 });
 
 test("non-bitcoin rows show the derived hex", () => {
@@ -103,20 +95,64 @@ test("a missing report yields no key", () => {
   assertEqual(api.privateKeyFor("bitcoin", {}), "", "empty report, no key");
 });
 
-test("only bitcoin keys link to the key calculator", () => {
+test("every non-empty key links to the key calculator", () => {
   assertEqual(
-    api.privateKeyHref("bitcoin", WIF),
-    "/key/" + encodeURIComponent(WIF),
-    "BTC WIF must link to /key/<WIF>"
+    api.privateKeyHref("bitcoin", HEX),
+    "/key/" + encodeURIComponent(HEX),
+    "hex must link to /key/<hex>"
   );
   assertEqual(api.privateKeyHref("bitcoin", ""), "", "empty key has no link");
-  assertEqual(api.privateKeyHref("ethereum", HEX), "", "hex keys stay plain text");
+  assertEqual(
+    api.privateKeyHref("ethereum", HEX),
+    "/key/" + encodeURIComponent(HEX),
+    "EVM hex links too"
+  );
 });
 
-test("row labels name the key encoding", () => {
-  assertEqual(api.privateKeyLabel("bitcoin"), "WIF", "BTC label");
-  assertEqual(api.privateKeyLabel("ethereum"), "HEX", "EVM label");
-  assertEqual(api.privateKeyLabel("solana"), "HEX", "ed25519 label");
+test("directory query omits defaults and prefers presets over paths", () => {
+  assertEqual(api.directoryQuery({ bits: 128, type: "legacy", defaultType: "legacy" }), "", "defaults omitted");
+  assertEqual(api.directoryQuery({ bits: 192 }), "?bits=192", "non-default word count");
+  assertEqual(
+    api.directoryQuery({ bits: 128, type: "segwit", defaultType: "legacy" }),
+    "?type=segwit",
+    "non-default address type"
+  );
+  assertEqual(
+    api.directoryQuery({ bits: 256, type: "taproot", defaultType: "legacy", preset: "bip86", path: "m/86'" }),
+    "?bits=256&type=taproot&preset=bip86",
+    "preset wins over a custom path"
+  );
+  assertEqual(
+    api.directoryQuery({ path: "m/44'/0'/0'/0/1" }),
+    "?path=m%2F44%27%2F0%27%2F0%27%2F0%2F1",
+    "custom path is encoded"
+  );
+});
+
+test("bitcoin legacy rows keep compressed and uncompressed addresses", () => {
+  const map = {
+    btc_p2pkh: "1Compressed",
+    btc_p2pkh_uncompressed: "1Uncompressed",
+    btc_p2wpkh: "bc1qexample"
+  };
+  assertEqual(
+    JSON.stringify(api.addressEntriesFor("bitcoin", "legacy", map, "btc_p2pkh")),
+    JSON.stringify([
+      { prefix: "c", address: "1Compressed" },
+      { prefix: "u", address: "1Uncompressed" }
+    ]),
+    "legacy keeps both forms"
+  );
+  assertEqual(
+    JSON.stringify(api.addressEntriesFor("bitcoin", "segwit", map, "btc_p2wpkh")),
+    JSON.stringify([{ prefix: "", address: "bc1qexample" }]),
+    "segwit has one address"
+  );
+  assertEqual(
+    JSON.stringify(api.addressEntriesFor("bitcoin", "legacy", {}, "btc_p2pkh")),
+    "[]",
+    "no map entries"
+  );
 });
 
 test("compact phrase keeps the first two and last word", () => {
