@@ -1,20 +1,23 @@
 /* Top-level testnet send page: /send, /send/bitcoin, /send/ethereum,
- * /send/bnb and /send/usdt.
+ * /send/bnb, /send/usdt and /send/tron.
  *
- * One embedded page and one script serve all five routes; the pathname picks
- * the chain. Only testnets exist here: Bitcoin testnet, Ethereum Sepolia and
- * BNB Smart Chain testnet (chapel, chain id 97). The USDT route is a generic
- * ERC-20 transfer builder on Ethereum Sepolia; the token contract is supplied
- * by the user because there is no canonical USDT deployment on Sepolia.
+ * One embedded page and one script serve all six routes; the pathname picks
+ * the chain. Only testnets exist here: Bitcoin testnet, Ethereum Sepolia,
+ * BNB Smart Chain testnet (chapel, chain id 97) and TRON Nile. The USDT route
+ * is a generic ERC-20 transfer builder on Ethereum Sepolia; the token contract
+ * is supplied by the user because there is no canonical USDT deployment on
+ * Sepolia. The TRON route signs a plain TRX transfer through the WASM core and
+ * broadcasts only to api.nileex.io.
  *
  * Mainnet is refused at three layers:
- *   1. assertTestnetChain rejects every chain slug except the four testnets,
- *      naming bitcoin/ethereum/bnb/usdt mainnet slugs explicitly;
- *   2. parseSecret rejects a Bitcoin mainnet WIF (version 0x80);
+ *   1. assertTestnetChain rejects every chain slug except the five testnets,
+ *      naming bitcoin/ethereum/bnb/usdt/tron mainnet slugs explicitly;
+ *   2. parseSecret rejects a Bitcoin mainnet WIF (version 0x80) and only
+ *      accepts a 64-hex key for TRON;
  *   3. every HTTP wrapper allowlists the public testnet endpoints, so a
  *      mainnet RPC or mempool.space mainnet URL cannot be reached, and the
  *      EVM kernel refuses any chain id outside this table (BNB mainnet 56 is
- *      not present).
+ *      not present). tron-tx.js pins every TRON call to https://api.nileex.io.
  *
  * The validated send flow itself is the cabinet wallet kernel
  * (RotorBtcSend / RotorEvmSend, loaded before this file). This script only
@@ -33,6 +36,7 @@
   var EVM_CHAIN = 'ethereum-sepolia';
   var BNB_CHAIN = 'bnb-testnet';
   var USDT_CHAIN = 'usdt-sepolia';
+  var TRON_CHAIN = 'tron-nile';
   var SEPOLIA_CHAIN_ID = 11155111;
   var BNB_CHAIN_ID = 97;
   var WASM_URL = '/rotor_wasm.wasm';
@@ -77,15 +81,22 @@
     chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
     explorerTx: 'https://sepolia.etherscan.io/tx/'
   };
+  CHAINS[TRON_CHAIN] = {
+    slug: TRON_CHAIN, kind: 'tron', label: 'TRON Nile testnet',
+    title: 'Send TRON Nile testnet', keyLabel: 'TRON private key (64 hex)',
+    nativeSymbol: 'TRX',
+    explorerTx: 'https://nile.tronscan.org/#/transaction/'
+  };
 
   var SEND_PATHS = {
     '/send/bitcoin': BTC_CHAIN,
     '/send/ethereum': EVM_CHAIN,
     '/send/bnb': BNB_CHAIN,
-    '/send/usdt': USDT_CHAIN
+    '/send/usdt': USDT_CHAIN,
+    '/send/tron': TRON_CHAIN
   };
-  var ALLOWED_CHAINS = [BTC_CHAIN, EVM_CHAIN, BNB_CHAIN, USDT_CHAIN];
-  var MAINNET_SLUGS = ['bitcoin', 'ethereum', 'bnb', 'usdt'];
+  var ALLOWED_CHAINS = [BTC_CHAIN, EVM_CHAIN, BNB_CHAIN, USDT_CHAIN, TRON_CHAIN];
+  var MAINNET_SLUGS = ['bitcoin', 'ethereum', 'bnb', 'usdt', 'tron'];
   var ALLOWED_EVM_CHAIN_IDS = [SEPOLIA_CHAIN_ID, BNB_CHAIN_ID];
 
   function errorText(err) {
@@ -100,6 +111,10 @@
 
   function isTokenChain(chain) {
     return Boolean(CHAINS[chain] && CHAINS[chain].token);
+  }
+
+  function isTronChain(chain) {
+    return Boolean(CHAINS[chain] && CHAINS[chain].kind === 'tron');
   }
 
   function chainFromPath(pathname) {
@@ -117,7 +132,7 @@
       throw new Error('Mainnet sending is disabled: this page signs TESTNET transactions only.');
     }
     throw new Error('Unsupported chain: this page only sends on Bitcoin testnet, ' +
-      'Ethereum Sepolia and BNB Smart Chain testnet.');
+      'Ethereum Sepolia, BNB Smart Chain testnet and TRON Nile testnet.');
   }
 
   /* Chain ids the EVM signing path may ever see. BNB mainnet (56) and every
@@ -248,6 +263,16 @@
       return { chain: chain, keyBytes: hexToBytes(hexKey), keyHex: hexKey };
     }
 
+    if (isTronChain(chain)) {
+      var tronKey = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
+      if (!tronKey) {
+        throw new Error(chainLabel(chain) +
+          ' needs a 32-byte private key: 64 hex characters (0x optional). WIF is not accepted.');
+      }
+      var tronHex = tronKey[1].toLowerCase();
+      return { chain: chain, keyBytes: hexToBytes(tronHex), keyHex: tronHex };
+    }
+
     var btcHex = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
     if (btcHex) {
       var rawHex = btcHex[1].toLowerCase();
@@ -271,7 +296,9 @@
 
   function keyLooksComplete(value, chain) {
     var text = typeof value === 'string' ? value.trim() : '';
-    if (isEvmChain(chain)) return /^(?:0x)?[0-9a-fA-F]{64}$/.test(text);
+    if (isEvmChain(chain) || isTronChain(chain)) {
+      return /^(?:0x)?[0-9a-fA-F]{64}$/.test(text);
+    }
     if (/^(?:0x)?[0-9a-fA-F]{64}$/.test(text)) return true;
     return text.length >= WIF_MIN && text.length <= WIF_MAX &&
       /^[1-9A-HJ-NP-Za-km-z]+$/.test(text);
@@ -353,11 +380,117 @@
     };
   }
 
+  /* ------------------------------------------------------ TRON transfer */
+
+  function tronApi(api) {
+    var tron = api || root.RotorTronSend;
+    if (!tron) throw new Error('The TRON helper did not load. Reload the page.');
+    return tron;
+  }
+
+  /* TRX text -> sun. tron-tx.js rejects anything that is not a plain decimal
+   * with at most 6 decimals; this wrapper adds the positive-amount rule. */
+  function tronAmountSun(text, tron) {
+    var api = tronApi(tron);
+    var sun = api.tronToSun(text);
+    if (sun <= 0n) throw new Error('TRX amount must be greater than zero.');
+    return sun;
+  }
+
+  /* Build the unsigned TRX transfer for review. `options` takes
+   * {wasm, tron, from, to, amount, latestBlock?, unsigned?}; the two callbacks
+   * are the test seam and default to the real Nile helper and WASM core. */
+  async function prepareTronTransfer(options) {
+    var input = options || {};
+    var tron = tronApi(input.tron);
+    var from = tron.assertAddress(input.from, 'From');
+    var to = tron.assertAddress(input.to, 'To');
+    var sun = tronAmountSun(input.amount, tron);
+    var latest = typeof input.latestBlock === 'function'
+      ? input.latestBlock
+      : function () { return tron.latestBlock(); };
+    var block = await latest();
+    if (!block || typeof block.ref_block_bytes !== 'string' ||
+        typeof block.ref_block_hash !== 'string' || typeof block.expiration !== 'string' ||
+        typeof block.timestamp !== 'string') {
+      throw new Error('The Nile block reference is incomplete.');
+    }
+    var request = {
+      owner_address: from,
+      to_address: to,
+      amount: sun.toString(),
+      ref_block_bytes: block.ref_block_bytes,
+      ref_block_hash: block.ref_block_hash,
+      expiration: block.expiration,
+      timestamp: block.timestamp,
+      fee_limit: '0'
+    };
+    var unsigned = typeof input.unsigned === 'function'
+      ? input.unsigned
+      : function (fields) { return tron.unsignedTransfer(input.wasm, fields); };
+    var tx = await unsigned(request);
+    if (!tx || typeof tx !== 'object' || typeof tx.txID !== 'string' ||
+        typeof tx.raw_data_hex !== 'string' || !/^[0-9a-fA-F]+$/.test(tx.raw_data_hex)) {
+      throw new Error('The local core returned an unexpected TRON transaction.');
+    }
+    return {
+      chain: TRON_CHAIN,
+      from: from,
+      to: to,
+      amountSun: sun,
+      amountTron: tron.sunToTron(sun),
+      block: block,
+      request: request,
+      tx: tx
+    };
+  }
+
+  /* Sign the reviewed TRX transfer. The private key goes to the WASM core in
+   * its request buffer only; it is never added to the returned object. The
+   * `sign` callback is the test seam and defaults to the real WASM call. */
+  async function signTronTransfer(options) {
+    var input = options || {};
+    var tron = tronApi(input.tron);
+    var review = input.review;
+    if (!review || !review.request) throw new Error('No TRON review to sign.');
+    var keyHex = String(input.keyHex || '').replace(/^0x/i, '').toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(keyHex)) {
+      throw new Error('TRON signing needs a 32-byte hex key (64 hex characters).');
+    }
+    var request = {
+      owner_address: review.request.owner_address,
+      to_address: review.request.to_address,
+      amount: review.request.amount,
+      ref_block_bytes: review.request.ref_block_bytes,
+      ref_block_hash: review.request.ref_block_hash,
+      expiration: review.request.expiration,
+      timestamp: review.request.timestamp,
+      fee_limit: review.request.fee_limit,
+      private_key: '0x' + keyHex
+    };
+    try {
+      var sign = typeof input.sign === 'function'
+        ? input.sign
+        : function (fields) { return tron.signTransfer(input.wasm, fields); };
+      var signed = await sign(request);
+      if (!signed || typeof signed !== 'object' ||
+          typeof signed.txID !== 'string' || typeof signed.raw_data_hex !== 'string' ||
+          typeof signed.signature !== 'string') {
+        throw new Error('The local core returned an unexpected signed TRON transaction.');
+      }
+      return signed;
+    } finally {
+      request.private_key = null;
+      request = null;
+    }
+  }
+
   /* ------------------------------------------------------------------ DOM */
 
   function init() {
     var btc = root.RotorBtcSend;
     var evm = root.RotorEvmSend;
+    var tron = root.RotorTronSend;
     var state = {
       chain: assertTestnetChain(chainFromPath(root.location && root.location.pathname)),
       keyBytes: null,
@@ -369,6 +502,7 @@
       token: null,
       providers: [],
       signedHex: null,
+      signedTx: null,
       busy: false
     };
 
@@ -389,6 +523,7 @@
     var tokenInput = byId('send-token');
     var tokenDecimalsInput = byId('send-token-decimals');
     var tokenAmountInput = byId('send-token-amount');
+    var tronAmountInput = byId('send-tron-amount');
     var prepareButton = byId('send-prepare');
     var clearButton = byId('send-clear');
     var signButton = byId('send-sign');
@@ -410,7 +545,7 @@
     var resultLink = byId('send-result-link');
     var unavailable = byId('send-unavailable');
 
-    if (!btc || !evm) {
+    if (!btc || !evm || !tron) {
       if (unavailable) {
         unavailable.hidden = false;
         unavailable.textContent = 'The send kernel did not load. Reload the page.';
@@ -516,7 +651,10 @@
       }
       var feeHelp = byId('send-fee-help');
       if (feeHelp) {
-        if (isTokenChain(state.chain)) {
+        if (isTronChain(state.chain)) {
+          feeHelp.textContent = 'TRON Nile: a plain TRX transfer consumes bandwidth, not a token fee. ' +
+            'The review shows the exact ref block and expiration taken from the latest Nile block.';
+        } else if (isTokenChain(state.chain)) {
           feeHelp.textContent = 'ERC-20 transfer on Sepolia: gas defaults to 60000 and the exact calldata is shown before signing.';
         } else if (evmMode) {
           feeHelp.textContent = 'Empty gas fields are filled from ' + config.label +
@@ -662,6 +800,7 @@
       state.review = null;
       state.token = null;
       state.signedHex = null;
+      state.signedTx = null;
       if (reviewCard) reviewCard.hidden = true;
       if (signedCard) signedCard.hidden = true;
       if (resultCard) resultCard.hidden = true;
@@ -696,6 +835,7 @@
       if (tokenInput) tokenInput.value = '';
       if (tokenDecimalsInput) tokenDecimalsInput.value = String(USDT_DEFAULT_DECIMALS);
       if (tokenAmountInput) tokenAmountInput.value = '';
+      if (tronAmountInput) tronAmountInput.value = '';
     }
 
     var deriveTimer = null;
@@ -728,9 +868,10 @@
       try {
         var parsed = await parseSecret(value, state.chain);
         var wasm = await loadWasm();
-        var network = isEvmChain(state.chain) ? 0 : 1;
+        var network = isEvmChain(state.chain) || isTronChain(state.chain) ? 0 : 1;
         var report = deriveReport(wasm, parsed.keyBytes, 0, network);
-        var wanted = isEvmChain(state.chain) ? 'evm' : 'btc_p2wpkh';
+        var wanted = isEvmChain(state.chain) ? 'evm'
+          : isTronChain(state.chain) ? 'tron' : 'btc_p2wpkh';
         var rows = Array.isArray(report.addresses) ? report.addresses : [];
         var row = null;
         for (var i = 0; i < rows.length; i += 1) {
@@ -845,6 +986,26 @@
       if (reviewUnsigned) reviewUnsigned.textContent = review.unsignedHex;
     }
 
+    function renderTronReview(review) {
+      if (!reviewList) return;
+      reviewList.textContent = '';
+      addRow('Network', 'TRON Nile testnet (TESTNET)');
+      addRow('From', review.from, true);
+      addRow('To', review.to, true);
+      addRow('Amount', review.amountTron + ' TRX (' + review.amountSun.toString() + ' sun)');
+      addRow('Ref block bytes', review.request.ref_block_bytes, true);
+      addRow('Ref block hash', review.request.ref_block_hash, true);
+      addRow('Expiration', review.request.expiration + ' ms since epoch');
+      addRow('txID', review.tx.txID, true);
+      addRow('raw_data_hex', review.tx.raw_data_hex, true);
+      addRow('Fee', 'fee_limit 0; a plain TRX transfer consumes bandwidth, not a token fee');
+      renderWarnings([
+        'TESTNET only: this transaction targets the TRON Nile testnet. Mainnet hosts and the mainnet tron route are rejected; the page posts only to api.nileex.io.',
+        'The expiration comes from the latest Nile block. Re-prepare if you wait more than about a minute before signing.'
+      ]);
+      if (reviewUnsigned) reviewUnsigned.textContent = review.tx.raw_data_hex;
+    }
+
     async function prepare(event) {
       if (event) event.preventDefault();
       if (state.busy) return;
@@ -858,7 +1019,17 @@
       try {
         assertTestnetChain(state.chain);
         setBusy(true, 'Preparing…');
-        if (isEvmChain(state.chain)) {
+        if (isTronChain(state.chain)) {
+          var tronReview = await prepareTronTransfer({
+            wasm: await loadWasm(),
+            tron: tron,
+            from: state.address,
+            to: toInput ? toInput.value : '',
+            amount: tronAmountInput ? tronAmountInput.value : ''
+          });
+          state.review = tronReview;
+          renderTronReview(tronReview);
+        } else if (isEvmChain(state.chain)) {
           var form;
           var token = null;
           if (isTokenChain(state.chain)) {
@@ -1003,17 +1174,35 @@
       try {
         assertTestnetChain(state.chain);
         setBusy(true, 'Signing…');
-        var signed = isEvmChain(state.chain)
-          ? await signEvm(state.review)
-          : await signBtc(state.review);
-        if (isEvmChain(state.chain)) {
-          if (!/^0x02[0-9a-f]+$/.test(signed) || signed.length % 2) {
+        if (isTronChain(state.chain)) {
+          var signedTron = await signTronTransfer({
+            wasm: await loadWasm(),
+            tron: tron,
+            review: state.review,
+            keyHex: bytesToHex(state.keyBytes)
+          });
+          if (!/^[0-9a-f]{64}$/i.test(signedTron.txID) ||
+              !/^[0-9a-f]+$/i.test(signedTron.raw_data_hex) ||
+              signedTron.raw_data_hex.length % 2 ||
+              !/^[0-9a-f]{130}$/i.test(signedTron.signature)) {
             throw new Error('The local core returned an unexpected signed transaction.');
           }
-        } else if (!/^[0-9a-f]+$/.test(signed) || signed.length % 2) {
-          throw new Error('The local core returned an unexpected signed transaction.');
+          state.signedTx = signedTron;
+          showSigned('raw_data_hex: ' + signedTron.raw_data_hex +
+            '\nsignature: ' + signedTron.signature);
+        } else {
+          var signed = isEvmChain(state.chain)
+            ? await signEvm(state.review)
+            : await signBtc(state.review);
+          if (isEvmChain(state.chain)) {
+            if (!/^0x02[0-9a-f]+$/.test(signed) || signed.length % 2) {
+              throw new Error('The local core returned an unexpected signed transaction.');
+            }
+          } else if (!/^[0-9a-f]+$/.test(signed) || signed.length % 2) {
+            throw new Error('The local core returned an unexpected signed transaction.');
+          }
+          showSigned(signed);
         }
-        showSigned(signed);
         wipeKey();
         setStatus('Signed locally. The private key was cleared; review the signed hex, then broadcast or copy it.');
       } catch (err) {
@@ -1032,7 +1221,16 @@
       try {
         assertTestnetChain(state.chain);
         var result;
-        if (isEvmChain(state.chain)) {
+        if (isTronChain(state.chain)) {
+          setBusy(true, 'Broadcasting…');
+          result = await tron.broadcast(state.signedTx);
+          if (resultHash) resultHash.textContent = result.txID;
+          if (resultLink) {
+            resultLink.setAttribute('href', config.explorerTx + result.txID);
+            resultLink.hidden = false;
+          }
+          setStatus('Broadcast to TRON Nile testnet accepted.');
+        } else if (isEvmChain(state.chain)) {
           setBusy(true, 'Broadcasting…');
           result = await evm.confirmTransaction({
             review: state.review,
@@ -1138,6 +1336,7 @@
     EVM_CHAIN: EVM_CHAIN,
     BNB_CHAIN: BNB_CHAIN,
     USDT_CHAIN: USDT_CHAIN,
+    TRON_CHAIN: TRON_CHAIN,
     SEPOLIA_CHAIN_ID: SEPOLIA_CHAIN_ID,
     BNB_CHAIN_ID: BNB_CHAIN_ID,
     BTC_API: BTC_API,
@@ -1151,6 +1350,7 @@
     chainLabel: chainLabel,
     isEvmChain: isEvmChain,
     isTokenChain: isTokenChain,
+    isTronChain: isTronChain,
     providersForChain: providersForChain,
     assertTestnetChain: assertTestnetChain,
     assertAllowedChainId: assertAllowedChainId,
@@ -1165,6 +1365,9 @@
     normalizeEvmAddress: normalizeEvmAddress,
     tokenDecimals: tokenDecimals,
     parseTokenUnits: parseTokenUnits,
-    buildErc20Transfer: buildErc20Transfer
+    buildErc20Transfer: buildErc20Transfer,
+    tronAmountSun: tronAmountSun,
+    prepareTronTransfer: prepareTronTransfer,
+    signTronTransfer: signTronTransfer
   };
 });

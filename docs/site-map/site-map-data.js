@@ -378,7 +378,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['ss:/Easy_bitcoin_transaction_online', 'ss:/Easy_ethereum_transaction_online', 'ss:/Easy_bnb_transaction_online', 'ss:/Easy_usdt_erc20_transaction_online'],
-    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin, /send/ethereum, /send/bnb and /send/usdt. Keys derive, sign and broadcast locally; mainnet keys, mainnet chain ids and mainnet endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
+    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin, /send/ethereum, /send/bnb, /send/usdt and /send/tron. Keys derive, sign and broadcast locally; mainnet keys, mainnet chain ids and mainnet endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
   });
 
   oursRoute({
@@ -409,6 +409,16 @@
     priority: 'P0',
     donorIds: ['ss:/Easy_bnb_transaction_online'],
     note: 'BNB Smart Chain testnet only (chapel, chain id 97): allowlisted BSC-testnet RPCs, chain-id guard, review, local EIP-1559 signing and an optional testnet.bscscan.com broadcast. BSC mainnet (chain id 56) and mainnet RPCs are rejected. The donor also covers mainnet.'
+  });
+
+  oursRoute({
+    path: '/send/tron',
+    title: 'Send TRON Nile testnet',
+    area: 'tools',
+    status: 'partial',
+    priority: 'P0',
+    donorIds: ['ss:/Easy_tron_trx_transaction_online'],
+    note: 'TRON Nile testnet only: a 64-hex key, a T... base58 recipient and TRX->sun conversion feed the WASM TransferContract builder. Review shows the ref block, expiration, txID and raw_data_hex; signing is local and an optional broadcast posts only to api.nileex.io. Mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'
   });
 
   oursRoute({
@@ -799,7 +809,7 @@
     ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', '/send/bitcoin', 'partial', 'P0', 'Top-level testnet-only /send/bitcoin page; the donor also covers mainnet.'],
     ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', '/send/ethereum', 'partial', 'P0', 'Top-level Sepolia-only /send/ethereum page; mainnet RPCs are rejected in code.'],
     ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', '/send/bnb', 'partial', 'P0', 'Top-level BNB Smart Chain testnet-only /send/bnb page (chapel, chain id 97); BSC mainnet chain id 56 and mainnet RPCs are rejected. The donor also covers mainnet.'],
-    ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', null, 'missing', 'P0', 'No TRON builder in Rotor.'],
+    ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', '/send/tron', 'partial', 'P0', 'Top-level TRON Nile testnet-only /send/tron page: TRX->sun conversion, local WASM TransferContract signing and an optional api.nileex.io broadcast; mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'],
     ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', '/send/usdt', 'partial', 'P0', 'Generic ERC-20 transfer builder on Ethereum Sepolia with a user-supplied contract; no canonical USDT on Sepolia is assumed. The donor covers mainnet USDT.'],
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Rotor mirrors real dataset downloads; secretscan.org shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The secretscan.org nav link currently answers 404.'],
@@ -1161,7 +1171,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['secretscan.org'],
-    note: 'Top-level /send covers BTC testnet, ETH Sepolia and BNB Smart Chain testnet, plus a generic ERC-20 transfer builder on Sepolia. TRON, USDC-specific builders and all mainnet sends are still missing; /send/usdt uses a user-supplied contract because Sepolia has no canonical USDT deployment.'
+    note: 'Top-level /send covers BTC testnet, ETH Sepolia, BNB Smart Chain testnet, TRON Nile testnet and a generic ERC-20 transfer builder on Sepolia. USDC-specific builders and all mainnet sends are still missing; /send/usdt uses a user-supplied contract because Sepolia has no canonical USDT deployment.'
   });
 
   feature({
