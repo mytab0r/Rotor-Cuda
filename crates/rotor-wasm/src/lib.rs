@@ -65,6 +65,7 @@ mod evm;
 mod json;
 mod keystore;
 mod sign;
+mod ton;
 mod tron;
 
 use std::alloc::{Layout, alloc as rust_alloc, dealloc as rust_dealloc};
@@ -1793,7 +1794,7 @@ mod tests {
         );
 
         let addresses = value["addresses"].as_array().unwrap();
-        assert_eq!(addresses.len(), 2);
+        assert_eq!(addresses.len(), 3);
         assert_eq!(addresses[0]["id"], "solana");
         assert_eq!(addresses[0]["label"], "Solana (ed25519)");
         assert_eq!(
@@ -1808,6 +1809,27 @@ mod tests {
         assert_eq!(
             addresses[1]["address"],
             "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d"
+        );
+        assert_eq!(addresses[2]["id"], "ton_w5");
+        assert_eq!(addresses[2]["label"], "TON wallet W5");
+        assert_eq!(
+            addresses[2]["address"],
+            "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td"
+        );
+        assert_eq!(
+            addresses[2]["steps"]["pubkey"],
+            "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        );
+        assert_eq!(
+            addresses[2]["steps"]["address"],
+            "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td"
+        );
+        assert_eq!(
+            addresses[2]["steps"]["state_init_hash"]
+                .as_str()
+                .unwrap()
+                .len(),
+            64
         );
     }
 
@@ -2011,8 +2033,8 @@ mod tests {
             ),
             (
                 1u32,
-                1046usize,
-                "b4e1a153fa8ff3b8550943c44d9936a7bd5b0825af590d9d45f60132d655a3aa",
+                1379usize,
+                "74ed658f529f52b0ea6e5bc7c24c7303feb66b1ddf08fee3eb133e6400fe0968",
             ),
         ] {
             let mut session = Session::new();
