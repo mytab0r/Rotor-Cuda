@@ -1129,7 +1129,13 @@ fn send_routes_are_served_with_testnet_only_copy() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    for path in ["/send", "/send/bitcoin", "/send/ethereum"] {
+    for path in [
+        "/send",
+        "/send/bitcoin",
+        "/send/ethereum",
+        "/send/bnb",
+        "/send/usdt",
+    ] {
         let (status, headers, body) = raw(addr, "GET", path, None, None);
         assert_eq!(status, 200, "{path}");
         assert!(
@@ -1168,11 +1174,19 @@ fn send_routes_are_served_with_testnet_only_copy() {
     assert!(script.contains("assertTestnetChain"));
     assert!(script.contains("Mainnet sending is disabled"));
     assert!(script.contains("mempool.space/testnet/api"));
-    assert!(script.contains("Blocked an Ethereum RPC outside the Sepolia allowlist"));
+    assert!(script.contains("Blocked an EVM RPC outside the testnet allowlist"));
+    assert!(script.contains("bsc-testnet-rpc.publicnode.com"));
+    assert!(script.contains("a9059cbb"));
 
     let (status, _, sitemap) = raw(addr, "GET", "/sitemap.xml", None, None);
     assert_eq!(status, 200);
-    for path in ["/send", "/send/bitcoin", "/send/ethereum"] {
+    for path in [
+        "/send",
+        "/send/bitcoin",
+        "/send/ethereum",
+        "/send/bnb",
+        "/send/usdt",
+    ] {
         assert!(
             sitemap.contains(&format!("{path}</loc>")),
             "sitemap missing {path}"
