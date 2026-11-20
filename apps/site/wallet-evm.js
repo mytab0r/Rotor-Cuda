@@ -299,12 +299,13 @@
     }
   }
 
-  function chooseProvider(fetchJson, providers, expectedChainId) {
+  function chooseProvider(fetchJson, providers, expectedChainId, networkName) {
     var failures = [];
+    var label = networkName || 'Sepolia';
 
     function attempt(index) {
       if (index >= providers.length) {
-        throw new Error('No public Sepolia RPC answered correctly from this browser' +
+        throw new Error('No public ' + label + ' RPC answered correctly from this browser' +
           (providers.length > 1 ? ' (tried ' + providers.length + ' endpoints)' : '') +
           '. Browser CORS or network access may be blocked; Rotor does not proxy or spoof Origin. ' +
           failures.join(' · '));
@@ -371,7 +372,7 @@
     var feesSource = 'eth_feeHistory';
     var prioritySource = 'eth_maxPriorityFeePerGas';
 
-    return chooseProvider(settings.fetchJson, providers, expectedChainId)
+    return chooseProvider(settings.fetchJson, providers, expectedChainId, settings.networkName)
       .then(function (chosen) {
         providerUrl = chosen;
         return read(settings.fetchJson, chosen, 'eth_getTransactionCount', [from, 'pending'], 'the nonce');
@@ -462,8 +463,8 @@
           }
           if (totalMaxCost > balance) {
             warnings.push('The maximum cost exceeds the balance of ' +
-              formatUnits(balance, ETH_DECIMALS) +
-              ' ETH; the node will reject the transaction.');
+              formatUnits(balance, ETH_DECIMALS) + ' ' + (settings.nativeSymbol || 'ETH') +
+              '; the node will reject the transaction.');
           }
           if (/^0x0{40}$/.test(values.to)) {
             warnings.push('The destination is the zero address; value sent there is not recoverable.');

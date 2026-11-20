@@ -32,6 +32,12 @@
 //! P2WPKH testnet transaction (segwit serialization with witnesses), ready for
 //! `POST /api/tx` on mempool.space. [`btc_unsigned_tx`] returns the same
 //! transaction before signing, without witness data, for review.
+//!
+//! Result blob of [`tron_sign_tx`] and [`tron_unsigned_tx`]: a UTF-8 JSON
+//! review object `{txID, raw_data_hex, raw_data, signature?}` for a TRON Nile
+//! testnet TRX `TransferContract`. The signature is 65 bytes `r || s || v` with
+//! `v = 27 + recovery_id`; the unsigned request returns the same object without
+//! `signature`.
 
 #![allow(dead_code)]
 // the included parent modules expose more than this ABI uses
@@ -59,6 +65,7 @@ mod evm;
 mod json;
 mod keystore;
 mod sign;
+mod tron;
 
 use std::alloc::{Layout, alloc as rust_alloc, dealloc as rust_dealloc};
 use std::cell::UnsafeCell;
@@ -521,6 +528,48 @@ impl Session {
         match btc::unsigned_request(request) {
             Ok(raw) => {
                 self.result = derive::hex(&raw).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Parse, sign and serialize a TRON Nile testnet TRX transfer.
+    ///
+    /// The request is the flat JSON object of [`tron::sign_request`]; the
+    /// result is a UTF-8 JSON review object with `txID`, `raw_data_hex`,
+    /// `raw_data` and `signature`. The private key is wiped from the parsed
+    /// request before this returns.
+    pub fn tron_sign_tx(&mut self, request: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match tron::sign_request(request) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Parse and serialize a TRON Nile testnet TRX transfer without signing.
+    ///
+    /// The request is [`Session::tron_sign_tx`] without `private_key`; the
+    /// result is the JSON review object without `signature`.
+    pub fn tron_unsigned_tx(&mut self, request: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match tron::unsigned_request(request) {
+            Ok(json) => {
+                self.result = json.into_bytes();
                 OK
             }
             Err(message) => {
@@ -1017,6 +1066,59 @@ pub extern "C" fn btc_unsigned_tx(ptr: u32, len: u32) -> u32 {
     };
     let result = match std::str::from_utf8(bytes) {
         Ok(request) => session_mut().btc_unsigned_tx(request),
+        Err(_) => {
+            session_mut().set_error("unsigned request is not valid UTF-8");
+            ERR_BAD_TARGET
+        }
+    };
+    sign::wipe(bytes);
+    result
+}
+
+/// Sign a TRON Nile testnet TRX transfer.
+///
+/// The request is a UTF-8 JSON object:
+///
+/// ```text
+/// {"owner_address":"T...","to_address":"T...","amount":"1000000",
+///  "ref_block_bytes":"12ab","ref_block_hash":"0011223344556677",
+///  "expiration":"1700000060000","timestamp":"1700000000000",
+///  "fee_limit":"0","private_key":"0x..."}
+/// ```
+///
+/// On success the result buffer holds a UTF-8 JSON review object with `txID`,
+/// `raw_data_hex`, `raw_data` and `signature` (65 bytes `r || s || v`). The
+/// uploaded request bytes and the parsed private key are wiped before return.
+#[unsafe(no_mangle)]
+pub extern "C" fn tron_sign_tx(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes_mut(ptr, len) else {
+        session_mut().set_error("invalid signing request pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let result = match std::str::from_utf8(bytes) {
+        Ok(request) => session_mut().tron_sign_tx(request),
+        Err(_) => {
+            session_mut().set_error("signing request is not valid UTF-8");
+            ERR_BAD_TARGET
+        }
+    };
+    sign::wipe(bytes);
+    result
+}
+
+/// Serialize a TRON Nile testnet TRX transfer for review without signing.
+///
+/// The request is [`tron_sign_tx`] minus `private_key`; a key field is
+/// rejected. On success the result holds the JSON review object without a
+/// `signature` field. The uploaded request bytes are wiped before return.
+#[unsafe(no_mangle)]
+pub extern "C" fn tron_unsigned_tx(ptr: u32, len: u32) -> u32 {
+    let Some(bytes) = read_bytes_mut(ptr, len) else {
+        session_mut().set_error("invalid unsigned request pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let result = match std::str::from_utf8(bytes) {
+        Ok(request) => session_mut().tron_unsigned_tx(request),
         Err(_) => {
             session_mut().set_error("unsigned request is not valid UTF-8");
             ERR_BAD_TARGET

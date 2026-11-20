@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Send Bitcoin testnet — TESTNET only | Rotor</title>
-<meta name="description" content="Send Bitcoin testnet or Ethereum Sepolia coins from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
+<title>Send testnet coins — Bitcoin, Ethereum, BNB | Rotor</title>
+<meta name="description" content="Send Bitcoin testnet, Ethereum Sepolia, BNB Smart Chain testnet or a generic ERC-20 transfer from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
 <link rel="canonical" href="https://rotor.pxbt.app/send">
 <link rel="stylesheet" href="/site.css?v=20261124b">
 <script src="/theme.js?v=20261124b"></script>
@@ -23,6 +23,14 @@
 .send-page .key-chain[data-send-chain="ethereum-sepolia"][aria-current="page"] {
   border-color: #8f9eff;
   background: rgba(143, 158, 255, .14);
+}
+.send-page .key-chain[data-send-chain="bnb-testnet"][aria-current="page"] {
+  border-color: #f3ba2f;
+  background: rgba(243, 186, 47, .14);
+}
+.send-page .key-chain[data-send-chain="usdt-sepolia"][aria-current="page"] {
+  border-color: #26a17b;
+  background: rgba(38, 161, 123, .14);
 }
 .send-testnet-banner {
   margin: 0 0 18px;
@@ -131,11 +139,13 @@
     </div>
   </section>
 
-  <p class="send-testnet-banner" role="note">TESTNET ONLY. Bitcoin testnet (tBTC) and Ethereum Sepolia are the only networks here. Mainnet keys, mainnet RPC endpoints and mainnet broadcasts are rejected in code; nothing on this page can sign a mainnet transaction.</p>
+  <p class="send-testnet-banner" role="note">TESTNET ONLY. Bitcoin testnet (tBTC), Ethereum Sepolia, BNB Smart Chain testnet (chapel) and a generic ERC-20 builder on Sepolia are the only networks here. Mainnet keys, mainnet RPC endpoints and mainnet broadcasts are rejected in code; nothing on this page can sign a mainnet transaction.</p>
 
   <nav class="key-chains" aria-label="Testnet chain">
     <a class="key-chain" href="/send/bitcoin" data-send-chain="bitcoin-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin testnet</a>
     <a class="key-chain" href="/send/ethereum" data-send-chain="ethereum-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum Sepolia</a>
+    <a class="key-chain" href="/send/bnb" data-send-chain="bnb-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB testnet</a>
+    <a class="key-chain" href="/send/usdt" data-send-chain="usdt-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>ERC-20 on Sepolia</a>
   </nav>
 
   <p id="send-unavailable" class="notice" role="alert" hidden></p>
@@ -172,23 +182,35 @@
         <input id="send-fee-rate" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="2">
       </label>
 
-      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-value">Value (ETH, optional for a call)
+      <label class="key-input-label" data-chain-only="ethereum-sepolia,bnb-testnet" for="send-value"><span id="send-value-label">Value (ETH, optional for a call)</span>
         <input id="send-value" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="0.001">
       </label>
 
-      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-data">Call data (0x…, optional)
+      <label class="key-input-label" data-chain-only="ethereum-sepolia,bnb-testnet" for="send-data">Call data (0x…, optional)
         <input id="send-data" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="0x">
       </label>
 
-      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-gas">Gas limit (optional)
-        <input id="send-gas" class="mono" type="text" inputmode="numeric" spellcheck="false" placeholder="21000">
+      <label class="key-input-label" data-chain-only="usdt-sepolia" for="send-token">Token contract (0x…, 20-byte address)
+        <input id="send-token" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="0x… the token contract">
       </label>
 
-      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-max-fee">Max fee (gwei, optional)
+      <label class="key-input-label" data-chain-only="usdt-sepolia" for="send-token-decimals">Decimals
+        <input id="send-token-decimals" class="mono" type="text" inputmode="numeric" spellcheck="false" value="6" placeholder="6">
+      </label>
+
+      <label class="key-input-label" data-chain-only="usdt-sepolia" for="send-token-amount">Token amount
+        <input id="send-token-amount" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="1.0">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia,bnb-testnet,usdt-sepolia" for="send-gas">Gas limit (optional)
+        <input id="send-gas" class="mono" type="text" inputmode="numeric" spellcheck="false" placeholder="21000 or 60000">
+      </label>
+
+      <label class="key-input-label" data-chain-only="ethereum-sepolia,bnb-testnet,usdt-sepolia" for="send-max-fee">Max fee (gwei, optional)
         <input id="send-max-fee" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="auto">
       </label>
 
-      <label class="key-input-label" data-chain-only="ethereum-sepolia" for="send-priority">Priority fee (gwei, optional)
+      <label class="key-input-label" data-chain-only="ethereum-sepolia,bnb-testnet,usdt-sepolia" for="send-priority">Priority fee (gwei, optional)
         <input id="send-priority" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="auto">
       </label>
 

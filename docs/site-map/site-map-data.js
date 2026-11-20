@@ -377,8 +377,8 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_bitcoin_transaction_online', 'ss:/Easy_ethereum_transaction_online'],
-    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin and /send/ethereum. Keys derive, sign and broadcast locally; mainnet keys and endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
+    donorIds: ['ss:/Easy_bitcoin_transaction_online', 'ss:/Easy_ethereum_transaction_online', 'ss:/Easy_bnb_transaction_online', 'ss:/Easy_usdt_erc20_transaction_online'],
+    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin, /send/ethereum, /send/bnb and /send/usdt. Keys derive, sign and broadcast locally; mainnet keys, mainnet chain ids and mainnet endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
   });
 
   oursRoute({
@@ -399,6 +399,26 @@
     priority: 'P0',
     donorIds: ['ss:/Easy_ethereum_transaction_online'],
     note: 'Ethereum Sepolia only: chain-id 11155111 guard, fee/nonce estimates from allowlisted Sepolia RPCs, review, local EIP-1559 signing and an optional broadcast. Mainnet RPCs are rejected.'
+  });
+
+  oursRoute({
+    path: '/send/bnb',
+    title: 'Send BNB Smart Chain testnet',
+    area: 'tools',
+    status: 'partial',
+    priority: 'P0',
+    donorIds: ['ss:/Easy_bnb_transaction_online'],
+    note: 'BNB Smart Chain testnet only (chapel, chain id 97): allowlisted BSC-testnet RPCs, chain-id guard, review, local EIP-1559 signing and an optional testnet.bscscan.com broadcast. BSC mainnet (chain id 56) and mainnet RPCs are rejected. The donor also covers mainnet.'
+  });
+
+  oursRoute({
+    path: '/send/usdt',
+    title: 'Send an ERC-20 transfer on Sepolia',
+    area: 'tools',
+    status: 'partial',
+    priority: 'P0',
+    donorIds: ['ss:/Easy_usdt_erc20_transaction_online'],
+    note: 'Generic ERC-20 transfer(address,uint256) builder on Ethereum Sepolia. No token contract is hardcoded: the user supplies the contract, decimals (default 6) and amount, and the exact calldata is shown in the review. There is no canonical USDT deployment on Sepolia, so this is not a USDT-specific mainnet flow.'
   });
 
   oursRoute({
@@ -778,9 +798,9 @@
     ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', '/tx/ethereum', 'parity', '-', 'Raw hex to type, gas/fee fields, access list, signature and JSON. No signature recovery.'],
     ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', '/send/bitcoin', 'partial', 'P0', 'Top-level testnet-only /send/bitcoin page; the donor also covers mainnet.'],
     ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', '/send/ethereum', 'partial', 'P0', 'Top-level Sepolia-only /send/ethereum page; mainnet RPCs are rejected in code.'],
-    ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', null, 'missing', 'P0', 'No BNB builder in Rotor.'],
+    ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', '/send/bnb', 'partial', 'P0', 'Top-level BNB Smart Chain testnet-only /send/bnb page (chapel, chain id 97); BSC mainnet chain id 56 and mainnet RPCs are rejected. The donor also covers mainnet.'],
     ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', null, 'missing', 'P0', 'No TRON builder in Rotor.'],
-    ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', null, 'missing', 'P0', 'No USDT builder in Rotor.'],
+    ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', '/send/usdt', 'partial', 'P0', 'Generic ERC-20 transfer builder on Ethereum Sepolia with a user-supplied contract; no canonical USDT on Sepolia is assumed. The donor covers mainnet USDT.'],
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Rotor mirrors real dataset downloads; secretscan.org shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The secretscan.org nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
@@ -1141,7 +1161,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['secretscan.org'],
-    note: 'Top-level /send covers BTC testnet and ETH Sepolia; BNB, TRON, USDT/USDC builders and all mainnet sends are still missing.'
+    note: 'Top-level /send covers BTC testnet, ETH Sepolia and BNB Smart Chain testnet, plus a generic ERC-20 transfer builder on Sepolia. TRON, USDC-specific builders and all mainnet sends are still missing; /send/usdt uses a user-supplied contract because Sepolia has no canonical USDT deployment.'
   });
 
   feature({
