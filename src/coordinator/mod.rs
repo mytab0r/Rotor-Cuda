@@ -900,7 +900,7 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             WALLET_BTC_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
-        "/send" | "/send/bitcoin" | "/send/ethereum" => {
+        "/send" | "/send/bitcoin" | "/send/ethereum" | "/send/bnb" | "/send/usdt" => {
             Some((SEND_PAGE.as_bytes(), "text/html; charset=utf-8"))
         }
         "/send.js" => Some((SEND_JS.as_bytes(), "application/javascript; charset=utf-8")),
@@ -4094,6 +4094,8 @@ fn render_sitemap(base: &str) -> String {
         "/send",
         "/send/bitcoin",
         "/send/ethereum",
+        "/send/bnb",
+        "/send/usdt",
         "/wallets",
         "/cabinet/wallet",
         "/key/wif",
