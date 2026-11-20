@@ -361,6 +361,7 @@
     if (statusEl) {
       statusEl.className = 'key-input-status is-' + kind;
       statusEl.setAttribute('aria-live', kind === 'invalid' ? 'assertive' : 'polite');
+      statusEl.title = message;
     }
     if (statusTextEl) statusTextEl.textContent = message;
     var form = byId('key-form');
@@ -2441,13 +2442,15 @@
   function hideExposureStatus() {
     if (!exposureStatus) return;
     exposureStatus.textContent = '';
+    exposureStatus.removeAttribute('title');
     exposureStatus.className = 'key-exposure-status';
     exposureStatus.hidden = true;
   }
 
-  function showExposureStatus(message, kind) {
+  function showExposureStatus(short, full, kind) {
     if (!exposureStatus) return;
-    exposureStatus.textContent = message;
+    exposureStatus.textContent = short;
+    exposureStatus.title = full || short;
     exposureStatus.className = 'key-exposure-status' + (kind ? ' ' + kind : '');
     exposureStatus.hidden = false;
   }
@@ -2517,7 +2520,8 @@
     var controller = new AbortController();
     state.exposureController = controller;
     var timer = window.setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
-    showExposureStatus('Checking ' + addresses.length + ' address(es) against the Crypto registry…', '');
+    showExposureStatus('Checking exposure…',
+      'Checking ' + addresses.length + ' address(es) against the Crypto registry…', '');
     try {
       var response = await fetch('/api/v1/monitor/exposure', {
         method: 'POST',
@@ -2532,15 +2536,16 @@
         throw new Error(data && data.error ? data.error : 'HTTP ' + response.status);
       }
       var matched = data && typeof data.matched === 'number' ? data.matched : 0;
-      showExposureStatus(matched > 0 ? matched + ' registered address(es) matched; their owners were warned.' : 'No registered address matched.', 'ok');
+      showExposureStatus(matched > 0 ? matched + ' registered match' + (matched === 1 ? '' : 'es') : 'No registry match',
+        matched > 0 ? matched + ' registered address(es) matched; their owners were warned.' : 'No registered address matched.', 'ok');
     } catch (err) {
       if (generation !== state.generation || (!auto && !exposureToggle.checked)) return;
       if (err && err.name === 'AbortError') {
-        showExposureStatus('Exposure check timed out.', 'err');
+        showExposureStatus('Exposure check timed out.', 'Exposure check timed out.', 'err');
         return;
       }
-      showExposureStatus('Exposure check failed: ' +
-        (err && err.message ? err.message : 'unknown error'), 'err');
+      showExposureStatus('Exposure check failed',
+        'Exposure check failed: ' + (err && err.message ? err.message : 'unknown error'), 'err');
     } finally {
       window.clearTimeout(timer);
       if (state.exposureController === controller) state.exposureController = null;
@@ -2754,6 +2759,51 @@
       if (state.report) scheduleExposure(state.report, false);
     });
   }
+
+  /* The formats popover: an absolutely positioned card so opening it never
+   * changes the meta row height or the page scroll. Escape and an outside
+   * click close it; Escape returns focus to the trigger. */
+  (function setupInfoPopover() {
+    var infoBtn = byId('key-info-btn');
+    var infoPopover = byId('key-info-popover');
+    if (!infoBtn || !infoPopover) return;
+
+    function closeInfoPopover(returnFocus) {
+      if (infoPopover.hidden) return;
+      infoPopover.hidden = true;
+      infoPopover.style.maxHeight = '';
+      infoBtn.setAttribute('aria-expanded', 'false');
+      if (returnFocus) infoBtn.focus();
+    }
+
+    function openInfoPopover() {
+      infoPopover.hidden = false;
+      /* Keep the card inside the viewport even when it opens near the bottom
+       * edge on a short screen; the body scrolls instead of the page moving. */
+      var rect = infoPopover.getBoundingClientRect();
+      var cap = Math.min(360, window.innerHeight - rect.top - 8, window.innerHeight * 0.6);
+      infoPopover.style.maxHeight = Math.max(160, cap) + 'px';
+      infoBtn.setAttribute('aria-expanded', 'true');
+      infoPopover.focus({ preventScroll: true });
+    }
+
+    infoBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (infoPopover.hidden) openInfoPopover();
+      else closeInfoPopover(true);
+    });
+    document.addEventListener('click', function (event) {
+      if (infoPopover.hidden) return;
+      if (infoPopover.contains(event.target) || infoBtn.contains(event.target)) return;
+      closeInfoPopover(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !infoPopover.hidden) {
+        event.preventDefault();
+        closeInfoPopover(true);
+      }
+    });
+  })();
 
   window.addEventListener('pagehide', function () {
     cancelDebounce();
