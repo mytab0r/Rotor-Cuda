@@ -138,7 +138,7 @@ fn auth_is_required_for_the_api_but_not_the_dashboard() {
         headers.to_ascii_lowercase().contains("text/html"),
         "headers: {headers}"
     );
-    assert!(body.contains("Rotor Coordinator"));
+    assert!(body.contains("Crypto"));
 
     let client = CoordinatorClient::new(&format!("http://{addr}"), TOKEN, "client-1");
     assert!(client.jobs().expect("jobs").is_empty());
@@ -1016,7 +1016,7 @@ fn public_pages_and_assets_are_served() {
         (
             "/",
             &[
-                "Rotor Coordinator",
+                "Crypto",
                 "id=\"totals-scanned\"",
                 "id=\"join-form\"",
                 "href=\"/private-keys\"",
@@ -1048,8 +1048,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261124c",
-                "/theme.js?v=20261124c",
+                "/wallet-vault.js?v=20261124e",
+                "/theme.js?v=20261124e",
             ],
         ),
         (

@@ -663,7 +663,7 @@
           feeHelp.textContent = 'Leave the fee rate empty to use mempool.space testnet recommendations; the review shows the exact fee.';
         }
       }
-      document.title = config.title + ' — TESTNET only | Rotor';
+      document.title = config.title + ' — TESTNET only | Crypto';
     }
 
     /* ------------------------------------------------------------- wasm */

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rotor Coordinator - cabinet</title>
-<link rel="stylesheet" href="/site.css?v=20261124c">
-<script src="/theme.js?v=20261124c"></script>
+<title>Crypto - cabinet</title>
+<link rel="stylesheet" href="/site.css?v=20261124e">
+<script src="/theme.js?v=20261124e"></script>
 </head>
 <body>
 <header class="site-nav">
-  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
@@ -74,7 +74,7 @@
         <span class="monitor-provider-hint" data-provider-hint="walletconnect">Detecting…</span>
       </button>
     </div>
-    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. WalletConnect connects a mobile EVM wallet over QR; it is EVM-only in this build. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Rotor never asks for a private key, WIF or seed phrase.</p>
+    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. WalletConnect connects a mobile EVM wallet over QR; it is EVM-only in this build. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Crypto never asks for a private key, WIF or seed phrase.</p>
     <p id="monitor-account-line" class="monitor-account-line" hidden>
       <span>Primary</span>
       <code class="mono" id="monitor-account"></code>
@@ -82,7 +82,7 @@
     </p>
     <p id="monitor-wallet-error" class="error monitor-status" role="alert" hidden></p>
     <div id="monitor-no-wallet" class="monitor-no-wallet" hidden>
-      <p>No browser wallet was detected. Rotor Cabinet signs you in with a one-time challenge: the wallet signs it, and the signature proves the address is yours. No private key, WIF or seed phrase is ever requested.</p>
+      <p>No browser wallet was detected. Crypto Cabinet signs you in with a one-time challenge: the wallet signs it, and the signature proves the address is yours. No private key, WIF or seed phrase is ever requested.</p>
       <p class="muted monitor-note" id="monitor-wallet-note"></p>
       <button type="button" id="monitor-copy-wallet-note">Copy sign-in note</button>
     </div>
@@ -123,7 +123,7 @@
     </form>
     <p id="monitor-add-error" class="error monitor-status" role="alert" hidden></p>
     <p id="monitor-add-status" class="muted monitor-status" role="status" hidden></p>
-    <p class="monitor-note monitor-warning-text">Unverified addresses can be watched, but Rotor has not proven that you control them. An address is marked verified only when its chain signed a challenge. Bitcoin signatures are not verified yet, so imported Bitcoin addresses stay unverified until a Bitcoin signature scheme ships.</p>
+    <p class="monitor-note monitor-warning-text">Unverified addresses can be watched, but Crypto has not proven that you control them. An address is marked verified only when its chain signed a challenge. Bitcoin signatures are not verified yet, so imported Bitcoin addresses stay unverified until a Bitcoin signature scheme ships.</p>
   </section>
 
   <section class="card monitor-card">
@@ -139,7 +139,7 @@
         <input type="checkbox" id="monitor-recovery-opt-in" disabled>
         <span>Contact me for recovery help if my address is ever at risk</span>
       </label>
-      <p class="muted monitor-note">Consent to be contacted only. Rotor never takes custody and cannot recover or move funds for you.</p>
+      <p class="muted monitor-note">Consent to be contacted only. Crypto never takes custody and cannot recover or move funds for you.</p>
       <label class="key-toggle monitor-check">
         <input type="checkbox" id="monitor-alerts-enabled" disabled>
         <span>Send alerts for activity on these addresses</span>
@@ -181,6 +181,6 @@
   </section>
 </main>
 
-<script src="/cabinet.js?v=20261124c"></script>
+<script src="/cabinet.js?v=20261124e"></script>
 </body>
 </html>

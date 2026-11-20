@@ -470,7 +470,7 @@
     var controller = new AbortController();
     state.controller = controller;
     var timer = window.setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
-    setExposureStatus('Checking ' + capped.length + ' derived address(es) against the Rotor registry…');
+    setExposureStatus('Checking ' + capped.length + ' derived address(es) against the Crypto registry…');
 
     fetch('/api/v1/monitor/exposure', {
       method: 'POST',

@@ -17,7 +17,7 @@
     tron: 'not detected — install TronLink',
     btc: 'not detected — install Unisat'
   };
-  var WALLET_NOTE = 'No browser wallet was detected. Rotor signs you in with a one-time challenge: ' +
+  var WALLET_NOTE = 'No browser wallet was detected. Crypto signs you in with a one-time challenge: ' +
     'your wallet signs it, and the signature proves the address is yours. EVM (MetaMask/Rabby), ' +
     'Solana (Phantom) and TRON (TronLink) can sign in, and WalletConnect links a mobile EVM wallet ' +
     'over QR (EVM only in this build). Bitcoin (Unisat) has no signature scheme yet: ' +
@@ -893,7 +893,7 @@
 
   function walletConnectMetadata() {
     return {
-      name: 'Rotor Cabinet',
+      name: 'Crypto Cabinet',
       description: 'Watch addresses and get alerts',
       url: location.origin,
       icons: [location.origin + '/favicon.ico']
@@ -1068,7 +1068,7 @@
     if (!err) return 'WalletConnect request failed.';
     var message = err.message ? String(err.message) : '';
     if (err.code === 4001 || /reject|denied|cancel|closed|declin|expired|timeout/i.test(message)) {
-      return 'The WalletConnect request was rejected, closed or timed out. Nothing was sent to Rotor.';
+      return 'The WalletConnect request was rejected, closed or timed out. Nothing was sent to Crypto.';
     }
     return 'WalletConnect error: ' + (message || 'unknown error');
   }
@@ -1078,7 +1078,7 @@
     var label = chainLabel(chain);
     var message = err.message ? String(err.message) : '';
     if (err.code === 4001 || /reject|denied|cancel/i.test(message)) {
-      return 'The ' + label + ' wallet request was rejected. Nothing was sent to Rotor.';
+      return 'The ' + label + ' wallet request was rejected. Nothing was sent to Crypto.';
     }
     if (err.code === -32002) {
       return 'A wallet request is already pending. Open your wallet and approve or reject it.';
