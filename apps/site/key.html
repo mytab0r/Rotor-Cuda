@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261125e">
-<script src="/theme.js?v=20261125e"></script>
+<link rel="stylesheet" href="/site.css?v=20261125f">
+<script src="/theme.js?v=20261125f"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -53,7 +53,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261125e#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261125f#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -92,7 +92,7 @@
 
   <section class="card" id="summary-card" hidden>
     <h2>Keys</h2>
-    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" hidden>
+    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain." hidden>
       <div class="key-stat">
         <span class="key-stat-label">Total value</span>
         <strong class="key-stat-value empty" id="stat-total" title="No price source is connected, so Crypto does not show a USD total.">—</strong>
@@ -110,7 +110,7 @@
         <strong class="key-stat-value" id="stat-checked" title="Chain groups whose checkable rows all settled, out of 18 chain groups.">0/18</strong>
       </div>
     </div>
-    <p class="muted key-help key-stats-note">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain.</p>
+    <p class="muted key-help key-stats-note" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain.">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain.</p>
     <div class="key-summary" id="summary">
       <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
     </div>
@@ -161,6 +161,10 @@
                 title="Phantom Solana ed25519 seed; path m/501'/0'/0'/0'."
                 aria-description="Phantom Solana ed25519 seed; path m/501'/0'/0'/0'.">Phantom</button>
       </div>
+      <div class="key-export" role="group" aria-label="Export public address rows">
+        <button type="button" id="copy-all-rows" class="key-copy">Copy all</button>
+        <button type="button" id="csv-rows" class="key-copy">CSV</button>
+      </div>
     </div>
     <div class="key-toolbar">
       <div class="key-chains" role="group" aria-label="Chains">
@@ -178,8 +182,8 @@
         <button type="button" class="key-chain" data-chain="ton" aria-pressed="false"><span class="key-dot key-dot-ton"></span>TON</button>
       </div>
       <div class="key-preset-inline">
-        <label for="preset-select">Wallet preset</label>
-        <select id="preset-select">
+        <label class="visually-hidden" for="preset-select">Wallet preset</label>
+        <select id="preset-select" title="Wallet preset">
           <option value="all">All addresses</option>
           <option value="ledger">Ledger / Trezor</option>
           <option value="metamask">MetaMask</option>
@@ -188,32 +192,17 @@
           <option value="phantom">Phantom</option>
         </select>
       </div>
-      <div class="key-export" role="group" aria-label="Export public address rows">
-        <button type="button" id="copy-all-rows" class="key-copy">Copy all</button>
-        <button type="button" id="csv-rows" class="key-copy">CSV</button>
+      <div class="balance-refresh">
+        <button type="button" class="balance-refresh-btn" id="key-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
+          <span>Refresh failed / stale</span>
+          <span class="balance-refresh-count" id="key-balance-refresh-count" aria-hidden="true">0</span>
+        </button>
+        <span class="visually-hidden" id="key-balance-refresh-status" role="status" aria-atomic="true"></span>
       </div>
     </div>
-    <p class="muted key-help" id="balance-help">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
+    <p class="muted key-help" id="balance-help" title="Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
     <p class="muted key-help key-export-status" id="key-export-status" role="status"></p>
-
-    <div class="balance-refresh">
-      <button type="button" class="balance-refresh-btn" id="key-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
-        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
-        <span>Refresh failed / stale</span>
-        <span class="balance-refresh-count" id="key-balance-refresh-count" aria-hidden="true">0</span>
-      </button>
-      <span class="visually-hidden" id="key-balance-refresh-status" role="status" aria-atomic="true"></span>
-    </div>
-
-    <div class="key-btc-balance" id="btc-balance-panel" hidden>
-      <p class="key-selected" id="btc-selected"></p>
-      <div class="key-balance-cards">
-        <div class="key-balance-card"><span class="key-balance-label">Balance</span><span class="key-balance-value mono empty" id="btc-balance">—</span></div>
-        <div class="key-balance-card"><span class="key-balance-label">Received</span><span class="key-balance-value mono empty" id="btc-received">—</span></div>
-        <div class="key-balance-card"><span class="key-balance-label">TX</span><span class="key-balance-value mono empty" id="btc-tx">—</span></div>
-      </div>
-      <p class="muted key-help" id="btc-summary-hint">Balances load automatically from mempool.space for the selected Bitcoin address.</p>
-    </div>
 
     <div class="key-table-wrap" tabindex="0" role="region" aria-label="Address table">
       <table class="key-addr-tbl" id="addr-table">
@@ -236,10 +225,10 @@
   </section>
 </main>
 
-<script src="/key-tools.js?v=20261125e"></script>
-<script src="/balance-cache.js?v=20261125e"></script>
-<script src="/address-codecs.js?v=20261125e"></script>
-<script src="/key.js?v=20261125e"></script>
-<script src="/site.js?v=20261125e"></script>
+<script src="/key-tools.js?v=20261125f"></script>
+<script src="/balance-cache.js?v=20261125f"></script>
+<script src="/address-codecs.js?v=20261125f"></script>
+<script src="/key.js?v=20261125f"></script>
+<script src="/site.js?v=20261125f"></script>
 </body>
 </html>
