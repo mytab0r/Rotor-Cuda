@@ -2374,7 +2374,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-rows .key-row:last-child { border-bottom: 0; }
 .key-rows .key-row:hover { background: var(--panel-2); }
 .key-row-main { position: relative; min-height: 44px; }
-.key-rows .key-row.key-row-focus { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.key-rows .key-row.key-row-focus { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .key-cell { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
 .key-chain-id { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
 .key-chain-icon { flex: none; width: 16px; height: 16px; }

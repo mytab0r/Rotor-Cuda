@@ -42,6 +42,11 @@
   Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
   shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
   and the `key` route UI audit at 375/1280 in both themes.
+- [ ] BNB / TRON / USDT builders (the remaining P0 rows in the site-map donor
+  ledger). **Out of this goal's scope**: `send.js` is deliberately BTC-testnet
+  and ETH-Sepolia only. BNB and USDT are EVM and could reuse the Sepolia core
+  on testnet; TRON needs its own signing core. Any mainnet variant needs an
+  owner decision.
 
 ## P1 — shell and templates
 
@@ -86,9 +91,20 @@ and not deployed**.
       375/768/1280, dark/light, screenshots + JSON), project skill
       `.claude/skills/ui-self-review/SKILL.md`, wired into the UI gate and
       `projects.json` site build/test.
-- [ ] `docs/site-map/index.html` updated for every completed row; no false parity.
-- [ ] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
-- [ ] `node scripts/check-projects.mjs`, site tests, cargo tests, clippy.
+- [x] `docs/site-map/index.html` updated for every completed row; no false parity.
+  Evidence: send rows now point at `/send/bitcoin` and `/send/ethereum`
+  (partial, testnet-only), the six key rows and `key-page-flow` describe the
+  shipped counters/Copy All/CSV instead of claiming they are absent;
+  `site-map-test.mjs` passes (89 ours, 117 donors, 41 features).
+- [x] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
+  Evidence: `node scripts/ui-audit.mjs --serve` PASS 72/72 page runs across 12
+  routes (incl. `/brainwallet` and `/send`); `/brainwallet` and the chain
+  routes went from four 22px links to >=44px after the `.directory-links` fix.
+- [x] `node scripts/check-projects.mjs`, site tests, cargo tests, clippy.
+  Evidence: 13 site suites + 30 `node --check` lines pass; `check-projects`
+  OK (367/368, `Cargo.lock` ignored); `coordinator_api` 15, `coordinator_client`
+  3, `rotor-wasm` 59 pass; `cargo clippy --all-targets -D warnings` and
+  `cargo fmt --check` clean.
 
 ## Relocation to internal docs (done)
 
