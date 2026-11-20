@@ -52,6 +52,10 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   375/768/1280, screenshot it, and paste the computed geometry (clipped
   controls, column spreads, overflow) into the PR. Self-reported "audit
   passed" is not evidence.
+- Every defect gets a detector before it gets a fix: add or extend a check in
+  `scripts/ui-audit.mjs` (or another gate), add an entry to
+  `docs/process/defects.json`, and run `node scripts/check-defect-ledger.mjs`.
+  A fix whose detector is missing is not done.
 - Any behaviour change updates the specs/docs in the same PR: the
   `docs/site-map` ledger and, for non-trivial changes, the matching
   `openspec/` change. Stale docs are a review blocker.
