@@ -739,7 +739,7 @@
 
     var page = privateKeyPage(report.priv_hex, curve);
     facts.push(page
-      ? { id: 'page', label: 'Page', value: page.href, valueHref: page.href }
+      ? { id: 'page', label: 'Page', value: page.page, valueHref: page.href }
       : { id: 'page', label: 'Page', unavailable: 'Key 0 is not listed in the integer private-key directory (it starts at 1).' });
     return facts;
   }
