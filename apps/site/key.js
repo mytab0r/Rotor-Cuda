@@ -286,9 +286,6 @@
   var WIF_RE = /^[5KLQT][1-9A-HJ-NP-Za-km-z]{50,51}$/;
   var WIF_PARTIAL_RE = /^[5KLQT][1-9A-HJ-NP-Za-km-z]{8,49}$/;
   var WIF_NETWORK_LABELS = { bitcoin: 'Bitcoin', litecoin: 'Litecoin', dogecoin: 'Dogecoin' };
-  /* UTXO rows whose chain can encode this 32-byte key as a mainnet WIF.
-   * BCH shares Bitcoin's version byte. */
-  var WIF_ROW_PREFIXES = { btc_: 'bitcoin', bch_: 'bitcoin', ltc_: 'litecoin', doge_: 'dogecoin' };
 
   function detectFormat(raw) {
     var value = String(raw == null ? '' : raw).trim();
@@ -336,6 +333,10 @@
     }
     if (WIF_RE.test(value)) return { kind: 'wif', length: value.length };
     if (WIF_PARTIAL_RE.test(value)) return { kind: 'wif', incomplete: true, length: value.length };
+    var tools = window.RotorKeyTools;
+    if (tools && typeof tools.looksLikeXrpSecret === 'function' && tools.looksLikeXrpSecret(value)) {
+      return { kind: 'xrp', length: value.length };
+    }
     return { kind: 'brainwallet', length: value.length };
   }
 
@@ -350,6 +351,7 @@
         : 'WIF (secp256k1)';
     }
     if (detected.kind === 'decimal') return 'decimal integer';
+    if (detected.kind === 'xrp') return 'XRP secret (secp256k1)';
     if (detected.kind === 'keypair') {
       var size = detected.bytes && detected.bytes.length === 64 ? '64-byte secret key; first 32 bytes used' : '32-byte seed';
       return 'Solana keypair (' + size + ') — ed25519';
@@ -409,28 +411,24 @@
     return BigInt('0x' + (hex || '0'));
   }
 
-  function decimalToBytes(text) {
-    var value = BigInt(text);
-    if (value >= (1n << 256n)) throw new Error('The decimal key is wider than 256 bits.');
-    return hexToBytes(value.toString(16).padStart(64, '0'));
-  }
-
   async function sha256(bytes) {
     var digest = await window.crypto.subtle.digest('SHA-256', bytes);
     return new Uint8Array(digest);
   }
 
-  /* Mainnet WIF for Bitcoin, Litecoin and Dogecoin (the checksum is the same
-   * double SHA-256). Returns the 32-byte key plus the network it belongs to. */
-  async function decodeWif(text) {
-    if (!(window.crypto && window.crypto.subtle)) {
-      throw new Error('WIF checksums need a secure context (https or localhost) in this browser.');
-    }
-    var tools = window.RotorKeyTools;
-    if (!tools || typeof tools.wifDecode !== 'function') {
-      throw new Error('WIF support did not load (/key-tools.js).');
-    }
-    return tools.wifDecode(text, doubleSha256);
+  async function sha512(bytes) {
+    var digest = await window.crypto.subtle.digest('SHA-512', bytes);
+    return new Uint8Array(digest);
+  }
+
+  async function secpPublicKey(bytes) {
+    var wasm = await loadWasm();
+    var report = deriveReport(wasm, bytes, 0);
+    return hexToBytes(report.pubkey_compressed);
+  }
+
+  function keyHashFns() {
+    return { sha256: sha256, doubleSha256: doubleSha256, sha512: sha512, secpPublicKey: secpPublicKey };
   }
 
   async function parseKey(raw, curve) {
@@ -440,27 +438,17 @@
     if (detected.kind === 'empty') throw new Error('Enter a private key.');
     if (detected.error) throw new Error(detected.error);
     if (detected.incomplete) throw new Error('The key is incomplete — keep typing or press Enter to derive.');
-    var parsed;
-    if (detected.kind === 'hex') {
-      parsed = { bytes: hexToBytes(text.replace(/^0[xX]/, '')), format: 'hex' };
-    } else if (detected.kind === 'wif') {
-      var decoded = await decodeWif(text);
-      parsed = { bytes: decoded.bytes, format: 'wif', network: decoded.network };
-    } else if (detected.kind === 'decimal') {
-      parsed = { bytes: decimalToBytes(text), format: 'decimal' };
-    } else if (detected.kind === 'keypair') {
-      parsed = { bytes: Uint8Array.from(detected.bytes.slice(0, 32)), format: 'keypair' };
-    } else {
-      var encoded = new TextEncoder().encode(text);
-      try {
-        parsed = { bytes: await sha256(encoded), format: 'brainwallet' };
-      } finally {
-        encoded.fill(0);
-      }
+    var tools = window.RotorKeyTools;
+    if (!tools || typeof tools.resolveKeyInput !== 'function') {
+      throw new Error('Key support did not load (/key-tools.js).');
     }
+    var parsed = await tools.resolveKeyInput(text, keyHashFns());
 
     if (parsed.format === 'wif' && curve !== 0) {
       throw new Error('A WIF encodes a secp256k1 key; switch the curve to secp256k1.');
+    }
+    if (parsed.format === 'xrp' && curve !== 0) {
+      throw new Error('An XRP secret encodes a secp256k1 key; switch the curve to secp256k1.');
     }
     if (parsed.format === 'keypair' && curve !== 1) {
       throw new Error('A Solana keypair is an ed25519 seed; switch the curve to ed25519.');
@@ -983,7 +971,6 @@
     if (evmSharedNote) {
       evmSharedNote.hidden = !addresses.some(function (addr) { return addr.sharedEvm; });
     }
-    hydrateWifLinks();
     resetBalanceBadges();
     updateChainAvailability(Array.isArray(report.addresses) ? report.addresses : [], report.curve);
     ensureBtcFocus();
@@ -1194,44 +1181,6 @@
     toggle.setAttribute('title', (open ? 'Hide' : 'Show') + ' details for ' + name);
   }
 
-  /* The WIF link needs a SHA-256 checksum, so it is filled in after the row is
-   * mounted. One promise per network is reused across that network's rows. */
-  function hydrateWifLinks() {
-    var tools = window.RotorKeyTools;
-    if (!state.keyBytes || !tools || typeof tools.wifEncode !== 'function') return;
-    var generation = state.generation;
-    var pending = {};
-    rowList().forEach(function (row) {
-      var network = null;
-      var id = row.getAttribute('data-id') || '';
-      Object.keys(WIF_ROW_PREFIXES).some(function (prefix) {
-        if (id.indexOf(prefix) === 0) {
-          network = WIF_ROW_PREFIXES[prefix];
-          return true;
-        }
-        return false;
-      });
-      var slot = row.querySelector('.key-wif-slot');
-      if (!network || !slot) return;
-      if (!pending[network]) {
-        pending[network] = tools.wifEncode(state.keyBytes, network, doubleSha256);
-      }
-      pending[network].then(function (wif) {
-        if (generation !== state.generation || !slot.isConnected) return;
-        var link = document.createElement('a');
-        link.className = 'key-wif';
-        link.href = '/key/' + encodeURIComponent(wif);
-        link.setAttribute('aria-label', 'Open the ' + WIF_NETWORK_LABELS[network] + ' WIF key page');
-        link.title = 'Open the ' + WIF_NETWORK_LABELS[network] + ' WIF key page';
-        link.textContent = 'WIF';
-        slot.textContent = '';
-        slot.appendChild(link);
-      }).catch(function () {
-        /* Leave the slot empty when a checksum cannot be computed. */
-      });
-    });
-  }
-
   function buildRow(addr) {
     var row = document.createElement('div');
     row.className = 'key-row';
@@ -1352,9 +1301,6 @@
       ext.appendChild(svgUse('/icons.svg#ui-external'));
       actions.appendChild(ext);
     }
-    var wifSlot = document.createElement('span');
-    wifSlot.className = 'key-wif-slot';
-    actions.appendChild(wifSlot);
     var copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'icon-btn key-row-action';

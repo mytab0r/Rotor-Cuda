@@ -4,6 +4,7 @@
   'use strict';
 
   var LIMIT = 1n << 256n;
+  var SECP_ORDER = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
 
   function clean(text) {
     return String(text == null ? '' : text).trim().replace(/[\s_]+/g, '');
@@ -243,15 +244,16 @@
     return base58Encode(bytes, RIPPLE_BASE58);
   }
 
-  function base58Decode(text) {
+  function base58Decode(text, alphabet) {
+    var chars = alphabet || BITCOIN_BASE58;
     var value = 0n;
     for (var index = 0; index < text.length; index += 1) {
-      var digit = BITCOIN_BASE58.indexOf(text.charAt(index));
+      var digit = chars.indexOf(text.charAt(index));
       if (digit < 0) throw new Error('Invalid base58 character in the WIF.');
       value = value * 58n + BigInt(digit);
     }
     var leading = 0;
-    while (leading < text.length && text.charAt(leading) === '1') leading += 1;
+    while (leading < text.length && text.charAt(leading) === chars.charAt(0)) leading += 1;
     var hex = value === 0n ? '' : value.toString(16);
     if (hex.length % 2) hex = '0' + hex;
     var body = hex ? hexToBytes(hex) : new Uint8Array(0);
@@ -350,6 +352,156 @@
     data.set(payload, 0);
     data.set(digest.slice(0, 4), 33);
     return rippleBase58Encode(data);
+  }
+
+  /* XRP accepts two secret envelopes as input: a 0x21 family seed (usually
+   * written with an "s" prefix) and a 0x23 bare private key (written with a
+   * "p" prefix). Both carry a four-byte double-SHA256 checksum. */
+  var XRP_FAMILY_SEED_PREFIX = 0x21;
+  var XRP_SECRET_SHAPE = /^[rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz]{29,53}$/;
+
+  function looksLikeXrpSecret(text) {
+    var value = String(text == null ? '' : text).trim();
+    if (!XRP_SECRET_SHAPE.test(value)) return false;
+    var first = value.charAt(0);
+    return first === 's' || first === 'p';
+  }
+
+  function u32(value) {
+    return Uint8Array.of((value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff);
+  }
+
+  /* XRP derives an account key from a family seed by hashing the seed and,
+   * when needed, the public generator with a discriminator and a counter.
+   * `hashes.secpPublicKey(bytes)` returns the 33-byte compressed public key;
+   * the caller injects it because the browser uses the wasm core. */
+  async function xrpFamilySeedKey(seed, hashes) {
+    if (typeof hashes.sha512 !== 'function') {
+      throw new Error('An XRP family seed needs SHA-512 support in this browser.');
+    }
+    if (typeof hashes.secpPublicKey !== 'function') {
+      throw new Error('An XRP family seed needs the secp256k1 derivation core.');
+    }
+
+    async function deriveScalar(bytes, discriminator) {
+      for (var counter = 0; counter <= 0xffffffff; counter += 1) {
+        var tail = discriminator === undefined
+          ? u32(counter)
+          : Uint8Array.of(...u32(discriminator), ...u32(counter));
+        var input = new Uint8Array(bytes.length + tail.length);
+        input.set(bytes, 0);
+        input.set(tail, bytes.length);
+        var digest = await hashes.sha512(input);
+        if (!digest || digest.length < 32) throw new Error('The SHA-512 function returned no digest.');
+        var value = BigInt('0x' + bytesToHex(digest.slice(0, 32)));
+        if (value > 0n && value < SECP_ORDER) return value;
+      }
+      throw new Error('The XRP family seed did not produce a valid key.');
+    }
+
+    var privateGenerator = await deriveScalar(seed);
+    var publicGenerator = await hashes.secpPublicKey(integerBytes(privateGenerator));
+    var offset = await deriveScalar(publicGenerator, 0);
+    var key = (offset + privateGenerator) % SECP_ORDER;
+    if (key === 0n) throw new Error('The XRP family seed derived the zero key.');
+    return integerBytes(key);
+  }
+
+  async function xrpSecretDecode(text, hashes) {
+    hashes = hashes || {};
+    if (typeof hashes.doubleSha256 !== 'function') {
+      throw new Error('The XRP checksum needs SHA-256 support in this browser.');
+    }
+    var raw = base58Decode(String(text == null ? '' : text).trim(), RIPPLE_BASE58);
+    if (raw.length < 5) throw new Error('Not a valid XRP secret length.');
+    var payload = raw.slice(0, raw.length - 4);
+    var checksum = raw.slice(raw.length - 4);
+    var digest = await hashes.doubleSha256(payload);
+    if (!digest || digest.length < 4) throw new Error('The checksum function returned no digest.');
+    for (var index = 0; index < 4; index += 1) {
+      if (digest[index] !== checksum[index]) throw new Error('XRP secret checksum mismatch.');
+    }
+    if (payload.length === 33 && payload[0] === XRP_SECRET_PREFIX) {
+      return { bytes: payload.slice(1, 33), format: 'xrp' };
+    }
+    if (payload.length === 17 && payload[0] === XRP_FAMILY_SEED_PREFIX) {
+      return { bytes: await xrpFamilySeedKey(payload.slice(1), hashes), format: 'xrp' };
+    }
+    throw new Error('Not an XRP family seed or private-key secret.');
+  }
+
+  /* Map every accepted key representation to one 32-byte key. This is the one
+   * place that decides what a pasted value means, so every format shows the
+   * same page and Keys table. Curve/range validation stays with the caller
+   * because it depends on the selected curve. */
+  async function resolveKeyInput(raw, hashes) {
+    hashes = hashes || {};
+    var value = String(raw == null ? '' : raw).trim();
+    if (!value) throw new Error('Enter a private key.');
+
+    if (value.charAt(0) === '[') {
+      var parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch (err) {
+        throw new Error('Keypair JSON must be a flat array of byte values 0–255.');
+      }
+      if (!Array.isArray(parsed) || (parsed.length !== 32 && parsed.length !== 64) ||
+          !parsed.every(function (number) {
+            return Number.isInteger(number) && number >= 0 && number <= 255;
+          })) {
+        throw new Error('Keypair must be a JSON array of 32 (seed) or 64 (secret key) byte values 0–255.');
+      }
+      var seed = Uint8Array.from(parsed.slice(0, 32));
+      return { bytes: seed, hex: bytesToHex(seed), format: 'keypair' };
+    }
+
+    var hexValue = value;
+    if (hexValue.slice(0, 2).toLowerCase() === '0x') hexValue = hexValue.slice(2);
+    if (/^[0-9a-fA-F]{64}$/.test(hexValue)) {
+      var keyBytes = hexToBytes(hexValue);
+      return { bytes: keyBytes, hex: bytesToHex(keyBytes), format: 'hex' };
+    }
+
+    if (/^[0-9]+$/.test(value)) {
+      var integer = BigInt(value);
+      if (integer >= LIMIT) throw new Error('The decimal key is wider than 256 bits.');
+      var integerBytesValue = integerBytes(integer);
+      return { bytes: integerBytesValue, hex: bytesToHex(integerBytesValue), format: 'decimal' };
+    }
+
+    if (/^[5KLQT][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) {
+      if (typeof hashes.doubleSha256 !== 'function') {
+        throw new Error('The WIF checksum needs SHA-256 support in this browser.');
+      }
+      var decoded = await wifDecode(value, hashes.doubleSha256);
+      return {
+        bytes: decoded.bytes,
+        hex: bytesToHex(decoded.bytes),
+        format: 'wif',
+        network: decoded.network
+      };
+    }
+
+    if (looksLikeXrpSecret(value)) {
+      try {
+        var secret = await xrpSecretDecode(value, hashes);
+        return { bytes: secret.bytes, hex: bytesToHex(secret.bytes), format: 'xrp' };
+      } catch (err) {
+        /* Not a checksum-valid XRP secret: fall through to the brainwallet. */
+      }
+    }
+
+    if (typeof hashes.sha256 !== 'function') {
+      throw new Error('Brainwallet hashing needs SHA-256 support in this browser.');
+    }
+    var encoded = encoder.encode(value);
+    try {
+      var hashed = await hashes.sha256(encoded);
+      return { bytes: hashed, hex: bytesToHex(hashed), format: 'brainwallet' };
+    } finally {
+      encoded.fill(0);
+    }
   }
 
   /* The private-key directory page that lists this key: 60 keys per page,
@@ -495,6 +647,10 @@
     rippleBase58Encode: rippleBase58Encode,
     solanaKeypair: solanaKeypair,
     xrpSecret: xrpSecret,
+    xrpSecretDecode: xrpSecretDecode,
+    xrpFamilySeedKey: xrpFamilySeedKey,
+    looksLikeXrpSecret: looksLikeXrpSecret,
+    resolveKeyInput: resolveKeyInput,
     privateKeyPage: privateKeyPage,
     buildKeyFacts: buildKeyFacts,
     balanceCounters: balanceCounters

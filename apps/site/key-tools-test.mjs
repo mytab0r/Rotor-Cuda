@@ -490,6 +490,62 @@ try {
 }
 assert(wifRejected, "a corrupted WIF checksum must be rejected");
 
+// --------------------------------------------------- key input resolution
+// Every accepted representation must map to the same 32-byte hex key, so a
+// pasted value shows the same page and Keys table as the same key in hex.
+const sha256Single = async (bytes) => createHash("sha256").update(bytes).digest();
+const sha512Hash = async (bytes) => createHash("sha512").update(bytes).digest();
+function secpPublicKey(bytes) {
+  const buffer = upload(bytes);
+  try {
+    assert(wasm.derive_report(buffer.pointer, 0) === 0, `derive_report: ${wasmError()}`);
+    return Uint8Array.from(Buffer.from(resultJson().pubkey_compressed, "hex"));
+  } finally {
+    wasm.dealloc(buffer.pointer, buffer.length);
+  }
+}
+const keyHashes = {
+  sha256: sha256Single,
+  doubleSha256: sha256Double,
+  sha512: sha512Hash,
+  secpPublicKey,
+};
+
+async function resolved(text) {
+  return tools.resolveKeyInput(text, keyHashes);
+}
+
+const hexResolved = await resolved(KEY_ONE.toUpperCase());
+assert(hexResolved.hex === KEY_ONE && hexResolved.format === "hex", "uppercase hex resolves to lowercase");
+assert((await resolved("0x" + KEY_ONE)).hex === KEY_ONE, "0x hex resolves to the plain key");
+assert((await resolved("1")).hex === KEY_ONE, "decimal 1 resolves to key 1");
+const wifResolved = await resolved(WIF_VECTORS[0][2]);
+assert(wifResolved.hex === KEY_ONE && wifResolved.format === "wif", "WIF resolves to key 1");
+assert(wifResolved.network === "bitcoin", "WIF keeps its network for the input status");
+const keypairInput = JSON.stringify(Array.from({ length: 32 }, (_, index) => index));
+const keypairResolved = await resolved(keypairInput);
+assert(keypairResolved.format === "keypair", "keypair JSON keeps its format");
+assert(keypairResolved.hex === Array.from({ length: 32 }, (_, index) => index.toString(16).padStart(2, "0")).join(""), "keypair JSON uses the first 32 bytes");
+const pSecret = await tools.xrpSecret(KEY_ONE, sha256Double);
+assert(tools.looksLikeXrpSecret(pSecret), "the page's XRP secret is recognised by shape");
+assert((await resolved(pSecret)).hex === KEY_ONE, "p-prefixed XRP secret resolves to key 1");
+const familySeed = "snoPBrXtMeMyMHUVTgbuqAfg1SUTb";
+assert(tools.looksLikeXrpSecret(familySeed), "an s-prefixed XRP family seed is recognised by shape");
+assert(
+  (await resolved(familySeed)).hex === "1acaaedece405b2a958212629e16f2eb46b153eee94cdd350fdeff52795525b7",
+  "XRP family seed resolves to the documented key",
+);
+assert(
+  (await resolved("hello")).hex === "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+  "brainwallet text resolves to SHA-256 of the trimmed text",
+);
+const brokenSecret = pSecret.slice(0, -1) + (pSecret.endsWith("K") ? "L" : "K");
+assert(
+  !tools.looksLikeXrpSecret(brokenSecret) ||
+    (await resolved(brokenSecret)).format === "brainwallet",
+  "a checksum-invalid XRP-shaped string falls back to the brainwallet",
+);
+
 const secpFacts = await tools.buildKeyFacts(secpReport, sha256Double);
 assert(factById(secpFacts, "hex").value === KEY_ONE, "secp HEX fact is the report key");
 assert(factById(secpFacts, "hex").href === "/key/hex", "HEX links to the hex calculator");
