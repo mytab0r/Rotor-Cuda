@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Add public keys — secp256k1 point addition | Crypto</title>
-<meta name="description" content="Add two secp256k1 public keys (P + Q) in your browser and see the compressed and uncompressed result. Invalid points and the point at infinity are rejected.">
+<title>Public key arithmetic — secp256k1 P + Q, P − Q and k · P | Crypto</title>
+<meta name="description" content="Add, subtract and multiply secp256k1 public keys (P + Q, P − Q, k · P) in your browser and see the compressed and uncompressed result. Invalid points and the point at infinity are rejected.">
 <link rel="canonical" href="https://rotor.pxbt.app/pubkey-add">
 <link rel="stylesheet" href="/site.css?v=20261125k">
 <script src="/theme.js?v=20261125k"></script>
@@ -32,8 +32,8 @@
     <div class="key-hero-head">
       <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
       <div>
-        <h1>Add public keys</h1>
-        <p class="key-tagline">Compute P + Q on secp256k1. The sum is another public key, shown in both compressed and uncompressed form.</p>
+        <h1>Public key arithmetic</h1>
+        <p class="key-tagline">Compute P + Q, P − Q or k · P on secp256k1. The result is another public key, shown in both compressed and uncompressed form.</p>
         <div class="key-badges"><span>secp256k1</span><span>Runs locally</span><span>No private key</span></div>
       </div>
     </div>
@@ -42,23 +42,31 @@
   <section class="card">
     <h2>Points</h2>
     <form id="add-form" class="key-form seed-form" autocomplete="off">
-      <label class="key-input-label">Public key P
+      <label class="key-input-label" for="add-op">Operation
+        <select id="add-op">
+          <option value="add">P + Q</option>
+          <option value="subtract">P − Q</option>
+          <option value="mul">k · P</option>
+        </select>
+      </label>
+      <label class="key-input-label" for="add-first">Public key P
         <input id="add-first" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="02… or 04…">
       </label>
-      <label class="key-input-label">Public key Q
-        <input id="add-second" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="02… or 04…">
+      <label class="key-input-label" for="add-second"><span id="add-second-label">Public key Q</span>
+        <input id="add-second" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="02… or 04…" aria-describedby="add-second-hint">
       </label>
       <div class="key-buttons">
         <button type="submit" class="primary" id="add-submit">Add P + Q</button>
         <button type="button" id="add-clear">Clear</button>
       </div>
     </form>
+    <p class="muted key-help" id="add-second-hint">P + Q adds two public keys. Each input accepts a 66-hex compressed or 130-hex uncompressed public key.</p>
     <p id="add-error" class="error key-error" role="alert" hidden></p>
-    <p class="muted key-help">Each input accepts a 66-hex compressed or 130-hex uncompressed public key. Points off the curve are rejected, and so is a sum that lands on the point at infinity (for example P + (−P)), because that value has no serialized public key.</p>
+    <p class="muted key-help">For P ± Q each input accepts a 66-hex compressed or 130-hex uncompressed public key. For k · P the second input is a 32-byte big-endian scalar in the range 1 to n−1. Points off the curve are rejected, and so is a result that lands on the point at infinity (for example P − P), because that value has no serialized public key.</p>
   </section>
 
   <section class="card" id="add-result" hidden>
-    <h2>P + Q</h2>
+    <h2 id="add-result-title">P + Q</h2>
     <dl class="key-form-list" id="add-facts"></dl>
   </section>
 
