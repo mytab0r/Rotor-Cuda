@@ -14,6 +14,12 @@ globalThis.window = globalThis;
 require("./seed.js");
 const crypto = require("./seed-crypto.js");
 
+// The page script early-returns when the form is absent; these tests only use
+// the pure helpers it exposes before that DOM check.
+globalThis.document = { getElementById: () => null };
+require("./seed-page.js");
+const page = globalThis.RotorSeedPage;
+
 const { instance } = await WebAssembly.instantiate(await readFile(wasmPath), {});
 const wasm = instance.exports;
 const decoder = new TextDecoder("utf-8");
@@ -247,6 +253,98 @@ test("Electrum BIP39 generation yields a standard seed-version phrase", async ()
   assertEqual(phrase.split(" ").length, 12, "word count");
   assertEqual(await crypto.electrumSeedType(phrase), "standard", "seed version");
   assert(window.RotorSeed.validate(phrase), "BIP39 wordlist/checksum");
+});
+
+/* ------------------------------------------------- live counter and batches */
+
+test("the live word counter normalizes whitespace", () => {
+  assertEqual(page.countWords(""), 0, "empty phrase");
+  assertEqual(page.countWords("  abandon \n ability\t"), 2, "collapsed whitespace");
+  assertEqual(page.countWords("abandon ".repeat(11) + "about"), 12, "12-word phrase");
+  assertEqual(page.countWords("hardly point goal hallway patience key stone difference ready caught listen fact"), 12, "Electrum old phrase");
+});
+
+test("validity hints follow the derive rules for every scheme", async () => {
+  const bip39 = "abandon ".repeat(11) + "about";
+  assertEqual(await page.phraseHint(bip39, "bip39"), "Valid BIP39 phrase.", "BIP39 valid");
+  assertEqual(
+    await page.phraseHint("abandon ".repeat(11).trim(), "bip39"),
+    "BIP39 uses 12, 15, 18, 21 or 24 words.",
+    "BIP39 wrong count"
+  );
+  assertEqual(
+    await page.phraseHint("zzzz ".repeat(12).trim(), "bip39"),
+    "Some words are not in the BIP39 wordlist.",
+    "BIP39 unknown word"
+  );
+  assertEqual(
+    await page.phraseHint("abandon ".repeat(12).trim(), "bip39"),
+    "BIP39 checksum does not match.",
+    "BIP39 checksum"
+  );
+
+  const oldPhrase = "hardly point goal hallway patience key stone difference ready caught listen fact";
+  assertEqual(await page.phraseHint(oldPhrase, "electrum-old"), "Valid Electrum old phrase.", "Electrum old valid");
+  assertEqual(
+    await page.phraseHint("hardly point goal hallway patience key stone difference ready caught listen", "electrum-old"),
+    "Electrum old phrases use 12 or 24 words.",
+    "Electrum old wrong count"
+  );
+  assertEqual(
+    await page.phraseHint("word ".repeat(12).trim(), "electrum-old"),
+    "Not a valid Electrum old phrase: check the words.",
+    "Electrum old unknown words"
+  );
+
+  const segwit = "wild father tree among universe such mobile favorite target dynamic credit identify";
+  const standard = "cram swing cover prefer miss modify ritual silly deliver chunk behind inform able";
+  assertEqual(
+    await page.phraseHint(segwit, "electrum-bip39"),
+    "Valid Electrum BIP39 phrase (segwit).",
+    "Electrum BIP39 segwit"
+  );
+  assertEqual(
+    await page.phraseHint(standard, "electrum-bip39"),
+    "Valid Electrum BIP39 phrase (standard).",
+    "Electrum BIP39 standard"
+  );
+  assertEqual(
+    await page.phraseHint("science dawn member doll dutch real can brick knife deny drive list", "electrum-bip39"),
+    "Electrum 2FA seeds are not supported here.",
+    "Electrum BIP39 2FA"
+  );
+  assertEqual(
+    await page.phraseHint(bip39, "electrum-bip39"),
+    "Not an Electrum BIP39 seed-version phrase.",
+    "plain BIP39 is not an Electrum seed"
+  );
+  assertEqual(
+    await page.phraseHint("abandon", "electrum-bip39"),
+    "An Electrum seed needs at least two words.",
+    "Electrum BIP39 one word"
+  );
+});
+
+test("the next five indices continue after the rendered count", () => {
+  assertEqual(page.batchIndices(20, 5).join(","), "20,21,22,23,24", "after a 20-address batch");
+  assertEqual(page.batchIndices(1, 5).join(","), "1,2,3,4,5", "after a single address");
+  assertEqual(page.batchIndices(0, 5).join(","), "0,1,2,3,4", "first batch");
+  assertEqual(page.batchIndices(18, 5).join(","), "18,19,20,21,22", "partial overlap is not re-derived by math");
+});
+
+test("derives 20 consecutive addresses for one BIP39 path", async () => {
+  const phrase = "abandon ".repeat(11) + "about";
+  const seed = await crypto.bip39Seed(phrase, "");
+  const addresses = [];
+  for (let index = 0; index < 20; index += 1) {
+    const path = `m/44'/0'/0'/0/${index}`;
+    const key = await crypto.bip32PrivateKey(seed, path, pubkeyFor);
+    addresses.push(addressOf(reportFor(key), "btc_p2pkh"));
+  }
+  assertEqual(addresses.length, 20, "20 derived rows");
+  assertEqual(addresses[0], "1LqBGSKuX5yYUonjxT5qGfpUsXKYYWeabA", "first vector address");
+  assertEqual(new Set(addresses).size, 20, "all addresses are distinct");
+  addresses.forEach((address, index) => assert(address, `address ${index} is non-empty`));
 });
 
 /* ---------------------------------------------------------------- runner */
