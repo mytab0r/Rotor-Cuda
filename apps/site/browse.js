@@ -769,7 +769,7 @@
     age.textContent = cacheApi ? cacheApi.ageLabel(picked, now) : '';
     if (age.textContent) line.appendChild(age);
     line.title = value.balance + ' ' + meta.symbol;
-    return { line: line, ok: true, failed: false };
+    return { line: line, ok: true, failed: false, positive: Number(value.balance) > 0 };
   }
 
   function renderGroup(group, cached, errors, meta, now) {
@@ -777,17 +777,19 @@
     if (!cell) return;
     cell.textContent = '';
     var ok = false;
+    var positive = false;
     var failed = false;
     var fresh = true;
     group.entries.forEach(function (entry) {
       var result = balanceLine(group, entry, cached, errors, meta, now);
       if (result.ok) ok = true;
+      if (result.positive) positive = true;
       if (result.failed) failed = true;
       var picked = cached[entry.key];
       if (!cacheApi || !cacheApi.isFresh(picked, meta.provider, now)) fresh = false;
       cell.appendChild(result.line);
     });
-    cell.classList.toggle('has-balance', ok);
+    cell.classList.toggle('has-balance', positive);
     cell.title = '';
     group.row.dataset.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';
     var first = group.entries.length ? cached[group.entries[0].key] : null;
