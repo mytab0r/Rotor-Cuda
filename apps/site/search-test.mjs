@@ -9,6 +9,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 import search from "./search.js";
 
@@ -166,5 +167,61 @@ assert.equal(search.familyOf("evm"), "evm");
 assert.equal(search.shapeReport(report, { chain: "", count: 2 }).length, 5);
 assert.equal(search.CHAINS.length, 18);
 assert.deepEqual(search.COUNTS, [1, 3, 5, 10]);
+
+/* ------------------------------- directory row shaping (browse.js) */
+
+const require = createRequire(import.meta.url);
+const priorWindow = globalThis.window;
+const priorDocument = globalThis.document;
+globalThis.window = globalThis;
+globalThis.document = { querySelector: () => null };
+try {
+  require("./browse.js");
+} finally {
+  globalThis.window = priorWindow;
+  globalThis.document = priorDocument;
+}
+const browse = globalThis.RotorBrowse;
+assert.ok(browse, "browse row helpers must be exported for the Node test");
+
+const legacyMap = {
+  btc_p2pkh: "1Compressed",
+  btc_p2pkh_uncompressed: "1Uncompressed",
+  btc_p2wpkh: "bc1qexample"
+};
+assert.deepEqual(
+  browse.addressEntriesFor("bitcoin", "legacy", legacyMap, "btc_p2pkh"),
+  [
+    { prefix: "c", address: "1Compressed" },
+    { prefix: "u", address: "1Uncompressed" }
+  ],
+  "legacy rows keep both compressed and uncompressed addresses"
+);
+assert.deepEqual(
+  browse.addressEntriesFor("bitcoin", "segwit", legacyMap, "btc_p2wpkh"),
+  [{ prefix: "", address: "bc1qexample" }],
+  "segwit rows have a single address"
+);
+assert.deepEqual(
+  browse.addressEntriesFor("bitcoin", "legacy", {}, "btc_p2pkh"),
+  [],
+  "a missing derivation yields no address line"
+);
+assert.deepEqual(browse.addressEntriesFor("ethereum", "legacy", null, "evm"), [], "no map, no rows");
+
+assert.deepEqual(
+  browse.keyModel({ priv_hex: "ab", wif_compressed: "K1", wif_uncompressed: "5U" }),
+  { hex: "ab", wifs: [
+    { prefix: "c", value: "K1" },
+    { prefix: "u", value: "5U" }
+  ] },
+  "key model carries both WIF links"
+);
+assert.deepEqual(browse.keyModel({ priv_hex: "ab" }), { hex: "ab", wifs: [] }, "no WIF, no WIF lines");
+assert.deepEqual(browse.keyModel(null), { hex: "", wifs: [] }, "no report, empty model");
+
+assert.deepEqual(browse.metricFlags({ tx: 0, received: "0" }), { hasTx: false, hasRecv: false });
+assert.deepEqual(browse.metricFlags({ tx: 2, received: "5" }), { hasTx: true, hasRecv: true });
+assert.deepEqual(browse.metricFlags(null), { hasTx: false, hasRecv: false });
 
 console.log("search-test: ok");

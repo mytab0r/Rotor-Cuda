@@ -21,25 +21,6 @@
       script: 'ltc_p2sh_p2wpkh'
     }
   };
-  var FIELD_LABELS = {
-    btc_p2pkh: 'Legacy P2PKH (compressed)',
-    btc_p2pkh_uncompressed: 'Legacy P2PKH (uncompressed)',
-    btc_p2sh_p2wpkh: 'Nested SegWit P2SH-P2WPKH',
-    btc_p2wpkh: 'Native SegWit P2WPKH',
-    btc_p2tr: 'Taproot P2TR',
-    evm: 'EVM address',
-    tron: 'TRON address',
-    solana: 'Solana address',
-    ltc_p2pkh: 'Litecoin legacy P2PKH',
-    ltc_p2sh_p2wpkh: 'Litecoin P2SH-P2WPKH',
-    ltc_p2wpkh: 'Litecoin native SegWit',
-    doge_p2pkh: 'Dogecoin P2PKH',
-    bch_legacy: 'Bitcoin Cash legacy P2PKH',
-    xrp_classic: 'XRP classic address',
-    zcash_p2pkh: 'Zcash transparent address',
-    sui: 'Sui address',
-    ton: 'TON wallet v4R2'
-  };
   var RPC = {
     ethereum: 'https://ethereum-rpc.publicnode.com',
     bnb: 'https://bsc-rpc.publicnode.com',
@@ -56,6 +37,46 @@
     'bitcoin-cash': 'bitcoin-cash',
     zcash: 'zcash'
   };
+
+  /* ------------------------------------------------------- pure helpers */
+  /* Row shaping is pure so it can be tested under Node without a DOM. */
+
+  function addressEntriesFor(chain, type, map, field) {
+    var entries = [];
+    if (!map) return entries;
+    if (chain === 'bitcoin' && type === 'legacy') {
+      if (map.btc_p2pkh) entries.push({ prefix: 'c', address: map.btc_p2pkh });
+      if (map.btc_p2pkh_uncompressed) entries.push({ prefix: 'u', address: map.btc_p2pkh_uncompressed });
+    } else if (map[field]) {
+      entries.push({ prefix: '', address: map[field] });
+    }
+    return entries;
+  }
+
+  /* Bitcoin rows show the hex key plus both WIF forms. Other chains have no
+   * WIF, so the model carries the hex only. */
+  function keyModel(report) {
+    var model = { hex: report && report.priv_hex ? report.priv_hex : '', wifs: [] };
+    if (!report) return model;
+    if (report.wif_compressed) model.wifs.push({ prefix: 'c', value: report.wif_compressed });
+    if (report.wif_uncompressed) model.wifs.push({ prefix: 'u', value: report.wif_uncompressed });
+    return model;
+  }
+
+  function metricFlags(value) {
+    return {
+      hasTx: Number(value && value.tx) > 0,
+      hasRecv: Number(value && value.received) > 0
+    };
+  }
+
+  if (typeof window !== 'undefined') {
+    window.RotorBrowse = {
+      addressEntriesFor: addressEntriesFor,
+      keyModel: keyModel,
+      metricFlags: metricFlags
+    };
+  }
 
   var root = document.querySelector('.browse-page');
   if (!root) return;
@@ -76,7 +97,6 @@
     reports: {},
     addressMaps: {},
     addressSets: {},
-    addresses: {},
     balances: {},
     cached: {},
     busy: false,
@@ -191,15 +211,6 @@
     return config.explorer + encodeURIComponent(address);
   }
 
-  function formatLabel() {
-    var labels = {
-      bitcoin: { legacy: 'P2PKH', segwit: 'P2WPKH', script: 'P2SH', taproot: 'P2TR' },
-      litecoin: { legacy: 'P2PKH', segwit: 'P2WPKH', script: 'P2SH' }
-    };
-    var table = labels[config.chain];
-    return table && table[config.type] ? table[config.type] : config.symbol;
-  }
-
   function iconUse(name, className) {
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', className || 'icon');
@@ -210,60 +221,72 @@
     return svg;
   }
 
-  function fillAddressCell(row, address, wif) {
+  function copyButton(text, label) {
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'icon-btn';
+    copy.title = label;
+    copy.setAttribute('aria-label', label);
+    copy.appendChild(iconUse('ui-copy'));
+    copy.addEventListener('click', function () { copyText(text, copy); });
+    return copy;
+  }
+
+  function fillAddressCell(row, entries) {
     var cell = row.querySelector('.col-address');
     if (!cell) return;
     cell.textContent = '';
-    if (!address) {
+    if (!entries.length) {
       var empty = document.createElement('span');
       empty.className = 'cell-skeleton';
       empty.textContent = 'Not available';
       cell.appendChild(empty);
       return;
     }
-    var main = document.createElement('div');
-    main.className = 'addr-main';
-    var format = document.createElement('span');
-    format.className = 'addr-format';
-    format.textContent = formatLabel();
-    main.appendChild(format);
-    var link = document.createElement('a');
-    link.className = 'mono address-link';
-    link.href = explorerUrl(address) || '#';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = address;
-    link.title = address;
-    main.appendChild(link);
-    var actions = document.createElement('span');
-    actions.className = 'addr-actions';
-    var ext = document.createElement('a');
-    ext.className = 'icon-btn';
-    ext.href = explorerUrl(address) || '#';
-    ext.target = '_blank';
-    ext.rel = 'noopener noreferrer';
-    ext.title = 'Open in explorer';
-    ext.setAttribute('aria-label', 'Open address in explorer');
-    ext.appendChild(iconUse('ui-external'));
-    actions.appendChild(ext);
-    var copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'icon-btn';
-    copy.title = 'Copy address';
-    copy.setAttribute('aria-label', 'Copy address');
-    copy.appendChild(iconUse('ui-copy'));
-    copy.addEventListener('click', function () { copyText(address, copy); });
-    actions.appendChild(copy);
-    if (wif) {
-      var wifLink = document.createElement('a');
-      wifLink.className = 'addr-wif';
-      wifLink.href = '/key/' + encodeURIComponent(wif);
-      wifLink.title = 'Open the WIF key page';
-      wifLink.textContent = 'WIF';
-      actions.appendChild(wifLink);
-    }
-    main.appendChild(actions);
-    cell.appendChild(main);
+    entries.forEach(function (entry) {
+      var line = document.createElement('div');
+      line.className = 'addr-line';
+      if (entry.prefix) {
+        var prefix = document.createElement('span');
+        prefix.className = 'addr-label';
+        prefix.textContent = '(' + entry.prefix + ')';
+        line.appendChild(prefix);
+      }
+      var href = explorerUrl(entry.address);
+      var link = document.createElement('a');
+      link.className = 'mono address-link';
+      link.href = href || '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = entry.address;
+      link.title = entry.address;
+      line.appendChild(link);
+      line.appendChild(copyButton(entry.address, 'Copy address'));
+      cell.appendChild(line);
+    });
+  }
+
+  /* The key cell keeps the server-rendered hex link and appends the two WIF
+   * forms once the derivation report arrives (Bitcoin only). */
+  function renderKeyCell(row, report) {
+    var cell = row.querySelector('.col-key');
+    if (!cell || !report || cell.querySelector('.key-wif')) return;
+    keyModel(report).wifs.forEach(function (wif) {
+      var line = document.createElement('span');
+      line.className = 'key-wif';
+      var prefix = document.createElement('span');
+      prefix.className = 'key-wif-prefix';
+      prefix.textContent = '(' + wif.prefix + ')';
+      line.appendChild(prefix);
+      var link = document.createElement('a');
+      link.className = 'mono key-link';
+      link.href = '/key/' + encodeURIComponent(wif.value);
+      link.title = wif.value;
+      link.textContent = wif.value;
+      line.appendChild(link);
+      line.appendChild(copyButton(wif.value, 'Copy WIF'));
+      cell.appendChild(line);
+    });
   }
 
   function addressMap(report) {
@@ -282,87 +305,11 @@
       var report = state.reports[hex];
       if (!report) return;
       var map = state.addressMaps[hex] || (state.addressMaps[hex] = addressMap(report));
-      var entries = [];
-      if (config.chain === 'bitcoin' && type === 'legacy') {
-        if (map.btc_p2pkh) entries.push({ prefix: 'c', address: map.btc_p2pkh });
-        if (map.btc_p2pkh_uncompressed) entries.push({ prefix: 'u', address: map.btc_p2pkh_uncompressed });
-      } else if (map[field]) {
-        entries.push({ address: map[field] });
-      }
+      var entries = addressEntriesFor(config.chain, type, map, field);
       state.addressSets[hex] = entries;
-      state.addresses[hex] = entries.length ? entries[0].address : '';
-      var wif = config.chain === 'bitcoin' && report ? report.wif_compressed || '' : '';
-      fillAddressCell(row, entries.length ? entries[0].address : '', wif);
+      fillAddressCell(row, entries);
+      renderKeyCell(row, report);
     });
-  }
-
-  function renderDetails(row, report) {
-    var box = row.querySelector('.key-details');
-    if (!box || !report) return;
-    box.textContent = '';
-    var map = state.addressMaps[row.getAttribute('data-key')] || addressMap(report);
-    var keyLine = document.createElement('div');
-    keyLine.className = 'detail-line';
-    var keyLabel = document.createElement('span');
-    keyLabel.className = 'detail-label';
-    keyLabel.textContent = 'Private key';
-    var keyValue = document.createElement('code');
-    keyValue.className = 'mono detail-value';
-    keyValue.textContent = row.getAttribute('data-key');
-    var keyCopy = document.createElement('button');
-    keyCopy.type = 'button';
-    keyCopy.className = 'copy-btn';
-    keyCopy.textContent = 'Copy';
-    keyCopy.addEventListener('click', function () { copyText(row.getAttribute('data-key'), keyCopy); });
-    keyLine.appendChild(keyLabel);
-    keyLine.appendChild(keyValue);
-    keyLine.appendChild(keyCopy);
-    box.appendChild(keyLine);
-    var fields = Object.keys(FIELD_LABELS).filter(function (field) {
-      return map[field] && map[field] !== '';
-    });
-    fields.forEach(function (field) {
-      var line = document.createElement('div');
-      line.className = 'detail-line';
-      var label = document.createElement('span');
-      label.className = 'detail-label';
-      label.textContent = FIELD_LABELS[field];
-      var value = document.createElement('code');
-      value.className = 'mono detail-value';
-      value.textContent = map[field];
-      var copy = document.createElement('button');
-      copy.type = 'button';
-      copy.className = 'copy-btn';
-      copy.textContent = 'Copy';
-      copy.addEventListener('click', function () { copyText(map[field], copy); });
-      line.appendChild(label);
-      line.appendChild(value);
-      line.appendChild(copy);
-      box.appendChild(line);
-    });
-    if (report.wif_compressed) {
-      ['wif_compressed', 'wif_uncompressed'].forEach(function (field) {
-        if (!report[field]) return;
-        var line = document.createElement('div');
-        line.className = 'detail-line';
-        var label = document.createElement('span');
-        label.className = 'detail-label';
-        label.textContent = field === 'wif_compressed' ? 'WIF (compressed)' : 'WIF (uncompressed)';
-        var value = document.createElement('a');
-        value.className = 'mono detail-value wif-detail-link';
-        value.href = '/key/' + encodeURIComponent(report[field]);
-        value.textContent = report[field];
-        var copy = document.createElement('button');
-        copy.type = 'button';
-        copy.className = 'copy-btn';
-        copy.textContent = 'Copy';
-        copy.addEventListener('click', function () { copyText(report[field], copy); });
-        line.appendChild(label);
-        line.appendChild(value);
-        line.appendChild(copy);
-        box.appendChild(line);
-      });
-    }
   }
 
   function attachRowEvents() {
@@ -371,17 +318,6 @@
       if (copy) {
         copy.addEventListener('click', function () {
           copyText(row.getAttribute('data-key'), copy);
-        });
-      }
-      var details = row.querySelector('.details-btn');
-      if (details) {
-        details.addEventListener('click', function () {
-          var box = row.querySelector('.key-details');
-          var open = details.getAttribute('aria-expanded') !== 'true';
-          details.setAttribute('aria-expanded', open ? 'true' : 'false');
-          details.classList.toggle('open', open);
-          if (box) box.hidden = !open;
-          if (open) renderDetails(row, state.reports[row.getAttribute('data-key')]);
         });
       }
     });
@@ -502,29 +438,19 @@
     try { await store.put(key, entry); } catch (err) { /* memory store fallback */ }
   }
 
-  function cacheEntryOk(entry, meta, now) {
-    if (!cacheApi) return false;
-    return cacheApi.isSuccess(entry) && cacheApi.isFresh(entry, meta.provider, now);
-  }
-
   function retryForRow(row) {
     return function () { loadBalances({ manual: true, onlyRows: [row], force: true }); };
   }
 
-  function setRowBalanceError(row, message, onRetry) {
-    var cell = row.querySelector('.col-balance');
-    if (!cell) return;
-    cell.textContent = 'unavailable ';
-    cell.classList.remove('has-balance');
-    cell.title = message || 'Balance unavailable';
+  function retryButton(row) {
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'icon-btn browse-balance-retry';
     button.title = 'Retry this balance';
     button.setAttribute('aria-label', 'Retry balance check for this address');
     button.appendChild(iconUse('ui-retry', 'icon'));
-    button.addEventListener('click', onRetry || retryForRow(row));
-    cell.appendChild(button);
+    button.addEventListener('click', retryForRow(row));
+    return button;
   }
 
   async function fetchJson(url, options) {
@@ -762,48 +688,65 @@
     return Promise.resolve({ values: {}, errors: {} });
   }
 
+  /* One `.balance-info` line per address, each with the balance, TX count and
+   * received amount, matching the donor's packed balance cell. */
+  function balanceLine(group, entry, cached, errors, meta) {
+    var line = document.createElement('div');
+    line.className = 'balance-info';
+    if (errors && errors[entry.address]) {
+      line.classList.add('err');
+      line.textContent = 'unavailable ';
+      line.appendChild(retryButton(group.row));
+      return { line: line, ok: false, failed: true };
+    }
+    var picked = cached[entry.key];
+    if (!cacheApi || !cacheApi.isSuccess(picked)) {
+      line.textContent = '-';
+      return { line: line, ok: false, failed: false };
+    }
+    var value = picked.value || {};
+    var balance = document.createElement('span');
+    balance.className = 'bal';
+    balance.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    line.appendChild(balance);
+    if (value.tx !== undefined && value.tx !== null) {
+      var flags = metricFlags(value);
+      var tx = document.createElement('span');
+      tx.className = 'tx' + (flags.hasTx ? ' has-tx' : '');
+      tx.textContent = value.tx + ' tx';
+      line.appendChild(tx);
+    }
+    if (value.received !== undefined && value.received !== null) {
+      var recv = document.createElement('span');
+      var recvFlags = metricFlags(value);
+      recv.className = 'recv' + (recvFlags.hasRecv ? ' has-recv' : '');
+      recv.textContent = '↓ ' + coin(value.received, meta.decimals) + ' ' + meta.symbol;
+      line.appendChild(recv);
+    }
+    line.title = value.balance + ' ' + meta.symbol;
+    return { line: line, ok: true, failed: false };
+  }
+
   function renderGroup(group, cached, errors, meta, now) {
     var cell = group.row.querySelector('.col-balance');
     if (!cell) return;
-    var primary = group.entries[0];
-    if (errors && errors[primary.address]) {
-      setRowBalanceError(group.row, errors[primary.address], retryForRow(group.row));
-      return;
-    }
-    var picked = null;
-    for (var i = 0; i < group.entries.length; i += 1) {
-      var entry = cached[group.entries[i].key];
-      if (cacheApi && cacheApi.isSuccess(entry)) {
-        picked = entry;
-        break;
-      }
-    }
-    if (!picked) {
-      cell.textContent = '—';
-      cell.classList.remove('has-balance');
-      cell.title = '';
-      group.row.dataset.balanceState = 'missing';
-      return;
-    }
-    var value = picked.value || {};
     cell.textContent = '';
-    var main = document.createElement('span');
-    main.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
-    cell.appendChild(main);
-    if (value.tx !== undefined && value.tx !== null) {
-      var txEl = document.createElement('small');
-      txEl.textContent = value.tx + ' tx';
-      cell.appendChild(txEl);
-    }
-    var age = document.createElement('small');
-    age.className = 'balance-age';
-    age.textContent = cacheApi ? cacheApi.ageLabel(picked, now) : '';
-    if (age.textContent) cell.appendChild(age);
-    cell.classList.toggle('has-balance', Number(value.balance) > 0);
-    cell.title = value.balance + ' ' + meta.symbol +
-      (value.tx !== undefined && value.tx !== null ? ' · ' + value.tx + ' tx' : '');
-    group.row.dataset.balanceState = cacheApi && cacheApi.isFresh(picked, meta.provider, now) ? 'ok' : 'stale';
-    group.row.dataset.balanceAt = String(picked.fetchedAt || '');
+    var ok = false;
+    var failed = false;
+    var fresh = true;
+    group.entries.forEach(function (entry) {
+      var result = balanceLine(group, entry, cached, errors, meta);
+      if (result.ok) ok = true;
+      if (result.failed) failed = true;
+      var picked = cached[entry.key];
+      if (!cacheApi || !cacheApi.isFresh(picked, meta.provider, now)) fresh = false;
+      cell.appendChild(result.line);
+    });
+    cell.classList.toggle('has-balance', ok);
+    cell.title = '';
+    group.row.dataset.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';
+    var first = group.entries.length ? cached[group.entries[0].key] : null;
+    group.row.dataset.balanceAt = String(first && first.fetchedAt ? first.fetchedAt : '');
   }
 
   function renderSummary(model, cached, now) {
@@ -1010,28 +953,43 @@
 
   /* --------------------------------------------------------------- search */
 
-  async function resolveSearch(text) {
-    if (!window.RotorSearch) throw new Error('Search is still loading.');
-    return window.RotorSearch.resolve(text);
+  /* `?key=` pre-fills the input and highlights a matching row on this page;
+   * it never submits the form. The donor normalises hex/WIF client-side, so
+   * the same resolution runs here before the row lookup. */
+  function highlightRow(hex) {
+    var wanted = String(hex || '').toLowerCase();
+    if (!wanted) return;
+    rows.forEach(function (row) {
+      if (String(row.getAttribute('data-key')).toLowerCase() !== wanted) return;
+      row.classList.add('highlighted');
+      if (row.scrollIntoView) {
+        try { row.scrollIntoView({ block: 'center' }); } catch (err) { /* ignore */ }
+      }
+    });
+  }
+
+  function prefillSearch() {
+    var raw = new URLSearchParams(window.location.search).get('key');
+    if (!raw || !searchInput) return;
+    searchInput.value = raw;
+    var direct = function () { highlightRow(raw); };
+    if (!window.RotorSearch) {
+      direct();
+      return;
+    }
+    window.RotorSearch.resolve(raw, 'auto').then(highlightRow, direct);
   }
 
   if (searchForm) {
-    searchForm.addEventListener('submit', async function (event) {
+    searchForm.addEventListener('submit', function (event) {
       event.preventDefault();
-      var button = searchForm.querySelector('button[type=submit]');
-      try {
-        var type = searchType ? searchType.value : config.type;
-        var hex = await resolveSearch(searchInput.value, type);
-        var query = [];
-        if (config.curve === 1) query.push('curve=ed25519');
-        if (type && type !== 'legacy') query.push('type=' + encodeURIComponent(type));
-        window.location.href = '/key/' + hex + (query.length ? '?' + query.join('&') : '');
-      } catch (err) {
-        setNote(err && err.message ? err.message : 'Cannot read that key.', 'err');
-        if (searchInput) searchInput.focus();
-      } finally {
-        if (button) button.disabled = false;
-      }
+      var raw = searchInput ? searchInput.value.trim() : '';
+      if (!raw) return;
+      var type = searchType ? searchType.value : config.type;
+      var params = new URLSearchParams();
+      params.set('key', raw);
+      if (type && type !== 'legacy') params.set('type', type);
+      window.location.assign('/private-keys/' + config.chain + '?' + params.toString());
     });
   }
 
@@ -1057,34 +1015,24 @@
     });
   }
 
+  /* Address-type cards are full navigations, as in the donor: the page and
+   * every other parameter are kept, only `type` changes. */
+  function typeHref(type) {
+    var params = new URLSearchParams(window.location.search);
+    params.delete('key');
+    if (type === 'legacy') params.delete('type');
+    else params.set('type', type);
+    var query = params.toString();
+    return window.location.pathname + (query ? '?' + query : '');
+  }
+
   if (typeButtons.length) {
     typeButtons.forEach(function (button) {
+      if (button.getAttribute('data-type') === config.type) return;
       button.addEventListener('click', function () {
         var type = button.getAttribute('data-type');
-        if (!type || type === config.type) return;
-        config.type = type;
-        config.field = fieldFor(type);
-        typeButtons.forEach(function (other) {
-          other.classList.toggle('active', other === button);
-        });
-        if (searchType) searchType.value = type;
-        try {
-          var url = new URL(window.location.href);
-          if (type === 'legacy') url.searchParams.delete('type');
-          else url.searchParams.set('type', type);
-          window.history.replaceState(null, '', url.toString());
-        } catch (err) { /* ignore */ }
-        document.querySelectorAll('.pager-btn[href]').forEach(function (link) {
-          try {
-            var pager = new URL(link.href);
-            if (type === 'legacy') pager.searchParams.delete('type');
-            else pager.searchParams.set('type', type);
-            link.href = pager.toString();
-          } catch (err) { /* ignore */ }
-        });
-        state.balances = {};
-        renderAddresses(type);
-        loadBalances();
+        if (!type) return;
+        window.location.assign(typeHref(type));
       });
     });
   }
@@ -1096,6 +1044,7 @@
       link.addEventListener('click', function (event) { event.preventDefault(); });
     });
     attachRowEvents();
+    prefillSearch();
     setNote('Deriving ' + rows.length + ' addresses in your browser…');
     var wasm;
     try {
