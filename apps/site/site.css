@@ -333,7 +333,6 @@ p { text-wrap: pretty; }
 .key-copy-spacer { display: block; width: 54px; }
 .key-empty { margin: 4px 0 0; }
 
-.key-toolbar { display: grid; gap: 10px; margin-bottom: 4px; }
 .key-balance-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .key-toggle { flex-direction: row; align-items: center; gap: 7px; font-size: 12px; color: var(--text); }
 .key-toggle input { accent-color: var(--accent-2); }
@@ -453,7 +452,6 @@ p { text-wrap: pretty; }
 @media (max-width: 480px) {
   .key-hero { padding: 15px 14px; }
   .key-hero h1 { font-size: 22px; }
-  .key-toolbar { justify-content: flex-start; }
   .key-form-row { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px; }
   .key-balance { margin-left: 0; width: 100%; }
   .key-addr-line { flex-wrap: wrap; }
@@ -1805,7 +1803,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-page .hero,
 .key-hero { border-radius: var(--radius); }
 .key-hero h1, .hero h1 { letter-spacing: -.035em; }
-.key-toolbar, .key-form { display: grid; gap: 10px; }
+.key-form { display: grid; gap: 10px; }
 .key-preset-chips, .key-chains, .key-paths { display: flex; flex-wrap: wrap; gap: 7px; }
 .key-chain, .key-path-chip {
   min-height: 44px;
@@ -2126,17 +2124,20 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-error { margin-top: 12px; }
 .key-url-notice { margin: 0 0 16px; font-size: 12.5px; }
 
-/* Derivation toolbar: address type, path and wallet presets above the table. */
-.key-derive-toolbar {
+/* One filter bar: chains, address types, path, presets, export and refresh. */
+.key-filter-bar {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
   margin-bottom: 10px;
+  /* Keep the last flex line off the subpixel edge: fractional chip widths
+   * otherwise round scrollWidth one pixel above clientWidth. */
+  padding-right: 1px;
 }
-.key-derive-toolbar .key-address-panel { display: block; padding: 0; border: 0; }
-.key-derive-toolbar .address-type-cards {
+.key-filter-bar .key-address-panel { display: block; padding: 0; border: 0; }
+.key-filter-bar .address-type-cards {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
   padding: 2px;
@@ -2145,7 +2146,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   background: var(--input-bg);
   overflow: visible;
 }
-.key-derive-toolbar .address-type-card {
+.key-filter-bar .address-type-card {
   min-height: 44px;
   padding: 4px 10px;
   border: 0;
@@ -2153,16 +2154,16 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   background: transparent;
   box-shadow: none;
 }
-.key-derive-toolbar .address-type-card:hover { background: var(--panel-2); }
-.key-derive-toolbar .address-type-card.active,
-.key-derive-toolbar .address-type-card[aria-pressed="true"] {
+.key-filter-bar .address-type-card:hover { background: var(--panel-2); }
+.key-filter-bar .address-type-card.active,
+.key-filter-bar .address-type-card[aria-pressed="true"] {
   background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px rgba(245, 181, 68, .45);
 }
-.key-derive-toolbar .address-type-card .type-name { white-space: nowrap; font-size: 12.5px; }
-.key-derive-toolbar .address-type-card .type-desc { display: none; }
-.key-derive-toolbar .key-path-field { flex: 0 1 300px; gap: 0; }
-.key-derive-toolbar .key-preset-chips { flex: 1 1 auto; }
+.key-filter-bar .address-type-card .type-name { white-space: nowrap; font-size: 12.5px; }
+.key-filter-bar .address-type-card .type-desc { display: none; }
+.key-filter-bar .key-path-field { flex: 0 1 300px; gap: 0; }
+.key-filter-bar .key-preset-chips { flex: 1 1 auto; min-width: 0; }
 /* The hint is informational; it only takes space while a path is invalid. */
 .key-path-hint {
   position: absolute;
@@ -2262,7 +2263,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-form-row .key-copy { min-height: 44px; padding: 0 9px; border-radius: 7px; font-size: 12px; }
 
 /* Addresses toolbar */
-.key-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
 .key-chains { display: flex; flex-wrap: wrap; gap: 6px; }
 .key-chain {
   display: inline-flex;
@@ -2288,9 +2288,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-dot-bch { background: #8dc351; }
 .key-dot-xrp { background: #7fa8d9; }
 
-.key-preset-inline { display: flex; align-items: center; gap: 8px; }
-.key-preset-inline label { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.key-preset-inline select { min-height: 44px; min-width: 170px; font-size: 12.5px; }
 .key-balance-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
 .key-balance-controls .key-toggle { flex-direction: row; align-items: center; gap: 7px; font-size: 12px; }
 .key-check { min-height: 44px; padding: 0 13px; font-size: 12.5px; }
@@ -3844,13 +3841,10 @@ details > summary { min-height: 44px; }
 .key-page .entity-links { padding: 2px 12px; }
 .key-page > .card { padding: 12px 16px; }
 .key-page > .card > h2 { margin-bottom: 6px; font-size: 14px; letter-spacing: -.01em; }
-.key-page .key-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.key-page .key-chains { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
-.key-page .key-chains::-webkit-scrollbar { display: none; }
+.key-page .key-filter-bar { gap: 6px 10px; margin-bottom: 8px; }
+.key-page .key-chains { min-width: 0; gap: 4px; }
 .key-page .key-chain { flex: none; padding: 0 9px; font-size: 12px; }
-.key-page .key-preset-inline { flex: none; }
-.key-page .key-preset-inline select { min-width: 150px; }
-.key-page .key-toolbar .balance-refresh { flex: none; padding: 0; border: 0; background: none; }
+.key-page .key-filter-bar .balance-refresh { flex: none; padding: 0; border: 0; background: none; }
 .key-page .key-stat { padding: 4px 10px; }
 .key-page .key-stat-value { margin-top: 0; font-size: 16px; }
 .key-page .key-stats { gap: 8px; margin-bottom: 6px; }
@@ -3864,8 +3858,9 @@ details > summary { min-height: 44px; }
   white-space: nowrap;
   border: 0;
 }
-.key-page .key-summary-grid { align-items: start; gap: 8px; }
+.key-page .key-summary-grid { align-items: stretch; gap: 8px; }
 .key-page .key-summary-group { padding: 2px 10px; }
+.key-page .key-summary-wide { grid-column: 1 / -1; }
 .key-page .key-summary-group .key-group-title {
   position: absolute;
   width: 1px;
@@ -3890,19 +3885,6 @@ details > summary { min-height: 44px; }
 .key-page .key-export-status:empty { display: none; }
 .key-page .key-addr-tbl thead th { padding: 5px 8px; }
 .key-page .key-addr-tbl td { padding: 6px 8px; }
-
-@media (min-width: 981px) {
-  .key-page .key-derive-toolbar { flex-wrap: nowrap; }
-  .key-page .key-derive-toolbar .key-preset-chips {
-    flex: 1 1 0;
-    min-width: 0;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .key-page .key-derive-toolbar .key-preset-chips::-webkit-scrollbar { display: none; }
-  .key-page .key-derive-toolbar .key-preset-chips button { flex: none; }
-}
 
 /* Input card */
 .key-page .key-input-card { padding: 8px 14px; }
@@ -3950,11 +3932,13 @@ details > summary { min-height: 44px; }
 
 @media (max-width: 720px) {
   .key-input-card .key-form { grid-template-columns: minmax(0, 1fr); }
-  .key-page .key-toolbar { flex-wrap: wrap; }
   .key-page .key-chains { flex-basis: 100%; }
-  .key-page .key-preset-inline { display: none; }
 }
 @media (max-width: 560px) {
-  .key-derive-toolbar .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .key-filter-bar .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Stacked label/value rows must grow: the 44px single-line height clipped
+   * the value under the label once the columns switch to two rows. */
+  .key-page .key-summary-group .key-form-row { height: auto; min-height: 44px; padding: 3px 0; }
+  .key-page .key-summary-group .key-form-row dt { white-space: normal; overflow: visible; }
 }
 
