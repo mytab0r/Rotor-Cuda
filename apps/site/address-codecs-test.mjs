@@ -1,7 +1,8 @@
-// Tests for apps/site/key-types.js: the Bitcoin Cash CashAddr and Base58Check
-// encoders used by the /key page. Zero npm dependencies; Node built-ins only.
+// Tests for apps/site/address-codecs.js: the Bitcoin Cash CashAddr and
+// Base58Check encoders used by the /key page. Zero npm dependencies; Node
+// built-ins only.
 //
-// Usage: node apps/site/key-types-test.mjs
+// Usage: node apps/site/address-codecs-test.mjs
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -10,7 +11,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const types = require("./key-types.js");
+const types = require("./address-codecs.js");
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -267,4 +268,4 @@ check("derive consumes the live WASM report shape for key 1", () => {
   assert.equal(rows.zcash_p2pkh_uncompressed.address, "t1X9yaRpCHJpWX1HrGUxEu39xyQinmo3Ana");
 });
 
-console.log(`key-types ok: ${checks} checks (CashAddr spec vectors, Base58Check 0x1e/0x1cb8, derive)`);
+console.log(`address-codecs ok: ${checks} checks (CashAddr spec vectors, Base58Check 0x1e/0x1cb8, derive)`);

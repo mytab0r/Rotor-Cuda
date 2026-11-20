@@ -1040,7 +1040,7 @@
    * hash160 values the WASM report already returned, so they are appended
    * synchronously before the rows are rendered. */
   function attachComputedTypes(report) {
-    var types = window.RotorKeyTypes;
+    var types = window.RotorAddressCodecs;
     if (!types || typeof types.derive !== 'function') return;
     if (!report || !Array.isArray(report.addresses)) return;
     var derived = types.derive(report);
