@@ -286,8 +286,7 @@ p { text-wrap: pretty; }
 .key-form select:focus-visible,
 .key-preset-chips button:focus-visible,
 .key-copy:focus-visible,
-.key-toggle input:focus-visible,
-.key-slider input:focus-visible {
+.key-toggle input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -298,17 +297,6 @@ p { text-wrap: pretty; }
 .key-buttons button:not(.primary):hover { color: var(--text); border-color: var(--accent); }
 
 .key-group-title { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); }
-
-.key-plot { width: 100%; max-width: 360px; aspect-ratio: 360 / 260; margin: 0 auto; }
-.key-plot svg { display: block; width: 100%; height: 100%; }
-.key-plot .key-gridline { stroke: var(--border); stroke-width: 1; opacity: .55; }
-.key-plot .key-axis { stroke: var(--muted); stroke-width: 1; opacity: .7; }
-.key-plot .key-curve { fill: none; stroke: var(--accent); stroke-width: 2.2; }
-.key-plot .key-marker { fill: var(--ok); stroke: var(--bg); stroke-width: 2; }
-.key-plot .key-marker-ring { fill: none; stroke: var(--ok); stroke-width: 1.5; opacity: .55; }
-.key-plot text { fill: var(--muted); font-size: 12px; font-family: "Cascadia Code", Consolas, monospace; }
-.key-slider { margin-top: 8px; }
-.key-slider input { width: 100%; padding: 0; border: 0; background: none; accent-color: var(--accent); }
 
 .key-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
 .key-summary-group { min-width: 0; }
@@ -409,15 +397,6 @@ p { text-wrap: pretty; }
 .key-path-chip .mono { margin-left: 4px; color: var(--text); }
 .key-path-chip[aria-pressed="true"] { color: var(--key-btc); border-color: var(--key-btc); background: rgba(247, 147, 26, .14); }
 .key-path-chip[aria-pressed="true"] .mono { color: var(--key-btc); }
-.key-selected { margin: 10px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.key-balance-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-.key-balance-card { min-width: 0; padding: 9px 11px; border: 1px solid var(--key-border); border-radius: 8px; background: var(--key-panel-2); }
-.key-balance-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-.key-balance-value { display: block; margin-top: 3px; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.key-balance-value.empty { color: var(--muted); font-weight: 600; }
-.key-balance-card:nth-child(1) .key-balance-value:not(.empty) { color: var(--key-btc); }
-.key-balance-card:nth-child(2) .key-balance-value:not(.empty) { color: var(--ok); }
-.key-balance-card:nth-child(3) .key-balance-value:not(.empty) { color: var(--accent); }
 
 .key-rows { min-height: 300px; }
 .key-row { padding: 14px 12px; border-bottom: 1px solid var(--border); }
@@ -470,9 +449,6 @@ p { text-wrap: pretty; }
 @media (max-width: 760px) {
   .key-form { grid-template-columns: 1fr; }
   .key-buttons { justify-content: flex-start; }
-}
-@media (max-width: 560px) {
-  .key-balance-cards { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .key-hero { padding: 15px 14px; }
@@ -1844,8 +1820,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-chain.active, .key-path-chip.active { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
 .key-rows { display: grid; gap: 8px; }
 .key-addr-line, .key-row { min-width: 0; }
-.key-balance-card { border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); }
-.key-balance-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 9px; }
 .key-copy, .key-copy-sm { border-radius: 7px; }
 .key-error, .key-warning, .key-url-notice { border-radius: 10px; }
 
@@ -2152,55 +2126,67 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-error { margin-top: 12px; }
 .key-url-notice { margin: 0 0 16px; font-size: 12.5px; }
 
-/* Derivation block: path presets and curve illustration side by side. */
-.key-derive-block { padding: 18px 20px; }
-.key-derive-heading { max-width: 1040px; margin: 0 auto 12px; }
-.key-derive-intro { max-width: 1040px; margin: 0 auto 14px; }
-/* Nested variant of the shared address-type component. */
-.address-type-panel.key-address-panel { padding: 13px 14px 15px; }
-/* Inside the Derivation card the type selector is a flat segmented control, not
- * a second row of cards. Same DOM/component, different depth. */
-.key-derive-block .key-address-panel { padding: 12px 8px 14px; border-bottom: 1px solid var(--border); }
-.key-derive-block .key-address-panel .address-type-cards {
-  gap: 4px;
+/* Derivation toolbar: address type, path and wallet presets above the table. */
+.key-derive-toolbar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+.key-derive-toolbar .key-address-panel { display: block; padding: 0; border: 0; }
+.key-derive-toolbar .address-type-cards {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--input-bg);
   overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
 }
-.key-derive-block .key-address-panel .address-type-card {
+.key-derive-toolbar .address-type-card {
+  min-height: 44px;
+  padding: 4px 10px;
   border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-radius: 9px;
   background: transparent;
   box-shadow: none;
-  padding: 8px 10px;
 }
-.key-derive-block .key-address-panel .address-type-card:last-child { border-right: 0; }
-.key-derive-block .key-address-panel .address-type-card:hover { background: var(--panel-3); }
-.key-derive-block .key-address-panel .address-type-card.active,
-.key-derive-block .key-address-panel .address-type-card[aria-pressed="true"] {
-  border-bottom-color: var(--accent);
+.key-derive-toolbar .address-type-card:hover { background: var(--panel-2); }
+.key-derive-toolbar .address-type-card.active,
+.key-derive-toolbar .address-type-card[aria-pressed="true"] {
   background: var(--accent-soft);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px rgba(245, 181, 68, .45);
 }
-.key-derive-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 20px 28px;
-  align-items: stretch;
-  max-width: 1040px;
-  margin: 0 auto;
-}
-.key-derive-col { display: grid; align-content: start; gap: 10px; min-width: 0; }
-.key-derive-block .key-derive-title {
-  margin: 0;
+.key-derive-toolbar .address-type-card .type-name { white-space: nowrap; font-size: 12.5px; }
+.key-derive-toolbar .address-type-card .type-desc { display: none; }
+.key-derive-toolbar .key-path-field { flex: 0 1 300px; gap: 0; }
+.key-derive-toolbar .key-preset-chips { flex: 1 1 auto; }
+/* The hint is informational; it only takes space while a path is invalid. */
+.key-path-hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: .07em;
-  text-transform: uppercase;
+  line-height: 1.5;
+}
+.key-path-hint.is-error {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0 0 8px;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  color: var(--err);
 }
 .key-path-field { display: grid; gap: 6px; min-width: 0; color: var(--muted); font-size: 12.5px; font-weight: 650; }
 .key-path-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -2235,8 +2221,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-path-copy:hover { border-color: var(--border-strong); background: var(--panel-3); color: var(--text); }
 .key-path-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .key-path-copy.is-copied:disabled { opacity: 1; color: var(--ok); border-color: var(--ok); }
-.key-path-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.key-path-hint.is-error { color: var(--err); }
 .key-preset-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .key-preset-chips button {
   min-height: 44px;
@@ -2251,13 +2235,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-preset-chips button:hover { border-color: var(--border-strong); color: var(--text); }
 .key-preset-chips button[aria-pressed="true"] { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
 .key-preset-chips button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.key-curve-col { grid-template-rows: auto auto auto 1fr; }
-.key-curve-col .key-plot { width: 100%; max-width: 300px; aspect-ratio: 360 / 260; margin: 0; }
-.key-curve-col .key-slider { max-width: 300px; margin: 0; }
-.key-curve-col .key-help { max-width: 300px; margin: 0; min-height: 0; font-size: 12px; }
-@media (max-width: 760px) {
-  .key-derive-grid { grid-template-columns: 1fr; gap: 18px; }
-}
 
 /* Summary */
 .key-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -2343,12 +2320,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 }
 .key-path-chip .mono { color: var(--muted); font-size: 12px; }
 .key-path-chip[aria-pressed="true"] { border-color: rgba(245, 181, 68, .55); background: var(--accent-soft); color: var(--accent-2); }
-.key-selected { margin: 0 0 10px; color: var(--text-2); font-size: 12.5px; font-family: var(--mono); overflow-wrap: anywhere; }
-.key-btc-balance { margin-bottom: 12px; }
-.key-balance-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-bottom: 10px; }
-.key-balance-card { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
-.key-balance-label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.key-balance-value { display: block; margin-top: 3px; color: var(--text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* Address table: Chain | Type | Address | Status | actions, rowspan groups. */
 .key-table-wrap { position: relative; width: 100%; max-width: 100%; }
@@ -2545,7 +2516,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .key-balance-controls { margin-left: 0; }
   .key-summary-group { padding: 14px; }
   .key-form-row { grid-template-columns: 84px minmax(0, 1fr) auto; }
-  .key-balance-cards { grid-template-columns: 1fr; }
 }
 
 .key-exposure > summary {
@@ -3747,7 +3717,6 @@ html[data-theme="light"] .range-page {
 }
 
 /* Key input: auto-derive status, icon-only actions and a secondary ±1 menu */
-.key-input-block { grid-column: 1 / -1; display: grid; gap: 7px; min-width: 0; }
 .key-input-status {
   display: flex;
   align-items: center;
@@ -3787,7 +3756,9 @@ html[data-theme="light"] .range-page {
 }
 .key-input-status.is-deriving .key-status-skeleton { display: inline-block; }
 .key-page .key-input-label input[aria-invalid="true"],
-.key-page .key-input-label input[aria-invalid="true"]:focus {
+.key-page .key-input-label input[aria-invalid="true"]:focus,
+.key-page .key-input-card .key-form > input[aria-invalid="true"],
+.key-page .key-input-card .key-form > input[aria-invalid="true"]:focus {
   border-color: var(--err);
   box-shadow: 0 0 0 3px rgba(255, 112, 112, .16);
 }
@@ -3849,4 +3820,129 @@ html[data-theme="light"] .range-page {
  * Inline prose links are exempt (WCAG 2.5.8) and handled by the audit. Detail
  * disclosures get the floor without losing their native list-item marker. */
 details > summary { min-height: 44px; }
+
+/* ------------------------------------------------------------------------
+   Key page: compact layout. One-row input, derivation controls in the
+   address card header, and tighter card/section rhythm.
+   ------------------------------------------------------------------------ */
+.key-page { gap: 12px; padding-top: 12px; }
+.key-page .key-hero { display: block; padding: 8px 16px; }
+.key-page .key-hero h1 { margin: 0 0 2px; font-size: clamp(22px, 2.6vw, 28px); line-height: 1.15; }
+.key-page .key-hero .key-tagline { max-width: none; margin: 0; font-size: 13.5px; }
+.key-page .entity-links { padding: 2px 12px; }
+.key-page > .card { padding: 12px 16px; }
+.key-page > .card > h2 { margin-bottom: 6px; font-size: 14px; letter-spacing: -.01em; }
+.key-page .key-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.key-page .key-chains { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.key-page .key-chains::-webkit-scrollbar { display: none; }
+.key-page .key-chain { flex: none; padding: 0 9px; font-size: 12px; }
+.key-page .key-preset-inline { flex: none; }
+.key-page .key-preset-inline select { min-width: 150px; }
+.key-page .key-toolbar .balance-refresh { flex: none; padding: 0; border: 0; background: none; }
+.key-page .key-stat { padding: 4px 10px; }
+.key-page .key-stat-value { margin-top: 0; font-size: 16px; }
+.key-page .key-stats { gap: 8px; margin-bottom: 6px; }
+.key-page .key-stats-note {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.key-page .key-summary-grid { align-items: start; gap: 8px; }
+.key-page .key-summary-group { padding: 2px 10px; }
+.key-page .key-summary-group .key-group-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.key-page .key-summary-group .key-form-row { grid-template-columns: 112px minmax(0, 1fr) auto; height: 44px; min-height: 44px; padding: 0; gap: 8px; }
+.key-page .key-summary-group .key-form-row:first-child { padding-top: 0; }
+.key-page .key-summary-group .key-form-row dt,
+.key-page .key-summary-group .key-form-row dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.key-page #balance-help {
+  max-width: 100%;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.key-page .key-export-status:empty { display: none; }
+.key-page .key-addr-tbl thead th { padding: 5px 8px; }
+.key-page .key-addr-tbl td { padding: 6px 8px; }
+
+@media (min-width: 981px) {
+  .key-page .key-derive-toolbar { flex-wrap: nowrap; }
+  .key-page .key-derive-toolbar .key-preset-chips {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .key-page .key-derive-toolbar .key-preset-chips::-webkit-scrollbar { display: none; }
+  .key-page .key-derive-toolbar .key-preset-chips button { flex: none; }
+}
+
+/* Input card */
+.key-page .key-input-card { padding: 8px 14px; }
+.key-input-card .key-url-notice { flex: 1 1 320px; margin: 0; }
+.key-input-card .key-form {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.key-input-card .key-form > input {
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.key-input-card .key-curve-field { display: flex; align-items: center; justify-self: auto; }
+.key-input-card .key-segmented { border-radius: 10px; padding: 2px; }
+.key-input-card .key-segmented button { min-height: 44px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; }
+.key-input-card .key-buttons { grid-column: auto; justify-content: flex-end; flex-wrap: nowrap; gap: 6px; }
+.key-input-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.key-input-meta .key-input-status { flex: 1 1 240px; }
+.key-input-meta .key-help { max-width: 70ch; margin: 0; }
+.key-formats { margin-left: auto; }
+.key-formats > summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+.key-formats > summary::-webkit-details-marker { display: none; }
+.key-formats > summary::after { content: "+"; margin-left: 6px; color: var(--accent); }
+.key-formats[open] > summary::after { content: "−"; }
+.key-formats[open] { flex-basis: 100%; }
+.key-formats .key-help { margin-top: 6px; }
+
+@media (max-width: 720px) {
+  .key-input-card .key-form { grid-template-columns: minmax(0, 1fr); }
+  .key-page .key-toolbar { flex-wrap: wrap; }
+  .key-page .key-chains { flex-basis: 100%; }
+  .key-page .key-preset-inline { display: none; }
+}
+@media (max-width: 560px) {
+  .key-derive-toolbar .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 

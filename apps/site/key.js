@@ -249,9 +249,6 @@
   var rowsEl = byId('addr-rows');
   var presetEmpty = byId('preset-empty');
   var evmSharedNote = byId('evm-shared-note');
-  var plotEl = byId('curve-plot');
-  var slider = byId('curve-slider');
-  var caption = byId('curve-caption');
   var derivePathInput = byId('derivation-path');
   var derivePathHint = byId('derivation-path-hint');
   var copyPathBtn = byId('copy-derivation-path');
@@ -260,12 +257,6 @@
   var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
   var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
   var btcPanel = byId('btc-panel');
-  var btcBalancePanel = byId('btc-balance-panel');
-  var btcSelected = byId('btc-selected');
-  var btcBalance = byId('btc-balance');
-  var btcReceived = byId('btc-received');
-  var btcTx = byId('btc-tx');
-  var btcHint = byId('btc-summary-hint');
   var balanceRefreshButton = byId('key-balance-refresh');
   var balanceRefreshCount = byId('key-balance-refresh-count');
   var balanceRefreshStatus = byId('key-balance-refresh-status');
@@ -590,7 +581,6 @@
     });
     state.controllers = [];
     cancelExposure(true);
-    renderBalanceCards();
   }
 
   function clearResults() {
@@ -698,7 +688,6 @@
       /* A Solana keypair is an ed25519 seed; follow the detected format. */
       curveSelect.value = '1';
       syncCurveChoices();
-      renderCurve();
       curve = 1;
     }
     var parsed;
@@ -853,6 +842,7 @@
       var dd = document.createElement('dd');
       dd.className = 'mono';
       dd.textContent = value;
+      dd.title = value;
       row.appendChild(dt);
       row.appendChild(dd);
       var copy = document.createElement('button');
@@ -898,6 +888,7 @@
       if (fact.unavailable) {
         dd.className = 'key-fact-unavailable';
         dd.textContent = 'Not available — ' + fact.unavailable;
+        dd.title = dd.textContent;
       } else {
         var code = document.createElement('code');
         code.className = 'mono key-fact-value';
@@ -910,6 +901,7 @@
           code.textContent = fact.value;
         }
         dd.appendChild(code);
+        dd.title = fact.value;
       }
       row.appendChild(dt);
       row.appendChild(dd);
@@ -1732,53 +1724,6 @@
     syncBitcoinPanel();
   }
 
-  function selectedBtcId() {
-    var ids = btcRowIds();
-    if (state.focusId && ids.indexOf(state.focusId) >= 0) return state.focusId;
-    if (ids.indexOf('btc_p2pkh') >= 0) return 'btc_p2pkh';
-    return ids[0] || null;
-  }
-
-  function formatBtc(sats) {
-    var unit = 100000000n;
-    var whole = sats / unit;
-    var fraction = (sats % unit).toString().padStart(8, '0').replace(/0+$/, '');
-    return fraction ? whole.toString() + '.' + fraction : whole.toString();
-  }
-
-  function setCardValue(el, text) {
-    if (!el) return;
-    el.textContent = text;
-    el.classList.toggle('empty', text === '—');
-  }
-
-  function renderBalanceCards() {
-    if (!btcBalance || !btcPanel || btcPanel.hidden) return;
-    var id = selectedBtcId();
-    var summary = id ? state.balances[id] : null;
-    var row = id ? findRow(id) : null;
-    if (btcSelected) {
-      if (row) {
-        var title = row.querySelector('.key-row-title');
-        var addr = row.querySelector('.key-addr');
-        btcSelected.textContent = (title ? title.textContent : id) + (addr ? ' · ' + addr.textContent : '');
-      } else {
-        btcSelected.textContent = '';
-      }
-    }
-    if (summary) {
-      setCardValue(btcBalance, formatBtc(summary.balanceSat) + ' BTC');
-      setCardValue(btcReceived, summary.receivedSat.toLocaleString('en-US') + ' sat');
-      setCardValue(btcTx, String(summary.txs));
-      btcHint.textContent = 'Balance, received and transaction count come from mempool.space for the selected Bitcoin address.';
-    } else {
-      setCardValue(btcBalance, '—');
-      setCardValue(btcReceived, '—');
-      setCardValue(btcTx, '—');
-      btcHint.textContent = 'Balances load automatically from mempool.space for the selected Bitcoin address.';
-    }
-  }
-
   function syncBitcoinPanel() {
     if (!btcPanel) return;
     var hasVisibleBtc = rowList().some(function (row) {
@@ -1786,8 +1731,6 @@
       return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
     });
     btcPanel.hidden = !hasVisibleBtc;
-    if (btcBalancePanel) btcBalancePanel.hidden = !hasVisibleBtc;
-    renderBalanceCards();
   }
 
   /* --------------------------------------------------------------- balances */
@@ -2305,7 +2248,6 @@
     } else {
       setBalance(badge, 'ok', value.text, { title: value.text, age: cacheApi ? cacheApi.ageLabel(entry, now) : '' });
     }
-    if (summary) renderBalanceCards();
     return true;
   }
 
@@ -2389,7 +2331,6 @@
           age: entry ? cacheApi.ageLabel(entry, Date.now()) : '',
           detail: value.text
         });
-        renderBalanceCards();
       } else {
         setBalance(badge, 'ok', value.text, {
           title: value.text,
@@ -2623,97 +2564,6 @@
   }
 
 
-  var PLOT_WIDTH = 360;
-  var PLOT_HEIGHT = 260;
-  var PLOT_BOX = { left: 36, right: 18, top: 14, bottom: 28 };
-
-  function plotDomains(kind) {
-    if (kind === 'secp') {
-      return { x0: -2.2, x1: 3.4, y0: -7, y1: 7, xticks: [-2, -1, 0, 1, 2, 3], yticks: [-6, -4, -2, 0, 2, 4, 6] };
-    }
-    return { x0: -1.15, x1: 1.15, y0: -1.15, y1: 1.15, xticks: [-1, 0, 1], yticks: [-1, 0, 1] };
-  }
-
-  function plotMapper(dom) {
-    var width = PLOT_WIDTH - PLOT_BOX.left - PLOT_BOX.right;
-    var height = PLOT_HEIGHT - PLOT_BOX.top - PLOT_BOX.bottom;
-    var sx = width / (dom.x1 - dom.x0);
-    var sy = height / (dom.y1 - dom.y0);
-    return function (x, y) {
-      return [PLOT_BOX.left + (x - dom.x0) * sx, PLOT_BOX.top + (dom.y1 - y) * sy];
-    };
-  }
-
-  function curveDomain(kind) {
-    if (kind === 'secp') return [-Math.cbrt(7), 3.4];
-    return [-1, 1];
-  }
-
-  function curveY(kind, x) {
-    if (kind === 'secp') return Math.sqrt(Math.max(0, x * x * x + 7));
-    var d = -121665 / 121666;
-    return Math.sqrt(Math.max(0, (1 - x * x) / (1 - d * x * x)));
-  }
-
-  function curvePath(kind, sign, map) {
-    var range = curveDomain(kind);
-    var steps = 140;
-    var parts = [];
-    for (var i = 0; i <= steps; i++) {
-      var x = range[0] + (range[1] - range[0]) * (i / steps);
-      var point = map(x, sign * curveY(kind, x));
-      parts.push((i === 0 ? 'M' : 'L') + point[0].toFixed(1) + ' ' + point[1].toFixed(1));
-    }
-    return parts.join(' ');
-  }
-
-  function gridMarkup(dom, map) {
-    var parts = [];
-    var left = PLOT_BOX.left;
-    var right = PLOT_WIDTH - PLOT_BOX.right;
-    var top = PLOT_BOX.top;
-    var bottom = PLOT_HEIGHT - PLOT_BOX.bottom;
-    dom.xticks.forEach(function (tick) {
-      var p = map(tick, 0);
-      parts.push('<line class="key-gridline" x1="' + p[0].toFixed(1) + '" y1="' + top + '" x2="' + p[0].toFixed(1) + '" y2="' + bottom + '"></line>');
-      parts.push('<text x="' + p[0].toFixed(1) + '" y="' + (bottom + 13) + '" text-anchor="middle">' + tick + '</text>');
-    });
-    dom.yticks.forEach(function (tick) {
-      var p = map(0, tick);
-      parts.push('<line class="key-gridline" x1="' + left + '" y1="' + p[1].toFixed(1) + '" x2="' + right + '" y2="' + p[1].toFixed(1) + '"></line>');
-      parts.push('<text x="' + (left - 6) + '" y="' + (p[1] + 3).toFixed(1) + '" text-anchor="end">' + tick + '</text>');
-    });
-    var origin = map(0, 0);
-    parts.push('<line class="key-axis" x1="' + left + '" y1="' + origin[1].toFixed(1) + '" x2="' + right + '" y2="' + origin[1].toFixed(1) + '"></line>');
-    parts.push('<line class="key-axis" x1="' + origin[0].toFixed(1) + '" y1="' + top + '" x2="' + origin[0].toFixed(1) + '" y2="' + bottom + '"></line>');
-    return parts.join('');
-  }
-
-  function renderCurve() {
-    var kind = Number(curveSelect.value) === 0 ? 'secp' : 'ed';
-    var dom = plotDomains(kind);
-    var map = plotMapper(dom);
-    var range = curveDomain(kind);
-    var max = Number(slider.max) || 100;
-    var value = Math.min(Math.max(1, Number(slider.value) || 1), max);
-    var t = (value - 1) / (max - 1);
-    var markerX = range[0] + (range[1] - range[0]) * t;
-    var markerY = curveY(kind, markerX);
-    var marker = map(markerX, markerY);
-
-    var parts = ['<svg viewBox="0 0 ' + PLOT_WIDTH + ' ' + PLOT_HEIGHT + '" role="img" aria-label="' +
-      (kind === 'secp' ? 'secp256k1' : 'ed25519') + ' curve illustration">'];
-    parts.push(gridMarkup(dom, map));
-    parts.push('<path class="key-curve" d="' + curvePath(kind, 1, map) + '"></path>');
-    parts.push('<path class="key-curve" d="' + curvePath(kind, -1, map) + '"></path>');
-    parts.push('<circle class="key-marker-ring" cx="' + marker[0].toFixed(1) + '" cy="' + marker[1].toFixed(1) + '" r="8"></circle>');
-    parts.push('<circle class="key-marker" cx="' + marker[0].toFixed(1) + '" cy="' + marker[1].toFixed(1) + '" r="4.5"></circle>');
-    parts.push('</svg>');
-    plotEl.innerHTML = parts.join('');
-
-    caption.textContent = 'Real-valued view; keys use finite-field math.';
-  }
-
   /* -------------------------------------------------------------- URL key */
   /* A key in the path is already exposed to the browser history and any
    * server logs, so derive it on load and run the registry check without an
@@ -2744,7 +2594,6 @@
     curveSelect.value = (curveParam === 'ed25519' || (detected.kind === 'keypair') ||
       (chainParam && ED25519_CHAINS[chainParam])) ? '1' : '0';
     syncCurveChoices();
-    renderCurve();
     if (urlNotice) urlNotice.hidden = false;
     deriveFromInput();
   }
@@ -2788,7 +2637,6 @@
   if (csvBtn) csvBtn.addEventListener('click', downloadRowsCsv);
 
   curveSelect.addEventListener('change', function () {
-    renderCurve();
     if (input.value.trim()) {
       /* Re-parse the current field so an edited but unsubmitted key is not
        * silently replaced by the last derived one. */
@@ -2933,8 +2781,6 @@
     });
   }
 
-  slider.addEventListener('input', renderCurve);
-
   window.addEventListener('pagehide', function () {
     cancelDebounce();
     cancelPlannedDerive();
@@ -2947,6 +2793,5 @@
 
   summaryPlaceholder();
   rowsPlaceholder();
-  renderCurve();
   initUrlKey();
 })();
