@@ -77,6 +77,9 @@
     ltc_p2wpkh: 'Litecoin native segwit',
     doge_p2pkh: 'Dogecoin legacy (compressed)',
     bch_legacy: 'Bitcoin Cash legacy (compressed)',
+    bch_cashaddr: 'Bitcoin Cash CashAddr (compressed)',
+    doge_p2pkh_uncompressed: 'Dogecoin legacy (uncompressed)',
+    zcash_p2pkh_uncompressed: 'Zcash transparent (uncompressed)',
     xrp_classic: 'XRP classic address',
     zcash_p2pkh: 'Zcash transparent',
     sui: 'Sui account',
@@ -97,6 +100,9 @@
     ltc_p2wpkh: 'witness v0 program hash160(pubkey) with the "ltc" human-readable part, bech32.',
     doge_p2pkh: 'hash160 of the compressed public key with Dogecoin version byte 0x1e, base58check-encoded.',
     bch_legacy: 'Bitcoin Cash legacy address: hash160(pubkey) with version byte 0x00, base58check.',
+    bch_cashaddr: 'hash160 of the compressed public key behind the CashAddr version byte 0x00, base32 with the BCH checksum under the "bitcoincash" prefix.',
+    doge_p2pkh_uncompressed: 'hash160 of the uncompressed (65-byte) public key with Dogecoin version byte 0x1e, base58check-encoded.',
+    zcash_p2pkh_uncompressed: 'hash160 of the uncompressed (65-byte) public key with the two-byte Zcash version 0x1cb8, base58check-encoded.',
     xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).',
     zcash_p2pkh: 'Zcash transparent address: two-byte version 0x1cb8 || hash160(pubkey), base58check.',
     sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.',
@@ -117,6 +123,9 @@
     ltc_p2wpkh: "P2WPKH · m/84'/2'/0'/0/0",
     doge_p2pkh: "P2PKH · m/44'/3'/0'/0/0",
     bch_legacy: "P2PKH · m/44'/145'/0'/0/0",
+    bch_cashaddr: "CashAddr · m/44'/145'/0'/0/0",
+    doge_p2pkh_uncompressed: "P2PKH (uncompressed) · m/44'/3'/0'/0/0",
+    zcash_p2pkh_uncompressed: "P2PKH (uncompressed) · m/44'/133'/0'/0/0",
     xrp_classic: "XRP · m/44'/144'/0'/0/0"
   };
   EVM_IDS.forEach(function (id) {
@@ -137,6 +146,9 @@
     ltc_p2wpkh: ['pubkey', 'hash160', 'hrp', 'witness_version', 'program', 'checksum'],
     doge_p2pkh: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
     bch_legacy: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
+    bch_cashaddr: ['pubkey', 'hash160', 'cashaddr'],
+    doge_p2pkh_uncompressed: ['pubkey', 'hash160', 'base58'],
+    zcash_p2pkh_uncompressed: ['pubkey', 'hash160', 'base58'],
     xrp_classic: ['pubkey', 'hash160', 'payload', 'checksum', 'base58']
   };
 
@@ -146,6 +158,7 @@
     payload: 'prefixed payload',
     checksum: 'check bytes',
     base58: 'Base58Check',
+    cashaddr: 'CashAddr',
     redeem: 'redeem script',
     script_hash: 'hash160 of redeem script',
     hrp: 'human-readable part',
@@ -763,6 +776,7 @@
     await renderSummary(report);
     if (summaryCard) summaryCard.hidden = false;
     if (addressesCard) addressesCard.hidden = false;
+    attachComputedTypes(report);
     renderAddresses(report);
     attachTon(report);
     if (state.urlKey && !state.urlExposurePosted) scheduleExposure(report, true);
@@ -1022,6 +1036,24 @@
     });
   }
 
+  /* CashAddr and the uncompressed Dogecoin/Zcash rows are pure encodings of
+   * hash160 values the WASM report already returned, so they are appended
+   * synchronously before the rows are rendered. */
+  function attachComputedTypes(report) {
+    var types = window.RotorAddressCodecs;
+    if (!types || typeof types.derive !== 'function') return;
+    if (!report || !Array.isArray(report.addresses)) return;
+    var derived = types.derive(report);
+    Object.keys(derived).forEach(function (id) {
+      var row = derived[id];
+      if (!row || typeof row.address !== 'string' || !row.address) return;
+      var present = report.addresses.some(function (existing) {
+        return !!existing && existing.id === id;
+      });
+      if (!present) report.addresses.push(row);
+    });
+  }
+
   function explorerFor(id) {
     if (EVM_CHAINS[id]) return EVM_CHAINS[id].explorer;
     if (typeof id === 'string') {
@@ -1087,8 +1119,11 @@
     ltc_p2sh_p2wpkh: 'Nested SegWit',
     ltc_p2wpkh: 'SegWit',
     doge_p2pkh: 'Legacy',
+    doge_p2pkh_uncompressed: 'Legacy (u)',
     bch_legacy: 'Legacy',
+    bch_cashaddr: 'CashAddr',
     zcash_p2pkh: 'Transparent',
+    zcash_p2pkh_uncompressed: 'Transparent (u)',
     xrp_classic: 'Classic',
     tron: 'Base58',
     solana: 'ed25519',
