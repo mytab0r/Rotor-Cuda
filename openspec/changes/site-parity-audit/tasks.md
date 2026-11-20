@@ -82,9 +82,14 @@
   (BCH spec translation vectors; DOGE/ZEC addresses independently reproduced
   with Python), UI audit on `/key` and `/key/<key1>` at 375/768/1280 in both
   themes.
-- [ ] TON v5/W5 address type. **Blocked:** needs a verified W5 contract-cell
-  implementation (StateInit/BoC hashing); v4R2 already ships. No unverified
-  address encoder was added.
+- [x] TON v5/W5 address type (PR #105). Evidence:
+  `crates/rotor-wasm/src/ton.rs` (official `wallet_v5` code cell, pinned
+  upstream commit), `crates/rotor-wasm/src/derive.rs:657-677` (`ton_w5` row
+  from `w5_address`), `crates/rotor-wasm/ton-w5-vectors.mjs` (independent
+  Tonkeeper V5R1 vectors), `apps/site/key.js:99,123,145` and
+  `apps/site/key-tools.js:799` (label, explainer, derivation steps),
+  `crates/rotor-wasm/src/lib.rs:1813` (row assertion). v4R2 stays as the
+  second TON row; directory tabs still show one type per chain.
 - [ ] Breadcrumbs on every page; consistent `aria-current`.
 - [ ] Seed converter: live word counter, 20 addresses, Load next 5, Copy All.
 - [ ] Vanity: threads/ETA/difficulty/save/recent; pubkey-add: P−Q and scalar
