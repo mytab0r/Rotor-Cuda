@@ -307,7 +307,7 @@
       if (index >= providers.length) {
         throw new Error('No public ' + label + ' RPC answered correctly from this browser' +
           (providers.length > 1 ? ' (tried ' + providers.length + ' endpoints)' : '') +
-          '. Browser CORS or network access may be blocked; Rotor does not proxy or spoof Origin. ' +
+          '. Browser CORS or network access may be blocked; Crypto does not proxy or spoof Origin. ' +
           failures.join(' · '));
       }
       var url = providers[index];
