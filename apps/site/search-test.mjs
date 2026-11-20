@@ -168,6 +168,77 @@ assert.equal(search.shapeReport(report, { chain: "", count: 2 }).length, 5);
 assert.equal(search.CHAINS.length, 18);
 assert.deepEqual(search.COUNTS, [1, 3, 5, 10]);
 
+/* ------------------------------------------------------- result cards */
+
+const cards = search.buildCards(report, ed, []);
+assert.equal(cards.length, 18, `18 chains get a card, got ${cards.length}`);
+assert.equal(cards[0].slug, "bitcoin");
+assert.equal(cards[0].rows.length, 5, "Bitcoin card carries every wasm address type");
+assert.equal(cards[0].rows[0].type, "Legacy");
+assert.equal(cards[0].rows[0].address, KEY1_BTC);
+assert.equal(cards[0].rows[0].explorer, "https://mempool.space/address/" + KEY1_BTC);
+assert.equal(cards[0].rows[4].type, "Taproot");
+
+const ethereumCard = cards.find((card) => card.slug === "ethereum");
+assert.equal(ethereumCard.rows.length, 1, "an EVM chain card has the shared 0x row");
+assert.equal(ethereumCard.rows[0].address, KEY1_EVM);
+assert.equal(ethereumCard.rows[0].explorer, "https://etherscan.io/address/" + KEY1_EVM);
+assert.equal(cards.find((card) => card.slug === "bnb").rows[0].explorer, "https://bscscan.com/address/" + KEY1_EVM);
+
+const tonCard = cards.find((card) => card.slug === "ton");
+assert.equal(tonCard.rows.length, 2, "the ed25519 report contributes V4R2 and W5");
+assert.ok(
+  tonCard.rows.some((row) => row.id === "ton_w5" && row.type === "W5"),
+  "the TON card includes the W5 row",
+);
+
+assert.equal(cards.find((card) => card.slug === "solana").rows[0].type, "Solana");
+assert.equal(cards.find((card) => card.slug === "sui").rows[0].type, "Sui");
+assert.equal(cards.find((card) => card.slug === "xrp").rows[0].type, "Classic");
+assert.deepEqual(search.buildCards(null, null, []), [], "no reports, no cards");
+
+const codecRow = {
+  id: "bch_cashaddr",
+  address: "bitcoincash:qpm2qsznhks23z7629mms6s4cwef74vcwvy22gdx6a",
+};
+const withCodecs = search.buildCards(report, ed, [codecRow]);
+const bchCard = withCodecs.find((card) => card.slug === "bitcoin-cash");
+assert.equal(bchCard.rows.length, 2, "JS codec extras join the BCH card");
+assert.deepEqual(bchCard.rows.map((row) => row.type), ["Legacy", "CashAddr"]);
+
+/* The card exports hold public rows only, never a private key. */
+const balanceTexts = { bitcoin: "0 BTC", ethereum: "—" };
+const tsv = search.cardsToTsv(cards, balanceTexts);
+const tsvLines = tsv.trim().split("\n");
+assert.equal(tsvLines[0], "chain\tindex\ttype\taddress\texplorer\tbalance");
+assert.equal(
+  tsvLines[1],
+  `Bitcoin\t#0\tLegacy\t${KEY1_BTC}\thttps://mempool.space/address/${KEY1_BTC}\t0 BTC`,
+);
+assert.ok(!tsv.includes(report.priv_hex), "TSV must not contain the private key");
+assert.ok(!tsv.includes(report.wif_compressed), "TSV must not contain the WIF");
+assert.equal(search.cardsToTsv([], {}), "chain\tindex\ttype\taddress\texplorer\tbalance\n");
+
+const cardCsv = search.cardsToCsv(cards, balanceTexts);
+const cardCsvLines = cardCsv.trim().split("\n");
+assert.equal(cardCsvLines[0], "chain,index,type,address,explorer,balance");
+assert.equal(
+  cardCsvLines[1],
+  `Bitcoin,#0,Legacy,${KEY1_BTC},https://mempool.space/address/${KEY1_BTC},0 BTC`,
+);
+assert.equal(cardCsvLines[2].split(",")[5], "0 BTC", "the chain balance is repeated on each row");
+assert.equal(cardCsvLines[9].split(",")[5], "—", "an unknown balance stays a dash");
+assert.ok(!cardCsv.includes(report.priv_hex), "CSV must not contain the private key");
+assert.equal(search.cardsToCsv([], {}), "chain,index,type,address,explorer,balance\n");
+
+const activeCards = [
+  { slug: "a", rows: [{ active: true }] },
+  { slug: "b", rows: [{ active: false }, { active: true }] },
+  { slug: "c", rows: [{ active: false }] },
+];
+assert.deepEqual(search.summaryCounts(activeCards), { chains: 2, addresses: 2 });
+assert.deepEqual(search.summaryCounts([]), { chains: 0, addresses: 0 });
+
 /* ------------------------------- directory row shaping (browse.js) */
 
 const require = createRequire(import.meta.url);

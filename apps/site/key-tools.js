@@ -367,6 +367,144 @@
     return first === 's' || first === 'p';
   }
 
+  /* ------------------------------------------------------ search routing */
+  /* The donor search modal detects and routes without deriving anything.
+   * These helpers are the single mapping from pasted text to a destination:
+   * key-like values open /key/<value>, a mnemonic opens /mnemonic-converter,
+   * and any other text is a brainwallet. Kept pure so Node tests can pin the
+   * vectors and so the modal and the key page agree on what an input means. */
+
+  var SEARCH_WIF_SHAPE = /^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
+
+  function isMnemonicPhrase(text) {
+    var words = String(text == null ? '' : text).trim().split(/\s+/);
+    return MNEMONIC_WORD_COUNTS.indexOf(words.length) >= 0 &&
+      words.every(function (word) { return /^[a-z]+$/.test(word); });
+  }
+
+  function jsonKeypair(text) {
+    var value = String(text == null ? '' : text).trim();
+    if (value.charAt(0) !== '[') return null;
+    var parsed;
+    try {
+      parsed = JSON.parse(value);
+    } catch (err) {
+      return null;
+    }
+    if (!Array.isArray(parsed) || (parsed.length !== 32 && parsed.length !== 64) ||
+        !parsed.every(function (number) {
+          return Number.isInteger(number) && number >= 0 && number <= 255;
+        })) {
+      return null;
+    }
+    return parsed;
+  }
+
+  function base58Keypair(text) {
+    var value = String(text == null ? '' : text).trim();
+    if (!/^[1-9A-HJ-NP-Za-km-z]{80,100}$/.test(value)) return null;
+    try {
+      var bytes = base58Decode(value);
+      return bytes.length === 64 ? bytes : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  var ROUTE_META = {
+    hex: { label: 'Private Key (HEX)', viewLabel: 'Key Details' },
+    wif: { label: 'WIF Format', viewLabel: 'Key Details' },
+    keypair: { label: 'Keypair', viewLabel: 'Key Details' },
+    xrp: { label: 'XRP Secret', viewLabel: 'Key Details' },
+    mnemonic: { label: 'Mnemonic', viewLabel: 'Mnemonic Converter' },
+    brainwallet: { label: 'Brainwallet', viewLabel: 'Brainwallet Generator' }
+  };
+
+  function routeResult(kind, href, extra) {
+    var meta = ROUTE_META[kind];
+    var out = { kind: kind, label: meta.label, viewLabel: meta.viewLabel, href: href };
+    if (extra) {
+      Object.keys(extra).forEach(function (key) { out[key] = extra[key]; });
+    }
+    return out;
+  }
+
+  /* Map pasted search text to { kind, label, viewLabel, href } (plus `hex`
+   * for a canonical HEX key and `curve` for ed25519 keypairs). `mode` is one
+   * of hex/wif/keypair/xrp/mnemonic/brainwallet to force a format, or empty
+   * for donor auto-detection. Auto-detection only treats exactly 64 hex
+   * characters as a key; a forced HEX chip pads shorter input. */
+  function routeKeyInput(raw, mode) {
+    var value = String(raw == null ? '' : raw).trim();
+    var forced = String(mode == null ? '' : mode).toLowerCase();
+    if (!value) return null;
+
+    function hexRoute(allowShort) {
+      var hex = value;
+      if (hex.slice(0, 2).toLowerCase() === '0x') hex = hex.slice(2);
+      if (!/^[0-9a-fA-F]+$/.test(hex) || hex.length > 64 || (!allowShort && hex.length !== 64)) {
+        throw new Error('HEX must be 64 hex characters (an optional 0x prefix is allowed).');
+      }
+      var padded = hex.toLowerCase().padStart(64, '0');
+      return routeResult('hex', '/key/' + padded, { hex: padded });
+    }
+
+    function wifRoute() {
+      if (!SEARCH_WIF_SHAPE.test(value)) {
+        throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K or L.');
+      }
+      return routeResult('wif', '/key/' + value);
+    }
+
+    function keypairRoute() {
+      var bytes = jsonKeypair(value);
+      if (bytes) {
+        return routeResult('keypair', '/key/[' + bytes.join(',') + ']', { curve: 'ed25519' });
+      }
+      if (base58Keypair(value)) {
+        return routeResult('keypair', '/key/' + value, { curve: 'ed25519' });
+      }
+      throw new Error('Keypair must be a Solana base58 keypair or a JSON array of 32 or 64 byte values.');
+    }
+
+    function xrpRoute() {
+      if (!looksLikeXrpSecret(value)) {
+        throw new Error('Not an XRP secret: expected a base58 string starting with "s" or "p".');
+      }
+      return routeResult('xrp', '/key/' + value);
+    }
+
+    function mnemonicRoute() {
+      if (!isMnemonicPhrase(value)) {
+        throw new Error('Mnemonic must be 12, 15, 18, 21 or 24 lower-case words.');
+      }
+      return routeResult('mnemonic', '/mnemonic-converter', {
+        phrase: value.split(/\s+/).join(' ')
+      });
+    }
+
+    function brainwalletRoute() {
+      return routeResult('brainwallet', '/brainwallet');
+    }
+
+    if (forced === 'hex') return hexRoute(true);
+    if (forced === 'wif') return wifRoute();
+    if (forced === 'keypair') return keypairRoute();
+    if (forced === 'xrp' || forced === 'xrp-secret') return xrpRoute();
+    if (forced === 'mnemonic') return mnemonicRoute();
+    if (forced === 'brainwallet') return brainwalletRoute();
+    if (forced && forced !== 'auto') throw new Error('Unknown interpretation mode.');
+
+    if (SEARCH_WIF_SHAPE.test(value)) return wifRoute();
+    if (looksLikeXrpSecret(value)) return xrpRoute();
+    if (jsonKeypair(value) || base58Keypair(value)) return keypairRoute();
+    var prefixed = value.slice(0, 2).toLowerCase() === '0x';
+    if (/^[0-9a-fA-F]{64}$/.test(prefixed ? value.slice(2) : value)) return hexRoute(false);
+    if (isMnemonicPhrase(value)) return mnemonicRoute();
+    return brainwalletRoute();
+  }
+
   function u32(value) {
     return Uint8Array.of((value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff);
   }
@@ -454,6 +592,14 @@
       }
       var seed = Uint8Array.from(parsed.slice(0, 32));
       return { bytes: seed, hex: bytesToHex(seed), format: 'keypair' };
+    }
+
+    /* A Solana keypair is also accepted as its 64-byte base58 form; the first
+     * 32 bytes are the ed25519 seed, exactly as the JSON-array form. */
+    var keypairBytes = base58Keypair(value);
+    if (keypairBytes) {
+      var seedBytes = keypairBytes.slice(0, 32);
+      return { bytes: seedBytes, hex: bytesToHex(seedBytes), format: 'keypair' };
     }
 
     var hexValue = value;
@@ -851,6 +997,10 @@
     xrpSecretDecode: xrpSecretDecode,
     xrpFamilySeedKey: xrpFamilySeedKey,
     looksLikeXrpSecret: looksLikeXrpSecret,
+    isMnemonicPhrase: isMnemonicPhrase,
+    jsonKeypair: jsonKeypair,
+    base58Keypair: base58Keypair,
+    routeKeyInput: routeKeyInput,
     resolveKeyInput: resolveKeyInput,
     privateKeyPage: privateKeyPage,
     buildKeyFacts: buildKeyFacts,
