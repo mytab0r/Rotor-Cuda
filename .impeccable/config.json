@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-11-19T22:15:33.189Z",
         "reason": "Measured in a real browser: each .tool-family-icon and its h2 sit on one row (1280px: x=41 vs x=97; 375px: x=33 vs x=89, title vertically centered), so nothing is stacked; detector infers stacking from DOM order"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/site-map/index.html"
+        ],
+        "createdAt": "2026-11-20T15:48:20.971Z",
+        "reason": "wrapper children carry the padding (.sitemap-view-btn 0 13px, table cells 10px 11px); segmented control and scrollable table container are intentional, the heuristic does not see child padding"
       }
     ]
   }
