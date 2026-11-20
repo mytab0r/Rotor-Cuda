@@ -5,14 +5,61 @@
   var WASM_URL = '/rotor_wasm.wasm';
   var BATCH = 120;
   var DECODER = new TextDecoder('utf-8');
+  var RECENT_KEY = 'rotor-vanity-recent';
+  var RECENT_LIMIT = 5;
 
+  /* Alphabet = number of equally likely symbols in the matched address part.
+     EVM hex is matched case-insensitively; base58 and bech32 stay case-sensitive. */
   var CHAINS = {
-    'bitcoin-legacy': { field: 'btc_p2pkh', curve: 0, wif: true },
-    'bitcoin-segwit': { field: 'btc_p2wpkh', curve: 0, wif: true },
-    'bitcoin-taproot': { field: 'btc_p2tr', curve: 0, wif: true },
-    ethereum: { field: 'evm', curve: 0, wif: false, lower: true },
-    tron: { field: 'tron', curve: 0, wif: false },
-    solana: { field: 'solana', curve: 1, wif: false }
+    'bitcoin-legacy': { field: 'btc_p2pkh', curve: 0, wif: true, alphabet: 58 },
+    'bitcoin-segwit': { field: 'btc_p2wpkh', curve: 0, wif: true, alphabet: 32 },
+    'bitcoin-taproot': { field: 'btc_p2tr', curve: 0, wif: true, alphabet: 32 },
+    ethereum: { field: 'evm', curve: 0, wif: false, lower: true, alphabet: 16 },
+    tron: { field: 'tron', curve: 0, wif: false, alphabet: 58 },
+    solana: { field: 'solana', curve: 1, wif: false, alphabet: 58 }
+  };
+
+  function alphabetFor(chain) {
+    var config = CHAINS[chain];
+    return config && config.alphabet ? config.alphabet : 58;
+  }
+
+  function patternLength(prefix, suffix) {
+    return String(prefix || '').length + String(suffix || '').length;
+  }
+
+  function expectedAttempts(alphabetSize, length) {
+    var size = Number(alphabetSize);
+    var count = Math.floor(Number(length));
+    if (!isFinite(size) || size < 2 || !isFinite(count) || count < 1) return 1;
+    return Math.pow(size, count);
+  }
+
+  function expectedSeconds(attempts, rate) {
+    var expected = Number(attempts);
+    var speed = Number(rate);
+    if (!isFinite(expected) || expected <= 0) return null;
+    if (!isFinite(speed) || speed <= 0) return null;
+    return expected / speed;
+  }
+
+  /* Whitelist only the public fields: a stored match must never carry a key. */
+  function sanitizeRecentEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    var chain = typeof entry.chain === 'string' ? entry.chain.slice(0, 40) : '';
+    var address = typeof entry.address === 'string' ? entry.address.slice(0, 128) : '';
+    if (!chain || !address) return null;
+    var pattern = typeof entry.pattern === 'string' ? entry.pattern.slice(0, 96) : '';
+    var foundAt = typeof entry.foundAt === 'number' && isFinite(entry.foundAt) ? entry.foundAt : 0;
+    return { chain: chain, pattern: pattern, address: address, foundAt: foundAt };
+  }
+
+  (typeof globalThis !== 'undefined' ? globalThis : window).RotorVanityMath = {
+    expectedAttempts: expectedAttempts,
+    alphabetFor: alphabetFor,
+    expectedSeconds: expectedSeconds,
+    patternLength: patternLength,
+    sanitizeRecentEntry: sanitizeRecentEntry
   };
 
   var byId = function (id) { return document.getElementById(id); };
@@ -27,12 +74,16 @@
   var errorBox = byId('vanity-error');
   var attemptsEl = byId('vanity-attempts');
   var rateEl = byId('vanity-rate');
+  var etaEl = byId('vanity-eta');
+  var difficultyEl = byId('vanity-difficulty');
   var elapsedEl = byId('vanity-elapsed');
   var resultBox = byId('vanity-result');
   var addressEl = byId('vanity-address');
   var keyEl = byId('vanity-key');
   var wifRow = byId('vanity-wif-row');
   var wifEl = byId('vanity-wif');
+  var recentBox = byId('vanity-recent');
+  var recentListEl = byId('vanity-recent-list');
 
   var state = {
     wasm: null,
@@ -105,6 +156,141 @@
     return Number(value || 0).toLocaleString('en-US');
   }
 
+  function exactAttemptsText(alphabet, length) {
+    if (length < 1) return '1';
+    try {
+      var total = BigInt(1);
+      var base = BigInt(alphabet);
+      for (var i = 0; i < length; i += 1) total = total * base;
+      return total.toString();
+    } catch (err) {
+      return String(expectedAttempts(alphabet, length));
+    }
+  }
+
+  function difficultyLabel(alphabet, length) {
+    if (length < 1) return '—';
+    var attempts = expectedAttempts(alphabet, length);
+    var human = attempts >= 1e9 ? attempts.toExponential(2) : formatNumber(Math.round(attempts));
+    return '1 in ' + human;
+  }
+
+  function formatEta(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '—';
+    if (seconds < 1) return '< 1 s';
+    if (seconds < 60) return Math.round(seconds) + ' s';
+    if (seconds < 3600) return Math.floor(seconds / 60) + ' m ' + Math.round(seconds % 60) + ' s';
+    if (seconds < 86400) return Math.floor(seconds / 3600) + ' h ' + Math.floor((seconds % 3600) / 60) + ' m';
+    var days = seconds / 86400;
+    if (days < 365) return Math.round(days) + ' d';
+    var years = days / 365;
+    if (years < 1e6) return formatNumber(Math.round(years)) + ' y';
+    return years.toExponential(2) + ' y';
+  }
+
+  function currentDifficulty() {
+    var alphabet = alphabetFor(chainSelect.value);
+    var length = patternLength(prefixInput.value.trim(), suffixInput.value.trim());
+    return { alphabet: alphabet, length: length, attempts: expectedAttempts(alphabet, length) };
+  }
+
+  function refreshDifficulty() {
+    var info = currentDifficulty();
+    if (difficultyEl) {
+      difficultyEl.textContent = 'Expected work: ' + difficultyLabel(info.alphabet, info.length);
+      difficultyEl.title = 'Exact expected attempts: ' + exactAttemptsText(info.alphabet, info.length);
+    }
+    if (etaEl) {
+      var eta = expectedSeconds(info.attempts, state.rate);
+      etaEl.textContent = eta === null ? '—' : formatEta(eta);
+    }
+  }
+
+  function chainTitle(chain) {
+    if (chainSelect && chainSelect.options) {
+      for (var i = 0; i < chainSelect.options.length; i += 1) {
+        if (chainSelect.options[i].value === chain) {
+          return String(chainSelect.options[i].textContent).replace(/\s*\(.*\)\s*$/, '');
+        }
+      }
+    }
+    return chain;
+  }
+
+  function readRecent() {
+    try {
+      if (!window.localStorage) return [];
+      var raw = window.localStorage.getItem(RECENT_KEY);
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      var list = [];
+      for (var i = 0; i < parsed.length && list.length < RECENT_LIMIT; i += 1) {
+        var clean = sanitizeRecentEntry(parsed[i]);
+        if (clean) list.push(clean);
+      }
+      return list;
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function saveRecent(list) {
+    try {
+      if (!window.localStorage) return;
+      window.localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    } catch (err) {
+      /* Storage unavailable or full: the search itself still works. */
+    }
+  }
+
+  function copyButton(text, label) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'key-copy';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', function () { copyText(text, button); });
+    return button;
+  }
+
+  function renderRecent() {
+    if (!recentBox || !recentListEl) return;
+    var list = readRecent();
+    recentListEl.textContent = '';
+    if (!list.length) {
+      recentBox.hidden = true;
+      return;
+    }
+    recentBox.hidden = false;
+    for (var i = 0; i < list.length; i += 1) {
+      var entry = list[i];
+      var name = chainTitle(entry.chain);
+      var row = document.createElement('div');
+      row.className = 'key-form-row';
+      row.setAttribute('role', 'listitem');
+      var label = document.createElement('span');
+      label.className = 'key-field-label';
+      label.textContent = entry.pattern ? name + ' · ' + entry.pattern : name;
+      var address = document.createElement('code');
+      address.className = 'mono key-addr';
+      address.textContent = entry.address;
+      row.appendChild(label);
+      row.appendChild(address);
+      row.appendChild(copyButton(entry.address, 'Copy ' + name + ' address'));
+      recentListEl.appendChild(row);
+    }
+  }
+
+  function addRecent(chain, pattern, address) {
+    var entry = sanitizeRecentEntry({ chain: chain, pattern: pattern, address: address, foundAt: Date.now() });
+    if (!entry) return;
+    var list = readRecent();
+    list.unshift(entry);
+    saveRecent(list.slice(0, RECENT_LIMIT));
+    renderRecent();
+  }
+
   function tick() {
     if (!state.running) return;
     var config = CHAINS[chainSelect.value];
@@ -137,14 +323,20 @@
 
   function updateStats() {
     attemptsEl.textContent = formatNumber(state.attempts);
-    var seconds = Math.max(0.001, (performance.now() - state.startedAt) / 1000);
+    var now = performance.now();
+    var seconds = Math.max(0.001, (now - state.startedAt) / 1000);
     elapsedEl.textContent = seconds < 60 ? seconds.toFixed(1) + ' s' : Math.floor(seconds / 60) + ' m ' + Math.floor(seconds % 60) + ' s';
-    if (performance.now() - state.lastAt > 400) {
-      state.rate = (state.attempts - state.lastCount) / ((performance.now() - state.lastAt) / 1000);
-      state.lastCount = state.attempts;
-      state.lastAt = performance.now();
+    if (state.running) {
+      if (now - state.lastAt > 400) {
+        state.rate = (state.attempts - state.lastCount) / ((now - state.lastAt) / 1000);
+        state.lastCount = state.attempts;
+        state.lastAt = now;
+      }
+    } else {
+      state.rate = 0;
     }
     rateEl.textContent = formatNumber(Math.round(state.rate)) + ' / s';
+    refreshDifficulty();
   }
 
   function finish(report, address) {
@@ -162,6 +354,9 @@
     } else {
       wifRow.hidden = true;
     }
+    var prefix = prefixInput.value.trim();
+    var suffix = suffixInput.value.trim();
+    addRecent(chainSelect.value, prefix && suffix ? prefix + '…' + suffix : (prefix || suffix), address);
     resultBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -223,6 +418,12 @@
 
   stopBtn.addEventListener('click', stop);
   window.addEventListener('pagehide', stop);
+
+  chainSelect.addEventListener('change', refreshDifficulty);
+  prefixInput.addEventListener('input', refreshDifficulty);
+  suffixInput.addEventListener('input', refreshDifficulty);
+  refreshDifficulty();
+  renderRecent();
 
   byId('vanity-copy-address').addEventListener('click', function () { copyText(addressEl.textContent, this); });
   byId('vanity-copy-key').addEventListener('click', function () { copyText(keyEl.textContent, this); });
