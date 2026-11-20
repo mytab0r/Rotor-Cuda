@@ -14,9 +14,17 @@ a worktree; one writer per area.
       `history.replaceState`/`pushState`; the owner confirmed the same behaviour.
       An earlier idea to canonicalise to `/key/<64-hex>` was dropped — do not
       add it. Evidence: `docs/donor-parity/key-page.md` §1, §8.
-- [ ] Stats row (TOTAL VALUE / HAS BALANCE / ACTIVE / CHECKED) with the donor's
+- [x] Stats row (TOTAL VALUE / HAS BALANCE / ACTIVE / CHECKED) with the donor's
       meaning, or an explicit reason we cannot compute it client-side.
-- [ ] Keys table row order and labels match the donor.
+      Evidence: `apps/site/key.html:158-176` (four cards plus the explanatory
+      note), `apps/site/key.js:2199-2206` (counters update from
+      `balanceCounters`); TOTAL VALUE shows `—` with a title because there is
+      no price source.
+- [x] Keys table row order and labels match the donor.
+      Evidence: `apps/site/key-tools.js:526-599` (`buildKeyFacts`) emits HEX,
+      Decimal, WIF, WIF (u), Keypair (SOL), Secret (XRP), PubKey, Page.
+      Deviation: the extra "Public point" group below the eight rows is kept
+      (compressed/uncompressed/X/Y/ed25519); the donor has no such block.
 - [x] Address table matches the donor exactly: real `<table>` with `<thead>`,
       columns Chain | Type | Address | Status | actions (no path column), chain
       cell uses `rowspan` (BTC 5, LTC 4, BCH 2, DOGE 2, TON 2, ZEC 2), EVM has
@@ -35,23 +43,41 @@ a worktree; one writer per area.
       (`derive_report` 0 and 1); the ed25519 report supplies SOL, SUI and
       TON W5, the page adds TON V4R2, and the secp report plus the JS
       encoders supply the other 26 rows.
-- [ ] Stats semantics: `Checked` = chains checked / 18 (constant), `Has
+- [x] Stats semantics: `Checked` = chains checked / 18 (constant), `Has
       Balance` and `Active` count unique chain groups, not rows.
-- [ ] Status vocabulary and row tints: green amount with full precision in
+      Evidence: `apps/site/key-tools.js:605` (`CHAIN_GROUP_TOTAL = 18`),
+      `balanceCounters` over `counterChainKey`, `apps/site/key.html:173`
+      (`0/18` initial value and title).
+- [x] Status vocabulary and row tints: green amount with full precision in
       `title`, amber check for active/empty, `-` for checked-empty, `!` for
       errors, spinner while pending.
-- [ ] Keys table: eight donor rows (drop our extra Curve row unless needed);
-      `Page` links to `/private-keys/bitcoin/<ceil(decimal/60)>`.
-- [ ] Do NOT canonicalise the URL: the donor echoes the input verbatim; every
-      key form renders the same page in place (owner confirmed the behaviour,
-      not a URL rewrite).
-
-- [ ] Stats row `TOTAL VALUE` in USD needs a price source. Decision recorded
-      below once made; until then show native amounts, never a fake USD total.
+      Evidence: `apps/site/key.js:1805-1821` (spinner), `:1880-1910`
+      (`ok`/`active`/`empty` badges, `has-balance`/`is-active` tints),
+      `:2406-2407` (error `!`).
+- [x] Keys table: eight donor rows; `Page` links to the directory page.
+      Evidence: `apps/site/key-tools.js:509-520` (`privateKeyPage`:
+      `/private-keys/bitcoin/<ceil(decimal/60)>` for secp, `solana` for an
+      ed25519 seed), `:594-597` (Page fact).
+- [x] Do NOT canonicalise the URL: the donor echoes the input verbatim; every
+      key form renders the same page in place.
+      Evidence: no `replaceState`/`pushState` in `apps/site/key.js` or
+      `apps/site/site.js` (grep, 2026-11-20).
+- [x] Stats row `TOTAL VALUE` in USD needs a price source. Decision: no price
+      feed is wired, so the card shows `—` with an explicit title and native
+      balances stay per chain; never a fake USD total.
+      Evidence: `apps/site/key.html:161` (title), `:176` (note). Wiring a price
+      source remains an owner decision, not a parity gap.
 
 
 ## 2. Search and directories (donor audit)
-- [ ] Global search matches the donor's input types and lands on `/key/<hex>`.
+- [x] Global search matches the donor's input types and lands on `/key/<hex>`.
+      Evidence: `apps/site/search.js:22-31` (interpret-as: auto, HEX, WIF,
+      Keypair, XRP Secret, Mnemonic, Brainwallet), `:219-256` (detection),
+      `apps/site/site.js:137-160` (directory search resolves to
+      `/key/<hex>`), `:209-247` (Ctrl+K modal renders inline results with Copy
+      All/CSV instead of redirecting). Deviation: the donor's "View" link is
+      replaced by in-place results; the directory forms still land on
+      `/key/<hex>`.
 - [x] `/private-keys`, `/private-keys/<chain>`, `/mnemonic-seeds/<chain>`
       column sets and grouping copied from the donor.
       Audit note (2026-11-20): donor column sets, grouping and global-search
@@ -70,8 +96,11 @@ a worktree; one writer per area.
       one row; zero-provider metrics render `-`, never invented data.
 
 ## 3. secretscan.org ideas
-- [ ] Lists/pricing pages, filters and density reviewed; adopted items listed
+- [x] Lists/pricing pages, filters and density reviewed; adopted items listed
       in `docs/donor-parity/secretscan.md`.
+      Evidence: `docs/donor-parity/secretscan.md` §8 (ranked adoption list).
+      No datasets or prices copied; the list/rent machinery stays a separate
+      owner decision (section 5).
 - Audit note (2026-11-20): mechanics of `/wallets`, `/results`, `/rent` and
   `/scaner` recorded in `docs/donor-parity/secretscan.md`; no datasets or
   prices copied.
@@ -94,15 +123,29 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
   wordmark choice before touching title/meta (titles are indexed).
 
 ## 5. Paid datasets (design: docs/donor-parity/payments.md)
-- [ ] Implement the processor-free order flow: `POST /api/v1/orders`,
+- [x] Implement the processor-free order flow: `POST /api/v1/orders`,
       `GET /api/v1/orders/{id}` (order token), `GET /api/v1/orders/{id}/download`
       (HMAC token, 7 days, 5 downloads), admin revoke/reconcile.
-- [ ] Per-order deposit address (watch-only xpub) or unique-amount fallback;
+      Evidence: `src/coordinator/orders.rs` (routes, store, tokens), routes
+      registered before the client-token matrix in `src/coordinator/mod.rs`,
+      store `orders.json` written atomically next to the coordinator state;
+      tests in `src/coordinator/orders.rs` and
+      `tests/coordinator_api.rs::orders_are_public_but_need_configuration_and_an_active_list`.
+      Unconfigured `ORDERS_CONFIG` answers 503; inactive list answers 404.
+- [x] Per-order deposit address (watch-only xpub) or unique-amount fallback;
       poller with BTC 3 / LTC 6 / TRON 19 / ETH 12 / BSC 15 confirmations.
+      Fallback chosen for this iteration: fixed address + unique atomic-amount
+      suffix (no xpub derivation). Evidence: `quote_amount`/`allocate_amount`
+      and the pure `match_payment` rules in `src/coordinator/orders.rs`; the
+      poller polls Esplora (BTC/LTC) and TronScan (TRON) every 45 s;
+      confirmations come from config with the 3/6/19 defaults. One
+      `(chain,txid,vout)` pays one order. ETH/BSC remain config-only chains:
+      the current poller verifies BTC, LTC and TRON.
 - [ ] Every delivered package carries the licence/attribution page (MIT notice
       for our lists; CC0 provenance for donor-derived data).
 - [ ] Prices, accepted chains and refund policy are owner decisions; ship with
       `active=false` lists until they are set.
+      `deploy/orders.example.json` ships every list with `active: false`.
 
 ## Gates
 - `node scripts/ui-audit.mjs --serve` — 0 violations at 375/768/1280, light/dark.

@@ -9,13 +9,13 @@
 //
 // Usage:
 //   node scripts/ui-audit.mjs                       # audit a running coordinator on :7879
-//   node scripts/ui-audit.mjs --serve               # build-free: start target/release/rotor-coord on :7899
+//   node scripts/ui-audit.mjs --serve               # start target/release/rotor-coord on :7899 (fails if the binary predates the site/coordinator sources)
 //   node scripts/ui-audit.mjs --routes /key,/seed --viewports 375,1280 --themes dark
 //
 // Exit codes: 0 = no violations, 1 = violations found, 2 = harness/environment error.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -879,6 +879,26 @@ async function main() {
       if (!existsSync(exe)) {
         throw new Error(`--serve needs ${exe}; run: cargo build --release --bin rotor-coord`);
       }
+      // A stale binary serves old embedded assets and reports violations that
+      // are already fixed (and passes ones that are not). Fail loud instead.
+      const newestSource = (dir) => readdirSync(dir, { recursive: true })
+        .reduce((newest, entry) => {
+          const full = path.join(dir, typeof entry === "string" ? entry : entry.name);
+          try {
+            return Math.max(newest, statSync(full).mtimeMs);
+          } catch {
+            return newest;
+          }
+        }, 0);
+      const newestEmbedded = Math.max(
+        newestSource(path.join(REPO_ROOT, "apps", "site")),
+        newestSource(path.join(REPO_ROOT, "src", "coordinator")),
+      );
+      if (newestEmbedded > statSync(exe).mtimeMs) {
+        throw new Error(
+          `--serve uses a stale ${exe}: site/coordinator sources changed after the build; run: cargo build --release --bin rotor-coord`,
+        );
+      }
       const stateDir = path.join(tempRoot, "state");
       await mkdir(stateDir, { recursive: true });
       server = spawn(
@@ -954,7 +974,8 @@ async function main() {
     });
     cdp.on("Log.entryAdded", (params) => {
       if (params.entry?.level !== "error") return;
-      consoleErrors.push(`${params.entry.text || ""}`.slice(0, 200));
+      const url = params.entry.url ? ` (${params.entry.url})` : "";
+      consoleErrors.push(`${params.entry.text || ""}${url}`.slice(0, 200));
     });
 
     // /site-map is expected to disappear after the docs move; probe it once.
