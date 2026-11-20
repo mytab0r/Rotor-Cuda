@@ -73,8 +73,16 @@
   skeleton/empty/error primitives.
 - [ ] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
 - [ ] Tools index: 8 families with alias rows.
-- [ ] Address types for BCH (legacy/CashAddr), TON (v4R2/W5), DOGE/ZEC
-  compressed/uncompressed.
+- [x] Address types: BCH legacy + CashAddr, DOGE compressed/uncompressed,
+  ZEC transparent compressed/uncompressed. Evidence:
+  `apps/site/address-codecs.js` (CashAddr + Base58Check encoders),
+  `apps/site/key.js` (`attachComputedTypes`), `apps/site/address-codecs-test.mjs`
+  (BCH spec translation vectors; DOGE/ZEC addresses independently reproduced
+  with Python), UI audit on `/key` and `/key/<key1>` at 375/768/1280 in both
+  themes.
+- [ ] TON v5/W5 address type. **Blocked:** needs a verified W5 contract-cell
+  implementation (StateInit/BoC hashing); v4R2 already ships. No unverified
+  address encoder was added.
 - [ ] Breadcrumbs on every page; consistent `aria-current`.
 - [ ] Seed converter: live word counter, 20 addresses, Load next 5, Copy All.
 - [ ] Vanity: threads/ETA/difficulty/save/recent; pubkey-add: P−Q and scalar
