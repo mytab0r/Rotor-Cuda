@@ -17,21 +17,24 @@ a worktree; one writer per area.
 - [ ] Stats row (TOTAL VALUE / HAS BALANCE / ACTIVE / CHECKED) with the donor's
       meaning, or an explicit reason we cannot compute it client-side.
 - [ ] Keys table row order and labels match the donor.
-- [ ] Address table matches the donor exactly: real `<table>` with `<thead>`,
+- [x] Address table matches the donor exactly: real `<table>` with `<thead>`,
       columns Chain | Type | Address | Status | actions (no path column), chain
       cell uses `rowspan` (BTC 5, LTC 4, BCH 2, DOGE 2, TON 2, ZEC 2), EVM has
       one `0x` row plus eight chain rows marked "↑ same". 30 rows total.
-      Evidence: `docs/donor-parity/key-page.md` §2.
-- [ ] Add the missing address types — exact donor row set (30 rows):
+      Evidence: `docs/donor-parity/key-page.md` §2; `apps/site/key.js`
+      renders both curves into one table and `mergeCurveAddresses` in
+      `apps/site/key-tools.js` is covered by the 30-row test.
+- [x] Add the missing address types — exact donor row set (30 rows):
       BTC: Legacy, Legacy(u), SegWit, **P2SH** (we label it "Nested SegWit"),
       Taproot; EVM: parent `0x` row + ETH/BNB/POL/ARB/OP/BASE/AVAX/zkSync rows
       with `↑ same`; TRX Base58; SOL Base58; TON V4R2 **+ W5**; SUI `0x`;
       XRP `r…`; LTC Legacy, SegWit, **P2SH, Taproot**; BCH **CashAddr** +
       Legacy; DOGE Legacy **+ Legacy(u)**; ZEC **t1 (c) + t1 (u)**.
       Evidence: donor DOM extraction in `docs/donor-parity/key-page.md` §2.
-      Current row inventory: 28 of 30. Missing `ltc_p2tr` (wasm work in
-      progress) and TON W5 (**blocked**: no verified contract-cell
-      implementation; not shipping an unverified encoder).
+      Row inventory is now 30 of 30: every 32-byte input derives both curves
+      (`derive_report` 0 and 1); the ed25519 report supplies SOL, SUI and
+      TON W5, the page adds TON V4R2, and the secp report plus the JS
+      encoders supply the other 26 rows.
 - [ ] Stats semantics: `Checked` = chains checked / 18 (constant), `Has
       Balance` and `Active` count unique chain groups, not rows.
 - [ ] Status vocabulary and row tints: green amount with full precision in
