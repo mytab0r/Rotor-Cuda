@@ -524,7 +524,7 @@ function auditPage(args) {
           }
         }
       }
-      if (reason) clippedControls.push(`${selectorOf(control)} ${reason} [anc: ${(() => { let out = ""; for (let node = control.parentElement; node; node = node.parentElement) { const s = getComputedStyle(node); out += `${node.className || node.tagName}:${s.overflowX}/${s.overflowY} `; if (node === card) break; } return out; })()}]`);
+      if (reason) clippedControls.push(`${selectorOf(control)} ${reason}`);
     }
   }
   if (clippedControls.length) {

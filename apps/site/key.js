@@ -1651,8 +1651,6 @@
 
   function selectPreset(button) {
     state.preset = button.getAttribute('data-preset');
-    var presetSelect = byId('preset-select');
-    if (presetSelect) presetSelect.value = state.preset;
     presetButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
@@ -1709,8 +1707,6 @@
       presetButtons.forEach(function (button) {
         button.setAttribute('aria-pressed', String(button.getAttribute('data-preset') === 'all'));
       });
-      var presetSelect = byId('preset-select');
-      if (presetSelect) presetSelect.value = 'all';
       setDerivationPath('all');
       if (id.indexOf('btc_') === 0) {
         state.chain = 'btc';
@@ -2695,16 +2691,6 @@
   });
   curveSelect.addEventListener('change', syncCurveChoices);
   syncCurveChoices();
-
-  var presetSelect = byId('preset-select');
-  if (presetSelect) {
-    presetSelect.addEventListener('change', function () {
-      var target = presetButtons.filter(function (button) {
-        return button.getAttribute('data-preset') === presetSelect.value;
-      })[0];
-      if (target) selectPreset(target);
-    });
-  }
 
   /* Per-chain generator entry points reuse this page: ?chain=<slug> (or a
    * legacy ?type=<row>) preselects the chain filter and, for ed25519 chains,
