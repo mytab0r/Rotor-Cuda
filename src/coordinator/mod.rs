@@ -14,7 +14,7 @@ pub mod wallets;
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -4416,8 +4416,31 @@ fn valid_tron_address(address: &str) -> bool {
         && address.bytes().all(|byte| ALPHABET.contains(&byte))
 }
 
+/// DNS order from this host often puts AAAA first. A container without an
+/// IPv6 route then fails the connect before the A record is tried, which
+/// surfaced as "provider unreachable" for every TronScan call. Try IPv4
+/// addresses first and keep the IPv6 ones as a fallback.
+struct Ipv4FirstResolver;
+
+impl ureq::Resolver for Ipv4FirstResolver {
+    fn resolve(&self, netloc: &str) -> std::io::Result<Vec<SocketAddr>> {
+        let mut v4 = Vec::new();
+        let mut v6 = Vec::new();
+        for addr in netloc.to_socket_addrs()? {
+            if addr.is_ipv4() {
+                v4.push(addr);
+            } else {
+                v6.push(addr);
+            }
+        }
+        v4.extend(v6);
+        Ok(v4)
+    }
+}
+
 fn tronscan_agent() -> ureq::Agent {
     let mut builder = ureq::AgentBuilder::new()
+        .resolver(Ipv4FirstResolver)
         .user_agent("rotor-coord/2.0 tronscan-proxy")
         .timeout_connect(TRONSCAN_CONNECT_TIMEOUT)
         .timeout_read(TRONSCAN_READ_TIMEOUT)
