@@ -184,7 +184,7 @@ impl Cache {
             .state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let hit = match state.entries.get(&key) {
+        match state.entries.get(&key) {
             Some(Entry::Success { value, at }) if now.duration_since(*at) < self.success_ttl => {
                 Some(CacheHit::Success(value.clone()))
             }
@@ -201,8 +201,7 @@ impl Cache {
                 None
             }
             None => None,
-        };
-        hit
+        }
     }
 
     pub fn put_success(&self, chain: &str, address: &str, value: Value) {
