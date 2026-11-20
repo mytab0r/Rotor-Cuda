@@ -45,3 +45,39 @@ for native clients, and that browser-oriented jobs SHOULD use 2^20–2^22 with
 - THEN the job uses a chunk width that completes in seconds to a couple of
   minutes at the measured tab rate and has a TTL comfortably longer than a
   paused tab's resume path
+
+### Requirement: processor-free paid downloads
+The coordinator MUST serve paid-download orders only when `ORDERS_CONFIG` is
+set; without it `POST /api/v1/orders` and the other order routes answer `503`
+`orders_not_configured`. The public order routes MUST bypass the client-token
+matrix because a buyer has no client account. Order creation MUST refuse an
+unknown or `active: false` list with `404`, and MUST quote a unique atomic
+amount above the frozen USD price. Order and delivery tokens MUST be stored
+only as SHA-256 hashes. A delivery link MUST be HMAC-signed over
+`order|list|expiry|nonce`, expire after `link_ttl_secs`, allow at most
+`max_downloads` deliveries, and answer `404` for a bad token. The artifact hash
+MUST be checked before streaming, and the response MUST carry
+`Cache-Control: no-store`, `Referrer-Policy: no-referrer` and
+`X-Robots-Tag: noindex`. Source: `src/coordinator/orders.rs`,
+`docs/donor-parity/payments.md` §3-4.
+
+#### Scenario: orders are not configured
+- GIVEN `ORDERS_CONFIG` is unset
+- WHEN `POST /api/v1/orders` is requested
+- THEN the response is `503 {"error":"orders_not_configured"}`
+
+#### Scenario: list is not for sale
+- GIVEN a configured list with `active: false`
+- WHEN `POST /api/v1/orders` names its slug
+- THEN the response is `404` and no order is persisted
+
+#### Scenario: forged delivery token
+- GIVEN a paid order with an entitlement
+- WHEN `GET /api/v1/orders/{id}/download` carries a token that fails the HMAC
+  check
+- THEN the response is `404`, indistinguishable from an unknown order
+
+#### Scenario: download cap is exhausted
+- GIVEN an entitlement whose `downloads` equals `max_downloads`
+- WHEN a correctly signed link is used again
+- THEN the response is `410` and the artifact is not streamed

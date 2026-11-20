@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rotor::base58;
 use rotor::bsgs::TableManifest;
 use rotor::coordinator::client::CoordinatorClient;
+use rotor::coordinator::orders::{Orders, OrdersConfig};
 use rotor::coordinator::{
     Clients, ServerOptions, spawn, spawn_with_clients, spawn_with_monitor_options,
     spawn_with_options,
@@ -1293,6 +1294,7 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
             monitor_domain: "127.0.0.1".to_string(),
             wallets_upstream: Some(upstream.base.clone()),
             tronscan_api_key: None,
+            orders: None,
         },
         Arc::clone(&store),
     )
@@ -1440,6 +1442,208 @@ fn tron_lookup_refuses_without_a_provider_key() {
     // The route is GET-only and public.
     let (status, _, _) = raw(addr, "POST", "/api/v1/chain/tron/address", None, Some("{}"));
     assert_eq!(status, 405);
+
+    handle.shutdown();
+}
+
+fn orders_config(active: bool) -> String {
+    format!(
+        r#"{{
+            "lists": [
+                {{
+                    "slug": "btc-pack",
+                    "title": "Bitcoin package",
+                    "chain": "btc",
+                    "asset": "BTC",
+                    "price_usd_cents": 2900,
+                    "usd_per_unit_micros": 60000000000,
+                    "decimals": 8,
+                    "address": "bc1qexample",
+                    "file_path": "/tmp/btc-pack.zip",
+                    "sha256": "{}",
+                    "active": {active}
+                }},
+                {{
+                    "slug": "ltc-pack",
+                    "title": "Litecoin package",
+                    "chain": "ltc",
+                    "asset": "LTC",
+                    "price_usd_cents": 2900,
+                    "usd_per_unit_micros": 80000000,
+                    "decimals": 8,
+                    "address": "ltc1qexample",
+                    "file_path": "/tmp/ltc-pack.zip",
+                    "sha256": "{}",
+                    "active": false
+                }}
+            ],
+            "confirmations": {{"btc": 3, "ltc": 6, "tron": 19}},
+            "quote_ttl_secs": 1800,
+            "link_ttl_secs": 604800,
+            "max_downloads": 5,
+            "poll_interval_secs": 86400,
+            "esplora": {{"btc": "http://127.0.0.1:9", "ltc": "http://127.0.0.1:9"}}
+        }}"#,
+        "ab".repeat(32),
+        "cd".repeat(32)
+    )
+}
+
+#[test]
+fn orders_are_public_but_need_configuration_and_an_active_list() {
+    // Unconfigured: every order route refuses instead of accepting an order.
+    let coordinator_state = TempState::new("orders-off");
+    let monitor_state = TempState::new("orders-off-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            orders: None,
+            ..ServerOptions::default()
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+    let (status, headers, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/orders",
+        None,
+        Some(r#"{"list":"btc-pack"}"#),
+    );
+    assert_eq!(status, 503, "{body}");
+    assert!(
+        headers.to_ascii_lowercase().contains("application/json"),
+        "{headers}"
+    );
+    assert!(body.contains("orders_not_configured"), "{body}");
+    let (status, _, _) = raw(addr, "GET", "/api/v1/orders/abc", None, None);
+    assert_eq!(status, 503);
+    handle.shutdown();
+
+    // Configured: inactive and unknown lists are 404, an active list is 201.
+    let coordinator_state = TempState::new("orders-on");
+    let monitor_state = TempState::new("orders-on-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let orders_store = TempState::new("orders-store");
+    let orders = Arc::new(
+        Orders::new(
+            OrdersConfig::parse(&orders_config(true)).expect("orders config"),
+            b"0123456789abcdef0123456789abcdef",
+            orders_store.path().to_path_buf(),
+        )
+        .expect("orders store"),
+    );
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            orders: Some(Arc::clone(&orders)),
+            ..ServerOptions::default()
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/orders",
+        None,
+        Some(r#"{"list":"nope"}"#),
+    );
+    assert_eq!(status, 404, "{body}");
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/orders",
+        None,
+        Some(r#"{"list":"ltc-pack"}"#),
+    );
+    assert_eq!(status, 404, "inactive lists must not be orderable: {body}");
+
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/orders",
+        None,
+        Some(r#"{"list":"btc-pack","contact":"buyer@example.com"}"#),
+    );
+    assert_eq!(status, 201, "{body}");
+    let created: serde_json::Value = serde_json::from_str(&body).expect("order JSON");
+    let order_id = created["order_id"].as_str().expect("order id").to_string();
+    let order_token = created["order_token"]
+        .as_str()
+        .expect("order token")
+        .to_string();
+    assert_eq!(created["asset"], "BTC");
+    assert_eq!(created["address"], "bc1qexample");
+    assert!(
+        created["amount"]
+            .as_str()
+            .expect("amount")
+            .parse::<u128>()
+            .unwrap()
+            > 0
+    );
+    assert_ne!(order_token, order_id);
+
+    // Status polling needs the one-time order token.
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        &format!("/api/v1/orders/{order_id}?token=wrong"),
+        None,
+        None,
+    );
+    assert_eq!(status, 404, "{body}");
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        &format!("/api/v1/orders/{order_id}"),
+        Some(&order_token),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    let status_body: serde_json::Value = serde_json::from_str(&body).expect("status JSON");
+    assert_eq!(status_body["status"], "awaiting_payment");
+    assert!(status_body.get("download_url").is_none());
+
+    // A bad download token is a 404, never a hint that the order exists.
+    let (status, _, _) = raw(
+        addr,
+        "GET",
+        &format!("/api/v1/orders/{order_id}/download?token=forged"),
+        None,
+        None,
+    );
+    assert_eq!(status, 404);
+
+    // Admin revoke is behind the coordinator admin token.
+    let (status, _, _) = raw(
+        addr,
+        "POST",
+        &format!("/api/v1/admin/orders/{order_id}/revoke"),
+        None,
+        None,
+    );
+    assert_eq!(status, 401);
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        &format!("/api/v1/admin/orders/{order_id}/revoke"),
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("revoked"), "{body}");
 
     handle.shutdown();
 }
