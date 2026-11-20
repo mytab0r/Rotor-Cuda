@@ -93,6 +93,7 @@ const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
 const SEND_PAGE: &str = include_str!("../../apps/site/send.html");
 const SEND_JS: &str = include_str!("../../apps/site/send.js");
+const TRON_TX_JS: &str = include_str!("../../apps/site/tron-tx.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
@@ -900,10 +901,13 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             WALLET_BTC_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
-        "/send" | "/send/bitcoin" | "/send/ethereum" | "/send/bnb" | "/send/usdt" => {
-            Some((SEND_PAGE.as_bytes(), "text/html; charset=utf-8"))
-        }
+        "/send" | "/send/bitcoin" | "/send/ethereum" | "/send/bnb" | "/send/usdt"
+        | "/send/tron" => Some((SEND_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/send.js" => Some((SEND_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/tron-tx.js" => Some((
+            TRON_TX_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/cabinet.js" | "/monitor.js" => Some((
             MONITOR_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -4096,6 +4100,7 @@ fn render_sitemap(base: &str) -> String {
         "/send/ethereum",
         "/send/bnb",
         "/send/usdt",
+        "/send/tron",
         "/wallets",
         "/cabinet/wallet",
         "/key/wif",
@@ -4759,6 +4764,34 @@ mod tests {
             assert!(!body.is_empty());
         }
         assert!(static_asset("/monitor").is_none());
+    }
+
+    #[test]
+    fn send_routes_and_tron_helper_are_embedded() {
+        for path in [
+            "/send",
+            "/send/bitcoin",
+            "/send/ethereum",
+            "/send/bnb",
+            "/send/usdt",
+            "/send/tron",
+        ] {
+            let (body, content_type) =
+                static_asset(path).unwrap_or_else(|| panic!("{path} is embedded"));
+            assert_eq!(content_type, "text/html; charset=utf-8");
+            let page = std::str::from_utf8(body).expect("send.html is UTF-8");
+            assert!(page.contains("id=\"send-key\""), "{path} misses the form");
+            assert!(page.contains("/send.js"), "{path} misses /send.js");
+            assert!(page.contains("/tron-tx.js"), "{path} misses /tron-tx.js");
+        }
+
+        let (body, content_type) = static_asset("/tron-tx.js").expect("/tron-tx.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let script = std::str::from_utf8(body).expect("tron-tx.js is UTF-8");
+        // The Nile-only host gate ships in the served asset, not just in tests.
+        assert!(script.contains("api.nileex.io"));
+        assert!(script.contains("RotorTronSend"));
+        assert!(script.contains("/wallet/broadcasttransaction"));
     }
 
     #[test]

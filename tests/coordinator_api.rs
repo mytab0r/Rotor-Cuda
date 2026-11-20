@@ -1135,6 +1135,7 @@ fn send_routes_are_served_with_testnet_only_copy() {
         "/send/ethereum",
         "/send/bnb",
         "/send/usdt",
+        "/send/tron",
     ] {
         let (status, headers, body) = raw(addr, "GET", path, None, None);
         assert_eq!(status, 200, "{path}");
@@ -1160,6 +1161,10 @@ fn send_routes_are_served_with_testnet_only_copy() {
             body.contains("/wallet-evm.js"),
             "{path} misses the EVM kernel"
         );
+        assert!(
+            body.contains("/tron-tx.js"),
+            "{path} misses the TRON helper"
+        );
     }
 
     let (status, headers, script) = raw(addr, "GET", "/send.js", None, None);
@@ -1177,6 +1182,19 @@ fn send_routes_are_served_with_testnet_only_copy() {
     assert!(script.contains("Blocked an EVM RPC outside the testnet allowlist"));
     assert!(script.contains("bsc-testnet-rpc.publicnode.com"));
     assert!(script.contains("a9059cbb"));
+    assert!(script.contains("tron-nile"));
+
+    let (status, headers, tron) = raw(addr, "GET", "/tron-tx.js", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("application/javascript"),
+        "/tron-tx.js: {headers}"
+    );
+    assert!(tron.contains("api.nileex.io"));
+    assert!(tron.contains("RotorTronSend"));
+    assert!(!tron.contains("https://api.trongrid.io"));
 
     let (status, _, sitemap) = raw(addr, "GET", "/sitemap.xml", None, None);
     assert_eq!(status, 200);
@@ -1186,6 +1204,7 @@ fn send_routes_are_served_with_testnet_only_copy() {
         "/send/ethereum",
         "/send/bnb",
         "/send/usdt",
+        "/send/tron",
     ] {
         assert!(
             sitemap.contains(&format!("{path}</loc>")),

@@ -18,6 +18,7 @@ const require = createRequire(import.meta.url);
 const send = require("./send.js");
 const btc = require("./wallet-btc.js");
 const evm = require("./wallet-evm.js");
+const tron = require("./tron-tx.js");
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const KEY_HEX = "11".repeat(32);
@@ -41,6 +42,22 @@ const USDT_DATA =
   "0xa9059cbb" +
   "000000000000000000000000" + "35".repeat(20) +
   "00000000000000000000000000000000000000000000000000000000000f4240";
+
+/* TRON test vectors: two valid base58check mainnet-shape addresses (the Nile
+ * testnet reuses the same 0x41 address prefix). */
+const TRON_FROM = "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC";
+const TRON_TO = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const TRON_TXID = "ef".repeat(32);
+const TRON_RAW_DATA_HEX = "0a02abab2208" + "cd".repeat(8) + "4080b0e7a7f62e";
+const TRON_SIGNATURE = "a1".repeat(65);
+const TRON_BLOCK = {
+  blockID: "ab".repeat(32),
+  blockNumber: "70000000",
+  ref_block_bytes: "abab",
+  ref_block_hash: "cd".repeat(8),
+  timestamp: "1700000000000",
+  expiration: "1700000060000",
+};
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest();
@@ -107,7 +124,7 @@ function add(name, fn) { tests.push([name, fn]); }
 
 /* ------------------------------------------------------------ routing */
 
-add("chainFromPath maps all five routes and defaults to Bitcoin", () => {
+add("chainFromPath maps all six routes and defaults to Bitcoin", () => {
   assert.equal(send.chainFromPath("/send"), send.BTC_CHAIN);
   assert.equal(send.chainFromPath("/send/"), send.BTC_CHAIN);
   assert.equal(send.chainFromPath("/send/bitcoin"), send.BTC_CHAIN);
@@ -118,14 +135,17 @@ add("chainFromPath maps all five routes and defaults to Bitcoin", () => {
   assert.equal(send.chainFromPath("/send/bnb/"), send.BNB_CHAIN);
   assert.equal(send.chainFromPath("/send/usdt"), send.USDT_CHAIN);
   assert.equal(send.chainFromPath("/send/usdt/"), send.USDT_CHAIN);
+  assert.equal(send.chainFromPath("/send/tron"), send.TRON_CHAIN);
+  assert.equal(send.chainFromPath("/send/tron/"), send.TRON_CHAIN);
   assert.equal(send.chainFromPath("/send/unknown"), send.BTC_CHAIN);
 });
 
-add("assertTestnetChain accepts only the four testnets", () => {
+add("assertTestnetChain accepts only the five testnets", () => {
   assert.equal(send.assertTestnetChain(send.BTC_CHAIN), send.BTC_CHAIN);
   assert.equal(send.assertTestnetChain(send.EVM_CHAIN), send.EVM_CHAIN);
   assert.equal(send.assertTestnetChain(send.BNB_CHAIN), send.BNB_CHAIN);
   assert.equal(send.assertTestnetChain(send.USDT_CHAIN), send.USDT_CHAIN);
+  assert.equal(send.assertTestnetChain(send.TRON_CHAIN), send.TRON_CHAIN);
 });
 
 add("assertTestnetChain rejects every mainnet slug by name", async () => {
@@ -133,10 +153,13 @@ add("assertTestnetChain rejects every mainnet slug by name", async () => {
   await rejects(() => send.assertTestnetChain("ethereum"), /mainnet/i, "ethereum");
   await rejects(() => send.assertTestnetChain("bnb"), /mainnet/i, "bnb");
   await rejects(() => send.assertTestnetChain("usdt"), /mainnet/i, "usdt");
-  await rejects(() => send.assertTestnetChain("tron"), /only sends on/, "tron");
+  await rejects(() => send.assertTestnetChain("tron"), /mainnet/i, "tron");
   assert.equal(send.isEvmChain(send.BNB_CHAIN), true);
   assert.equal(send.isEvmChain(send.USDT_CHAIN), true);
   assert.equal(send.isEvmChain(send.BTC_CHAIN), false);
+  assert.equal(send.isEvmChain(send.TRON_CHAIN), false);
+  assert.equal(send.isTronChain(send.TRON_CHAIN), true);
+  assert.equal(send.isTronChain(send.EVM_CHAIN), false);
   assert.equal(send.isTokenChain(send.USDT_CHAIN), true);
   assert.equal(send.isTokenChain(send.EVM_CHAIN), false);
 });
@@ -218,8 +241,32 @@ add("keyLooksComplete only accepts complete secrets", () => {
   assert.equal(send.keyLooksComplete(TESTNET_WIF, send.BTC_CHAIN), true);
   assert.equal(send.keyLooksComplete("0x" + KEY_HEX, send.BTC_CHAIN), true);
   assert.equal(send.keyLooksComplete("0x" + KEY_HEX, send.EVM_CHAIN), true);
+  assert.equal(send.keyLooksComplete(KEY_HEX, send.TRON_CHAIN), true);
+  assert.equal(send.keyLooksComplete("0x" + KEY_HEX, send.TRON_CHAIN), true);
+  assert.equal(send.keyLooksComplete(TESTNET_WIF, send.TRON_CHAIN), false);
   assert.equal(send.keyLooksComplete(KEY_HEX.slice(0, 60), send.EVM_CHAIN), false);
   assert.equal(send.keyLooksComplete("not-a-key", send.BTC_CHAIN), false);
+});
+
+add("parseSecret accepts only a 64-hex TRON key", async () => {
+  const bare = await send.parseSecret(KEY_HEX, send.TRON_CHAIN);
+  assert.equal(bare.chain, send.TRON_CHAIN);
+  assert.equal(bare.keyHex, KEY_HEX);
+  assert.equal(Buffer.from(bare.keyBytes).toString("hex"), KEY_HEX);
+
+  const prefixed = await send.parseSecret("0x" + KEY_HEX.toUpperCase(), send.TRON_CHAIN);
+  assert.equal(prefixed.keyHex, KEY_HEX);
+
+  await rejects(
+    () => send.parseSecret(TESTNET_WIF, send.TRON_CHAIN),
+    /64 hex characters/i,
+    "WIF on the TRON chain",
+  );
+  await rejects(
+    () => send.parseSecret(KEY_HEX.slice(0, 60), send.TRON_CHAIN),
+    /64 hex characters/i,
+    "short TRON key",
+  );
 });
 
 /* ---------------------------------------------------------- endpoint gates */
@@ -364,6 +411,153 @@ add("ERC-20 builder rejects absent/fabricated contracts and bad fields", () => {
   assert.throws(
     () => send.buildErc20Transfer({ contract: USDT_CONTRACT, recipient: USDT_RECIPIENT, amount: "0" }),
     /greater than zero/,
+  );
+});
+
+add("TRX -> sun conversion is exact and rejects bad amounts", () => {
+  assert.equal(send.tronAmountSun("1", tron), 1000000n);
+  assert.equal(send.tronAmountSun("1.5", tron), 1500000n);
+  assert.equal(send.tronAmountSun("0.000001", tron), 1n);
+  assert.equal(send.tronAmountSun("123456.789", tron), 123456789000n);
+  assert.throws(() => send.tronAmountSun("1.1234567", tron), /at most 6 decimals/);
+  assert.throws(() => send.tronAmountSun("0", tron), /greater than zero/);
+  assert.throws(() => send.tronAmountSun("0.0", tron), /greater than zero/);
+  assert.throws(() => send.tronAmountSun("-1", tron), /plain positive decimal/);
+  assert.throws(() => send.tronAmountSun("1e3", tron), /plain positive decimal/);
+  assert.throws(() => send.tronAmountSun("", tron), /plain positive decimal/);
+  assert.throws(() => send.tronAmountSun("1", null), /TRON helper did not load/);
+});
+
+add("TRON prepare builds the review from an injected Nile block and core", async () => {
+  const captured = [];
+  const review = await send.prepareTronTransfer({
+    tron,
+    from: TRON_FROM,
+    to: TRON_TO,
+    amount: "1.5",
+    latestBlock: () => TRON_BLOCK,
+    unsigned: (request) => {
+      captured.push(request);
+      return {
+        txID: TRON_TXID,
+        raw_data_hex: TRON_RAW_DATA_HEX,
+        raw_data: { contract: [] },
+      };
+    },
+  });
+
+  assert.equal(review.chain, send.TRON_CHAIN);
+  assert.equal(review.from, TRON_FROM);
+  assert.equal(review.to, TRON_TO);
+  assert.equal(review.amountSun, 1500000n);
+  assert.equal(review.amountTron, "1.5");
+  assert.equal(review.tx.txID, TRON_TXID);
+  assert.equal(captured.length, 1);
+  assert.deepEqual(captured[0], {
+    owner_address: TRON_FROM,
+    to_address: TRON_TO,
+    amount: "1500000",
+    ref_block_bytes: "abab",
+    ref_block_hash: "cd".repeat(8),
+    expiration: "1700000060000",
+    timestamp: "1700000000000",
+    fee_limit: "0",
+  });
+  assert.equal(send.containsSecret(captured[0], KEY_HEX), false);
+
+  // The recipient and amount are validated before any block/core call.
+  let called = false;
+  await rejects(
+    () => send.prepareTronTransfer({
+      tron,
+      from: TRON_FROM,
+      to: "not-a-tron-address",
+      amount: "1",
+      latestBlock: () => { called = true; return TRON_BLOCK; },
+      unsigned: () => { called = true; return {}; },
+    }),
+    /To is not a valid base58 address/,
+    "bad recipient",
+  );
+  assert.equal(called, false);
+
+  await rejects(
+    () => send.prepareTronTransfer({
+      tron,
+      from: TRON_FROM,
+      to: TRON_TO,
+      amount: "0",
+      latestBlock: () => { called = true; return TRON_BLOCK; },
+      unsigned: () => { called = true; return {}; },
+    }),
+    /greater than zero/,
+    "zero amount",
+  );
+  assert.equal(called, false);
+});
+
+add("TRON sign + broadcast never puts the key in a request and posts only to Nile", async () => {
+  const review = await send.prepareTronTransfer({
+    tron,
+    from: TRON_FROM,
+    to: TRON_TO,
+    amount: "1",
+    latestBlock: () => TRON_BLOCK,
+    unsigned: () => ({ txID: TRON_TXID, raw_data_hex: TRON_RAW_DATA_HEX, raw_data: {} }),
+  });
+
+  let signingRequest = null;
+  const signed = await send.signTronTransfer({
+    tron,
+    review,
+    keyHex: KEY_HEX,
+    sign: (request) => {
+      signingRequest = { ...request };
+      return {
+        txID: TRON_TXID,
+        raw_data_hex: TRON_RAW_DATA_HEX,
+        raw_data: {},
+        signature: TRON_SIGNATURE,
+      };
+    },
+  });
+  assert.equal(signingRequest.private_key, "0x" + KEY_HEX);
+  assert.equal(signed.signature, TRON_SIGNATURE);
+
+  const calls = [];
+  const fetchJson = (url, options) => {
+    calls.push({ url, options });
+    return Promise.resolve({ result: true });
+  };
+  const result = await tron.broadcast(signed, { fetchJson });
+  assert.equal(result.txID, TRON_TXID);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, tron.ENDPOINTS.broadcast);
+  assert.ok(calls[0].url.startsWith("https://api.nileex.io/"));
+  for (const call of calls) {
+    assert.equal(send.containsSecret(call, KEY_HEX), false, "key leaked into the broadcast");
+  }
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.signature[0], TRON_SIGNATURE);
+  assert.equal(body.raw_data_hex, TRON_RAW_DATA_HEX);
+
+  // A malformed key or review fails before the core is called.
+  let signedCalled = false;
+  await rejects(
+    () => send.signTronTransfer({
+      tron,
+      review,
+      keyHex: "not-a-key",
+      sign: () => { signedCalled = true; return {}; },
+    }),
+    /32-byte hex key/,
+    "bad key",
+  );
+  assert.equal(signedCalled, false);
+  await rejects(
+    () => send.signTronTransfer({ tron, review: null, keyHex: KEY_HEX }),
+    /No TRON review/,
+    "missing review",
   );
 });
 
