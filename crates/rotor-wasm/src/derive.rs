@@ -302,21 +302,62 @@ pub fn pubkey_add_report(first: &str, second: &str) -> Result<String, String> {
         "The sum of these public keys is the point at infinity, which has no serialized public key."
             .to_owned()
     })?;
+    Ok(point_report(&sum))
+}
 
+/// JSON for `P - Q`: `P + (-Q)` as a new secp256k1 public key.
+pub fn pubkey_subtract_report(first: &str, second: &str) -> Result<String, String> {
+    let mut ignored = true;
+    let a = secp::parse_pubkey_hex(first.trim(), &mut ignored)?;
+    let b = secp::parse_pubkey_hex(second.trim(), &mut ignored)?;
+    let difference = secp::add(&a, &secp::neg(&b)).ok_or_else(|| {
+        "The difference of these public keys is the point at infinity, which has no serialized public key."
+            .to_owned()
+    })?;
+    Ok(point_report(&difference))
+}
+
+/// JSON for `k * P`: scalar multiplication of a secp256k1 public key.
+///
+/// `scalar_hex` is a 32-byte big-endian hex scalar in the range `1..n-1`.
+pub fn pubkey_mul_report(point_hex: &str, scalar_hex: &str) -> Result<String, String> {
+    let mut ignored = true;
+    let point = secp::parse_pubkey_hex(point_hex.trim(), &mut ignored)?;
+    let scalar = parse_scalar_hex(scalar_hex.trim())?;
+    if scalar.is_zero() {
+        return Err("Invalid scalar: the scalar must be in the range 1..n-1.".to_owned());
+    }
+    let product = secp::mul(&point, &scalar).ok_or_else(|| {
+        "The product is the point at infinity, which has no serialized public key.".to_owned()
+    })?;
+    Ok(point_report(&product))
+}
+
+/// Parse a 32-byte big-endian hex scalar; rejects malformed lengths and values
+/// that are not below the curve order.
+fn parse_scalar_hex(text: &str) -> Result<Scalar, String> {
+    let bytes = crate::hex_to_bytes::<32>(text)
+        .ok_or_else(|| "Invalid scalar: expected 64 hex characters (32 bytes).".to_owned())?;
+    Scalar::from_bytes_be(&bytes)
+        .ok_or_else(|| "Invalid scalar: value is not below the curve order.".to_owned())
+}
+
+/// JSON for one secp256k1 point in the shared public-key report shape.
+fn point_report(point: &Affine) -> String {
     let mut out = String::with_capacity(512);
     out.push('{');
     push_field(&mut out, "curve", "secp256k1");
-    push_field(&mut out, "pubkey_compressed", &hex(&secp::compress(&sum)));
+    push_field(&mut out, "pubkey_compressed", &hex(&secp::compress(point)));
     push_field(
         &mut out,
         "pubkey_uncompressed",
-        &hex(&secp::uncompress(&sum)),
+        &hex(&secp::uncompress(point)),
     );
-    push_field(&mut out, "x", &hex(&sum.x.to_bytes_be()));
-    push_field(&mut out, "y", &hex(&sum.y.to_bytes_be()));
+    push_field(&mut out, "x", &hex(&point.x.to_bytes_be()));
+    push_field(&mut out, "y", &hex(&point.y.to_bytes_be()));
     out.pop();
     out.push('}');
-    Ok(out)
+    out
 }
 
 fn secp_report(key: &[u8; 32]) -> Result<String, String> {

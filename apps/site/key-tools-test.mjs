@@ -20,6 +20,8 @@ const decoder = new TextDecoder("utf-8");
 for (const name of [
   "public_key_report",
   "public_key_add",
+  "public_key_subtract",
+  "public_key_mul",
   "keystore_decrypt",
   "derive_report",
   "result_ptr",
@@ -158,6 +160,46 @@ const p = upload(KEY1_COMPRESSED);
 assert(wasm.public_key_add(p.pointer, p.length, negG.pointer, negG.length) !== 0, "P + (-P) must be rejected");
 wasm.dealloc(negG.pointer, negG.length);
 wasm.dealloc(p.pointer, p.length);
+
+// P2 - P1 = (2 - 1) * G = G. The expected point is the mul_g-derived key 1.
+const KEY2_COMPRESSED = "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5";
+const subA = upload(KEY2_COMPRESSED);
+const subB = upload(KEY1_COMPRESSED);
+assert(
+  wasm.public_key_subtract(subA.pointer, subA.length, subB.pointer, subB.length) === 0,
+  `public_key_subtract: ${wasmError()}`,
+);
+const difference = resultJson();
+assert(difference.pubkey_compressed === KEY1_COMPRESSED, `P2 - P1 compressed ${difference.pubkey_compressed}`);
+assert(wasm.public_key_subtract(subA.pointer, subA.length, subA.pointer, subA.length) !== 0, "P - P must be rejected");
+wasm.dealloc(subA.pointer, subA.length);
+wasm.dealloc(subB.pointer, subB.length);
+
+// k * G must equal the public key derived from scalar k (mul_g path).
+for (const [scalar, expected] of [
+  ["00".repeat(31) + "01", KEY1_COMPRESSED],
+  ["00".repeat(31) + "02", KEY2_COMPRESSED],
+]) {
+  const point = upload(KEY1_COMPRESSED);
+  const exponent = upload(scalar);
+  assert(
+    wasm.public_key_mul(point.pointer, point.length, exponent.pointer, exponent.length) === 0,
+    `public_key_mul: ${wasmError()}`,
+  );
+  const product = resultJson();
+  assert(product.pubkey_compressed === expected, `k * G for k=${scalar} is ${product.pubkey_compressed}`);
+  wasm.dealloc(point.pointer, point.length);
+  wasm.dealloc(exponent.pointer, exponent.length);
+}
+
+const zeroPoint = upload(KEY1_COMPRESSED);
+const zeroScalar = upload("00".repeat(32));
+assert(
+  wasm.public_key_mul(zeroPoint.pointer, zeroPoint.length, zeroScalar.pointer, zeroScalar.length) !== 0,
+  "a zero scalar must be rejected",
+);
+wasm.dealloc(zeroPoint.pointer, zeroPoint.length);
+wasm.dealloc(zeroScalar.pointer, zeroScalar.length);
 
 // --------------------------------------------------------------- keystore
 
@@ -824,7 +866,7 @@ assert(edOnlyRows.length === 4, `out-of-range value renders 4 ed25519 rows, got 
 assert(edOnlyRows.every((row) => row.curve === "ed25519"), "out-of-range rows are all ed25519");
 
 console.log(
-  "key-tools ok: integer, fragments, pubkey report/add, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
+  "key-tools ok: integer, fragments, pubkey report/add/subtract/multiply, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
     "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/Decimal/WIF/WIF-u/Keypair/XRP/PubKey/Page), " +
     "row order/grouping/type labels, both-curve 30-row merge, chain-group counters",
 );
