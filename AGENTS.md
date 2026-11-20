@@ -41,4 +41,22 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   controls. The failure table and the fix-the-class rule live in the project
   skill `.claude/skills/ui-self-review/SKILL.md`. A UI change with violations
   is not done; do not weaken the audit to get a green run.
+- One control per purpose. Do not render the same filter twice (chips and a
+  select, two toolbars of the same chips); do not let controls clip at any
+  width; column sets and multi-column fact lists must end level (±2px).
+- Never show a raw path where a label belongs: links and table cells render a
+  human-readable text (numbers with thousands separators, page titles), with
+  the path only in `href`/`title`.
+- Independent review is mandatory: the author may not approve their own UI PR.
+  A different agent (designer/`critic`) must open the built page at
+  375/768/1280, screenshot it, and paste the computed geometry (clipped
+  controls, column spreads, overflow) into the PR. Self-reported "audit
+  passed" is not evidence.
+- Every defect gets a detector before it gets a fix: add or extend a check in
+  `scripts/ui-audit.mjs` (or another gate), add an entry to
+  `docs/process/defects.json`, and run `node scripts/check-defect-ledger.mjs`.
+  A fix whose detector is missing is not done.
+- Any behaviour change updates the specs/docs in the same PR: the
+  `docs/site-map` ledger and, for non-trivial changes, the matching
+  `openspec/` change. Stale docs are a review blocker.
 

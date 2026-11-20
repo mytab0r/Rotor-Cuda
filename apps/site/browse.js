@@ -74,7 +74,8 @@
     window.RotorBrowse = {
       addressEntriesFor: addressEntriesFor,
       keyModel: keyModel,
-      metricFlags: metricFlags
+      metricFlags: metricFlags,
+      tronValue: tronValue
     };
   }
 
@@ -110,6 +111,10 @@
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
   var BALANCE_LIMIT = 5;
   var BALANCE_JITTER_MS = 400;
+  /* Above this many addresses the TRON provider uses one batch request
+   * instead of one request per address. The coordinator caps a batch at 60. */
+  var TRON_BATCH_THRESHOLD = 5;
+  var TRON_BATCH_MAX = 60;
 
   var rows = Array.prototype.slice.call(document.querySelectorAll('#keys-container .key-row'));
   var typeButtons = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
@@ -680,6 +685,20 @@
       .then(function (data) { return { balance: String(Number(data.balance || 0)) }; });
   }
 
+  /* The coordinator's TRON response, mapped to the per-address value shape
+   * the cache and the balance cell already use. */
+  function tronValue(data) {
+    if (!data || typeof data !== 'object' || data.chain !== 'tron') return null;
+    var balance = data.balance_sun === null || data.balance_sun === undefined
+      ? null
+      : String(data.balance_sun);
+    return {
+      balance: balance,
+      tx: typeof data.tx_count === 'number' && isFinite(data.tx_count) ? data.tx_count : undefined,
+      lastTxAt: typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : undefined
+    };
+  }
+
   async function tronBalance(address) {
     /* Same-origin first; only a static host (404) or a coordinator without
      * the key (501) falls back to the previous direct TronScan request. */
@@ -691,17 +710,68 @@
       throw err;
     }
     var data = await response.json();
-    if (!data || typeof data !== 'object' || data.chain !== 'tron') {
-      throw new Error('unexpected response');
+    var value = tronValue(data);
+    if (!value) throw new Error('unexpected response');
+    return value;
+  }
+
+  function tronChunks(addresses) {
+    var chunks = [];
+    for (var i = 0; i < addresses.length; i += TRON_BATCH_MAX) {
+      chunks.push(addresses.slice(i, i + TRON_BATCH_MAX));
     }
-    var balance = data.balance_sun === null || data.balance_sun === undefined
-      ? null
-      : String(data.balance_sun);
-    return {
-      balance: balance,
-      tx: typeof data.tx_count === 'number' && isFinite(data.tx_count) ? data.tx_count : undefined,
-      lastTxAt: typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : undefined
-    };
+    return chunks;
+  }
+
+  /* One batch request per 60 addresses. Returns null when the batch route is
+   * absent (static host 404 / coordinator without a key 501) so the caller
+   * can use the per-address path; per-address provider failures stay in the
+   * results map. */
+  async function tronBatchProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
+    var chunks = tronChunks(unique);
+    for (var i = 0; i < chunks.length; i += 1) {
+      var chunk = chunks[i];
+      var response = await fetch('/api/v1/chain/tron/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addresses: chunk })
+      });
+      if (response.status === 404 || response.status === 501) return null;
+      if (!response.ok) {
+        var message = 'HTTP ' + response.status;
+        chunk.forEach(function (address) { errors[address] = message; });
+        continue;
+      }
+      var data = null;
+      try { data = await response.json(); } catch (err) { data = null; }
+      var results = data && data.results ? data.results : null;
+      if (!results) {
+        chunk.forEach(function (address) { errors[address] = 'unexpected response'; });
+        continue;
+      }
+      chunk.forEach(function (address) {
+        var item = results[address];
+        if (!item) {
+          errors[address] = 'Balance row missing from the provider.';
+          return;
+        }
+        if (item.error) {
+          errors[address] = String(item.error);
+          return;
+        }
+        var value = tronValue(item);
+        if (!value) {
+          errors[address] = 'unexpected response';
+          return;
+        }
+        values[address] = value;
+      });
+    }
+    return { values: values, errors: errors };
   }
 
   function xrpBalance(address) {
@@ -716,7 +786,14 @@
     if (meta.provider === 'litecoinspace') return litecoinProvider(addresses);
     if (meta.provider === 'haskoin') return bchProvider(addresses);
     if (meta.provider === 'blockchair') return blockchairProvider(addresses);
-    if (meta.provider === 'tronscan') return perAddressProvider(addresses, tronBalance);
+    if (meta.provider === 'tronscan') {
+      if (addresses.length > TRON_BATCH_THRESHOLD) {
+        return tronBatchProvider(addresses).then(function (batch) {
+          return batch || perAddressProvider(addresses, tronBalance);
+        });
+      }
+      return perAddressProvider(addresses, tronBalance);
+    }
     if (meta.provider === 'xrpscan') return perAddressProvider(addresses, xrpBalance);
     if (meta.provider === 'toncenter') return perAddressProvider(addresses, tonCenterBalance);
     return Promise.resolve({ values: {}, errors: {} });

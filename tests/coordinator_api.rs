@@ -1446,6 +1446,86 @@ fn tron_lookup_refuses_without_a_provider_key() {
     handle.shutdown();
 }
 
+#[test]
+fn tron_batch_validates_and_requires_a_provider_key() {
+    let coordinator_state = TempState::new("tron-batch");
+    let monitor_state = TempState::new("tron-batch-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            tronscan_api_key: None,
+            ..ServerOptions::default()
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+    let address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+
+    // A valid batch without a key answers 501 instead of inventing data.
+    let body = json!({ "addresses": [address] }).to_string();
+    let (status, headers, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/chain/tron/addresses",
+        None,
+        Some(&body),
+    );
+    assert_eq!(status, 501, "{body}");
+    assert!(
+        headers.to_ascii_lowercase().contains("application/json"),
+        "{headers}"
+    );
+    assert!(body.contains("no_provider"), "{body}");
+
+    // More than 60 addresses is rejected before any provider call.
+    let many: Vec<&str> = (0..61).map(|_| address).collect();
+    let body = json!({ "addresses": many }).to_string();
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/chain/tron/addresses",
+        None,
+        Some(&body),
+    );
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("too many addresses"), "{body}");
+
+    // A malformed address rejects the whole batch.
+    let body = json!({ "addresses": ["0R7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"] }).to_string();
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/api/v1/chain/tron/addresses",
+        None,
+        Some(&body),
+    );
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("invalid tron address"), "{body}");
+
+    // Malformed JSON and a missing field are 400, not a provider error.
+    for body in ["not json", "{}", r#"{"addresses": [1]}"#] {
+        let (status, _, response) = raw(
+            addr,
+            "POST",
+            "/api/v1/chain/tron/addresses",
+            None,
+            Some(body),
+        );
+        assert_eq!(status, 400, "{body}: {response}");
+    }
+
+    // The batch route is POST-only and public.
+    let (status, _, _) = raw(addr, "GET", "/api/v1/chain/tron/addresses", None, None);
+    assert_eq!(status, 405);
+
+    handle.shutdown();
+}
+
 fn orders_config(active: bool) -> String {
     format!(
         r#"{{
