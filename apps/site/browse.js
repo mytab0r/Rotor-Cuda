@@ -362,6 +362,12 @@
     return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
   }
 
+  function timeAgo(ms) {
+    return cacheApi && typeof cacheApi.relativeTime === 'function'
+      ? cacheApi.relativeTime(ms, Date.now())
+      : '';
+  }
+
   function setSummary(balance, received, tx) {
     if (totalBalance) totalBalance.textContent = balance;
     if (totalReceived) totalReceived.textContent = received;
@@ -651,7 +657,11 @@
         try {
           var task = function () { return fetcher(address); };
           var value = cacheApi ? await cacheApi.withRetry(task, retryOptions()) : await task();
-          values[address] = { balance: String(value) };
+          /* TRON returns balance + tx metadata; the other per-address
+           * providers return a bare balance. */
+          values[address] = value && typeof value === 'object'
+            ? value
+            : { balance: String(value) };
         } catch (err) {
           errors[address] = errorMessage(err);
         }
@@ -665,9 +675,33 @@
       .then(function (data) { return Number(data.result || 0); });
   }
 
-  function tronBalance(address) {
+  function tronBalanceDirect(address) {
     return accountJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address))
-      .then(function (data) { return Number(data.balance || 0); });
+      .then(function (data) { return { balance: String(Number(data.balance || 0)) }; });
+  }
+
+  async function tronBalance(address) {
+    /* Same-origin first; only a static host (404) or a coordinator without
+     * the key (501) falls back to the previous direct TronScan request. */
+    var response = await fetch('/api/v1/chain/tron/address?address=' + encodeURIComponent(address));
+    if (response.status === 404 || response.status === 501) return tronBalanceDirect(address);
+    if (!response.ok) {
+      var err = new Error('HTTP ' + response.status);
+      err.status = response.status;
+      throw err;
+    }
+    var data = await response.json();
+    if (!data || typeof data !== 'object' || data.chain !== 'tron') {
+      throw new Error('unexpected response');
+    }
+    var balance = data.balance_sun === null || data.balance_sun === undefined
+      ? null
+      : String(data.balance_sun);
+    return {
+      balance: balance,
+      tx: typeof data.tx_count === 'number' && isFinite(data.tx_count) ? data.tx_count : undefined,
+      lastTxAt: typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : undefined
+    };
   }
 
   function xrpBalance(address) {
@@ -690,7 +724,7 @@
 
   /* One `.balance-info` line per address, each with the balance, TX count and
    * received amount, matching the donor's packed balance cell. */
-  function balanceLine(group, entry, cached, errors, meta) {
+  function balanceLine(group, entry, cached, errors, meta, now) {
     var line = document.createElement('div');
     line.className = 'balance-info';
     if (errors && errors[entry.address]) {
@@ -723,6 +757,17 @@
       recv.textContent = '↓ ' + coin(value.received, meta.decimals) + ' ' + meta.symbol;
       line.appendChild(recv);
     }
+    var lastAgo = value.lastTxAt !== undefined && value.lastTxAt !== null ? timeAgo(value.lastTxAt) : '';
+    if (lastAgo) {
+      var last = document.createElement('span');
+      last.className = 'age';
+      last.textContent = 'last ' + lastAgo;
+      line.appendChild(last);
+    }
+    var age = document.createElement('span');
+    age.className = 'balance-age';
+    age.textContent = cacheApi ? cacheApi.ageLabel(picked, now) : '';
+    if (age.textContent) line.appendChild(age);
     line.title = value.balance + ' ' + meta.symbol;
     return { line: line, ok: true, failed: false };
   }
@@ -735,7 +780,7 @@
     var failed = false;
     var fresh = true;
     group.entries.forEach(function (entry) {
-      var result = balanceLine(group, entry, cached, errors, meta);
+      var result = balanceLine(group, entry, cached, errors, meta, now);
       if (result.ok) ok = true;
       if (result.failed) failed = true;
       var picked = cached[entry.key];

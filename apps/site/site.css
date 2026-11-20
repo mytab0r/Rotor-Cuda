@@ -2839,7 +2839,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 }
 .balance-info .bal { color: var(--text); }
 .balance-info .tx,
-.balance-info .recv { color: var(--muted); }
+.balance-info .recv,
+.balance-info .age { color: var(--muted); }
 .balance-info .tx.has-tx,
 .balance-info .recv.has-recv { color: var(--text-2); }
 .balance-info.err { align-items: center; color: #ffb3b3; }
