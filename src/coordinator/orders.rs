@@ -179,10 +179,12 @@ impl OrdersConfig {
                     list.slug
                 ));
             }
-            if let Some(contract) = list.contract.as_deref() {
-                if contract.trim().is_empty() {
-                    return Err(format!("list {} has an empty contract address", list.slug));
-                }
+            if list
+                .contract
+                .as_deref()
+                .is_some_and(|contract| contract.trim().is_empty())
+            {
+                return Err(format!("list {} has an empty contract address", list.slug));
             }
             // One fixed address carries only one asset: a native coin and a
             // token at the same address would make amounts ambiguous.
