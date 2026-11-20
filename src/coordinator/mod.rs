@@ -41,6 +41,7 @@ const SITE_JS: &str = include_str!("../../apps/site/site.js");
 const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
 const KEY_PAGE: &str = include_str!("../../apps/site/key.html");
 const KEY_JS: &str = include_str!("../../apps/site/key.js");
+const KEY_TYPES_JS: &str = include_str!("../../apps/site/key-types.js");
 const RANGE_PAGE: &str = include_str!("../../apps/site/range.html");
 const RANGE_JS: &str = include_str!("../../apps/site/range.js");
 const PUZZLE_JS: &str = include_str!("../../apps/site/puzzle.js");
@@ -759,6 +760,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/key-types.js" => Some((
+            KEY_TYPES_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/range.js" => Some((RANGE_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/puzzle.js" => Some((
             PUZZLE_JS.as_bytes(),
@@ -4735,6 +4740,11 @@ mod tests {
         assert!(!body.is_empty());
 
         let (body, content_type) =
+            static_asset("/key-types.js").expect("/key-types.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
+
+        let (body, content_type) =
             static_asset("/balance-cache.js").expect("/balance-cache.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         assert!(!body.is_empty());
@@ -5747,6 +5757,7 @@ mod tests {
             ("range.js", RANGE_JS),
             ("site.js", SITE_JS),
             ("key.js", KEY_JS),
+            ("key-types.js", KEY_TYPES_JS),
             ("monitor", MONITOR_PAGE),
             ("monitor.js", MONITOR_JS),
             ("hex-dec-bin", HEX_DEC_BIN_PAGE),
