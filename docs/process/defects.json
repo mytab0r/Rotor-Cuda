@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "rules": "Every defect the owner reports gets one entry here in the same PR as its detector. The detector id must exist in the audit script; check-defect-ledger.mjs fails otherwise.",
+  "defects": [
+    {
+      "id": "duplicate-preset-controls",
+      "reported": "2026-11-20",
+      "symptom": "The key page rendered wallet-preset chips and an equivalent preset <select> side by side.",
+      "detector": "duplicate-preset-control",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "clipped-controls",
+      "reported": "2026-11-20",
+      "symptom": "Toolbar chips and the refresh button were cut off at 768/1280 with no way to reach them.",
+      "detector": "clipped-control",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "raw-path-label",
+      "reported": "2026-11-20",
+      "symptom": "The Keys PAGE row showed /private-keys/bitcoin/<huge> instead of a readable page number.",
+      "detector": "raw-path-text",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "ragged-fact-columns",
+      "reported": "2026-11-20",
+      "symptom": "The two Keys columns ended 191px apart, leaving a large empty block.",
+      "detector": "ragged-summary-columns",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "same-origin-http-errors",
+      "reported": "2026-11-20",
+      "symptom": "/private-keys/tron produced dozens of 502 responses from our own API; nobody saw them because the audit treated network failures as warnings.",
+      "detector": "http-error",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "cramped-vanity-stats",
+      "reported": "2026-11-20",
+      "symptom": "Vanity stat cards inherited the key-page 2px padding, putting text 3px from a bordered, filled box.",
+      "detector": "cramped-padding",
+      "where": ".impeccable/config.json"
+    },
+    {
+      "id": "half-empty-key-cards",
+      "reported": "2026-11-18",
+      "symptom": "Key page cards reserved far more vertical space than their content.",
+      "detector": "mostly-empty-block",
+      "where": "scripts/ui-audit.mjs"
+    }
+  ]
+}
