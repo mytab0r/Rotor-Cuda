@@ -1,0 +1,37 @@
+name: ui
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  ui-audit:
+    name: ui-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the coordinator
+        run: cargo build --release --bin rotor-coord
+      - name: Check the defect ledger
+        run: node scripts/check-defect-ledger.mjs
+      - name: Run the UI audit
+        run: node scripts/ui-audit.mjs --serve
+      - name: Upload screenshots and report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-audit-report
+          path: |
+            /tmp/rotor-ui-audit-*
+          if-no-files-found: ignore
