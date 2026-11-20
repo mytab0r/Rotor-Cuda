@@ -974,7 +974,8 @@ async function main() {
     });
     cdp.on("Log.entryAdded", (params) => {
       if (params.entry?.level !== "error") return;
-      consoleErrors.push(`${params.entry.text || ""}`.slice(0, 200));
+      const url = params.entry.url ? ` (${params.entry.url})` : "";
+      consoleErrors.push(`${params.entry.text || ""}${url}`.slice(0, 200));
     });
 
     // /site-map is expected to disappear after the docs move; probe it once.
