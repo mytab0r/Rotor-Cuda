@@ -676,7 +676,7 @@
   }
 
   function tronBalanceDirect(address) {
-    return accountJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address))
+    return accountJson('https://apilist.tronscanapi.com/api/accountv2?address=' + encodeURIComponent(address))
       .then(function (data) { return { balance: String(Number(data.balance || 0)) }; });
   }
 

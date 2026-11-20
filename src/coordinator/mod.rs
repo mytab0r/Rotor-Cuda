@@ -118,8 +118,8 @@ const REGISTER_WINDOW_SECS: u64 = 60;
 /// startup from `TRONSCAN_API_KEY` and only ever sent as a request header.
 const TRONSCAN_API_BASE: &str = "https://apilist.tronscanapi.com";
 const TRONSCAN_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-const TRONSCAN_READ_TIMEOUT: Duration = Duration::from_secs(10);
-const TRONSCAN_WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+const TRONSCAN_READ_TIMEOUT: Duration = Duration::from_secs(20);
+const TRONSCAN_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 const TRONSCAN_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 const TRONSCAN_RETRY_DELAY: Duration = Duration::from_millis(250);
 /// Number of request handlers currently running.
@@ -4339,7 +4339,7 @@ fn tron_error_reason(error: TronFetchError) -> &'static str {
         TronFetchError::Status(status) if (500..=599).contains(&status) => "provider unavailable",
         TronFetchError::Status(_) => "provider rejected the request",
         TronFetchError::Transport => "provider unreachable",
-        TronFetchError::Body => "unexpected provider response",
+        TronFetchError::Body => "provider response timed out or was unreadable",
     }
 }
 
@@ -4348,7 +4348,7 @@ fn tron_lookup(
     key: &str,
     address: &str,
 ) -> Result<serde_json::Value, &'static str> {
-    let account_url = format!("{TRONSCAN_API_BASE}/api/account?address={address}");
+    let account_url = format!("{TRONSCAN_API_BASE}/api/accountv2?address={address}");
     let account = match tronscan_get(agent, key, &account_url) {
         Ok(value) => value,
         // An unknown account is an empty account, not an upstream failure.
