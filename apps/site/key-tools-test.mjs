@@ -592,19 +592,109 @@ assert(tools.privateKeyPage(key60, "secp256k1").href === "/private-keys/bitcoin"
 assert(tools.privateKeyPage(key61, "secp256k1").href === "/private-keys/bitcoin/2", "key 61 is page 2");
 assert(tools.privateKeyPage("00".repeat(32), "ed25519") === null, "key 0 has no directory page");
 
-const counters = tools.balanceCounters([
-  { address: "A", state: "ok", amount: 5n, chain: "btc", checkable: true, visible: true },
-  { address: "A", state: "ok", amount: "5", chain: "evm", checkable: true, visible: true },
-  { address: "B", state: "ok", amount: 0n, chain: "evm", checkable: true, visible: true },
-  { address: "C", state: "err", amount: undefined, chain: "tron", checkable: true, visible: true },
-  { address: "D", state: "", amount: undefined, chain: "btc", checkable: true, visible: false },
-  { address: "E", state: "off", amount: undefined, chain: "xrp", checkable: false, visible: true },
+// ------------------------------------------------- grouping, labels, counters
+
+// Donor type labels: the table shows P2SH, not "Nested SegWit"; Zcash uses
+// the t1 (c)/(u) short names; TRON/Solana share Base58; XRP is r….
+const TYPE_CASES = [
+  ["btc_p2pkh", "Legacy"],
+  ["btc_p2pkh_uncompressed", "Legacy (u)"],
+  ["btc_p2sh_p2wpkh", "P2SH"],
+  ["btc_p2wpkh", "SegWit"],
+  ["btc_p2tr", "Taproot"],
+  ["ltc_p2pkh", "Legacy"],
+  ["ltc_p2wpkh", "SegWit"],
+  ["ltc_p2sh_p2wpkh", "P2SH"],
+  ["ltc_p2tr", "Taproot"],
+  ["bch_cashaddr", "CashAddr"],
+  ["bch_legacy", "Legacy"],
+  ["doge_p2pkh", "Legacy"],
+  ["doge_p2pkh_uncompressed", "Legacy (u)"],
+  ["zcash_p2pkh", "t1 (c)"],
+  ["zcash_p2pkh_uncompressed", "t1 (u)"],
+  ["ton", "V4R2"],
+  ["sui", "0x"],
+  ["tron", "Base58"],
+  ["solana", "Base58"],
+  ["xrp_classic", "r…"],
+  ["evm", "EVM"],
+];
+for (const [id, label] of TYPE_CASES) {
+  assert(tools.addressTypeLabel(id) === label, `${id} type ${tools.addressTypeLabel(id)} !== ${label}`);
+}
+assert(tools.addressTypeLabel("evm_bnb") === "", "EVM sub-rows carry no type label");
+assert(tools.addressTypeLabel("ltc_p2tr") === "Taproot", "a future Litecoin taproot row uses the donor label");
+
+// Display grouping: every BTC row shares one Chain cell; EVM sub-rows and the
+// generic 0x parent each keep their own; unknown families do not collapse.
+assert(tools.rowGroup("btc_p2pkh") === "btc" && tools.rowGroup("btc_p2tr") === "btc", "BTC rows group");
+assert(tools.rowGroup("ltc_p2wpkh") === "ltc" && tools.rowGroup("zcash_p2pkh") === "zcash", "family grouping");
+assert(tools.rowGroup("evm") === "evm" && tools.rowGroup("evm_bnb") === "evm_bnb", "EVM rows keep separate groups");
+assert(tools.rowGroup("evm_parent") === "evm_parent", "the shared parent is its own group");
+assert(tools.rowFamily("evm_bnb") === "evm" && tools.rowFamily("evm_parent") === "evm", "EVM family for ordering");
+
+// Donor order: BTC, EVM, TRX, SOL, TON, SUI, XRP, LTC, BCH, DOGE, ZEC.
+const ORDER_IDS = ["zcash_p2pkh", "btc_p2wpkh", "doge_p2pkh", "evm", "tron", "ltc_p2pkh", "sui", "xrp_classic", "solana", "bch_legacy", "ton", "btc_p2pkh"];
+const ordered = tools.orderAddressRows(ORDER_IDS.map((id) => ({ id }))).map((row) => row.id);
+assert(
+  ordered.join(",") === "btc_p2wpkh,btc_p2pkh,evm,tron,solana,ton,sui,xrp_classic,ltc_p2pkh,bch_legacy,doge_p2pkh,zcash_p2pkh",
+  `address order ${ordered.join(",")}`,
+);
+
+// Rowspan runs count visible rows only; filtering two BTC rows out of five
+// gives a span of 3, and a chain cell is shown only on the run's first row.
+const SPAN_ROWS = [
+  { group: "btc", visible: true },
+  { group: "btc", visible: false },
+  { group: "btc", visible: true },
+  { group: "btc", visible: true },
+  { group: "btc", visible: false },
+  { group: "evm_parent", visible: true },
+  { group: "evm", visible: true },
+  { group: "evm_bnb", visible: false },
+  { group: "tron", visible: true },
+];
+const spans = tools.groupAddressRows(SPAN_ROWS).map((entry) => entry.span);
+assert(spans.join(",") === "3,0,0,0,0,1,1,0,1", `rowspans ${spans.join(",")}`);
+const allVisible = tools.groupAddressRows([
+  { group: "btc", visible: true },
+  { group: "btc", visible: true },
+  { group: "btc", visible: true },
+  { group: "btc", visible: true },
+  { group: "btc", visible: true },
 ]);
-assert(counters.withBalance === 1, `one unique funded address, got ${counters.withBalance}`);
-assert(counters.activeChains === 2, `two funded chains, got ${counters.activeChains}`);
-assert(counters.checked === 4 && counters.total === 4, `4/4 visible provider rows, got ${counters.checked}/${counters.total}`);
+assert(allVisible[0].span === 5 && allVisible.slice(1).every((entry) => entry.span === 0), "BTC span is 5");
+
+// Counters: Has balance counts chain groups (not addresses); Active also
+// counts a zero-balance row with an activity signal; Checked needs every
+// visible checkable row of a chain group to settle; the denominator is 18.
+const counters = tools.balanceCounters([
+  { chain: "btc", state: "ok", amount: 5n, active: true, checkable: true, visible: true },
+  { chain: "btc", state: "ok", amount: 0n, active: false, checkable: true, visible: true },
+  { chain: "evm", state: "ok", amount: "5", active: true, checkable: true, visible: true },
+  { chain: "evm_bnb", state: "ok", amount: 0n, active: false, checkable: true, visible: true },
+  { chain: "tron", state: "err", amount: undefined, checkable: true, visible: true },
+  { chain: "xrp", state: "off", amount: undefined, checkable: false, visible: true },
+  { chain: "btc", state: "ok", amount: 9n, checkable: true, visible: false },
+], 18);
+assert(counters.withBalance === 2, `two funded chain groups, got ${counters.withBalance}`);
+assert(counters.activeChains === 2, `two active chain groups, got ${counters.activeChains}`);
+assert(counters.checked === 4 && counters.total === 18, `4/18 settled chain groups, got ${counters.checked}/${counters.total}`);
+
+const activeEmpty = tools.balanceCounters([
+  { chain: "tron", state: "ok", amount: 0n, active: true, checkable: true, visible: true },
+]);
+assert(activeEmpty.activeChains === 1 && activeEmpty.withBalance === 0, "activity without balance counts as active only");
+
+const unchecked = tools.balanceCounters([
+  { chain: "btc", state: "ok", amount: 0n, checkable: true, visible: true },
+  { chain: "btc", state: "loading", amount: undefined, checkable: true, visible: true },
+]);
+assert(unchecked.checked === 0, "a loading row keeps its chain group unchecked");
+assert(unchecked.total === 18, "the Checked denominator is the fixed 18 chain groups");
 
 console.log(
   "key-tools ok: integer, fragments, pubkey report/add, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
-    "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/DEC/WIF/WIF-u/keypair/XRP/PAGE), counters",
+    "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/Decimal/WIF/WIF-u/Keypair/XRP/PubKey/Page), " +
+    "row order/grouping/type labels, chain-group counters",
 );
