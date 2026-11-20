@@ -286,8 +286,8 @@ fn dataset_card(dataset: &Dataset) -> String {
 
 pub(super) fn render_page(base: &str) -> String {
     let canonical = format!("{base}/wallets");
-    let title = "Wallet databases — rich-address lists for six chains | Rotor";
-    let description = "Download daily rich-address lists for Bitcoin, Ethereum, Litecoin, Dogecoin, Bitcoin Cash and Dash. Every file is streamed through Rotor under the MIT License.";
+    let title = "Wallet databases — rich-address lists for six chains | Crypto";
+    let description = "Download daily rich-address lists for Bitcoin, Ethereum, Litecoin, Dogecoin, Bitcoin Cash and Dash. Every file is streamed through Crypto under the MIT License.";
     let items: Vec<Value> = DATASETS
         .iter()
         .enumerate()
@@ -328,7 +328,7 @@ pub(super) fn render_page(base: &str) -> String {
          <section class=\"card\" id=\"license\"><h2>License / access</h2>\
          <p>These lists come from the <strong>{source}</strong> project by MMDRZA and are provided under the <strong>{license}</strong> License. The required copyright and permission notice is reproduced below and in the <a href=\"{license_url}\">license file</a>.</p>\
          <pre class=\"mono\" style=\"white-space:pre-wrap\">{license_block}</pre>\
-         <p class=\"muted\">Rotor mirrors the published snapshots; it does not claim exclusivity or ownership, and it does not invent prices. Lists are provided under the MIT terms above. Packaged, historical or commercial access can be requested through the <a href=\"/donate\">donate / contact</a> page; online checkout is not implemented, so the action is labelled <em>Request access</em> rather than a checkout.</p>\
+         <p class=\"muted\">Crypto mirrors the published snapshots; it does not claim exclusivity or ownership, and it does not invent prices. Lists are provided under the MIT terms above. Packaged, historical or commercial access can be requested through the <a href=\"/donate\">donate / contact</a> page; online checkout is not implemented, so the action is labelled <em>Request access</em> rather than a checkout.</p>\
          </section>\
          </main>",
         header = site_header(),

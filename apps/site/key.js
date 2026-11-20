@@ -2331,7 +2331,7 @@
     var controller = new AbortController();
     state.exposureController = controller;
     var timer = window.setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
-    showExposureStatus('Checking ' + addresses.length + ' address(es) against the Rotor registry…', '');
+    showExposureStatus('Checking ' + addresses.length + ' address(es) against the Crypto registry…', '');
     try {
       var response = await fetch('/api/v1/monitor/exposure', {
         method: 'POST',

@@ -270,7 +270,7 @@
       metaItem(areaLabel(donor.area))
     ];
     if (donor.priority && donor.priority !== '-') meta.push(metaItem(donor.priority));
-    meta.push(metaItem(donor.ours ? 'Rotor: ' + donor.ours : 'No Rotor route'));
+    meta.push(metaItem(donor.ours ? 'Crypto: ' + donor.ours : 'No Crypto route'));
     return rowShell(
       donor.title,
       href,
@@ -432,7 +432,7 @@
     renderRows(nodes.donorsGrid, nodes.donorsEmpty, donors, donorRow);
 
     if (state.view === 'ours') {
-      nodes.count.textContent = 'Showing ' + ours.length + ' of ' + data.ours.length + ' Rotor routes.';
+      nodes.count.textContent = 'Showing ' + ours.length + ' of ' + data.ours.length + ' Crypto routes.';
     } else if (state.view === 'donors') {
       nodes.count.textContent = 'Showing ' + donors.length + ' of ' + data.donors.length + ' donor routes.';
     } else {
