@@ -87,6 +87,15 @@ const tests = [
     assert.equal(cache.ageLabel(cache.makeEntry(1, "p", NOW - 120000), NOW), "2m ago");
   }),
 
+  test("relative time labels absolute timestamps for the TRON last-tx cell", () => {
+    assert.equal(cache.relativeTime(NOW - 500, NOW), "just now");
+    assert.equal(cache.relativeTime(NOW - 120000, NOW), "2m ago");
+    assert.equal(cache.relativeTime(NOW - 7200000, NOW), "2h ago");
+    assert.equal(cache.relativeTime(NOW - 3 * 86400000, NOW), "3d ago");
+    assert.equal(cache.relativeTime(NOW + 1000, NOW), "");
+    assert.equal(cache.relativeTime("not-a-number", NOW), "");
+  }),
+
   test("limiter keeps concurrency bounded", async () => {
     const limit = 5;
     const run = cache.createLimiter(limit);

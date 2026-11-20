@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261124e">
-<script src="/theme.js?v=20261124e"></script>
+<link rel="stylesheet" href="/site.css?v=20261125a">
+<script src="/theme.js?v=20261125a"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -71,7 +71,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261124e#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261125a#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -154,7 +154,7 @@
   </nav>
 
   <section class="card" id="summary-card" hidden>
-    <h2>Key summary</h2>
+    <h2>Keys</h2>
     <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" hidden>
       <div class="key-stat">
         <span class="key-stat-label">Total value</span>
@@ -162,18 +162,18 @@
       </div>
       <div class="key-stat">
         <span class="key-stat-label">Has balance</span>
-        <strong class="key-stat-value" id="stat-has-balance">0</strong>
+        <strong class="key-stat-value" id="stat-has-balance" title="Unique chain groups with a positive balance, not addresses.">0</strong>
       </div>
       <div class="key-stat">
-        <span class="key-stat-label">Active chains</span>
-        <strong class="key-stat-value" id="stat-active">0</strong>
+        <span class="key-stat-label">Active</span>
+        <strong class="key-stat-value" id="stat-active" title="Chain groups with a balance or provider activity (BTC tx count, EVM nonce, TRON tx count). Chains without an activity signal count a balance only.">0</strong>
       </div>
       <div class="key-stat">
         <span class="key-stat-label">Checked</span>
-        <strong class="key-stat-value" id="stat-checked">0/0</strong>
+        <strong class="key-stat-value" id="stat-checked" title="Chain groups whose checkable rows all settled, out of 18 chain groups.">0/18</strong>
       </div>
     </div>
-    <p class="muted key-help key-stats-note">Total value stays blank without a price source; balances are shown per chain.</p>
+    <p class="muted key-help key-stats-note">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain.</p>
     <div class="key-summary" id="summary">
       <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
     </div>
@@ -234,8 +234,20 @@
       <p class="muted key-help" id="btc-summary-hint">Balances load automatically from mempool.space for the selected Bitcoin address.</p>
     </div>
 
-    <div id="addr-rows" class="key-rows">
-      <p class="muted key-empty">Derive a key to see its addresses.</p>
+    <div class="key-table-wrap" tabindex="0" role="region" aria-label="Address table">
+      <table class="key-addr-tbl" id="addr-table">
+        <caption class="visually-hidden">Derived public addresses by chain, type and status</caption>
+        <thead>
+          <tr>
+            <th scope="col">Chain</th>
+            <th scope="col">Type</th>
+            <th scope="col">Address</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="addr-rows"></tbody>
+      </table>
     </div>
     <p id="evm-shared-note" class="muted key-help key-evm-note" hidden>All EVM networks share the same 0x address.</p>
     <p id="preset-empty" class="muted key-empty" hidden>No rows match this chain and wallet preset on the selected curve.</p>
@@ -243,9 +255,9 @@
   </section>
 </main>
 
-<script src="/key-tools.js?v=20261124e"></script>
-<script src="/balance-cache.js?v=20261124e"></script>
-<script src="/address-codecs.js?v=20261124e"></script>
-<script src="/key.js?v=20261124e"></script>
+<script src="/key-tools.js?v=20261125a"></script>
+<script src="/balance-cache.js?v=20261125a"></script>
+<script src="/address-codecs.js?v=20261125a"></script>
+<script src="/key.js?v=20261125a"></script>
 </body>
 </html>
