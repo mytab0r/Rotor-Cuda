@@ -14,7 +14,7 @@
   The donor prints the whole mnemonic, so the earlier compact first-two/last-word
   reveal was dropped and each row shows the full phrase (mono, ellipsis with the
   phrase in `title`) plus a 44px Copy mnemonic button. Evidence:
-  `docs/donor-parity/directory-pages.md` §2 item 9;
+  `docs/donor-parity/directories.md` §3 (row markup and difference 11);
   `apps/site/mnemonic-seeds.js` (`createRow`/`fillRow`: `col-mnemonic`,
   `mnemonic-text`, `phraseText.textContent = entry.phrase`),
   `src/coordinator/mod.rs` (directory assertions),
