@@ -10,13 +10,15 @@
 - [x] Brainwallet single calculator on `/brainwallet-generator` with network,
   passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence: `mod.rs:2659-2700`,
   `brainwallet.js:457-503`.
-- [x] Seed rows: private key/WIF + copy icons; compact reveal for the phrase.
-  Each row starts as the first two and last word (`abandon ability … zoo`)
-  behind a 44px `aria-expanded` Reveal/Hide button; expanding swaps the row's
-  text in place (no re-render, refetch, storage or URL change) and collapsing
-  restores the compact form. Evidence: `mnemonic-seeds.js:178-187,601-670`
-  (`compactPhrase`, `renderPhrase`, `resetPhrase`), inline styles in
-  `mnemonic-seeds.html:76-95`.
+- [x] Seed rows: private key/WIF + copy icons; full phrase in the donor layout.
+  The donor prints the whole mnemonic, so the earlier compact first-two/last-word
+  reveal was dropped and each row shows the full phrase (mono, ellipsis with the
+  phrase in `title`) plus a 44px Copy mnemonic button. Evidence:
+  `docs/donor-parity/directories.md` §3 (row markup and difference 11);
+  `apps/site/mnemonic-seeds.js` (`createRow`/`fillRow`: `col-mnemonic`,
+  `mnemonic-text`, `phraseText.textContent = entry.phrase`),
+  `src/coordinator/mod.rs` (directory assertions),
+  `apps/site/mnemonic-seeds-test.mjs`.
 - [x] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
   Balance/TX/Actions. Evidence: `mod.rs:3260-3332`,
   `puzzle-browser.js:236-365`.

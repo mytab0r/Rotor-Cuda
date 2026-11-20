@@ -52,11 +52,22 @@ a worktree; one writer per area.
 
 ## 2. Search and directories (donor audit)
 - [ ] Global search matches the donor's input types and lands on `/key/<hex>`.
-- [ ] `/private-keys`, `/private-keys/<chain>`, `/mnemonic-seeds/<chain>`
+- [x] `/private-keys`, `/private-keys/<chain>`, `/mnemonic-seeds/<chain>`
       column sets and grouping copied from the donor.
       Audit note (2026-11-20): donor column sets, grouping and global-search
       mechanics are recorded in `docs/donor-parity/directories.md`; site parity
       is still to verify.
+      Evidence (2026-11-20): `src/coordinator/mod.rs` (18-chain donor order,
+      TON/BCH `?type=legacy` tabs, hidden H1, page-info/progress, three stat
+      cards, 60-row grid headers), `apps/site/browse.js` (hex + WIF (c)/(u)
+      links, `(c)/(u)` address lines, per-address balance/TX/received,
+      `?key=` prefill/highlight), `apps/site/mnemonic-seeds.js` +
+      `mnemonic-seeds.html` (three headers + full-width mnemonic sub-row,
+      bits/preset/path/type query scheme, word-count reset to page 1,
+      preset pills). Deliberate deviations: the H1 is kept but
+      `visually-hidden` (document outline/landmark) on both directories; the
+      page-percent value is hidden at <=560px to keep the page-info line on
+      one row; zero-provider metrics render `-`, never invented data.
 
 ## 3. ref-site-b ideas
 - [ ] Lists/pricing pages, filters and density reviewed; adopted items listed
