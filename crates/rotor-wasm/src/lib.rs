@@ -437,6 +437,40 @@ impl Session {
         }
     }
 
+    /// Subtract one secp256k1 public key from another: `P - Q`.
+    pub fn pubkey_subtract(&mut self, first: &str, second: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match derive::pubkey_subtract_report(first, second) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Multiply a secp256k1 public key by a scalar: `k * P`.
+    pub fn pubkey_mul(&mut self, point: &str, scalar: &str) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match derive::pubkey_mul_report(point, scalar) {
+            Ok(json) => {
+                self.result = json.into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
     /// Decrypt a V3 keystore; the result is the 64-character hex private key.
     pub fn keystore_decrypt(&mut self, request: &keystore::Request<'_>) -> u32 {
         self.result.clear();
@@ -934,6 +968,49 @@ pub extern "C" fn public_key_add(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32)
         return ERR_BAD_TARGET;
     };
     session_mut().pubkey_add(a, b)
+}
+
+/// Subtract two public keys: `P - Q`, both 66 or 130 hex characters.
+#[unsafe(no_mangle)]
+pub extern "C" fn public_key_subtract(a_ptr: u32, a_len: u32, b_ptr: u32, b_len: u32) -> u32 {
+    let (Some(a_bytes), Some(b_bytes)) = (read_bytes(a_ptr, a_len), read_bytes(b_ptr, b_len))
+    else {
+        session_mut().set_error("invalid public key pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let (Ok(a), Ok(b)) = (std::str::from_utf8(a_bytes), std::str::from_utf8(b_bytes)) else {
+        session_mut().set_error("public keys are not valid UTF-8");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().pubkey_subtract(a, b)
+}
+
+/// Multiply a public key by a scalar: `k * P`.
+///
+/// The point is 66 or 130 hex characters; the scalar is 64 hex characters in
+/// the range `1..n-1`.
+#[unsafe(no_mangle)]
+pub extern "C" fn public_key_mul(
+    point_ptr: u32,
+    point_len: u32,
+    scalar_ptr: u32,
+    scalar_len: u32,
+) -> u32 {
+    let (Some(point_bytes), Some(scalar_bytes)) = (
+        read_bytes(point_ptr, point_len),
+        read_bytes(scalar_ptr, scalar_len),
+    ) else {
+        session_mut().set_error("invalid public key/scalar pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let (Ok(point), Ok(scalar)) = (
+        std::str::from_utf8(point_bytes),
+        std::str::from_utf8(scalar_bytes),
+    ) else {
+        session_mut().set_error("public key and scalar are not valid UTF-8");
+        return ERR_BAD_TARGET;
+    };
+    session_mut().pubkey_mul(point, scalar)
 }
 
 /// Decrypt an Ethereum V3 keystore locally.
@@ -2240,5 +2317,133 @@ mod tests {
             session.pubkey_add("not-hex", KEY1_PUB_COMPRESSED),
             ERR_BAD_TARGET
         );
+    }
+
+    #[test]
+    fn public_key_subtract_returns_the_difference() {
+        let mut session = Session::new();
+        let p1 = derive_value(&key_bytes(1), 0);
+        let p2 = derive_value(&key_bytes(2), 0);
+        let p1_hex = p1["pubkey_compressed"].as_str().unwrap().to_owned();
+        let p2_hex = p2["pubkey_compressed"].as_str().unwrap().to_owned();
+
+        // P2 - P1 = (2 - 1) * G = G, checked against the independent mul_g path.
+        assert_eq!(session.pubkey_subtract(&p2_hex, &p1_hex), OK);
+        assert!(session.error.is_empty());
+        let difference: serde_json::Value =
+            serde_json::from_slice(&session.result).expect("pubkey subtract JSON");
+        assert_eq!(difference["curve"], "secp256k1");
+        assert_eq!(difference["pubkey_compressed"], p1["pubkey_compressed"]);
+        assert_eq!(difference["pubkey_uncompressed"], p1["pubkey_uncompressed"]);
+        assert_eq!(difference["x"], p1["x"]);
+        assert_eq!(difference["y"], p1["y"]);
+
+        // An uncompressed second input produces the same point.
+        assert_eq!(
+            session.pubkey_subtract(&p2_hex, p1["pubkey_uncompressed"].as_str().unwrap()),
+            OK
+        );
+        let difference: serde_json::Value = serde_json::from_slice(&session.result).unwrap();
+        assert_eq!(difference["pubkey_compressed"], p1["pubkey_compressed"]);
+
+        // P - P is the point at infinity and is not a public key.
+        assert_eq!(session.pubkey_subtract(&p1_hex, &p1_hex), ERR_BAD_TARGET);
+        assert!(String::from_utf8_lossy(&session.error).contains("infinity"));
+        assert!(session.result.is_empty());
+
+        assert_eq!(session.pubkey_subtract("not-hex", &p1_hex), ERR_BAD_TARGET);
+    }
+
+    #[test]
+    fn public_key_mul_matches_scalar_multiplication() {
+        let mut session = Session::new();
+        let g = derive_value(&key_bytes(1), 0);
+        let g_hex = g["pubkey_compressed"].as_str().unwrap().to_owned();
+
+        // k * G must equal the public key derived from scalar k via mul_g.
+        for k in [1u64, 2, 3, 7, 0x1234] {
+            let expected = derive_value(&key_bytes(k), 0);
+            assert_eq!(session.pubkey_mul(&g_hex, &key_hex(k)), OK, "k = {k}");
+            assert!(session.error.is_empty(), "k = {k}");
+            let product: serde_json::Value =
+                serde_json::from_slice(&session.result).expect("pubkey mul JSON");
+            assert_eq!(
+                product["pubkey_compressed"], expected["pubkey_compressed"],
+                "k * G compressed, k = {k}"
+            );
+            assert_eq!(
+                product["pubkey_uncompressed"], expected["pubkey_uncompressed"],
+                "k * G uncompressed, k = {k}"
+            );
+            assert_eq!(product["x"], expected["x"], "k * G x, k = {k}");
+            assert_eq!(product["y"], expected["y"], "k * G y, k = {k}");
+        }
+
+        // The same product is reached through a different base point:
+        // 3 * (2G) = 6G.
+        let two_g = derive_value(&key_bytes(2), 0);
+        let six_g = derive_value(&key_bytes(6), 0);
+        assert_eq!(
+            session.pubkey_mul(two_g["pubkey_compressed"].as_str().unwrap(), &key_hex(3)),
+            OK
+        );
+        let product: serde_json::Value = serde_json::from_slice(&session.result).unwrap();
+        assert_eq!(product["pubkey_compressed"], six_g["pubkey_compressed"]);
+    }
+
+    #[test]
+    fn public_key_mul_rejects_invalid_scalars_and_points() {
+        let mut session = Session::new();
+
+        // Zero scalar.
+        assert_eq!(
+            session.pubkey_mul(KEY1_PUB_COMPRESSED, &key_hex(0)),
+            ERR_BAD_TARGET
+        );
+        assert!(
+            String::from_utf8_lossy(&session.error).contains("1..n-1"),
+            "zero scalar error: {}",
+            String::from_utf8_lossy(&session.error)
+        );
+        assert!(session.result.is_empty());
+
+        // Scalar equal to the curve order.
+        let order_hex = derive::hex(&CURVE_N);
+        assert_eq!(
+            session.pubkey_mul(KEY1_PUB_COMPRESSED, &order_hex),
+            ERR_BAD_TARGET
+        );
+        assert!(
+            String::from_utf8_lossy(&session.error).contains("below the curve order"),
+            "curve-order error: {}",
+            String::from_utf8_lossy(&session.error)
+        );
+
+        // Scalars longer or shorter than 32 bytes.
+        for bad in ["00".repeat(33), "01".repeat(31), "f".repeat(66)] {
+            assert_eq!(
+                session.pubkey_mul(KEY1_PUB_COMPRESSED, &bad),
+                ERR_BAD_TARGET,
+                "scalar length {}",
+                bad.len()
+            );
+            assert!(!session.error.is_empty());
+        }
+
+        // Malformed scalar and malformed point.
+        assert_eq!(
+            session.pubkey_mul(KEY1_PUB_COMPRESSED, "zz"),
+            ERR_BAD_TARGET
+        );
+        assert_eq!(session.pubkey_mul("not-hex", &key_hex(1)), ERR_BAD_TARGET);
+
+        // n-1 is the largest valid scalar and must be accepted.
+        let mut n_minus_one = CURVE_N;
+        n_minus_one[31] -= 1;
+        assert_eq!(
+            session.pubkey_mul(KEY1_PUB_COMPRESSED, &derive::hex(&n_minus_one)),
+            OK
+        );
+        assert!(session.error.is_empty());
     }
 }
