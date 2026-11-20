@@ -69,6 +69,26 @@ The unit binds `127.0.0.1:7878`; terminate TLS in front of it (Caddy example
 below). Clients then use `https://...` directly — the `rotor` client speaks
 HTTPS with the system TLS stack (SChannel on Windows, OpenSSL on Linux).
 
+### TRON lookups
+
+`GET /api/v1/chain/tron/address?address=<base58 T...>` returns the TRON balance
+and transaction count for a public address:
+
+```json
+{"chain":"tron","address":"T...","balance_sun":"1393900000","tx_count":1015112,"last_tx_at":1700000000000,"source":"tronscan"}
+```
+
+Set `TRONSCAN_API_KEY` in `/etc/rotor/rotor-coord.env` (or the compose `.env`)
+to a TronScan Pro API key. The key stays on the server: it is sent only as the
+`TRON-PRO-API-KEY` header to `apilist.tronscanapi.com` and never appears in
+responses, errors or browser code. The route is public but rate-limited per
+client IP. Without the key it answers `501 {"error":"no_provider"}` and the
+browser falls back to its previous direct TronScan request. If TronScan reports
+a negative balance (its own 64-bit overflow for huge accounts), the route
+returns `balance_sun:null` with `balance_error:"provider_overflow"` instead of a
+wrong number. TronScan failures are a short `502`; one retry is made on
+429/5xx.
+
 ### Caddy (HTTPS)
 
 `deploy/Caddyfile.example` is a two-line site block: replace the host name and

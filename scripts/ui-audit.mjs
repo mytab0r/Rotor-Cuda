@@ -25,6 +25,9 @@ const REPO_ROOT = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
 const DEFAULT_ROUTES = [
   "/",
   "/key",
+  // Key 1 in the URL derives on load, so the address table, statuses and
+  // counters are inspected too (the plain /key route only types the key).
+  "/key/0000000000000000000000000000000000000000000000000000000000000001",
   "/private-keys/bitcoin",
   "/seed",
   "/mnemonic-seeds/bitcoin",
@@ -1012,8 +1015,13 @@ async function main() {
               await waitForSelector(cdp, ".bw-row", SELECTOR_TIMEOUT_MS);
             } else if (route === "/bitcoin-puzzle") {
               await waitForSelector(cdp, "[data-puzzle-row]", SELECTOR_TIMEOUT_MS);
-            } else if (route === "/key") {
+            } else if (route === "/key" || route.startsWith("/key/")) {
               await waitForSelector(cdp, "#priv", SELECTOR_TIMEOUT_MS);
+              // A key in the URL derives on load; wait for the rendered table
+              // rows (balances settle later and are not needed for layout).
+              if (route !== "/key") {
+                await waitForSelector(cdp, "#addr-rows .key-row", SELECTOR_TIMEOUT_MS);
+              }
             }
 
             if (route === "/key") {
