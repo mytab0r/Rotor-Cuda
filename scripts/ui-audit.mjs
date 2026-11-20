@@ -28,6 +28,7 @@ const DEFAULT_ROUTES = [
   // Key 1 in the URL derives on load, so the address table, statuses and
   // counters are inspected too (the plain /key route only types the key).
   "/key/0000000000000000000000000000000000000000000000000000000000000001",
+  "/private-keys",
   "/private-keys/bitcoin",
   "/seed",
   "/mnemonic-seeds/bitcoin",
