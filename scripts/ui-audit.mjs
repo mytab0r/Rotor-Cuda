@@ -37,6 +37,7 @@ const DEFAULT_ROUTES = [
   "/bitcoin-puzzle",
   "/bitcoin-puzzle/71/random",
   "/tools",
+  "/vanity",
   "/send",
   "/send/bnb",
   "/send/usdt",

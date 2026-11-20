@@ -124,9 +124,11 @@ and not deployed**.
   shipped counters/Copy All/CSV instead of claiming they are absent;
   `site-map-test.mjs` passes (89 ours, 117 donors, 41 features).
 - [x] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
-  Evidence: `node scripts/ui-audit.mjs --serve` PASS 72/72 page runs across 12
-  routes (incl. `/brainwallet` and `/send`); `/brainwallet` and the chain
-  routes went from four 22px links to >=44px after the `.directory-links` fix.
+  Evidence: `node scripts/ui-audit.mjs --serve` PASS 108/108 page runs across 18
+  routes (incl. `/brainwallet`, `/send*` and `/vanity`); `/brainwallet` and the
+  chain routes went from four 22px links to >=44px after the `.directory-links`
+  fix. `/vanity` was added to `DEFAULT_ROUTES` after PR #123 changed its stat
+  cards without gate coverage.
 - [x] `node scripts/check-projects.mjs`, site tests, cargo tests, clippy.
   Evidence: 13 site suites + 30 `node --check` lines pass; `check-projects`
   OK (367/368, `Cargo.lock` ignored); `coordinator_api` 15, `coordinator_client`
