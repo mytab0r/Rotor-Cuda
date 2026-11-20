@@ -1356,7 +1356,7 @@
 
   function renderSendResult(result) {
     sendProviderNote.textContent = 'Sent to ' + result.providerLabel + ' · ' +
-      result.providerUrl + '. Rotor did not proxy or store the transaction.';
+      result.providerUrl + '. Crypto did not proxy or store the transaction.';
     sendHashEl.textContent = result.txHash;
     sendExplorerLink.href = result.explorerUrl;
     sendSignedEl.textContent = result.signedHex;
@@ -1695,7 +1695,7 @@
 
   function renderBtcResult(result) {
     btcProviderNote.textContent = 'Sent to mempool.space testnet (' +
-      result.apiBase + '). Rotor did not proxy or store the transaction.';
+      result.apiBase + '). Crypto did not proxy or store the transaction.';
     btcTxidEl.textContent = result.txid;
     btcExplorerLink.href = result.explorerUrl;
     btcSignedEl.textContent = result.signedHex;

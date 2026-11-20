@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rotor Coordinator - docs</title>
-<link rel="stylesheet" href="/site.css?v=20261124c">
-<script src="/theme.js?v=20261124c"></script>
+<title>Crypto - docs</title>
+<link rel="stylesheet" href="/site.css?v=20261124e">
+<script src="/theme.js?v=20261124e"></script>
 </head>
 <body>
 <header class="site-nav">
-  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Rotor<span>.</span></span></a>
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
@@ -136,7 +136,7 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
     </p>
     <ul>
       <li>Only the address that signed the login is <code>verified</code>; other imported accounts and manually added BTC addresses are marked <code>unverified</code>.</li>
-      <li>On <a href="/key">/key</a>, the "Check these addresses against the Rotor registry" box is off by default. When checked, only the derived addresses (never the key) are sent; the coordinator returns a match count and warns the registered owner that someone looked the address up.</li>
+      <li>On <a href="/key">/key</a>, the "Check these addresses against the Crypto registry" box is off by default. When checked, only the derived addresses (never the key) are sent; the coordinator returns a match count and warns the registered owner that someone looked the address up.</li>
       <li>Alerts are early warning, not protection: an idle stolen key is not observable, and delivery can be delayed or missed.</li>
       <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
     </ul>
@@ -168,7 +168,7 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
 
     <h2>Site map and donor parity</h2>
     <p>
-      The parity audit maps every Rotor route to its ref-site-a and
+      The parity audit maps every Crypto route to its ref-site-a and
       ref-site-b equivalent. It is internal documentation, kept in
       <code>docs/site-map/index.html</code> and
       <code>docs/site-map/site-map-data.js</code>, not a public route. The data
@@ -187,6 +187,6 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
   </section>
 </main>
 
-<script src="/site.js?v=20261124c"></script>
+<script src="/site.js?v=20261124e"></script>
 </body>
 </html>

@@ -1350,7 +1350,7 @@ const CHAINS: [ChainHub; 18] = [
         name: "TON",
         symbol: "TON",
         description: "TON Wallet v4R2 addresses derived from the ed25519 public key.",
-        intro: "A TON wallet address is the hash of the wallet contract StateInit. Rotor builds the standard v4R2 wallet locally from the ed25519 key; the contract is not deployed until it receives funds.",
+        intro: "A TON wallet address is the hash of the wallet contract StateInit. Crypto builds the standard v4R2 wallet locally from the ed25519 key; the contract is not deployed until it receives funds.",
         curve_suffix: "?curve=ed25519",
         kind: AddressKind::Ton,
         color: "#0098ea",
@@ -1699,7 +1699,7 @@ fn breadcrumb_nav(items: &[(&str, Option<&str>)]) -> String {
 fn site_header() -> String {
     format!(
         "<header class=\"site-nav\">\
-         <a class=\"brand\" href=\"/\"><span class=\"brand-mark\">{key}</span><span class=\"brand-name\">Rotor<span>.</span></span></a>\
+         <a class=\"brand\" href=\"/\"><span class=\"brand-mark\">{key}</span><span class=\"brand-name\">Crypto<span>.</span></span></a>\
          <nav aria-label=\"Main\">\
          <a href=\"/\" data-nav=\"home\">{grid}<span>Home</span></a>\
          <a href=\"/private-keys\" data-nav=\"directory\">{key2}<span>Directory</span></a>\
@@ -1751,9 +1751,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261124c\">\n\
-         <script src=\"/theme.js?v=20261124c\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261124c\"></script>\n<script src=\"/site.js?v=20261124c\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261124e\">\n\
+         <script src=\"/theme.js?v=20261124e\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261124e\"></script>\n<script src=\"/site.js?v=20261124e\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -1796,8 +1796,8 @@ fn render_key_entity(base: &str, entity: &str) -> Option<String> {
     let canonical = format!("{base}/key/{slug}");
     let mut page = KEY_PAGE.to_string();
     page = page.replace(
-        "<title>Rotor Coordinator - private key explorer</title>",
-        &format!("<title>{title} | Rotor</title>"),
+        "<title>Crypto - private key explorer</title>",
+        &format!("<title>{title} | Crypto</title>"),
     );
     page = page.replace(
         "<h1>Private-key explorer</h1>",
@@ -1835,9 +1835,9 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     let last = &key[key.len() - 4..];
     let short = format!("{first}…{last}");
     let canonical = format!("{base}/key/{key}");
-    let title = format!("Private key {short} — Bitcoin, EVM, Solana and TRON addresses | Rotor");
+    let title = format!("Private key {short} — Bitcoin, EVM, Solana and TRON addresses | Crypto");
     let description = format!(
-        "Derive Bitcoin, EVM and TRON addresses from private key {short} in your browser. Rotor shows public addresses only; the key is never sent to a server."
+        "Derive Bitcoin, EVM and TRON addresses from private key {short} in your browser. Crypto shows public addresses only; the key is never sent to a server."
     );
     let ld_app = json!({
         "@context": "https://schema.org",
@@ -1899,7 +1899,7 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     );
 
     let mut html = KEY_PAGE.replacen(
-        "<title>Rotor Coordinator - private key explorer</title>",
+        "<title>Crypto - private key explorer</title>",
         &format!("<title>{}</title>", escape_attr(&title)),
         1,
     );
@@ -1921,9 +1921,12 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
     let end_short = &range.end[56..];
     let label = format!("0x{start_short}…–0x{end_short}…");
     let canonical = format!("{base}/keys/{}/{}-{}", chain.slug, range.start, range.end);
-    let title = format!("{} keys {label} — {} keys | Rotor", chain.name, range.count);
+    let title = format!(
+        "{} keys {label} — {} keys | Crypto",
+        chain.name, range.count
+    );
     let description = format!(
-        "{} private keys from 0x{start_short}… to 0x{end_short}… (inclusive), derived locally in your browser. Rotor shows public addresses only; the keys are never sent to a server.",
+        "{} private keys from 0x{start_short}… to 0x{end_short}… (inclusive), derived locally in your browser. Crypto shows public addresses only; the keys are never sent to a server.",
         chain.name
     );
     let ld_app = json!({
@@ -2004,7 +2007,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
     );
 
     let mut html = RANGE_PAGE.replacen(
-        "<title>Rotor Coordinator - key range</title>",
+        "<title>Crypto - key range</title>",
         &format!("<title>{}</title>", escape_attr(&title)),
         1,
     );
@@ -2023,7 +2026,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
 
 fn render_keys_hub(base: &str) -> String {
     let canonical = format!("{base}/private-keys");
-    let title = "Private keys directory — browse keys on 18 chains | Rotor";
+    let title = "Private keys directory — browse keys on 18 chains | Crypto";
     let description = "Browse private key pages for Bitcoin, Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync, Solana, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin, Zcash, Sui and TON. Addresses are derived locally in your browser.";
     let ld_app = json!({
         "@context": "https://schema.org",
@@ -2143,14 +2146,14 @@ fn breadcrumb_ld(base: &str, items: &[(&str, Option<&str>)]) -> serde_json::Valu
     })
 }
 
-const FAQ_TITLE: &str = "FAQ — how Rotor key tools and alerts work | Rotor";
-const FAQ_DESCRIPTION: &str = "Answers about Rotor's browser key derivation, the /keys hubs, noindex pages, the address watchlist and Telegram alerts, and what the tools cannot do.";
+const FAQ_TITLE: &str = "FAQ — how Crypto key tools and alerts work | Crypto";
+const FAQ_DESCRIPTION: &str = "Answers about Crypto's browser key derivation, the /keys hubs, noindex pages, the address watchlist and Telegram alerts, and what the tools cannot do.";
 
 /// Honest Q&A used both for the visible FAQ and its `FAQPage` JSON-LD.
 const FAQ_QA: [(&str, &str); 9] = [
     (
         "What does this site do?",
-        "Rotor explains how private keys map to public addresses on Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP. It derives addresses from a key you control in your browser and runs an authorized puzzle search engine and an address watchlist. It does not hold, sign for or move funds.",
+        "Crypto explains how private keys map to public addresses on Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP. It derives addresses from a key you control in your browser and runs an authorized puzzle search engine and an address watchlist. It does not hold, sign for or move funds.",
     ),
     (
         "Is my key sent to a server?",
@@ -2158,7 +2161,7 @@ const FAQ_QA: [(&str, &str); 9] = [
     ),
     (
         "Do you ask for seed phrases?",
-        "No. The web tools accept single private keys only, for educational use. There is no custody: Rotor cannot hold funds, sign transactions or sweep balances.",
+        "No. The web tools accept single private keys only, for educational use. There is no custody: Crypto cannot hold funds, sign transactions or sweep balances.",
     ),
     (
         "What do /keys and /key/<hex> show?",
@@ -2174,11 +2177,11 @@ const FAQ_QA: [(&str, &str); 9] = [
     ),
     (
         "What is impossible here?",
-        "Deriving an address from a key does not prove that the address is observable, funded, used or known to anyone else. You cannot derive a private key from an address, and Rotor cannot know whether a key was used somewhere else.",
+        "Deriving an address from a key does not prove that the address is observable, funded, used or known to anyone else. You cannot derive a private key from an address, and Crypto cannot know whether a key was used somewhere else.",
     ),
     (
         "Can I use this to find or recover someone else's keys?",
-        "No. Use Rotor only for keys and addresses you own or are explicitly authorized to test, such as public puzzles and research. Deriving a key does not give lawful access to funds.",
+        "No. Use Crypto only for keys and addresses you own or are explicitly authorized to test, such as public puzzles and research. Deriving a key does not give lawful access to funds.",
     ),
     (
         "Is the brainwallet checker safe?",
@@ -2221,7 +2224,7 @@ fn render_faq(base: &str) -> String {
     let body = format!(
         "{}{}<main class=\"key-page\">{}<section class=\"hero\">\
          <h1>Frequently asked questions</h1>\
-         <p>How Rotor derives addresses, what the key pages show, and what the tools cannot do.</p></section>\
+         <p>How Crypto derives addresses, what the key pages show, and what the tools cannot do.</p></section>\
          <section class=\"card\"><h2>Questions</h2>{qa}</section>\
          <section class=\"card\"><h2>Explore the key hubs</h2><ul>{hub_links}</ul></section>\
          <section class=\"card\"><h2>Site information</h2><ul>\
@@ -2237,8 +2240,8 @@ fn render_faq(base: &str) -> String {
     html_document(FAQ_TITLE, &head, &body)
 }
 
-const DISCLAIMER_TITLE: &str = "Disclaimer — educational and authorized use | Rotor";
-const DISCLAIMER_DESCRIPTION: &str = "Rotor is provided for education, research and authorized testing only. It is not a wallet, holds no funds, signs nothing, and cannot sweep balances.";
+const DISCLAIMER_TITLE: &str = "Disclaimer — educational and authorized use | Crypto";
+const DISCLAIMER_DESCRIPTION: &str = "Crypto is provided for education, research and authorized testing only. It is not a wallet, holds no funds, signs nothing, and cannot sweep balances.";
 
 fn render_disclaimer(base: &str) -> String {
     let canonical = format!("{base}/disclaimer");
@@ -2255,11 +2258,11 @@ fn render_disclaimer(base: &str) -> String {
     let body = format!(
         "{}{}<main class=\"key-page\">{}<section class=\"hero\">\
          <h1>Disclaimer</h1>\
-         <p>Rotor is an educational and research tool. Read this page before using any key or address feature.</p></section>\
+         <p>Crypto is an educational and research tool. Read this page before using any key or address feature.</p></section>\
          <section class=\"card\"><h2>Educational and authorized use only</h2>\
          <p>The site explains how keys map to addresses and lets you test that mapping. Use it only with keys and addresses you own or are explicitly authorized to test, such as public puzzles and security research. Do not use it to access funds you do not control.</p></section>\
          <section class=\"card\"><h2>No custody, signing or sweeping</h2>\
-         <p>Rotor is not a wallet. It does not hold funds, sign transactions, broadcast transfers or sweep balances, and it never asks for a seed phrase. Any signing or transaction feature is separate and gated; nothing on these pages moves value.</p></section>\
+         <p>Crypto is not a wallet. It does not hold funds, sign transactions, broadcast transfers or sweep balances, and it never asks for a seed phrase. Any signing or transaction feature is separate and gated; nothing on these pages moves value.</p></section>\
          <section class=\"card\"><h2>Key handling warning</h2>\
          <p>Treat any private key typed into a networked browser as potentially exposed. Use published test vectors or throwaway keys for learning, and keep keys that protect real funds offline or air-gapped. A passphrase-derived brainwallet is not safe for real funds.</p></section>\
          <section class=\"card\"><h2>Data providers and API caveats</h2>\
@@ -2276,8 +2279,8 @@ fn render_disclaimer(base: &str) -> String {
     html_document(DISCLAIMER_TITLE, &head, &body)
 }
 
-const DONATE_TITLE: &str = "Donate — support Rotor development | Rotor";
-const DONATE_DESCRIPTION: &str = "Maintainer donation addresses for Rotor: Bitcoin, USDT-TRC20 and EVM, plus a hosted payment link. Select an address and copy it in your browser.";
+const DONATE_TITLE: &str = "Donate — support Crypto development | Crypto";
+const DONATE_DESCRIPTION: &str = "Maintainer donation addresses for Crypto: Bitcoin, USDT-TRC20 and EVM, plus a hosted payment link. Select an address and copy it in your browser.";
 
 fn render_donate(base: &str) -> String {
     let canonical = format!("{base}/donate");
@@ -2286,7 +2289,7 @@ fn render_donate(base: &str) -> String {
     let body = format!(
         "{}{}<main class=\"key-page\">{}<section class=\"hero\">\
          <h1>Donate</h1>\
-         <p>Support maintenance of Rotor. These are the maintainer's own addresses; select an address to copy it with your browser.</p></section>\
+         <p>Support maintenance of Crypto. These are the maintainer's own addresses; select an address to copy it with your browser.</p></section>\
          <section class=\"card\"><h2>Addresses</h2><ul class=\"donate-addresses\">\
          <li><strong>Bitcoin (BTC)</strong><br><code class=\"mono\">bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8</code></li>\
          <li><strong>USDT (TRC-20)</strong><br><code class=\"mono\">TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f</code></li>\
@@ -2302,10 +2305,10 @@ fn render_donate(base: &str) -> String {
     html_document(DONATE_TITLE, &head, &body)
 }
 
-const BRAINWALLET_TITLE: &str = "Brainwallet directory — 18,890 passphrases on 18 chains | Rotor";
+const BRAINWALLET_TITLE: &str = "Brainwallet directory — 18,890 passphrases on 18 chains | Crypto";
 const BRAINWALLET_DESCRIPTION: &str = "Browse 18,890 deterministic two-word brainwallet passphrases on 18 chains, 60 per page. SHA-256 keys and chain addresses are derived locally in your browser; balance checks are optional. Brainwallets are unsafe for real funds.";
 const BRAINWALLET_GENERATOR_TITLE: &str =
-    "Brainwallet generator — passphrase to key and address | Rotor";
+    "Brainwallet generator — passphrase to key and address | Crypto";
 const BRAINWALLET_GENERATOR_DESCRIPTION: &str = "Turn one passphrase into its SHA-256 key and an address on 18 chains. Choose one, three, five or ten addresses, copy the WIF, copy all or download CSV. Brainwallets are unsafe for real funds.";
 const BRAINWALLET_CORPUS_SIZE: u32 = 18_890;
 const BRAINWALLET_ROWS_PER_PAGE: u32 = 60;
@@ -2441,7 +2444,7 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124c\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124e\">\n");
     let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
          <span aria-current=\"page\">Brainwallet</span></nav>";
@@ -2498,12 +2501,12 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
     let self_url = format!("{base}{}", brainwallet_page_href(chain.slug, page));
     let title = if page == 1 {
         format!(
-            "{} brainwallet directory — 60 passphrases per page | Rotor",
+            "{} brainwallet directory — 60 passphrases per page | Crypto",
             chain.name
         )
     } else {
         format!(
-            "{} brainwallet directory — page {} of {} | Rotor",
+            "{} brainwallet directory — page {} of {} | Crypto",
             chain.name, page, BRAINWALLET_TOTAL_PAGES
         )
     };
@@ -2551,7 +2554,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124c\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124e\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2611,8 +2614,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261124c\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261124c\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261124e\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261124e\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2650,7 +2653,7 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124c\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124e\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
@@ -2701,8 +2704,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261124c\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261124c\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261124e\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261124e\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -2815,12 +2818,12 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     let percent = page_percent(&page, &total);
     let title = if page == BigUint::from(1u8) {
         format!(
-            "{} private keys — browse addresses and balances | Rotor",
+            "{} private keys — browse addresses and balances | Crypto",
             chain.name
         )
     } else {
         format!(
-            "{} private keys — page {} of {} | Rotor",
+            "{} private keys — page {} of {} | Crypto",
             chain.name,
             format_page_count(&page),
             total_text
@@ -3043,7 +3046,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261124c\"></script>\n         <script src=\"/browse.js?v=20261124c\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261124e\"></script>\n         <script src=\"/browse.js?v=20261124e\"></script>",
         site_header(),
         "",
         chain.color,
@@ -3368,7 +3371,7 @@ fn puzzle_picker_card(number: u32, tab: &str) -> String {
 /// Default `<title>` in the embedded mnemonic seed shell. Chain pages swap it
 /// for a chain-specific title; the directory keeps it.
 const MNEMONIC_SEEDS_DEFAULT_TITLE: &str =
-    "Mnemonic seeds directory — browse BIP39 phrases by chain | Rotor";
+    "Mnemonic seeds directory — browse BIP39 phrases by chain | Crypto";
 const MNEMONIC_SEEDS_DEFAULT_DESCRIPTION: &str = "Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.";
 const MNEMONIC_SEEDS_DEFAULT_CANONICAL: &str = "https://rotor.pxbt.app/mnemonic-seeds";
 const MNEMONIC_SEEDS_DEFAULT_MAIN: &str = "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"\" data-symbol=\"\" data-explorer=\"\" data-curve=\"0\" data-page=\"1\" style=\"--chain:#f7931a\">";
@@ -3389,11 +3392,14 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
     };
     let title = if page == BigUint::from(1u8) {
         format!(
-            "{} mnemonic seeds — 60 BIP39 phrases per page | Rotor",
+            "{} mnemonic seeds — 60 BIP39 phrases per page | Crypto",
             chain.name
         )
     } else {
-        format!("{} mnemonic seeds — page {} | Rotor", chain.name, page_text)
+        format!(
+            "{} mnemonic seeds — page {} | Crypto",
+            chain.name, page_text
+        )
     };
     let description = format!(
         "Browse deterministic {} mnemonic seeds, 60 per page. Choose 12, 18 or 24 words, a BIP32 path and an address type, then derive addresses and balances in your browser. Page {}.",
@@ -3508,7 +3514,7 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
 
 fn render_puzzle_home(base: &str) -> String {
     let canonical = format!("{base}/bitcoin-puzzle");
-    let title = "Bitcoin puzzle browser — client-side key search | Rotor";
+    let title = "Bitcoin puzzle browser — client-side key search | Crypto";
     let description = "Browse all 160 public Bitcoin puzzles in one table: target address, key range, live balance and transaction count. Filter solved and unsolved puzzles and scan a range locally in your browser with WebAssembly.";
     let ld_app = json!({
         "@context": "https://schema.org",
@@ -3591,7 +3597,7 @@ fn render_puzzle_home(base: &str) -> String {
          <span class=\"pz-live\">live via mempool.space</span></div>\
          {filters}{table}</section>\
          <section class=\"card\" id=\"team\"><h2>Team mode — pooled chunk leasing</h2>\
-         <p>Team mode is Rotor's coordinator pool: a job is split into fixed-size chunks, each contributor leases one chunk and scans it on their own hardware. A worker receives only its slice of the range, and an expired lease returns the chunk to the pool. This is separate from the local puzzle browser above; the two never mix in one run.</p>\
+         <p>Team mode is Crypto's coordinator pool: a job is split into fixed-size chunks, each contributor leases one chunk and scans it on their own hardware. A worker receives only its slice of the range, and an expired lease returns the chunk to the pool. This is separate from the local puzzle browser above; the two never mix in one run.</p>\
          <h3>Live public jobs</h3>\
          <div data-puzzle-summary></div>\
          <div data-puzzle-jobs></div>\
@@ -3615,7 +3621,7 @@ fn render_puzzle_home(base: &str) -> String {
 
 fn render_puzzle_unsolved(base: &str) -> String {
     let canonical = format!("{base}/bitcoin-puzzle/unsolved");
-    let title = "Unsolved Bitcoin puzzles — local browser scan | Rotor";
+    let title = "Unsolved Bitcoin puzzles — local browser scan | Crypto";
     let description = "The unsolved subset of the 160 public Bitcoin puzzles, with target addresses and key ranges. Open any puzzle to scan its range locally in the browser.";
     let ld_app = json!({
         "@context": "https://schema.org",
@@ -3694,9 +3700,9 @@ fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
     let view_label = if random { "Random Keys" } else { "Detail" };
     let canonical = format!("{base}/bitcoin-puzzle/{number}/{view}");
     let title = if random {
-        format!("Bitcoin Puzzle #{number} — Random Keys | Rotor")
+        format!("Bitcoin Puzzle #{number} — Random Keys | Crypto")
     } else {
-        format!("Bitcoin Puzzle #{number} — Detail | Rotor")
+        format!("Bitcoin Puzzle #{number} — Detail | Crypto")
     };
     let description = if random {
         format!(
@@ -3906,7 +3912,7 @@ fn render_puzzle_random(
     format!(
         "<section class=\"card puzzle-app\" data-puzzle-app data-puzzle-number=\"{number}\" data-puzzle-target=\"{target}\" data-puzzle-start=\"{start_hex}\" data-puzzle-end=\"{end_hex}\" data-puzzle-solved=\"{solved}\">\
          <div class=\"pz-app-head\"><div><h2>Random keys — local WASM scan</h2>\
-         <p class=\"puzzle-note\">The scan generates keys inside the selected range, hashes them with the Rotor WebAssembly core and discards every miss. Nothing is uploaded; the optional balance check only reads this public target address.</p></div>\
+         <p class=\"puzzle-note\">The scan generates keys inside the selected range, hashes them with the Crypto WebAssembly core and discards every miss. Nothing is uploaded; the optional balance check only reads this public target address.</p></div>\
          <span class=\"pz-wasm\" data-puzzle-wasm>idle</span></div>\
          <div class=\"pz-target-row\"><span class=\"pz-k\">Target</span>\
          <code class=\"pz-mono\">{target}</code>{copy}{blockchain}{mempool}\
@@ -4127,9 +4133,9 @@ fn render_sitemap(base: &str) -> String {
 
 fn render_seo_not_found() -> String {
     html_document(
-        "Not found | Rotor",
+        "Not found | Crypto",
         "<meta name=\"robots\" content=\"noindex,nofollow\">\n",
-        "<header class=\"site-nav\"><a class=\"brand\" href=\"/\">Rotor <span>Coordinator</span></a></header>\
+        "<header class=\"site-nav\"><a class=\"brand\" href=\"/\">Crypto<span>.</span></a></header>\
          <main class=\"key-page\"><section class=\"hero\"><h1>Page not found</h1>\
          <p>This key or chain hub does not exist.</p>\
          <p><a href=\"/keys\">Browse the key hubs</a> or go back to the <a href=\"/\">landing page</a>.</p>\
@@ -4855,7 +4861,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261124c"),
+                page.contains("/theme.js?v=20261124e"),
                 "{path} does not load the theme script"
             );
         }
@@ -4897,8 +4903,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261124c\"></script>"));
-        assert!(page.contains("/site.css?v=20261124c"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261124e\"></script>"));
+        assert!(page.contains("/site.css?v=20261124e"));
     }
 
     #[test]
@@ -5131,7 +5137,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261124c"));
+        assert!(body.contains("brainwallet.css?v=20261124e"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5151,7 +5157,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261124c"));
+        assert!(body.contains("brainwallet.css?v=20261124e"));
     }
 
     #[test]
@@ -5180,12 +5186,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261124c"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261124e"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261124c"),
+                body.contains("brainwallet-directory.js?v=20261124e"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261124c"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261124e"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -5249,9 +5255,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261124c"));
-        assert!(body.contains("brainwallet.js?v=20261124c"));
-        assert!(body.contains("brainwallet.css?v=20261124c"));
+        assert!(body.contains("brainwallet-engine.js?v=20261124e"));
+        assert!(body.contains("brainwallet.js?v=20261124e"));
+        assert!(body.contains("brainwallet.css?v=20261124e"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -5366,7 +5372,7 @@ mod tests {
         assert_eq!(status, 200);
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(body.contains(&format!(
-            "<title>Bitcoin keys 0x{}…–0x{}… — 64 keys | Rotor</title>",
+            "<title>Bitcoin keys 0x{}…–0x{}… — 64 keys | Crypto</title>",
             &start[..8],
             &end[56..]
         )));
@@ -5587,11 +5593,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261124c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261124c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261124c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261124c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261124c\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261124e\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261124e\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261124e\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261124e\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261124e\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 
@@ -5892,7 +5898,9 @@ mod tests {
         assert_eq!(status, 200);
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(
-            body.contains("<title>Bitcoin puzzle browser — client-side key search | Rotor</title>")
+            body.contains(
+                "<title>Bitcoin puzzle browser — client-side key search | Crypto</title>"
+            )
         );
         assert!(body.contains(&format!(
             "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle\">"
@@ -5944,7 +5952,7 @@ mod tests {
             seo_asset(base, "/bitcoin-puzzle/71/random", "").expect("#71 random");
         assert_eq!(status, 200);
         assert_eq!(content_type, "text/html; charset=utf-8");
-        assert!(body.contains("<title>Bitcoin Puzzle #71 — Random Keys | Rotor</title>"));
+        assert!(body.contains("<title>Bitcoin Puzzle #71 — Random Keys | Crypto</title>"));
         assert!(body.contains(&format!(
             "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle/71/random\">"
         )));
@@ -6010,7 +6018,7 @@ mod tests {
         assert_eq!(status, 200);
         assert!(
             unsolved
-                .contains("<title>Unsolved Bitcoin puzzles — local browser scan | Rotor</title>")
+                .contains("<title>Unsolved Bitcoin puzzles — local browser scan | Crypto</title>")
         );
         assert!(unsolved.contains(target));
         assert!(!unsolved.contains("1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"));
