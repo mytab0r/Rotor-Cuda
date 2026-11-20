@@ -275,8 +275,6 @@ p { text-wrap: pretty; }
   padding: 0;
   color: #e3b341;
 }
-.key-url-notice { margin: 0 0 12px; font-size: 12px; }
-.key-help { max-width: 65ch; margin: 8px 0 0; font-size: 12px; }
 .key-error { margin: 10px 0 0; overflow-wrap: anywhere; }
 
 .key-form { grid-template-columns: minmax(0, 1fr) 180px; align-items: end; }
@@ -1819,7 +1817,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-rows { display: grid; gap: 8px; }
 .key-addr-line, .key-row { min-width: 0; }
 .key-copy, .key-copy-sm { border-radius: 7px; }
-.key-error, .key-warning, .key-url-notice { border-radius: 10px; }
+.key-error, .key-warning { border-radius: 10px; }
 
 /* --------------------------------------------------------------- cabinet */
 
@@ -2122,7 +2120,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-buttons #step-down, .key-buttons #step-up { min-width: 44px; padding: 0 10px; font-family: var(--mono); }
 .key-help { max-width: 82ch; margin: 9px 0 0; font-size: 12px; line-height: 1.55; }
 .key-error { margin-top: 12px; }
-.key-url-notice { margin: 0 0 16px; font-size: 12.5px; }
 
 /* One filter bar: chains, address types, path, presets, export and refresh. */
 .key-filter-bar {
@@ -3889,7 +3886,6 @@ details > summary { min-height: 44px; }
 
 /* Input card */
 .key-page .key-input-card { padding: 8px 14px; }
-.key-input-card .key-url-notice { flex: 1 1 320px; margin: 0; }
 .key-input-card .key-form {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -3906,36 +3902,86 @@ details > summary { min-height: 44px; }
 .key-input-card .key-segmented button { min-height: 44px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; }
 .key-input-card .key-buttons { grid-column: auto; justify-content: flex-end; flex-wrap: nowrap; gap: 6px; }
 .key-input-meta {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px 12px;
-  margin-top: 4px;
+  gap: 8px;
+  height: 40px;
+  margin-top: 2px;
+  line-height: 1.25;
 }
-.key-input-meta .key-input-status { flex: 1 1 240px; }
-.key-input-meta .key-help { max-width: 70ch; margin: 0; }
-.key-formats { margin-left: auto; }
-.key-formats > summary {
+.key-input-meta .key-input-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.key-input-meta #key-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-url-chip {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  padding: 0 4px;
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 650;
-  cursor: pointer;
-  list-style: none;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(227, 179, 65, .45);
+  border-radius: 8px;
+  background: rgba(227, 179, 65, .12);
+  color: #e3b341;
 }
-.key-formats > summary::-webkit-details-marker { display: none; }
-.key-formats > summary::after { content: "+"; margin-left: 6px; color: var(--accent); }
-.key-formats[open] > summary::after { content: "−"; }
-.key-formats[open] { flex-basis: 100%; }
-.key-formats .key-help { margin-top: 6px; }
+.key-url-chip[hidden] { display: none; }
+.key-url-chip .icon { width: 17px; height: 17px; }
+.key-exposure-status {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 34ch;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-exposure-status.ok { color: var(--ok); }
+.key-exposure-status.err { color: var(--err); }
+.key-info-btn { flex: none; margin-block: -2px; }
+.key-info-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(430px, calc(100vw - 40px));
+  max-height: min(60vh, 360px);
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .38);
+  color: var(--text-2);
+}
+.key-info-popover[hidden] { display: none; }
+.key-info-title { margin: 0 0 6px; font-size: 13px; line-height: 1.25; }
+.key-info-popover .key-help { max-width: none; margin: 6px 0 0; font-size: 12px; line-height: 1.5; }
 
 @media (max-width: 720px) {
   .key-input-card .key-form { grid-template-columns: minmax(0, 1fr); }
   .key-page .key-chains { flex-basis: 100%; }
 }
 @media (max-width: 560px) {
+  /* The status keeps one line; optional chips may take a second line instead
+   * of squeezing it, and the popover stays inside the viewport. */
+  .key-input-meta { flex-wrap: wrap; height: auto; min-height: 40px; row-gap: 2px; padding-block: 2px; }
+  .key-info-popover { width: min(430px, calc(100vw - 40px)); }
   .key-filter-bar .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Stacked label/value rows must grow: the 44px single-line height clipped
    * the value under the label once the columns switch to two rows. */
