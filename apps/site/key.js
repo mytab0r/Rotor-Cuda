@@ -34,6 +34,20 @@
   };
   var EVM_IDS = Object.keys(EVM_CHAINS);
 
+  /* Donor short names for the eight EVM chain rows. The map keeps each
+   * network's real ticker (three of them settle in ETH), while the table
+   * names the network itself. */
+  var EVM_SHORT = {
+    evm: 'ETH',
+    evm_bnb: 'BNB',
+    evm_arbitrum: 'ARB',
+    evm_optimism: 'OP',
+    evm_base: 'BASE',
+    evm_polygon: 'POL',
+    evm_avalanche: 'AVAX',
+    evm_zksync: 'zkSync'
+  };
+
   var PRESETS = {
     all: null,
     ledger: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr'],
@@ -108,29 +122,6 @@
     sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.',
     ton: 'TON wallet: address of the standard v4R2 contract whose StateInit stores this ed25519 public key.'
   };
-
-  var PATHS = {
-    btc_p2pkh: "P2PKH · m/44'/0'/0'/0/0",
-    btc_p2pkh_uncompressed: "P2PKH (uncompressed) · m/44'/0'/0'/0/0",
-    btc_p2sh_p2wpkh: "P2SH-P2WPKH · m/49'/0'/0'/0/0",
-    btc_p2wpkh: "P2WPKH · m/84'/0'/0'/0/0",
-    btc_p2tr: "P2TR · m/86'/0'/0'/0/0",
-    evm: "EVM · m/44'/60'/0'/0/0",
-    tron: "TRON · m/44'/195'/0'/0/0",
-    solana: 'Solana · ed25519 seed',
-    ltc_p2pkh: "P2PKH · m/44'/2'/0'/0/0",
-    ltc_p2sh_p2wpkh: "P2SH-P2WPKH · m/49'/2'/0'/0/0",
-    ltc_p2wpkh: "P2WPKH · m/84'/2'/0'/0/0",
-    doge_p2pkh: "P2PKH · m/44'/3'/0'/0/0",
-    bch_legacy: "P2PKH · m/44'/145'/0'/0/0",
-    bch_cashaddr: "CashAddr · m/44'/145'/0'/0/0",
-    doge_p2pkh_uncompressed: "P2PKH (uncompressed) · m/44'/3'/0'/0/0",
-    zcash_p2pkh_uncompressed: "P2PKH (uncompressed) · m/44'/133'/0'/0/0",
-    xrp_classic: "XRP · m/44'/144'/0'/0/0"
-  };
-  EVM_IDS.forEach(function (id) {
-    PATHS[id] = PATHS.evm;
-  });
 
   var STEP_ORDER = {
     btc_p2pkh: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
@@ -570,10 +561,13 @@
 
   function rowsPlaceholder() {
     rowsEl.textContent = '';
-    var note = document.createElement('p');
-    note.className = 'muted key-empty';
-    note.textContent = 'Derive a key to see its addresses.';
-    rowsEl.appendChild(note);
+    var row = document.createElement('tr');
+    var cell = document.createElement('td');
+    cell.className = 'key-empty';
+    cell.colSpan = 5;
+    cell.textContent = 'Derive a key to see its addresses.';
+    row.appendChild(cell);
+    rowsEl.appendChild(row);
   }
 
   function cancelBalances() {
@@ -824,19 +818,13 @@
       dd.textContent = value;
       row.appendChild(dt);
       row.appendChild(dd);
-      if (field[0] === 'Curve') {
-        var spacer = document.createElement('span');
-        spacer.className = 'key-copy-spacer';
-        row.appendChild(spacer);
-      } else {
-        var copy = document.createElement('button');
-        copy.type = 'button';
-        copy.className = 'key-copy key-copy-sm';
-        copy.textContent = 'Copy';
-        copy.setAttribute('aria-label', 'Copy ' + field[0] + ' value');
-        copy.addEventListener('click', function () { copyText(value, copy); });
-        row.appendChild(copy);
-      }
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'key-copy key-copy-sm';
+      copy.textContent = 'Copy';
+      copy.setAttribute('aria-label', 'Copy ' + field[0] + ' value');
+      copy.addEventListener('click', function () { copyText(value, copy); });
+      row.appendChild(copy);
       dl.appendChild(row);
     });
     group.appendChild(dl);
@@ -873,13 +861,18 @@
       if (fact.unavailable) {
         dd.className = 'key-fact-unavailable';
         dd.textContent = 'Not available — ' + fact.unavailable;
-      } else if (fact.valueHref) {
-        var valueLink = document.createElement('a');
-        valueLink.href = fact.valueHref;
-        valueLink.textContent = fact.value;
-        dd.appendChild(valueLink);
       } else {
-        dd.textContent = fact.value;
+        var code = document.createElement('code');
+        code.className = 'mono key-fact-value';
+        if (fact.valueHref) {
+          var valueLink = document.createElement('a');
+          valueLink.href = fact.valueHref;
+          valueLink.textContent = fact.value;
+          code.appendChild(valueLink);
+        } else {
+          code.textContent = fact.value;
+        }
+        dd.appendChild(code);
       }
       row.appendChild(dt);
       row.appendChild(dd);
@@ -925,20 +918,28 @@
     updateCounters();
   }
 
-  /* Public display rows: the single EVM account is shown once per network so
-   * every chain keeps its own explorer and balance, all with the same address. */
+  /* Public display rows: the single EVM account becomes the donor's ninth
+   * EVM row (a generic 0x parent) followed by eight network rows that show
+   * the same address as "↑ same". Chain groups follow the donor order. */
   function displayAddresses(report) {
     var addresses = Array.isArray(report.addresses) ? report.addresses : [];
     var out = [];
     addresses.forEach(function (addr) {
       if (!addr || !addr.id || !addr.address) return;
       if (addr.id === 'evm') {
-        EVM_IDS.forEach(function (id, index) {
+        out.push({
+          id: 'evm_parent',
+          label: 'EVM (shared 0x address)',
+          address: addr.address,
+          steps: addr.steps,
+          sharedParent: true
+        });
+        EVM_IDS.forEach(function (id) {
           out.push({
             id: id,
             label: EVM_CHAINS[id].label,
             address: addr.address,
-            steps: index === 0 ? addr.steps : null,
+            steps: null,
             sharedEvm: true
           });
         });
@@ -946,7 +947,10 @@
       }
       out.push(addr);
     });
-    return out;
+    var helper = window.RotorKeyTools;
+    return helper && typeof helper.orderAddressRows === 'function'
+      ? helper.orderAddressRows(out)
+      : out;
   }
 
   function renderAddresses(report) {
@@ -955,10 +959,7 @@
     if (!addresses.length) {
       state.focusId = null;
       if (evmSharedNote) evmSharedNote.hidden = true;
-      var note = document.createElement('p');
-      note.className = 'muted key-empty';
-      note.textContent = 'The derivation core returned no address rows.';
-      rowsEl.appendChild(note);
+      rowsPlaceholder();
       presetEmpty.hidden = true;
       syncSelection(false, false);
       syncBitcoinPanel();
@@ -967,9 +968,10 @@
     addresses.forEach(function (addr) {
       rowsEl.appendChild(buildRow(addr));
     });
-    rowsEl.insertBefore(buildTableHead(), rowsEl.firstChild);
     if (evmSharedNote) {
-      evmSharedNote.hidden = !addresses.some(function (addr) { return addr.sharedEvm; });
+      evmSharedNote.hidden = !addresses.some(function (addr) {
+        return addr.sharedEvm || addr.sharedParent;
+      });
     }
     resetBalanceBadges();
     updateChainAvailability(Array.isArray(report.addresses) ? report.addresses : [], report.curve);
@@ -1096,58 +1098,28 @@
     return table[id] || table[prefix] || { ticker: String(id).toUpperCase(), icon: 'ui-blockchain' };
   }
 
-  var TYPE_LABELS = {
-    btc_p2pkh: 'Legacy',
-    btc_p2pkh_uncompressed: 'Legacy (u)',
-    btc_p2sh_p2wpkh: 'Nested SegWit',
-    btc_p2wpkh: 'SegWit',
-    btc_p2tr: 'Taproot',
-    ltc_p2pkh: 'Legacy',
-    ltc_p2sh_p2wpkh: 'Nested SegWit',
-    ltc_p2wpkh: 'SegWit',
-    doge_p2pkh: 'Legacy',
-    doge_p2pkh_uncompressed: 'Legacy (u)',
-    bch_legacy: 'Legacy',
-    bch_cashaddr: 'CashAddr',
-    zcash_p2pkh: 'Transparent',
-    zcash_p2pkh_uncompressed: 'Transparent (u)',
-    xrp_classic: 'Classic',
-    tron: 'Base58',
-    solana: 'ed25519',
-    sui: 'Account',
-    ton: 'v4R2'
-  };
-
-  function typeLabel(id) {
-    if (EVM_CHAINS[id]) return 'EIP-55';
-    return TYPE_LABELS[id] || String(id).replace(/_/g, ' ');
+  function typeLabel(addr) {
+    if (!addr) return '';
+    if (addr.sharedEvm || addr.sharedParent) return '';
+    var helper = window.RotorKeyTools;
+    if (helper && typeof helper.addressTypeLabel === 'function') {
+      return helper.addressTypeLabel(addr.id);
+    }
+    return String(addr.id || '').replace(/_/g, ' ');
   }
 
-  function pathLabel(id) {
-    var path = PATHS[id];
-    if (!path) return '';
-    var split = path.indexOf(' · ');
-    return split >= 0 ? path.slice(split + 3) : path;
+  function rowGroup(id) {
+    var helper = window.RotorKeyTools;
+    return helper && typeof helper.rowGroup === 'function'
+      ? helper.rowGroup(id)
+      : String(id == null ? '' : id);
   }
 
-  function buildTableHead() {
-    var head = document.createElement('div');
-    head.className = 'key-table-head';
-    head.setAttribute('aria-hidden', 'true');
-    [
-      ['Chain', 'key-cell-chain'],
-      ['Type', 'key-cell-type'],
-      ['Path', 'key-cell-path'],
-      ['Address', 'key-cell-addr'],
-      ['Status', 'key-cell-status'],
-      ['', 'key-cell-act']
-    ].forEach(function (entry) {
-      var cell = document.createElement('span');
-      cell.className = 'key-cell ' + entry[1];
-      cell.textContent = entry[0];
-      head.appendChild(cell);
-    });
-    return head;
+  function counterChainKey(id) {
+    var helper = window.RotorKeyTools;
+    return helper && typeof helper.counterChainKey === 'function'
+      ? helper.counterChainKey(id)
+      : String(id == null ? '' : id);
   }
 
   function copyIconText(text, button, label) {
@@ -1181,80 +1153,21 @@
     toggle.setAttribute('title', (open ? 'Hide' : 'Show') + ' details for ' + name);
   }
 
-  function buildRow(addr) {
-    var row = document.createElement('div');
-    row.className = 'key-row';
-    row.setAttribute('data-id', addr.id);
-    row.setAttribute('data-address', addr.address);
+  function visuallyHidden(text) {
+    var span = document.createElement('span');
+    span.className = 'visually-hidden';
+    span.textContent = text;
+    return span;
+  }
 
-    var main = document.createElement('div');
-    main.className = 'key-row-main';
-
-    var chain = chainMeta(addr.id);
-    var chainCell = document.createElement('span');
-    chainCell.className = 'key-cell key-cell-chain';
-    var chainLabel = document.createElement('span');
-    chainLabel.className = 'visually-hidden';
-    chainLabel.textContent = 'Chain: ';
-    chainCell.appendChild(chainLabel);
-    var chainId = document.createElement('span');
-    chainId.className = 'key-chain-id';
-    chainId.appendChild(svgUse('/icons.svg#' + chain.icon, 'key-chain-icon'));
-    var ticker = document.createElement('span');
-    ticker.className = 'key-chain-ticker';
-    ticker.textContent = chain.ticker;
-    chainId.appendChild(ticker);
-    chainCell.appendChild(chainId);
-    main.appendChild(chainCell);
-
-    var name = addr.label || ID_LABELS[addr.id] || addr.id;
-    var typeCell = document.createElement('span');
-    typeCell.className = 'key-cell key-cell-type';
-    var typeText = document.createElement('span');
-    typeText.className = 'key-format-text';
-    typeText.textContent = typeLabel(addr.id);
-    typeCell.appendChild(typeText);
-    var title = document.createElement('span');
-    title.className = 'key-row-title visually-hidden';
-    title.textContent = name;
-    typeCell.appendChild(title);
-    main.appendChild(typeCell);
-
-    var pathCell = document.createElement('span');
-    pathCell.className = 'key-cell key-cell-path mono';
-    pathCell.textContent = pathLabel(addr.id);
-    main.appendChild(pathCell);
-
-    var addrCell = document.createElement('span');
-    addrCell.className = 'key-cell key-cell-addr';
-    var addrLabel = document.createElement('span');
-    addrLabel.className = 'visually-hidden';
-    addrLabel.textContent = 'Address: ';
-    addrCell.appendChild(addrLabel);
-    var code = document.createElement('code');
-    code.className = 'mono key-addr';
-    code.textContent = addr.address;
-    code.title = addr.address;
-    addrCell.appendChild(code);
-    main.appendChild(addrCell);
-
-    var statusCell = document.createElement('span');
-    statusCell.className = 'key-cell key-cell-status';
-    var statusLabel = document.createElement('span');
-    statusLabel.className = 'visually-hidden';
-    statusLabel.textContent = 'Status: ';
-    statusCell.appendChild(statusLabel);
-    var badge = document.createElement('span');
-    badge.className = 'key-balance';
-    badge.hidden = true;
-    statusCell.appendChild(badge);
-    main.appendChild(statusCell);
-
+  /* Derivation steps and the long descriptive label stay available in the
+   * row's third action; the donor table itself only shows the short type. */
+  function buildRowDetails(addr, name) {
     var details = document.createElement('div');
     details.className = 'key-details';
     details.id = 'key-details-' + String(addr.id).replace(/[^a-z0-9_-]/gi, '-');
     details.hidden = true;
-    var explain = EXPLAIN[addr.id] || (addr.sharedEvm ? EXPLAIN.evm : '');
+    var explain = EXPLAIN[addr.id] || (addr.sharedParent ? EXPLAIN.evm : '');
     if (explain) {
       var sentence = document.createElement('p');
       sentence.className = 'muted key-explain';
@@ -1286,48 +1199,133 @@
         details.appendChild(list);
       }
     }
+    return details;
+  }
 
-    var actions = document.createElement('span');
-    actions.className = 'key-cell key-cell-act';
-    var explorer = explorerFor(addr.id);
-    if (explorer) {
-      var ext = document.createElement('a');
-      ext.className = 'icon-btn key-row-action';
-      ext.href = explorer + encodeURIComponent(addr.address);
-      ext.target = '_blank';
-      ext.rel = 'noopener noreferrer';
-      ext.title = 'Open ' + name + ' in explorer';
-      ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
-      ext.appendChild(svgUse('/icons.svg#ui-external'));
-      actions.appendChild(ext);
+  function buildRow(addr) {
+    var row = document.createElement('tr');
+    row.className = 'key-row';
+    row.setAttribute('data-id', addr.id);
+    row.setAttribute('data-address', addr.address);
+    row.setAttribute('data-group', rowGroup(addr.id));
+    if (addr.sharedParent) row.setAttribute('data-parent', '1');
+
+    var name = addr.label || ID_LABELS[addr.id] || addr.id;
+
+    var chainCell = document.createElement('td');
+    chainCell.className = 'key-cell-chain';
+    chainCell.appendChild(visuallyHidden('Chain: '));
+    if (addr.sharedParent) {
+      var literal = document.createElement('span');
+      literal.className = 'key-chain-literal';
+      literal.textContent = '0x';
+      chainCell.appendChild(literal);
+    } else {
+      var chain = chainMeta(addr.id);
+      var chainId = document.createElement('span');
+      chainId.className = 'key-chain-id';
+      chainId.appendChild(svgUse('/icons.svg#' + chain.icon, 'key-chain-icon'));
+      var ticker = document.createElement('span');
+      ticker.className = 'key-chain-ticker';
+      ticker.textContent = addr.sharedEvm ? (EVM_SHORT[addr.id] || chain.ticker) : chain.ticker;
+      chainId.appendChild(ticker);
+      chainCell.appendChild(chainId);
     }
-    var copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'icon-btn key-row-action';
-    copy.title = 'Copy ' + name + ' address';
-    copy.setAttribute('aria-label', 'Copy ' + name + ' address');
-    copy.appendChild(svgUse('/icons.svg#ui-copy'));
-    copy.addEventListener('click', function () {
-      copyIconText(addr.address, copy, 'Copy ' + name + ' address');
-    });
-    actions.appendChild(copy);
-    var toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'icon-btn key-row-action key-details-toggle';
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-controls', details.id);
-    toggle.setAttribute('data-name', name);
-    toggle.setAttribute('aria-label', 'Show details for ' + name);
-    toggle.title = 'Show details for ' + name;
-    toggle.appendChild(svgUse('/icons.svg#ui-chevron'));
-    toggle.addEventListener('click', function () {
-      setRowDetails(row, details.hidden);
-    });
-    actions.appendChild(toggle);
-    main.appendChild(actions);
+    row.appendChild(chainCell);
 
-    row.appendChild(main);
-    row.appendChild(details);
+    var typeCell = document.createElement('td');
+    typeCell.className = 'key-cell-type';
+    var typeText = document.createElement('span');
+    typeText.className = 'key-format-text';
+    typeText.textContent = addr.sharedParent ? 'EVM' : typeLabel(addr);
+    typeText.title = name;
+    typeCell.appendChild(typeText);
+    var title = document.createElement('span');
+    title.className = 'key-row-title visually-hidden';
+    title.textContent = name;
+    typeCell.appendChild(title);
+    row.appendChild(typeCell);
+
+    var addrCell = document.createElement('td');
+    addrCell.className = 'key-cell-addr';
+    addrCell.appendChild(visuallyHidden('Address: '));
+    if (addr.sharedEvm) {
+      var same = document.createElement('span');
+      same.className = 'key-same';
+      same.textContent = '↑ same';
+      same.title = addr.address;
+      same.setAttribute('aria-label', 'Same address as the shared EVM 0x row');
+      addrCell.appendChild(same);
+    } else {
+      var code = document.createElement('code');
+      code.className = 'mono key-addr';
+      code.textContent = addr.address;
+      code.title = addr.address;
+      addrCell.appendChild(code);
+    }
+    row.appendChild(addrCell);
+
+    var statusCell = document.createElement('td');
+    statusCell.className = 'key-cell-status';
+    statusCell.appendChild(visuallyHidden('Status: '));
+    var badge = document.createElement('span');
+    badge.className = 'key-balance';
+    badge.hidden = true;
+    statusCell.appendChild(badge);
+    if (addr.sharedParent) {
+      badge.hidden = false;
+      badge.className = 'key-balance empty';
+      badge.textContent = '—';
+      badge.title = 'The shared 0x address; balances are shown on the eight network rows.';
+    }
+    row.appendChild(statusCell);
+
+    var actCell = document.createElement('td');
+    actCell.className = 'key-cell-act';
+    var actions = document.createElement('div');
+    actions.className = 'key-actions';
+    if (!addr.sharedEvm) {
+      var details = buildRowDetails(addr, name);
+      addrCell.appendChild(details);
+
+      var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
+      if (explorer) {
+        var ext = document.createElement('a');
+        ext.className = 'icon-btn key-row-action';
+        ext.href = explorer + encodeURIComponent(addr.address);
+        ext.target = '_blank';
+        ext.rel = 'noopener noreferrer';
+        ext.title = 'Open ' + name + ' in explorer';
+        ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
+        ext.appendChild(svgUse('/icons.svg#ui-external'));
+        actions.appendChild(ext);
+      }
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'icon-btn key-row-action';
+      copy.title = 'Copy ' + name + ' address';
+      copy.setAttribute('aria-label', 'Copy ' + name + ' address');
+      copy.appendChild(svgUse('/icons.svg#ui-copy'));
+      copy.addEventListener('click', function () {
+        copyIconText(addr.address, copy, 'Copy ' + name + ' address');
+      });
+      actions.appendChild(copy);
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'icon-btn key-row-action key-details-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', details.id);
+      toggle.setAttribute('data-name', name);
+      toggle.setAttribute('aria-label', 'Show details for ' + name);
+      toggle.title = 'Show details for ' + name;
+      toggle.appendChild(svgUse('/icons.svg#ui-chevron'));
+      toggle.addEventListener('click', function () {
+        setRowDetails(row, details.hidden);
+      });
+      actions.appendChild(toggle);
+    }
+    actCell.appendChild(actions);
+    row.appendChild(actCell);
     return row;
   }
 
@@ -1547,9 +1545,38 @@
     });
   }
 
+  /* The Chain cell is drawn once per visible run: its rowspan is recomputed
+   * from the rows actually shown, so an added row (Litecoin taproot, TON W5)
+   * needs no markup change. */
+  function applyGroupSpans() {
+    var rows = rowList();
+    var helper = window.RotorKeyTools;
+    var plan = helper && typeof helper.groupAddressRows === 'function'
+      ? helper.groupAddressRows(rows.map(function (row) {
+          return {
+            group: row.getAttribute('data-group') || '',
+            visible: !row.classList.contains('hidden')
+          };
+        }))
+      : rows.map(function () { return { span: 0 }; });
+    rows.forEach(function (row, index) {
+      var cell = row.querySelector('.key-cell-chain');
+      if (!cell) return;
+      var span = plan[index] ? plan[index].span : 0;
+      if (span > 0) {
+        cell.hidden = false;
+        cell.rowSpan = span;
+      } else {
+        cell.hidden = true;
+        cell.rowSpan = 1;
+      }
+    });
+  }
+
   function applyFilters() {
     if (!state.report) {
       presetEmpty.hidden = true;
+      applyGroupSpans();
       return;
     }
     var visible = 0;
@@ -1558,6 +1585,7 @@
       row.classList.toggle('hidden', !show);
       if (show) visible++;
     });
+    applyGroupSpans();
     if (visible === 0) presetEmpty.textContent = emptyMessage();
     presetEmpty.hidden = visible > 0;
     updateCounters();
@@ -1738,34 +1766,112 @@
     return svg;
   }
 
-  function setBalance(badge, kind, text, onRetry, age) {
+  function setBalance(badge, kind, text, options) {
+    var settings = options || {};
     badge.hidden = false;
-    badge.className = 'key-balance' + (kind === 'ok' ? ' ok' : kind === 'err' ? ' err' : '');
-    badge.textContent = text;
-    badge.title = text;
-    badge.removeAttribute('aria-label');
-    if (age) {
+    badge.className = 'key-balance' + (kind ? ' ' + kind : '');
+    badge.textContent = '';
+    if (kind === 'loading') {
+      var spinner = document.createElement('span');
+      spinner.className = 'key-spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      badge.appendChild(spinner);
+    }
+    if (text) {
+      var label = document.createElement('span');
+      label.className = 'key-balance-text';
+      label.textContent = text;
+      badge.appendChild(label);
+    }
+    badge.title = settings.title || text;
+    if (settings.ariaLabel) badge.setAttribute('aria-label', settings.ariaLabel);
+    else badge.removeAttribute('aria-label');
+    if (settings.age) {
       var ageEl = document.createElement('span');
       ageEl.className = 'balance-age';
-      ageEl.textContent = age;
+      ageEl.textContent = settings.age;
       badge.appendChild(ageEl);
     }
-    if (onRetry) {
+    if (settings.onRetry) {
       var button = document.createElement('button');
       button.type = 'button';
       button.className = 'key-balance-retry';
       button.title = 'Retry this balance';
       button.setAttribute('aria-label', 'Retry balance check for this address');
       button.appendChild(retryIcon());
-      button.addEventListener('click', onRetry);
+      button.addEventListener('click', settings.onRetry);
       badge.appendChild(button);
     }
   }
 
   function setNoProvider(badge) {
-    setBalance(badge, 'muted', '—');
-    badge.title = 'No balance provider for this chain yet';
-    badge.setAttribute('aria-label', 'No balance provider for this chain yet');
+    setBalance(badge, 'empty', '—', {
+      title: 'No balance provider for this chain yet',
+      ariaLabel: 'No balance provider for this chain yet'
+    });
+  }
+
+  /* Full precision stays in `title`; the table shows a shortened amount. */
+  function fullAmount(summary) {
+    var amount = 0n;
+    try {
+      amount = BigInt(summary && summary.amount != null ? summary.amount : 0);
+    } catch (err) {
+      amount = 0n;
+    }
+    var decimals = summary && Number.isInteger(summary.decimals) ? summary.decimals : 0;
+    var unit = 1n;
+    for (var index = 0; index < decimals; index += 1) unit *= 10n;
+    var whole = amount / unit;
+    var fraction = decimals > 0 ? (amount % unit).toString().padStart(decimals, '0').replace(/0+$/, '') : '';
+    var text = fraction ? whole.toString() + '.' + fraction : whole.toString();
+    return text + (summary && summary.symbol ? ' ' + summary.symbol : '');
+  }
+
+  function shortAmount(text) {
+    var point = text.indexOf('.');
+    if (point < 0) return text;
+    var whole = text.slice(0, point);
+    if (whole === '0') return text;
+    var match = /^\.(\d+)/.exec(text.slice(point));
+    if (!match || match[1].length <= 2) return text;
+    return whole + '.' + match[1].slice(0, 2) + text.slice(point + 1 + match[1].length);
+  }
+
+  function renderBalanceOutcome(row, badge, summary, meta) {
+    var settings = meta || {};
+    var amount = 0n;
+    try {
+      amount = BigInt(summary && summary.amount != null ? summary.amount : 0);
+    } catch (err) {
+      amount = 0n;
+    }
+    var full = fullAmount(summary);
+    var detail = settings.detail && settings.detail !== full ? ' · ' + settings.detail : '';
+    row.classList.toggle('has-balance', amount > 0n);
+    row.classList.toggle('is-active', !!(summary && summary.active === true));
+    row.dataset.active = summary && summary.active === true ? '1' : '0';
+    if (amount > 0n) {
+      setBalance(badge, 'ok', shortAmount(full), {
+        title: full + detail,
+        ariaLabel: full + ' balance',
+        age: settings.age
+      });
+      return;
+    }
+    if (summary && summary.active === true) {
+      setBalance(badge, 'active', '✓', {
+        title: 'Active, zero balance' + detail,
+        ariaLabel: 'Active, zero balance',
+        age: settings.age
+      });
+      return;
+    }
+    setBalance(badge, 'empty', '-', {
+      title: 'Checked; no balance or activity' + detail,
+      ariaLabel: 'Checked, no balance or activity',
+      age: settings.age
+    });
   }
 
   function resetBalanceBadges() {
@@ -1773,10 +1879,19 @@
       badge.textContent = '';
       badge.className = 'key-balance';
       badge.title = '';
+      badge.removeAttribute('aria-label');
       badge.hidden = true;
     });
     rowList().forEach(function (row) {
       delete row.dataset.balanceState;
+      delete row.dataset.active;
+      row.classList.remove('has-balance', 'is-active');
+    });
+    Array.prototype.forEach.call(rowsEl.querySelectorAll('[data-parent="1"] .key-balance'), function (badge) {
+      badge.hidden = false;
+      badge.className = 'key-balance empty';
+      badge.textContent = '—';
+      badge.title = 'The shared 0x address; balances are shown on the eight network rows.';
     });
   }
 
@@ -1841,7 +1956,16 @@
     var txs = numberOrZero(chain.tx_count) + numberOrZero(mempool.tx_count);
     return {
       text: sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx',
-      summary: { balanceSat: sats, receivedSat: funded, txs: txs, amount: sats, chain: 'btc', symbol: 'BTC' }
+      summary: {
+        amount: sats,
+        chain: 'btc',
+        symbol: 'BTC',
+        decimals: 8,
+        active: txs > 0,
+        balanceSat: sats,
+        receivedSat: funded,
+        txs: txs
+      }
     };
   }
 
@@ -1872,10 +1996,20 @@
     var wei = BigInt(balance.result);
     var text = formatEth(wei) + ' ' + chain.symbol;
     var nonce = byId[2];
-    if (nonce && typeof nonce.result === 'string') text += ' · nonce ' + BigInt(nonce.result).toString();
+    var nonceCount = 0n;
+    if (nonce && typeof nonce.result === 'string') {
+      nonceCount = BigInt(nonce.result);
+      text += ' · nonce ' + nonceCount.toString();
+    }
     return {
       text: text,
-      summary: { amount: wei, chain: chain.slug, symbol: chain.symbol }
+      summary: {
+        amount: wei,
+        chain: chain.slug,
+        symbol: chain.symbol,
+        decimals: 18,
+        active: nonceCount > 0n
+      }
     };
   }
 
@@ -1924,7 +2058,7 @@
     if (response.status === 404) {
       return {
         text: '0 TRX · account not activated',
-        summary: { amount: 0n, chain: 'tron', symbol: 'TRX' }
+        summary: { amount: 0n, chain: 'tron', symbol: 'TRX', decimals: 6, active: false }
       };
     }
     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -1942,7 +2076,13 @@
     if (txs !== null) text += ' · ' + txs + ' tx';
     return {
       text: text,
-      summary: { amount: sun, chain: 'tron', symbol: 'TRX' }
+      summary: {
+        amount: sun,
+        chain: 'tron',
+        symbol: 'TRX',
+        decimals: 6,
+        active: txs !== null && txs > 0
+      }
     };
   }
 
@@ -1964,9 +2104,9 @@
       if (!id) return;
       var summary = state.balances[id];
       entries.push({
-        address: row.getAttribute('data-address'),
-        chain: summary && summary.chain,
+        chain: counterChainKey(id),
         amount: summary && summary.amount,
+        active: !!(summary && summary.active),
         state: row.dataset.balanceState || '',
         checkable: rowHasProvider(id),
         visible: !row.classList.contains('hidden')
@@ -1974,8 +2114,8 @@
     });
     var helper = window.RotorKeyTools;
     var counters = helper && typeof helper.balanceCounters === 'function'
-      ? helper.balanceCounters(entries)
-      : { withBalance: 0, activeChains: 0, checked: 0, total: 0 };
+      ? helper.balanceCounters(entries, 18)
+      : { withBalance: 0, activeChains: 0, checked: 0, total: 18 };
     if (statTotal) {
       statTotal.textContent = '—';
       statTotal.classList.add('empty');
@@ -2029,9 +2169,14 @@
 
   function cachedSummary(value) {
     var summary = value && value.summary;
-    if (!summary) return null;
+    if (!summary || summary.amount === undefined || summary.amount === null || summary.amount === '') return null;
     try {
       return {
+        amount: BigInt(String(summary.amount)),
+        chain: summary.chain || '',
+        symbol: summary.symbol || '',
+        decimals: Number.isInteger(summary.decimals) ? summary.decimals : 18,
+        active: summary.active === true,
         balanceSat: BigInt(String(summary.balanceSat || '0')),
         receivedSat: BigInt(String(summary.receivedSat || '0')),
         txs: Number(summary.txs || 0)
@@ -2043,11 +2188,17 @@
 
   function serializeResult(result) {
     var value = { text: typeof result === 'string' ? result : (result && result.text ? result.text : '') };
-    if (result && result.summary) {
+    var summary = result && result.summary;
+    if (summary) {
       value.summary = {
-        balanceSat: String(result.summary.balanceSat),
-        receivedSat: String(result.summary.receivedSat),
-        txs: Number(result.summary.txs)
+        amount: summary.amount == null ? '0' : String(summary.amount),
+        chain: summary.chain || '',
+        symbol: summary.symbol || '',
+        decimals: Number.isInteger(summary.decimals) ? summary.decimals : 18,
+        active: summary.active === true,
+        balanceSat: String(summary.balanceSat == null ? '0' : summary.balanceSat),
+        receivedSat: String(summary.receivedSat == null ? '0' : summary.receivedSat),
+        txs: Number(summary.txs || 0)
       };
     }
     return value;
@@ -2063,7 +2214,14 @@
     if (summary) state.balances[row.getAttribute('data-id')] = summary;
     row.dataset.balanceState = 'ok';
     row.dataset.balanceAt = String(entry.fetchedAt || '');
-    setBalance(badge, 'ok', value.text, null, cacheApi ? cacheApi.ageLabel(entry, now) : '');
+    if (summary) {
+      renderBalanceOutcome(row, badge, summary, {
+        age: cacheApi ? cacheApi.ageLabel(entry, now) : '',
+        detail: value.text
+      });
+    } else {
+      setBalance(badge, 'ok', value.text, { title: value.text, age: cacheApi ? cacheApi.ageLabel(entry, now) : '' });
+    }
     if (summary) renderBalanceCards();
     return true;
   }
@@ -2121,7 +2279,7 @@
     }
     var info = rowCacheInfo(row);
     row.dataset.balanceState = 'loading';
-    setBalance(badge, 'loading', 'checking…');
+    setBalance(badge, 'loading', 'Checking', { title: 'Checking balance…', ariaLabel: 'Checking balance' });
     updateCounters();
     var request = async function () {
       if (id.indexOf('btc_') === 0) return fetchBtc(address, signal);
@@ -2143,8 +2301,18 @@
         state.cached[info.key] = entry;
         await cachePut(info.key, entry);
       }
-      setBalance(badge, 'ok', value.text, null, entry ? cacheApi.ageLabel(entry, Date.now()) : '');
-      if (result && result.summary) renderBalanceCards();
+      if (result && result.summary) {
+        renderBalanceOutcome(row, badge, result.summary, {
+          age: entry ? cacheApi.ageLabel(entry, Date.now()) : '',
+          detail: value.text
+        });
+        renderBalanceCards();
+      } else {
+        setBalance(badge, 'ok', value.text, {
+          title: value.text,
+          age: entry ? cacheApi.ageLabel(entry, Date.now()) : ''
+        });
+      }
       updateCounters();
       updateKeyRefreshButton();
     } catch (err) {
@@ -2153,8 +2321,14 @@
         ? 'timeout after ' + (TIMEOUT_MS / 1000) + ' s'
         : (err && err.message ? err.message : 'unknown error');
       row.dataset.balanceState = 'err';
-      setBalance(badge, 'err', 'lookup failed: ' + message, function () {
-        checkVisibleBalances({ onlyRows: [row] });
+      row.dataset.active = '0';
+      row.classList.remove('has-balance', 'is-active');
+      setBalance(badge, 'err', '!', {
+        title: 'Lookup failed: ' + message,
+        ariaLabel: 'Balance lookup failed: ' + message,
+        onRetry: function () {
+          checkVisibleBalances({ onlyRows: [row] });
+        }
       });
       updateCounters();
       updateKeyRefreshButton();
@@ -2169,6 +2343,10 @@
       if (row.classList.contains('hidden') || rowCacheInfo(row)) return;
       var badge = row.querySelector('.key-balance');
       if (!badge) return;
+      if (row.getAttribute('data-parent') === '1') {
+        row.dataset.balanceState = 'off';
+        return;
+      }
       row.dataset.balanceState = 'off';
       setNoProvider(badge);
     });
