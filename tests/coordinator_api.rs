@@ -1049,8 +1049,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261125j",
-                "/theme.js?v=20261125j",
+                "/wallet-vault.js?v=20261125k",
+                "/theme.js?v=20261125k",
             ],
         ),
         (
