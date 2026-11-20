@@ -73,8 +73,16 @@
   stats in the table footer.
 - [ ] Reusable icon-button (28/36/44, copied state), compact-row and
   skeleton/empty/error primitives.
-- [ ] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
-- [ ] Tools index: 8 families with alias rows.
+- [x] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
+  Evidence: `apps/site/site.js` (`RotorSiteNav.splitLinks`/`activeInTail` and
+  `setupNav`: four inline links, the rest in an `aria-expanded` More
+  disclosure, Escape/outside-click close, idempotent rebuild on resize);
+  `apps/site/site.css` (drawer styles, 44px targets, icon-only inline links
+  ≤520px, reduced motion off); search and theme toggles were already
+  icon-only; `apps/site/site-nav-test.mjs`.
+- [x] Tools index: 8 families with alias rows. Evidence:
+  `apps/site/tools.html:106` (eight `article.tool-family` blocks), `:113-121`
+  (alias chips per family), `apps/site/site.css:47-64` (44px link chips).
 - [x] Address types: BCH legacy + CashAddr, DOGE compressed/uncompressed,
   ZEC transparent compressed/uncompressed. Evidence:
   `apps/site/address-codecs.js` (CashAddr + Base58Check encoders),
@@ -90,10 +98,43 @@
   `apps/site/key-tools.js:799` (label, explainer, derivation steps),
   `crates/rotor-wasm/src/lib.rs:1813` (row assertion). v4R2 stays as the
   second TON row; directory tabs still show one type per chain.
-- [ ] Breadcrumbs on every page; consistent `aria-current`.
-- [ ] Seed converter: live word counter, 20 addresses, Load next 5, Copy All.
-- [ ] Vanity: threads/ETA/difficulty/save/recent; pubkey-add: P−Q and scalar
-  multiply.
+- [x] Breadcrumbs on every public page; one current crumb per trail. Evidence:
+  `apps/site/*.html` (crumb as the first child of `<main>` on docs, key, vanity,
+  seed, mnemonic-converter, milk-sad, tools, hex-dec-bin, public-key,
+  pubkey-add, keystore-parser, reconstruction, tx, tx/bitcoin, tx/ethereum and
+  send), `src/coordinator/mod.rs`
+  (`public_pages_render_one_breadcrumb_and_one_current_crumb`; the generated
+  `/private-keys` hub gained its visible trail). Main-nav and chain-tab
+  `aria-current="page"` markers stay in place: they are different landmarks,
+  and the test scopes its count to the breadcrumb nav.
+- [x] Seed converter: live word counter, 20 addresses, Load next 5, Copy All.
+  Evidence: `apps/site/mnemonic-converter.html:75` (live counter),
+  `:86` (20-address option), `:106-107` (Copy All / Load next 5),
+  `:109` (Active/Sum aggregate); `apps/site/seed-page.js:397` (word counter and
+  scheme hint), `:653` (`loadNextBatch`, next five per path from the snapshot),
+  `:1070` (honest aggregates), `:1177` (public rows only, never keys);
+  `apps/site/seed-test.mjs` (word hints per scheme, batch index math, a pinned
+  20-address derivation). The lifetime "Received" total is not shown: the
+  public providers used here (blockchain.info, `eth_getBalance`) do not return
+  it, so none is invented.
+- [x] Vanity: difficulty, ETA and a recent-address list. Evidence:
+  `apps/site/vanity.html:68` (expected work next to the pattern inputs),
+  `:74-77` (Attempts / Rate / ETA / Elapsed, four even groups), `:87-90`
+  (recent matches card); `apps/site/vanity.js:22-55` (alphabet, attempts and
+  ETA helpers), `:285` (`addRecent`), `:223-241` (localStorage whitelist:
+  chain, pattern, address, foundAt only); `apps/site/vanity-test.mjs`
+  (difficulty/ETA math and a sanitizer test proving `key`/`wif`/`priv_hex`
+  never survive). Deliberate deviation: private keys and WIF are never saved,
+  and the page keeps saying so.
+- [ ] Vanity: multi-thread workers and QR output. Threads need a served worker
+  file plus coordinator routes; QR is not implemented.
+- [x] Pubkey-add: P−Q and scalar multiplication. Evidence:
+  `crates/rotor-wasm/src/derive.rs:309` (`pubkey_subtract_report`),
+  `:323` (`pubkey_mul_report`, scalar 1..n−1), `:346` (shared point report);
+  `crates/rotor-wasm/src/lib.rs:441` / `:458` (session methods), `:985` /
+  `:1013` (C exports); `apps/site/pubkey-add.html:45-46` (operation select);
+  `apps/site/key-tools-test.mjs` (pinned P2−P1=P1, k·G, zero-scalar rejection);
+  `cargo test -p rotor-wasm` 75 passed.
 
 ## Shared Cloudflare Worker balance cache
 

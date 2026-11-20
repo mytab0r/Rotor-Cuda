@@ -194,7 +194,7 @@
     status: 'partial',
     priority: 'P1',
     donorIds: ['pkf:/mnemonic-converter'],
-    note: 'Missing the donor word counter, 20-address option, “Load next 5”, Copy All, Received/Active aggregates, hardened checkbox and breadcrumbs.'
+    note: 'Word counter, 20-address option, “Load next 5”, Copy All and Active/Sum aggregates are present. The donor’s lifetime Received total is not shown because the public providers used here do not return it; there is no separate hardened checkbox.'
   });
 
   oursRoute({
@@ -801,7 +801,7 @@
     ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
     ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; the interactive curve editor and signing entry remain.'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
-    ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'partial', 'P1', 'Crypto only adds (P + Q); the donor also subtracts and multiplies.'],
+    ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'parity', '-', 'P + Q, P − Q and k · P run in the local wasm core, with the same compressed/uncompressed report.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
     ['/HexDecBin', 'Hex / decimal / binary', 'tools', '/hex-dec-bin', 'parity', '-', ''],
     ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', '/tx/bitcoin', 'parity', '-', 'Raw hex to inputs, outputs, scripts, fee (with supplied prevouts) and JSON.'],
@@ -814,7 +814,7 @@
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; secretscan.org shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The secretscan.org nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
-    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto lacks threads, ETA, difficulty, save/recent and QR.'],
+    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto shows difficulty, ETA and a recent-address list (addresses only; keys are never saved). Threads and QR are missing.'],
     ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Crypto lacks drag-and-drop, examples and metadata.'],
     ['/dashboard', 'Account dashboard', 'wallet', '/cabinet', 'partial', 'P2', 'Crypto /cabinet is an address monitor, not a calculator dashboard.'],
     ['/results', 'Scanner results', 'tools', null, 'missing', 'P2', 'No scanner in Crypto, so there is nothing honest to show.'],
@@ -943,7 +943,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Crypto has the conversion and up to 10 addresses, but not the full donor control set.'
+    note: 'Word counter, 20 addresses, Load next 5, Copy All and Active/Sum aggregates are present, as are breadcrumbs. There is no separate hardened checkbox, and the lifetime Received total is not shown because the public providers do not return it.'
   });
 
   feature({
@@ -1239,11 +1239,11 @@
     area: 'site',
     capability: 'Responsive header without horizontal scroll below 860px',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'The header scrolls horizontally instead of offering a hamburger/More menu.'
+    note: 'Below 860px the first four links stay inline and the rest move into a More disclosure with Escape/outside-click close; search and theme toggles are icon-only.'
   });
 
   feature({
@@ -1251,11 +1251,11 @@
     area: 'tools',
     capability: 'Tools catalogue grouped into 8 families with alias rows',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'Crypto /tools renders 26 flat cards; aliases and family grouping are missing.'
+    note: 'Crypto /tools renders eight families with 37 alias chips, each at the 44px touch target.'
   });
 
   feature({
@@ -1291,7 +1291,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Breadcrumbs are inconsistent, pages can show three control panels, and skeleton/empty/error components are not shared.'
+    note: 'Breadcrumbs are now consistent on every public page, with one current crumb per trail. Pages can still show three control panels, and skeleton/empty/error components are not shared.'
   });
 
   feature({
