@@ -376,7 +376,7 @@
       if (window.RotorSearch) return Promise.resolve(window.RotorSearch);
       return new Promise(function (resolve, reject) {
         var script = document.createElement('script');
-        script.src = '/search.js?v=20261124e';
+        script.src = '/search.js?v=20261125a';
         script.onload = function () {
           if (window.RotorSearch) resolve(window.RotorSearch);
           else reject(new Error('Search did not load.'));

@@ -426,6 +426,12 @@
     return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
   }
 
+  function timeAgo(ms) {
+    return cacheApi && typeof cacheApi.relativeTime === 'function'
+      ? cacheApi.relativeTime(ms, Date.now())
+      : '';
+  }
+
   function setSummary(balance, received, tx) {
     if (totalBalance) totalBalance.textContent = balance;
     if (totalReceived) totalReceived.textContent = received;
@@ -725,7 +731,11 @@
         try {
           var task = function () { return fetcher(address); };
           var value = cacheApi ? await cacheApi.withRetry(task, retryOptions()) : await task();
-          values[address] = { balance: String(value) };
+          /* TRON returns balance + tx metadata; the other per-address
+           * providers return a bare balance. */
+          values[address] = value && typeof value === 'object'
+            ? value
+            : { balance: String(value) };
         } catch (err) {
           errors[address] = errorMessage(err);
         }
@@ -739,9 +749,33 @@
       .then(function (data) { return Number(data.result || 0); });
   }
 
-  function tronBalance(address) {
+  function tronBalanceDirect(address) {
     return accountJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address))
-      .then(function (data) { return Number(data.balance || 0); });
+      .then(function (data) { return { balance: String(Number(data.balance || 0)) }; });
+  }
+
+  async function tronBalance(address) {
+    /* Same-origin first; only a static host (404) or a coordinator without
+     * the key (501) falls back to the previous direct TronScan request. */
+    var response = await fetch('/api/v1/chain/tron/address?address=' + encodeURIComponent(address));
+    if (response.status === 404 || response.status === 501) return tronBalanceDirect(address);
+    if (!response.ok) {
+      var err = new Error('HTTP ' + response.status);
+      err.status = response.status;
+      throw err;
+    }
+    var data = await response.json();
+    if (!data || typeof data !== 'object' || data.chain !== 'tron') {
+      throw new Error('unexpected response');
+    }
+    var balance = data.balance_sun === null || data.balance_sun === undefined
+      ? null
+      : String(data.balance_sun);
+    return {
+      balance: balance,
+      tx: typeof data.tx_count === 'number' && isFinite(data.tx_count) ? data.tx_count : undefined,
+      lastTxAt: typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : undefined
+    };
   }
 
   function xrpBalance(address) {
@@ -786,22 +820,29 @@
       return;
     }
     var value = picked.value || {};
+    var hasBalance = value.balance !== null && value.balance !== undefined;
+    var balanceText = hasBalance ? coin(value.balance, meta.decimals) + ' ' + meta.symbol : '—';
     cell.textContent = '';
     var main = document.createElement('span');
-    main.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    main.textContent = balanceText;
     cell.appendChild(main);
-    if (value.tx !== undefined && value.tx !== null) {
-      var txEl = document.createElement('small');
-      txEl.textContent = value.tx + ' tx';
-      cell.appendChild(txEl);
+    var details = [];
+    if (value.tx !== undefined && value.tx !== null) details.push(value.tx + ' tx');
+    if (value.lastTxAt !== undefined && value.lastTxAt !== null) {
+      var lastAgo = timeAgo(value.lastTxAt);
+      if (lastAgo) details.push('last ' + lastAgo);
+    }
+    if (details.length) {
+      var detailEl = document.createElement('small');
+      detailEl.textContent = details.join(' · ');
+      cell.appendChild(detailEl);
     }
     var age = document.createElement('small');
     age.className = 'balance-age';
     age.textContent = cacheApi ? cacheApi.ageLabel(picked, now) : '';
     if (age.textContent) cell.appendChild(age);
-    cell.classList.toggle('has-balance', Number(value.balance) > 0);
-    cell.title = value.balance + ' ' + meta.symbol +
-      (value.tx !== undefined && value.tx !== null ? ' · ' + value.tx + ' tx' : '');
+    cell.classList.toggle('has-balance', hasBalance && Number(value.balance) > 0);
+    cell.title = balanceText + (details.length ? ' · ' + details.join(' · ') : '');
     group.row.dataset.balanceState = cacheApi && cacheApi.isFresh(picked, meta.provider, now) ? 'ok' : 'stale';
     group.row.dataset.balanceAt = String(picked.fetchedAt || '');
   }

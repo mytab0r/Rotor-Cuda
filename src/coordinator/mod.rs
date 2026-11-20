@@ -18,7 +18,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 use serde_json::json;
@@ -114,6 +114,14 @@ const RATE_PER_SECOND: f64 = 20.0;
 const RATE_BURST: f64 = 40.0;
 /// Minimum seconds between two self-service registrations from one remote IP.
 const REGISTER_WINDOW_SECS: u64 = 60;
+/// TronScan upstream for public TRON lookups. The API key is read once at
+/// startup from `TRONSCAN_API_KEY` and only ever sent as a request header.
+const TRONSCAN_API_BASE: &str = "https://apilist.tronscanapi.com";
+const TRONSCAN_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const TRONSCAN_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const TRONSCAN_WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+const TRONSCAN_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
+const TRONSCAN_RETRY_DELAY: Duration = Duration::from_millis(250);
 /// Number of request handlers currently running.
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
@@ -275,6 +283,9 @@ struct App {
     /// [`wallets`]. Fixed at startup (options or `ROTOR_WALLETS_UPSTREAM`);
     /// request input can only pick a chain from the allowlist, never a host.
     wallets_upstream: Option<String>,
+    /// TronScan Pro API key from `TRONSCAN_API_KEY`. Never serialized or
+    /// logged; `None` makes `/api/v1/chain/tron/address` answer `501`.
+    tronscan_api_key: Option<String>,
     /// Telegram Bot API configuration for monitor alert linking/delivery.
     telegram: Arc<crate::monitor::notify::TelegramConfig>,
 }
@@ -391,7 +402,7 @@ pub fn spawn_with_clients(
 }
 
 /// Runtime options shared by the coordinator and the monitor.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ServerOptions {
     /// Enable public `POST /api/v1/register`.
     pub open_registration: bool,
@@ -405,6 +416,24 @@ pub struct ServerOptions {
     /// project's public release host (a server-side constant, never a request
     /// parameter).
     pub wallets_upstream: Option<String>,
+    /// Optional TronScan Pro API key. `None` (the default) reads
+    /// `TRONSCAN_API_KEY`; it is never exposed in responses or errors.
+    pub tronscan_api_key: Option<String>,
+}
+
+impl std::fmt::Debug for ServerOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServerOptions")
+            .field("open_registration", &self.open_registration)
+            .field("trust_proxy", &self.trust_proxy)
+            .field("monitor_domain", &self.monitor_domain)
+            .field("wallets_upstream", &self.wallets_upstream)
+            .field(
+                "tronscan_api_key_configured",
+                &self.tronscan_api_key.is_some(),
+            )
+            .finish()
+    }
 }
 
 impl Default for ServerOptions {
@@ -414,6 +443,10 @@ impl Default for ServerOptions {
             trust_proxy: false,
             monitor_domain: "localhost".to_string(),
             wallets_upstream: None,
+            tronscan_api_key: std::env::var("TRONSCAN_API_KEY")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
         }
     }
 }
@@ -496,6 +529,11 @@ fn spawn_inner(
         .or_else(|| std::env::var("ROTOR_WALLETS_UPSTREAM").ok())
         .map(|value| value.trim().trim_end_matches('/').to_string())
         .filter(|value| !value.is_empty());
+    let tronscan_api_key = options
+        .tronscan_api_key
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     let mut state = state::State::open(state_path)?;
     if !clients.is_empty() {
         let entries = clients
@@ -523,6 +561,7 @@ fn spawn_inner(
         walletconnect_project_id: std::env::var("ROTOR_WALLETCONNECT_PROJECT_ID")
             .unwrap_or_default(),
         wallets_upstream,
+        tronscan_api_key,
         telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
     });
     let listener = Arc::clone(&server);
@@ -580,6 +619,7 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
         || path == "/api/v1/register"
         || path == "/api/v1/monitor/config"
         || path == "/api/v1/telegram/webhook"
+        || path == "/api/v1/chain/tron/address"
         || path.starts_with("/api/v1/wallets")
     {
         return 503;
@@ -700,6 +740,15 @@ fn handle(app: Arc<App>, request: Request) {
     // Public worker snapshot: same open, rate-limited policy.
     if method == Method::Get && path == "/api/v1/workers/public" {
         return public_workers(&app, request);
+    }
+
+    // Public TRON lookup. TronScan is called server-side with the operator's
+    // API key; without a key the route refuses rather than inventing data.
+    if path == "/api/v1/chain/tron/address" {
+        if method == Method::Get {
+            return tron_address(&app, request, query);
+        }
+        return respond_json(request, 405, &json!({ "error": "method not allowed" }));
     }
 
     // Self-service registration is public; the flag decides 403 vs 201.
@@ -1751,9 +1800,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261124f\">\n\
-         <script src=\"/theme.js?v=20261124f\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261124f\"></script>\n<script src=\"/site.js?v=20261124f\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261125a\">\n\
+         <script src=\"/theme.js?v=20261125a\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261125a\"></script>\n<script src=\"/site.js?v=20261125a\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2444,7 +2493,7 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124f\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261125a\">\n");
     let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
          <span aria-current=\"page\">Brainwallet</span></nav>";
@@ -2554,7 +2603,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124f\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261125a\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2614,8 +2663,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261124f\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261124f\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261125a\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261125a\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2653,7 +2702,7 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261124f\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261125a\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
@@ -2704,8 +2753,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261124f\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261124f\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261125a\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261125a\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -3046,7 +3095,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261124f\"></script>\n         <script src=\"/browse.js?v=20261124f\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261125a\"></script>\n         <script src=\"/browse.js?v=20261125a\"></script>",
         site_header(),
         "",
         chain.color,
@@ -4200,6 +4249,229 @@ fn public_workers(app: &App, request: Request) {
     respond_json(request, 200, &json!({ "workers": workers }));
 }
 
+/// `GET /api/v1/chain/tron/address?address=...`: public TRON balance and
+/// transaction count proxied through TronScan. The API key stays server-side.
+fn tron_address(app: &App, request: Request, query: &str) {
+    let ip = client_ip(&request, app.trust_proxy);
+    if !app.rate.allow(&format!("public-tron:{ip}")) {
+        return respond_rate_limited(request);
+    }
+    let Some(address) = query_param(query, "address") else {
+        return respond_json(request, 400, &json!({ "error": "missing address" }));
+    };
+    if !valid_tron_address(address) {
+        return respond_json(request, 400, &json!({ "error": "invalid tron address" }));
+    }
+    let Some(key) = app.tronscan_api_key.as_deref() else {
+        return respond_json(request, 501, &json!({ "error": "no_provider" }));
+    };
+    let agent = tronscan_agent();
+    match tron_lookup(&agent, key, address) {
+        Ok(body) => respond_json(request, 200, &body),
+        Err(reason) => respond_json(request, 502, &json!({ "error": reason })),
+    }
+}
+
+/// Base58 address shape: 34 characters starting with `T`. The checksum is
+/// not verified here; TronScan rejects a malformed account on its own.
+fn valid_tron_address(address: &str) -> bool {
+    const ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    address.len() == 34
+        && address.starts_with('T')
+        && address.bytes().all(|byte| ALPHABET.contains(&byte))
+}
+
+fn tronscan_agent() -> ureq::Agent {
+    let mut builder = ureq::AgentBuilder::new()
+        .user_agent("rotor-coord/2.0 tronscan-proxy")
+        .timeout_connect(TRONSCAN_CONNECT_TIMEOUT)
+        .timeout_read(TRONSCAN_READ_TIMEOUT)
+        .timeout_write(TRONSCAN_WRITE_TIMEOUT);
+    // ureq only uses native-tls when the connector is attached explicitly.
+    if let Ok(connector) = ureq::native_tls::TlsConnector::new() {
+        builder = builder.tls_connector(Arc::new(connector));
+    }
+    builder.build()
+}
+
+enum TronFetchError {
+    NotFound,
+    Status(u16),
+    Transport,
+    Body,
+}
+
+/// One TronScan GET with a bounded body and a single retry on 429/5xx.
+/// Errors never contain the API key or the request headers.
+fn tronscan_get(
+    agent: &ureq::Agent,
+    key: &str,
+    url: &str,
+) -> Result<serde_json::Value, TronFetchError> {
+    let mut retried = false;
+    loop {
+        match agent.get(url).set("TRON-PRO-API-KEY", key).call() {
+            Ok(response) => {
+                let mut body = String::new();
+                response
+                    .into_reader()
+                    .take(TRONSCAN_MAX_BODY_BYTES as u64 + 1)
+                    .read_to_string(&mut body)
+                    .map_err(|_| TronFetchError::Body)?;
+                if body.len() > TRONSCAN_MAX_BODY_BYTES {
+                    return Err(TronFetchError::Body);
+                }
+                return serde_json::from_str(&body).map_err(|_| TronFetchError::Body);
+            }
+            Err(ureq::Error::Status(status, _))
+                if !retried && (status == 429 || (500..=599).contains(&status)) =>
+            {
+                retried = true;
+                thread::sleep(TRONSCAN_RETRY_DELAY);
+            }
+            Err(ureq::Error::Status(404, _)) => return Err(TronFetchError::NotFound),
+            Err(ureq::Error::Status(status, _)) => return Err(TronFetchError::Status(status)),
+            Err(ureq::Error::Transport(_)) => return Err(TronFetchError::Transport),
+        }
+    }
+}
+
+fn tron_error_reason(error: TronFetchError) -> &'static str {
+    match error {
+        TronFetchError::NotFound => "provider returned no data",
+        TronFetchError::Status(429) => "provider rate limited",
+        TronFetchError::Status(status) if (500..=599).contains(&status) => "provider unavailable",
+        TronFetchError::Status(_) => "provider rejected the request",
+        TronFetchError::Transport => "provider unreachable",
+        TronFetchError::Body => "unexpected provider response",
+    }
+}
+
+fn tron_lookup(
+    agent: &ureq::Agent,
+    key: &str,
+    address: &str,
+) -> Result<serde_json::Value, &'static str> {
+    let account_url = format!("{TRONSCAN_API_BASE}/api/account?address={address}");
+    let account = match tronscan_get(agent, key, &account_url) {
+        Ok(value) => value,
+        // An unknown account is an empty account, not an upstream failure.
+        Err(TronFetchError::NotFound) => serde_json::Value::Null,
+        Err(error) => return Err(tron_error_reason(error)),
+    };
+    let transaction_url = format!(
+        "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit=1&start=0&address={address}"
+    );
+    let transaction = match tronscan_get(agent, key, &transaction_url) {
+        Ok(value) => value,
+        Err(TronFetchError::NotFound) => serde_json::Value::Null,
+        Err(error) => return Err(tron_error_reason(error)),
+    };
+    tron_response(address, &account, &transaction)
+}
+
+/// TronScan reports the balance of very large accounts as a negative int64
+/// when its own 64-bit counter overflows. That is not a real balance: the
+/// caller gets `balance_sun: null` plus `balance_error` instead of a wrong
+/// number.
+fn parse_tron_balance(account: &serde_json::Value) -> Result<Option<String>, ()> {
+    let Some(value) = account.get("balance") else {
+        return Ok(Some("0".to_string()));
+    };
+    match value {
+        serde_json::Value::Null => Ok(Some("0".to_string())),
+        serde_json::Value::Number(number) => {
+            if let Some(balance) = number.as_i64() {
+                return if balance < 0 {
+                    Ok(None)
+                } else {
+                    Ok(Some(balance.to_string()))
+                };
+            }
+            if let Some(balance) = number.as_u64() {
+                return Ok(Some(balance.to_string()));
+            }
+            match number.as_f64() {
+                Some(balance) if balance.is_finite() && balance >= 0.0 => {
+                    Ok(Some(format!("{balance:.0}")))
+                }
+                _ => Ok(None),
+            }
+        }
+        serde_json::Value::String(text) => {
+            let text = text.trim();
+            if text.is_empty() {
+                Ok(Some("0".to_string()))
+            } else if text.starts_with('-') {
+                Ok(None)
+            } else if text.bytes().all(|byte| byte.is_ascii_digit()) {
+                Ok(Some(text.to_string()))
+            } else {
+                Err(())
+            }
+        }
+        _ => Err(()),
+    }
+}
+
+fn tron_count_at(value: &serde_json::Value, key: &str) -> Option<u64> {
+    let field = value.get(key)?;
+    if let Some(count) = field.as_u64() {
+        return Some(count);
+    }
+    if let Some(count) = field.as_i64() {
+        return u64::try_from(count).ok();
+    }
+    field.as_str()?.trim().parse::<u64>().ok()
+}
+
+fn parse_tron_tx_count(transaction: &serde_json::Value, account: &serde_json::Value) -> u64 {
+    tron_count_at(transaction, "rangeTotal")
+        .or_else(|| tron_count_at(transaction, "total"))
+        .or_else(|| tron_count_at(transaction, "totalTransactionCount"))
+        .or_else(|| tron_count_at(account, "totalTransactionCount"))
+        .unwrap_or(0)
+}
+
+fn parse_tron_last_tx(transaction: &serde_json::Value) -> Option<u64> {
+    let first = transaction.get("data")?.as_array()?.first()?;
+    ["timestamp", "block_ts"].into_iter().find_map(|key| {
+        let field = first.get(key)?;
+        if let Some(stamp) = field.as_u64() {
+            return Some(stamp);
+        }
+        if let Some(stamp) = field.as_i64() {
+            return u64::try_from(stamp).ok();
+        }
+        field.as_str()?.trim().parse::<u64>().ok()
+    })
+}
+
+fn tron_response(
+    address: &str,
+    account: &serde_json::Value,
+    transaction: &serde_json::Value,
+) -> Result<serde_json::Value, &'static str> {
+    let balance = if account.is_null() {
+        Some("0".to_string())
+    } else {
+        parse_tron_balance(account).map_err(|_| "unexpected provider response")?
+    };
+    let overflow = balance.is_none();
+    let mut response = json!({
+        "chain": "tron",
+        "address": address,
+        "balance_sun": balance,
+        "tx_count": parse_tron_tx_count(transaction, account),
+        "last_tx_at": parse_tron_last_tx(transaction),
+        "source": "tronscan",
+    });
+    if overflow {
+        response["balance_error"] = json!("provider_overflow");
+    }
+    Ok(response)
+}
+
 fn create_job(app: &App, mut request: Request) {
     let body = match read_body(&mut request) {
         Ok(body) => body,
@@ -4861,7 +5133,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261124f"),
+                page.contains("/theme.js?v=20261125a"),
                 "{path} does not load the theme script"
             );
         }
@@ -4903,8 +5175,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261124f\"></script>"));
-        assert!(page.contains("/site.css?v=20261124f"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261125a\"></script>"));
+        assert!(page.contains("/site.css?v=20261125a"));
     }
 
     #[test]
@@ -5137,7 +5409,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261124f"));
+        assert!(body.contains("brainwallet.css?v=20261125a"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5157,7 +5429,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261124f"));
+        assert!(body.contains("brainwallet.css?v=20261125a"));
     }
 
     #[test]
@@ -5186,12 +5458,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261124f"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261125a"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261124f"),
+                body.contains("brainwallet-directory.js?v=20261125a"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261124f"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261125a"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -5255,9 +5527,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261124f"));
-        assert!(body.contains("brainwallet.js?v=20261124f"));
-        assert!(body.contains("brainwallet.css?v=20261124f"));
+        assert!(body.contains("brainwallet-engine.js?v=20261125a"));
+        assert!(body.contains("brainwallet.js?v=20261125a"));
+        assert!(body.contains("brainwallet.css?v=20261125a"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -5593,11 +5865,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261124f\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261124f\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261124f\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261124f\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261124f\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261125a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261125a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261125a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261125a\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261125a\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 
@@ -6356,5 +6628,110 @@ mod tests {
 
         drop(handle);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn tron_address_shape_is_validated() {
+        assert!(valid_tron_address("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"));
+        for bad in [
+            "",
+            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6",
+            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6tt",
+            "AR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj60",
+            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6O",
+            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6I",
+            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6l",
+        ] {
+            assert!(!valid_tron_address(bad), "must reject {bad}");
+        }
+    }
+
+    #[test]
+    fn tron_balance_parsing_handles_overflow_and_strings() {
+        assert_eq!(
+            parse_tron_balance(&json!({ "balance": 1393900000 })),
+            Ok(Some("1393900000".to_string()))
+        );
+        assert_eq!(
+            parse_tron_balance(&json!({ "balance": u64::MAX })),
+            Ok(Some(u64::MAX.to_string()))
+        );
+        assert_eq!(
+            parse_tron_balance(&json!({ "balance": i64::MIN })),
+            Ok(None),
+            "a negative provider balance is an overflow, not a real value"
+        );
+        assert_eq!(parse_tron_balance(&json!({ "balance": "-1" })), Ok(None));
+        assert_eq!(
+            parse_tron_balance(&json!({ "balance": "1000000" })),
+            Ok(Some("1000000".to_string()))
+        );
+        assert_eq!(
+            parse_tron_balance(&json!({ "balance": null })),
+            Ok(Some("0".to_string()))
+        );
+        assert_eq!(parse_tron_balance(&json!({})), Ok(Some("0".to_string())));
+        assert_eq!(parse_tron_balance(&json!({ "balance": "nope" })), Err(()));
+    }
+
+    #[test]
+    fn tron_transaction_parsing_reads_count_and_timestamp() {
+        let tx = json!({
+            "rangeTotal": 1015112,
+            "total": 1015112,
+            "data": [{ "timestamp": 1700000000000u64 }]
+        });
+        assert_eq!(parse_tron_tx_count(&tx, &json!({})), 1015112);
+        assert_eq!(parse_tron_last_tx(&tx), Some(1700000000000));
+        assert_eq!(parse_tron_last_tx(&json!({ "data": [] })), None);
+        assert_eq!(
+            parse_tron_tx_count(&json!({ "total": "42" }), &json!({})),
+            42
+        );
+        assert_eq!(
+            parse_tron_tx_count(&json!({}), &json!({ "totalTransactionCount": 7 })),
+            7
+        );
+        assert_eq!(
+            parse_tron_last_tx(&json!({ "data": [{ "block_ts": "1700000000001" }] })),
+            Some(1700000000001)
+        );
+    }
+
+    #[test]
+    fn tron_response_reports_overflow_without_a_wrong_balance() {
+        let address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+        let tx = json!({
+            "rangeTotal": 1015112,
+            "data": [{ "timestamp": 1700000000000u64 }]
+        });
+
+        let overflow =
+            tron_response(address, &json!({ "balance": i64::MIN }), &tx).expect("response");
+        assert_eq!(overflow["chain"], "tron");
+        assert_eq!(overflow["address"], address);
+        assert!(overflow["balance_sun"].is_null());
+        assert_eq!(overflow["balance_error"], "provider_overflow");
+        assert_eq!(overflow["tx_count"], 1015112);
+        assert_eq!(overflow["last_tx_at"], 1700000000000u64);
+        assert_eq!(overflow["source"], "tronscan");
+
+        let normal = tron_response(
+            address,
+            &json!({ "balance": 1393900000 }),
+            &json!({ "total": 3 }),
+        )
+        .expect("response");
+        assert_eq!(normal["balance_sun"], "1393900000");
+        assert!(normal.get("balance_error").is_none());
+        assert_eq!(normal["tx_count"], 3);
+        assert!(normal["last_tx_at"].is_null());
+
+        let inactive = tron_response(address, &serde_json::Value::Null, &serde_json::Value::Null)
+            .expect("response");
+        assert_eq!(inactive["balance_sun"], "0");
+        assert_eq!(inactive["tx_count"], 0);
+        assert!(inactive["last_tx_at"].is_null());
     }
 }
