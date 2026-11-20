@@ -1,12 +1,20 @@
-/* Top-level testnet send page: /send, /send/bitcoin, /send/ethereum.
+/* Top-level testnet send page: /send, /send/bitcoin, /send/ethereum,
+ * /send/bnb and /send/usdt.
  *
- * One embedded page and one script serve all three routes; the pathname picks
- * the chain. Only Bitcoin testnet and Ethereum Sepolia exist here. Mainnet is
- * refused at three layers:
- *   1. assertTestnetChain rejects any chain slug other than the two testnets;
+ * One embedded page and one script serve all five routes; the pathname picks
+ * the chain. Only testnets exist here: Bitcoin testnet, Ethereum Sepolia and
+ * BNB Smart Chain testnet (chapel, chain id 97). The USDT route is a generic
+ * ERC-20 transfer builder on Ethereum Sepolia; the token contract is supplied
+ * by the user because there is no canonical USDT deployment on Sepolia.
+ *
+ * Mainnet is refused at three layers:
+ *   1. assertTestnetChain rejects every chain slug except the four testnets,
+ *      naming bitcoin/ethereum/bnb/usdt mainnet slugs explicitly;
  *   2. parseSecret rejects a Bitcoin mainnet WIF (version 0x80);
  *   3. every HTTP wrapper allowlists the public testnet endpoints, so a
- *      mainnet RPC or mempool.space mainnet URL cannot be reached.
+ *      mainnet RPC or mempool.space mainnet URL cannot be reached, and the
+ *      EVM kernel refuses any chain id outside this table (BNB mainnet 56 is
+ *      not present).
  *
  * The validated send flow itself is the cabinet wallet kernel
  * (RotorBtcSend / RotorEvmSend, loaded before this file). This script only
@@ -23,12 +31,62 @@
 
   var BTC_CHAIN = 'bitcoin-testnet';
   var EVM_CHAIN = 'ethereum-sepolia';
+  var BNB_CHAIN = 'bnb-testnet';
+  var USDT_CHAIN = 'usdt-sepolia';
   var SEPOLIA_CHAIN_ID = 11155111;
+  var BNB_CHAIN_ID = 97;
   var WASM_URL = '/rotor_wasm.wasm';
   var BTC_API = 'https://mempool.space/testnet/api';
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var WIF_MIN = 50;
   var WIF_MAX = 53;
+  var ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
+  var USDT_DEFAULT_DECIMALS = 6;
+  var USDT_DEFAULT_GAS = '60000';
+  var U256_MAX = (1n << 256n) - 1n;
+
+  /* Public BNB Smart Chain testnet (chapel) RPCs. Verified 2026-11-20: both
+   * answer eth_chainId 0x61 and send Access-Control-Allow-Origin: *. No
+   * mainnet BSC endpoint appears here. */
+  var BNB_TESTNET_PROVIDERS = [
+    'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
+    'https://bsc-testnet-rpc.publicnode.com'
+  ];
+
+  /* One table drives routing, labels, chain ids, explorers and the guards. */
+  var CHAINS = {};
+  CHAINS[BTC_CHAIN] = {
+    slug: BTC_CHAIN, kind: 'btc', label: 'Bitcoin testnet',
+    title: 'Send Bitcoin testnet', keyLabel: 'Bitcoin testnet WIF or 64-hex key'
+  };
+  CHAINS[EVM_CHAIN] = {
+    slug: EVM_CHAIN, kind: 'evm', label: 'Ethereum Sepolia',
+    title: 'Send Ethereum Sepolia', keyLabel: 'EVM private key (0x + 64 hex)',
+    chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
+    explorerTx: 'https://sepolia.etherscan.io/tx/'
+  };
+  CHAINS[BNB_CHAIN] = {
+    slug: BNB_CHAIN, kind: 'evm', label: 'BNB Smart Chain testnet',
+    title: 'Send BNB Smart Chain testnet', keyLabel: 'EVM private key (0x + 64 hex)',
+    chainId: BNB_CHAIN_ID, nativeSymbol: 'tBNB',
+    explorerTx: 'https://testnet.bscscan.com/tx/'
+  };
+  CHAINS[USDT_CHAIN] = {
+    slug: USDT_CHAIN, kind: 'evm', token: true, label: 'Ethereum Sepolia (ERC-20)',
+    title: 'Send ERC-20 on Ethereum Sepolia', keyLabel: 'EVM private key (0x + 64 hex)',
+    chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
+    explorerTx: 'https://sepolia.etherscan.io/tx/'
+  };
+
+  var SEND_PATHS = {
+    '/send/bitcoin': BTC_CHAIN,
+    '/send/ethereum': EVM_CHAIN,
+    '/send/bnb': BNB_CHAIN,
+    '/send/usdt': USDT_CHAIN
+  };
+  var ALLOWED_CHAINS = [BTC_CHAIN, EVM_CHAIN, BNB_CHAIN, USDT_CHAIN];
+  var MAINNET_SLUGS = ['bitcoin', 'ethereum', 'bnb', 'usdt'];
+  var ALLOWED_EVM_CHAIN_IDS = [SEPOLIA_CHAIN_ID, BNB_CHAIN_ID];
 
   function errorText(err) {
     return err && err.message ? err.message : String(err);
@@ -36,21 +94,61 @@
 
   /* --------------------------------------------------------- chain routing */
 
+  function isEvmChain(chain) {
+    return Boolean(CHAINS[chain] && CHAINS[chain].kind === 'evm');
+  }
+
+  function isTokenChain(chain) {
+    return Boolean(CHAINS[chain] && CHAINS[chain].token);
+  }
+
   function chainFromPath(pathname) {
     var value = String(pathname || '/send').replace(/\/+$/, '');
-    return value === '/send/ethereum' ? EVM_CHAIN : BTC_CHAIN;
+    return SEND_PATHS[value] || BTC_CHAIN;
   }
 
   function chainLabel(chain) {
-    return chain === EVM_CHAIN ? 'Ethereum Sepolia' : 'Bitcoin testnet';
+    return CHAINS[chain] ? CHAINS[chain].label : CHAINS[BTC_CHAIN].label;
   }
 
   function assertTestnetChain(chain) {
-    if (chain === BTC_CHAIN || chain === EVM_CHAIN) return chain;
-    if (chain === 'bitcoin' || chain === 'ethereum') {
+    if (ALLOWED_CHAINS.indexOf(chain) >= 0) return chain;
+    if (MAINNET_SLUGS.indexOf(chain) >= 0) {
       throw new Error('Mainnet sending is disabled: this page signs TESTNET transactions only.');
     }
-    throw new Error('Unsupported chain: this page only sends on Bitcoin testnet and Ethereum Sepolia.');
+    throw new Error('Unsupported chain: this page only sends on Bitcoin testnet, ' +
+      'Ethereum Sepolia and BNB Smart Chain testnet.');
+  }
+
+  /* Chain ids the EVM signing path may ever see. BNB mainnet (56) and every
+   * other untabled network are rejected. With a chain slug, the id must match
+   * that chain exactly. */
+  function assertAllowedChainId(chainId, chain) {
+    var actual;
+    try {
+      actual = BigInt(chainId);
+    } catch (err) {
+      throw new Error('Invalid chain id: ' + String(chainId));
+    }
+    var config = chain ? CHAINS[chain] : null;
+    if (config && config.chainId !== undefined) {
+      if (actual !== BigInt(config.chainId)) {
+        throw new Error(config.label + ' (chain id ' + config.chainId +
+          ') is required; refusing to sign a different chain.');
+      }
+      return Number(actual);
+    }
+    if (ALLOWED_EVM_CHAIN_IDS.indexOf(Number(actual)) < 0) {
+      throw new Error('Chain id ' + actual.toString() +
+        ' is not an allowed testnet chain; refusing to sign.');
+    }
+    return Number(actual);
+  }
+
+  function providersForChain(chain, evmProviders) {
+    if (chain === BNB_CHAIN) return BNB_TESTNET_PROVIDERS.slice();
+    if (isEvmChain(chain)) return Array.isArray(evmProviders) ? evmProviders.slice() : [];
+    return [];
   }
 
   /* -------------------------------------------------------- endpoint gates */
@@ -70,7 +168,7 @@
   function assertEvmRpcUrl(url, providers) {
     var list = Array.isArray(providers) ? providers : [];
     if (list.indexOf(url) < 0) {
-      throw new Error('Blocked an Ethereum RPC outside the Sepolia allowlist.');
+      throw new Error('Blocked an EVM RPC outside the testnet allowlist.');
     }
     return url;
   }
@@ -141,13 +239,13 @@
     var value = typeof text === 'string' ? text.trim() : '';
     if (!value) throw new Error('Paste a private key first.');
 
-    if (chain === EVM_CHAIN) {
+    if (isEvmChain(chain)) {
       var evmKey = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
       if (!evmKey) {
-        throw new Error('Ethereum Sepolia needs a 32-byte private key (0x + 64 hex characters).');
+        throw new Error(chainLabel(chain) + ' needs a 32-byte private key (0x + 64 hex characters).');
       }
       var hexKey = evmKey[1].toLowerCase();
-      return { chain: EVM_CHAIN, keyBytes: hexToBytes(hexKey), keyHex: hexKey };
+      return { chain: chain, keyBytes: hexToBytes(hexKey), keyHex: hexKey };
     }
 
     var btcHex = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
@@ -173,7 +271,7 @@
 
   function keyLooksComplete(value, chain) {
     var text = typeof value === 'string' ? value.trim() : '';
-    if (chain === EVM_CHAIN) return /^(?:0x)?[0-9a-fA-F]{64}$/.test(text);
+    if (isEvmChain(chain)) return /^(?:0x)?[0-9a-fA-F]{64}$/.test(text);
     if (/^(?:0x)?[0-9a-fA-F]{64}$/.test(text)) return true;
     return text.length >= WIF_MIN && text.length <= WIF_MAX &&
       /^[1-9A-HJ-NP-Za-km-z]+$/.test(text);
@@ -192,6 +290,69 @@
     return String(serialized || '').toLowerCase().indexOf(secret) >= 0;
   }
 
+  /* ------------------------------------------------------ ERC-20 transfer */
+
+  function normalizeEvmAddress(text, field) {
+    var value = typeof text === 'string' ? text.trim().toLowerCase() : '';
+    if (!/^0x[0-9a-f]{40}$/.test(value)) {
+      throw new Error(field + ' must be 0x followed by 40 hex characters.');
+    }
+    return value;
+  }
+
+  function tokenDecimals(value) {
+    var text = value === undefined || value === null ? '' : String(value).trim();
+    if (!text) return USDT_DEFAULT_DECIMALS;
+    if (!/^\d+$/.test(text)) throw new Error('Decimals must be a whole number between 0 and 36.');
+    var parsed = Number(text);
+    if (parsed > 36) throw new Error('Decimals must be between 0 and 36.');
+    return parsed;
+  }
+
+  /* Strict decimal -> raw integer. No Number, no exponent, no rounding. This
+   * is deliberately local: send.js is required standalone in the Node tests,
+   * so it does not depend on RotorEvmSend being on the global object. */
+  function parseTokenUnits(text, decimals) {
+    var value = typeof text === 'string' ? text.trim() : '';
+    if (!value) throw new Error('Enter a token amount.');
+    var match = /^(\d+)(?:\.(\d+))?$/.exec(value);
+    if (!match) {
+      throw new Error('Use a plain decimal token amount like 1.5 (no exponent, sign or comma).');
+    }
+    var fraction = match[2] || '';
+    if (fraction.length > decimals) {
+      throw new Error('At most ' + decimals + ' decimal places for this token.');
+    }
+    return BigInt(match[1]) * (10n ** BigInt(decimals)) +
+      BigInt(fraction.padEnd(decimals, '0') || '0');
+  }
+
+  function pad32(hex) {
+    if (hex.length > 64) throw new Error('A 32-byte word cannot hold that value.');
+    return hex.padStart(64, '0');
+  }
+
+  /* Canonical ERC-20 transfer(address,uint256): selector 0xa9059cbb, the
+   * recipient and the raw amount each left-padded to one 32-byte word. The
+   * contract address is never assumed; it is required from the user. */
+  function buildErc20Transfer(options) {
+    var input = options || {};
+    var contract = normalizeEvmAddress(input.contract, 'Token contract');
+    var recipient = normalizeEvmAddress(input.recipient, 'Recipient');
+    var decimals = tokenDecimals(input.decimals);
+    var rawAmount = parseTokenUnits(input.amount, decimals);
+    if (rawAmount <= 0n) throw new Error('Token amount must be greater than zero.');
+    if (rawAmount > U256_MAX) throw new Error('Token amount is too large for a uint256.');
+    var data = ERC20_TRANSFER_SELECTOR + pad32(recipient.slice(2)) + pad32(rawAmount.toString(16));
+    return {
+      contract: contract,
+      recipient: recipient,
+      decimals: decimals,
+      rawAmount: rawAmount,
+      data: data
+    };
+  }
+
   /* ------------------------------------------------------------------ DOM */
 
   function init() {
@@ -205,6 +366,8 @@
       wasm: null,
       wasmPromise: null,
       review: null,
+      token: null,
+      providers: [],
       signedHex: null,
       busy: false
     };
@@ -223,6 +386,9 @@
     var gasInput = byId('send-gas');
     var maxFeeInput = byId('send-max-fee');
     var priorityInput = byId('send-priority');
+    var tokenInput = byId('send-token');
+    var tokenDecimalsInput = byId('send-token-decimals');
+    var tokenAmountInput = byId('send-token-amount');
     var prepareButton = byId('send-prepare');
     var clearButton = byId('send-clear');
     var signButton = byId('send-sign');
@@ -254,6 +420,8 @@
     }
 
     var evmProviders = evm.PROVIDERS.map(function (provider) { return provider.url; });
+    state.providers = providersForChain(state.chain, evmProviders);
+    var config = CHAINS[state.chain];
 
     function setError(message) {
       if (!errorBox) return;
@@ -329,29 +497,35 @@
     /* ---------------------------------------------------------- chain UI */
 
     function refreshChainUi() {
-      var evmMode = state.chain === EVM_CHAIN;
+      var evmMode = isEvmChain(state.chain);
       Array.prototype.forEach.call(document.querySelectorAll('[data-send-chain]'), function (link) {
         if (link.getAttribute('data-send-chain') === state.chain) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
       });
       Array.prototype.forEach.call(document.querySelectorAll('[data-chain-only]'), function (el) {
-        el.hidden = el.getAttribute('data-chain-only') !== state.chain;
+        var allowed = (el.getAttribute('data-chain-only') || '').split(',');
+        el.hidden = allowed.indexOf(state.chain) < 0;
       });
       var title = byId('send-title');
-      if (title) title.textContent = evmMode ? 'Send Ethereum Sepolia' : 'Send Bitcoin testnet';
+      if (title) title.textContent = config.title;
       var keyLabel = byId('send-key-label');
-      if (keyLabel) {
-        keyLabel.textContent = evmMode
-          ? 'Ethereum Sepolia private key (0x + 64 hex)'
-          : 'Bitcoin testnet WIF or 64-hex key';
+      if (keyLabel) keyLabel.textContent = config.keyLabel;
+      var valueLabel = byId('send-value-label');
+      if (valueLabel && config.nativeSymbol) {
+        valueLabel.textContent = 'Value (' + config.nativeSymbol + ', optional for a call)';
       }
       var feeHelp = byId('send-fee-help');
       if (feeHelp) {
-        feeHelp.textContent = evmMode
-          ? 'Empty gas fields are filled from Sepolia RPC estimates; every value is shown in the review before signing.'
-          : 'Leave the fee rate empty to use mempool.space testnet recommendations; the review shows the exact fee.';
+        if (isTokenChain(state.chain)) {
+          feeHelp.textContent = 'ERC-20 transfer on Sepolia: gas defaults to 60000 and the exact calldata is shown before signing.';
+        } else if (evmMode) {
+          feeHelp.textContent = 'Empty gas fields are filled from ' + config.label +
+            ' RPC estimates; every value is shown in the review before signing.';
+        } else {
+          feeHelp.textContent = 'Leave the fee rate empty to use mempool.space testnet recommendations; the review shows the exact fee.';
+        }
       }
-      document.title = (evmMode ? 'Send Ethereum Sepolia' : 'Send Bitcoin testnet') + ' — TESTNET only | Rotor';
+      document.title = config.title + ' — TESTNET only | Rotor';
     }
 
     /* ------------------------------------------------------------- wasm */
@@ -439,14 +613,14 @@
     }
 
     function fetchJson(url, options) {
-      assertEvmRpcUrl(url, evmProviders);
+      assertEvmRpcUrl(url, state.providers);
       return fetch(url, options).then(function (response) {
         return response.text().then(function (text) {
-          if (!response.ok) throw new Error('Sepolia RPC answered HTTP ' + response.status);
+          if (!response.ok) throw new Error(config.label + ' RPC answered HTTP ' + response.status);
           try {
             return JSON.parse(text);
           } catch (err) {
-            throw new Error('Sepolia RPC returned non-JSON data.');
+            throw new Error(config.label + ' RPC returned non-JSON data.');
           }
         });
       });
@@ -486,6 +660,7 @@
 
     function clearReview() {
       state.review = null;
+      state.token = null;
       state.signedHex = null;
       if (reviewCard) reviewCard.hidden = true;
       if (signedCard) signedCard.hidden = true;
@@ -518,6 +693,9 @@
       if (gasInput) gasInput.value = '';
       if (maxFeeInput) maxFeeInput.value = '';
       if (priorityInput) priorityInput.value = '';
+      if (tokenInput) tokenInput.value = '';
+      if (tokenDecimalsInput) tokenDecimalsInput.value = String(USDT_DEFAULT_DECIMALS);
+      if (tokenAmountInput) tokenAmountInput.value = '';
     }
 
     var deriveTimer = null;
@@ -550,9 +728,9 @@
       try {
         var parsed = await parseSecret(value, state.chain);
         var wasm = await loadWasm();
-        var network = state.chain === EVM_CHAIN ? 0 : 1;
+        var network = isEvmChain(state.chain) ? 0 : 1;
         var report = deriveReport(wasm, parsed.keyBytes, 0, network);
-        var wanted = state.chain === EVM_CHAIN ? 'evm' : 'btc_p2wpkh';
+        var wanted = isEvmChain(state.chain) ? 'evm' : 'btc_p2wpkh';
         var rows = Array.isArray(report.addresses) ? report.addresses : [];
         var row = null;
         for (var i = 0; i < rows.length; i += 1) {
@@ -643,15 +821,25 @@
     function renderEvmReview(review) {
       if (!reviewList) return;
       reviewList.textContent = '';
-      addRow('Network', 'Ethereum Sepolia (TESTNET), chain id ' + review.chainId);
+      var symbol = config.nativeSymbol || 'ETH';
+      addRow('Network', config.label + ' (TESTNET), chain id ' + review.chainId);
       addRow('From', review.from, true);
-      addRow('To', review.to, true);
-      addRow('Value', evm.formatUnits(review.valueWei, evm.ETH_DECIMALS) + ' ETH');
+      if (state.token) {
+        addRow('Recipient', state.token.recipient, true);
+        addRow('Token contract', state.token.contract, true);
+        addRow('Decimals', String(state.token.decimals));
+        addRow('Token amount', evm.formatUnits(state.token.rawAmount, state.token.decimals));
+        addRow('Calldata', state.token.data, true);
+        addRow('Value', '0 (the token amount travels in the calldata)');
+      } else {
+        addRow('To', review.to, true);
+        addRow('Value', evm.formatUnits(review.valueWei, evm.ETH_DECIMALS) + ' ' + symbol);
+      }
       addRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual ? ' (manual)' : ' (estimated)'));
       addRow('Max fee', evm.formatUnits(review.maxFeeWei, evm.GWEI_DECIMALS) + ' gwei');
       addRow('Priority fee', evm.formatUnits(review.priorityWei, evm.GWEI_DECIMALS) + ' gwei');
       addRow('Nonce', review.nonce.toString());
-      addRow('Total max cost', evm.formatUnits(review.totalMaxCostWei, evm.ETH_DECIMALS) + ' ETH');
+      addRow('Total max cost', evm.formatUnits(review.totalMaxCostWei, evm.ETH_DECIMALS) + ' ' + symbol);
       addRow('Provider', review.providerLabel);
       renderWarnings(review.warnings);
       if (reviewUnsigned) reviewUnsigned.textContent = review.unsignedHex;
@@ -670,20 +858,46 @@
       try {
         assertTestnetChain(state.chain);
         setBusy(true, 'Preparing…');
-        if (state.chain === EVM_CHAIN) {
-          var evmReview = await evm.prepareTransaction({
-            form: {
+        if (isEvmChain(state.chain)) {
+          var form;
+          var token = null;
+          if (isTokenChain(state.chain)) {
+            token = buildErc20Transfer({
+              contract: tokenInput ? tokenInput.value : '',
+              recipient: toInput ? toInput.value : '',
+              decimals: tokenDecimalsInput ? tokenDecimalsInput.value : '',
+              amount: tokenAmountInput ? tokenAmountInput.value : ''
+            });
+            form = {
+              to: token.contract,
+              value: '0',
+              data: token.data,
+              gasLimit: (gasInput && gasInput.value.trim()) || USDT_DEFAULT_GAS,
+              maxFee: maxFeeInput ? maxFeeInput.value : '',
+              priorityFee: priorityInput ? priorityInput.value : ''
+            };
+          } else {
+            form = {
               to: toInput ? toInput.value : '',
               value: valueInput ? valueInput.value : '',
               data: dataInput ? dataInput.value : '',
               gasLimit: gasInput ? gasInput.value : '',
               maxFee: maxFeeInput ? maxFeeInput.value : '',
               priorityFee: priorityInput ? priorityInput.value : ''
-            },
+            };
+          }
+          var evmReview = await evm.prepareTransaction({
+            form: form,
             from: state.address,
             fetchJson: fetchJson,
-            unsigned: unsignedEvm
+            unsigned: unsignedEvm,
+            providers: state.providers,
+            expectedChainId: config.chainId,
+            chainName: config.label,
+            nativeSymbol: config.nativeSymbol,
+            networkName: config.label
           });
+          state.token = token;
           state.review = evmReview;
           renderEvmReview(evmReview);
         } else {
@@ -753,13 +967,10 @@
 
     async function signEvm(review) {
       assertTestnetChain(state.chain);
-      if (BigInt(review.chainId) !== BigInt(SEPOLIA_CHAIN_ID)) {
-        throw new Error('Ethereum Sepolia (chain id ' + SEPOLIA_CHAIN_ID +
-          ') is required; refusing to sign a different chain.');
-      }
+      var chainId = assertAllowedChainId(review.chainId, state.chain);
       var keyHex = bytesToHex(state.keyBytes);
       var request = {
-        chain_id: String(review.chainId),
+        chain_id: String(chainId),
         nonce: String(review.nonce),
         max_priority_fee: String(review.priorityWei),
         max_fee: String(review.maxFeeWei),
@@ -792,10 +1003,10 @@
       try {
         assertTestnetChain(state.chain);
         setBusy(true, 'Signing…');
-        var signed = state.chain === EVM_CHAIN
+        var signed = isEvmChain(state.chain)
           ? await signEvm(state.review)
           : await signBtc(state.review);
-        if (state.chain === EVM_CHAIN) {
+        if (isEvmChain(state.chain)) {
           if (!/^0x02[0-9a-f]+$/.test(signed) || signed.length % 2) {
             throw new Error('The local core returned an unexpected signed transaction.');
           }
@@ -821,19 +1032,20 @@
       try {
         assertTestnetChain(state.chain);
         var result;
-        if (state.chain === EVM_CHAIN) {
+        if (isEvmChain(state.chain)) {
           setBusy(true, 'Broadcasting…');
           result = await evm.confirmTransaction({
             review: state.review,
             fetchJson: fetchJson,
             sign: function () { return signed; }
           });
+          if (config.explorerTx) result.explorerUrl = config.explorerTx + result.txHash;
           if (resultHash) resultHash.textContent = result.txHash;
           if (resultLink) {
             resultLink.setAttribute('href', result.explorerUrl);
             resultLink.hidden = false;
           }
-          setStatus('Broadcast to Ethereum Sepolia accepted.');
+          setStatus('Broadcast to ' + config.label + ' accepted.');
         } else {
           setBusy(true, 'Broadcasting…');
           result = await btc.confirmTransaction({
@@ -924,11 +1136,24 @@
   return {
     BTC_CHAIN: BTC_CHAIN,
     EVM_CHAIN: EVM_CHAIN,
+    BNB_CHAIN: BNB_CHAIN,
+    USDT_CHAIN: USDT_CHAIN,
     SEPOLIA_CHAIN_ID: SEPOLIA_CHAIN_ID,
+    BNB_CHAIN_ID: BNB_CHAIN_ID,
     BTC_API: BTC_API,
+    BNB_TESTNET_PROVIDERS: BNB_TESTNET_PROVIDERS,
+    ALLOWED_CHAINS: ALLOWED_CHAINS,
+    ALLOWED_EVM_CHAIN_IDS: ALLOWED_EVM_CHAIN_IDS,
+    ERC20_TRANSFER_SELECTOR: ERC20_TRANSFER_SELECTOR,
+    USDT_DEFAULT_DECIMALS: USDT_DEFAULT_DECIMALS,
+    USDT_DEFAULT_GAS: USDT_DEFAULT_GAS,
     chainFromPath: chainFromPath,
     chainLabel: chainLabel,
+    isEvmChain: isEvmChain,
+    isTokenChain: isTokenChain,
+    providersForChain: providersForChain,
     assertTestnetChain: assertTestnetChain,
+    assertAllowedChainId: assertAllowedChainId,
     assertBtcApiUrl: assertBtcApiUrl,
     assertBtcBroadcastUrl: assertBtcBroadcastUrl,
     assertEvmRpcUrl: assertEvmRpcUrl,
@@ -936,6 +1161,10 @@
     decodeWif: decodeWif,
     parseSecret: parseSecret,
     keyLooksComplete: keyLooksComplete,
-    containsSecret: containsSecret
+    containsSecret: containsSecret,
+    normalizeEvmAddress: normalizeEvmAddress,
+    tokenDecimals: tokenDecimals,
+    parseTokenUnits: parseTokenUnits,
+    buildErc20Transfer: buildErc20Transfer
   };
 });

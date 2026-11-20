@@ -33,6 +33,15 @@ const EVM_SIGNED =
   "0x02f87483aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c080a0d02b933531d628f5d2251fbf58903a4d720f9bd6c7c51f7578f7cf301f761263a012a7d571860bb8d7e71bcb6c63d265bc6fc57b250b9381cbc18c1543c282b147";
 const EVM_TX_HASH = "0x" + "ab".repeat(32);
 
+/* Pinned ERC-20 transfer vector: 1.000000 at 6 decimals -> raw 0xf4240,
+ * selector 0xa9059cbb, recipient and amount left-padded to 32-byte words. */
+const USDT_CONTRACT = "0x" + "11".repeat(20);
+const USDT_RECIPIENT = "0x" + "35".repeat(20);
+const USDT_DATA =
+  "0xa9059cbb" +
+  "000000000000000000000000" + "35".repeat(20) +
+  "00000000000000000000000000000000000000000000000000000000000f4240";
+
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest();
 }
@@ -98,25 +107,56 @@ function add(name, fn) { tests.push([name, fn]); }
 
 /* ------------------------------------------------------------ routing */
 
-add("chainFromPath maps the three routes and defaults to Bitcoin", () => {
+add("chainFromPath maps all five routes and defaults to Bitcoin", () => {
   assert.equal(send.chainFromPath("/send"), send.BTC_CHAIN);
   assert.equal(send.chainFromPath("/send/"), send.BTC_CHAIN);
   assert.equal(send.chainFromPath("/send/bitcoin"), send.BTC_CHAIN);
   assert.equal(send.chainFromPath("/send/bitcoin/"), send.BTC_CHAIN);
   assert.equal(send.chainFromPath("/send/ethereum"), send.EVM_CHAIN);
   assert.equal(send.chainFromPath("/send/ethereum/"), send.EVM_CHAIN);
+  assert.equal(send.chainFromPath("/send/bnb"), send.BNB_CHAIN);
+  assert.equal(send.chainFromPath("/send/bnb/"), send.BNB_CHAIN);
+  assert.equal(send.chainFromPath("/send/usdt"), send.USDT_CHAIN);
+  assert.equal(send.chainFromPath("/send/usdt/"), send.USDT_CHAIN);
   assert.equal(send.chainFromPath("/send/unknown"), send.BTC_CHAIN);
 });
 
-add("assertTestnetChain accepts only the two testnets", () => {
+add("assertTestnetChain accepts only the four testnets", () => {
   assert.equal(send.assertTestnetChain(send.BTC_CHAIN), send.BTC_CHAIN);
   assert.equal(send.assertTestnetChain(send.EVM_CHAIN), send.EVM_CHAIN);
+  assert.equal(send.assertTestnetChain(send.BNB_CHAIN), send.BNB_CHAIN);
+  assert.equal(send.assertTestnetChain(send.USDT_CHAIN), send.USDT_CHAIN);
 });
 
-add("assertTestnetChain rejects Bitcoin and Ethereum mainnet by name", async () => {
+add("assertTestnetChain rejects every mainnet slug by name", async () => {
   await rejects(() => send.assertTestnetChain("bitcoin"), /mainnet/i, "bitcoin");
   await rejects(() => send.assertTestnetChain("ethereum"), /mainnet/i, "ethereum");
-  await rejects(() => send.assertTestnetChain("bnb"), /only sends on/, "bnb");
+  await rejects(() => send.assertTestnetChain("bnb"), /mainnet/i, "bnb");
+  await rejects(() => send.assertTestnetChain("usdt"), /mainnet/i, "usdt");
+  await rejects(() => send.assertTestnetChain("tron"), /only sends on/, "tron");
+  assert.equal(send.isEvmChain(send.BNB_CHAIN), true);
+  assert.equal(send.isEvmChain(send.USDT_CHAIN), true);
+  assert.equal(send.isEvmChain(send.BTC_CHAIN), false);
+  assert.equal(send.isTokenChain(send.USDT_CHAIN), true);
+  assert.equal(send.isTokenChain(send.EVM_CHAIN), false);
+});
+
+add("EVM chain-id guard rejects BNB mainnet 56 and unknown ids", () => {
+  for (const id of send.ALLOWED_EVM_CHAIN_IDS) {
+    assert.equal(send.assertAllowedChainId(id), id);
+  }
+  assert.throws(() => send.assertAllowedChainId(56), /not an allowed testnet chain/);
+  assert.throws(() => send.assertAllowedChainId(1), /not an allowed testnet chain/);
+  assert.equal(send.assertAllowedChainId(97, send.BNB_CHAIN), 97);
+  assert.equal(send.assertAllowedChainId(11155111, send.EVM_CHAIN), 11155111);
+  assert.throws(
+    () => send.assertAllowedChainId(56, send.BNB_CHAIN),
+    /BNB Smart Chain testnet \(chain id 97\) is required/,
+  );
+  assert.throws(
+    () => send.assertAllowedChainId(97, send.EVM_CHAIN),
+    /Ethereum Sepolia \(chain id 11155111\) is required/,
+  );
 });
 
 /* ------------------------------------------------------------- key input */
@@ -196,12 +236,135 @@ add("Bitcoin API gate allows only mempool.space testnet", () => {
   assert.equal(send.assertBtcBroadcastUrl(btc.API_BASE + "/tx"), btc.API_BASE + "/tx");
 });
 
-add("EVM RPC gate allows only the Sepolia provider allowlist", () => {
-  const providers = evm.PROVIDERS.map((provider) => provider.url);
-  for (const url of providers) assert.equal(send.assertEvmRpcUrl(url, providers), url);
-  assert.throws(() => send.assertEvmRpcUrl("https://ethereum-rpc.publicnode.com", providers), /Sepolia allowlist/);
-  assert.throws(() => send.assertEvmRpcUrl("https://eth.drpc.org", providers), /Sepolia allowlist/);
-  assert.throws(() => send.assertEvmRpcUrl(undefined, providers), /Sepolia allowlist/);
+add("EVM RPC gate allows only each chain's testnet allowlist", () => {
+  const sepolia = evm.PROVIDERS.map((provider) => provider.url);
+  const sepoliaAllowed = send.providersForChain(send.EVM_CHAIN, sepolia);
+  for (const url of sepoliaAllowed) {
+    assert.equal(send.assertEvmRpcUrl(url, sepoliaAllowed), url);
+  }
+  const bnb = send.providersForChain(send.BNB_CHAIN, sepolia);
+  assert.deepEqual(bnb, send.BNB_TESTNET_PROVIDERS);
+  for (const url of bnb) {
+    assert.equal(send.assertEvmRpcUrl(url, bnb), url);
+    assert.match(url, /testnet|prebsc/i);
+  }
+  assert.throws(
+    () => send.assertEvmRpcUrl("https://bsc-dataseed.binance.org", bnb),
+    /testnet allowlist/,
+  );
+  assert.throws(
+    () => send.assertEvmRpcUrl("https://ethereum-rpc.publicnode.com", sepoliaAllowed),
+    /testnet allowlist/,
+  );
+  assert.throws(
+    () => send.assertEvmRpcUrl("https://eth.drpc.org", sepoliaAllowed),
+    /testnet allowlist/,
+  );
+  assert.throws(() => send.assertEvmRpcUrl(undefined, sepoliaAllowed), /testnet allowlist/);
+  // A Sepolia provider is not a valid BNB endpoint, and vice versa.
+  assert.throws(() => send.assertEvmRpcUrl(sepoliaAllowed[0], bnb), /testnet allowlist/);
+  assert.throws(() => send.assertEvmRpcUrl(bnb[0], sepoliaAllowed), /testnet allowlist/);
+});
+
+add("ERC-20 transfer pins the canonical USDT calldata vector", () => {
+  const transfer = send.buildErc20Transfer({
+    contract: USDT_CONTRACT,
+    recipient: USDT_RECIPIENT,
+    decimals: "6",
+    amount: "1.000000",
+  });
+  assert.equal(transfer.contract, USDT_CONTRACT);
+  assert.equal(transfer.recipient, USDT_RECIPIENT);
+  assert.equal(transfer.decimals, 6);
+  assert.equal(transfer.rawAmount, 1000000n);
+  assert.equal(transfer.data, USDT_DATA);
+  assert.equal(transfer.data.length, 2 + 8 + 64 + 64);
+
+  // Decimals default to 6 when the field is empty.
+  const defaulted = send.buildErc20Transfer({
+    contract: USDT_CONTRACT,
+    recipient: USDT_RECIPIENT,
+    amount: "1",
+  });
+  assert.equal(defaulted.decimals, 6);
+  assert.equal(defaulted.data, USDT_DATA);
+});
+
+add("ERC-20 builder rejects absent/fabricated contracts and bad fields", () => {
+  assert.throws(
+    () => send.buildErc20Transfer({ recipient: USDT_RECIPIENT, amount: "1" }),
+    /Token contract/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({ contract: "", recipient: USDT_RECIPIENT, amount: "1" }),
+    /Token contract/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({ contract: "0x1234", recipient: USDT_RECIPIENT, amount: "1" }),
+    /Token contract/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: "0x" + "zz".repeat(20),
+      recipient: USDT_RECIPIENT,
+      amount: "1",
+    }),
+    /Token contract/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({ contract: USDT_CONTRACT, recipient: "nope", amount: "1" }),
+    /Recipient/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "37",
+      amount: "1",
+    }),
+    /0 and 36/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "-1",
+      amount: "1",
+    }),
+    /Decimals/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "1.5",
+      amount: "1",
+    }),
+    /Decimals/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "6",
+      amount: "1.1234567",
+    }),
+    /6 decimal places/,
+  );
+  // Raw amount above 2^256-1 cannot fit one calldata word.
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "0",
+      amount: "9".repeat(80),
+    }),
+    /too large/,
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({ contract: USDT_CONTRACT, recipient: USDT_RECIPIENT, amount: "0" }),
+    /greater than zero/,
+  );
 });
 
 add("containsSecret detects a key inside captured payloads", () => {
@@ -307,6 +470,111 @@ add("Ethereum Sepolia prepare/confirm never sends the key", async () => {
   }
   assert.ok(calls.some((call) => call.method === "eth_sendRawTransaction"));
   assert.ok(calls.every((call) => evm.PROVIDERS.some((provider) => provider.url === call.url)));
+});
+
+/* -------------------------------- BNB testnet and ERC-20 prepare wiring */
+
+add("BNB testnet review uses chain id 97 and rejects a mainnet provider", async () => {
+  const bnbProviders = send.providersForChain(send.BNB_CHAIN, []);
+  const answers = {
+    eth_chainId: "0x61",
+    eth_getTransactionCount: "0x0",
+    eth_getBalance: "0xde0b6b3a7640000",
+    eth_estimateGas: "0x5208",
+    eth_feeHistory: { baseFeePerGas: ["0x3b9aca00"] },
+    eth_maxPriorityFeePerGas: "0x3b9aca00",
+  };
+  const fetchJson = (url, options) => {
+    const req = JSON.parse(options.body);
+    assert.ok(bnbProviders.includes(url), "BNB reads must use the BSC-testnet allowlist");
+    return Promise.resolve({ jsonrpc: "2.0", id: 1, result: answers[req.method] });
+  };
+  const review = await evm.prepareTransaction({
+    form: { to: EVM_TO, value: "0.001", gasLimit: "21000" },
+    from: EVM_FROM,
+    fetchJson,
+    unsigned: () => "0x02f8",
+    providers: bnbProviders,
+    expectedChainId: send.BNB_CHAIN_ID,
+    chainName: "BNB Smart Chain testnet",
+    nativeSymbol: "tBNB",
+    networkName: "BNB testnet",
+  });
+  assert.equal(review.chainId, send.BNB_CHAIN_ID);
+  assert.equal(review.chainName, "BNB Smart Chain testnet");
+
+  // A provider answering BNB mainnet (0x38 = 56) must fail before unsigned.
+  const mainnetFetch = (url, options) => {
+    const req = JSON.parse(options.body);
+    return Promise.resolve({
+      jsonrpc: "2.0",
+      id: 1,
+      result: req.method === "eth_chainId" ? "0x38" : "0x0",
+    });
+  };
+  let unsignedCalled = false;
+  await rejects(
+    () => evm.prepareTransaction({
+      form: { to: EVM_TO, value: "0.001", gasLimit: "21000" },
+      from: EVM_FROM,
+      fetchJson: mainnetFetch,
+      unsigned: () => { unsignedCalled = true; return "0x02f8"; },
+      providers: bnbProviders,
+      expectedChainId: send.BNB_CHAIN_ID,
+    }),
+    /Chain id mismatch/i,
+    "bnb mainnet provider",
+  );
+  assert.equal(unsignedCalled, false);
+});
+
+add("ERC-20 transfer prepares a Sepolia review with value 0 and the built calldata", async () => {
+  const sepoliaProviders = send.providersForChain(
+    send.USDT_CHAIN,
+    evm.PROVIDERS.map((provider) => provider.url),
+  );
+  const answers = {
+    eth_chainId: "0xaa36a7",
+    eth_getTransactionCount: "0x0",
+    eth_getBalance: "0xde0b6b3a7640000",
+    eth_estimateGas: "0xea60",
+    eth_feeHistory: { baseFeePerGas: ["0x3b9aca00"] },
+    eth_maxPriorityFeePerGas: "0x3b9aca00",
+  };
+  const fetchJson = (url, options) => {
+    const req = JSON.parse(options.body);
+    assert.equal(send.assertEvmRpcUrl(url, sepoliaProviders), url);
+    return Promise.resolve({ jsonrpc: "2.0", id: 1, result: answers[req.method] });
+  };
+  const transfer = send.buildErc20Transfer({
+    contract: USDT_CONTRACT,
+    recipient: USDT_RECIPIENT,
+    decimals: "6",
+    amount: "1",
+  });
+  const review = await evm.prepareTransaction({
+    form: {
+      to: transfer.contract,
+      value: "0",
+      data: transfer.data,
+      gasLimit: send.USDT_DEFAULT_GAS,
+    },
+    from: EVM_FROM,
+    fetchJson,
+    unsigned: (fields) => {
+      assert.equal(fields.data, transfer.data);
+      assert.equal(fields.value, "0");
+      assert.equal(fields.gas_limit, send.USDT_DEFAULT_GAS);
+      return "0x02f8";
+    },
+    providers: sepoliaProviders,
+    expectedChainId: send.SEPOLIA_CHAIN_ID,
+    chainName: "Ethereum Sepolia (ERC-20)",
+  });
+  assert.equal(review.chainId, send.SEPOLIA_CHAIN_ID);
+  assert.equal(review.dataHex, transfer.data);
+  assert.equal(review.valueWei, 0n);
+  assert.equal(review.gasLimit, 60000n);
 });
 
 for (const [name, fn] of tests) await test(name, fn);

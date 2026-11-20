@@ -643,6 +643,73 @@ console.log(
     `rejected mainnet: ${btcBadError}`,
 );
 
+// TRON Nile testnet TRX transfer: the vector is pinned in tron.rs and was
+// independently reproduced with a hand-written Python protobuf encoder.
+if (
+  typeof wasm.tron_unsigned_tx !== "function" ||
+  typeof wasm.tron_sign_tx !== "function"
+) {
+  throw new Error("wasm does not export the TRON signing ABI");
+}
+const tronBody = {
+  owner_address: "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
+  to_address: "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K",
+  amount: "1000000",
+  ref_block_bytes: "12ab",
+  ref_block_hash: "0011223344556677",
+  expiration: "1700000060000",
+  timestamp: "1700000000000",
+};
+const tronRawHex =
+  "0a0212ab2208001122334455667740e0a499ffbc315a67080112630a2d747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e5472616e73666572436f6e747261637412320a15417e5f4552091a69125d5dfcb7b8c2659029395bdf1215412b5ad5c4795c026514f8317c7a215e218dccd6cf18c0843d7080d095ffbc31900100";
+const tronTxId =
+  "ceff5238d3200e6ea4a23f8de6608e61aa6bb757a505e93f4fed422631a32c4e";
+
+const tronUnsignedRequest = upload(JSON.stringify(tronBody));
+const tronUnsignedStatus = wasm.tron_unsigned_tx(
+  tronUnsignedRequest.ptr,
+  tronUnsignedRequest.len,
+);
+wasm.dealloc(tronUnsignedRequest.ptr, tronUnsignedRequest.len);
+if (tronUnsignedStatus !== 0) {
+  fail(tronUnsignedStatus, "tron_unsigned_tx");
+}
+const tronUnsigned = readJson();
+if (
+  tronUnsigned.txID !== tronTxId ||
+  tronUnsigned.raw_data_hex !== tronRawHex ||
+  tronUnsigned.signature !== undefined
+) {
+  throw new Error(`tron_unsigned_tx: ${JSON.stringify(tronUnsigned)}`);
+}
+
+const tronSignRequest = upload(
+  JSON.stringify({ ...tronBody, private_key: `0x${KEY1_HEX}` }),
+);
+const tronSignStatus = wasm.tron_sign_tx(tronSignRequest.ptr, tronSignRequest.len);
+const tronWiped = memory()
+  .slice(tronSignRequest.ptr, tronSignRequest.ptr + tronSignRequest.len)
+  .every((byte) => byte === 0);
+wasm.dealloc(tronSignRequest.ptr, tronSignRequest.len);
+if (tronSignStatus !== 0) {
+  fail(tronSignStatus, "tron_sign_tx");
+}
+const tronSigned = readJson();
+const expectedTronSignature =
+  "d990cf8db49841329b06d1c2c50e43d9481a7f762df4f603d321b8578454c0e62fe71d4d72db7bc8f95ac9d60cf5da983ba64ea13d6325e36fc99d9e46bb8a631c";
+if (
+  tronSigned.txID !== tronTxId ||
+  tronSigned.raw_data_hex !== tronRawHex ||
+  tronSigned.signature !== expectedTronSignature ||
+  !tronWiped
+) {
+  throw new Error(`tron_sign_tx: ${JSON.stringify(tronSigned)} wiped=${tronWiped}`);
+}
+console.log(
+  `tron_sign_tx: txID=${tronSigned.txID} signature=${tronSigned.signature.slice(0, 16)}... ` +
+    `request wiped=${tronWiped}`,
+);
+
 const artifactSize = (await stat(wasmPath)).size;
 console.log(`artifact=${artifactSize} bytes`);
 

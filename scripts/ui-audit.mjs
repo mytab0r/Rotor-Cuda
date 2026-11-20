@@ -34,6 +34,8 @@ const DEFAULT_ROUTES = [
   "/bitcoin-puzzle/71/random",
   "/tools",
   "/send",
+  "/send/bnb",
+  "/send/usdt",
   "/cabinet/wallet",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
