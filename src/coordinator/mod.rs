@@ -2073,8 +2073,8 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     );
     html = html.replacen("</head>", &format!("{head}</head>"), 1);
     html = html.replacen(
-        "<main class=\"key-page\">",
-        &format!("<main class=\"key-page\">{crumbs}"),
+        "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><a href=\"/\">Home</a> <span>/</span> <a href=\"/tools\">Tools</a> <span>/</span> <span aria-current=\"page\">Key explorer</span></nav>",
+        &crumbs,
         1,
     );
     replace_site_nav(html.replacen(
@@ -2282,8 +2282,9 @@ fn render_keys_hub(base: &str) -> String {
             if type_count == 1 { "type" } else { "types" },
         ));
     }
+    let crumbs = breadcrumb_nav(&[("Home", Some("/")), ("Chains", None)]);
     let body = format!(
-        "{}{}<main class=\"directory-page\">\
+        "{}{}<main class=\"directory-page\">{crumbs}\
          <section class=\"directory-hero\">\
            <h1>Private Keys Directory</h1>\
            <p>Select a blockchain to browse every possible private key, 60 at a time. Addresses are derived in your browser and checked against public chain data.</p>\
@@ -5505,6 +5506,10 @@ mod tests {
         assert!(body.contains("\"@type\":\"ItemList\""));
         assert!(!body.contains("noindex"));
         assert!(body.contains("href=\"/private-keys/bitcoin\""));
+        assert_eq!(body.matches("<nav class=\"breadcrumbs\"").count(), 1);
+        let crumbs = breadcrumb_nav_slice(&body, "/private-keys");
+        assert_eq!(crumbs.matches("aria-current=\"page\"").count(), 1);
+        assert!(crumbs.contains("<span aria-current=\"page\">Chains</span>"));
 
         let (body, _, status) =
             seo_asset(base, "/private-keys/bitcoin", "").expect("/private-keys/bitcoin");
@@ -5660,6 +5665,79 @@ mod tests {
                 "{path} current crumb"
             );
             assert!(body.contains(crumb), "{path} visible crumb label {crumb:?}");
+        }
+    }
+
+    /// The breadcrumb nav slice. Several landmarks legitimately carry
+    /// `aria-current="page"`; only this one is the trail.
+    fn breadcrumb_nav_slice<'a>(body: &'a str, path: &str) -> &'a str {
+        let start = body
+            .find("<nav class=\"breadcrumbs\"")
+            .unwrap_or_else(|| panic!("{path} is missing a breadcrumb nav"));
+        let end = body[start..]
+            .find("</nav>")
+            .map(|offset| start + offset + "</nav>".len())
+            .expect("breadcrumb nav is closed");
+        &body[start..end]
+    }
+
+    #[test]
+    fn public_pages_render_one_breadcrumb_and_one_current_crumb() {
+        let base = "https://rotor.pxbt.app";
+        // Static pages are served verbatim and `seo_asset` owns only the
+        // dynamic surface; mirror the request precedence to get a status.
+        let pages = [
+            ("/docs", "Docs"),
+            ("/key", "Key explorer"),
+            ("/vanity", "Vanity address generator"),
+            ("/seed", "Seed phrase studio"),
+            ("/mnemonic-converter", "Mnemonic converter"),
+            ("/milk-sad", "Milk Sad"),
+            ("/tools", "Tools"),
+            ("/hex-dec-bin", "Hex, decimal and binary converter"),
+            ("/public-key", "Public key to addresses"),
+            ("/pubkey-add", "Add public keys"),
+            ("/keystore-parser", "Ethereum keystore parser"),
+            ("/reconstruction", "Byte-fragment assembler"),
+            ("/tx", "Transaction decoders"),
+            ("/tx/bitcoin", "Bitcoin"),
+            ("/tx/ethereum", "Ethereum"),
+            ("/send", "Send transaction"),
+            ("/send/bitcoin", "Send transaction"),
+            ("/send/ethereum", "Send transaction"),
+            ("/send/bnb", "Send transaction"),
+            ("/send/usdt", "Send transaction"),
+            ("/send/tron", "Send transaction"),
+        ];
+        for (path, label) in pages {
+            let (body, status) = if let Some((body, _, status)) = seo_asset(base, path, "") {
+                (body, status)
+            } else {
+                let (body, content_type) =
+                    static_asset(path).unwrap_or_else(|| panic!("{path} is not served"));
+                assert_eq!(content_type, "text/html; charset=utf-8", "{path}");
+                (
+                    String::from_utf8(body.to_vec()).expect("page is valid UTF-8"),
+                    200,
+                )
+            };
+            assert_eq!(status, 200, "{path}");
+            assert_eq!(
+                body.matches("<nav class=\"breadcrumbs\"").count(),
+                1,
+                "{path} must have exactly one breadcrumb nav"
+            );
+            let crumbs = breadcrumb_nav_slice(&body, path);
+            assert_eq!(
+                crumbs.matches("aria-current=\"page\"").count(),
+                1,
+                "{path} must have exactly one current crumb"
+            );
+            let crumb = format!("<span aria-current=\"page\">{label}</span>");
+            assert!(
+                crumbs.contains(&crumb),
+                "{path} missing current crumb {crumb:?}"
+            );
         }
     }
 
@@ -5904,7 +5982,13 @@ mod tests {
             "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/key/{key}\">"
         )));
         assert!(body.contains(&format!("Private key {}…{}", &key[..8], &key[60..])));
-        assert!(body.contains("<nav class=\"breadcrumbs\""));
+        assert_eq!(body.matches("<nav class=\"breadcrumbs\"").count(), 1);
+        assert_eq!(
+            breadcrumb_nav_slice(&body, "/key/<hex>")
+                .matches("aria-current=\"page\"")
+                .count(),
+            1
+        );
         assert!(body.contains("\"@type\":\"WebApplication\""));
 
         // Key 100 is user-supplied and stays out of the index.
