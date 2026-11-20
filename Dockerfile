@@ -18,7 +18,7 @@ RUN cargo build --release --bin rotor-coord
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libssl3 \
+    && apt-get install -y --no-install-recommends libssl3 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home rotor \
     && mkdir -p /data && chown rotor:rotor /data
