@@ -42,11 +42,28 @@
   Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
   shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
   and the `key` route UI audit at 375/1280 in both themes.
-- [ ] BNB / TRON / USDT builders (the remaining P0 rows in the site-map donor
-  ledger). **Out of this goal's scope**: `send.js` is deliberately BTC-testnet
-  and ETH-Sepolia only. BNB and USDT are EVM and could reuse the Sepolia core
-  on testnet; TRON needs its own signing core. Any mainnet variant needs an
-  owner decision.
+- [x] BNB Smart Chain testnet builder (`/send/bnb`, PR #97). Evidence:
+  `apps/site/send.js:72` (chain table, chapel chain id 97), `:55` and `:163`
+  (BSC-testnet provider allowlist), `apps/site/send-test.mjs:671` (chain-id
+  guard and mainnet-provider rejection). Testnet only; BSC mainnet is not
+  claimed.
+- [x] USDT / generic ERC-20 builder on Sepolia (`/send/usdt`, PR #97).
+  Evidence: `apps/site/send.js:365` (`buildErc20Transfer`, canonical
+  `transfer(address,uint256)` calldata), `apps/site/send-test.mjs:316`
+  (pinned calldata vector) and `:725` (review wiring with value 0). The token
+  contract is user-supplied; Sepolia has no canonical USDT deployment, so this
+  is not a mainnet USDT claim.
+- [x] TRON Nile testnet TRX transfer (`/send/tron`, this change). Evidence:
+  `apps/site/send.js:84` (chain table), `:403` (`prepareTronTransfer`),
+  `:451` (`signTronTransfer`), `apps/site/tron-tx.js` (Nile-only host/path
+  gate), `crates/rotor-wasm/src/tron.rs:89` / `:101` and
+  `crates/rotor-wasm/src/lib.rs:1093` / `:1115` (sign/unsigned exports),
+  `apps/site/send-test.mjs:417` (TRX->sun), `:431` (prepare) and `:499`
+  (sign/broadcast without a key leak), `src/coordinator/mod.rs:905` / `:907`
+  (route and embedded helper), `tests/coordinator_api.rs:1138` / `:1187`
+  (six routes and the served helper). Nile testnet only: mainnet TRON hosts
+  and the mainnet `tron` route are rejected, and no live broadcast was
+  executed (no funded Nile key).
 
 ## P1 — shell and templates
 
