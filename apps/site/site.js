@@ -2,6 +2,38 @@
 (function () {
   'use strict';
 
+  /* Narrow-header split: four primary links stay inline and the rest move into
+   * a "More" disclosure. These helpers are pure and exported before the DOM
+   * guard so the node test can exercise them without a browser. */
+  var NAV_INLINE_COUNT = 4;
+  var NAV_BREAKPOINT = 860;
+
+  function splitLinks(links, keep) {
+    var list = links || [];
+    var count = typeof keep === 'number' && keep > 0 ? Math.floor(keep) : 0;
+    if (count > list.length) count = list.length;
+    return {
+      inline: Array.prototype.slice.call(list, 0, count),
+      tail: Array.prototype.slice.call(list, count)
+    };
+  }
+
+  function activeInTail(tail, isActive) {
+    if (!tail || !tail.length || typeof isActive !== 'function') return false;
+    for (var index = 0; index < tail.length; index += 1) {
+      if (isActive(tail[index], index)) return true;
+    }
+    return false;
+  }
+
+  (typeof globalThis !== 'undefined' ? globalThis : window).RotorSiteNav = {
+    splitLinks: splitLinks,
+    activeInTail: activeInTail,
+    INLINE_COUNT: NAV_INLINE_COUNT
+  };
+
+  if (typeof document === 'undefined') return;
+
   var TOKEN_KEY = 'rotor-coord-token';
 
   function token() {
@@ -132,6 +164,115 @@
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
+  }
+
+  /* Below 860px keep the first four primary links inline and disclose the rest
+   * behind a More button. Rebuilds idempotently on `matchMedia` changes: every
+   * original link is put back in order before splitting again, so no link or
+   * panel is ever duplicated. Without JS nothing is split and every link stays
+   * visible. */
+  function setupNav() {
+    var header = document.querySelector('.site-nav');
+    if (!header) return;
+    var nav = header.querySelector('nav[aria-label="Main"]') || header.querySelector('nav');
+    if (!nav) return;
+
+    var links = Array.prototype.filter.call(nav.children, function (node) {
+      return node.tagName === 'A' && node.hasAttribute('data-nav');
+    });
+    if (!links.length) return;
+    /* Narrow screens can show the primary links icon-only; keep a hover title
+     * and an explicit accessible name. */
+    Array.prototype.forEach.call(links, function (link) {
+      var label = (link.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!label) return;
+      if (!link.getAttribute('title')) link.setAttribute('title', label);
+      if (!link.getAttribute('aria-label')) link.setAttribute('aria-label', label);
+    });
+
+    var media = window.matchMedia ? window.matchMedia('(max-width: ' + NAV_BREAKPOINT + 'px)') : null;
+    var moreBtn = null;
+    var drawer = null;
+
+    function narrow() {
+      return media ? media.matches : window.innerWidth <= NAV_BREAKPOINT;
+    }
+
+    function isActiveLink(link) {
+      return link.classList.contains('active') || link.getAttribute('aria-current') === 'page';
+    }
+
+    function setOpen(open) {
+      if (!moreBtn || !drawer) return;
+      drawer.hidden = !open;
+      moreBtn.setAttribute('aria-expanded', String(open));
+    }
+
+    function teardown() {
+      if (drawer) {
+        drawer.hidden = true;
+        if (drawer.parentNode) drawer.parentNode.removeChild(drawer);
+      }
+      if (moreBtn && moreBtn.parentNode) moreBtn.parentNode.removeChild(moreBtn);
+      drawer = null;
+      moreBtn = null;
+      header.classList.remove('nav-split');
+    }
+
+    function rebuild() {
+      teardown();
+      for (var index = 0; index < links.length; index += 1) nav.appendChild(links[index]);
+      if (!narrow()) return;
+
+      var parts = splitLinks(links, NAV_INLINE_COUNT);
+      if (!parts.tail.length) return;
+
+      drawer = document.createElement('div');
+      drawer.id = 'site-nav-more';
+      drawer.className = 'nav-drawer';
+      drawer.hidden = true;
+      for (var tail = 0; tail < parts.tail.length; tail += 1) drawer.appendChild(parts.tail[tail]);
+      drawer.addEventListener('click', function (event) {
+        if (event.target && event.target.closest && event.target.closest('a')) setOpen(false);
+      });
+
+      moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'nav-pill nav-more-btn';
+      moreBtn.textContent = 'More';
+      moreBtn.setAttribute('aria-expanded', 'false');
+      moreBtn.setAttribute('aria-controls', 'site-nav-more');
+      if (activeInTail(parts.tail, isActiveLink)) {
+        moreBtn.classList.add('active');
+        moreBtn.setAttribute('data-active', 'true');
+      }
+      moreBtn.addEventListener('click', function () {
+        setOpen(drawer.hidden);
+      });
+
+      nav.parentNode.insertBefore(moreBtn, nav.nextSibling);
+      header.insertBefore(drawer, moreBtn.nextSibling);
+      header.classList.add('nav-split');
+    }
+
+    document.addEventListener('click', function (event) {
+      if (!moreBtn || !drawer || drawer.hidden) return;
+      if (!header.contains(event.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (!moreBtn || !drawer || drawer.hidden) return;
+      if (event.key !== 'Escape' && event.key !== 'Esc') return;
+      event.preventDefault();
+      setOpen(false);
+      moreBtn.focus();
+    });
+
+    if (media) {
+      if (media.addEventListener) media.addEventListener('change', rebuild);
+      else if (media.addListener) media.addListener(rebuild);
+    }
+
+    rebuild();
   }
 
   /* Directory search accepts a hex key; chain pages handle WIF and brainwallets. */
@@ -1242,6 +1383,7 @@
 
   installGlobalSearch();
   markNavigation();
+  setupNav();
   bindKeySearches();
 
   window.Rotor = {
