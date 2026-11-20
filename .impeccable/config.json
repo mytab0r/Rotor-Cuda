@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-11-20T15:48:20.971Z",
         "reason": "wrapper children carry the padding (.sitemap-view-btn 0 13px, table cells 10px 11px); segmented control and scrollable table container are intentional, the heuristic does not see child padding"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/key.html"
+        ],
+        "createdAt": "2026-11-20T20:51:58.617Z",
+        "reason": "Agent: key-segmented is a segmented control (2px track inset by design); balance-refresh has padding/border/background cleared by .key-page .key-filter-bar .balance-refresh, the detector reads the base rule statically"
       }
     ]
   }

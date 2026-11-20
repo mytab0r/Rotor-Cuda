@@ -295,4 +295,18 @@ assert.deepEqual(browse.metricFlags({ tx: 0, received: "0" }), { hasTx: false, h
 assert.deepEqual(browse.metricFlags({ tx: 2, received: "5" }), { hasTx: true, hasRecv: true });
 assert.deepEqual(browse.metricFlags(null), { hasTx: false, hasRecv: false });
 
+/* The batch endpoint returns the same TRON payload as the single-address
+ * route, so both paths must feed the cache and balance cell the same shape. */
+assert.deepEqual(
+  browse.tronValue({ chain: "tron", balance_sun: "123", tx_count: 4, last_tx_at: 1700000000000 }),
+  { balance: "123", tx: 4, lastTxAt: 1700000000000 },
+  "batch payload maps to the per-address value shape"
+);
+assert.deepEqual(
+  browse.tronValue({ chain: "tron", balance_sun: null }),
+  { balance: null, tx: undefined, lastTxAt: undefined },
+  "a provider overflow keeps a null balance"
+);
+assert.equal(browse.tronValue({ balance_sun: "1" }), null, "a non-TRON payload is rejected");
+
 console.log("search-test: ok");
