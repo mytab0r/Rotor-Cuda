@@ -1,0 +1,58 @@
+{
+  "lists": [
+    {
+      "slug": "btc-pack",
+      "title": "Bitcoin packaged dataset",
+      "chain": "btc",
+      "asset": "BTC",
+      "price_usd_cents": 2900,
+      "usd_per_unit_micros": 60000000000,
+      "decimals": 8,
+      "address": "REPLACE_WITH_BTC_DEPOSIT_ADDRESS",
+      "file_path": "/var/lib/rotor/packages/btc-pack.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "active": false
+    },
+    {
+      "slug": "ltc-pack",
+      "title": "Litecoin packaged dataset",
+      "chain": "ltc",
+      "asset": "LTC",
+      "price_usd_cents": 2900,
+      "usd_per_unit_micros": 80000000,
+      "decimals": 8,
+      "address": "REPLACE_WITH_LTC_DEPOSIT_ADDRESS",
+      "file_path": "/var/lib/rotor/packages/ltc-pack.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "active": false
+    },
+    {
+      "slug": "usdt-trc20-pack",
+      "title": "USDT TRC-20 packaged dataset",
+      "chain": "tron",
+      "asset": "USDT",
+      "price_usd_cents": 2900,
+      "usd_per_unit_micros": 1000000,
+      "decimals": 6,
+      "address": "REPLACE_WITH_TRON_DEPOSIT_ADDRESS",
+      "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "file_path": "/var/lib/rotor/packages/usdt-trc20-pack.zip",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "active": false
+    }
+  ],
+  "confirmations": {
+    "btc": 3,
+    "ltc": 6,
+    "tron": 19
+  },
+  "quote_ttl_secs": 1800,
+  "link_ttl_secs": 604800,
+  "max_downloads": 5,
+  "admin_token": "REPLACE_WITH_ADMIN_TOKEN",
+  "poll_interval_secs": 45,
+  "esplora": {
+    "btc": "https://mempool.space",
+    "ltc": "https://litecoinspace.org"
+  }
+}

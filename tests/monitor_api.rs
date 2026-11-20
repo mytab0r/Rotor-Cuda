@@ -616,6 +616,7 @@ fn monitor_api_end_to_end() {
             monitor_domain: "127.0.0.1".to_string(),
             wallets_upstream: None,
             tronscan_api_key: None,
+            orders: None,
         },
         Arc::clone(&store),
     )
