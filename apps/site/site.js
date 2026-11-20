@@ -161,48 +161,54 @@
   }
 
 
-  /* Global search: Ctrl/Cmd+K from any page, parsed and derived entirely in
-   * the browser. Key-like input renders a public address table in place; a
-   * mnemonic still hands off to /seed. No key, phrase or derived CSV column
-   * leaves this page or enters the URL. */
-  var SEARCH_CHAINS = [
-    ['bitcoin', 'Bitcoin'], ['ethereum', 'Ethereum'], ['bnb', 'BNB'],
-    ['arbitrum', 'Arbitrum'], ['optimism', 'Optimism'], ['base', 'Base'],
-    ['polygon', 'Polygon'], ['avalanche', 'Avalanche'], ['zksync', 'zkSync'],
-    ['solana', 'Solana'], ['tron', 'TRON'], ['xrp', 'XRP'],
-    ['litecoin', 'Litecoin'], ['bitcoin-cash', 'Bitcoin Cash'], ['dogecoin', 'Dogecoin'],
-    ['zcash', 'Zcash'], ['sui', 'Sui'], ['ton', 'TON']
+  /* Global search: Ctrl/Cmd+K or the header search control opens one modal on
+   * every page. Detection and routing mirror the donor: hex/WIF/keypair/XRP
+   * secret -> /key/<value>, a mnemonic -> /mnemonic-converter, and any other
+   * text -> /brainwallet. Key-like input also derives public addresses in
+   * place with the same wasm core as /key; balances come from the local
+   * RotorBalanceCache TTL store. No key or derived private row enters the URL
+   * or storage. */
+  var SEARCH_CHIPS = [
+    ['hex', 'Private Key (HEX)'],
+    ['wif', 'WIF Format'],
+    ['keypair', 'Keypair'],
+    ['xrp', 'XRP Secret'],
+    ['mnemonic', 'Mnemonic'],
+    ['brainwallet', 'Brainwallet']
   ];
-  var SEARCH_INTERPRET = [
-    ['auto', 'Auto-detect'], ['hex', 'HEX'], ['wif', 'WIF'], ['keypair', 'Keypair'],
-    ['xrp-secret', 'XRP secret'], ['mnemonic', 'Mnemonic'], ['brainwallet', 'Brainwallet']
-  ];
-  var SEARCH_COUNTS = [1, 3, 5, 10];
-  var SEARCH_DEFAULT_COUNT = 5;
+  var SEARCH_MNEMONIC_COUNTS = [1, 3, 5, 10];
+  var SEARCH_TIMEOUT_MS = 8000;
+  var EVM_RPC = {
+    ethereum: 'https://ethereum-rpc.publicnode.com',
+    bnb: 'https://bsc-rpc.publicnode.com',
+    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
+    optimism: 'https://optimism-rpc.publicnode.com',
+    base: 'https://base-rpc.publicnode.com',
+    polygon: 'https://polygon-bor-rpc.publicnode.com',
+    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
+    zksync: 'https://mainnet.era.zksync.io'
+  };
+  var EVM_NATIVE = {
+    ethereum: 'ETH', bnb: 'BNB', arbitrum: 'ETH', optimism: 'ETH',
+    base: 'ETH', polygon: 'POL', avalanche: 'AVAX', zksync: 'ETH'
+  };
 
-  function searchChainButtons() {
-    return SEARCH_CHAINS.map(function (item) {
-      return '<button type="button" class="search-chain" data-chain="' + item[0] + '" ' +
-        'aria-pressed="false" aria-label="Search ' + item[1] + ' only" title="' + item[1] + '">' +
-        '<svg class="crypto" aria-hidden="true"><use href="/icons.svg#chain-' + item[0] + '"></use></svg>' +
-        '</button>';
-    }).join('');
+  function chipLabel(mode) {
+    for (var index = 0; index < SEARCH_CHIPS.length; index += 1) {
+      if (SEARCH_CHIPS[index][0] === mode) return SEARCH_CHIPS[index][1];
+    }
+    return 'that format';
   }
 
-  function searchInterpretOptions() {
-    var types = window.RotorSearch && window.RotorSearch.INTERPRET ? window.RotorSearch.INTERPRET : SEARCH_INTERPRET;
-    return types.map(function (item) {
-      return '<option value="' + item[0] + '">' + item[1] + '</option>';
-    }).join('');
-  }
-
-  function searchCountButtons() {
-    return SEARCH_COUNTS.map(function (value) {
-      var active = value === SEARCH_DEFAULT_COUNT;
-      return '<button type="button" class="search-count' + (active ? ' active' : '') + '" ' +
-        'data-count="' + value + '" aria-pressed="' + String(active) + '" ' +
-        'aria-label="Show ' + value + ' address' + (value === 1 ? '' : 'es') + '">' + value + '</button>';
-    }).join('');
+  function formatUnits(amount, decimals) {
+    var value = BigInt(amount);
+    var places = Number.isInteger(decimals) && decimals >= 0 ? decimals : 0;
+    var unit = 1n;
+    for (var index = 0; index < places; index += 1) unit *= 10n;
+    var whole = value / unit;
+    var fraction = value % unit;
+    var text = fraction ? whole.toString() + '.' + fraction.toString().padStart(places, '0').replace(/0+$/, '') : whole.toString();
+    return text;
   }
 
   function installGlobalSearch() {
@@ -210,39 +216,47 @@
     var dialog = document.createElement('dialog');
     dialog.className = 'global-search';
     dialog.id = 'global-search';
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-labelledby', 'global-search-title');
     dialog.innerHTML =
-      '<form class="global-search-form" id="global-search-form">' +
-      '<div class="global-search-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Wallet search</span><kbd>Esc</kbd></div>' +
-      '<textarea id="global-search-input" rows="3" autocomplete="off" spellcheck="false" ' +
-      'aria-label="Enter a private key, mnemonic or brainwallet text" placeholder="Enter private key, mnemonic, or any text (brainwallet)…"></textarea>' +
-      '<p class="global-search-hint">Auto-detect: HEX, WIF, Keypair, XRP Secret, Mnemonic, Brainwallet</p>' +
-      '<div class="global-search-controls">' +
-      '<label class="global-search-interpret"><span>Interpret as</span>' +
-      '<select id="global-search-mode">' + searchInterpretOptions() + '</select></label>' +
-      '<div class="global-search-count" role="group" aria-label="Addresses to show">' +
-      '<span class="global-search-count-label" aria-hidden="true">Addresses</span>' +
-      searchCountButtons() + '</div>' +
-      '</div>' +
-      '<div class="global-search-chains" role="group" aria-label="Supported chains">' + searchChainButtons() + '</div>' +
-      '<p class="global-search-scope" id="global-search-scope">Searching all chains</p>' +
+      '<form class="global-search-form" id="global-search-form" novalidate>' +
+      '<div class="global-search-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg>' +
+      '<h2 id="global-search-title">Search wallet</h2><kbd>Esc</kbd></div>' +
+      '<label class="visually-hidden" for="global-search-input">Search a private key, WIF, keypair, XRP secret, mnemonic or brainwallet text</label>' +
+      '<textarea id="global-search-input" rows="4" autocomplete="off" spellcheck="false" ' +
+      'placeholder="Enter private key, mnemonic, or any text (brainwallet)…"></textarea>' +
+      '<p class="global-search-detect" id="global-search-detect" role="status" aria-live="polite">' +
+      'Auto-detect: HEX, WIF, keypair, XRP secret, mnemonic or brainwallet</p>' +
+      '<a class="global-search-view" id="global-search-view" href="/key" hidden>Key Details →</a>' +
+      '<div class="global-search-section" role="group" aria-labelledby="global-search-interpret-label">' +
+      '<span class="global-search-section-label" id="global-search-interpret-label">Interpret as</span>' +
+      '<div class="global-search-chips" id="global-search-chips">' +
+      SEARCH_CHIPS.map(function (chip) {
+        return '<button type="button" class="global-search-chip" data-mode="' + chip[0] + '" aria-pressed="false">' + chip[1] + '</button>';
+      }).join('') +
+      '</div></div>' +
+      '<div class="global-search-mnemonic" id="global-search-mnemonic" hidden>' +
+      '<label class="global-search-passphrase">BIP39 passphrase ' +
+      '<input id="global-search-passphrase" type="password" autocomplete="new-password" placeholder="leave empty if none"></label>' +
+      '<label class="global-search-count-field">Addresses ' +
+      '<select id="global-search-count">' +
+      SEARCH_MNEMONIC_COUNTS.map(function (value) {
+        return '<option value="' + value + '">' + value + '</option>';
+      }).join('') +
+      '</select></label></div>' +
       '<button type="submit" class="primary global-search-submit">Search all chains</button>' +
       '<p class="global-search-error" id="global-search-error" role="alert" hidden></p>' +
       '<section class="global-search-results" id="global-search-results" aria-labelledby="global-search-results-title" hidden>' +
       '<div class="global-search-results-head">' +
       '<h2 class="global-search-results-title" id="global-search-results-title">Public addresses</h2>' +
       '<span class="global-search-results-meta" id="global-search-results-meta"></span>' +
-      '</div>' +
-      '<p class="global-search-note" id="global-search-note">Balances are not checked in this panel. Only public addresses are derived; open an explorer to inspect a chain.</p>' +
-      '<div class="global-search-table-wrap" id="global-search-table-wrap">' +
-      '<table class="global-search-table"><caption class="visually-hidden">Derived public addresses</caption>' +
-      '<thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Type</th>' +
-      '<th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>' +
-      '<tbody id="global-search-rows"></tbody></table>' +
-      '</div>' +
-      '<div class="global-search-result-actions" id="global-search-actions">' +
+      '<div class="global-search-result-actions">' +
       '<button type="button" class="global-search-action" id="global-search-copy-all" disabled>Copy All</button>' +
-      '<button type="button" class="global-search-action" id="global-search-csv" disabled>CSV</button>' +
-      '</div>' +
+      '<button type="button" class="global-search-action" id="global-search-csv" disabled>Copy CSV</button>' +
+      '</div></div>' +
+      '<p class="global-search-summary" id="global-search-summary" aria-live="polite"></p>' +
+      '<p class="global-search-note" id="global-search-note"></p>' +
+      '<div class="ws-chain-grid" id="global-search-cards"></div>' +
       '</section>' +
       '<p class="visually-hidden" id="global-search-status" role="status" aria-live="polite"></p>' +
       '</form>';
@@ -250,84 +264,54 @@
 
     var input = dialog.querySelector('#global-search-input');
     var form = dialog.querySelector('#global-search-form');
-    var modeSelect = dialog.querySelector('#global-search-mode');
-    var error = dialog.querySelector('#global-search-error');
-    var scope = dialog.querySelector('#global-search-scope');
+    var detectEl = dialog.querySelector('#global-search-detect');
+    var viewEl = dialog.querySelector('#global-search-view');
+    var chips = Array.prototype.slice.call(dialog.querySelectorAll('.global-search-chip'));
+    var mnemonicEl = dialog.querySelector('#global-search-mnemonic');
+    var passphraseEl = dialog.querySelector('#global-search-passphrase');
+    var countEl = dialog.querySelector('#global-search-count');
+    var errorEl = dialog.querySelector('#global-search-error');
     var submit = dialog.querySelector('.global-search-submit');
-    var chainButtons = Array.prototype.slice.call(dialog.querySelectorAll('.search-chain'));
-    var countButtons = Array.prototype.slice.call(dialog.querySelectorAll('.search-count'));
     var resultsEl = dialog.querySelector('#global-search-results');
-    var rowsEl = dialog.querySelector('#global-search-rows');
+    var cardsEl = dialog.querySelector('#global-search-cards');
     var metaEl = dialog.querySelector('#global-search-results-meta');
+    var summaryEl = dialog.querySelector('#global-search-summary');
     var noteEl = dialog.querySelector('#global-search-note');
-    var tableWrap = dialog.querySelector('#global-search-table-wrap');
-    var actionsEl = dialog.querySelector('#global-search-actions');
     var copyAllBtn = dialog.querySelector('#global-search-copy-all');
     var csvBtn = dialog.querySelector('#global-search-csv');
     var statusEl = dialog.querySelector('#global-search-status');
-    var selectedChain = '';
-    var selectedCount = SEARCH_DEFAULT_COUNT;
-    var lastReport = null;
-    var lastKind = '';
-    var activeParser = null;
-    var searchSeq = 0;
 
+    var selectedMode = '';
+    var currentRoute = null;
+    var currentCards = [];
+    var searchSeq = 0;
+    var balanceRun = 0;
+    var balanceController = null;
+    var lastFocus = null;
+    var loaders = {};
     var wasmState = { wasm: null, promise: null };
 
-    function chainLabel(slug) {
-      var entry = SEARCH_CHAINS.filter(function (item) { return item[0] === slug; })[0];
-      return entry ? entry[1] : slug;
+    function ensureScript(globalName, src) {
+      if (window[globalName]) return Promise.resolve(window[globalName]);
+      if (loaders[globalName]) return loaders[globalName];
+      loaders[globalName] = new Promise(function (resolve, reject) {
+        var script = document.createElement('script');
+        script.src = src;
+        script.onload = function () {
+          if (window[globalName]) resolve(window[globalName]);
+          else reject(new Error(globalName + ' did not load.'));
+        };
+        script.onerror = function () { reject(new Error('Cannot load ' + src + '.')); };
+        document.head.appendChild(script);
+      });
+      loaders[globalName].catch(function () { loaders[globalName] = null; });
+      return loaders[globalName];
     }
 
-    function submitLabel() {
-      return selectedChain ? 'Search ' + chainLabel(selectedChain) : 'Search all chains';
-    }
-
-    function updateScope() {
-      var label = selectedChain ? chainLabel(selectedChain) : '';
-      if (scope) scope.textContent = selectedChain ? 'Searching ' + label + ' only' : 'Searching all chains';
-      if (submit && !submit.disabled) submit.textContent = submitLabel();
-    }
-
-    function setBusy(busy) {
-      if (submit) {
-        submit.disabled = busy;
-        submit.textContent = busy ? 'Deriving…' : submitLabel();
-      }
-      if (modeSelect) modeSelect.disabled = busy;
-    }
-
-    function hideError() {
-      if (!error) return;
-      error.textContent = '';
-      error.hidden = true;
-    }
-
-    function showError(message) {
-      if (!error) return;
-      error.textContent = message;
-      error.hidden = false;
-    }
-
-    function clearResults() {
-      lastReport = null;
-      if (resultsEl) resultsEl.hidden = true;
-      if (rowsEl) rowsEl.textContent = '';
-      if (metaEl) metaEl.textContent = '';
-      if (tableWrap) tableWrap.hidden = false;
-      if (actionsEl) actionsEl.hidden = false;
-      if (copyAllBtn) copyAllBtn.disabled = true;
-      if (csvBtn) csvBtn.disabled = true;
-      if (statusEl) statusEl.textContent = '';
-      lastKind = '';
-    }
-
-    function cancelSearch() {
-      searchSeq += 1;
-      activeParser = null;
-      setBusy(false);
-      clearResults();
-    }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261125d'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261125d'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261125d'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261125d'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
@@ -354,36 +338,26 @@
       return wasmState.promise;
     }
 
-    var tonLoader = null;
-    function loadTon() {
-      if (window.RotorTon) return Promise.resolve(window.RotorTon);
-      if (tonLoader) return tonLoader;
-      tonLoader = new Promise(function (resolve, reject) {
-        var script = document.createElement('script');
-        script.src = '/ton.js';
-        script.onload = function () {
-          if (window.RotorTon) resolve(window.RotorTon);
-          else reject(new Error('TON library did not load.'));
-        };
-        script.onerror = function () { reject(new Error('TON library did not load.')); };
-        document.head.appendChild(script);
+    function sha256(bytes) {
+      if (!(window.crypto && window.crypto.subtle)) {
+        return Promise.reject(new Error('This search needs a secure context (https or localhost).'));
+      }
+      return window.crypto.subtle.digest('SHA-256', bytes).then(function (digest) {
+        return new Uint8Array(digest);
       });
-      tonLoader.catch(function () { tonLoader = null; });
-      return tonLoader;
     }
 
-    function ensureParser() {
-      if (window.RotorSearch) return Promise.resolve(window.RotorSearch);
-      return new Promise(function (resolve, reject) {
-        var script = document.createElement('script');
-        script.src = '/search.js?v=20261125c';
-        script.onload = function () {
-          if (window.RotorSearch) resolve(window.RotorSearch);
-          else reject(new Error('Search did not load.'));
-        };
-        script.onerror = function () { reject(new Error('Search did not load.')); };
-        document.head.appendChild(script);
+    function sha512(bytes) {
+      if (!(window.crypto && window.crypto.subtle)) {
+        return Promise.reject(new Error('This search needs a secure context (https or localhost).'));
+      }
+      return window.crypto.subtle.digest('SHA-512', bytes).then(function (digest) {
+        return new Uint8Array(digest);
       });
+    }
+
+    function doubleSha256(bytes) {
+      return sha256(bytes).then(sha256);
     }
 
     function writeClipboard(text, done) {
@@ -438,185 +412,631 @@
       });
     }
 
-    function buildResultRow(row) {
-      var tr = document.createElement('tr');
-
-      var chainCell = document.createElement('td');
-      chainCell.setAttribute('data-label', 'Chain');
-      chainCell.textContent = row.chainLabel;
-
-      var addressCell = document.createElement('td');
-      addressCell.setAttribute('data-label', 'Address');
-      var code = document.createElement('code');
-      code.className = 'global-search-addr mono';
-      code.textContent = row.address;
-      addressCell.appendChild(code);
-
-      var typeCell = document.createElement('td');
-      typeCell.setAttribute('data-label', 'Type');
-      typeCell.textContent = row.type;
-
-      var actionCell = document.createElement('td');
-      actionCell.setAttribute('data-label', 'Actions');
-      actionCell.className = 'global-search-table-actions';
-
-      var copy = document.createElement('button');
-      copy.type = 'button';
-      copy.className = 'global-search-icon-btn';
-      copy.setAttribute('aria-label', 'Copy ' + row.chainLabel + ' address');
-      copy.title = 'Copy address';
-      copy.appendChild(icon('ui-copy'));
-      copy.addEventListener('click', function () {
-        copyWithFeedback(row.address, copy, 'Copy ' + row.chainLabel + ' address');
+    function fetchWithTimeout(url, options, signal, timeoutMs) {
+      var controller = new AbortController();
+      var timer = window.setTimeout(function () { controller.abort(); }, timeoutMs || SEARCH_TIMEOUT_MS);
+      var onAbort = null;
+      if (signal) {
+        if (signal.aborted) {
+          window.clearTimeout(timer);
+          return Promise.reject(new Error('aborted'));
+        }
+        onAbort = function () { controller.abort(); };
+        signal.addEventListener('abort', onAbort);
+      }
+      var settings = Object.assign({}, options || {});
+      settings.signal = controller.signal;
+      return fetch(url, settings).finally(function () {
+        window.clearTimeout(timer);
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
       });
-      actionCell.appendChild(copy);
+    }
 
+    function fetchJson(url, options, signal) {
+      return fetchWithTimeout(url, options, signal).then(function (response) {
+        if (!response.ok) {
+          var err = new Error('HTTP ' + response.status);
+          err.status = response.status;
+          throw err;
+        }
+        return response.json();
+      });
+    }
+
+    function balanceProvider(slug) {
+      if (slug === 'bitcoin') {
+        return {
+          name: 'mempool',
+          chain: 'bitcoin',
+          fetch: function (address, signal) {
+            return fetchJson('https://mempool.space/api/address/' + encodeURIComponent(address), null, signal).then(function (data) {
+              var chain = data.chain_stats || {};
+              var mempool = data.mempool_stats || {};
+              var funded = BigInt(Math.trunc(chain.funded_txo_sum || 0)) + BigInt(Math.trunc(mempool.funded_txo_sum || 0));
+              var spent = BigInt(Math.trunc(chain.spent_txo_sum || 0)) + BigInt(Math.trunc(mempool.spent_txo_sum || 0));
+              var amount = funded - spent;
+              if (amount < 0n) amount = 0n;
+              var txs = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
+              return { amount: amount, decimals: 8, symbol: 'BTC', active: txs > 0 };
+            });
+          }
+        };
+      }
+      if (EVM_RPC[slug]) {
+        var rpc = EVM_RPC[slug];
+        var symbol = EVM_NATIVE[slug] || 'ETH';
+        return {
+          name: 'evm',
+          chain: slug,
+          fetch: function (address, signal) {
+            return fetchJson(rpc, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBalance', params: [address, 'latest'] })
+            }, signal).then(function (data) {
+              if (!data || typeof data.result !== 'string') throw new Error('unexpected response');
+              var amount = BigInt(data.result);
+              return { amount: amount, decimals: 18, symbol: symbol, active: amount > 0n };
+            });
+          }
+        };
+      }
+      if (slug === 'tron') {
+        return {
+          name: 'tronscan',
+          chain: 'tron',
+          fetch: function (address, signal) {
+            return fetchJson('/api/v1/chain/tron/address?address=' + encodeURIComponent(address), null, signal)
+              .then(function (data) {
+                if (!data || data.chain !== 'tron') throw new Error('unexpected response');
+                var amount = data.balance_sun === null || data.balance_sun === undefined
+                  ? 0n
+                  : BigInt(String(data.balance_sun));
+                return {
+                  amount: amount,
+                  decimals: 6,
+                  symbol: 'TRX',
+                  active: typeof data.tx_count === 'number' && data.tx_count > 0
+                };
+              })
+              .catch(function (err) {
+                if (err && (err.status === 404 || err.status === 501)) {
+                  return fetchJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address), null, signal)
+                    .then(function (data) {
+                      var amount = BigInt(String(data && data.balance ? data.balance : 0));
+                      var txs = data && (data.totalTransactionCount || data.transactionCount || 0);
+                      return { amount: amount, decimals: 6, symbol: 'TRX', active: Number(txs) > 0 };
+                    });
+                }
+                throw err;
+              });
+          }
+        };
+      }
+      if (slug === 'solana') {
+        return {
+          name: 'solana',
+          chain: 'solana',
+          fetch: function (address, signal) {
+            return fetchJson('https://solana-rpc.publicnode.com', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address] })
+            }, signal).then(function (data) {
+              var amount = data && data.result && data.result.value !== undefined ? BigInt(data.result.value) : 0n;
+              return { amount: amount, decimals: 9, symbol: 'SOL', active: amount > 0n };
+            });
+          }
+        };
+      }
+      if (slug === 'xrp') {
+        return {
+          name: 'xrpscan',
+          chain: 'xrp',
+          fetch: function (address, signal) {
+            return fetchWithTimeout('https://api.xrpscan.com/api/v1/account/' + encodeURIComponent(address), null, signal)
+              .then(function (response) {
+                if (response.status === 404) {
+                  return { amount: 0n, decimals: 6, symbol: 'XRP', active: false };
+                }
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json().then(function (data) {
+                  var amount = BigInt(String(data && data.Balance !== undefined ? data.Balance : 0));
+                  return { amount: amount, decimals: 6, symbol: 'XRP', active: amount > 0n };
+                });
+              });
+          }
+        };
+      }
+      if (slug === 'litecoin') {
+        return {
+          name: 'litecoinspace',
+          chain: 'litecoin',
+          fetch: function (address, signal) {
+            return fetchJson('https://litecoinspace.org/api/address/' + encodeURIComponent(address), null, signal).then(function (data) {
+              var chain = data.chain_stats || {};
+              var mempool = data.mempool_stats || {};
+              var funded = Number(chain.funded_txo_sum || 0) + Number(mempool.funded_txo_sum || 0);
+              var spent = Number(chain.spent_txo_sum || 0) + Number(mempool.spent_txo_sum || 0);
+              var txs = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
+              return { amount: BigInt(Math.trunc(funded - spent)), decimals: 8, symbol: 'LTC', active: txs > 0 };
+            });
+          }
+        };
+      }
+      if (slug === 'bitcoin-cash') {
+        return {
+          name: 'haskoin',
+          chain: 'bitcoin-cash',
+          fetch: function (address, signal) {
+            return fetchJson('https://api.haskoin.com/bch/address/balances?addresses=' + encodeURIComponent(address), null, signal).then(function (rows) {
+              var info = Array.isArray(rows) ? rows[0] : null;
+              var amount = info ? BigInt(Math.trunc(Number(info.confirmed || 0) + Number(info.unconfirmed || 0))) : 0n;
+              return {
+                amount: amount,
+                decimals: 8,
+                symbol: 'BCH',
+                active: amount > 0n || Number(info && info.txs || 0) > 0
+              };
+            });
+          }
+        };
+      }
+      if (slug === 'dogecoin' || slug === 'zcash') {
+        var network = slug === 'dogecoin' ? 'dogecoin' : 'zcash';
+        var ticker = slug === 'dogecoin' ? 'DOGE' : 'ZEC';
+        return {
+          name: 'blockchair',
+          chain: slug,
+          fetch: function (address, signal) {
+            return fetchJson('https://api.blockchair.com/' + network + '/dashboards/addresses/' + encodeURIComponent(address), null, signal).then(function (data) {
+              var info = data && data.data && data.data[address] && data.data[address].address;
+              var amount = info ? BigInt(Math.trunc(Number(info.balance || 0))) : 0n;
+              return {
+                amount: amount,
+                decimals: 8,
+                symbol: ticker,
+                active: amount > 0n || Number(info && info.transaction_count || 0) > 0
+              };
+            });
+          }
+        };
+      }
+      if (slug === 'sui') {
+        return {
+          name: 'sui',
+          chain: 'sui',
+          fetch: function (address, signal) {
+            function request(method) {
+              return fetchJson('https://fullnode.mainnet.sui.io', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: [address] })
+              }, signal).then(function (data) {
+                var amount = data && data.result && data.result.totalBalance !== undefined
+                  ? BigInt(String(data.result.totalBalance))
+                  : 0n;
+                return { amount: amount, decimals: 9, symbol: 'SUI', active: amount > 0n };
+              });
+            }
+            return request('suix_getBalance').catch(function (err) {
+              if (signal && signal.aborted) throw err;
+              return request('sui_getBalance');
+            });
+          }
+        };
+      }
+      if (slug === 'ton') {
+        return {
+          name: 'toncenter',
+          chain: 'ton',
+          fetch: function (address, signal) {
+            return fetchJson('https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address), null, signal).then(function (data) {
+              var amount = data && data.result !== undefined ? BigInt(String(data.result)) : 0n;
+              return { amount: amount, decimals: 9, symbol: 'TON', active: amount > 0n };
+            });
+          }
+        };
+      }
+      return null;
+    }
+
+    function syncChips() {
+      chips.forEach(function (chip) {
+        chip.setAttribute('aria-pressed', String(chip.getAttribute('data-mode') === selectedMode));
+      });
+    }
+
+    function hideError() {
+      errorEl.textContent = '';
+      errorEl.hidden = true;
+    }
+
+    function showError(message) {
+      errorEl.textContent = message;
+      errorEl.hidden = false;
+    }
+
+    function setBusy(busy) {
+      if (submit) {
+        submit.disabled = busy;
+        submit.textContent = busy ? 'Deriving…' : 'Search all chains';
+      }
+      chips.forEach(function (chip) { chip.disabled = busy; });
+    }
+
+    function refreshDetection() {
+      hideError();
+      var value = input.value.trim();
+      var tools = window.RotorKeyTools;
+      currentRoute = null;
+      if (!tools || typeof tools.routeKeyInput !== 'function') {
+        ensureKeyTools().then(refreshDetection, function () {
+          detectEl.textContent = 'Auto-detect is unavailable. Search still opens /key.';
+        });
+      }
+      if (!value) {
+        detectEl.textContent = 'Auto-detect: HEX, WIF, keypair, XRP secret, mnemonic or brainwallet';
+        viewEl.hidden = true;
+        mnemonicEl.hidden = selectedMode !== 'mnemonic';
+        input.removeAttribute('aria-invalid');
+        return;
+      }
+      if (!tools || typeof tools.routeKeyInput !== 'function') {
+        detectEl.textContent = 'Loading the search detector…';
+        viewEl.hidden = true;
+        return;
+      }
+      try {
+        currentRoute = tools.routeKeyInput(value, selectedMode);
+      } catch (err) {
+        detectEl.textContent = selectedMode
+          ? 'Not a valid ' + chipLabel(selectedMode)
+          : 'Auto-detect: HEX, WIF, keypair, XRP secret, mnemonic or brainwallet';
+        viewEl.hidden = true;
+        mnemonicEl.hidden = selectedMode !== 'mnemonic';
+        input.setAttribute('aria-invalid', 'true');
+        return;
+      }
+      input.removeAttribute('aria-invalid');
+      detectEl.textContent = (selectedMode ? 'Interpreting as ' : 'Detected: ') + currentRoute.label;
+      viewEl.hidden = false;
+      viewEl.href = currentRoute.href;
+      viewEl.textContent = currentRoute.viewLabel + ' →';
+      mnemonicEl.hidden = currentRoute.kind !== 'mnemonic';
+    }
+
+    function clearResults() {
+      currentCards = [];
+      resultsEl.hidden = true;
+      cardsEl.textContent = '';
+      metaEl.textContent = '';
+      summaryEl.textContent = '';
+      noteEl.textContent = '';
+      if (copyAllBtn) copyAllBtn.disabled = true;
+      if (csvBtn) csvBtn.disabled = true;
+      statusEl.textContent = '';
+    }
+
+    function cancelBalances() {
+      balanceRun += 1;
+      if (balanceController) {
+        try { balanceController.abort(); } catch (err) { /* already aborted */ }
+        balanceController = null;
+      }
+    }
+
+    function cancelSearch() {
+      searchSeq += 1;
+      cancelBalances();
+      currentRoute = null;
+      setBusy(false);
+      clearResults();
+    }
+
+    function updateSummary() {
+      var parser = window.RotorSearch;
+      if (!parser || typeof parser.summaryCounts !== 'function') return;
+      var pending = currentCards.some(function (card) { return card.balanceState === 'loading'; });
+      if (pending) {
+        summaryEl.textContent = 'Checking balances…';
+        return;
+      }
+      var counts = parser.summaryCounts(currentCards);
+      summaryEl.textContent = counts.chains + ' active chain' + (counts.chains === 1 ? '' : 's') +
+        ' • ' + counts.addresses + ' active address' + (counts.addresses === 1 ? '' : 'es');
+    }
+
+    function setCardBalance(view, value) {
+      if (!value) {
+        view.balance.textContent = '—';
+        view.balance.title = 'No balance provider answered; this is not a zero balance.';
+        view.status.hidden = true;
+        view.article.classList.remove('has-balance');
+        view.card.rows.forEach(function (row) { row.active = false; });
+        return;
+      }
+      var amount;
+      try {
+        amount = BigInt(String(value.amount));
+      } catch (err) {
+        amount = 0n;
+      }
+      var text = formatUnits(amount, Number.isInteger(value.decimals) ? value.decimals : 0) +
+        (value.symbol ? ' ' + value.symbol : '');
+      view.balance.textContent = text;
+      view.balance.title = text;
+      var active = value.active === true || amount > 0n;
+      view.status.hidden = !active;
+      view.article.classList.toggle('has-balance', amount > 0n);
+      view.card.rows.forEach(function (row, index) {
+        row.active = index === 0 ? active : false;
+      });
+    }
+
+    function loadCardBalance(api, store, view, run, signal) {
+      var card = view.card;
+      var primary = card.rows[0];
+      var provider = balanceProvider(card.slug);
+      if (!provider || !primary) {
+        card.balanceState = 'none';
+        setCardBalance(view, null);
+        return Promise.resolve(null);
+      }
+      var key = api && store ? api.cacheKey(provider.name, provider.chain, primary.address) : null;
+      card.balanceState = 'loading';
+      view.balance.textContent = '…';
+      view.balance.title = 'Checking balance…';
+
+      function apply(value) {
+        if (run !== balanceRun) return;
+        card.balance = value || null;
+        card.balanceState = value ? 'ok' : 'none';
+        setCardBalance(view, value);
+        updateSummary();
+      }
+
+      function fetchValue() {
+        return provider.fetch(primary.address, signal).then(function (value) {
+          if (api && store && key) {
+            try {
+              var pending = store.put(key, api.makeEntry(value, provider.name));
+              if (pending && pending.catch) pending.catch(function () { /* memory fallback */ });
+            } catch (err) { /* memory fallback */ }
+          }
+          return value;
+        });
+      }
+
+      var read = store && key
+        ? store.get(key).catch(function () { return null; })
+        : Promise.resolve(null);
+      return read.then(function (entry) {
+        if (run !== balanceRun) return null;
+        if (api && entry && api.isFresh(entry, provider.name)) {
+          apply(entry.value);
+          return null;
+        }
+        return fetchValue().then(function (value) {
+          apply(value);
+          return null;
+        }).catch(function () {
+          if (signal && signal.aborted) return null;
+          if (api && entry && api.isSuccess(entry)) {
+            apply(entry.value);
+            return null;
+          }
+          apply(null);
+          return null;
+        });
+      });
+    }
+
+    function startBalances(views) {
+      cancelBalances();
+      var run = balanceRun;
+      var controller = new AbortController();
+      balanceController = controller;
+      ensureBalanceCache().then(function (api) {
+        if (run !== balanceRun || controller.signal.aborted) return null;
+        var storePromise = api && typeof api.createStore === 'function' ? api.createStore() : Promise.resolve(null);
+        return storePromise.then(function (store) {
+          var limit = api && typeof api.createLimiter === 'function'
+            ? api.createLimiter(18)
+            : function (task) { return task(); };
+          return Promise.all(views.map(function (view) {
+            return limit(function () {
+              if (run !== balanceRun) return null;
+              return loadCardBalance(api, store, view, run, controller.signal);
+            });
+          }));
+        });
+      }).then(function () {
+        if (run === balanceRun) updateSummary();
+      }).catch(function () {
+        if (run !== balanceRun) return;
+        views.forEach(function (view) {
+          if (view.card.balanceState === 'loading') {
+            view.card.balanceState = 'none';
+            setCardBalance(view, null);
+          }
+        });
+        updateSummary();
+      });
+    }
+
+    function buildAddressRow(card, row, index) {
+      var item = document.createElement('li');
+      item.className = 'ws-address-item';
+
+      var idx = document.createElement('span');
+      idx.className = 'ws-address-index';
+      idx.textContent = '#' + index;
+      item.appendChild(idx);
+
+      var type = document.createElement('span');
+      type.className = 'ws-address-type';
+      type.textContent = row.type;
+      item.appendChild(type);
+
+      var code = document.createElement('code');
+      code.className = 'ws-address-value mono';
+      code.textContent = row.address;
+      code.title = row.address;
+      item.appendChild(code);
+
+      var actions = document.createElement('span');
+      actions.className = 'ws-address-actions';
       if (row.explorer) {
         var link = document.createElement('a');
         link.className = 'global-search-icon-btn';
         link.href = row.explorer;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
-        link.setAttribute('aria-label', 'Open ' + row.chainLabel + ' address in explorer');
+        link.setAttribute('aria-label', 'Open ' + card.label + ' ' + row.type + ' address in explorer');
         link.title = 'Open in explorer';
         link.appendChild(icon('ui-external'));
-        actionCell.appendChild(link);
+        actions.appendChild(link);
       }
-
-      tr.appendChild(chainCell);
-      tr.appendChild(addressCell);
-      tr.appendChild(typeCell);
-      tr.appendChild(actionCell);
-      return tr;
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'global-search-icon-btn';
+      copy.setAttribute('aria-label', 'Copy ' + card.label + ' ' + row.type + ' address');
+      copy.title = 'Copy address';
+      copy.appendChild(icon('ui-copy'));
+      copy.addEventListener('click', function () {
+        copyWithFeedback(row.address, copy, 'Copy ' + card.label + ' ' + row.type + ' address');
+      });
+      actions.appendChild(copy);
+      item.appendChild(actions);
+      return item;
     }
 
-    function kindLabel(kind) {
-      var labels = { hex: 'HEX key', wif: 'WIF', brainwallet: 'brainwallet', keypair: 'keypair' };
-      return labels[kind] || 'key';
+    function buildCard(card) {
+      var article = document.createElement('article');
+      article.className = 'ws-chain-card';
+      article.setAttribute('data-chain', card.slug);
+
+      var head = document.createElement('div');
+      head.className = 'ws-chain-head';
+      var chainIcon = icon(card.icon);
+      chainIcon.classList.add('ws-chain-icon');
+      head.appendChild(chainIcon);
+
+      var name = document.createElement('span');
+      name.className = 'ws-chain-name';
+      name.textContent = card.label;
+      var ticker = document.createElement('span');
+      ticker.className = 'ws-chain-ticker';
+      ticker.textContent = card.symbol;
+      name.appendChild(ticker);
+      head.appendChild(name);
+
+      var balance = document.createElement('span');
+      balance.className = 'ws-chain-balance';
+      balance.textContent = '—';
+      balance.title = 'Balance not checked yet';
+      head.appendChild(balance);
+
+      var status = document.createElement('span');
+      status.className = 'ws-chain-status';
+      status.textContent = 'Active';
+      status.hidden = true;
+      head.appendChild(status);
+
+      article.appendChild(head);
+
+      var list = document.createElement('ul');
+      list.className = 'ws-address-list';
+      card.rows.forEach(function (row, index) {
+        list.appendChild(buildAddressRow(card, row, index));
+      });
+      article.appendChild(list);
+      return { card: card, article: article, balance: balance, status: status };
     }
 
-    function emptyText(report) {
-      var label = selectedChain ? chainLabel(selectedChain) : '';
-      if (report && report.curve === 'ed25519' && selectedChain &&
-          ['solana', 'sui', 'ton'].indexOf(selectedChain) < 0) {
-        return label + ' addresses come from secp256k1 keys. This keypair is ed25519 — ' +
-          'choose Solana, Sui or TON, or clear the chain filter.';
-      }
-      if (report && report.curve === 'secp256k1' &&
-          ['solana', 'sui', 'ton'].indexOf(selectedChain) >= 0) {
-        return label + ' addresses need an ed25519 keypair (a 32- or 64-byte JSON array).';
-      }
-      return 'No public address rows match this chain filter.';
-    }
-
-    function currentRows() {
-      if (!activeParser || !lastReport) return [];
-      return activeParser.shapeReport(lastReport, { chain: selectedChain, count: selectedCount });
-    }
-
-    function renderResults(report, kind) {
-      lastReport = report;
-      lastKind = kind;
-      var rows = activeParser.shapeReport(report, { chain: selectedChain, count: selectedCount });
+    function renderCards(cards, format) {
+      currentCards = Array.isArray(cards) ? cards : [];
+      var rows = 0;
+      currentCards.forEach(function (card) { rows += card.rows.length; });
       resultsEl.hidden = false;
-      rowsEl.textContent = '';
-      if (!rows.length) {
-        if (metaEl) metaEl.textContent = '';
-        if (tableWrap) tableWrap.hidden = true;
-        if (actionsEl) actionsEl.hidden = true;
-        if (noteEl) noteEl.textContent = emptyText(report);
-        if (copyAllBtn) copyAllBtn.disabled = true;
-        if (csvBtn) csvBtn.disabled = true;
-        if (statusEl) statusEl.textContent = emptyText(report);
+      cardsEl.textContent = '';
+      var kind = currentRoute && currentRoute.label ? currentRoute.label + ' · ' : format + ' · ';
+      metaEl.textContent = kind + currentCards.length + ' chain' + (currentCards.length === 1 ? '' : 's') +
+        ' · ' + rows + ' address' + (rows === 1 ? '' : 'es');
+      noteEl.textContent = currentCards.length
+        ? 'Balances load in this browser through the local TTL cache. A dash means no provider answered; it is not a zero balance.'
+        : 'No public address rows were derived for this input.';
+      summaryEl.textContent = currentCards.length ? 'Checking balances…' : '0 active chains • 0 active addresses';
+      if (copyAllBtn) copyAllBtn.disabled = !currentCards.length;
+      if (csvBtn) csvBtn.disabled = !currentCards.length;
+      if (!currentCards.length) {
+        statusEl.textContent = noteEl.textContent;
         return;
       }
-      if (tableWrap) tableWrap.hidden = false;
-      if (actionsEl) actionsEl.hidden = false;
-      if (noteEl) {
-        noteEl.textContent = 'Balances are not checked in this panel. Only public addresses are derived; ' +
-          'open an explorer to inspect a chain.';
-      }
-      if (metaEl) {
-        metaEl.textContent = rows.length + ' public address' + (rows.length === 1 ? '' : 'es') +
-          ' · ' + kindLabel(kind);
-      }
-      rows.forEach(function (row) { rowsEl.appendChild(buildResultRow(row)); });
-      if (copyAllBtn) copyAllBtn.disabled = false;
-      if (csvBtn) csvBtn.disabled = false;
-      if (statusEl) {
-        statusEl.textContent = 'Derived ' + rows.length + ' public address' + (rows.length === 1 ? '' : 'es') + '.';
-      }
-    }
-
-    function selectChain(button) {
-      var slug = button.getAttribute('data-chain');
-      selectedChain = slug === selectedChain ? '' : slug;
-      chainButtons.forEach(function (other) {
-        other.setAttribute('aria-pressed', String(other.getAttribute('data-chain') === selectedChain));
+      var views = currentCards.map(function (card) {
+        var view = buildCard(card);
+        cardsEl.appendChild(view.article);
+        return view;
       });
-      updateScope();
-      if (lastReport && activeParser) renderResults(lastReport, lastKind);
+      statusEl.textContent = 'Derived ' + rows + ' public address' + (rows === 1 ? '' : 'es') +
+        ' on ' + currentCards.length + ' chains.';
+      startBalances(views);
     }
 
-    chainButtons.forEach(function (button) {
-      button.addEventListener('click', function () { selectChain(button); });
-    });
-
-    function selectCount(button) {
-      var value = Number(button.getAttribute('data-count'));
-      if (SEARCH_COUNTS.indexOf(value) < 0) return;
-      selectedCount = value;
-      countButtons.forEach(function (other) {
-        var active = other === button;
-        other.classList.toggle('active', active);
-        other.setAttribute('aria-pressed', String(active));
-      });
-      if (lastReport && activeParser) renderResults(lastReport, lastKind);
-    }
-
-    countButtons.forEach(function (button) {
-      button.addEventListener('click', function () { selectCount(button); });
-    });
-
-    function open() {
-      if (typeof dialog.showModal === 'function') dialog.showModal();
-      else dialog.setAttribute('open', 'open');
-      window.setTimeout(function () { if (input) input.focus(); }, 30);
-    }
-
-    function closeDialog() {
-      if (typeof dialog.close === 'function') dialog.close();
-      else {
-        dialog.removeAttribute('open');
-        resetDialog();
+    function resolveInputBytes(route, parser, wasm) {
+      if (route.kind === 'hex' && route.hex) {
+        return Promise.resolve({ bytes: parser.hexToBytes(route.hex), format: 'hex' });
       }
-    }
-
-    function resetDialog() {
-      cancelSearch();
-      if (input) input.value = '';
-      hideError();
-    }
-
-    dialog.addEventListener('click', function (event) {
-      if (event.target === dialog) closeDialog();
-    });
-    dialog.addEventListener('close', resetDialog);
-
-    input.addEventListener('input', function () {
-      hideError();
-      cancelSearch();
-    });
-
-    if (modeSelect) {
-      modeSelect.addEventListener('change', function () {
-        hideError();
-        cancelSearch();
+      if (route.kind === 'brainwallet') {
+        return sha256(new TextEncoder().encode(input.value.trim())).then(function (bytes) {
+          return { bytes: bytes, format: 'brainwallet' };
+        });
+      }
+      return ensureKeyTools().then(function (tools) {
+        var hashes = {
+          sha256: sha256,
+          doubleSha256: doubleSha256,
+          sha512: sha512,
+          secpPublicKey: function (bytes) {
+            var report = parser.deriveReport(wasm, bytes, 0);
+            return parser.hexToBytes(report.pubkey_compressed);
+          }
+        };
+        return tools.resolveKeyInput(input.value.trim(), hashes);
       });
     }
 
-    form.addEventListener('submit', function (event) {
-      event.preventDefault();
+    function deriveCards(route, seq) {
+      return ensureSearch().then(function (parser) {
+        return loadWasm().then(function (wasm) {
+          return resolveInputBytes(route, parser, wasm).then(function (parsed) {
+            if (seq !== searchSeq) return null;
+            var bytes = parsed.bytes instanceof Uint8Array ? parsed.bytes : new Uint8Array(parsed.bytes);
+            var secpReport = null;
+            var edReport = null;
+            try { secpReport = parser.deriveReport(wasm, bytes, 0); } catch (err) { secpReport = null; }
+            try { edReport = parser.deriveReport(wasm, bytes, 1); } catch (err) { edReport = null; }
+            bytes.fill(0);
+            if (seq !== searchSeq) return null;
+            return ensureAddressCodecs().then(function (codecs) {
+              if (seq !== searchSeq) return null;
+              var extras = [];
+              if (codecs && typeof codecs.derive === 'function' && secpReport) {
+                var derived = codecs.derive(secpReport);
+                Object.keys(derived).forEach(function (id) {
+                  if (derived[id]) extras.push(derived[id]);
+                });
+              }
+              renderCards(parser.buildCards(secpReport, edReport, extras), parsed.format);
+              return null;
+            });
+          });
+        });
+      });
+    }
+
+    function startSearch() {
       hideError();
       var value = input.value.trim();
       if (!value) {
@@ -625,64 +1045,28 @@
         return;
       }
       var seq = ++searchSeq;
+      cancelBalances();
       clearResults();
       setBusy(true);
-      var parserRef = null;
-
-      ensureParser().then(function (parser) {
-        parserRef = parser;
-        activeParser = parser;
-        return parser.detect(value, modeSelect ? modeSelect.value : 'auto');
-      }).then(function (result) {
-        if (seq !== searchSeq) return null;
-        if (result.kind === 'mnemonic') {
-          /* Never drop the phrase: /seed restores it from sessionStorage,
-           * fills the field and derives immediately. The phrase stays out of
-           * the URL. The chain strip does not change seed derivation, so the
-           * selected chain is intentionally not forwarded. */
-          try { sessionStorage.setItem('rotor-seed-phrase', result.phrase); } catch (err) { /* private mode */ }
-          window.location.href = '/seed';
+      ensureKeyTools().then(function (tools) {
+        var route;
+        try {
+          route = tools.routeKeyInput(value, selectedMode);
+        } catch (err) {
+          throw err;
+        }
+        if (!route) throw new Error('Enter a key, WIF, mnemonic or brainwallet text.');
+        currentRoute = route;
+        if (route.kind === 'mnemonic') {
+          try {
+            sessionStorage.setItem('rotor-seed-phrase', route.phrase);
+            sessionStorage.setItem('rotor-seed-passphrase', passphraseEl ? passphraseEl.value : '');
+            sessionStorage.setItem('rotor-seed-count', countEl ? countEl.value : '1');
+          } catch (err) { /* private mode: the converter still opens without the phrase */ }
+          window.location.href = '/mnemonic-converter';
           return null;
         }
-        var curve = result.curve === 'ed25519' ? 1 : 0;
-        var bytes = parserRef.hexToBytes(result.hex);
-        return loadWasm().then(function (wasm) {
-          if (seq !== searchSeq) {
-            bytes.fill(0);
-            return null;
-          }
-          var report;
-          try {
-            report = parserRef.deriveReport(wasm, bytes, curve);
-          } finally {
-            bytes.fill(0);
-          }
-          if (seq !== searchSeq) return null;
-          if (curve === 1 && selectedChain === 'ton') {
-            return loadTon().then(function (ton) {
-              return ton.address(report.ed_pubkey);
-            }).then(function (address) {
-              if (seq !== searchSeq) return null;
-              parserRef.appendTonRow(report, address);
-              renderResults(report, result.kind);
-              return null;
-            }).catch(function () {
-              if (seq !== searchSeq) return null;
-              resultsEl.hidden = false;
-              rowsEl.textContent = '';
-              if (tableWrap) tableWrap.hidden = true;
-              if (actionsEl) actionsEl.hidden = true;
-              if (metaEl) metaEl.textContent = '';
-              if (noteEl) {
-                noteEl.textContent = 'The TON wallet library could not load, so no TON address is shown. Try again or choose another chain.';
-              }
-              if (statusEl) statusEl.textContent = noteEl ? noteEl.textContent : '';
-              return null;
-            });
-          }
-          renderResults(report, result.kind);
-          return null;
-        });
+        return deriveCards(route, seq);
       }).catch(function (err) {
         if (seq !== searchSeq) return;
         showError(err && err.message ? err.message : 'Cannot read that value.');
@@ -690,13 +1074,124 @@
       }).finally(function () {
         if (seq === searchSeq) setBusy(false);
       });
+    }
+
+    function cardBalanceTexts() {
+      var out = {};
+      currentCards.forEach(function (card) {
+        if (card.balance) {
+          var amount;
+          try { amount = BigInt(String(card.balance.amount)); } catch (err) { amount = 0n; }
+          out[card.slug] = formatUnits(amount, Number.isInteger(card.balance.decimals) ? card.balance.decimals : 0) +
+            (card.balance.symbol ? ' ' + card.balance.symbol : '');
+        } else {
+          out[card.slug] = '—';
+        }
+      });
+      return out;
+    }
+
+    function resetDialog() {
+      cancelSearch();
+      if (input) input.value = '';
+      selectedMode = '';
+      syncChips();
+      refreshDetection();
+      hideError();
+    }
+
+    function focusables() {
+      return Array.prototype.filter.call(
+        dialog.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+        function (element) {
+          return !element.hidden && element.offsetParent !== null;
+        }
+      );
+    }
+
+    function open() {
+      lastFocus = document.activeElement;
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', 'open');
+      refreshDetection();
+      window.setTimeout(function () { if (input) input.focus(); }, 30);
+    }
+
+    function closeDialog() {
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      else {
+        dialog.removeAttribute('open');
+        resetDialog();
+        restoreFocus();
+      }
+    }
+
+    function restoreFocus() {
+      if (lastFocus && lastFocus.isConnected && typeof lastFocus.focus === 'function') {
+        lastFocus.focus();
+      }
+      lastFocus = null;
+    }
+
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) closeDialog();
+    });
+    dialog.addEventListener('close', function () {
+      resetDialog();
+      restoreFocus();
+    });
+    dialog.addEventListener('cancel', function (event) {
+      event.preventDefault();
+      closeDialog();
+    });
+    dialog.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDialog();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      var list = focusables();
+      if (!list.length) {
+        event.preventDefault();
+        return;
+      }
+      var first = list[0];
+      var last = list[list.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    input.addEventListener('input', function () {
+      refreshDetection();
+      cancelSearch();
+    });
+
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var mode = chip.getAttribute('data-mode');
+        selectedMode = selectedMode === mode ? '' : mode;
+        syncChips();
+        refreshDetection();
+        if (input.value.trim() && !resultsEl.hidden) startSearch();
+      });
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      startSearch();
     });
 
     if (copyAllBtn) {
       copyAllBtn.addEventListener('click', function () {
-        var rows = currentRows();
-        if (!rows.length) return;
-        writeClipboard(activeParser.toCsv(rows), function done() {
+        if (!currentCards.length || !window.RotorSearch) return;
+        var text = window.RotorSearch.cardsToTsv(currentCards, cardBalanceTexts());
+        writeClipboard(text, function done() {
           var original = 'Copy All';
           copyAllBtn.textContent = 'Copied';
           copyAllBtn.disabled = true;
@@ -710,9 +1205,9 @@
 
     if (csvBtn) {
       csvBtn.addEventListener('click', function () {
-        var rows = currentRows();
-        if (!rows.length) return;
-        var blob = new Blob([activeParser.toCsv(rows)], { type: 'text/csv;charset=utf-8' });
+        if (!currentCards.length || !window.RotorSearch) return;
+        var text = window.RotorSearch.cardsToCsv(currentCards, cardBalanceTexts());
+        var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
         var url = URL.createObjectURL(blob);
         var link = document.createElement('a');
         link.href = url;
@@ -732,15 +1227,20 @@
     });
 
     Array.prototype.forEach.call(document.querySelectorAll('[data-nav="search"]'), function (link) {
+      if (link.tagName === 'A') link.setAttribute('title', 'Search (Ctrl+K)');
       link.addEventListener('click', function (event) {
         event.preventDefault();
         open();
       });
     });
+
+    window.addEventListener('pagehide', function () {
+      if (input) input.value = '';
+      cancelSearch();
+    });
   }
 
   installGlobalSearch();
-
   markNavigation();
   bindKeySearches();
 

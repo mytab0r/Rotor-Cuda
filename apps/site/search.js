@@ -34,26 +34,27 @@
   var COUNTS = [1, 3, 5, 10];
 
   /* The 18 chains offered by the selector, in display order. `family` maps a
-   * chain to the address rows the derivation core reports. */
+   * chain to the address rows the derivation core reports; `symbol` and
+   * `icon` drive the per-chain result cards. */
   var CHAINS = [
-    { slug: 'bitcoin', label: 'Bitcoin', family: 'btc', explorer: 'https://mempool.space/address/' },
-    { slug: 'ethereum', label: 'Ethereum', family: 'evm', explorer: 'https://etherscan.io/address/' },
-    { slug: 'bnb', label: 'BNB', family: 'evm', explorer: 'https://bscscan.com/address/' },
-    { slug: 'arbitrum', label: 'Arbitrum', family: 'evm', explorer: 'https://arbiscan.io/address/' },
-    { slug: 'optimism', label: 'Optimism', family: 'evm', explorer: 'https://optimistic.etherscan.io/address/' },
-    { slug: 'base', label: 'Base', family: 'evm', explorer: 'https://basescan.org/address/' },
-    { slug: 'polygon', label: 'Polygon', family: 'evm', explorer: 'https://polygonscan.com/address/' },
-    { slug: 'avalanche', label: 'Avalanche', family: 'evm', explorer: 'https://snowtrace.io/address/' },
-    { slug: 'zksync', label: 'zkSync', family: 'evm', explorer: 'https://explorer.zksync.io/address/' },
-    { slug: 'solana', label: 'Solana', family: 'solana', explorer: 'https://solscan.io/account/' },
-    { slug: 'tron', label: 'TRON', family: 'tron', explorer: 'https://tronscan.org/#/address/' },
-    { slug: 'xrp', label: 'XRP', family: 'xrp', explorer: 'https://xrpscan.com/account/' },
-    { slug: 'litecoin', label: 'Litecoin', family: 'ltc', explorer: 'https://blockchair.com/litecoin/address/' },
-    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', family: 'bch', explorer: 'https://blockchair.com/bitcoin-cash/address/' },
-    { slug: 'dogecoin', label: 'Dogecoin', family: 'doge', explorer: 'https://blockchair.com/dogecoin/address/' },
-    { slug: 'zcash', label: 'Zcash', family: 'zcash', explorer: 'https://blockchair.com/zcash/address/' },
-    { slug: 'sui', label: 'Sui', family: 'sui', explorer: 'https://suiscan.xyz/mainnet/account/' },
-    { slug: 'ton', label: 'TON', family: 'ton', explorer: 'https://tonviewer.com/' }
+    { slug: 'bitcoin', label: 'Bitcoin', symbol: 'BTC', icon: 'chain-bitcoin', family: 'btc', explorer: 'https://mempool.space/address/' },
+    { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', icon: 'chain-ethereum', family: 'evm', explorer: 'https://etherscan.io/address/' },
+    { slug: 'bnb', label: 'BNB', symbol: 'BNB', icon: 'chain-bnb', family: 'evm', explorer: 'https://bscscan.com/address/' },
+    { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ARB', icon: 'chain-arbitrum', family: 'evm', explorer: 'https://arbiscan.io/address/' },
+    { slug: 'optimism', label: 'Optimism', symbol: 'OP', icon: 'chain-optimism', family: 'evm', explorer: 'https://optimistic.etherscan.io/address/' },
+    { slug: 'base', label: 'Base', symbol: 'BASE', icon: 'chain-base', family: 'evm', explorer: 'https://basescan.org/address/' },
+    { slug: 'polygon', label: 'Polygon', symbol: 'POL', icon: 'chain-polygon', family: 'evm', explorer: 'https://polygonscan.com/address/' },
+    { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', icon: 'chain-avalanche', family: 'evm', explorer: 'https://snowtrace.io/address/' },
+    { slug: 'zksync', label: 'zkSync', symbol: 'zkSync', icon: 'chain-zksync', family: 'evm', explorer: 'https://explorer.zksync.io/address/' },
+    { slug: 'solana', label: 'Solana', symbol: 'SOL', icon: 'chain-solana', family: 'solana', explorer: 'https://solscan.io/account/' },
+    { slug: 'tron', label: 'TRON', symbol: 'TRX', icon: 'chain-tron', family: 'tron', explorer: 'https://tronscan.org/#/address/' },
+    { slug: 'xrp', label: 'XRP', symbol: 'XRP', icon: 'chain-xrp', family: 'xrp', explorer: 'https://xrpscan.com/account/' },
+    { slug: 'litecoin', label: 'Litecoin', symbol: 'LTC', icon: 'chain-litecoin', family: 'ltc', explorer: 'https://blockchair.com/litecoin/address/' },
+    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', symbol: 'BCH', icon: 'chain-bitcoin-cash', family: 'bch', explorer: 'https://blockchair.com/bitcoin-cash/address/' },
+    { slug: 'dogecoin', label: 'Dogecoin', symbol: 'DOGE', icon: 'chain-dogecoin', family: 'doge', explorer: 'https://blockchair.com/dogecoin/address/' },
+    { slug: 'zcash', label: 'Zcash', symbol: 'ZEC', icon: 'chain-zcash', family: 'zcash', explorer: 'https://blockchair.com/zcash/address/' },
+    { slug: 'sui', label: 'Sui', symbol: 'SUI', icon: 'chain-sui', family: 'sui', explorer: 'https://suiscan.xyz/mainnet/account/' },
+    { slug: 'ton', label: 'TON', symbol: 'TON', icon: 'chain-ton', family: 'ton', explorer: 'https://tonviewer.com/' }
   ];
 
   var CHAIN_BY_SLUG = {};
@@ -86,12 +87,17 @@
     ltc_p2pkh: 'Legacy',
     ltc_p2sh_p2wpkh: 'P2SH-P2WPKH',
     ltc_p2wpkh: 'Native segwit',
+    ltc_p2tr: 'Taproot',
     doge_p2pkh: 'Legacy',
+    doge_p2pkh_uncompressed: 'Legacy (uncompressed)',
     bch_legacy: 'Legacy',
+    bch_cashaddr: 'CashAddr',
     xrp_classic: 'Classic',
     zcash_p2pkh: 'Transparent',
+    zcash_p2pkh_uncompressed: 'Transparent (uncompressed)',
     sui: 'Sui',
-    ton: 'v4R2'
+    ton: 'v4R2',
+    ton_w5: 'W5'
   };
 
   function cryptoObject() {
@@ -405,6 +411,153 @@
     return lines.join('\n') + '\n';
   }
 
+  /* ------------------------------------------------------ result cards */
+  /* One card per chain, with every address type the wasm report and the JS
+   * codecs (CashAddr, uncompressed UTXO rows, Litecoin taproot) produce for
+   * that family. Private key material is never copied into a card row. */
+
+  function cardRows(report, family) {
+    var addresses = report && Array.isArray(report.addresses) ? report.addresses : [];
+    return addresses.filter(function (addr) {
+      return addr && typeof addr.id === 'string' && addr.address &&
+        familyOf(addr.id) === family;
+    });
+  }
+
+  function cardRowsById(report, ids) {
+    var addresses = report && Array.isArray(report.addresses) ? report.addresses : [];
+    return addresses.filter(function (addr) {
+      return addr && typeof addr.id === 'string' && addr.address && ids.indexOf(addr.id) >= 0;
+    });
+  }
+
+  function extraList(extras) {
+    if (Array.isArray(extras)) return extras;
+    if (extras && typeof extras === 'object') {
+      return Object.keys(extras).map(function (key) { return extras[key]; });
+    }
+    return [];
+  }
+
+  function cardRow(addr, chain) {
+    return {
+      id: addr.id,
+      type: TYPE_LABELS[addr.id] || addr.label || addr.id.replace(/_/g, ' '),
+      address: addr.address,
+      explorer: chain.explorer ? chain.explorer + encodeURIComponent(addr.address) : '',
+      active: false,
+      balance: null
+    };
+  }
+
+  function makeCard(chain, addresses) {
+    var seen = {};
+    var rows = [];
+    addresses.forEach(function (addr) {
+      if (!addr || !addr.id || !addr.address || seen[addr.id]) return;
+      seen[addr.id] = true;
+      rows.push(cardRow(addr, chain));
+    });
+    return {
+      slug: chain.slug,
+      label: chain.label,
+      symbol: chain.symbol || chain.label,
+      icon: chain.icon || ('chain-' + chain.slug),
+      family: chain.family,
+      explorer: chain.explorer || '',
+      rows: rows,
+      balance: null,
+      balanceState: 'idle'
+    };
+  }
+
+  /**
+   * Build the donor-style per-chain cards. `secpReport` and `edReport` are
+   * the two derive_report outputs (either may be null); `extras` is the JS
+   * codec output (array or id->row map). Chains without any address are
+   * omitted so a card is never half-empty.
+   */
+  function buildCards(secpReport, edReport, extras) {
+    var extra = extraList(extras);
+    var cards = [];
+    CHAINS.forEach(function (chain) {
+      var rows;
+      if (chain.family === 'evm') {
+        rows = cardRows(secpReport, 'evm').filter(function (row) { return row.id === 'evm'; });
+      } else if (chain.family === 'solana' || chain.family === 'sui') {
+        rows = cardRows(edReport, chain.family);
+      } else if (chain.family === 'ton') {
+        rows = cardRowsById(edReport, ['ton', 'ton_w5']);
+        if (!rows.length) rows = cardRows(secpReport, 'ton');
+      } else {
+        rows = cardRows(secpReport, chain.family).concat(cardRows({ addresses: extra }, chain.family));
+      }
+      if (!rows.length) return;
+      cards.push(makeCard(chain, rows));
+    });
+    return cards;
+  }
+
+  function balanceFor(balances, card) {
+    if (!balances) return '—';
+    var value = balances[card.slug];
+    return value === undefined || value === null || value === '' ? '—' : String(value);
+  }
+
+  /* TSV for "Copy All": one public row per line, balance last. */
+  function cardsToTsv(cards, balances) {
+    var lines = ['chain\tindex\ttype\taddress\texplorer\tbalance'];
+    (cards || []).forEach(function (card) {
+      (card.rows || []).forEach(function (row, index) {
+        lines.push([
+          card.label,
+          '#' + index,
+          row.type || '',
+          row.address || '',
+          row.explorer || '',
+          balanceFor(balances, card)
+        ].join('\t'));
+      });
+    });
+    return lines.join('\n') + '\n';
+  }
+
+  /* CSV for "Copy CSV": the same public columns, never a private key. */
+  function cardsToCsv(cards, balances) {
+    var lines = ['chain,index,type,address,explorer,balance'];
+    (cards || []).forEach(function (card) {
+      (card.rows || []).forEach(function (row, index) {
+        lines.push([
+          csvEscape(card.label),
+          csvEscape('#' + index),
+          csvEscape(row.type || ''),
+          csvEscape(row.address || ''),
+          csvEscape(row.explorer || ''),
+          csvEscape(balanceFor(balances, card))
+        ].join(','));
+      });
+    });
+    return lines.join('\n') + '\n';
+  }
+
+  /* Counts over rows the providers marked active (a positive balance or a
+   * provider activity signal). Unknown balances stay inactive, never zero. */
+  function summaryCounts(cards) {
+    var chains = 0;
+    var addresses = 0;
+    (cards || []).forEach(function (card) {
+      var chainActive = false;
+      (card.rows || []).forEach(function (row) {
+        if (row.active === true) {
+          chainActive = true;
+          addresses += 1;
+        }
+      });
+      if (chainActive) chains += 1;
+    });
+    return { chains: chains, addresses: addresses };
+  }
+
   return {
     resolve: resolve,
     detect: detect,
@@ -413,6 +566,10 @@
     shapeReport: shapeReport,
     appendTonRow: appendTonRow,
     toCsv: toCsv,
+    buildCards: buildCards,
+    cardsToTsv: cardsToTsv,
+    cardsToCsv: cardsToCsv,
+    summaryCounts: summaryCounts,
     csvEscape: csvEscape,
     familyOf: familyOf,
     chainLabel: chainLabel,

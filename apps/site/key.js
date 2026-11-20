@@ -5,8 +5,6 @@
 
   var WASM_URL = '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
-  var URL_KEY_RE = /^\/key\/([0-9a-fA-F]{64})$/;
-  var URL_WIF_RE = /^\/key\/([5KLQT][1-9A-HJ-NP-Za-km-z]{50,51})$/;
   var EVM_RPC_URLS = [
     'https://ethereum-rpc.publicnode.com',
     'https://eth.drpc.org',
@@ -311,6 +309,11 @@
       }
       return { kind: 'keypair', bytes: parsed };
     }
+    /* A Solana keypair can also arrive as its 64-byte base58 form. */
+    var tools = window.RotorKeyTools;
+    if (tools && typeof tools.base58Keypair === 'function' && tools.base58Keypair(value)) {
+      return { kind: 'keypair' };
+    }
     if (value.slice(0, 2).toLowerCase() === '0x') {
       var hex = value.slice(2);
       if (!/^[0-9a-fA-F]*$/.test(hex)) {
@@ -336,7 +339,6 @@
     }
     if (WIF_RE.test(value)) return { kind: 'wif', length: value.length };
     if (WIF_PARTIAL_RE.test(value)) return { kind: 'wif', incomplete: true, length: value.length };
-    var tools = window.RotorKeyTools;
     if (tools && typeof tools.looksLikeXrpSecret === 'function' && tools.looksLikeXrpSecret(value)) {
       return { kind: 'xrp', length: value.length };
     }
@@ -2715,17 +2717,32 @@
   /* -------------------------------------------------------------- URL key */
   /* A key in the path is already exposed to the browser history and any
    * server logs, so derive it on load and run the registry check without an
-   * opt-in. Only the derived addresses leave this page. */
+   * opt-in. Only the derived addresses leave this page. The coordinator also
+   * embeds the raw value as window.__ROTOR_KEY__, which keeps arbitrary
+   * XRP/keypair values out of path parsing. */
   function initUrlKey() {
-    var match = URL_KEY_RE.exec(window.location.pathname);
-    var wifMatch = match ? null : URL_WIF_RE.exec(window.location.pathname);
-    if (!match && !wifMatch) return;
-    state.urlKey = match ? match[1].toLowerCase() : wifMatch[1];
+    var raw = typeof window.__ROTOR_KEY__ === 'string' ? window.__ROTOR_KEY__ : '';
+    if (!raw) {
+      var path = window.location.pathname;
+      if (path.indexOf('/key/') !== 0) return;
+      if (path === '/key/hex' || path === '/key/wif' || path === '/key/decimal') return;
+      try {
+        raw = decodeURIComponent(path.slice('/key/'.length));
+      } catch (err) {
+        return;
+      }
+    }
+    if (!raw || raw.indexOf('/') >= 0) return;
+    var detected = detectFormat(raw);
+    if (detected.kind === 'empty' || detected.kind === 'decimal' ||
+        detected.kind === 'brainwallet') return;
+    state.urlKey = detected.kind === 'hex' ? raw.toLowerCase() : raw;
     input.value = state.urlKey;
     var params = new URLSearchParams(window.location.search);
     var curveParam = params.get('curve');
     var chainParam = params.get('chain');
-    curveSelect.value = (curveParam === 'ed25519' || (chainParam && ED25519_CHAINS[chainParam])) ? '1' : '0';
+    curveSelect.value = (curveParam === 'ed25519' || (detected.kind === 'keypair') ||
+      (chainParam && ED25519_CHAINS[chainParam])) ? '1' : '0';
     syncCurveChoices();
     renderCurve();
     if (urlNotice) urlNotice.hidden = false;
