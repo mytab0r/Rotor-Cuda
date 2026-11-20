@@ -1968,6 +1968,23 @@
     return text ? whole.toString() + '.' + text : whole.toString();
   }
 
+  function timeAgo(ms) {
+    return cacheApi && typeof cacheApi.relativeTime === 'function'
+      ? cacheApi.relativeTime(ms, Date.now())
+      : '';
+  }
+
+  /* One status line for both the backend and the direct TronScan path.
+   * Missing fields keep the page's "—" convention instead of a fake zero. */
+  function tronText(sun, txs, lastTxAt) {
+    var parts = [];
+    parts.push(sun === null || sun === undefined ? '—' : formatUnits6(sun, 1000000n) + ' TRX');
+    if (txs !== null && txs !== undefined) parts.push(String(txs) + ' tx');
+    var age = lastTxAt === null || lastTxAt === undefined ? '' : timeAgo(lastTxAt);
+    if (age) parts.push('last ' + age);
+    return parts.join(' · ');
+  }
+
   function formatEth(wei) {
     var whole = wei / WEI;
     var fraction = (wei % WEI) / WEI_PER_MICRO;
@@ -2087,7 +2104,7 @@
     return match ? BigInt(match[1]) : 0n;
   }
 
-  async function fetchTron(address, signal) {
+  async function fetchTronDirect(address, signal) {
     var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address), null, signal);
     if (response.status === 404) {
       return {
@@ -2105,11 +2122,9 @@
     }
     if (!data || typeof data !== 'object') throw new Error('unexpected response');
     var sun = rawTronBalance(raw);
-    var text = formatUnits6(sun, 1000000n) + ' TRX';
     var txs = tronTxCount(data);
-    if (txs !== null) text += ' · ' + txs + ' tx';
     return {
-      text: text,
+      text: tronText(sun, txs, null),
       summary: {
         amount: sun,
         chain: 'tron',
@@ -2117,6 +2132,38 @@
         decimals: 6,
         active: txs !== null && txs > 0
       }
+    };
+  }
+
+  async function fetchTron(address, signal) {
+    /* Same-origin first: the coordinator holds the TronScan key. A static
+     * host (404) or a coordinator without the key (501) falls back to the
+     * previous direct public request; every other failure is surfaced. */
+    var response = await fetchWithTimeout('/api/v1/chain/tron/address?address=' + encodeURIComponent(address), null, signal);
+    if (response.status === 404 || response.status === 501) {
+      return fetchTronDirect(address, signal);
+    }
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    var data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      throw new Error('unexpected response');
+    }
+    if (!data || typeof data !== 'object' || data.chain !== 'tron') throw new Error('unexpected response');
+    var sun = null;
+    if (data.balance_sun !== null && data.balance_sun !== undefined) {
+      try {
+        sun = BigInt(String(data.balance_sun));
+      } catch (err) {
+        throw new Error('unexpected response');
+      }
+    }
+    var txs = typeof data.tx_count === 'number' && isFinite(data.tx_count) ? data.tx_count : null;
+    var lastTxAt = typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : null;
+    return {
+      text: tronText(sun, txs, lastTxAt),
+      summary: { amount: sun === null ? 0n : sun, chain: 'tron', symbol: 'TRX' }
     };
   }
 

@@ -1048,8 +1048,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261124f",
-                "/theme.js?v=20261124f",
+                "/wallet-vault.js?v=20261125a",
+                "/theme.js?v=20261125a",
             ],
         ),
         (
@@ -1292,6 +1292,7 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
             trust_proxy: false,
             monitor_domain: "127.0.0.1".to_string(),
             wallets_upstream: Some(upstream.base.clone()),
+            tronscan_api_key: None,
         },
         Arc::clone(&store),
     )
@@ -1384,6 +1385,61 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
     let (status, _, _) = raw(addr, "GET", "/api/v1/wallets/dogecoin/download", None, None);
     assert_eq!(status, 429);
     assert_eq!(upstream.hits.load(Ordering::SeqCst), hits_before);
+
+    handle.shutdown();
+}
+
+#[test]
+fn tron_lookup_refuses_without_a_provider_key() {
+    let coordinator_state = TempState::new("tron");
+    let monitor_state = TempState::new("tron-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            tronscan_api_key: None,
+            ..ServerOptions::default()
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+
+    // A valid address still cannot be answered without the operator's key.
+    let (status, headers, body) = raw(
+        addr,
+        "GET",
+        "/api/v1/chain/tron/address?address=TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        None,
+        None,
+    );
+    assert_eq!(status, 501, "{body}");
+    assert!(
+        headers.to_ascii_lowercase().contains("application/json"),
+        "{headers}"
+    );
+    assert!(body.contains("no_provider"), "{body}");
+
+    // Malformed addresses and a missing query never reach the provider.
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        "/api/v1/chain/tron/address?address=0R7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        None,
+        None,
+    );
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("invalid tron address"), "{body}");
+    let (status, _, body) = raw(addr, "GET", "/api/v1/chain/tron/address", None, None);
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("missing address"), "{body}");
+
+    // The route is GET-only and public.
+    let (status, _, _) = raw(addr, "POST", "/api/v1/chain/tron/address", None, Some("{}"));
+    assert_eq!(status, 405);
 
     handle.shutdown();
 }
