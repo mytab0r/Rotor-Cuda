@@ -7,19 +7,19 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 | Area | privatekeyfinder.io / secretscan.org | rotor.pxbt.app | Status | P |
 |---|---|---|---|---|
 | Key directory | 18 chains, 60 rows, pager/random/jump, auto-derive, multiple address types, copy | same core; some chains have one address type | partial | P1 |
-| Key entity `/key` | auto-derive, 7 key formats, aggregate counters, 8 EVM rows, CSV/Copy All | buttons required, EVM collapsed, no aggregates/CSV | partial | P0 |
-| Global search | modal interpret-as, 1/3/5/10 addresses, result table, export | auto-detect + redirect to `/key` | partial | P0 |
-| Mnemonic directory | 60 rows, pager, path/word/type, balances, key+phrase copy | same, but no private key/WIF copy in rows | partial | P0 |
+| Key entity `/key` | auto-derive, 7 key formats, aggregate counters, 8 EVM rows, CSV/Copy All | same donor rows: auto-derive, 7 formats, counters, 8 EVM rows (`↑ same`), Copy All/CSV; interactive curve editor/signing entry remain | partial | P0 |
+| Global search | modal interpret-as, 1/3/5/10 addresses, result table, export | Ctrl+K modal, interpret-as detection, inline result table with Copy All/CSV (no redirect) | partial | P0 |
+| Mnemonic directory | 60 rows, pager, path/word/type, balances, key+phrase copy | same plus hex private-key copy and full-phrase cell; WIF stays on `/key`, as in the donor | partial | P0 |
 | Mnemonic converter | live word count, 20 addresses, Load next 5, Copy All, Received/Active | 1/3/5/10, no live counter/next batch/aggregates | partial | P1 |
-| Puzzle home | stats, CTA, All/Solved/Unsolved, search, 160-row table | cards/grid, no table/filters/search/balance columns | partial | P0 |
-| Puzzle random | range controls, segmented solo/team, metrics, Community Hunt, result table | worker exists; no hunt panel/result table | partial | P0/P1 |
-| Brainwallet | 18,890-phrase directory, 60×315, auto address/balance, BTC type tabs, pager | single calculator with Derive button | missing | P0 |
+| Puzzle home | stats, CTA, All/Solved/Unsolved, search, 160-row table | 160-row table with All/Solved/Unsolved, search and Balance/TX/Actions | parity | P0 |
+| Puzzle random | range controls, segmented solo/team, metrics, Community Hunt, result table | worker plus Community Hunt counters and a live result table | parity | P0/P1 |
+| Brainwallet | 18,890-phrase directory, 60×315, auto address/balance, BTC type tabs, pager | `/brainwallet` 18-chain directory (60×315, auto addresses/balances, BTC type tabs, pager/jump) plus the single calculator | parity | P0 |
 | Brainwallet generator | single phrase, network, 1/3/5/10, Copy All/CSV | alias of calculator | partial | P1 |
 | Richest lists | `/richest` + 7 chains, top-100 table, filters, search | absent; only gz dumps | missing | P0 |
 | Dormant/Satoshi/Whale | three content hubs with stats/tables/paging | absent | missing | P1 |
 | Wallet viewer | wallet.dat import, password, address table | absent (ETH keystore only) | missing | P2 |
 | Wallets storefront | privatekeyfinder 404; secretscan market table | real mirrored downloads, no prices | ours-only/partial | P2 |
-| Send transactions | 9 secretscan `Easy_*` pages, fee/bytes/total/signed hex | Sepolia + BTC testnet inside cabinet only | partial | P0 |
+| Send transactions | 9 secretscan `Easy_*` pages, fee/bytes/total/signed hex | top-level `/send/{bitcoin,ethereum,bnb,tron,usdt}` on testnets only; mainnet stays gated | partial | P0 |
 | Tx decoders | BTC raw + EVM RLP decoders | `/tx/bitcoin` + `/tx/ethereum`, client-side, JSON view | parity | - |
 | Vanity | threads/ETA/difficulty/save/recent/QR | 6 chains, no threads/ETA/save | partial | P1 |
 | Keystore | drag-drop file, examples, metadata | paste/password, no file/examples | partial | P1 |

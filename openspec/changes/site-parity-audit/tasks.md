@@ -59,10 +59,10 @@
   `apps/site/send.js:84` (chain table), `:403` (`prepareTronTransfer`),
   `:451` (`signTronTransfer`), `apps/site/tron-tx.js` (Nile-only host/path
   gate), `crates/rotor-wasm/src/tron.rs:89` / `:101` and
-  `crates/rotor-wasm/src/lib.rs:1093` / `:1115` (sign/unsigned exports),
+  `crates/rotor-wasm/src/lib.rs:547` / `:567` (sign/unsigned exports),
   `apps/site/send-test.mjs:417` (TRX->sun), `:431` (prepare) and `:499`
-  (sign/broadcast without a key leak), `src/coordinator/mod.rs:905` / `:907`
-  (route and embedded helper), `tests/coordinator_api.rs:1138` / `:1187`
+  (sign/broadcast without a key leak), `src/coordinator/mod.rs:997` / `:1000`
+  (route and embedded helper), `tests/coordinator_api.rs:1139` / `:1186`
   (six routes and the served helper). Nile testnet only: mainnet TRON hosts
   and the mainnet `tron` route are rejected, and no live broadcast was
   executed (no funded Nile key).
