@@ -2422,9 +2422,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-row-action.is-copied { color: var(--ok); border-color: rgba(69, 214, 160, .45); }
 .key-details-toggle .icon { transition: transform .16s ease; }
 .key-details-toggle.is-open .icon { transform: rotate(90deg); }
-.key-wif-slot { display: contents; }
-.key-wif-slot:empty { display: none; }
-.key-rows .key-wif { min-width: 44px; min-height: 44px; padding: 0 6px; border-radius: 8px; }
 .key-details { padding: 10px 12px 12px; border-top: 1px dashed var(--border); background: rgba(255, 255, 255, .015); }
 .key-details .key-explain { max-width: 100ch; margin: 0 0 6px; font-size: 12px; }
 .key-details .key-step-list { margin: 6px 0 0; }
@@ -2797,21 +2794,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 }
 
 /* Finish-review fixes: one action grammar, readable data, touch targets */
-.key-wif {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 2px 6px;
-  border: 1px solid rgba(245, 181, 68, .35);
-  border-radius: 5px;
-  color: var(--accent-2);
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: .03em;
-}
-.key-wif:hover { border-color: var(--accent); text-decoration: none; }
 .key-addr {
   border: 0;
   background: none;
