@@ -495,6 +495,50 @@ function auditPage(args) {
     );
   }
 
+  // 1b. Controls that spill outside their card's padding box.
+  const clippedControls = [];
+  const scrollableAncestor = (el) => {
+    for (let node = el.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (["auto", "scroll"].includes(style.overflowX) || ["auto", "scroll"].includes(style.overflowY)) return true;
+    }
+    return false;
+  };
+  for (const card of [...document.querySelectorAll(".card")].filter(visible)) {
+    const style = getComputedStyle(card);
+    const box = card.getBoundingClientRect();
+    const limitRight = box.right - Number.parseFloat(style.paddingRight || "0") + 1;
+    const limitBottom = box.bottom - Number.parseFloat(style.paddingBottom || "0") + 1;
+    for (const control of card.querySelectorAll("a, button, select, input, textarea")) {
+      if (!visible(control) || scrollableAncestor(control)) continue;
+      const controlBox = control.getBoundingClientRect();
+      if (controlBox.right > limitRight || controlBox.bottom > limitBottom) {
+        clippedControls.push(
+          `${selectorOf(control)} right ${Math.round(controlBox.right)} > ${Math.round(limitRight)}`,
+        );
+      }
+    }
+  }
+  if (clippedControls.length) {
+    add(
+      "clipped-control",
+      `${clippedControls.length} control(s) extend past their card padding`,
+      clippedControls.slice(0, 6),
+    );
+  }
+
+  // 1c. Raw URL paths shown where a human label belongs (tables and fact rows).
+  const rawPaths = [];
+  for (const cell of document.querySelectorAll("td, dd, .key-form-row")) {
+    if (!visible(cell)) continue;
+    if (cell.closest("pre, code.docs, .docs")) continue;
+    const text = textOf(cell);
+    if (/^\/[a-z0-9][\w\-/]*$/i.test(text) && text.length > 14) rawPaths.push(`${selectorOf(cell)}: ${text.slice(0, 48)}`);
+  }
+  if (rawPaths.length) {
+    add("raw-path-text", `${rawPaths.length} cell(s) show a raw path instead of a label`, rawPaths.slice(0, 6));
+  }
+
   // 2. Body text below 12px.
   const smallText = [];
   const seenText = new Set();
@@ -747,6 +791,27 @@ function auditPage(args) {
       add("key-calculate-button", "/key still exposes a Calculate button; derivation must follow the input", metrics.routeChecks.calculateButtons);
     }
     metrics.routeChecks.hasPrivateInput = Boolean(document.getElementById("priv"));
+
+    const presetChips = document.querySelectorAll("[data-preset]").length;
+    const presetSelect = document.getElementById("preset-select");
+    metrics.routeChecks.presetChips = presetChips;
+    metrics.routeChecks.presetSelect = Boolean(presetSelect && visible(presetSelect));
+    if (presetChips > 0 && presetSelect && visible(presetSelect)) {
+      add("duplicate-preset-control", "/key shows both preset chips and a preset select for the same filter");
+    }
+
+    const summary = document.querySelector("#summary .summary, .summary");
+    if (summary) {
+      const columns = [...summary.children].filter(visible);
+      if (columns.length >= 2) {
+        const bottoms = columns.map((child) => boxOf(child).bottom);
+        const spread = Math.round(Math.max(...bottoms) - Math.min(...bottoms));
+        metrics.routeChecks.summaryColumnSpread = spread;
+        if (spread > 40) {
+          add("ragged-summary-columns", `/key Keys columns end ${spread}px apart`, { spread });
+        }
+      }
+    }
   }
 
   if (route === "/seed") {
