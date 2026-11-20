@@ -118,7 +118,21 @@
 
   <section class="card" id="addresses-card" hidden>
     <h2>Addresses</h2>
-    <div class="key-derive-toolbar">
+    <div class="key-filter-bar" role="group" aria-label="Address filters">
+      <div class="key-chains" role="group" aria-label="Chains">
+        <button type="button" class="key-chain" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
+        <button type="button" class="key-chain" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
+        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>EVM</button>
+        <button type="button" class="key-chain" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
+        <button type="button" class="key-chain" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
+        <button type="button" class="key-chain" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="doge" aria-pressed="false"><span class="key-dot key-dot-doge"></span>Dogecoin<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="bch" aria-pressed="false"><span class="key-dot key-dot-bch"></span>Bitcoin Cash<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="xrp" aria-pressed="false"><span class="key-dot key-dot-xrp"></span>XRP<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain" data-chain="zcash" aria-pressed="false"><span class="key-dot key-dot-zcash"></span>Zcash</button>
+        <button type="button" class="key-chain" data-chain="sui" aria-pressed="false"><span class="key-dot key-dot-sui"></span>Sui</button>
+        <button type="button" class="key-chain" data-chain="ton" aria-pressed="false"><span class="key-dot key-dot-ton"></span>TON</button>
+      </div>
       <div id="btc-panel" hidden>
         <div class="address-type-panel key-address-panel" role="group" aria-label="Bitcoin address type">
           <div class="address-type-cards" role="group" aria-label="Bitcoin address type">
@@ -164,22 +178,6 @@
       <div class="key-export" role="group" aria-label="Export public address rows">
         <button type="button" id="copy-all-rows" class="key-copy">Copy all</button>
         <button type="button" id="csv-rows" class="key-copy">CSV</button>
-      </div>
-    </div>
-    <div class="key-toolbar">
-      <div class="key-chains" role="group" aria-label="Chains">
-        <button type="button" class="key-chain" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
-        <button type="button" class="key-chain" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
-        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>EVM</button>
-        <button type="button" class="key-chain" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
-        <button type="button" class="key-chain" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
-        <button type="button" class="key-chain" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="doge" aria-pressed="false"><span class="key-dot key-dot-doge"></span>Dogecoin<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="bch" aria-pressed="false"><span class="key-dot key-dot-bch"></span>Bitcoin Cash<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="xrp" aria-pressed="false"><span class="key-dot key-dot-xrp"></span>XRP<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="zcash" aria-pressed="false"><span class="key-dot key-dot-zcash"></span>Zcash</button>
-        <button type="button" class="key-chain" data-chain="sui" aria-pressed="false"><span class="key-dot key-dot-sui"></span>Sui</button>
-        <button type="button" class="key-chain" data-chain="ton" aria-pressed="false"><span class="key-dot key-dot-ton"></span>TON</button>
       </div>
       <div class="balance-refresh">
         <button type="button" class="balance-refresh-btn" id="key-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>

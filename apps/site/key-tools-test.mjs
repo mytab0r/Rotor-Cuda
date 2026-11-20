@@ -625,8 +625,7 @@ assert(factById(secpFacts, "wif_u").value === secpReport.wif_uncompressed, "unco
 assert(factById(secpFacts, "pubkey").value === secpReport.pubkey_compressed, "PUBKEY fact");
 assert(!factById(secpFacts, "keypair").value && factById(secpFacts, "keypair").unavailable.includes("ed25519"),
   "KEYPAIR is explicitly unavailable on secp256k1");
-assert(factById(secpFacts, "page").value === "1", "key 1 page fact shows the page number");
-assert(factById(secpFacts, "page").valueHref === "/private-keys/bitcoin", "key 1 page links to directory page 1");
+assert(factById(secpFacts, "page").value === "/private-keys/bitcoin", "key 1 page is directory page 1");
 
 const xrp = factById(secpFacts, "xrp");
 assert(typeof xrp.value === "string" && xrp.value.startsWith("p"), `XRP secret starts with p, got ${xrp.value}`);
@@ -648,8 +647,7 @@ assert(!factById(edFacts, "wif_u").value && factById(edFacts, "wif_u").unavailab
 assert(!factById(edFacts, "xrp").value && factById(edFacts, "xrp").unavailable.includes("secp256k1"),
   "XRP secret is explicitly unavailable on ed25519");
 assert(factById(edFacts, "pubkey").value === edReport.ed_pubkey, "ed25519 PUBKEY fact");
-assert(factById(edFacts, "page").value === "1", "ed25519 page fact shows the page number");
-assert(factById(edFacts, "page").valueHref === "/private-keys/solana", "ed25519 page links to the Solana directory");
+assert(factById(edFacts, "page").value === "/private-keys/solana", "ed25519 page is the Solana directory");
 const keypairBytes = decodeAlphabet(factById(edFacts, "keypair").value, BTC58);
 assert(keypairBytes.length === 64, `Solana keypair is 64 bytes, got ${keypairBytes.length}`);
 assert(Buffer.from(keypairBytes.slice(0, 32)).equals(Buffer.from(hexToBytes(KEY_ONE))),
