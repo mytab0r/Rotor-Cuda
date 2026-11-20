@@ -36,6 +36,7 @@ const DEFAULT_ROUTES = [
   "/send",
   "/send/bnb",
   "/send/usdt",
+  "/send/tron",
   "/cabinet/wallet",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };

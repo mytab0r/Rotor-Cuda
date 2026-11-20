@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Send testnet coins — Bitcoin, Ethereum, BNB | Rotor</title>
-<meta name="description" content="Send Bitcoin testnet, Ethereum Sepolia, BNB Smart Chain testnet or a generic ERC-20 transfer from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
+<title>Send testnet coins — Bitcoin, Ethereum, BNB, TRON | Rotor</title>
+<meta name="description" content="Send Bitcoin testnet, Ethereum Sepolia, BNB Smart Chain testnet, TRON Nile or a generic ERC-20 transfer from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
 <link rel="canonical" href="https://rotor.pxbt.app/send">
 <link rel="stylesheet" href="/site.css?v=20261124c">
 <script src="/theme.js?v=20261124c"></script>
@@ -31,6 +31,10 @@
 .send-page .key-chain[data-send-chain="usdt-sepolia"][aria-current="page"] {
   border-color: #26a17b;
   background: rgba(38, 161, 123, .14);
+}
+.send-page .key-chain[data-send-chain="tron-nile"][aria-current="page"] {
+  border-color: #ff4d4d;
+  background: rgba(255, 77, 77, .14);
 }
 .send-testnet-banner {
   margin: 0 0 18px;
@@ -139,13 +143,14 @@
     </div>
   </section>
 
-  <p class="send-testnet-banner" role="note">TESTNET ONLY. Bitcoin testnet (tBTC), Ethereum Sepolia, BNB Smart Chain testnet (chapel) and a generic ERC-20 builder on Sepolia are the only networks here. Mainnet keys, mainnet RPC endpoints and mainnet broadcasts are rejected in code; nothing on this page can sign a mainnet transaction.</p>
+  <p class="send-testnet-banner" role="note">TESTNET ONLY. Bitcoin testnet (tBTC), Ethereum Sepolia, BNB Smart Chain testnet (chapel), TRON Nile testnet and a generic ERC-20 builder on Sepolia are the only networks here. Mainnet keys, mainnet RPC endpoints and mainnet broadcasts are rejected in code; nothing on this page can sign a mainnet transaction.</p>
 
   <nav class="key-chains" aria-label="Testnet chain">
     <a class="key-chain" href="/send/bitcoin" data-send-chain="bitcoin-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin testnet</a>
     <a class="key-chain" href="/send/ethereum" data-send-chain="ethereum-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum Sepolia</a>
     <a class="key-chain" href="/send/bnb" data-send-chain="bnb-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB testnet</a>
     <a class="key-chain" href="/send/usdt" data-send-chain="usdt-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>ERC-20 on Sepolia</a>
+    <a class="key-chain" href="/send/tron" data-send-chain="tron-nile"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON Nile</a>
   </nav>
 
   <p id="send-unavailable" class="notice" role="alert" hidden></p>
@@ -171,7 +176,11 @@
       </div>
 
       <label class="key-input-label" for="send-to">Recipient address
-        <input id="send-to" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="tb1q… or 0x…">
+        <input id="send-to" class="mono" type="text" spellcheck="false" autocapitalize="off" placeholder="tb1q…, 0x… or T…">
+      </label>
+
+      <label class="key-input-label" data-chain-only="tron-nile" for="send-tron-amount">Amount (TRX)
+        <input id="send-tron-amount" class="mono" type="text" inputmode="decimal" spellcheck="false" placeholder="1.0">
       </label>
 
       <label class="key-input-label" data-chain-only="bitcoin-testnet" for="send-amount">Amount (BTC testnet)
@@ -267,6 +276,7 @@
 
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-evm.js"></script>
+<script src="/tron-tx.js?v=20261124c"></script>
 <script src="/send.js"></script>
 <script src="/site.js?v=20261124c"></script>
 </body>
