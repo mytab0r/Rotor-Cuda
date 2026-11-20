@@ -546,6 +546,75 @@ assert(
   "a checksum-invalid XRP-shaped string falls back to the brainwallet",
 );
 
+// ------------------------------------------------------ search routing
+// The global search modal maps text to a destination without deriving. These
+// vectors pin the donor order: WIF, XRP secret, keypair, 64-hex, mnemonic,
+// then brainwallet.
+const twelveWords = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+const route = (value, mode) => tools.routeKeyInput(value, mode);
+
+const hexRoute = route(KEY_ONE);
+assert(hexRoute.kind === "hex" && hexRoute.href === "/key/" + KEY_ONE, "64-hex routes to /key/<hex>");
+assert(route(KEY_ONE.toUpperCase()).href === "/key/" + KEY_ONE, "auto hex is lowercased");
+assert(route("0x" + KEY_ONE).href === "/key/" + KEY_ONE, "0x hex routes to the plain hex key");
+assert(route("abc", "hex").href === "/key/" + "abc".padStart(64, "0"), "forced HEX pads short input");
+assert(route("1").kind === "brainwallet", "decimal 1 is a brainwallet in auto mode");
+assert(route("1", "hex").href === "/key/" + KEY_ONE, "forced HEX treats 1 as key 1");
+
+assert(route(WIF_VECTORS[0][2]).kind === "wif", "WIF routes to /key/<wif>");
+assert(route(WIF_VECTORS[0][2]).href === "/key/" + WIF_VECTORS[0][2], "WIF link keeps the value");
+assert(route(pSecret).kind === "xrp", "p-prefixed XRP secret routes to /key/<secret>");
+assert(route(pSecret).href === "/key/" + pSecret, "XRP secret link keeps the value");
+assert(route(familySeed).kind === "xrp", "s-prefixed XRP family seed routes to /key/<secret>");
+
+const jsonKeypairRoute = route(keypairInput);
+assert(jsonKeypairRoute.kind === "keypair", "JSON keypair routes to /key/<keypair>");
+assert(jsonKeypairRoute.curve === "ed25519", "keypair is an ed25519 input");
+assert(
+  jsonKeypairRoute.href === "/key/[" + Array.from({ length: 32 }, (_, index) => index).join(",") + "]",
+  `JSON keypair is compacted for the link, got ${jsonKeypairRoute.href}`,
+);
+
+const base58Bytes = Uint8Array.from({ length: 64 }, (_, index) => index);
+const base58Pair = tools.base58Encode(base58Bytes);
+const base58Route = route(base58Pair);
+assert(base58Route.kind === "keypair", "base58 keypair routes to /key/<keypair>");
+assert(base58Route.href === "/key/" + base58Pair, "base58 keypair link keeps the value");
+const base58Resolved = await resolved(base58Pair);
+assert(base58Resolved.format === "keypair", "base58 keypair resolves for derivation");
+assert(
+  base58Resolved.hex === Array.from({ length: 32 }, (_, index) => index.toString(16).padStart(2, "0")).join(""),
+  "base58 keypair uses the first 32 bytes as the ed25519 seed",
+);
+
+const mnemonicRoute = route(twelveWords);
+assert(mnemonicRoute.kind === "mnemonic", "mnemonic routes to the converter");
+assert(mnemonicRoute.href === "/mnemonic-converter", "mnemonic link is /mnemonic-converter");
+
+const brainwalletRoute = route("hello world");
+assert(brainwalletRoute.kind === "brainwallet", "other text is a brainwallet");
+assert(brainwalletRoute.href === "/brainwallet", "brainwallet link is /brainwallet");
+assert(route("hello world", "brainwallet").href === "/brainwallet", "forced brainwallet stays a brainwallet");
+assert(route(KEY_ONE, "brainwallet").kind === "brainwallet", "forced brainwallet overrides key-like text");
+
+for (const [value, mode, pattern] of [
+  ["xyz", "hex", /HEX/],
+  ["not-a-wif", "wif", /WIF/],
+  ["hello", "keypair", /Keypair/],
+  ["hello", "xrp", /XRP/],
+  ["hello", "mnemonic", /Mnemonic/],
+]) {
+  let message = "";
+  try {
+    route(value, mode);
+  } catch (err) {
+    message = err.message;
+  }
+  assert(pattern.test(message), `forced ${mode} rejects ${value}: ${message}`);
+}
+assert(route("") === null, "empty input has no route");
+assert(route("813abc", "auto").kind === "brainwallet", "short hex is a brainwallet in auto mode");
+
 const secpFacts = await tools.buildKeyFacts(secpReport, sha256Double);
 assert(factById(secpFacts, "hex").value === KEY_ONE, "secp HEX fact is the report key");
 assert(factById(secpFacts, "hex").href === "/key/hex", "HEX links to the hex calculator");

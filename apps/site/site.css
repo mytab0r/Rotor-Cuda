@@ -3588,6 +3588,78 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   }
 }
 
+/* Donor-style search modal: detect label, interpret chips, mnemonic options
+ * and per-chain result cards. */
+.global-search-detect { margin: 0; padding: 0 3px; min-height: 18px; color: var(--text-2); font-size: 12.5px; }
+.global-search-detect[aria-invalid="true"] { color: var(--err); }
+.global-search-view { justify-self: start; color: var(--accent); font-size: 13px; font-weight: 700; text-decoration: none; }
+.global-search-view:hover { text-decoration: underline; }
+.global-search-section { display: grid; gap: 6px; }
+.global-search-section-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.global-search-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.global-search-chip {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 650;
+}
+.global-search-chip:hover { border-color: var(--border-strong); color: var(--text); }
+.global-search-chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.global-search-chip:disabled { opacity: .55; }
+.global-search-mnemonic { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.global-search-mnemonic label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.global-search-mnemonic input, .global-search-mnemonic select { min-height: 44px; }
+.global-search-passphrase input { min-width: 190px; }
+.global-search-count-field select { min-width: 72px; }
+.global-search-summary { margin: 0; color: var(--text-2); font-size: 12.5px; font-weight: 650; }
+
+.ws-chain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.ws-chain-card { border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2); overflow: hidden; }
+.ws-chain-card.has-balance { border-color: rgba(83, 212, 143, .45); }
+.ws-chain-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.ws-chain-icon { flex: none; width: 22px; height: 22px; color: var(--text-2); }
+.ws-chain-name { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 13px; font-weight: 750; }
+.ws-chain-ticker { color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.ws-chain-balance { margin-left: auto; color: var(--text); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.ws-chain-status {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(83, 212, 143, .14);
+  color: var(--ok);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.ws-address-list { display: grid; gap: 4px; margin: 0; padding: 4px 12px 10px; list-style: none; }
+.ws-address-item {
+  display: grid;
+  grid-template-columns: 28px 82px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ws-address-item:last-child { border-bottom: 0; }
+.ws-address-index { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.ws-address-type { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-address-value { min-width: 0; font-size: 11.5px; overflow-wrap: anywhere; word-break: break-all; }
+.ws-address-actions { display: flex; gap: 4px; }
+@media (max-width: 560px) {
+  .ws-chain-grid { grid-template-columns: minmax(0, 1fr); }
+  .ws-address-item { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .ws-address-type { grid-column: 2; }
+  .ws-address-value { grid-column: 2; grid-row: 2; }
+  .ws-address-actions { grid-column: 3; grid-row: 1 / span 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .global-search, .global-search *, .ws-chain-card, .ws-chain-card * { transition: none !important; animation: none !important; }
+}
+
 /* ------------------------------------------------ per-chain generator index */
 .generator-title { margin: 30px 0 12px; font-size: 22px; letter-spacing: -.02em; }
 .generator-card .tool-index-meta { color: var(--accent-2); font-size: 12px; }
