@@ -31,23 +31,27 @@
           path: "m/44'/60'/0'/0/0"
         }
       ],
-      presets: [{ label: 'BIP44 · Ethereum', path: "m/44'/60'/0'/0/0" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/60'/0'/0/0", desc: '0x...' }
+      ]
     };
   }
 
   var CHAINS = {
     bitcoin: {
       types: [
-        { value: 'legacy', label: 'Legacy', desc: 'P2PKH · 1…', field: 'btc_p2pkh', path: "m/44'/0'/0'/0/0" },
-        { value: 'segwit', label: 'SegWit', desc: 'P2WPKH · bc1q…', field: 'btc_p2wpkh', path: "m/84'/0'/0'/0/0" },
-        { value: 'script', label: 'Nested SegWit', desc: 'P2SH · 3…', field: 'btc_p2sh_p2wpkh', path: "m/49'/0'/0'/0/0" },
-        { value: 'taproot', label: 'Taproot', desc: 'P2TR · bc1p…', field: 'btc_p2tr', path: "m/86'/0'/0'/0/0" }
+        { value: 'legacy', label: 'Legacy', desc: 'P2PKH', field: 'btc_p2pkh', path: "m/44'/0'/0'/0/0" },
+        { value: 'segwit', label: 'SegWit', desc: 'P2WPKH', field: 'btc_p2wpkh', path: "m/84'/0'/0'/0/0" },
+        { value: 'script', label: 'Nested SegWit', desc: 'P2SH', field: 'btc_p2sh_p2wpkh', path: "m/49'/0'/0'/0/0" },
+        { value: 'taproot', label: 'Taproot', desc: 'P2TR', field: 'btc_p2tr', path: "m/86'/0'/0'/0/0" }
       ],
       presets: [
-        { label: 'BIP44 · Legacy', path: "m/44'/0'/0'/0/0" },
-        { label: 'BIP49 · Nested SegWit', path: "m/49'/0'/0'/0/0" },
-        { label: 'BIP84 · Native SegWit', path: "m/84'/0'/0'/0/0" },
-        { label: 'BIP86 · Taproot', path: "m/86'/0'/0'/0/0" }
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44 Legacy', path: "m/44'/0'/0'/0/0", desc: '1...' },
+        { id: 'bip84', label: 'BIP84 SegWit', path: "m/84'/0'/0'/0/0", desc: 'bc1q...' },
+        { id: 'bip49', label: 'BIP49 Nested', path: "m/49'/0'/0'/0/0", desc: '3...' },
+        { id: 'bip86', label: 'BIP86 Taproot', path: "m/86'/0'/0'/0/0", desc: 'bc1p...' }
       ]
     },
     ethereum: evmConfig(),
@@ -63,21 +67,27 @@
         { value: 'legacy', label: 'Address', desc: 'base58', field: 'solana', path: "m/44'/501'/0'/0'" }
       ],
       presets: [
-        { label: 'Phantom · BIP44', path: "m/44'/501'/0'/0'" },
-        { label: 'Ledger · m/44\'/501\'/0\'', path: "m/44'/501'/0'" }
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'phantom', label: 'Phantom · BIP44', path: "m/44'/501'/0'/0'", desc: 'base58' }
       ]
     },
     tron: {
       types: [
         { value: 'legacy', label: 'Address', desc: 'T…', field: 'tron', path: "m/44'/195'/0'/0/0" }
       ],
-      presets: [{ label: 'BIP44 · TRON', path: "m/44'/195'/0'/0/0" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/195'/0'/0/0", desc: 'T...' }
+      ]
     },
     xrp: {
       types: [
         { value: 'legacy', label: 'Classic', desc: 'r…', field: 'xrp_classic', path: "m/44'/144'/0'/0/0" }
       ],
-      presets: [{ label: 'BIP44 · XRP', path: "m/44'/144'/0'/0/0" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/144'/0'/0/0", desc: 'r...' }
+      ]
     },
     litecoin: {
       types: [
@@ -86,26 +96,39 @@
         { value: 'script', label: 'Nested SegWit', desc: 'P2SH · M…', field: 'ltc_p2sh_p2wpkh', path: "m/49'/2'/0'/0/0" }
       ],
       presets: [
-        { label: 'BIP44 · Legacy', path: "m/44'/2'/0'/0/0" },
-        { label: 'BIP49 · Nested SegWit', path: "m/49'/2'/0'/0/0" },
-        { label: 'BIP84 · Native SegWit', path: "m/84'/2'/0'/0/0" }
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip84', label: 'BIP84', path: "m/84'/2'/0'/0/0", desc: 'ltc1q...' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/2'/0'/0/0", desc: 'L...' }
       ]
     },
     dogecoin: {
       types: [{ value: 'legacy', label: 'Legacy', desc: 'P2PKH · D…', field: 'doge_p2pkh', path: "m/44'/3'/0'/0/0" }],
-      presets: [{ label: 'BIP44 · Dogecoin', path: "m/44'/3'/0'/0/0" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/3'/0'/0/0", desc: 'D...' }
+      ]
     },
     'bitcoin-cash': {
       types: [{ value: 'legacy', label: 'Legacy', desc: 'P2PKH · 1…', field: 'bch_legacy', path: "m/44'/145'/0'/0/0" }],
-      presets: [{ label: 'BIP44 · Bitcoin Cash', path: "m/44'/145'/0'/0/0" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44-bch', label: 'BIP44 BCH', path: "m/44'/145'/0'/0/0", desc: '1...' },
+        { id: 'bip44-btc', label: 'BIP44 BTC', path: "m/44'/0'/0'/0/0", desc: '1...' }
+      ]
     },
     zcash: {
       types: [{ value: 'legacy', label: 'Transparent', desc: 't1…', field: 'zcash_p2pkh', path: "m/44'/133'/0'/0/0" }],
-      presets: [{ label: 'BIP44 · Zcash', path: "m/44'/133'/0'/0/0" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/133'/0'/0/0", desc: 't1...' }
+      ]
     },
     sui: {
       types: [{ value: 'legacy', label: 'Address', desc: '0x…', field: 'sui', path: "m/44'/784'/0'/0'/0'" }],
-      presets: [{ label: 'BIP44 · Sui', path: "m/44'/784'/0'/0'/0'" }]
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'bip44', label: 'BIP44', path: "m/44'/784'/0'/0'/0'", desc: '0x...' }
+      ]
     },
     ton: {
       unsupported: 'TON mnemonic seeds need the wallet contract builder as well as the key. Use the TON key page or a TON wallet for now; no addresses are faked here.',
@@ -156,20 +179,45 @@
     }
   }
 
-  /* Bitcoin rows expose the compressed WIF; every other curve shows the
-   * derived 32-byte private key in hex. The report is the only source. */
+  /* The row's key cell links the derived hex private key. The donor's seed
+   * directory does not show WIF forms; the key page derives those. */
   function privateKeyFor(chainName, report) {
     if (!report) return '';
-    if (chainName === 'bitcoin' && report.wif_compressed) return report.wif_compressed;
     return report.priv_hex || '';
   }
 
   function privateKeyHref(chainName, key) {
-    return chainName === 'bitcoin' && key ? '/key/' + encodeURIComponent(key) : '';
+    return key ? '/key/' + encodeURIComponent(key) : '';
   }
 
-  function privateKeyLabel(chainName) {
-    return chainName === 'bitcoin' ? 'WIF' : 'HEX';
+  /* Query string for one seed-directory URL. `bits=128` and the chain's
+   * default address type are omitted, as in the donor; a preset is preferred
+   * over a custom path. */
+  function directoryQuery(opts) {
+    var options = opts || {};
+    var params = new URLSearchParams();
+    if (options.bits && options.bits !== 128) params.set('bits', String(options.bits));
+    if (options.type && options.type !== (options.defaultType || 'legacy')) {
+      params.set('type', options.type);
+    }
+    if (options.preset) params.set('preset', options.preset);
+    else if (options.path) params.set('path', options.path);
+    var query = params.toString();
+    return query ? '?' + query : '';
+  }
+
+  /* Address lines for one seed row: Bitcoin legacy keeps the compressed and
+   * uncompressed forms, every other selection has a single address. */
+  function addressEntriesFor(chain, type, map, field) {
+    var entries = [];
+    if (!map) return entries;
+    if (chain === 'bitcoin' && type === 'legacy') {
+      if (map.btc_p2pkh) entries.push({ prefix: 'c', address: map.btc_p2pkh });
+      if (map.btc_p2pkh_uncompressed) entries.push({ prefix: 'u', address: map.btc_p2pkh_uncompressed });
+    } else if (map[field]) {
+      entries.push({ prefix: '', address: map[field] });
+    }
+    return entries;
   }
 
   /* The phrase is public list data, but 12-24 words per row is a wall of
@@ -185,7 +233,8 @@
     copyText: copyText,
     privateKeyFor: privateKeyFor,
     privateKeyHref: privateKeyHref,
-    privateKeyLabel: privateKeyLabel,
+    directoryQuery: directoryQuery,
+    addressEntriesFor: addressEntriesFor,
     compactPhrase: compactPhrase
   };
 
@@ -199,6 +248,10 @@
   document.body.classList.add('mnemonic-chain-mode');
 
   var config = CHAINS[chain];
+  var balanceLabel = document.getElementById('mnemonic-balance-label');
+  if (balanceLabel) {
+    balanceLabel.textContent = (root.getAttribute('data-symbol') || 'BTC') + ' Balance';
+  }
   var byId = function (id) { return document.getElementById(id); };
   var rowsEl = byId('mnemonic-rows');
   var errorBox = byId('mnemonic-error');
@@ -212,11 +265,11 @@
   var pageBar = byId('mnemonic-page-bar');
   var pageProgress = byId('mnemonic-page-progress');
   var pathInput = byId('mnemonic-path-input');
-  var presetSelect = byId('mnemonic-path-preset');
+  var bitsSelect = byId('mnemonic-bits');
+  var presetsEl = byId('mnemonic-path-presets');
   var applyButton = byId('mnemonic-path-apply');
   var typeCards = byId('mnemonic-type-cards');
   var pageInput = byId('mnemonic-page-input');
-  var wordButtons = Array.prototype.slice.call(document.querySelectorAll('.mnemonic-word-btn'));
   var refreshButton = byId('mnemonic-balance-refresh');
   var refreshCount = byId('mnemonic-balance-refresh-count');
   var refreshStatus = byId('mnemonic-balance-refresh-status');
@@ -250,9 +303,8 @@
   /* ------------------------------------------------------------ routes */
 
   var params = new URLSearchParams(window.location.search);
-  var words = Number(params.get('words'));
-  if (words !== 12 && words !== 18 && words !== 24) words = 12;
-  var bits = words === 12 ? 128 : words === 18 ? 192 : 256;
+  var bits = Number(params.get('bits'));
+  if (bits !== 192 && bits !== 256) bits = 128;
   var entropyBytes = bits / 8;
 
   var typeValue = params.get('type') || '';
@@ -261,9 +313,23 @@
     if (kind.value === typeValue) activeType = kind;
   });
   if (!activeType) activeType = config && config.types.length ? config.types[0] : null;
+  var defaultTypeValue = config && config.types.length ? config.types[0].value : 'legacy';
 
+  var presetId = params.get('preset') || '';
+  var explicitPreset = Boolean(presetId);
   var customPath = params.get('path') || '';
-  var activePath = customPath || (activeType ? activeType.path : '');
+  var presets = config && config.presets ? config.presets : [];
+  var activePreset = null;
+  presets.forEach(function (preset) {
+    if (preset.id === presetId) activePreset = preset;
+  });
+  var activePath = customPath
+    || (activePreset ? activePreset.path : (activeType ? activeType.path : ''));
+  if (!customPath && !activePreset) {
+    presets.forEach(function (preset) {
+      if (preset.path === activePath) activePreset = preset;
+    });
+  }
 
   var requestedPage = parseBigInt(root.getAttribute('data-page') || '1');
   var totalEntropy = 1n << BigInt(bits);
@@ -286,19 +352,36 @@
     return Number(value).toExponential(2).replace('e+', 'E+');
   }
 
-  function pageHref(targetPage, overrides) {
+  function pageHref(targetPage, overrides, explicitPage) {
     var changes = overrides || {};
-    var nextWords = changes.words !== undefined ? changes.words : words;
+    var nextBits = changes.bits !== undefined ? changes.bits : bits;
     var nextType = changes.type !== undefined ? changes.type : activeType.value;
-    var nextPath = changes.path !== undefined ? changes.path : customPath;
-    var base = targetPage <= 1n
+    var nextPreset = changes.preset !== undefined
+      ? changes.preset
+      : (activePreset ? activePreset.id : '');
+    var nextPath = changes.path !== undefined
+      ? changes.path
+      : (changes.preset !== undefined ? '' : customPath);
+    var defaultPresetId = '';
+    presets.forEach(function (preset) {
+      if (preset.path === activeType.path) defaultPresetId = preset.id;
+    });
+    var presetExplicit = changes.preset !== undefined
+      ? Boolean(changes.preset)
+      : explicitPreset;
+    if (nextPreset && nextPreset === defaultPresetId && !nextPath && !presetExplicit) {
+      nextPreset = '';
+    }
+    var base = targetPage <= 1n && !explicitPage
       ? '/mnemonic-seeds/' + chain
       : '/mnemonic-seeds/' + chain + '/' + targetPage.toString();
-    var query = new URLSearchParams();
-    query.set('words', String(nextWords));
-    query.set('type', nextType);
-    if (nextPath) query.set('path', nextPath);
-    return base + '?' + query.toString();
+    return base + directoryQuery({
+      bits: nextBits,
+      type: nextType,
+      defaultType: defaultTypeValue,
+      preset: nextPreset,
+      path: nextPath
+    });
   }
 
   /* ------------------------------------------------------------- paths */
@@ -423,12 +506,13 @@
     }
   }
 
-  function addressOf(report, field) {
-    if (!report || !Array.isArray(report.addresses)) return '';
-    for (var i = 0; i < report.addresses.length; i += 1) {
-      if (report.addresses[i].id === field) return report.addresses[i].address || '';
-    }
-    return '';
+  function addressMap(report) {
+    var map = {};
+    if (!report || !Array.isArray(report.addresses)) return map;
+    report.addresses.forEach(function (entry) {
+      if (entry && entry.id) map[entry.id] = entry.address || '';
+    });
+    return map;
   }
 
   /* ------------------------------------------------------------ rendering */
@@ -460,7 +544,8 @@
     var previousPage = page > 1n ? page - 1n : 1n;
     var nextPage = page < totalPages ? page + 1n : page;
     if (first) setPager(first, pageHref(1n), page <= 1n);
-    if (prev) setPager(prev, pageHref(previousPage), page <= 1n);
+    // The donor's Previous link points at `/1` even when already on page 1.
+    if (prev) setPager(prev, pageHref(previousPage, null, page <= 1n), page <= 1n);
     if (next) setPager(next, pageHref(nextPage), page >= totalPages);
     if (last) setPager(last, pageHref(totalPages), page >= totalPages);
     if (random) {
@@ -480,16 +565,8 @@
     }
   }
 
-  function renderWords() {
-    wordButtons.forEach(function (button) {
-      var value = Number(button.getAttribute('data-words'));
-      var active = value === words;
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-      button.addEventListener('click', function () {
-        window.location.assign(pageHref(page, { words: value }));
-      });
-    });
+  function renderBits() {
+    if (bitsSelect) bitsSelect.value = String(bits);
   }
 
   function renderTypeCards() {
@@ -508,38 +585,27 @@
       button.appendChild(name);
       button.appendChild(desc);
       button.addEventListener('click', function () {
-        window.location.assign(pageHref(page, { type: kind.value, path: '' }));
+        // Keep the current page, preset and path; only the address type changes.
+        window.location.assign(pageHref(page, { type: kind.value }));
       });
       typeCards.appendChild(button);
     });
   }
 
   function renderPresets() {
-    if (!presetSelect) return;
-    presetSelect.textContent = '';
-    var presets = config.presets || [];
-    var matched = false;
+    if (!presetsEl) return;
+    presetsEl.textContent = '';
     presets.forEach(function (preset) {
-      var option = document.createElement('option');
-      option.value = preset.path;
-      option.textContent = preset.label + ' · ' + preset.path;
-      if (preset.path === activePath) {
-        option.selected = true;
-        matched = true;
-      }
-      presetSelect.appendChild(option);
-    });
-    var custom = document.createElement('option');
-    custom.value = '';
-    custom.textContent = 'Custom path';
-    if (!matched) custom.selected = true;
-    presetSelect.appendChild(custom);
-    presetSelect.addEventListener('change', function () {
-      if (presetSelect.value) {
-        pathInput.value = presetSelect.value;
-      } else {
-        pathInput.focus();
-      }
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'preset-btn' + (activePreset === preset ? ' active' : '');
+      button.title = preset.desc ? preset.desc + ' · ' + preset.path : preset.path;
+      button.textContent = preset.label;
+      button.setAttribute('aria-pressed', activePreset === preset ? 'true' : 'false');
+      button.addEventListener('click', function () {
+        window.location.assign(pageHref(page, { preset: preset.id, path: '' }));
+      });
+      presetsEl.appendChild(button);
     });
   }
 
@@ -551,7 +617,7 @@
       fail(err.message);
       return;
     }
-    window.location.assign(pageHref(page, { path: value }));
+    window.location.assign(pageHref(page, { path: value, preset: '' }));
   }
 
   function iconUse(name) {
@@ -575,158 +641,113 @@
     return button;
   }
 
-  function iconLink(iconId, label, href) {
-    var link = document.createElement('a');
-    link.className = 'icon-btn';
-    link.href = href;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.title = label;
-    link.setAttribute('aria-label', label);
-    link.appendChild(iconUse(iconId));
-    return link;
-  }
-
   function createRow(entry) {
     var row = document.createElement('div');
-    row.className = 'mnemonic-row';
+    row.className = 'key-row mnemonic-row';
 
-    var seed = document.createElement('div');
-    seed.className = 'mnemonic-seed';
-    seed.textContent = 'Seed #' + entry.seedNumber.toString();
-
-    var phrase = document.createElement('div');
-    phrase.className = 'mnemonic-phrase';
-    var phraseText = document.createElement('span');
-    phraseText.className = 'mnemonic-phrase-text';
-    phraseText.textContent = 'Deriving…';
-    phrase.appendChild(phraseText);
-    var phraseReveal = document.createElement('button');
-    phraseReveal.type = 'button';
-    phraseReveal.className = 'mnemonic-reveal';
-    phraseReveal.setAttribute('aria-expanded', 'false');
-    phraseReveal.setAttribute('aria-label', 'Reveal mnemonic phrase');
-    phraseReveal.textContent = 'Reveal';
-    phraseReveal.disabled = true;
-    phraseReveal.addEventListener('click', function () {
-      if (!entry.phrase) return;
-      entry.revealed = !entry.revealed;
-      renderPhrase(entry);
+    var keyCell = document.createElement('div');
+    keyCell.className = 'col-key';
+    var seed = document.createElement('span');
+    seed.className = 'mnemonic-seed key-label';
+    seed.textContent = 'Seed #' + entry.index.toString();
+    keyCell.appendChild(seed);
+    var keyLink = document.createElement('a');
+    keyLink.className = 'private-key mono mnemonic-key';
+    keyLink.textContent = 'Deriving…';
+    keyCell.appendChild(keyLink);
+    var keyCopy = iconButton('ui-copy', 'Copy private key', function () {
+      if (entry.key) copyText(entry.key, keyCopy);
     });
-    phrase.appendChild(phraseReveal);
-    var phraseCopy = iconButton('ui-copy', 'Copy mnemonic', function () {
-      if (entry.phrase) copyText(entry.phrase, phraseCopy);
-    });
-    phraseCopy.disabled = true;
-    phrase.appendChild(phraseCopy);
+    keyCopy.disabled = true;
+    keyCell.appendChild(keyCopy);
 
     var address = document.createElement('div');
-    address.className = 'mnemonic-address';
+    address.className = 'col-address';
     var pending = document.createElement('span');
     pending.className = 'cell-skeleton';
     pending.textContent = 'Calculating…';
     address.appendChild(pending);
 
     var balance = document.createElement('div');
-    balance.className = 'mnemonic-balance';
-    balance.textContent = '—';
+    balance.className = 'col-balance';
+    balance.textContent = '-';
 
-    row.appendChild(seed);
-    row.appendChild(phrase);
+    var mnemonic = document.createElement('div');
+    mnemonic.className = 'col-mnemonic';
+    var mnemonicLabel = document.createElement('span');
+    mnemonicLabel.className = 'mnemonic-label key-label';
+    mnemonicLabel.textContent = 'Mnemonic';
+    var mnemonicText = document.createElement('span');
+    mnemonicText.className = 'mnemonic-text';
+    mnemonicText.textContent = 'Deriving…';
+    var mnemonicCopy = iconButton('ui-copy', 'Copy mnemonic', function () {
+      if (entry.phrase) copyText(entry.phrase, mnemonicCopy);
+    });
+    mnemonicCopy.disabled = true;
+    mnemonic.appendChild(mnemonicLabel);
+    mnemonic.appendChild(mnemonicText);
+    mnemonic.appendChild(mnemonicCopy);
+
+    row.appendChild(keyCell);
     row.appendChild(address);
     row.appendChild(balance);
+    row.appendChild(mnemonic);
     rowsEl.appendChild(row);
-    entry.phraseCell = phrase;
-    entry.phraseText = phraseText;
-    entry.phraseReveal = phraseReveal;
-    entry.phraseCopy = phraseCopy;
+    entry.keyLink = keyLink;
+    entry.keyCopy = keyCopy;
     entry.addressCell = address;
     entry.balanceCell = balance;
-  }
-
-  function renderPhrase(entry) {
-    var expanded = Boolean(entry.revealed);
-    entry.phraseText.textContent = expanded ? entry.phrase : compactPhrase(entry.phrase);
-    if (!entry.phraseReveal) return;
-    entry.phraseReveal.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-    entry.phraseReveal.setAttribute('aria-label', expanded ? 'Hide mnemonic phrase' : 'Reveal mnemonic phrase');
-    entry.phraseReveal.textContent = expanded ? 'Hide' : 'Reveal';
-  }
-
-  function resetPhrase(entry) {
-    entry.revealed = false;
-    if (entry.phraseText) entry.phraseText.textContent = '—';
-    if (entry.phraseCopy) entry.phraseCopy.disabled = true;
-    if (entry.phraseReveal) {
-      entry.phraseReveal.disabled = true;
-      entry.phraseReveal.setAttribute('aria-expanded', 'false');
-      entry.phraseReveal.setAttribute('aria-label', 'Reveal mnemonic phrase');
-      entry.phraseReveal.textContent = 'Reveal';
-    }
+    entry.phraseText = mnemonicText;
+    entry.phraseCopy = mnemonicCopy;
   }
 
   function fillRow(entry) {
-    entry.revealed = false;
-    renderPhrase(entry);
-    entry.phraseReveal.disabled = false;
+    entry.phraseText.textContent = entry.phrase;
+    entry.phraseText.title = entry.phrase;
     entry.phraseCopy.disabled = false;
+    entry.key = privateKeyFor(chain, entry.report);
+    if (entry.key) {
+      entry.keyLink.href = entry.keyHref;
+      entry.keyLink.textContent = entry.key;
+      entry.keyLink.title = entry.key;
+      entry.keyCopy.disabled = false;
+    }
     entry.addressCell.textContent = '';
-    if (!entry.address) {
+    var entries = addressEntriesFor(chain, activeType.value, entry.addressMap, activeType.field);
+    entry.addresses = entries;
+    if (!entries.length) {
       entry.addressCell.textContent = 'Not available for this address type.';
       return;
     }
-
-    var line = document.createElement('div');
-    line.className = 'mnemonic-addr-line';
-    var link = document.createElement('a');
-    link.className = 'mono address-link';
-    link.href = explorerUrl(entry.address) || '#';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = entry.address;
-    link.title = entry.address;
-    line.appendChild(link);
-
-    var actions = document.createElement('span');
-    actions.className = 'addr-actions mnemonic-actions';
-    actions.appendChild(iconLink('ui-external', 'Open address in explorer', link.href));
-    var addressCopy = iconButton('ui-copy', 'Copy address', function () {
-      copyText(entry.address, addressCopy);
+    entries.forEach(function (item) {
+      var line = document.createElement('div');
+      line.className = 'mnemonic-addr-line';
+      if (item.prefix) {
+        var prefix = document.createElement('span');
+        prefix.className = 'addr-label';
+        prefix.textContent = '(' + item.prefix + ')';
+        line.appendChild(prefix);
+      }
+      var link = document.createElement('a');
+      link.className = 'mono address-link';
+      link.href = explorerUrl(item.address) || '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = item.address;
+      link.title = item.address;
+      line.appendChild(link);
+      entry.addressCell.appendChild(line);
     });
-    actions.appendChild(addressCopy);
-    line.appendChild(actions);
-    entry.addressCell.appendChild(line);
-
-    if (!entry.key) return;
-    var keyLine = document.createElement('div');
-    keyLine.className = 'mnemonic-key-line';
-    var keyLabel = document.createElement('span');
-    keyLabel.className = 'mnemonic-key-label';
-    keyLabel.textContent = privateKeyLabel(chain);
-    keyLine.appendChild(keyLabel);
-    var key;
-    if (entry.keyHref) {
-      key = document.createElement('a');
-      key.className = 'mono mnemonic-key';
-      key.href = entry.keyHref;
-      key.title = entry.key + ' — open the key page';
-    } else {
-      key = document.createElement('code');
-      key.className = 'mono mnemonic-key';
-      key.title = entry.key;
-    }
-    key.textContent = entry.key;
-    keyLine.appendChild(key);
-    var keyCopy = iconButton('ui-copy', 'Copy ' + privateKeyLabel(chain) + ' private key', function () {
-      copyText(entry.key, keyCopy);
-    });
-    keyLine.appendChild(keyCopy);
-    entry.addressCell.appendChild(keyLine);
   }
 
   function fillRowError(entry, err) {
     resetPhrase(entry);
     entry.addressCell.textContent = err && err.message ? err.message : 'Derivation failed.';
+  }
+
+  function resetPhrase(entry) {
+    if (entry.phraseText) entry.phraseText.textContent = '-';
+    if (entry.phraseCopy) entry.phraseCopy.disabled = true;
   }
 
   function setDeriveProgress(done, total) {
@@ -756,35 +777,71 @@
     return null;
   }
 
-  function setBalance(entry, text, raw, age) {
-    var cell = entry.balanceCell;
-    if (!cell) return;
-    cell.textContent = text;
-    cell.className = 'mnemonic-balance' + (text !== '—' && text !== '0' ? ' has-balance' : '');
-    if (raw !== undefined) cell.title = raw;
-    if (age) {
-      var ageEl = document.createElement('span');
-      ageEl.className = 'balance-age';
-      ageEl.textContent = age;
-      cell.appendChild(ageEl);
+  /* One `.balance-info` line per derived address, packed with the balance,
+   * TX count and received amount as in the donor's seed directory. */
+  function balanceLine(record, cached, errors, meta) {
+    var line = document.createElement('div');
+    line.className = 'balance-info';
+    if (errors && errors[record.address]) {
+      line.classList.add('err');
+      line.textContent = 'unavailable ';
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'mnemonic-balance-retry';
+      retry.title = 'Retry this balance';
+      retry.setAttribute('aria-label', 'Retry balance check for this address');
+      retry.appendChild(iconUse('ui-retry'));
+      retry.addEventListener('click', function () {
+        loadBalances({ manual: true, onlyEntries: [record.entry], force: true });
+      });
+      line.appendChild(retry);
+      return { line: line, ok: false, failed: true };
     }
+    var picked = cached[record.key];
+    if (!cacheApi || !cacheApi.isSuccess(picked)) {
+      line.textContent = '-';
+      return { line: line, ok: false, failed: false };
+    }
+    var value = picked.value || {};
+    var balance = document.createElement('span');
+    balance.className = 'bal';
+    balance.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    line.appendChild(balance);
+    if (value.tx !== undefined && value.tx !== null) {
+      var tx = document.createElement('span');
+      tx.className = 'tx' + (Number(value.tx) > 0 ? ' has-tx' : '');
+      tx.textContent = value.tx + ' tx';
+      line.appendChild(tx);
+    }
+    if (value.received !== undefined && value.received !== null) {
+      var recv = document.createElement('span');
+      recv.className = 'recv' + (Number(value.received) > 0 ? ' has-recv' : '');
+      recv.textContent = '↓ ' + coin(value.received, meta.decimals) + ' ' + meta.symbol;
+      line.appendChild(recv);
+    }
+    line.title = value.balance + ' ' + meta.symbol;
+    return { line: line, ok: true, failed: false };
   }
 
-  function setBalanceError(entry, message) {
+  function renderEntry(entry, cached, errors, meta) {
     var cell = entry.balanceCell;
     if (!cell) return;
-    cell.className = 'mnemonic-balance err';
-    cell.textContent = message + ' ';
-    var button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'mnemonic-balance-retry';
-    button.title = 'Retry this balance';
-    button.setAttribute('aria-label', 'Retry balance check for this address');
-    button.appendChild(iconUse('ui-retry'));
-    button.addEventListener('click', function () {
-      loadBalances({ manual: true, onlyEntries: [entry], force: true });
+    cell.textContent = '';
+    if (!entry.records || !entry.records.length) {
+      cell.textContent = '-';
+      entry.balanceState = 'missing';
+      return;
+    }
+    var ok = false;
+    var failed = false;
+    entry.records.forEach(function (record) {
+      var result = balanceLine(record, cached, errors, meta);
+      if (result.ok) ok = true;
+      if (result.failed) failed = true;
+      cell.appendChild(result.line);
     });
-    cell.appendChild(button);
+    cell.classList.toggle('has-balance', ok);
+    entry.balanceState = failed ? 'err' : ok ? 'ok' : 'missing';
   }
 
   async function fetchJson(url, options) {
@@ -825,15 +882,21 @@
   }
 
   function balanceRecords(meta) {
-    return state.entries.filter(function (entry) {
-      return entry && entry.address;
-    }).map(function (entry) {
-      return {
-        entry: entry,
-        address: entry.address,
-        key: cacheApi ? cacheApi.cacheKey(meta.provider, meta.chain, entry.address) : entry.address
-      };
+    var records = [];
+    state.entries.forEach(function (entry) {
+      entry.records = [];
+      (entry.addresses || []).forEach(function (item) {
+        if (!item.address) return;
+        var record = {
+          entry: entry,
+          address: item.address,
+          key: cacheApi ? cacheApi.cacheKey(meta.provider, meta.chain, item.address) : item.address
+        };
+        entry.records.push(record);
+        records.push(record);
+      });
     });
+    return records;
   }
 
   async function readCached(records) {
@@ -843,19 +906,6 @@
       out[record.key] = await cacheGet(record.key);
     }));
     return out;
-  }
-
-  function renderEntryFromCache(record, cached, meta, now) {
-    var entry = cached[record.key];
-    if (!cacheApi || !cacheApi.isSuccess(entry)) return false;
-    var value = entry.value || {};
-    if (value.balance === undefined) return false;
-    var text = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
-    var raw = value.tx !== undefined && value.tx !== null ? value.tx + ' tx' : String(value.balance);
-    setBalance(record.entry, text, raw, cacheApi.ageLabel(entry, now));
-    record.entry.balanceState = 'ok';
-    record.entry.balanceAt = entry.fetchedAt;
-    return true;
   }
 
   function renderSummary(records, cached, meta) {
@@ -940,13 +990,8 @@
   }
 
   function applyView(records, cached, meta, errors) {
-    var now = Date.now();
-    records.forEach(function (record) {
-      if (errors && errors[record.address]) {
-        setBalanceError(record.entry, errors[record.address]);
-        return;
-      }
-      renderEntryFromCache(record, cached, meta, now);
+    state.entries.forEach(function (entry) {
+      if (entry.records) renderEntry(entry, cached, errors, meta);
     });
     renderSummary(records, cached, meta);
     updateRefreshButton(records, meta);
@@ -1119,9 +1164,12 @@
       var keyHex = window.RotorSeed.derive(phrase, '', activePath);
       report = reportFor(wasm, keyHex, 0);
     }
-    entry.address = addressOf(report, activeType.field);
+    entry.report = report;
+    entry.addressMap = addressMap(report);
+    entry.address = entry.addressMap[activeType.field] || '';
     entry.key = privateKeyFor(chain, report);
-    entry.keyHref = privateKeyHref(chain, entry.key);
+    entry.keyHref = privateKeyHref(chain, entry.key) +
+      (Number(root.getAttribute('data-curve')) === 1 ? '?curve=ed25519' : '');
     fillRow(entry);
   }
 
@@ -1193,9 +1241,17 @@
     pathInput.value = activePath;
     renderPageInfo();
     renderPager();
-    renderWords();
+    renderBits();
     renderTypeCards();
     renderPresets();
+    if (bitsSelect) {
+      bitsSelect.addEventListener('change', function () {
+        var value = Number(bitsSelect.value);
+        if (value !== 128 && value !== 192 && value !== 256) return;
+        // A different word count changes the entropy space, so start at page 1.
+        window.location.assign(pageHref(1n, { bits: value }));
+      });
+    }
     applyButton.addEventListener('click', applyPath);
     pathInput.addEventListener('keydown', function (event) {
       if (event.key === 'Enter') {
@@ -1228,7 +1284,7 @@
     var count = remaining >= ROWS_PER_PAGE ? Number(ROWS_PER_PAGE) : Number(remaining);
     for (var i = 0; i < count; i += 1) {
       var index = startIndex + BigInt(i);
-      var entry = { index: index, seedNumber: index + 1n };
+      var entry = { index: index };
       state.entries.push(entry);
       createRow(entry);
     }

@@ -25,96 +25,68 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
 .mnemonic-control { display: grid; gap: 7px; min-width: 0; }
 .mnemonic-control-path { flex: 1 1 330px; }
 .mnemonic-control label, .mnemonic-control .panel-label { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.mnemonic-word-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
-.mnemonic-word-btn {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
+.mnemonic-control select { min-height: 44px; min-width: 220px; font-family: var(--mono); font-size: 13px; }
+.mnemonic-presets { display: flex; flex-wrap: wrap; gap: 7px; }
+.preset-btn {
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 13px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--panel-2);
   color: var(--text-2);
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 12.5px;
+  font-weight: 650;
 }
-.mnemonic-word-btn span { color: var(--muted); font-family: var(--mono); font-size: 12px; font-weight: 500; }
-.mnemonic-word-btn.active { border-color: color-mix(in srgb, var(--chain, var(--accent)) 62%, var(--border)); background: color-mix(in srgb, var(--chain, var(--accent)) 14%, var(--panel)); color: var(--text); }
-.mnemonic-word-btn.active span { color: var(--text-2); }
-.mnemonic-path-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.mnemonic-path-row input { flex: 1 1 220px; min-width: 0; font-family: var(--mono); font-size: 13px; }
-.mnemonic-path-row button { flex: none; }
-.mnemonic-control select { min-height: 44px; font-family: var(--mono); font-size: 12.5px; }
-.mnemonic-help { margin: 0; font-size: 12px; }
-.mnemonic-rows-header,
-.mnemonic-row {
-  display: grid;
-  grid-template-columns: 104px minmax(0, 1.6fr) minmax(0, 1.2fr) 132px;
-  align-items: start;
-  gap: 14px;
-  padding: 0 18px;
-}
-.mnemonic-rows-header {
-  min-height: 42px;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-}
-.mnemonic-rows-header .col-balance { justify-content: flex-end; }
-.mnemonic-row { padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(31, 42, 56, .7); }
-.mnemonic-row:last-child { border-bottom: 0; }
-.mnemonic-row:hover { background: rgba(255, 255, 255, .022); }
-.mnemonic-seed { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
-.mnemonic-phrase { display: flex; align-items: flex-start; gap: 4px; margin: 0; color: var(--text-2); font-family: var(--mono); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.mnemonic-phrase-text { flex: 1 1 auto; min-width: 0; }
-.mnemonic-reveal {
-  flex: none;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-2);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 700;
-}
-.mnemonic-reveal:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
-.mnemonic-reveal[aria-expanded="true"] {
+.preset-btn:hover { border-color: var(--border-strong); color: var(--text); }
+.preset-btn.active {
   border-color: color-mix(in srgb, var(--chain, var(--accent)) 62%, var(--border));
   background: color-mix(in srgb, var(--chain, var(--accent)) 14%, var(--panel));
   color: var(--text);
 }
-.mnemonic-reveal:disabled { opacity: .55; cursor: not-allowed; }
-.mnemonic-address { display: grid; gap: 4px; min-width: 0; }
+.mnemonic-help { margin: 0; font-size: 12px; }
+.mnemonic-path-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.mnemonic-path-row input { flex: 1 1 220px; min-width: 0; font-family: var(--mono); font-size: 13px; }
+.mnemonic-path-row button { flex: none; }
+/* Donor seed rows: key | address | balance, then a full-width mnemonic line. */
+.mnemonic-seeds-page .keys-header,
+.mnemonic-seeds-page .key-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(180px, auto);
+  align-items: start;
+  row-gap: 4px;
+}
+.mnemonic-seeds-page .key-row { padding-top: 10px; padding-bottom: 10px; }
+.mnemonic-seeds-page .keys-header { align-items: center; }
+.mnemonic-seed,
+.mnemonic-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.mnemonic-key { flex: 1 1 auto; min-width: 0; }
 .mnemonic-addr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.mnemonic-addr-line .address-link { flex: 1 1 auto; min-width: 0; }
-.mnemonic-address .address-link { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
-.mnemonic-actions { display: inline-flex; align-items: center; gap: 14px; flex: none; }
-.mnemonic-actions .icon-btn { position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; }
-.mnemonic-key-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.mnemonic-key-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; text-transform: uppercase; }
-.mnemonic-key { flex: 1 1 auto; min-width: 0; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
-a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: center; min-height: 44px; }
-.mnemonic-copy { position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; }
-.mnemonic-copy::before,
-.mnemonic-actions .icon-btn::before {
+.mnemonic-addr-line .address-link { flex: 1 1 auto; min-width: 0; font-size: 12px; }
+.col-mnemonic {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.mnemonic-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.mnemonic-copy { position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; flex: none; }
+.mnemonic-copy::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 10px;
 }
 .icon-btn.copied { color: var(--ok); }
-.mnemonic-balance { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.mnemonic-balance.has-balance { color: var(--ok); }
-.mnemonic-balance.err { color: var(--err); }
 .mnemonic-balance-retry {
   position: relative;
   display: inline-flex;
@@ -134,25 +106,26 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
 .mnemonic-derive { padding: 12px 18px 16px; display: grid; gap: 8px; }
 .mnemonic-derive-text { color: var(--muted); font-size: 12.5px; }
 .mnemonic-directory-card { display: grid; gap: 12px; }
+body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
 .mnemonic-directory-card h2 { margin: 0; }
 .mnemonic-directory-card p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.6; }
 .mnemonic-directory-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--text-2); font-size: 13px; }
 @media (max-width: 860px) {
-  .mnemonic-rows-header { display: none; }
-  .mnemonic-row {
-    grid-template-columns: minmax(0, 1fr) 96px;
-    gap: 5px 10px;
+  .mnemonic-seeds-page .keys-header { display: none; }
+  .mnemonic-seeds-page .key-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding: 12px 14px;
   }
-  .mnemonic-seed { grid-column: 1; grid-row: 1; }
-  .mnemonic-balance { grid-column: 2; grid-row: 1; font-size: 12px; }
-  .mnemonic-phrase { grid-column: 1 / -1; grid-row: 2; }
-  .mnemonic-address { grid-column: 1 / -1; grid-row: 3; }
+  .mnemonic-text { white-space: normal; overflow-wrap: anywhere; }
+  .col-mnemonic { width: 100%; }
   .mnemonic-controls { padding: 14px; }
   .mnemonic-control-path { flex-basis: 100%; }
+  .mnemonic-control select { width: 100%; }
 }
 @media (max-width: 520px) {
-  .mnemonic-word-btn { flex: 1 1 0; justify-content: center; padding: 0 8px; }
+  .preset-btn { flex: 1 1 auto; justify-content: center; }
   .mnemonic-path-row input { flex-basis: 100%; }
   .mnemonic-path-row button { width: 100%; }
 }
@@ -178,12 +151,9 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
 </header>
 
 <main class="browse-page mnemonic-seeds-page" data-chain="" data-symbol="" data-explorer="" data-curve="0" data-page="1" style="--chain:#f7931a">
-  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span>/</span> <a href="/mnemonic-seeds">Mnemonic seeds</a> <span>/</span> <span aria-current="page" data-chain-name>Directory</span></nav>
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span>/</span> <a href="/mnemonic-seeds">Mnemonic seeds</a> <span>/</span> <span data-chain-name aria-current="page">Directory</span></nav>
 
-  <section class="browse-hero">
-    <div class="browse-hero-title"><svg class="browse-hero-icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><h1><span data-chain-title>Mnemonic seeds</span></h1></div>
-    <p><span data-chain-intro>Browse deterministic English BIP39 phrases across the entropy space, 60 seeds per page, and derive the matching addresses locally.</span></p>
-  </section>
+  <h1 class="visually-hidden"><span data-chain-title>Mnemonic seeds</span></h1>
 
   <div class="chain-tabs" id="mnemonic-chain-tabs" role="navigation" aria-label="Chains">
     <a class="chain-tab" href="/mnemonic-seeds/bitcoin" style="--chain:#f7931a"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
@@ -221,34 +191,30 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
   <section class="mnemonic-chain-only mnemonic-controls card" aria-label="Seed settings">
     <div class="mnemonic-control-grid">
       <div class="mnemonic-control">
-        <span class="panel-label" id="mnemonic-words-label">Word count</span>
-        <div class="mnemonic-word-buttons" role="group" aria-labelledby="mnemonic-words-label">
-          <button type="button" class="mnemonic-word-btn active" data-words="12" aria-pressed="true">12 <span>128 bits</span></button>
-          <button type="button" class="mnemonic-word-btn" data-words="18" aria-pressed="false">18 <span>192 bits</span></button>
-          <button type="button" class="mnemonic-word-btn" data-words="24" aria-pressed="false">24 <span>256 bits</span></button>
-        </div>
+        <label for="mnemonic-bits">Word count</label>
+        <select id="mnemonic-bits" class="mono">
+          <option value="128">12 words (128 bits)</option>
+          <option value="192">18 words (192 bits)</option>
+          <option value="256">24 words (256 bits)</option>
+        </select>
       </div>
       <div class="mnemonic-control mnemonic-control-path">
-        <label for="mnemonic-path-preset">Path preset</label>
-        <select id="mnemonic-path-preset" class="mono"></select>
-      </div>
-      <div class="mnemonic-control mnemonic-control-path">
-        <label for="mnemonic-path-input">BIP-32 path</label>
+        <label for="mnemonic-path-input">BIP-32 Derivation Path</label>
         <div class="mnemonic-path-row">
-          <input id="mnemonic-path-input" class="mono" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" value="m/44'/0'/0'/0/0">
+          <input id="mnemonic-path-input" class="mono" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="m (master key)">
           <button type="button" class="primary" id="mnemonic-path-apply">Apply</button>
         </div>
       </div>
     </div>
-    <p class="muted mnemonic-help">The path applies to every seed on this page and is never sent anywhere. Choosing an address type selects the matching standard path; Apply uses the path in the field.</p>
+    <div class="mnemonic-presets" id="mnemonic-path-presets" role="group" aria-label="Path presets"></div>
+    <p class="muted mnemonic-help">The path applies to every seed on this page and is never sent anywhere. Master/BIP44/BIP84/BIP49/BIP86 presets use the standard Bitcoin paths; Apply uses the path in the field.</p>
     <p id="mnemonic-error" class="error" role="alert" hidden></p>
   </section>
 
   <section class="page-info mnemonic-chain-only">
     <div class="page-info-text">
       <svg class="page-info-icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg>
-      <span><span data-chain-name>Chain</span> mnemonic seeds page <strong id="mnemonic-page-number">#1</strong> out of <strong id="mnemonic-total-pages">#…</strong></span>
-      <span class="page-percent" id="mnemonic-page-percent"></span>
+      <span><span data-chain-name>Chain</span> mnemonic seeds page <strong id="mnemonic-page-number">#1</strong> out of <strong id="mnemonic-total-pages">#…</strong> (<span id="mnemonic-page-percent">0.0000%</span>)</span>
     </div>
     <div class="progress-track" id="mnemonic-page-progress" role="progressbar" aria-label="Position in the entropy space" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="mnemonic-page-bar" style="width:0%"></span></div>
   </section>
@@ -276,7 +242,7 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
   <section class="balance-summary mnemonic-chain-only" aria-label="Balance summary">
     <div class="stat-card"><span class="stat-label">Balance</span><span class="stat-value" id="mnemonic-total-balance">—</span></div>
     <div class="stat-card"><span class="stat-label">Received</span><span class="stat-value" id="mnemonic-total-received">—</span></div>
-    <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-value" id="mnemonic-total-tx">—</span></div>
+    <div class="stat-card"><span class="stat-label">TX</span><span class="stat-value" id="mnemonic-total-tx">—</span></div>
     <div class="balance-refresh">
       <button type="button" class="balance-refresh-btn" id="mnemonic-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
         <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
@@ -290,10 +256,9 @@ a.mnemonic-key { color: var(--accent-2); display: inline-flex; align-items: cent
 
   <section class="keys-panel mnemonic-chain-only">
     <div class="keys-header mnemonic-rows-header">
-      <div>Seed</div>
-      <div>Mnemonic</div>
-      <div>Address</div>
-      <div class="col-balance">Balance</div>
+      <div class="col-key"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg>Private Key / Mnemonic</div>
+      <div class="col-address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg>Address</div>
+      <div class="col-balance"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg><span id="mnemonic-balance-label">BTC Balance</span></div>
     </div>
     <div id="mnemonic-rows" class="mnemonic-rows"></div>
     <div class="mnemonic-derive" id="mnemonic-derive">
