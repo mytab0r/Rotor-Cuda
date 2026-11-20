@@ -2587,8 +2587,19 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .vanity-form { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; align-items: end; }
 .vanity-form .key-buttons { grid-column: 1 / -1; justify-content: flex-start; }
 .vanity-form input { font-family: var(--mono); }
-.vanity-stats { margin: 0; }
+.vanity-stats { margin: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .key-page .vanity-stats .key-summary-group { padding: 12px 14px; }
+/* The key page hides summary titles (its rows carry their own labels); the
+ * vanity cards have no rows, so their titles must stay visible. */
+.key-page .vanity-stats .key-summary-group .key-group-title {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0 0 6px;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
 .vanity-stat { margin: 6px 0 0; color: var(--text); font-size: 26px; font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .vanity-result .key-form-row { grid-template-columns: 170px minmax(0, 1fr) auto; }
 .vanity-result .key-addr { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg); font-size: 13px; overflow-wrap: anywhere; }
