@@ -34,7 +34,7 @@
       <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
       <div>
         <h1>Mnemonic converter</h1>
-        <p class="key-tagline">One standalone page for BIP39, Electrum BIP39 and legacy Electrum phrases. Pick a chain and path, then derive up to ten addresses without leaving this tab.</p>
+        <p class="key-tagline">One standalone page for BIP39, Electrum BIP39 and legacy Electrum phrases. Pick a chain and path, then derive up to twenty addresses without leaving this tab.</p>
         <div class="key-badges"><span>BIP39 / Electrum</span><span>Runs locally</span><span>No upload</span></div>
       </div>
     </div>
@@ -72,6 +72,7 @@
       <label class="seed-phrase-label">Mnemonic
         <textarea id="seed-phrase" class="mono" rows="4" spellcheck="false" autocapitalize="off" placeholder="word1 word2 word3 …"></textarea>
       </label>
+      <p id="seed-word-count" class="muted key-help" aria-live="polite">0 words</p>
       <div class="seed-secondary">
         <label class="seed-passphrase">Passphrase (optional)
           <input id="seed-passphrase" type="password" class="mono" autocomplete="new-password" placeholder="leave empty if none">
@@ -82,6 +83,7 @@
           <button type="button" class="seed-count-btn" data-count="3" aria-pressed="false">3</button>
           <button type="button" class="seed-count-btn" data-count="5" aria-pressed="false">5</button>
           <button type="button" class="seed-count-btn" data-count="10" aria-pressed="false">10</button>
+          <button type="button" class="seed-count-btn" data-count="20" aria-pressed="false">20</button>
         </div>
         <div class="key-buttons">
           <button type="submit" class="primary" id="seed-derive">Convert &amp; derive</button>
@@ -100,6 +102,11 @@
   <section class="card" id="seed-result" hidden>
     <div class="seed-result-head"><h2>Derived addresses</h2><span class="seed-count" id="seed-count"></span></div>
     <div class="seed-rows" id="seed-rows"></div>
+    <div class="key-buttons">
+      <button type="button" id="seed-copy-all" hidden>Copy All</button>
+      <button type="button" id="seed-load-more" hidden>Load next 5</button>
+    </div>
+    <p id="seed-aggregate" class="muted key-help" aria-live="polite" hidden></p>
   </section>
 </main>
 
