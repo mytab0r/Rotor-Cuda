@@ -801,127 +801,119 @@
     });
   }
 
-  function summaryFields(report) {
+  /* Public-point facts share the Keys grid with the key facts so both
+   * columns carry the same number of rows. */
+  function pointFacts(report) {
+    return [
+      { id: 'point-compressed', label: 'Compressed', value: report.pubkey_compressed || '' },
+      { id: 'point-uncompressed', label: 'Uncompressed', value: report.pubkey_uncompressed || '' },
+      { id: 'point-x', label: 'X', value: report.x || '' },
+      { id: 'point-y', label: 'Y', value: report.y || '' },
+      { id: 'point-ed25519', label: 'ed25519', value: report.ed_pubkey || '' }
+    ].filter(function (fact) { return !!fact.value; });
+  }
+
+  /* The directory page number reads as a locale number; the full path stays
+   * in the link URL and in the title. */
+  function pageFactDisplay(fact) {
+    if (!fact || fact.id !== 'page' || !fact.value) return fact;
+    var match = String(fact.value).match(/\/(\d+)\/?$/);
+    var number = match ? match[1] : '1';
     return {
-      point: [
-        ['Compressed', report.pubkey_compressed || ''],
-        ['Uncompressed', report.pubkey_uncompressed || ''],
-        ['X', report.x || ''],
-        ['Y', report.y || ''],
-        ['ed25519', report.ed_pubkey || '']
-      ]
+      id: fact.id,
+      label: fact.label,
+      value: fact.value,
+      valueHref: fact.valueHref || fact.value,
+      displayValue: number.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
     };
   }
 
-  function summaryGroup(title, fields) {
-    var group = document.createElement('section');
-    group.className = 'key-summary-group';
-    var heading = document.createElement('h3');
-    heading.className = 'key-group-title';
-    heading.textContent = title;
-    group.appendChild(heading);
-
-    var dl = document.createElement('dl');
-    dl.className = 'key-form-list';
-    fields.forEach(function (field) {
-      var value = field[1];
-      if (!value) return;
-      var row = document.createElement('div');
-      row.className = 'key-form-row';
-      var dt = document.createElement('dt');
-      var entityHref = field[0].indexOf('WIF') === 0 ? '/key/wif' : field[0] === 'Hex' ? '/key/hex' : '';
-      if (entityHref) {
-        var entityLink = document.createElement('a');
-        entityLink.href = entityHref;
-        entityLink.textContent = field[0];
-        entityLink.title = 'Open the ' + field[0].toLowerCase() + ' calculator';
-        dt.appendChild(entityLink);
+  function summaryRow(fact) {
+    var row = document.createElement('div');
+    row.className = 'key-form-row';
+    row.setAttribute('data-fact', fact.id || '');
+    var dt = document.createElement('dt');
+    dt.title = fact.label;
+    if (fact.href) {
+      var labelLink = document.createElement('a');
+      labelLink.href = fact.href;
+      labelLink.textContent = fact.label;
+      labelLink.title = 'Open the ' + fact.label.toLowerCase() + ' calculator';
+      dt.appendChild(labelLink);
+    } else {
+      dt.textContent = fact.label;
+    }
+    var dd = document.createElement('dd');
+    dd.className = 'mono';
+    if (fact.unavailable) {
+      dd.className = 'key-fact-unavailable';
+      dd.textContent = 'Not available — ' + fact.unavailable;
+      dd.title = dd.textContent;
+    } else {
+      var code = document.createElement('code');
+      code.className = 'mono key-fact-value';
+      if (fact.valueHref) {
+        var valueLink = document.createElement('a');
+        valueLink.href = fact.valueHref;
+        valueLink.textContent = fact.displayValue || fact.value;
+        valueLink.title = fact.value;
+        code.appendChild(valueLink);
       } else {
-        dt.textContent = field[0];
+        code.textContent = fact.displayValue || fact.value;
       }
-      var dd = document.createElement('dd');
-      dd.className = 'mono';
-      dd.textContent = value;
-      dd.title = value;
-      row.appendChild(dt);
-      row.appendChild(dd);
+      dd.appendChild(code);
+      dd.title = fact.value;
+    }
+    row.appendChild(dt);
+    row.appendChild(dd);
+    if (fact.unavailable) {
+      var spacer = document.createElement('span');
+      spacer.className = 'key-copy-spacer';
+      row.appendChild(spacer);
+    } else {
       var copy = document.createElement('button');
       copy.type = 'button';
       copy.className = 'key-copy key-copy-sm';
       copy.textContent = 'Copy';
-      copy.setAttribute('aria-label', 'Copy ' + field[0] + ' value');
-      copy.addEventListener('click', function () { copyText(value, copy); });
+      copy.setAttribute('aria-label', 'Copy ' + fact.label + ' value');
+      copy.addEventListener('click', function () {
+        copyText(fact.displayValue || fact.value, copy);
+      });
       row.appendChild(copy);
-      dl.appendChild(row);
-    });
-    group.appendChild(dl);
-    return group;
+    }
+    return row;
   }
 
-  function keyFactsGroup(facts) {
-    var group = document.createElement('section');
-    group.className = 'key-summary-group key-facts-group';
-    var heading = document.createElement('h3');
-    heading.className = 'key-group-title';
-    heading.textContent = 'Key facts';
-    group.appendChild(heading);
-
+  function summaryPanel(facts) {
+    var panel = document.createElement('div');
+    panel.className = 'key-summary-group';
     var dl = document.createElement('dl');
     dl.className = 'key-form-list';
     facts.forEach(function (fact) {
-      if (!fact || !fact.label) return;
-      var row = document.createElement('div');
-      row.className = 'key-form-row';
-      row.setAttribute('data-fact', fact.id || '');
-      var dt = document.createElement('dt');
-      if (fact.href) {
-        var labelLink = document.createElement('a');
-        labelLink.href = fact.href;
-        labelLink.textContent = fact.label;
-        labelLink.title = 'Open the ' + fact.label.toLowerCase() + ' calculator';
-        dt.appendChild(labelLink);
-      } else {
-        dt.textContent = fact.label;
-      }
-      var dd = document.createElement('dd');
-      dd.className = 'mono';
-      if (fact.unavailable) {
-        dd.className = 'key-fact-unavailable';
-        dd.textContent = 'Not available — ' + fact.unavailable;
-        dd.title = dd.textContent;
-      } else {
-        var code = document.createElement('code');
-        code.className = 'mono key-fact-value';
-        if (fact.valueHref) {
-          var valueLink = document.createElement('a');
-          valueLink.href = fact.valueHref;
-          valueLink.textContent = fact.value;
-          code.appendChild(valueLink);
-        } else {
-          code.textContent = fact.value;
-        }
-        dd.appendChild(code);
-        dd.title = fact.value;
-      }
-      row.appendChild(dt);
-      row.appendChild(dd);
-      if (fact.unavailable) {
-        var spacer = document.createElement('span');
-        spacer.className = 'key-copy-spacer';
-        row.appendChild(spacer);
-      } else {
-        var copy = document.createElement('button');
-        copy.type = 'button';
-        copy.className = 'key-copy key-copy-sm';
-        copy.textContent = 'Copy';
-        copy.setAttribute('aria-label', 'Copy ' + fact.label + ' value');
-        copy.addEventListener('click', function () { copyText(fact.value, copy); });
-        row.appendChild(copy);
-      }
-      dl.appendChild(row);
+      if (fact && fact.label) dl.appendChild(summaryRow(fact));
     });
-    group.appendChild(dl);
-    return group;
+    panel.appendChild(dl);
+    return panel;
+  }
+
+  /* Equal row counts per column; an odd trailing row spans both columns. */
+  function summaryGrid(entries) {
+    var grid = document.createElement('div');
+    grid.className = 'key-summary-grid';
+    if (entries.length < 2) {
+      grid.appendChild(summaryPanel(entries));
+      return grid;
+    }
+    var half = Math.floor(entries.length / 2);
+    grid.appendChild(summaryPanel(entries.slice(0, half)));
+    grid.appendChild(summaryPanel(entries.slice(half, half * 2)));
+    var tail = entries.slice(half * 2);
+    if (tail.length) {
+      var wide = summaryPanel(tail);
+      wide.classList.add('key-summary-wide');
+      grid.appendChild(wide);
+    }
+    return grid;
   }
 
   async function renderSummary(report) {
@@ -938,12 +930,8 @@
     }
     if (keyStats) keyStats.hidden = false;
     summaryEl.textContent = '';
-    var fields = summaryFields(report);
-    var grid = document.createElement('div');
-    grid.className = 'key-summary-grid';
-    grid.appendChild(keyFactsGroup(facts));
-    grid.appendChild(summaryGroup('Public point', fields.point));
-    summaryEl.appendChild(grid);
+    var entries = facts.map(pageFactDisplay).concat(pointFacts(report));
+    summaryEl.appendChild(summaryGrid(entries));
     updateCounters();
   }
 
@@ -1651,8 +1639,6 @@
 
   function selectPreset(button) {
     state.preset = button.getAttribute('data-preset');
-    var presetSelect = byId('preset-select');
-    if (presetSelect) presetSelect.value = state.preset;
     presetButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
@@ -1709,8 +1695,6 @@
       presetButtons.forEach(function (button) {
         button.setAttribute('aria-pressed', String(button.getAttribute('data-preset') === 'all'));
       });
-      var presetSelect = byId('preset-select');
-      if (presetSelect) presetSelect.value = 'all';
       setDerivationPath('all');
       if (id.indexOf('btc_') === 0) {
         state.chain = 'btc';
@@ -2695,16 +2679,6 @@
   });
   curveSelect.addEventListener('change', syncCurveChoices);
   syncCurveChoices();
-
-  var presetSelect = byId('preset-select');
-  if (presetSelect) {
-    presetSelect.addEventListener('change', function () {
-      var target = presetButtons.filter(function (button) {
-        return button.getAttribute('data-preset') === presetSelect.value;
-      })[0];
-      if (target) selectPreset(target);
-    });
-  }
 
   /* Per-chain generator entry points reuse this page: ?chain=<slug> (or a
    * legacy ?type=<row>) preselects the chain filter and, for ed25519 chains,
