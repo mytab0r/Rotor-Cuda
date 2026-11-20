@@ -73,7 +73,13 @@
   stats in the table footer.
 - [ ] Reusable icon-button (28/36/44, copied state), compact-row and
   skeleton/empty/error primitives.
-- [ ] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
+- [x] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
+  Evidence: `apps/site/site.js` (`RotorSiteNav.splitLinks`/`activeInTail` and
+  `setupNav`: four inline links, the rest in an `aria-expanded` More
+  disclosure, Escape/outside-click close, idempotent rebuild on resize);
+  `apps/site/site.css` (drawer styles, 44px targets, icon-only inline links
+  ≤520px, reduced motion off); search and theme toggles were already
+  icon-only; `apps/site/site-nav-test.mjs`.
 - [x] Tools index: 8 families with alias rows. Evidence:
   `apps/site/tools.html:106` (eight `article.tool-family` blocks), `:113-121`
   (alias chips per family), `apps/site/site.css:47-64` (44px link chips).

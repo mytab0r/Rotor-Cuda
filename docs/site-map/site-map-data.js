@@ -1239,11 +1239,11 @@
     area: 'site',
     capability: 'Responsive header without horizontal scroll below 860px',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'The header scrolls horizontally instead of offering a hamburger/More menu.'
+    note: 'Below 860px the first four links stay inline and the rest move into a More disclosure with Escape/outside-click close; search and theme toggles are icon-only.'
   });
 
   feature({
