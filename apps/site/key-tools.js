@@ -521,19 +521,19 @@
 
   /* Facts render in this order; `unavailable` replaces the value with a
    * reason instead of leaving a blank. `href` links the label, `valueHref`
-   * links the value. */
+   * links the value. The donor key page shows exactly these eight rows, so
+   * the curve (already visible in the key input) is not one of them. */
   async function buildKeyFacts(report, doubleSha256) {
     report = report || {};
     var curve = report.curve || 'secp256k1';
     var secp = curve !== 'ed25519';
     var facts = [];
-    facts.push({ id: 'curve', label: 'Curve', value: curve });
     facts.push(report.priv_hex
       ? { id: 'hex', label: 'HEX', value: report.priv_hex, href: '/key/hex' }
       : { id: 'hex', label: 'HEX', href: '/key/hex', unavailable: 'The derivation report did not return a private key.' });
     facts.push(report.priv_dec
-      ? { id: 'decimal', label: 'DECIMAL', value: report.priv_dec }
-      : { id: 'decimal', label: 'DECIMAL', unavailable: 'The derivation report did not return a decimal key.' });
+      ? { id: 'decimal', label: 'Decimal', value: report.priv_dec }
+      : { id: 'decimal', label: 'Decimal', unavailable: 'The derivation report did not return a decimal key.' });
 
     if (secp && report.wif_compressed) {
       facts.push({ id: 'wif', label: 'WIF', value: report.wif_compressed, href: '/key/wif' });
@@ -546,10 +546,10 @@
       });
     }
     if (secp && report.wif_uncompressed) {
-      facts.push({ id: 'wif_u', label: 'WIF (U)', value: report.wif_uncompressed, href: '/key/wif' });
+      facts.push({ id: 'wif_u', label: 'WIF (u)', value: report.wif_uncompressed, href: '/key/wif' });
     } else {
       facts.push({
-        id: 'wif_u', label: 'WIF (U)', href: '/key/wif',
+        id: 'wif_u', label: 'WIF (u)', href: '/key/wif',
         unavailable: secp
           ? 'The derivation report did not return an uncompressed WIF.'
           : 'An uncompressed WIF is secp256k1-only; switch the curve.'
@@ -558,13 +558,13 @@
 
     if (!secp && report.priv_hex && report.ed_pubkey) {
       try {
-        facts.push({ id: 'keypair', label: 'KEYPAIR (SOL)', value: solanaKeypair(report.priv_hex, report.ed_pubkey) });
+        facts.push({ id: 'keypair', label: 'Keypair (SOL)', value: solanaKeypair(report.priv_hex, report.ed_pubkey) });
       } catch (err) {
-        facts.push({ id: 'keypair', label: 'KEYPAIR (SOL)', unavailable: err.message || String(err) });
+        facts.push({ id: 'keypair', label: 'Keypair (SOL)', unavailable: err.message || String(err) });
       }
     } else {
       facts.push({
-        id: 'keypair', label: 'KEYPAIR (SOL)',
+        id: 'keypair', label: 'Keypair (SOL)',
         unavailable: secp
           ? 'Solana keypairs are ed25519; switch the curve to ed25519.'
           : 'The derivation report did not return an ed25519 public key.'
@@ -573,13 +573,13 @@
 
     if (secp && report.priv_hex && typeof doubleSha256 === 'function') {
       try {
-        facts.push({ id: 'xrp', label: 'SECRET (XRP)', value: await xrpSecret(report.priv_hex, doubleSha256) });
+        facts.push({ id: 'xrp', label: 'Secret (XRP)', value: await xrpSecret(report.priv_hex, doubleSha256) });
       } catch (err) {
-        facts.push({ id: 'xrp', label: 'SECRET (XRP)', unavailable: err && err.message ? err.message : String(err) });
+        facts.push({ id: 'xrp', label: 'Secret (XRP)', unavailable: err && err.message ? err.message : String(err) });
       }
     } else {
       facts.push({
-        id: 'xrp', label: 'SECRET (XRP)',
+        id: 'xrp', label: 'Secret (XRP)',
         unavailable: secp
           ? 'The XRP checksum needs SHA-256 (a secure context: https or localhost).'
           : 'XRP classic accounts use secp256k1; switch the curve.'
@@ -588,41 +588,242 @@
 
     var pubkey = secp ? report.pubkey_compressed : report.ed_pubkey;
     facts.push(pubkey
-      ? { id: 'pubkey', label: 'PUBKEY', value: pubkey }
-      : { id: 'pubkey', label: 'PUBKEY', unavailable: 'The derivation report did not return a public key.' });
+      ? { id: 'pubkey', label: 'PubKey', value: pubkey }
+      : { id: 'pubkey', label: 'PubKey', unavailable: 'The derivation report did not return a public key.' });
 
     var page = privateKeyPage(report.priv_hex, curve);
     facts.push(page
-      ? { id: 'page', label: 'PAGE', value: page.href, valueHref: page.href }
-      : { id: 'page', label: 'PAGE', unavailable: 'Key 0 is not listed in the integer private-key directory (it starts at 1).' });
+      ? { id: 'page', label: 'Page', value: page.href, valueHref: page.href }
+      : { id: 'page', label: 'Page', unavailable: 'Key 0 is not listed in the integer private-key directory (it starts at 1).' });
     return facts;
   }
 
+  /* ------------------------------------------------ key-page row plumbing */
+  /* The donor key page orders chain groups BTC, EVM, TRX, SOL, TON, SUI,
+   * XRP, LTC, BCH, DOGE, ZEC. Within a family the report order is kept. */
+  var GROUP_ORDER = ['btc', 'evm', 'tron', 'solana', 'ton', 'sui', 'xrp', 'ltc', 'bch', 'doge', 'zcash'];
+  var CHAIN_GROUP_TOTAL = 18;
+  var FAMILY_PREFIXES = ['btc', 'ltc', 'doge', 'bch', 'zcash', 'xrp', 'ton'];
+
+  /* Chain family used for ordering and counters. EVM rows keep their own
+   * identity: the eight networks are eight chain groups, the generic parent
+   * row is not a chain at all. TON V4R2 and W5 are one chain family, so they
+   * share a chain cell and a single counter group. */
+  function rowFamily(id) {
+    var text = String(id == null ? '' : id);
+    if (!text) return '';
+    if (text === 'evm' || text.indexOf('evm_') === 0) return 'evm';
+    for (var index = 0; index < FAMILY_PREFIXES.length; index += 1) {
+      if (text.indexOf(FAMILY_PREFIXES[index] + '_') === 0) return FAMILY_PREFIXES[index];
+    }
+    return text;
+  }
+
+  /* Chain cell grouping: rows of one family share one Chain cell with a
+   * rowspan (BTC 5, LTC 4 ...). EVM sub-rows keep their own cell, and the
+   * shared 0x parent row is its own group. */
+  function rowGroup(id) {
+    var text = String(id == null ? '' : id);
+    if (!text) return '';
+    if (text === 'evm' || text.indexOf('evm_') === 0) return text;
+    return rowFamily(text);
+  }
+
+  function orderAddressRows(rows) {
+    var list = Array.isArray(rows) ? rows.slice() : [];
+    return list.map(function (row, index) {
+      return { row: row, index: index };
+    }).sort(function (left, right) {
+      var a = GROUP_ORDER.indexOf(rowFamily(left.row && left.row.id));
+      var b = GROUP_ORDER.indexOf(rowFamily(right.row && right.row.id));
+      if (a < 0) a = GROUP_ORDER.length;
+      if (b < 0) b = GROUP_ORDER.length;
+      return a - b || left.index - right.index;
+    }).map(function (entry) {
+      return entry.row;
+    });
+  }
+
+  /* The donor key page derives any 32-byte value on both curves, so its table
+   * always carries the secp256k1 rows and the ed25519-only rows together.
+   * `secpReport` and `edReport` are the two derive_report outputs (either may
+   * be null: an out-of-range value has no secp256k1 report), and `extras`
+   * carries rows the JS encoders add: { secp: [...], ed25519: [...] }. Each
+   * returned row is tagged with the curve that produced it; ids are unique. */
+  var ED25519_ONLY_IDS = ['solana', 'sui', 'ton_w5'];
+
+  function mergeCurveAddresses(secpReport, edReport, extras) {
+    var out = [];
+    var seen = {};
+    function add(row, curve) {
+      if (!row || typeof row.id !== 'string' || !row.id) return;
+      if (typeof row.address !== 'string' || !row.address) return;
+      if (seen[row.id]) return;
+      seen[row.id] = true;
+      out.push(Object.assign({}, row, { curve: curve }));
+    }
+    function rowsOf(report) {
+      return report && Array.isArray(report.addresses) ? report.addresses : [];
+    }
+    var extra = extras || {};
+    rowsOf(secpReport).forEach(function (row) { add(row, 'secp256k1'); });
+    (Array.isArray(extra.secp) ? extra.secp : []).forEach(function (row) { add(row, 'secp256k1'); });
+    /* The TON V4R2 row is built by the page (the ed25519 report carries W5
+     * only), so extras land before the report rows and keep V4R2 above W5 in
+     * the TON group. */
+    (Array.isArray(extra.ed25519) ? extra.ed25519 : []).forEach(function (row) { add(row, 'ed25519'); });
+    rowsOf(edReport).forEach(function (row) {
+      if (row && ED25519_ONLY_IDS.indexOf(row.id) >= 0) add(row, 'ed25519');
+    });
+    return out;
+  }
+
+  /* The single EVM account becomes the donor's generic 0x parent row followed
+   * by one row per network id, all showing the same address ("↑ same").
+   * `networks` is [{ id, label }] in display order. */
+  function expandEvmAddresses(rows, networks, parentLabel) {
+    var list = Array.isArray(rows) ? rows : [];
+    var ids = Array.isArray(networks) ? networks : [];
+    var out = [];
+    list.forEach(function (row) {
+      if (!row || !row.id) return;
+      if (row.id !== 'evm') {
+        out.push(row);
+        return;
+      }
+      out.push({
+        id: 'evm_parent',
+        label: parentLabel || 'EVM (shared 0x address)',
+        address: row.address,
+        steps: row.steps,
+        sharedParent: true,
+        curve: row.curve
+      });
+      ids.forEach(function (network) {
+        var id = typeof network === 'string' ? network : network && network.id;
+        if (!id) return;
+        out.push({
+          id: id,
+          label: network && network.label ? network.label : id,
+          address: row.address,
+          steps: null,
+          sharedEvm: true,
+          curve: row.curve
+        });
+      });
+    });
+    return out;
+  }
+
+  /* rows: [{ group, visible }] in DOM order. The returned array is aligned
+   * with the input; `span` is set only on the first visible row of a run and
+   * counts that run's visible rows. Hidden rows never open or extend a run,
+   * so a filter that leaves two of five BTC rows shows a rowspan of 2. */
+  function groupAddressRows(rows) {
+    var list = Array.isArray(rows) ? rows : [];
+    var out = [];
+    var run = null;
+    for (var index = 0; index < list.length; index += 1) {
+      var row = list[index] || {};
+      var group = String(row.group == null ? '' : row.group);
+      out.push({ group: group, span: 0 });
+      if (!row.visible) continue;
+      if (!run || run.group !== group) run = { index: index, group: group, count: 0 };
+      run.count += 1;
+      out[run.index].span = run.count;
+    }
+    return out;
+  }
+
+  /* Donor type labels. The long descriptive name stays in the row's details
+   * and title, so the table itself matches the donor vocabulary. */
+  var ADDRESS_TYPE_LABELS = {
+    btc_p2pkh: 'Legacy',
+    btc_p2pkh_uncompressed: 'Legacy (u)',
+    btc_p2sh_p2wpkh: 'P2SH',
+    btc_p2wpkh: 'SegWit',
+    btc_p2tr: 'Taproot',
+    ltc_p2pkh: 'Legacy',
+    ltc_p2sh_p2wpkh: 'P2SH',
+    ltc_p2wpkh: 'SegWit',
+    ltc_p2tr: 'Taproot',
+    bch_cashaddr: 'CashAddr',
+    bch_legacy: 'Legacy',
+    doge_p2pkh: 'Legacy',
+    doge_p2pkh_uncompressed: 'Legacy (u)',
+    zcash_p2pkh: 't1 (c)',
+    zcash_p2pkh_uncompressed: 't1 (u)',
+    ton: 'V4R2',
+    ton_w5: 'W5',
+    sui: '0x',
+    tron: 'Base58',
+    solana: 'Base58',
+    xrp_classic: 'r…',
+    evm: 'EVM'
+  };
+
+  function addressTypeLabel(id) {
+    var text = String(id == null ? '' : id);
+    if (ADDRESS_TYPE_LABELS[text]) return ADDRESS_TYPE_LABELS[text];
+    if (text.indexOf('evm_') === 0) return '';
+    return text.replace(/_/g, ' ');
+  }
+
+  /* One key per chain group in the counters: 18 in total (BTC, LTC, BCH,
+   * DOGE, TON, ZEC, TRX, SOL, SUI, XRP + eight EVM networks). The generic 0x
+   * parent row is not a chain. */
+  function counterChainKey(id) {
+    var text = String(id == null ? '' : id);
+    if (!text || text === 'evm_parent') return '';
+    if (text === 'evm' || text.indexOf('evm_') === 0) return text;
+    return rowFamily(text);
+  }
+
   /* Counters over the visible address rows. `rows` entries:
-   * { address, state, amount, chain, checkable, visible }. Only completed
-   * lookups (ok/error) count as checked; a zero or hidden row never inflates
-   * the balance counts. */
-  function balanceCounters(rows) {
-    var addresses = {};
-    var chains = {};
-    var checked = 0;
-    var total = 0;
+   * { chain, state, amount, active, checkable, visible }.
+   * - Has balance: unique chain groups with amount > 0 (not addresses).
+   * - Active: unique chain groups with amount > 0 or a provider activity
+   *   signal; chains without one count a balance only.
+   * - Checked: chain groups whose checkable visible rows all settled (ok or
+   *   err) out of the fixed 18. */
+  function balanceCounters(rows, totalChains) {
+    var groups = {};
     (Array.isArray(rows) ? rows : []).forEach(function (row) {
-      if (!row || !row.checkable || !row.visible) return;
-      total += 1;
-      if (row.state === 'ok' || row.state === 'err') checked += 1;
+      if (!row || !row.chain || !row.visible) return;
+      var key = String(row.chain);
+      var group = groups[key] || (groups[key] = { funded: false, active: false, checkable: 0, settled: 0 });
+      if (row.checkable) {
+        group.checkable += 1;
+        if (row.state === 'ok' || row.state === 'err') group.settled += 1;
+      }
       if (row.state !== 'ok' || row.amount === null || row.amount === undefined) return;
       var amount;
-      try { amount = BigInt(row.amount); } catch (err) { return; }
-      if (amount <= 0n) return;
-      if (row.address) addresses[String(row.address).toLowerCase()] = true;
-      if (row.chain) chains[String(row.chain)] = true;
+      try {
+        amount = BigInt(row.amount);
+      } catch (err) {
+        return;
+      }
+      if (amount > 0n) {
+        group.funded = true;
+        group.active = true;
+      } else if (row.active === true) {
+        group.active = true;
+      }
+    });
+    var withBalance = 0;
+    var activeChains = 0;
+    var checked = 0;
+    Object.keys(groups).forEach(function (key) {
+      var group = groups[key];
+      if (group.funded) withBalance += 1;
+      if (group.active) activeChains += 1;
+      if (group.checkable > 0 && group.settled === group.checkable) checked += 1;
     });
     return {
-      withBalance: Object.keys(addresses).length,
-      activeChains: Object.keys(chains).length,
+      withBalance: withBalance,
+      activeChains: activeChains,
       checked: checked,
-      total: total
+      total: typeof totalChains === 'number' && totalChains > 0 ? totalChains : CHAIN_GROUP_TOTAL
     };
   }
 
@@ -653,7 +854,16 @@
     resolveKeyInput: resolveKeyInput,
     privateKeyPage: privateKeyPage,
     buildKeyFacts: buildKeyFacts,
-    balanceCounters: balanceCounters
+    rowFamily: rowFamily,
+    rowGroup: rowGroup,
+    orderAddressRows: orderAddressRows,
+    mergeCurveAddresses: mergeCurveAddresses,
+    expandEvmAddresses: expandEvmAddresses,
+    groupAddressRows: groupAddressRows,
+    addressTypeLabel: addressTypeLabel,
+    counterChainKey: counterChainKey,
+    balanceCounters: balanceCounters,
+    CHAIN_GROUP_TOTAL: CHAIN_GROUP_TOTAL
   };
 
   global.RotorKeyTools = api;

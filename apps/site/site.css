@@ -2342,69 +2342,84 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-balance-label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
 .key-balance-value { display: block; margin-top: 3px; color: var(--text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-/* Address rows: one dense table-like grid row per address. */
-.key-rows { display: block; min-height: 0; }
-.key-table-head,
-.key-row-main {
-  display: grid;
-  grid-template-columns: 84px 104px 150px minmax(0, 1fr) minmax(0, 210px) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 0 8px;
+/* Address table: Chain | Type | Address | Status | actions, rowspan groups. */
+.key-table-wrap { position: relative; width: 100%; max-width: 100%; }
+.key-addr-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
-.key-table-head {
-  min-height: 30px;
+.key-addr-tbl caption {
+  padding: 0;
+  text-align: left;
+}
+.key-addr-tbl th,
+.key-addr-tbl td {
+  padding: 8px;
   border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+.key-addr-tbl thead th {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .07em;
   text-transform: uppercase;
 }
-.key-rows .key-row {
-  display: block;
-  min-width: 0;
+.key-addr-tbl th:nth-child(1) { width: 11%; }
+.key-addr-tbl th:nth-child(2) { width: 15%; }
+.key-addr-tbl th:nth-child(4) { width: 17%; }
+.key-addr-tbl th:nth-child(5) { width: 132px; }
+.key-addr-tbl th:nth-child(4),
+.key-addr-tbl th:nth-child(5) { text-align: right; }
+.key-addr-tbl .key-row {
+  display: table-row;
   min-height: 0;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
   background: transparent;
 }
-.key-rows .key-row:last-child { border-bottom: 0; }
-.key-rows .key-row:hover { background: var(--panel-2); }
-.key-row-main { position: relative; min-height: 44px; }
-.key-rows .key-row.key-row-focus { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
-.key-cell { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+.key-addr-tbl .key-row:hover { background: var(--panel-2); }
+.key-addr-tbl .key-row.has-balance { background: rgba(69, 214, 160, .06); }
+.key-addr-tbl .key-row.is-active { background: rgba(245, 181, 68, .055); }
+.key-addr-tbl .key-row.has-balance.is-active { background: rgba(69, 214, 160, .08); }
+.key-addr-tbl .key-row.key-row-focus { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.key-cell-chain { color: var(--text); }
 .key-chain-id { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
 .key-chain-icon { flex: none; width: 16px; height: 16px; }
-.key-chain-ticker { white-space: nowrap; }
-.key-cell-type { color: var(--text-2); font-size: 12px; white-space: nowrap; }
-.key-format-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.key-cell-path { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.key-cell-addr .key-addr {
+.key-chain-ticker,
+.key-chain-literal { white-space: nowrap; }
+.key-cell-type { color: var(--text-2); font-size: 12px; }
+.key-format-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.key-cell-addr code.key-addr {
   display: block;
   width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
   color: var(--text);
-  font-size: 12.5px;
-  line-height: 1.5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
   user-select: all;
 }
-.key-cell-status { justify-content: flex-end; }
-.key-rows .key-balance {
+.key-same { color: var(--muted); font-size: 12px; font-style: italic; white-space: nowrap; }
+.key-cell-status { text-align: right; }
+.key-addr-tbl .key-balance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
   max-width: 100%;
-  min-height: 0;
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
+  background: none;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
@@ -2412,9 +2427,21 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.key-rows .key-balance.ok { color: var(--ok); }
-.key-rows .key-balance.err { color: var(--err); }
-.key-cell-act { justify-content: flex-end; gap: 0; overflow: visible; }
+.key-addr-tbl .key-balance.ok { color: var(--ok); }
+.key-addr-tbl .key-balance.err { color: var(--err); }
+.key-addr-tbl .key-balance.active { color: var(--warn); }
+.key-addr-tbl .key-balance.empty { color: var(--muted); }
+.key-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: balance-spin .8s linear infinite;
+}
+.key-cell-act { text-align: right; }
+.key-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0; }
 .key-row-action { color: var(--muted); border-radius: 8px; }
 .key-row-action:hover { color: var(--text); border-color: var(--border); background: var(--panel-2); }
 .key-row-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -2422,57 +2449,26 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-row-action.is-copied { color: var(--ok); border-color: rgba(69, 214, 160, .45); }
 .key-details-toggle .icon { transition: transform .16s ease; }
 .key-details-toggle.is-open .icon { transform: rotate(90deg); }
-.key-details { padding: 10px 12px 12px; border-top: 1px dashed var(--border); background: rgba(255, 255, 255, .015); }
+.key-details { margin-top: 8px; padding: 8px 0 0; border-top: 1px dashed var(--border); }
 .key-details .key-explain { max-width: 100ch; margin: 0 0 6px; font-size: 12px; }
 .key-details .key-step-list { margin: 6px 0 0; }
-@media (max-width: 860px) {
-  .key-table-head,
-  .key-row-main {
-    grid-template-columns: 70px 96px 130px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "chain type path addr act"
-      "chain type status status act";
-    column-gap: 10px;
-    row-gap: 0;
-    padding: 4px 8px;
-  }
-  .key-cell-chain { grid-area: chain; }
-  .key-cell-type { grid-area: type; }
-  .key-cell-path { display: block; grid-area: path; }
-  .key-cell-addr { grid-area: addr; }
-  .key-cell-status { grid-area: status; justify-content: flex-start; }
-  .key-cell-act { grid-area: act; }
-}
 @media (max-width: 640px) {
-  .key-table-head { display: none; }
-  .key-row-main {
-    grid-template-columns: 40px minmax(0, 1fr) 88px;
-    grid-template-areas:
-      "chain addr act"
-      "chain status act";
-    min-height: 88px;
-    padding: 6px;
-  }
-  .key-cell-type,
-  .key-cell-path { display: none; }
-  .key-cell-chain { grid-area: chain; }
-  .key-cell-addr { grid-area: addr; align-self: center; }
-  .key-cell-status { grid-area: status; justify-content: flex-start; align-self: start; text-align: left; }
-  .key-cell-act {
-    grid-area: act;
-    display: grid;
-    grid-template-columns: repeat(2, 44px);
-    justify-content: end;
-    align-content: center;
-    gap: 0;
-  }
-  .key-cell-addr .key-addr { white-space: normal; overflow-wrap: anywhere; }
-  .key-chain-id { flex-direction: column; gap: 1px; }
-  .key-chain-ticker { font-size: 12px; line-height: 1; }
-  .key-details { padding: 8px 6px 10px; }
+  /* The table keeps all five donor columns; at 375px the 44px action targets
+   * leave no room for a readable address, so the wrapper scrolls instead of
+   * the page. */
+  .key-table-wrap { overflow-x: auto; overscroll-behavior-x: contain; }
+  .key-addr-tbl { min-width: 620px; }
+  .key-addr-tbl th,
+  .key-addr-tbl td { padding: 6px; }
+  .key-addr-tbl th:nth-child(1) { width: 64px; }
+  .key-addr-tbl th:nth-child(2) { width: 88px; }
+  .key-addr-tbl th:nth-child(4) { width: 100px; }
+  .key-addr-tbl th:nth-child(5) { width: 132px; }
+  .key-details { margin-top: 6px; padding-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .key-details-toggle .icon { transition: none; }
+  .key-spinner { animation: none; }
 }
 .key-row:hover { border-color: var(--border-strong); background: var(--panel-2); }
 .key-row-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 8px; }
