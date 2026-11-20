@@ -65,12 +65,14 @@
       </div>
     </form>
     <p class="muted key-help">Case matters for EVM and base58 addresses. A short pattern is found quickly; every extra character multiplies the expected work. The search runs in this tab — keep it open.</p>
+    <p class="muted key-help" id="vanity-difficulty">Expected work: —</p>
     <p id="vanity-error" class="error key-error" role="alert" hidden></p>
   </section>
 
   <section class="key-summary-grid vanity-stats" aria-live="polite">
     <div class="key-summary-group"><h3 class="key-group-title">Attempts</h3><p class="vanity-stat" id="vanity-attempts">0</p></div>
     <div class="key-summary-group"><h3 class="key-group-title">Rate</h3><p class="vanity-stat" id="vanity-rate">0 / s</p></div>
+    <div class="key-summary-group"><h3 class="key-group-title">ETA</h3><p class="vanity-stat" id="vanity-eta">—</p></div>
     <div class="key-summary-group"><h3 class="key-group-title">Elapsed</h3><p class="vanity-stat" id="vanity-elapsed">0 s</p></div>
   </section>
 
@@ -80,6 +82,12 @@
     <div class="key-form-row"><span class="key-field-label">Private key (hex)</span><code class="mono key-addr" id="vanity-key"></code><button type="button" class="key-copy" id="vanity-copy-key">Copy</button></div>
     <div class="key-form-row" id="vanity-wif-row"><span class="key-field-label">WIF</span><code class="mono key-addr" id="vanity-wif"></code><button type="button" class="key-copy" id="vanity-copy-wif">Copy</button></div>
     <p class="muted key-help">Store this key offline. Anyone with it can spend the funds; this page does not save it.</p>
+  </section>
+
+  <section class="card vanity-recent" id="vanity-recent" hidden>
+    <h2>Recent matches</h2>
+    <div class="key-form-list" id="vanity-recent-list" role="list" aria-label="Recent matches"></div>
+    <p class="muted key-help">Chain, pattern and address only. Keys are not saved.</p>
   </section>
 </main>
 
