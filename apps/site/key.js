@@ -2105,7 +2105,7 @@
   }
 
   async function fetchTronDirect(address, signal) {
-    var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/accountv2?address=' + encodeURIComponent(address), null, signal);
+    var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address), null, signal);
     if (response.status === 404) {
       return {
         text: '0 TRX · account not activated',
