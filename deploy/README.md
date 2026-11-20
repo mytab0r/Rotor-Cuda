@@ -89,6 +89,75 @@ returns `balance_sun:null` with `balance_error:"provider_overflow"` instead of a
 wrong number. TronScan failures are a short `502`; one retry is made on
 429/5xx.
 
+### Paid downloads (processor-free)
+
+Paid datasets are sold without a payment processor, accounts or custody. The
+buyer is identified by the order alone: one fixed deposit address per chain
+plus a unique atomic-amount suffix above the list price. A background poller
+verifies the transfer on-chain and issues an expiring download link. The full
+design and trust model are in `docs/donor-parity/payments.md`.
+
+Set two variables in `/etc/rotor/rotor-coord.env` (or the compose `.env`):
+
+- `ORDERS_CONFIG` — path to a JSON file based on `deploy/orders.example.json`.
+  Without it every `/api/v1/orders*` route answers `503`
+  `{"error":"orders_not_configured"}`.
+- `ORDERS_HMAC_SECRET` — signing key for delivery links, at least 32 random
+  bytes (`openssl rand -hex 32`). Required when `ORDERS_CONFIG` is set; a
+  missing or short secret is a startup error.
+
+`deploy/orders.example.json` ships every list with `active: false` and
+placeholder addresses, prices and hashes. Replace them, stage the files, and
+flip a list to `active: true` only when the owner has set its price and chain.
+Per-list fields:
+
+| Field | Meaning |
+|---|---|
+| `slug` | Stable id used by `POST /api/v1/orders`. |
+| `chain`, `asset` | `btc`, `ltc` or `tron`; display symbol. |
+| `price_usd_cents` | Quoted price in cents. |
+| `usd_per_unit_micros` | Frozen rate, micro-USD per one whole unit. |
+| `decimals` | Atomic precision (8 for BTC/LTC, 6 for TRC-20). |
+| `address` | Fixed deposit address. One per chain is enough. |
+| `contract` | TRC-20 contract for a token asset; omit for native TRX. |
+| `file_path`, `sha256` | Artifact streamed after payment and its hash. |
+| `active` | `false` keeps the list visible in the file but unorderable. |
+
+Root fields: `confirmations` per chain (defaults BTC 3, LTC 6, TRON 19),
+`quote_ttl_secs` (30 min), `link_ttl_secs` (7 days), `max_downloads` (5),
+`poll_interval_secs` (45), optional `esplora` bases for BTC/LTC, and an optional
+`admin_token` accepted alongside the coordinator admin token. The order store is
+`orders.json` next to the coordinator state file; it is written atomically and
+holds only token hashes, never raw order or download tokens. TRON verification
+needs the existing `TRONSCAN_API_KEY`; without it TRON orders stay
+`awaiting_payment`.
+
+Flow:
+
+1. `POST /api/v1/orders {"list":"btc-pack","contact":"buyer@example.com"}`
+   returns `201 {order_id, asset, amount, address, expires_at, order_token}`.
+   `404` means the list is unknown or `active: false`.
+2. The buyer sends the exact amount to the address before `expires_at`. A
+   payment after expiry is recorded as `late_paid` for manual handling and is
+   never auto-delivered.
+3. `GET /api/v1/orders/{id}` with `Authorization: Bearer <order_token>` (or
+   `?token=`) reports `awaiting_payment`, `confirming`, `paid`, `expired`,
+   `late_paid` or `revoked`. When paid it includes `download_url`.
+4. `GET /api/v1/orders/{id}/download?token=…` streams the file with
+   `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and
+   `X-Robots-Tag: noindex`. A bad token is `404`; an expired or exhausted link
+   is `410`. The file hash is checked before every delivery.
+
+Admin routes use the coordinator admin token (or `admin_token` from the orders
+file): `POST /api/v1/admin/orders/{id}/revoke` and
+`POST /api/v1/admin/payments/reconcile`.
+
+Deliberately absent: cards and payment processors, a custodial balance or
+withdrawals, accounts, private keys (the deposit addresses are watch-only
+strings), automatic refunds, and paywalling data that is already MIT/CC0.
+Underpayment keeps the order `awaiting_payment`; overpayment is kept, but is
+credited only when the amount identifies a single open order.
+
 ### Caddy (HTTPS)
 
 `deploy/Caddyfile.example` is a two-line site block: replace the host name and
