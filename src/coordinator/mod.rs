@@ -3484,8 +3484,11 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
         1,
     );
     html = html.replace(
-        "<span data-chain-name>Directory</span>",
-        &format!("<span data-chain-name>{}</span>", escape_attr(chain.name)),
+        "<span data-chain-name aria-current=\"page\">Directory</span>",
+        &format!(
+            "<span data-chain-name aria-current=\"page\">{}</span>",
+            escape_attr(chain.name)
+        ),
     );
     html = html.replace(
         "<span data-chain-name>Chain</span>",
