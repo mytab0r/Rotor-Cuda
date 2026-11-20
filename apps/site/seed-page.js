@@ -60,6 +60,18 @@
   var EVM_RPC = 'https://ethereum-rpc.publicnode.com';
   var BTC_BALANCE_URL = 'https://blockchain.info/balance?cors=true&active=';
   var WORDS = [12, 15, 18, 21, 24];
+  var LOAD_BATCH = 5;
+
+  /* Pure, DOM-free helpers. Exposed before the DOM early return so the Node
+   * test can exercise the same word-count/validity and index logic the page
+   * uses (apps/site/seed-test.mjs). */
+  if (typeof window !== 'undefined') {
+    window.RotorSeedPage = {
+      countWords: countSeedWords,
+      phraseHint: phraseHint,
+      batchIndices: batchIndices
+    };
+  }
 
   var byId = function (id) { return document.getElementById(id); };
   var form = byId('seed-form');
@@ -79,6 +91,10 @@
   var rowsEl = byId('seed-rows');
   var countEl = byId('seed-count');
   var csvBtn = byId('seed-csv');
+  var copyAllBtn = byId('seed-copy-all');
+  var loadMoreBtn = byId('seed-load-more');
+  var aggregateEl = byId('seed-aggregate');
+  var wordCountEl = byId('seed-word-count');
   var deriveBtn = byId('seed-derive');
   var generateBtn = byId('seed-generate');
   var clearBtn = byId('seed-clear');
@@ -90,8 +106,11 @@
     count: 1,
     results: [],
     run: 0,
-    balanceAbort: null
+    balanceAbort: null,
+    snapshot: null,
+    groupIndex: null
   };
+  var wordRun = 0;
 
   function fail(message) {
     if (!errorEl) return;
@@ -164,14 +183,15 @@
     return '';
   }
 
-  function copyText(text, button) {
+  function copyText(text, button, label) {
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
       fail('Clipboard access is unavailable in this browser. Select the value and copy it manually.');
       return;
     }
+    var restore = label || button.textContent;
     navigator.clipboard.writeText(text).then(function () {
       button.textContent = 'Copied';
-      window.setTimeout(function () { button.textContent = 'Copy'; }, 1200);
+      window.setTimeout(function () { button.textContent = restore; }, 1200);
     }, function () {
       fail('Clipboard access was denied. Select the value and copy it manually.');
     });
@@ -268,6 +288,7 @@
         helpEl.textContent = 'BIP39: the phrase checksum is validated, and the master seed is PBKDF2-HMAC-SHA512 with the salt "mnemonic" and the optional passphrase, then BIP32 along the selected path.';
       }
     }
+    updateWordCount();
   }
 
   function setCount(value) {
@@ -283,6 +304,8 @@
     state.run += 1;
     state.busy = false;
     state.results = [];
+    state.snapshot = null;
+    state.groupIndex = null;
     if (state.balanceAbort) {
       try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
       state.balanceAbort = null;
@@ -290,6 +313,16 @@
     if (rowsEl) rowsEl.textContent = '';
     if (resultEl) resultEl.hidden = true;
     if (csvBtn) csvBtn.hidden = true;
+    if (copyAllBtn) copyAllBtn.hidden = true;
+    if (loadMoreBtn) {
+      loadMoreBtn.hidden = true;
+      loadMoreBtn.disabled = false;
+      loadMoreBtn.textContent = 'Load next 5';
+    }
+    if (aggregateEl) {
+      aggregateEl.hidden = true;
+      aggregateEl.textContent = '';
+    }
     if (countEl) countEl.textContent = '';
     if (deriveBtn) {
       deriveBtn.disabled = false;
@@ -311,6 +344,71 @@
 
   function cleanPhrase(text) {
     return String(text || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  function countSeedWords(text) {
+    var phrase = cleanPhrase(text);
+    return phrase ? phrase.split(' ').length : 0;
+  }
+
+  /* The live hint mirrors the checks inspectPhrase() runs for the derive path,
+   * but its messages never repeat any words from the phrase. */
+  async function phraseHint(text, scheme) {
+    var phrase = cleanPhrase(text);
+    var words = phrase ? phrase.split(' ') : [];
+    var count = words.length;
+    if (!count) return 'Enter a mnemonic to check its words and checksum.';
+
+    if (scheme === 'electrum-old') {
+      if (!window.RotorSeedCrypto) return 'The seed libraries did not load.';
+      if (count !== 12 && count !== 24) return 'Electrum old phrases use 12 or 24 words.';
+      try {
+        window.RotorSeedCrypto.validateOld(phrase);
+        return 'Valid Electrum old phrase.';
+      } catch (err) {
+        return 'Not a valid Electrum old phrase: check the words.';
+      }
+    }
+
+    if (scheme === 'electrum-bip39') {
+      if (!window.RotorSeedCrypto) return 'The seed libraries did not load.';
+      try {
+        var info = await window.RotorSeedCrypto.validateElectrumBip39(phrase);
+        return 'Valid Electrum BIP39 phrase (' + info.seedType + ').';
+      } catch (err) {
+        var message = err && err.message ? err.message : '';
+        if (/at least two words/.test(message)) return 'An Electrum seed needs at least two words.';
+        if (/2FA/.test(message)) return 'Electrum 2FA seeds are not supported here.';
+        if (/Unknown BIP39 word/.test(message)) return 'Some words are not in the BIP39 wordlist.';
+        return 'Not an Electrum BIP39 seed-version phrase.';
+      }
+    }
+
+    if (WORDS.indexOf(count) < 0) return 'BIP39 uses 12, 15, 18, 21 or 24 words.';
+    if (!window.RotorSeed || !window.RotorSeedCrypto) return 'The seed libraries did not load.';
+    var known = bip39WordSet();
+    for (var i = 0; i < words.length; i += 1) {
+      if (!known[words[i]]) return 'Some words are not in the BIP39 wordlist.';
+    }
+    if (!window.RotorSeed.validate(phrase)) return 'BIP39 checksum does not match.';
+    return 'Valid BIP39 phrase.';
+  }
+
+  function updateWordCount() {
+    if (!wordCountEl) return;
+    var text = phraseEl ? phraseEl.value : '';
+    var count = countSeedWords(text);
+    var prefix = count + ' word' + (count === 1 ? '' : 's');
+    wordCountEl.textContent = prefix;
+    wordRun += 1;
+    var run = wordRun;
+    phraseHint(text, schemeValue()).then(function (hint) {
+      if (run !== wordRun) return;
+      wordCountEl.textContent = prefix + ' · ' + hint;
+    }, function () {
+      if (run !== wordRun) return;
+      wordCountEl.textContent = prefix;
+    });
   }
 
   async function inspectPhrase(phrase) {
@@ -403,6 +501,14 @@
     return parts.join('/');
   }
 
+  function batchIndices(start, size) {
+    var from = Math.max(0, Math.floor(Number(start) || 0));
+    var length = Math.max(0, Math.floor(Number(size) || 0));
+    var out = [];
+    for (var i = 0; i < length; i += 1) out.push(from + i);
+    return out;
+  }
+
   /* ------------------------------------------------------------- deriving */
 
   async function deriveAll() {
@@ -425,6 +531,7 @@
     var run = state.run;
     deriveBtn.disabled = true;
     if (generateBtn) generateBtn.disabled = true;
+    if (loadMoreBtn) loadMoreBtn.disabled = true;
     deriveBtn.textContent = 'Deriving…';
     note('Validating the phrase locally…');
 
@@ -442,11 +549,14 @@
       var total = targets.length * state.count;
       var done = 0;
       var results = [];
+      var seed = null;
+      var oldKeys = null;
 
       if (info.scheme === 'electrum-old') {
         var old = await window.RotorSeedCrypto.oldPrivateKeys(info.seedHex, state.count, function (keyHex) {
           return report(keyHex);
         });
+        oldKeys = old.keys;
         for (var oi = 0; oi < old.keys.length; oi += 1) {
           var oldReport = report(old.keys[oi]);
           results.push(makeResult(targets[0], 'old/0/' + oi, old.keys[oi], oldReport));
@@ -454,7 +564,6 @@
           note('Deriving ' + done + ' of ' + total + '…');
         }
       } else {
-        var seed;
         if (info.scheme === 'bip39') {
           seed = await window.RotorSeedCrypto.bip39Seed(info.phrase, info.passphrase);
         } else {
@@ -476,6 +585,14 @@
 
       if (run !== state.run) return;
       state.results = results;
+      state.snapshot = {
+        scheme: info.scheme,
+        info: info,
+        targets: targets,
+        seed: seed,
+        oldKeys: oldKeys,
+        nextIndex: state.count
+      };
       renderGroups(results);
       var versions = {
         bip39: 'BIP39',
@@ -490,6 +607,12 @@
     } catch (err) {
       if (run === state.run) {
         state.results = [];
+        state.snapshot = null;
+        state.groupIndex = null;
+        if (rowsEl) rowsEl.textContent = '';
+        if (copyAllBtn) copyAllBtn.hidden = true;
+        if (loadMoreBtn) loadMoreBtn.hidden = true;
+        if (aggregateEl) aggregateEl.hidden = true;
         fail(err && err.message ? err.message : 'Derivation failed.');
         note('Nothing was derived. The phrase stays in this tab.', true);
       }
@@ -499,6 +622,11 @@
         deriveBtn.disabled = false;
         if (generateBtn) generateBtn.disabled = false;
         deriveBtn.textContent = 'Convert & derive';
+        if (loadMoreBtn) {
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = 'Load next 5';
+          loadMoreBtn.hidden = !state.snapshot || state.results.length === 0;
+        }
       }
     }
   }
@@ -514,52 +642,171 @@
       privHex: keyHex,
       wifCompressed: report.wif_compressed || '',
       wifUncompressed: report.wif_uncompressed || '',
-      balanceEl: null
+      balanceEl: null,
+      balanceValue: null,
+      balanceUnit: ''
     };
+  }
+
+  /* Append the next LOAD_BATCH indices for every target path of the snapshot
+   * that produced the current rows. Earlier indices are not derived again. */
+  async function loadNextBatch() {
+    var snapshot = state.snapshot;
+    if (!snapshot || state.busy || !state.results.length) return;
+    if (!window.RotorSeedCrypto) {
+      fail('The seed libraries did not load. Reload the page.');
+      return;
+    }
+    fail('');
+    state.busy = true;
+    var run = state.run;
+    if (loadMoreBtn) {
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = 'Loading…';
+    }
+    if (deriveBtn) deriveBtn.disabled = true;
+    if (generateBtn) generateBtn.disabled = true;
+    note('Deriving ' + LOAD_BATCH + ' more address' + (LOAD_BATCH === 1 ? '' : 'es') + ' per path…');
+
+    try {
+      var wasm = await loadWasm();
+      var report = function (keyHex) { return reportFor(wasm, keyHex); };
+      var pubkeyFor = async function (keyHex) {
+        return hexToBytes(report(keyHex).pubkey_compressed);
+      };
+      var indices = batchIndices(snapshot.nextIndex, LOAD_BATCH);
+      var added = [];
+
+      if (snapshot.info.scheme === 'electrum-old') {
+        var need = snapshot.nextIndex + LOAD_BATCH;
+        var old = await window.RotorSeedCrypto.oldPrivateKeys(snapshot.info.seedHex, need, function (keyHex) {
+          return report(keyHex);
+        });
+        for (var ki = 0; ki < indices.length; ki += 1) {
+          if (run !== state.run) return;
+          var oldKey = old.keys[snapshot.nextIndex + ki];
+          if (!oldKey) break;
+          added.push(makeResult(snapshot.targets[0], 'old/0/' + indices[ki], oldKey, report(oldKey)));
+        }
+        snapshot.oldKeys = old.keys;
+      } else {
+        for (var ti = 0; ti < snapshot.targets.length; ti += 1) {
+          var target = snapshot.targets[ti];
+          for (var ii = 0; ii < indices.length; ii += 1) {
+            if (run !== state.run) return;
+            var path = withIndex(target.preset.path, indices[ii]);
+            var keyHex = await window.RotorSeedCrypto.bip32PrivateKey(snapshot.seed, path, pubkeyFor);
+            added.push(makeResult(target, path, keyHex, report(keyHex)));
+            if (added.length % LOAD_BATCH === 0) {
+              note('Derived ' + added.length + ' more address' + (added.length === 1 ? '' : 'es') + '…');
+              await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
+            }
+          }
+        }
+      }
+
+      if (run !== state.run) return;
+      snapshot.nextIndex += LOAD_BATCH;
+      state.results = state.results.concat(added);
+      appendResults(added);
+      updateResultSummary();
+      note('Added ' + added.length + ' address' + (added.length === 1 ? '' : 'es') +
+        '. Checking public balances…');
+      await checkBalances(added);
+    } catch (err) {
+      if (run === state.run) {
+        fail(err && err.message ? err.message : 'Could not load more addresses.');
+        note('The extra addresses were not added. The phrase stays in this tab.', true);
+      }
+    } finally {
+      if (run === state.run) {
+        state.busy = false;
+        if (deriveBtn) deriveBtn.disabled = false;
+        if (generateBtn) generateBtn.disabled = false;
+        if (loadMoreBtn) {
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = 'Load next 5';
+          loadMoreBtn.hidden = !state.snapshot || state.results.length === 0;
+        }
+      }
+    }
   }
 
   /* ------------------------------------------------------------ rendering */
 
+  function makeGroupSection(label) {
+    var section = document.createElement('section');
+    section.className = 'seed-group';
+    var head = document.createElement('div');
+    head.className = 'seed-group-head';
+    var title = document.createElement('h3');
+    title.textContent = label;
+    var meta = document.createElement('span');
+    head.appendChild(title);
+    head.appendChild(meta);
+    section.appendChild(head);
+    var list = document.createElement('div');
+    list.className = 'seed-rows';
+    section.appendChild(list);
+    return { section: section, list: list, meta: meta };
+  }
+
+  function updateGroupMeta(group) {
+    var entries = group.list.children.length;
+    group.meta.textContent = entries + ' address' + (entries === 1 ? '' : 'es');
+  }
+
+  function updateResultSummary() {
+    var total = state.results.length;
+    var groups = state.groupIndex ? Object.keys(state.groupIndex).length : 0;
+    if (countEl) {
+      countEl.textContent = total + ' address' + (total === 1 ? '' : 'es') +
+        ' · ' + groups + ' group' + (groups === 1 ? '' : 's');
+    }
+    if (resultEl) resultEl.hidden = total === 0;
+    if (csvBtn) csvBtn.hidden = total === 0;
+    if (copyAllBtn) copyAllBtn.hidden = total === 0;
+    if (loadMoreBtn) loadMoreBtn.hidden = total === 0 || !state.snapshot;
+  }
+
   function renderGroups(results) {
     if (!rowsEl) return;
     rowsEl.textContent = '';
-    var groups = [];
-    var index = Object.create(null);
+    state.groupIndex = Object.create(null);
+    var order = [];
     results.forEach(function (entry) {
-      var key = entry.chainLabel;
-      if (!(key in index)) {
-        index[key] = groups.length;
-        groups.push({ label: key, entries: [] });
+      var group = state.groupIndex[entry.chainLabel];
+      if (!group) {
+        group = makeGroupSection(entry.chainLabel);
+        state.groupIndex[entry.chainLabel] = group;
+        order.push(group);
       }
-      groups[index[key]].entries.push(entry);
+      group.list.appendChild(rowFor(entry));
     });
-    groups.forEach(function (group) {
-      var section = document.createElement('section');
-      section.className = 'seed-group';
-      var head = document.createElement('div');
-      head.className = 'seed-group-head';
-      var title = document.createElement('h3');
-      title.textContent = group.label;
-      var meta = document.createElement('span');
-      meta.textContent = group.entries.length + ' address' + (group.entries.length === 1 ? '' : 'es');
-      head.appendChild(title);
-      head.appendChild(meta);
-      section.appendChild(head);
-      var list = document.createElement('div');
-      list.className = 'seed-rows';
-      group.entries.forEach(function (entry) { list.appendChild(rowFor(entry)); });
-      section.appendChild(list);
-      rowsEl.appendChild(section);
+    order.forEach(function (group) {
+      updateGroupMeta(group);
+      rowsEl.appendChild(group.section);
     });
-    if (countEl) {
-      countEl.textContent = results.length + ' address' + (results.length === 1 ? '' : 'es') +
-        ' · ' + groups.length + ' group' + (groups.length === 1 ? '' : 's');
-    }
-    if (resultEl) resultEl.hidden = false;
-    if (csvBtn) csvBtn.hidden = results.length === 0;
+    updateResultSummary();
     if (resultEl && resultEl.scrollIntoView) {
       resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  }
+
+  function appendResults(entries) {
+    if (!rowsEl || !entries.length) return;
+    if (!state.groupIndex) state.groupIndex = Object.create(null);
+    entries.forEach(function (entry) {
+      var group = state.groupIndex[entry.chainLabel];
+      if (!group) {
+        group = makeGroupSection(entry.chainLabel);
+        state.groupIndex[entry.chainLabel] = group;
+        rowsEl.appendChild(group.section);
+      }
+      group.list.appendChild(rowFor(entry));
+      updateGroupMeta(group);
+    });
+    updateResultSummary();
   }
 
   function rowFor(entry) {
@@ -753,14 +1000,20 @@
       entries.forEach(function (entry) {
         var info = data[entry.address];
         if (!info) {
+          entry.balanceValue = null;
           showBalanceError(entry, 'Balance row missing from the provider.');
           return;
         }
+        entry.balanceValue = BigInt(info.final_balance || 0);
+        entry.balanceUnit = 'BTC';
         setBalance(entry, coin(info.final_balance, 8) + ' BTC · ' + Number(info.n_tx || 0) + ' tx');
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
-      entries.forEach(function (entry) { showBalanceError(entry, 'Balance lookup failed.'); });
+      entries.forEach(function (entry) {
+        entry.balanceValue = null;
+        showBalanceError(entry, 'Balance lookup failed.');
+      });
     }
   }
 
@@ -788,33 +1041,76 @@
       entries.forEach(function (entry) {
         var value = byAddress[entry.address];
         if (value === undefined) {
+          entry.balanceValue = null;
           showBalanceError(entry, 'Balance row missing from the provider.');
           return;
         }
+        entry.balanceValue = value;
+        entry.balanceUnit = 'ETH';
         setBalance(entry, coin(value, 18) + ' ETH');
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
-      entries.forEach(function (entry) { showBalanceError(entry, 'Balance lookup failed.'); });
+      entries.forEach(function (entry) {
+        entry.balanceValue = null;
+        showBalanceError(entry, 'Balance lookup failed.');
+      });
     }
   }
 
-  function balanceRows(chain) {
-    return state.results.filter(function (entry) {
+  function balanceRows(chain, entries) {
+    return (entries || state.results).filter(function (entry) {
       return entry.chain === chain && entry.address && entry.balanceEl;
     });
+  }
+
+  /* Honest aggregates only: rows with a known positive balance, plus a summed
+   * current balance when every rendered row shares one chain/asset. Providers
+   * here do not expose lifetime received totals, so none is invented. */
+  function updateAggregates() {
+    if (!aggregateEl) return;
+    if (!state.results.length) {
+      aggregateEl.hidden = true;
+      aggregateEl.textContent = '';
+      return;
+    }
+    var known = state.results.filter(function (entry) { return entry.balanceValue !== null; });
+    if (!known.length) {
+      aggregateEl.hidden = true;
+      aggregateEl.textContent = '';
+      return;
+    }
+    var active = known.filter(function (entry) { return entry.balanceValue > 0; }).length;
+    var text = 'Active: ' + active;
+    var unchecked = state.results.length - known.length;
+    if (unchecked) text += ' · ' + unchecked + ' address' + (unchecked === 1 ? '' : 'es') + ' not checked';
+    var unit = state.results[0].balanceUnit;
+    var sameAsset = (unit === 'BTC' || unit === 'ETH') && known.length === state.results.length &&
+      state.results.every(function (entry) { return entry.balanceUnit === unit; });
+    if (sameAsset) {
+      var sum = known.reduce(function (acc, entry) { return acc + entry.balanceValue; }, 0n);
+      text += ' · Sum: ' + coin(sum, unit === 'BTC' ? 8 : 18) + ' ' + unit;
+    }
+    aggregateEl.textContent = text;
+    aggregateEl.hidden = false;
   }
 
   function retryEntry(entry) {
     if (!entry.address) return;
     var run = state.run;
-    if (entry.chain === 'bitcoin') checkBtcRows([entry], run, null);
-    else if (entry.chain === 'ethereum') checkEvmRows([entry], run, null);
-    else setBalance(entry, 'Explorer only — no public balance adapter here.');
+    var done = function () { if (run === state.run) updateAggregates(); };
+    if (entry.chain === 'bitcoin') checkBtcRows([entry], run, null).then(done);
+    else if (entry.chain === 'ethereum') checkEvmRows([entry], run, null).then(done);
+    else {
+      entry.balanceValue = null;
+      setBalance(entry, 'Explorer only — no public balance adapter here.');
+      updateAggregates();
+    }
   }
 
-  async function checkBalances() {
-    if (!state.results.length) return;
+  async function checkBalances(entries) {
+    var rows = entries || state.results;
+    if (!rows.length) return;
     if (state.balanceAbort) {
       try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
     }
@@ -822,9 +1118,10 @@
     state.balanceAbort = controller;
     var run = state.run;
 
-    var btc = balanceRows('bitcoin');
-    var evm = balanceRows('ethereum');
-    state.results.forEach(function (entry) {
+    var btc = balanceRows('bitcoin', rows);
+    var evm = balanceRows('ethereum', rows);
+    rows.forEach(function (entry) {
+      entry.balanceValue = null;
       if (entry.chain !== 'bitcoin' && entry.chain !== 'ethereum') {
         setBalance(entry, 'Explorer only — no public balance adapter here.');
       } else if (!entry.address) {
@@ -837,6 +1134,7 @@
     if (!btc.length && !evm.length) {
       note('No public address to check for this selection. Only derived addresses are ever sent.');
       state.balanceAbort = null;
+      updateAggregates();
       return;
     }
 
@@ -847,6 +1145,7 @@
     ]);
     if (run !== state.run) return;
     if (state.balanceAbort === controller) state.balanceAbort = null;
+    updateAggregates();
     note('Balances loaded from public providers. They can lag the chain; only public addresses were sent.');
   }
 
@@ -874,6 +1173,15 @@
     window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
+  /* Copy only the public rows: chain, path and address. Never keys. */
+  function copyAll() {
+    if (!state.results.length || !copyAllBtn) return;
+    var lines = state.results.map(function (entry) {
+      return [entry.chainLabel, entry.path, entry.address].join('\t');
+    });
+    copyText(lines.join('\n'), copyAllBtn, 'Copy All');
+  }
+
   /* ------------------------------------------------------------- generate */
 
   async function generate() {
@@ -885,6 +1193,7 @@
     state.busy = true;
     if (generateBtn) generateBtn.disabled = true;
     if (deriveBtn) deriveBtn.disabled = true;
+    if (loadMoreBtn) loadMoreBtn.disabled = true;
     note('Generating a phrase locally…');
     try {
       var phrase;
@@ -897,6 +1206,7 @@
       }
       phraseEl.value = phrase;
       if (passphraseEl) passphraseEl.value = '';
+      updateWordCount();
       note('New phrase generated in this tab. Write it down offline; it is not stored.');
     } catch (err) {
       fail(err && err.message ? err.message : 'Could not generate a phrase.');
@@ -904,6 +1214,7 @@
       state.busy = false;
       if (generateBtn) generateBtn.disabled = false;
       if (deriveBtn) deriveBtn.disabled = false;
+      if (loadMoreBtn) loadMoreBtn.disabled = false;
     }
   }
 
@@ -912,6 +1223,8 @@
   function clearAll() {
     state.run += 1;
     state.results = [];
+    state.snapshot = null;
+    state.groupIndex = null;
     if (state.balanceAbort) {
       try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
       state.balanceAbort = null;
@@ -921,7 +1234,18 @@
     if (rowsEl) rowsEl.textContent = '';
     if (resultEl) resultEl.hidden = true;
     if (csvBtn) csvBtn.hidden = true;
+    if (copyAllBtn) copyAllBtn.hidden = true;
+    if (loadMoreBtn) {
+      loadMoreBtn.hidden = true;
+      loadMoreBtn.disabled = false;
+      loadMoreBtn.textContent = 'Load next 5';
+    }
+    if (aggregateEl) {
+      aggregateEl.hidden = true;
+      aggregateEl.textContent = '';
+    }
     if (countEl) countEl.textContent = '';
+    updateWordCount();
     fail('');
     note('Cleared. The phrase, passphrase and results were removed from this tab.');
     if (phraseEl) phraseEl.focus();
@@ -943,9 +1267,12 @@
     event.preventDefault();
     deriveAll();
   });
+  if (phraseEl) phraseEl.addEventListener('input', updateWordCount);
   if (generateBtn) generateBtn.addEventListener('click', generate);
   if (clearBtn) clearBtn.addEventListener('click', clearAll);
   if (csvBtn) csvBtn.addEventListener('click', exportCsv);
+  if (copyAllBtn) copyAllBtn.addEventListener('click', copyAll);
+  if (loadMoreBtn) loadMoreBtn.addEventListener('click', loadNextBatch);
 
   populateChains();
   refreshControls();
@@ -977,15 +1304,18 @@
       }
     }
     refreshControls();
+    updateWordCount();
     if (passphraseEl && passphrase) passphraseEl.value = passphrase;
     var countValue = Number(count);
-    if ([1, 3, 5, 10].indexOf(countValue) >= 0) setCount(countValue);
+    if ([1, 3, 5, 10, 20].indexOf(countValue) >= 0) setCount(countValue);
     deriveAll();
   })();
 
   window.addEventListener('pagehide', function () {
     state.run += 1;
     state.results = [];
+    state.snapshot = null;
+    state.groupIndex = null;
     if (state.balanceAbort) {
       try { state.balanceAbort.abort(); } catch (err) { /* already aborted */ }
       state.balanceAbort = null;
