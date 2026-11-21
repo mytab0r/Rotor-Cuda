@@ -106,6 +106,20 @@
       "symptom": "Curve and puzzle filters used two track paddings, radii 10/12, item radii 8/9 and a second compact size inside the key input card.",
       "detector": "segmented-geometry",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "card-padding-drift",
+      "reported": "2026-11-21",
+      "symptom": "Cards shipped padding 8/12/13/14/15/16/18/20/22/24 and radii 0/8/11/12/14/16; the key page overrode its own card padding twice.",
+      "detector": "card-padding-scale",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "stat-typography-drift",
+      "reported": "2026-11-21",
+      "symptom": "Stat labels were uppercase with 0.04-0.09em tracking and values ranged from 16 to 27px at weights 700/750, so the same stat strip read differently on each page.",
+      "detector": "stat-geometry",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
