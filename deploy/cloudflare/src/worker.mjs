@@ -6,6 +6,7 @@
 //
 // Routes:
 //   GET  /v1/balance?chain=<chain>&address=<addr>
+//   GET  /v1/balances?chain=<chain>&addresses=<csv>  (max 60)
 //   POST /v1/report   {chain,address,value,fetchedAt}
 //   GET  /healthz
 
@@ -24,6 +25,8 @@ import { findSensitiveMaterial } from "./security.mjs";
 import { ProviderError, fetchProviderBalance, providerHealth, resolveProvider } from "./providers.mjs";
 
 const MAX_BODY_BYTES = 4096;
+const MAX_BATCH_ADDRESSES = 60;
+const RETRY_AFTER_MS = 250;
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -58,6 +61,9 @@ export async function handleRequest(request, env = {}, ctx = {}) {
   }
   if (url.pathname === "/v1/balance" && request.method === "GET") {
     return handleBalance(url, env, ctx);
+  }
+  if (url.pathname === "/v1/balances" && request.method === "GET") {
+    return handleBalances(url, env, ctx);
   }
   if (url.pathname === "/v1/report" && request.method === "POST") {
     return handleReport(request);
@@ -101,6 +107,62 @@ export async function handleBalance(url, env = {}, ctx = {}) {
     },
     result.status,
   );
+}
+
+export async function handleBalances(url, env = {}, ctx = {}) {
+  const chain = (url.searchParams.get("chain") ?? "").trim().toLowerCase();
+  if (!isKnownChain(chain)) return json({ error: "bad_chain" }, 400);
+
+  const parts = (url.searchParams.get("addresses") ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length === 0) return json({ error: "bad_addresses" }, 400);
+  if (parts.length > MAX_BATCH_ADDRESSES) {
+    return json({ error: "too_many_addresses", max: MAX_BATCH_ADDRESSES }, 400);
+  }
+
+  // Normalize and dedupe first-seen: mixed-case duplicates cost one provider
+  // call. Invalid entries keep their raw text for the per-item error.
+  const seen = new Set();
+  const targets = [];
+  for (const raw of parts) {
+    const valid = isValidAddress(chain, raw);
+    const address = valid ? normalizeAddress(chain, raw) : raw;
+    if (seen.has(address)) continue;
+    seen.add(address);
+    targets.push({ address, valid });
+  }
+
+  // A cold batch above the per-isolate bucket (burst 8, refill 4/s) resolves
+  // roughly the first eight items and returns rate_limited for the rest.
+  const balances = await Promise.all(
+    targets.map((target) => batchBalance(chain, target, env, ctx)),
+  );
+  return json({ chain, unit: unitFor(chain), balances });
+}
+
+async function batchBalance(chain, target, env, ctx) {
+  if (!target.valid) return { address: target.address, error: "bad_address" };
+
+  const { address } = target;
+  const key = buildCacheKey(chain, address);
+  const cached = await readCache(key);
+  const state = decideCache(cached, Date.now());
+
+  if (state === "fresh") return balanceBody(cached, false);
+  if (state === "stale") {
+    schedule(ctx, refreshBalance(chain, address, key, env));
+    return balanceBody(cached, true);
+  }
+
+  const result = await refreshBalance(chain, address, key, env);
+  if (result.ok) return balanceBody(result.entry, false);
+  if (cached) return { ...balanceBody(cached, true), error: result.error };
+  if (result.error === "rate_limited") {
+    return { address, error: result.error, retryAfterMs: RETRY_AFTER_MS };
+  }
+  return { address, error: result.error };
 }
 
 export async function handleReport(request) {

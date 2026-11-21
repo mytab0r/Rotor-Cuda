@@ -38,6 +38,34 @@ stored or logged.
   base-10 string above that. EVM wei routinely exceeds `2^53`, so callers must
   parse with `BigInt` when the value is a string.
 
+### `GET /v1/balances?chain=<chain>&addresses=<csv>`
+
+Batch form of the single endpoint, one chain per request, at most 60 raw
+entries after trimming:
+
+```json
+{
+  "chain": "btc",
+  "unit": "sats",
+  "balances": [
+    { "chain": "btc", "address": "1BoatSLRHtKNngkdXEeobR76b53LETtpyT", "value": 3000, "unit": "sats", "fetchedAt": 1763680000000, "source": "provider", "stale": false }
+  ]
+}
+```
+
+- Addresses are normalized and deduped first-seen, so mixed-case duplicates
+  cost one provider call; `balances` follows the deduped request order.
+- Each successful item is shaped exactly like the single endpoint's body. A
+  bad address or a failed lookup becomes `{address, error}` for that item and
+  never fails the whole request (`rate_limited` also carries
+  `retryAfterMs: 250`).
+- Empty `addresses`: `400 {error:"bad_addresses"}`. More than 60 entries:
+  `400 {error:"too_many_addresses", max:60}`. Unknown chain:
+  `400 {error:"bad_chain"}`.
+- The provider token bucket is per isolate (burst 8, refill 4/s), so a cold
+  60-address batch resolves about the first eight items and returns
+  `rate_limited` for the rest. Retry the remainder after a short delay.
+
 ### `POST /v1/report` — `{chain, address, value, fetchedAt}`
 
 `204` when the hint is accepted, `400 {error:"invalid_hint", reasons:[...]}`

@@ -92,6 +92,13 @@ function balanceRequest(chain, address) {
   );
 }
 
+function balancesRequest(chain, addresses) {
+  const csv = Array.isArray(addresses) ? addresses.join(",") : addresses;
+  return new Request(
+    `https://edge.test/v1/balances?chain=${encodeURIComponent(chain)}&addresses=${encodeURIComponent(csv)}`,
+  );
+}
+
 function reportRequest(body) {
   return new Request("https://edge.test/v1/report", {
     method: "POST",
@@ -526,6 +533,159 @@ test("GET /v1/balance reads the TRON balance in sun", async (t) => {
   assert.equal(body.value, 1_234_567);
   assert.equal(body.unit, "sun");
   assert.match(seen, /^https:\/\/apilist\.tronscanapi\.com\/api\/account\?address=/);
+});
+
+// --- batch handler -------------------------------------------------------
+
+test("GET /v1/balances serves fresh seeded entries in request order", async (t) => {
+  let calls = 0;
+  const cache = installRuntime(t, async () => {
+    calls += 1;
+    throw new Error("unexpected provider fetch");
+  });
+  await seed(cache, "btc", BTC_BECH32, {
+    chain: "btc",
+    address: BTC_BECH32,
+    value: 222,
+    unit: "sats",
+    fetchedAt: Date.now() - 1_000,
+    source: "provider",
+  });
+  await seed(cache, "btc", BTC_ADDR, {
+    chain: "btc",
+    address: BTC_ADDR,
+    value: 111,
+    unit: "sats",
+    fetchedAt: Date.now() - 1_000,
+    source: "provider",
+  });
+
+  const response = await handleRequest(balancesRequest("btc", [BTC_BECH32, BTC_ADDR]), {}, {});
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.chain, "btc");
+  assert.equal(body.unit, "sats");
+  assert.deepEqual(
+    body.balances.map((item) => [item.address, item.value, item.stale]),
+    [
+      [BTC_BECH32, 222, false],
+      [BTC_ADDR, 111, false],
+    ],
+  );
+  assert.equal(calls, 0);
+});
+
+test("GET /v1/balances dedupes mixed-case EVM addresses into one provider call", async (t) => {
+  const calls = [];
+  const env = { CHAIN_RPCS: JSON.stringify({ eth: "https://rpc.example/eth" }) };
+  installRuntime(t, async (input, init) => {
+    calls.push({ url: String(input), body: JSON.parse(init.body) });
+    return providerJson({ jsonrpc: "2.0", id: 1, result: "0x1" });
+  });
+
+  const mixedCase = `0x${EVM_ADDR.slice(2).toUpperCase()}`;
+  const body = await (
+    await handleRequest(balancesRequest("eth", [EVM_ADDR, mixedCase]), env, {})
+  ).json();
+  assert.equal(calls.length, 1);
+  assert.equal(body.balances.length, 1);
+  assert.equal(body.balances[0].address, EVM_ADDR.toLowerCase());
+  assert.equal(body.balances[0].value, 1);
+  assert.equal(body.balances[0].unit, "wei");
+  assert.deepEqual(calls[0].body.params, [EVM_ADDR.toLowerCase(), "latest"]);
+});
+
+test("GET /v1/balances rejects empty and oversized address lists", async (t) => {
+  installRuntime(t);
+
+  const empty = await handleRequest(balancesRequest("btc", "  ,  "), {}, {});
+  assert.equal(empty.status, 400);
+  assert.deepEqual(await empty.json(), { error: "bad_addresses" });
+
+  const tooMany = Array.from(
+    { length: 61 },
+    (_, index) => `0x${index.toString(16).padStart(40, "0")}`,
+  );
+  const oversized = await handleRequest(balancesRequest("btc", tooMany), {}, {});
+  assert.equal(oversized.status, 400);
+  assert.deepEqual(await oversized.json(), { error: "too_many_addresses", max: 60 });
+
+  const badChain = await handleRequest(balancesRequest("not a chain", [BTC_ADDR]), {}, {});
+  assert.equal(badChain.status, 400);
+  assert.deepEqual(await badChain.json(), { error: "bad_chain" });
+});
+
+test("GET /v1/balances reports one bad address without failing the others", async (t) => {
+  let calls = 0;
+  installRuntime(t, async () => {
+    calls += 1;
+    return providerJson({ chain_stats: { funded_txo_sum: 5_000, spent_txo_sum: 2_000 } });
+  });
+
+  const body = await (
+    await handleRequest(
+      balancesRequest("btc", [BTC_ADDR, "not-an-address", BTC_BECH32]),
+      {},
+      {},
+    )
+  ).json();
+  assert.equal(calls, 2);
+  assert.deepEqual(body.balances[0].value, 3_000);
+  assert.deepEqual(body.balances[1], { address: "not-an-address", error: "bad_address" });
+  assert.equal(body.balances[2].address, BTC_BECH32);
+  assert.equal(body.balances[2].value, 3_000);
+});
+
+test("GET /v1/balances stops at the per-isolate bucket and flags the rest", async (t) => {
+  resetProviderState();
+  installRuntime(t, async () => providerJson({ chain_stats: { funded_txo_sum: 7, spent_txo_sum: 0 } }));
+
+  const addresses = Array.from(
+    { length: 9 },
+    (_, index) => `${BTC_ADDR.slice(0, -1)}${"123456789"[index]}`,
+  );
+  const body = await (await handleRequest(balancesRequest("btc", addresses), {}, {})).json();
+
+  assert.equal(body.balances.length, 9);
+  for (const item of body.balances.slice(0, 8)) {
+    assert.equal(item.value, 7);
+    assert.equal(item.error, undefined);
+  }
+  assert.deepEqual(body.balances[8], {
+    address: addresses[8],
+    error: "rate_limited",
+    retryAfterMs: 250,
+  });
+});
+
+test("GET /v1/balances serves a stale entry and schedules the refresh", async (t) => {
+  const cache = installRuntime(t, async () =>
+    providerJson({ chain_stats: { funded_txo_sum: 9_000, spent_txo_sum: 0 } }),
+  );
+  await seed(cache, "btc", BTC_ADDR, {
+    chain: "btc",
+    address: BTC_ADDR,
+    value: 111,
+    unit: "sats",
+    fetchedAt: Date.now() - 120_000,
+    source: "provider",
+  });
+
+  const pending = [];
+  const response = await handleRequest(balancesRequest("btc", [BTC_ADDR]), {}, {
+    waitUntil(promise) {
+      pending.push(promise);
+    },
+  });
+  const body = await response.json();
+  assert.equal(body.balances[0].value, 111);
+  assert.equal(body.balances[0].stale, true);
+  assert.equal(pending.length, 1);
+
+  await Promise.all(pending);
+  const updated = await cache.store.get(buildCacheKey("btc", BTC_ADDR).url).json();
+  assert.equal(updated.value, 9_000);
+  assert.equal(updated.source, "provider");
 });
 
 test("POST /v1/report stores a valid hint with source client and a short TTL", async (t) => {
