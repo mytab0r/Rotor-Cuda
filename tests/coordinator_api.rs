@@ -1049,8 +1049,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261127h",
-                "/theme.js?v=20261127h",
+                "/wallet-vault.js?v=20261127i",
+                "/theme.js?v=20261127i",
             ],
         ),
         (
@@ -1121,6 +1121,92 @@ fn public_pages_and_assets_are_served() {
     // The authenticated API is still protected.
     let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);
     assert_eq!(status, 401);
+
+    handle.shutdown();
+}
+
+/// Every public content route must carry exactly one shared footer, and the
+/// app/cabinet shells must carry none. This is the route-level guard for the
+/// footer helper: it fails if a render path (static page, SEO page or a future
+/// route) bypasses `with_site_footer`. It also pins HTML to `no-store` so an
+/// edge cache cannot keep serving a stale shell without the footer.
+#[test]
+fn every_public_content_route_renders_exactly_one_footer() {
+    let temp = TempState::new("footer-routes");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let content_routes = [
+        "/",
+        "/docs",
+        "/key",
+        "/key/hex",
+        "/key/wif",
+        "/key/0000000000000000000000000000000000000000000000000000000000000001",
+        "/private-keys",
+        "/private-keys/bitcoin",
+        "/private-keys/bitcoin/2",
+        "/seed",
+        "/mnemonic-seeds",
+        "/mnemonic-seeds/bitcoin",
+        "/mnemonic-seeds/bitcoin/2",
+        "/mnemonic-converter",
+        "/brainwallet",
+        "/brainwallet-generator",
+        "/brainwallet/bitcoin",
+        "/brainwallet/bitcoin/2",
+        "/bitcoin-puzzle",
+        "/bitcoin-puzzle/unsolved",
+        "/bitcoin-puzzle/71",
+        "/bitcoin-puzzle/71/random",
+        "/tools",
+        "/vanity",
+        "/send",
+        "/send/bitcoin",
+        "/send/ethereum",
+        "/send/bnb",
+        "/send/usdt",
+        "/send/tron",
+        "/wallets",
+        "/faq",
+        "/disclaimer",
+        "/donate",
+        "/milk-sad",
+        "/hex-dec-bin",
+        "/public-key",
+        "/pubkey-add",
+        "/keystore-parser",
+        "/reconstruction",
+        "/tx",
+        "/tx/bitcoin",
+        "/tx/ethereum",
+        "/keys/tron/0000000000000000000000000000000000000000000000000000000000000001-0000000000000000000000000000000000000000000000000000000000000004",
+    ];
+    for path in content_routes {
+        let (status, headers, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        assert_eq!(
+            body.matches("<footer class=\"site-footer\">").count(),
+            1,
+            "{path} must render exactly one footer"
+        );
+        assert!(
+            headers
+                .to_ascii_lowercase()
+                .contains("cache-control: no-store"),
+            "{path} must not let an edge cache keep a stale shell: {headers}"
+        );
+    }
+
+    for path in ["/app", "/run", "/me", "/cabinet", "/cabinet/wallet"] {
+        let (status, _, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        assert_eq!(
+            body.matches("class=\"site-footer\"").count(),
+            0,
+            "{path} is an app/cabinet shell and must not render the marketing footer"
+        );
+    }
 
     handle.shutdown();
 }
@@ -1337,7 +1423,14 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
     assert!(page.contains("/wallets/LICENSE.txt"));
     assert!(page.contains("Request access"));
     assert!(page.contains("Copyright (c) 2022 MMDRZA"));
-    assert!(!page.contains("github.com"), "page links upstream: {page}");
+    assert!(
+        !page.contains("github.com/Pymmdrza"),
+        "page links upstream: {page}"
+    );
+    assert!(
+        !page.contains("/releases/download"),
+        "page leaks the upstream release host: {page}"
+    );
     let (status, headers, license) = raw(addr, "GET", "/wallets/LICENSE.txt", None, None);
     assert_eq!(status, 200);
     assert!(headers.to_ascii_lowercase().contains("text/plain"));
@@ -1349,8 +1442,12 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
     assert_eq!(status, 200);
     assert!(landing.contains("href=\"/wallets\""));
     assert!(
-        !landing.contains("github.com"),
+        !landing.contains("github.com/Pymmdrza"),
         "landing leaks upstream: {landing}"
+    );
+    assert!(
+        !landing.contains("/releases/download"),
+        "landing leaks the upstream release host: {landing}"
     );
 
     // Successful proxied download.

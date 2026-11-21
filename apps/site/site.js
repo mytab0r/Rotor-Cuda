@@ -32,6 +32,49 @@
     INLINE_COUNT: NAV_INLINE_COUNT
   };
 
+  /* Breadcrumb trail shared by server-rendered shells that fill their trail
+   * in the browser. `trail` is pure so the node test can cover the separator
+   * and current-page contract without a DOM. */
+  function breadcrumbTrail(items) {
+    var out = [];
+    var list = items || [];
+    for (var index = 0; index < list.length; index += 1) {
+      var item = list[index] || {};
+      if (index > 0) out.push({ separator: true });
+      out.push({
+        label: String(item.label === undefined || item.label === null ? '' : item.label),
+        href: item.href ? String(item.href) : '',
+        current: index === list.length - 1
+      });
+    }
+    return out;
+  }
+
+  function renderBreadcrumbs(nav, items) {
+    if (!nav || !items || !items.length || typeof document === 'undefined') return;
+    var trail = breadcrumbTrail(items);
+    while (nav.firstChild) nav.removeChild(nav.firstChild);
+    for (var index = 0; index < trail.length; index += 1) {
+      var entry = trail[index];
+      if (entry.separator) {
+        var separator = document.createElement('span');
+        separator.className = 'breadcrumbs__sep';
+        separator.setAttribute('aria-hidden', 'true');
+        separator.textContent = '/';
+        nav.appendChild(separator);
+        continue;
+      }
+      var node = entry.href ? document.createElement('a') : document.createElement('span');
+      if (entry.href) node.setAttribute('href', entry.href);
+      else if (entry.current) node.setAttribute('aria-current', 'page');
+      node.textContent = entry.label;
+      nav.appendChild(node);
+    }
+  }
+
+  var breadcrumbs = { trail: breadcrumbTrail, render: renderBreadcrumbs };
+  (typeof globalThis !== 'undefined' ? globalThis : window).RotorBreadcrumbs = breadcrumbs;
+
   if (typeof document === 'undefined') return;
 
   var TOKEN_KEY = 'rotor-coord-token';
@@ -238,7 +281,7 @@
 
       moreBtn = document.createElement('button');
       moreBtn.type = 'button';
-      moreBtn.className = 'nav-pill nav-more-btn';
+      moreBtn.className = 'chip nav-more-btn';
       moreBtn.textContent = 'More';
       moreBtn.setAttribute('aria-expanded', 'false');
       moreBtn.setAttribute('aria-controls', 'site-nav-more');
@@ -449,10 +492,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127h'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127h'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127h'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127h'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127i'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127i'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127i'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127i'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
@@ -1368,7 +1411,10 @@
     });
 
     Array.prototype.forEach.call(document.querySelectorAll('[data-nav="search"]'), function (link) {
-      if (link.tagName === 'A') link.setAttribute('title', 'Search (Ctrl+K)');
+      if (link.tagName === 'A') {
+        link.setAttribute('data-tooltip', 'Search (Ctrl+K)');
+        if (!link.getAttribute('aria-label')) link.setAttribute('aria-label', 'Search');
+      }
       link.addEventListener('click', function (event) {
         event.preventDefault();
         open();

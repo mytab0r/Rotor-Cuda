@@ -278,7 +278,7 @@
     status: 'partial',
     priority: 'P1',
     donorIds: ['pkf:/vanity-generator', 'ss:/vanity-generator'],
-    note: 'Six networks, parallel workers (1-4), difficulty, ETA and a recent-5 list. No save action and no QR output.'
+    note: 'Six networks, parallel workers (1-4), difficulty, ETA, a recent-5 list and an address QR. Saving keys is intentionally absent; keys are never saved.'
   });
 
   oursRoute({
@@ -824,7 +824,7 @@
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; ref-site-b shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The ref-site-b nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
-    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto shows parallel workers (1-4), difficulty, ETA and a recent-address list (addresses only; keys are never saved). QR output is missing.'],
+    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto shows parallel workers (1-4), difficulty, ETA, a recent-address list and an address QR (addresses only; keys are never saved). Saving keys is intentionally absent.'],
     ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Crypto has drag-drop/file input, a verified public test-vector example and keystore metadata; decryption stays in the tab.'],
     ['/dashboard', 'Account dashboard', 'wallet', '/cabinet', 'partial', 'P2', 'Crypto /cabinet is an address monitor, not a calculator dashboard.'],
     ['/results', 'Scanner results', 'tools', null, 'missing', 'P2', 'No scanner in Crypto, so there is nothing honest to show.'],

@@ -131,7 +131,6 @@
     if (!link) return;
     link.setAttribute('href', href);
     link.setAttribute('aria-disabled', disabled ? 'true' : 'false');
-    link.classList.toggle('disabled', disabled);
   }
 
   function renderPagers() {
