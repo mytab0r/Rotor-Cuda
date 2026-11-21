@@ -1069,12 +1069,24 @@ fn redirect_target(path: &str) -> Option<String> {
     {
         return Some(format!("/private-keys/{slug}"));
     }
+    if let Some(rest) = path.strip_prefix("/bitcoin-puzzle/") {
+        let rest = rest.trim_end_matches('/');
+        if let Some(raw) = rest.strip_suffix("/detail")
+            && let Ok(number) = raw.parse::<u32>()
+            && puzzles::puzzle(number).is_some()
+        {
+            return Some(format!("/bitcoin-puzzle/{number}"));
+        }
+    }
     None
 }
 
+fn redirect_response(location: &str) -> Response<std::io::Empty> {
+    Response::empty(StatusCode(301)).with_header(header("Location", location))
+}
+
 fn respond_redirect(request: Request, location: &str) {
-    let response = Response::empty(StatusCode(301)).with_header(header("Location", location));
-    let _ = request.respond(response);
+    let _ = request.respond(redirect_response(location));
 }
 
 /// Canonical origin for absolute SEO URLs. A trailing slash is trimmed so the
@@ -3443,11 +3455,17 @@ fn puzzle_picker(number: u32, tab: &str) -> String {
             item.number, selected, item.number
         ));
     }
+    let step_href = |step: u32| {
+        if tab == "detail" {
+            format!("/bitcoin-puzzle/{step}")
+        } else {
+            format!("/bitcoin-puzzle/{step}/{}", escape_attr(tab))
+        }
+    };
     let prev = if number > 1 {
         format!(
-            "<a class=\"puzzle-step\" rel=\"prev\" href=\"/bitcoin-puzzle/{}/{}\">&larr; #{}</a>",
-            number - 1,
-            escape_attr(tab),
+            "<a class=\"puzzle-step\" rel=\"prev\" href=\"{}\">&larr; #{}</a>",
+            step_href(number - 1),
             number - 1
         )
     } else {
@@ -3455,9 +3473,8 @@ fn puzzle_picker(number: u32, tab: &str) -> String {
     };
     let next = if number < puzzles::PUZZLE_COUNT {
         format!(
-            "<a class=\"puzzle-step\" rel=\"next\" href=\"/bitcoin-puzzle/{}/{}\">#{} &rarr;</a>",
-            number + 1,
-            escape_attr(tab),
+            "<a class=\"puzzle-step\" rel=\"next\" href=\"{}\">#{} &rarr;</a>",
+            step_href(number + 1),
             number + 1
         )
     } else {
@@ -3479,11 +3496,7 @@ fn puzzle_picker(number: u32, tab: &str) -> String {
 
 fn puzzle_tabs(number: u32, active: &str) -> String {
     let entries = [
-        (
-            "detail",
-            "Detail",
-            format!("/bitcoin-puzzle/{number}/detail"),
-        ),
+        ("detail", "Detail", format!("/bitcoin-puzzle/{number}")),
         (
             "random",
             "Random Keys",
@@ -3544,7 +3557,7 @@ fn puzzle_row(item: puzzles::Puzzle) -> String {
          <td data-label=\"TX\" class=\"pz-tx\"><a class=\"pz-tx-link\" data-tx-address=\"{target}\" \
          href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">—</a></td>\
          <td data-label=\"Actions\" class=\"pz-actions\"><span class=\"pz-cell pz-actions-stack\">\
-         <a class=\"pz-link\" href=\"/bitcoin-puzzle/{number}/detail\">Detail</a>\
+         <a class=\"pz-link\" href=\"/bitcoin-puzzle/{number}\">Detail</a>\
          <a class=\"pz-link\" href=\"/bitcoin-puzzle/{number}/random\">Random</a></span></td>\
          </tr>",
         solved = solved,
@@ -3583,9 +3596,9 @@ fn puzzle_filter_bar(total: usize, solved: usize, unsolved: usize) -> String {
     format!(
         "<div class=\"pz-toolbar\">\
          <div class=\"segmented\" role=\"group\" aria-label=\"Filter puzzles\">\
-         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"all\" aria-pressed=\"true\">All <span>{total}</span></button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"all\" aria-pressed=\"false\">All <span>{total}</span></button>\
          <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"solved\" aria-pressed=\"false\">Solved <span>{solved}</span></button>\
-         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"unsolved\" aria-pressed=\"false\">Unsolved <span>{unsolved}</span></button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"unsolved\" aria-pressed=\"true\">Unsolved <span>{unsolved}</span></button>\
          </div>\
          <label class=\"pz-search\">{icon}<span class=\"pz-visually-hidden\">Search puzzles</span>\
          <input type=\"search\" data-puzzle-search placeholder=\"Search #, address or status\" autocomplete=\"off\" spellcheck=\"false\"></label>\
@@ -3942,7 +3955,11 @@ fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
         puzzles::range_hex(number).expect("route validated the puzzle number");
     let view = if random { "random" } else { "detail" };
     let view_label = if random { "Random Keys" } else { "Detail" };
-    let canonical = format!("{base}/bitcoin-puzzle/{number}/{view}");
+    let canonical = if random {
+        format!("{base}/bitcoin-puzzle/{number}/random")
+    } else {
+        format!("{base}/bitcoin-puzzle/{number}")
+    };
     let title = if random {
         format!("Bitcoin Puzzle #{number} — Random Keys | Crypto")
     } else {
@@ -3976,14 +3993,14 @@ fn render_puzzle_page(base: &str, number: u32, random: bool) -> String {
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
             { "@type": "ListItem", "position": 2, "name": "Bitcoin Puzzle", "item": format!("{base}/bitcoin-puzzle") },
-            { "@type": "ListItem", "position": 3, "name": format!("Puzzle #{number}"), "item": format!("{base}/bitcoin-puzzle/{number}/detail") },
+            { "@type": "ListItem", "position": 3, "name": format!("Puzzle #{number}"), "item": format!("{base}/bitcoin-puzzle/{number}") },
             { "@type": "ListItem", "position": 4, "name": view_label },
         ],
     });
     let head = hub_head(&canonical, &title, &description, &[ld_app, ld_crumbs]);
 
     let puzzle_label = format!("Puzzle #{number}");
-    let detail_href = format!("/bitcoin-puzzle/{number}/detail");
+    let detail_href = format!("/bitcoin-puzzle/{number}");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Bitcoin Puzzle", Some("/bitcoin-puzzle")),
@@ -4324,7 +4341,7 @@ fn render_sitemap(base: &str) -> String {
     ));
     for puzzle_path in [
         "/bitcoin-puzzle/unsolved",
-        "/bitcoin-puzzle/71/detail",
+        "/bitcoin-puzzle/71",
         "/bitcoin-puzzle/71/random",
     ] {
         urls.push_str(&format!(
@@ -6735,6 +6752,8 @@ mod tests {
         assert!(body.contains("data-puzzle-filter=\"all\""));
         assert!(body.contains("data-puzzle-filter=\"solved\""));
         assert!(body.contains("data-puzzle-filter=\"unsolved\""));
+        assert!(body.contains("data-puzzle-filter=\"all\" aria-pressed=\"false\""));
+        assert!(body.contains("data-puzzle-filter=\"unsolved\" aria-pressed=\"true\""));
         assert!(body.contains("data-puzzle-search"));
         assert!(body.contains("Start hunting"));
         assert!(body.contains("BTC claimed"));
@@ -6809,7 +6828,7 @@ mod tests {
             seo_asset(base, "/bitcoin-puzzle/71/detail", "").expect("#71 detail");
         assert_eq!(status, 200);
         assert!(detail.contains(&format!(
-            "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle/71/detail\">"
+            "<link rel=\"canonical\" href=\"{base}/bitcoin-puzzle/71\">"
         )));
         assert!(detail.contains(target));
         assert!(detail.contains(&format!("https://mempool.space/address/{target}")));
@@ -6828,8 +6847,9 @@ mod tests {
             seo_asset(base, "/bitcoin-puzzle/71", "").expect("#71 short route");
         assert_eq!(status, 200);
         assert!(short.contains(
-            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/bitcoin-puzzle/71/detail\">"
+            "<link rel=\"canonical\" href=\"https://rotor.pxbt.app/bitcoin-puzzle/71\">"
         ));
+        assert!(!short.contains("/bitcoin-puzzle/71/detail"));
 
         let (unsolved, _, status) =
             seo_asset(base, "/bitcoin-puzzle/unsolved", "").expect("/bitcoin-puzzle/unsolved");
@@ -6841,6 +6861,31 @@ mod tests {
         assert!(unsolved.contains(target));
         assert!(!unsolved.contains("1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"));
         assert!(unsolved.contains("data-puzzle-picker"));
+    }
+
+    #[test]
+    fn puzzle_detail_alias_redirects_permanently_to_short_url() {
+        assert_eq!(
+            redirect_target("/bitcoin-puzzle/71/detail"),
+            Some("/bitcoin-puzzle/71".to_string())
+        );
+        assert_eq!(
+            redirect_target("/bitcoin-puzzle/71/detail/"),
+            Some("/bitcoin-puzzle/71".to_string())
+        );
+        // The already-canonical views and unknown puzzle numbers do not redirect.
+        assert_eq!(redirect_target("/bitcoin-puzzle/71"), None);
+        assert_eq!(redirect_target("/bitcoin-puzzle/71/random"), None);
+        assert_eq!(redirect_target("/bitcoin-puzzle/0/detail"), None);
+        assert_eq!(redirect_target("/bitcoin-puzzle/161/detail"), None);
+        assert_eq!(redirect_target("/bitcoin-puzzle/71/detail/extra"), None);
+
+        let response = redirect_response("/bitcoin-puzzle/71");
+        assert_eq!(response.status_code().0, 301);
+        assert_eq!(
+            format!("{}", response.headers()[0]),
+            "Location: /bitcoin-puzzle/71"
+        );
     }
 
     #[test]
