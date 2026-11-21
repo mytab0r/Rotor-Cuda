@@ -11,6 +11,17 @@
   var ED_SEED_KEY = new TextEncoder().encode('ed25519 seed');
   var ROWS_PER_PAGE = 60n;
 
+  /* The donor shows a Received amount too small for the native coin cell in
+   * atomic units: `sat` for BTC-family chains, `zat` for Zcash. Declared before
+   * the export block so the Node test can call `receivedText` without a DOM. */
+  var ATOMIC_UNITS = {
+    bitcoin: 'sat',
+    litecoin: 'sat',
+    dogecoin: 'sat',
+    'bitcoin-cash': 'sat',
+    zcash: 'zat'
+  };
+
   var RPC = {
     ethereum: 'https://ethereum-rpc.publicnode.com',
     bnb: 'https://bsc-rpc.publicnode.com',
@@ -237,7 +248,8 @@
     privateKeyHref: privateKeyHref,
     directoryQuery: directoryQuery,
     addressEntriesFor: addressEntriesFor,
-    compactPhrase: compactPhrase
+    compactPhrase: compactPhrase,
+    receivedText: receivedText
   };
 
   var root = document.querySelector('.mnemonic-seeds-page');
@@ -768,6 +780,20 @@
     return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
   }
 
+  /* The donor shows a tiny Received amount in atomic units (`sat`, `zat` for
+   * Zcash); Balance always stays in the native unit. The donor doc records only
+   * "small", not the constant: 0.0001 coin (10,000 sat) is the cut used here,
+   * above which the native unit stays readable. */
+  function receivedText(value, decimals, symbol, chainName) {
+    var number = Number(value) / Math.pow(10, decimals);
+    if (!isFinite(number) || number === 0) return '0';
+    var unit = ATOMIC_UNITS[chainName];
+    if (unit && number > 0 && number < 0.0001) {
+      return String(Math.round(number * Math.pow(10, decimals))) + ' ' + unit;
+    }
+    return coin(value, decimals) + ' ' + symbol;
+  }
+
   function providerMeta() {
     if (chain === 'bitcoin') {
       return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
@@ -817,7 +843,7 @@
     if (value.received !== undefined && value.received !== null) {
       var recv = document.createElement('span');
       recv.className = 'recv' + (Number(value.received) > 0 ? ' has-recv' : '');
-      recv.textContent = '↓ ' + coin(value.received, meta.decimals) + ' ' + meta.symbol;
+      recv.textContent = '↓ ' + receivedText(value.received, meta.decimals, meta.symbol, chain);
       line.appendChild(recv);
     }
     line.title = value.balance + ' ' + meta.symbol;
@@ -940,7 +966,7 @@
     }
     setSummary(
       coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
-      hasReceived ? coin(received, meta.decimals) + ' ' + meta.symbol : '—',
+      hasReceived ? receivedText(received, meta.decimals, meta.symbol, chain) : '—',
       hasTx ? String(tx) : '—'
     );
   }

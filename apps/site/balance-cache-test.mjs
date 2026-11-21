@@ -197,6 +197,24 @@ const tests = [
     assert.equal(cache.parseTonBalance({ ok: true, result: "250000000" }).amount, "250000000");
     assert.equal(cache.parseTonBalance({ ok: false, error: "invalid address" }), null);
 
+    // BlockCypher balance: atomic units, final_* preferred over the raw fields.
+    assert.deepEqual(
+      cache.parseBlockcypherBalance({
+        balance: 150000,
+        final_balance: 175000,
+        total_received: 900000,
+        n_tx: 4,
+        final_n_tx: 5,
+      }),
+      { amount: "175000", received: "900000", txs: 5 },
+    );
+    assert.deepEqual(cache.parseBlockcypherBalance({ balance: 42 }), {
+      amount: "42",
+      received: null,
+      txs: null,
+    });
+    assert.equal(cache.parseBlockcypherBalance({ total_received: 10 }), null);
+
     // Numeric shapes stay strings; negative/float values are not amounts.
     assert.equal(cache.atomicAmount(123), "123");
     assert.equal(cache.atomicAmount(-1), null);
