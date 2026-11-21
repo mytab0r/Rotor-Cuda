@@ -94,8 +94,10 @@ follow-ups were code-only.
 - [x] Key-page balances: XRP (XRPScan), SOL, SUI (GraphQL) and TON (TON Center)
   are wired in `apps/site/key.js` / `key-tools.js`, with response codecs in
   `apps/site/balance-cache.js` and tests in `apps/site/balance-cache-test.mjs`.
-  LTC/DOGE/BCH/ZEC stay provider-less (Blockchair answers 430 without a key,
-  litecoinspace 525), so those rows show — instead of a fake zero.
+  LTC (all four address types) and DOGE now load through BlockCypher's keyless
+  balance endpoint (CORS `*`; Litecoin taproot verified), with the same codec
+  and test coverage. BCH/ZEC stay provider-less (Blockchair answers 430 without
+  a key), so those rows show — instead of a fake zero.
 - [x] One `?key=` implementation on directory pages: a parallel change added a
   second path that called undefined `normalizeKeyHex`/`jumpPageFor` and threw
   on pages without `search.js`; removed, so `pageForHexKey`/`jumpToKeyPage` is
