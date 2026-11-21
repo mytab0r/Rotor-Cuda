@@ -448,7 +448,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'Encrypted local vault and Sepolia review/confirm flow. The import card also generates a 12/24-word BIP39 phrase, shows its word count, entropy bits and checksum state with a brute-force estimate, then derives one chain-specific key (BIP44 preset) into the vault. No donor equivalent.'
+    note: 'Encrypted local vault with a review/confirm send flow. Sepolia is the default EVM network; eight EVM mainnets (Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync) are signable only after the user arms mainnet for the session, and the arm resets on lock, unlock and reload. Gates: the chain id is read before review and again before signing and must match a descriptor in the wallet chain table; EIP-55 checksum and the zero address; nonce/balance from the node; amount plus the maximum network fee must fit the balance; per-transaction native fee cap 0.05 ETH on Ethereum and 0.01 native elsewhere; mainnet gas limit is eth_estimateGas + 20%. This slice is native-token transfers only (no ERC-20, approvals, Bitcoin or TRON mainnet). Bitcoin testnet send remains. The import card also generates a 12/24-word BIP39 phrase and derives one chain-specific key. No donor equivalent.'
   });
 
   oursRoute({

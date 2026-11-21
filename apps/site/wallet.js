@@ -8,12 +8,13 @@
  *  - lock clears the decrypted entries and passphrase from memory;
  *  - idle auto-lock after 10 minutes and lock on pagehide.
  *
- * This phase adds an EVM Sepolia send flow and a Bitcoin testnet send flow:
+ * This phase adds an EVM send flow and a Bitcoin testnet send flow:
  * the forms and validation live in wallet-evm.js / wallet-btc.js, the review
  * must be confirmed before signing, the signature is produced by
  * evm_sign_tx / btc_sign_tx in the local WASM core and the signed raw
- * transaction is broadcast directly to a public provider. Mainnet signing is
- * off. */
+ * transaction is broadcast directly to a public provider. Sepolia is the
+ * default EVM network; a mainnet network is only signable after the user arms
+ * it for the session, and the arm resets on lock, unlock and reload. */
 (function () {
   'use strict';
 
@@ -48,9 +49,9 @@
     { slug: 'ethereum', label: 'Ethereum', curve: 0, addressId: 'evm', explorer: 'https://etherscan.io/address/', rpc: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org', 'https://1rpc.io/eth'], symbol: 'ETH' },
     { slug: 'bnb', label: 'BNB Chain', curve: 0, addressId: 'evm', explorer: 'https://bscscan.com/address/', rpc: ['https://bsc-dataseed.binance.org'], symbol: 'BNB' },
     { slug: 'arbitrum', label: 'Arbitrum', curve: 0, addressId: 'evm', explorer: 'https://arbiscan.io/address/', rpc: ['https://arb1.arbitrum.io/rpc'], symbol: 'ETH' },
-    { slug: 'optimism', label: 'Optimism', curve: 0, addressId: 'evm', explorer: 'https://optimistic.etherscan.io/address/', rpc: ['https://mainnet.optimism.io'], symbol: 'ETH' },
+    { slug: 'optimism', label: 'Optimism', curve: 0, addressId: 'evm', explorer: 'https://optimistic.etherscan.io/address/', rpc: ['https://optimism-rpc.publicnode.com', 'https://optimism.drpc.org'], symbol: 'ETH' },
     { slug: 'base', label: 'Base', curve: 0, addressId: 'evm', explorer: 'https://basescan.org/address/', rpc: ['https://mainnet.base.org'], symbol: 'ETH' },
-    { slug: 'polygon', label: 'Polygon', curve: 0, addressId: 'evm', explorer: 'https://polygonscan.com/address/', rpc: ['https://polygon-rpc.com'], symbol: 'POL' },
+    { slug: 'polygon', label: 'Polygon', curve: 0, addressId: 'evm', explorer: 'https://polygonscan.com/address/', rpc: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org'], symbol: 'POL' },
     { slug: 'avalanche', label: 'Avalanche', curve: 0, addressId: 'evm', explorer: 'https://snowtrace.io/address/', rpc: ['https://api.avax.network/ext/bc/C/rpc'], symbol: 'AVAX' },
     { slug: 'zksync', label: 'zkSync', curve: 0, addressId: 'evm', explorer: 'https://explorer.zksync.io/address/', rpc: ['https://mainnet.era.zksync.io'], symbol: 'ETH' },
     { slug: 'litecoin', label: 'Litecoin', curve: 0, addressId: 'ltc_p2wpkh', explorer: 'https://blockchair.com/litecoin/address/' },
@@ -85,6 +86,7 @@
     sending: false,
     review: null,
     reviewEntryId: null,
+    mainnetArmed: false,
     btcPreparing: false,
     btcSending: false,
     btcReview: null,
@@ -124,6 +126,8 @@
   var sendEntrySelect = byId('wallet-send-entry');
   var sendNetworkSelect = byId('wallet-send-network');
   var sendProviderSelect = byId('wallet-send-provider');
+  var sendArmedRow = byId('wallet-send-armed-row');
+  var sendArmedCheckbox = byId('wallet-send-armed');
   var sendFromLine = byId('wallet-send-from');
   var sendToInput = byId('wallet-send-to');
   var sendValueInput = byId('wallet-send-value');
@@ -198,6 +202,16 @@
       out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
     }
     return out;
+  }
+
+  function iconUse(name) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '/icons.svg#' + name);
+    svg.appendChild(use);
+    return svg;
   }
 
   function bytesToHex(bytes) {
@@ -856,10 +870,11 @@
   function showUnlocked() {
     state.unlocked = true;
     state.lastActivity = Date.now();
+    state.mainnetArmed = false;
+    if (sendArmedCheckbox) sendArmedCheckbox.checked = false;
     if (setupCard) setupCard.hidden = true;
     if (unlockCard) unlockCard.hidden = true;
     if (panel) panel.hidden = false;
-    renderProviders();
     renderSend();
     if (stateEl) stateEl.textContent = 'unlocked · auto-locks after 10 minutes idle';
     setError('wallet-unlock-error', '');
@@ -1165,9 +1180,12 @@
     line.appendChild(code);
 
     var explorer = document.createElement('a');
+    explorer.className = 'icon-button icon-button--quiet';
     explorer.target = '_blank';
     explorer.rel = 'noopener noreferrer';
-    explorer.textContent = 'Explorer';
+    explorer.setAttribute('data-tooltip', 'Open in explorer');
+    explorer.setAttribute('aria-label', 'Open the address in the chain explorer');
+    explorer.appendChild(iconUse('ui-external'));
     explorer.hidden = true;
     line.appendChild(explorer);
 
@@ -1455,21 +1473,64 @@
     showSendFieldErrors({});
   }
 
+  function selectedNetwork() {
+    if (!evmSend) return null;
+    if (!sendNetworkSelect) return evmSend.SEPOLIA;
+    return evmSend.networkById(Number(sendNetworkSelect.value)) || evmSend.SEPOLIA;
+  }
+
+  function isMainnetArmed() {
+    return state.mainnetArmed === true && !!sendArmedCheckbox && sendArmedCheckbox.checked;
+  }
+
+  function updateSendArmedRow() {
+    if (!sendArmedRow) return;
+    var network = selectedNetwork();
+    sendArmedRow.hidden = !network || network.testnet;
+  }
+
+  function renderSendNetworks() {
+    if (!evmSend || !sendNetworkSelect) return;
+    var previous = sendNetworkSelect.value;
+    sendNetworkSelect.textContent = '';
+    evmSend.walletNetworks().forEach(function (network) {
+      var option = document.createElement('option');
+      option.value = String(network.chainId);
+      option.textContent = network.name + ' — ' +
+        (network.testnet ? 'testnet' : 'mainnet') +
+        ' (chain id ' + network.chainId + ')';
+      sendNetworkSelect.appendChild(option);
+    });
+    var known = previous && evmSend.networkById(Number(previous));
+    sendNetworkSelect.value = known ? previous : String(evmSend.SEPOLIA.chainId);
+    renderProviders();
+    updateSendArmedRow();
+  }
+
   function renderProviders() {
     if (!evmSend || !sendProviderSelect) return;
+    var network = selectedNetwork();
     var previous = sendProviderSelect.value;
     sendProviderSelect.textContent = '';
     var auto = document.createElement('option');
     auto.value = '';
-    auto.textContent = 'Auto (try publicnode → 1RPC → Tenderly)';
+    auto.textContent = network.providers.length
+      ? 'Auto (try ' + network.providers.map(function (provider) {
+        return provider.label;
+      }).join(' → ') + ')'
+      : 'Auto (no provider configured)';
     sendProviderSelect.appendChild(auto);
-    evmSend.PROVIDERS.forEach(function (provider) {
+    network.providers.forEach(function (provider) {
       var option = document.createElement('option');
       option.value = provider.url;
       option.textContent = provider.label;
       sendProviderSelect.appendChild(option);
     });
-    if (previous) sendProviderSelect.value = previous;
+    if (previous && network.providers.some(function (provider) {
+      return provider.url === previous;
+    })) {
+      sendProviderSelect.value = previous;
+    }
   }
 
   function updateSendFrom() {
@@ -1504,6 +1565,7 @@
       return;
     }
     sendCard.hidden = false;
+    renderSendNetworks();
     var previous = sendEntrySelect.value;
     sendEntrySelect.textContent = '';
     entries.forEach(function (entry) {
@@ -1591,24 +1653,36 @@
   }
 
   function renderReview(review) {
+    var symbol = review.symbol || 'ETH';
+    var feeWei = review.gasLimit * review.maxFeeWei;
     sendReviewList.textContent = '';
-    addReviewRow('Network', review.chainName + ' · chain id ' + review.chainId);
+    addReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +
+      (review.testnet ? ' · testnet' : ' · MAINNET'));
     addReviewRow('From', review.from, true);
     addReviewRow('To', review.to, true);
-    addReviewRow('Value', evmSend.formatUnits(review.valueWei, 18) + ' ETH (' + review.valueWei + ' wei)');
+    addReviewRow('Amount', evmSend.formatUnits(review.valueWei, 18) + ' ' + symbol +
+      ' (' + review.valueWei + ' wei)');
     addReviewRow('Data', review.dataHex, true);
     addReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
       ? (review.gasEstimate === null || review.gasEstimate === undefined
         ? ' (manual; node estimate unavailable)'
         : ' (manual; node estimate ' + review.gasEstimate + ')')
-      : ' (eth_estimateGas)'));
+      : (review.testnet
+        ? ' (eth_estimateGas)'
+        : ' (eth_estimateGas + 20% buffer)')));
     addReviewRow('Nonce', review.nonce.toString());
-    addReviewRow('Max fee', evmSend.formatUnits(review.maxFeeWei, 9) + ' gwei (' + review.maxFeeWei + ' wei)');
+    addReviewRow('Max fee (per gas)', evmSend.formatUnits(review.maxFeeWei, 9) + ' gwei (' +
+      review.maxFeeWei + ' wei)');
     addReviewRow('Priority fee', evmSend.formatUnits(review.priorityWei, 9) + ' gwei');
     addReviewRow('Base fee', evmSend.formatUnits(review.baseFeeWei, 9) + ' gwei');
-    addReviewRow('Total max cost', evmSend.formatUnits(review.totalMaxCostWei, 18) + ' ETH (' +
-      review.totalMaxCostWei + ' wei)');
-    addReviewRow('Balance', evmSend.formatUnits(review.balanceWei, 18) + ' ETH');
+    addReviewRow('Maximum network fee', evmSend.formatUnits(feeWei, 18) + ' ' + symbol);
+    addReviewRow('Total max cost', evmSend.formatUnits(review.totalMaxCostWei, 18) + ' ' +
+      symbol + ' (' + review.totalMaxCostWei + ' wei)');
+    addReviewRow('Balance', evmSend.formatUnits(review.balanceWei, 18) + ' ' + symbol);
+    if (review.feeCapWei !== null && review.feeCapWei !== undefined) {
+      addReviewRow('Fee cap', evmSend.formatUnits(review.feeCapWei, 18) + ' ' + symbol +
+        ' · within cap');
+    }
     addReviewRow('RPC', review.providerLabel + ' · ' + review.providerUrl);
     addReviewRow('Fee source', review.feesSource + ' / priority: ' + review.prioritySource);
 
@@ -1635,6 +1709,7 @@
       result.providerUrl + '. Crypto did not proxy or store the transaction.';
     sendHashEl.textContent = result.txHash;
     sendExplorerLink.href = result.explorerUrl;
+    sendExplorerLink.textContent = 'Open on the ' + (result.chainName || 'chain') + ' explorer';
     sendSignedEl.textContent = result.signedHex;
     sendResultBox.hidden = false;
     if (sendStatus) sendStatus.textContent = 'The RPC accepted the signed transaction.';
@@ -1645,6 +1720,9 @@
     state.preparing = false;
     state.review = null;
     state.reviewEntryId = null;
+    state.mainnetArmed = false;
+    if (sendArmedCheckbox) sendArmedCheckbox.checked = false;
+    if (sendArmedRow) sendArmedRow.hidden = true;
     if (sendForm) sendForm.reset();
     clearSendFieldErrors();
     setError('wallet-send-error', '');
@@ -1724,7 +1802,7 @@
         fetchJson: rpcFetchJson,
         providerUrl: sendProviderSelect.value || null,
         expectedChainId: Number(sendNetworkSelect.value),
-        chainName: evmSend.SEPOLIA.name,
+        mainnetArmed: isMainnetArmed(),
         unsigned: unsignedTx
       });
       if (generation !== state.generation || !state.unlocked) return;
@@ -1754,8 +1832,18 @@
     updateSendFrom();
     invalidateSendReview();
   });
-  sendNetworkSelect.addEventListener('change', invalidateSendReview);
+  sendNetworkSelect.addEventListener('change', function () {
+    renderProviders();
+    updateSendArmedRow();
+    invalidateSendReview();
+  });
   sendProviderSelect.addEventListener('change', invalidateSendReview);
+  if (sendArmedCheckbox) {
+    sendArmedCheckbox.addEventListener('change', function () {
+      state.mainnetArmed = sendArmedCheckbox.checked;
+      invalidateSendReview();
+    });
+  }
 
   sendCancelButton.addEventListener('click', function () {
     invalidateSendReview();
@@ -1793,6 +1881,7 @@
       var result = await evmSend.confirmTransaction({
         review: review,
         fetchJson: rpcFetchJson,
+        mainnetArmed: isMainnetArmed(),
         sign: function (fields) { return signTxWithEntry(entry, fields); }
       });
       if (generation !== state.generation || !state.unlocked) return;
