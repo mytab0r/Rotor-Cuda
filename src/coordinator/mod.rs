@@ -5866,9 +5866,18 @@ mod tests {
 
     #[test]
     fn site_footer_is_shared_and_skips_app_shells() {
-        let page = with_site_footer("/docs", "<html><body><main>Docs</main></body></html>".into());
+        let page = with_site_footer(
+            "/docs",
+            "<html><body><main>Docs</main></body></html>".into(),
+        );
         assert_eq!(page.matches("<footer class=\"site-footer\">").count(), 1);
-        for href in ["/faq", "/disclaimer", "/donate", "/docs", "https://github.com/"] {
+        for href in [
+            "/faq",
+            "/disclaimer",
+            "/donate",
+            "/docs",
+            "https://github.com/",
+        ] {
             assert!(page.contains(href), "footer misses {href}");
         }
         assert!(page.contains("© 2026 Crypto"));
@@ -5876,7 +5885,8 @@ mod tests {
 
         // The app and cabinet shells intentionally have no footer.
         for path in ["/app", "/run", "/me", "/cabinet", "/cabinet/wallet"] {
-            let shell = with_site_footer(path, "<html><body><main>Shell</main></body></html>".into());
+            let shell =
+                with_site_footer(path, "<html><body><main>Shell</main></body></html>".into());
             assert!(
                 !shell.contains("site-footer"),
                 "{path} must not render the marketing footer"
