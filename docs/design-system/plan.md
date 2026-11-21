@@ -495,14 +495,17 @@ entry in the same PR.
 - Batch 6 follow-up (footer route audit): a route-level check of the merged
   build found the footer present on every content route, including
   `/private-keys/<chain>`, `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`,
-  `/bitcoin-puzzle/<n>/random` and `/keys/<chain>/<start>-<end>`. The two
-  routes reported missing in production were served from an edge copy that
-  predates the footer, so HTML responses now send `Cache-Control: no-store`
+  `/bitcoin-puzzle/<n>/random` and `/keys/<chain>/<start>-<end>`. Production
+  curl showed the split clearly: `/tools` and `/wallets` returned the current
+  `v20261127h` HTML with the footer, while `/bitcoin-puzzle` returned an old
+  23 KB document with no version token and no footer — a stale edge copy, not
+  a second render path. HTML responses now send `Cache-Control: no-store`
   (non-HTML assets keep `no-cache`) and
   `tests/coordinator_api.rs::every_public_content_route_renders_exactly_one_footer`
   now requests 44 public content routes (exactly one footer) plus the five
   app/cabinet shells (zero). Evidence: curl over the same 44+5 route list
   (`footer=1` / `footer=0`, `cache=no-store`), coordinator tests 19 + 3,
   audit **PASS, 36 runs across the six affected routes**
-  (`target/batch6-footer-regression.json`).
+  (`target/batch6-footer-regression.json`). Existing edge objects still need a
+  cache purge (or TTL expiry); the code only prevents new stale copies.
 - Batch 7: not started; owner/reviewer assigned above.
