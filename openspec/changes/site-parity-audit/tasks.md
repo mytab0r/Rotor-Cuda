@@ -175,16 +175,20 @@ and not deployed**.
   shipped counters/Copy All/CSV instead of claiming they are absent;
   `site-map-test.mjs` passes (89 ours, 117 donors, 41 features).
 - [x] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
-  Evidence: `node scripts/ui-audit.mjs --serve` PASS 108/108 page runs across 18
-  routes (incl. `/brainwallet`, `/send*` and `/vanity`); `/brainwallet` and the
-  chain routes went from four 22px links to >=44px after the `.directory-links`
-  fix. `/vanity` was added to `DEFAULT_ROUTES` after PR #123 changed its stat
-  cards without gate coverage.
+  Evidence: `node scripts/ui-audit.mjs --serve` PASS 192/192 page runs across 32
+  routes after PR #139 added every public `text/html` route (tools, tx, docs,
+  `/send/bitcoin`, `/send/ethereum`). The `route-coverage` check now fails with
+  exit 2 when a public page route is missing from `DEFAULT_ROUTES`; `/milk-sad`
+  (the first page it caught) had two sub-12px exponents, fixed in the same PR.
+  `/brainwallet` and the chain routes went from four 22px links to >=44px after
+  the `.directory-links` fix.
 - [x] `node scripts/check-projects.mjs`, site tests, cargo tests, clippy.
-  Evidence: 13 site suites + 30 `node --check` lines pass; `check-projects`
-  OK (367/368, `Cargo.lock` ignored); `coordinator_api` 15, `coordinator_client`
-  3, `rotor-wasm` 59 pass; `cargo clippy --all-targets -D warnings` and
-  `cargo fmt --check` clean.
+  Evidence: 16 site suites + 31 `node --check` lines pass; `check-projects`
+  OK (393/394, `Cargo.lock` ignored); `coordinator_api` 18, `coordinator_client`
+  3, `rotor-wasm` 75 pass; `cargo test --release` 0 failures;
+  `cargo clippy --all-targets -D warnings` and `cargo fmt --check` clean.
+  `node --test deploy/cloudflare/test/worker.test.mjs` 41/41, now wired into the
+  `ops` test list and the `projects` CI job (PR #138).
 
 ## Relocation to internal docs (done)
 
