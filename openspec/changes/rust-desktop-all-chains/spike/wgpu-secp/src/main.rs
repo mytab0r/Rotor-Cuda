@@ -6,7 +6,7 @@
 //!
 //! It verifies both against k256/num-bigint before printing numbers.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::PrimeField;
@@ -425,7 +425,6 @@ fn main() {
         "EST. STEPPED : {:.3} Gkeys/s upper bound for a 3-modmul/key CUDA-style loop, hash excluded",
         muls_per_s / 3.0 / 1e9
     );
-    let _ = Duration::from_secs(0);
 }
 
 fn run_spv(path: &str) {
