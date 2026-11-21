@@ -124,6 +124,32 @@
     <p id="wallet-add-error" class="error" role="alert" hidden></p>
     <p class="muted" id="wallet-import-help">A WIF is checked and mapped by its version byte: Bitcoin mainnet compressed WIFs use native SegWit and uncompressed ones use legacy P2PKH, Bitcoin testnet WIFs (version 0xEF) use testnet native SegWit (tb1), Litecoin uses native SegWit and Dogecoin uses legacy. Dogecoin testnet (0xF1) is not supported. Any 64-character hex key needs an explicit chain; choose Bitcoin testnet to derive a tb1 address. The address is derived with the local WASM core first (testnet through derive_report_network); a key whose address cannot be derived is not stored.</p>
 
+    <h2>Generate a seed phrase</h2>
+    <div class="wallet-row-actions">
+      <div class="field">
+        <span class="field__label" id="wallet-seed-words-label">Word count</span>
+        <div class="segmented" role="group" aria-labelledby="wallet-seed-words-label">
+          <button type="button" class="segmented__item" data-seed-words="12" aria-pressed="true">12 words</button>
+          <button type="button" class="segmented__item" data-seed-words="24" aria-pressed="false">24 words</button>
+        </div>
+      </div>
+      <button type="button" id="wallet-seed-generate">Generate phrase</button>
+    </div>
+    <label>Seed phrase
+      <textarea id="wallet-seed-phrase" class="mono" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" data-lpignore="true" data-1p-ignore="true" placeholder="word1 word2 …" aria-describedby="wallet-seed-strength wallet-seed-help"></textarea>
+    </label>
+    <div class="wallet-row-actions">
+      <p class="muted status-line" id="wallet-seed-strength" role="status" aria-live="polite">12 words · 128-bit entropy · generate or paste a phrase</p>
+      <button type="button" id="wallet-seed-info" class="icon-button icon-button--quiet" aria-label="Brute-force estimate" data-tooltip="128-bit ≈ 1.1×10^19 years" aria-describedby="wallet-seed-estimate">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
+      </button>
+    </div>
+    <p class="muted" id="wallet-seed-estimate">128 bits is 3.4×10^38 keys. At 10^12 guesses per second that is about 1.1×10^19 years — roughly 780 million times the age of the universe. A 24-word phrase is 256 bits (about 3.7×10^57 years).</p>
+    <div class="key-buttons">
+      <button type="button" class="primary" id="wallet-seed-add" disabled>Add derived key to vault</button>
+    </div>
+    <p class="muted" id="wallet-seed-help">The phrase is generated and shown in this tab only; it is never stored, sent or logged. The vault stores only the derived key for one chain, with the default BIP44 path of the selected chain. Zcash, Solana, Sui and TON have no BIP44 preset here: import a WIF or hex key for those chains instead.</p>
+
     <h2>Addresses</h2>
     <label class="wallet-row-actions"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
     <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent.</p>
