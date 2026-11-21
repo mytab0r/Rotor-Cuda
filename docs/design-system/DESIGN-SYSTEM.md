@@ -381,6 +381,11 @@ Component pages: [button](components/button.md),
   used as filler. Small values use `.stat--sm` or `.stat-value.small`
   (`--text-xl`); `.key-stat-value` uses the small size. `.stat-card` is the
   boxless cell inside `.balance-summary`.
+- `.balance-summary--browse` (the private-key listing strip) lays each
+  `.stat-card` out as one label/value line and keeps the refresh control and
+  the balance note on that same row. Padding, label and value sizes are the
+  shared ones; only the layout is inline. Other summaries keep the stacked
+  cards.
 - Enforced by `scripts/ui-audit.mjs` `stat-geometry`: label >=12 and no
   `text-transform`, value in {20,24,28} with tabular digits.
 
