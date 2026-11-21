@@ -13,7 +13,7 @@ later PR had closed an earlier gap; each edited row cites `file:line`.
 
 | Donor route | Ours | Status | Missing pieces (concrete) | Evidence |
 |---|---|---|---|---|
-| PKF `/key/<64-hex>` | `/key/<64-hex>` | partial | 8 key facts (HEX, Decimal, WIF, WIF (u), Keypair (SOL), Secret (XRP), PubKey, Page) and 30 address rows match. 14 of 18 chain groups now have a balance provider (BTC, 8 EVM, TRON, XRP, SOL, SUI, TON); LTC/BCH/DOGE/ZEC still show `—` and count as done immediately, so `Checked` can reach 18/18. `Total value` is computed from a public Binance ticker and shows `—` only when no price source is reachable or no loaded balance is priced (donor showed `$3,339.72` for key 1). Ours adds curve/path/±1 controls and 4 point facts (intentional). | local render 30 rows; `apps/site/key.js:2263-2272,2329-2439`; `apps/site/key-tools.js:967-1011`; `key-page.md` |
+| PKF `/key/<64-hex>` | `/key/<64-hex>` | partial | 8 key facts (HEX, Decimal, WIF, WIF (u), Keypair (SOL), Secret (XRP), PubKey, Page) and 30 address rows match. 16 of 18 chain groups now have a balance provider (BTC, 8 EVM, TRON, XRP, SOL, SUI, TON, LTC and DOGE via BlockCypher); BCH/ZEC still show `—` and count as done immediately, so `Checked` can reach 18/18. `Total value` is computed from a public Binance ticker and shows `—` only when no price source is reachable or no loaded balance is priced (donor showed `$3,339.72` for key 1). Ours adds curve/path/±1 controls and 4 point facts (intentional). | local render 30 rows; `apps/site/key.js:2295-2302,2304-2474`; `apps/site/key-tools.js:967-1011`; `key-page.md` |
 | PKF `/key/<decimal>`, `/key/0x…`, `/key/<text>` (donor renders 200 and auto-detects) | same path | partial | 1..64 hex digits with an optional `0x` are left-padded to 32 bytes, so `/key/1`, `/key/0x1` and `/key/0x<64hex>` now render 200; WIF, XRP secrets and keypair JSON also render. Deliberate deviation: free text (`/key/hello world`) stays a real 404 instead of the donor's 200 soft-404 that renders a client-side "Invalid Key"; this is an intentional product decision, not an open gap. | `src/coordinator/mod.rs:1659-1677,1685-1740` |
 | PKF `/private-keys` | `/private-keys` | same | 18 chain links; ours adds BCH and TON to the hub (donor hub links 16, both pages exist). | live HTML |
 | PKF `/private-keys/<chain>` | same | same | A re-check against the live donor found no remaining donor gap: 60 rows, 18 tabs, pager + jump, `?key=` page jump, 4 BTC and 4 LTC type cards (legacy/nested/native/Taproot `ltc1p`), 60 hex + 120 WIF `(c)/(u)` links and the chain-shaped stats all match, and `/key` derives every shipped type. The donor has no CSV export and no balance sorting, so neither is a gap. Ours adds the LTC Taproot card. `?key=` jumps to the containing page: `?key=0xdeadbeef` computes page 62,265,476. Stats are chain-shaped: Balance/Received/TX on UTXO chains, Balance/Active on account chains (`src/coordinator/mod.rs:1272,3336-3349,3382-3384`; `apps/site/site.css:1517-1519,1898-1901`; `apps/site/browse.js:156,411-416,578-602,906-945`; test `tests/coordinator_api.rs:1218`; detector `summary-grid-orphan` in `scripts/ui-audit.mjs`). Active counts addresses with balance, a completed tx, or a non-zero EVM nonce; Solana/Sui/Ton count only funded addresses. | local render; `src/coordinator/mod.rs:1181-1206`; `apps/site/browse.js:81-95,1105-1135`; `crates/rotor-wasm/src/derive.rs:466,579-591` |
@@ -44,9 +44,9 @@ later PR had closed an earlier gap; each edited row cites `file:line`.
 ## Ranked backlog
 
 1. **Key-page chain providers + USD total** — mostly DONE. XRP/SOL/SUI/TON and
-   the Binance USD total are wired (`apps/site/key.js:2263-2272,2329-2439`);
-   remaining: LTC/DOGE/BCH/ZEC providers from `apps/site/site.js:735-788`.
-   Decision: whether those four stay explorer-only.
+   the Binance USD total are wired (`apps/site/key.js:2295-2302,2304-2474`);
+   remaining: BCH/ZEC providers (Blockchair answers 430 without a key) from
+   `apps/site/site.js:735-788`. Decision: whether those two stay explorer-only.
 2. **`/richest/<chain>`** — L. New `apps/site/richest.js`, route + render in
    `src/coordinator/mod.rs`, top-100 ingestion. Decision: address dataset and
    labels (donor shows 100 "Unknown").
