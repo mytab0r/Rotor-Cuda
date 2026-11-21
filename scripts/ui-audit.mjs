@@ -790,7 +790,36 @@ function auditPage(args) {
     add("unlabeled-icon-control", `${unlabeledIcons.length} icon-only control(s) without aria-label/title`, unlabeledIcons.slice(0, 8));
   }
 
-  // 4a. Icon buttons share one geometry and one name pair. Regression guard
+  // 4a. Icon-only actions use the shared .icon-button component. A control
+  //     with no visible text and an icon must not invent a page-local size
+  //     (AGENTS.md: "Every icon-only action uses the shared .icon-button
+  //     component"). Text nodes under aria-hidden/visually-hidden or inside
+  //     svg/img do not count as a visible label.
+  const visibleLabel = (el) => {
+    const copy = el.cloneNode(true);
+    for (const node of copy.querySelectorAll("svg, img, [aria-hidden='true'], .visually-hidden, .sr-only")) {
+      node.remove();
+    }
+    return (copy.textContent || "").replace(/\s+/g, " ").trim();
+  };
+  const iconOnlyUnshared = [];
+  for (const el of document.querySelectorAll('button, a[href], [role="button"]')) {
+    if (!visible(el)) continue;
+    if (el.classList.contains("icon-button")) continue;
+    if (!el.querySelector("svg, img")) continue;
+    if (visibleLabel(el)) continue;
+    iconOnlyUnshared.push({ selector: selectorOf(el), html: el.outerHTML.slice(0, 160) });
+  }
+  metrics.iconOnlyUnshared = iconOnlyUnshared;
+  if (iconOnlyUnshared.length) {
+    add(
+      "icon-only-shared-component",
+      `${iconOnlyUnshared.length} icon-only control(s) without the shared .icon-button class`,
+      iconOnlyUnshared.slice(0, 8),
+    );
+  }
+
+  // 4b. Icon buttons share one geometry and one name pair. Regression guard
   //     for docs/design-system/DESIGN-SYSTEM.md §3.2: box 28/36/44, icon
   //     14/16/18, aria-label plus the shared data-tooltip primitive (no
   //     native title next to it). Sm (28) is reserved for dense table rows.
@@ -1209,8 +1238,9 @@ function auditPage(args) {
     add("tooltip-primitive", `${tooltipIssues.length} tooltip target(s) break the shared primitive`, tooltipIssues.slice(0, 8));
   }
 
-  // 4c. /key info affordance: a quiet 16px glyph with an invisible 44x44 hit
-  //     area must not read as another bordered button beside random/clear.
+  // 4c. /key info affordance: a quiet 18px glyph in the shared 44x44
+  //     .icon-button hit area must not read as another bordered button beside
+  //     random/clear.
   if (route === "/key" || route.startsWith("/key/")) {
     const info = document.getElementById("key-info-btn");
     const meta = document.querySelector(".key-input-meta");
@@ -1220,20 +1250,26 @@ function auditPage(args) {
       const box = boxOf(info);
       const borderWidths = ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]
         .map((name) => Number.parseFloat(style[name] || "0"));
+      const colorAlpha = (value) => {
+        const match = String(value || "").match(/rgba?\(([^)]+)\)/);
+        const parts = match ? match[1].split(",").map(Number) : [];
+        return parts.length > 3 ? parts[3] : 1;
+      };
       const bg = style.backgroundColor || "";
-      const match = bg.match(/rgba?\(([^)]+)\)/);
-      const parts = match ? match[1].split(",").map(Number) : [];
-      const alpha = parts.length > 3 ? parts[3] : 1;
+      const alpha = colorAlpha(bg);
+      const borderColors = ["borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"]
+        .map((name) => style[name]);
+      const visibleBorder = borderWidths.some((width, i) => width > 0.05 && colorAlpha(borderColors[i]) > 0.05);
       const issues = [];
       if (box.width < 43.5 || box.height < 43.5) {
         issues.push(`hit box ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=44x44)`);
       }
-      if (borderWidths.some((width) => width > 0)) {
+      if (visibleBorder) {
         issues.push(`visible border ${borderWidths.map((width) => `${width}px`).join("/")}`);
       }
       if (alpha > 0.05) issues.push(`visible background ${bg}`);
       if (style.backgroundImage && style.backgroundImage !== "none") issues.push(`background image ${style.backgroundImage}`);
-      if (info.classList.contains("key-icon-btn")) issues.push("still styled as a .key-icon-btn");
+      if (!info.classList.contains("icon-button")) issues.push("not the shared .icon-button component");
       metrics.keyInfo = {
         width: Math.round(box.width),
         height: Math.round(box.height),
