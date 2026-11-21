@@ -1,10 +1,12 @@
-/* EVM testnet send flow (pure browser/Node codec, no DOM).
+/* EVM send flow (pure browser/Node codec, no DOM).
  *
  * This module owns the parts that can be tested without a browser:
- *  - exact decimal parsing of ETH and gwei values into wei (BigInt, no float);
- *  - destination, data and quantity validation with field-specific errors;
- *  - the chain-id guard, review preparation over an injected public RPC and
- *    the explicit confirm step that signs and broadcasts.
+ *  - exact decimal parsing of native values and gwei into wei (BigInt, no float);
+ *  - EIP-55 destination validation and the zero-address refusal;
+ *  - the chain table, the chain-id guard and the mainnet arm/balance/fee-cap
+ *    gates;
+ *  - review preparation over an injected public RPC and the explicit confirm
+ *    step that signs and broadcasts.
  *
  * It never holds a private key: `confirmTransaction` calls an injected `sign`
  * callback bound to the unlocked vault entry, and the only network payloads it
@@ -17,30 +19,183 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  var SEPOLIA = {
-    chainId: 11155111,
-    chainIdHex: '0xaa36a7',
-    name: 'Ethereum Sepolia',
-    explorerTx: 'https://sepolia.etherscan.io/tx/'
-  };
+  var ETH_DECIMALS = 18;
+  var GWEI_DECIMALS = 9;
 
-  /* Verified with a real browser (Chrome, Origin http://127.0.0.1:18321) on
-   * 2026-11-19: all three answer eth_chainId with 0xaa36a7 and allow CORS.
-   * rpc.sepolia.org returns HTTP 404 and sepolia.drpc.org refuses the Sepolia
-   * chain on its free plan, so neither is offered. */
-  var PROVIDERS = [
-    { id: 'publicnode', url: 'https://ethereum-sepolia-rpc.publicnode.com', label: 'publicnode.com' },
-    { id: '1rpc', url: 'https://1rpc.io/sepolia', label: '1RPC' },
-    { id: 'tenderly', url: 'https://sepolia.gateway.tenderly.co', label: 'Tenderly gateway' }
+  /* One descriptor per signable chain. `feeCapWei` is the maximum total
+   * network fee (gas limit x max fee per gas) this wallet will sign, in the
+   * chain's native unit; `null` means the testnet has no mainnet cap.
+   * Mainnet caps are deliberately conservative: 0.05 ETH on Ethereum and
+   * 0.01 native on every other chain. */
+  var NETWORKS = [
+    {
+      slug: 'sepolia',
+      chainId: 11155111,
+      chainIdHex: '0xaa36a7',
+      name: 'Ethereum Sepolia',
+      symbol: 'ETH',
+      testnet: true,
+      explorerTx: 'https://sepolia.etherscan.io/tx/',
+      feeCapWei: null,
+      /* Verified with a real browser (Chrome, Origin http://127.0.0.1:18321) on
+       * 2026-11-19: all three answer eth_chainId with 0xaa36a7 and allow CORS.
+       * rpc.sepolia.org returns HTTP 404 and sepolia.drpc.org refuses the
+       * Sepolia chain on its free plan, so neither is offered. */
+      providers: [
+        { id: 'publicnode', url: 'https://ethereum-sepolia-rpc.publicnode.com', label: 'publicnode.com' },
+        { id: '1rpc', url: 'https://1rpc.io/sepolia', label: '1RPC' },
+        { id: 'tenderly', url: 'https://sepolia.gateway.tenderly.co', label: 'Tenderly gateway' }
+      ]
+    },
+    {
+      slug: 'ethereum',
+      chainId: 1,
+      chainIdHex: '0x1',
+      name: 'Ethereum mainnet',
+      symbol: 'ETH',
+      testnet: false,
+      explorerTx: 'https://etherscan.io/tx/',
+      feeCapWei: 5n * 10n ** 16n,
+      providers: [
+        { id: 'publicnode', url: 'https://ethereum-rpc.publicnode.com', label: 'publicnode.com' },
+        { id: 'drpc', url: 'https://eth.drpc.org', label: 'dRPC' },
+        { id: '1rpc', url: 'https://1rpc.io/eth', label: '1RPC' }
+      ]
+    },
+    {
+      slug: 'bnb',
+      chainId: 56,
+      chainIdHex: '0x38',
+      name: 'BNB Chain mainnet',
+      symbol: 'BNB',
+      testnet: false,
+      explorerTx: 'https://bscscan.com/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'binance', url: 'https://bsc-dataseed.binance.org', label: 'bsc-dataseed.binance.org' }
+      ]
+    },
+    {
+      slug: 'arbitrum',
+      chainId: 42161,
+      chainIdHex: '0xa4b1',
+      name: 'Arbitrum One',
+      symbol: 'ETH',
+      testnet: false,
+      explorerTx: 'https://arbiscan.io/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'arbitrum', url: 'https://arb1.arbitrum.io/rpc', label: 'arb1.arbitrum.io' }
+      ]
+    },
+    {
+      slug: 'optimism',
+      chainId: 10,
+      chainIdHex: '0xa',
+      name: 'OP Mainnet',
+      symbol: 'ETH',
+      testnet: false,
+      explorerTx: 'https://optimistic.etherscan.io/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'optimism', url: 'https://mainnet.optimism.io', label: 'mainnet.optimism.io' }
+      ]
+    },
+    {
+      slug: 'base',
+      chainId: 8453,
+      chainIdHex: '0x2105',
+      name: 'Base mainnet',
+      symbol: 'ETH',
+      testnet: false,
+      explorerTx: 'https://basescan.org/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'base', url: 'https://mainnet.base.org', label: 'mainnet.base.org' }
+      ]
+    },
+    {
+      slug: 'polygon',
+      chainId: 137,
+      chainIdHex: '0x89',
+      name: 'Polygon mainnet',
+      symbol: 'POL',
+      testnet: false,
+      explorerTx: 'https://polygonscan.com/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'polygon', url: 'https://polygon-rpc.com', label: 'polygon-rpc.com' }
+      ]
+    },
+    {
+      slug: 'avalanche',
+      chainId: 43114,
+      chainIdHex: '0xa86a',
+      name: 'Avalanche C-Chain',
+      symbol: 'AVAX',
+      testnet: false,
+      explorerTx: 'https://snowtrace.io/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'avalanche', url: 'https://api.avax.network/ext/bc/C/rpc', label: 'api.avax.network' }
+      ]
+    },
+    {
+      slug: 'zksync',
+      chainId: 324,
+      chainIdHex: '0x144',
+      name: 'zkSync Era mainnet',
+      symbol: 'ETH',
+      testnet: false,
+      explorerTx: 'https://explorer.zksync.io/tx/',
+      feeCapWei: 10n ** 16n,
+      providers: [
+        { id: 'zksync', url: 'https://mainnet.era.zksync.io', label: 'mainnet.era.zksync.io' }
+      ]
+    },
+    {
+      /* Used by the separate TESTNET /send page, which reuses this codec.
+       * It is not offered by the cabinet wallet's network picker. */
+      slug: 'bnb-testnet',
+      chainId: 97,
+      chainIdHex: '0x61',
+      name: 'BNB Smart Chain testnet',
+      symbol: 'tBNB',
+      testnet: true,
+      wallet: false,
+      explorerTx: 'https://testnet.bscscan.com/tx/',
+      feeCapWei: null,
+      providers: []
+    }
   ];
 
-  /* EVM chains the vault can hold; only Sepolia is enabled for sending. */
+  function networkById(id) {
+    var value = Number(id);
+    for (var i = 0; i < NETWORKS.length; i += 1) {
+      if (NETWORKS[i].chainId === value) return NETWORKS[i];
+    }
+    return null;
+  }
+
+  function networkBySlug(slug) {
+    for (var i = 0; i < NETWORKS.length; i += 1) {
+      if (NETWORKS[i].slug === slug) return NETWORKS[i];
+    }
+    return null;
+  }
+
+  function walletNetworks() {
+    return NETWORKS.filter(function (network) { return network.wallet !== false; });
+  }
+
+  var SEPOLIA = networkById(11155111);
+  var PROVIDERS = SEPOLIA.providers;
+  var GAS_BUFFER_PERCENT = 20n;
+
+  /* EVM chains the vault can hold. */
   var EVM_CHAIN_SLUGS = [
     'ethereum', 'bnb', 'arbitrum', 'optimism', 'base', 'polygon', 'avalanche', 'zksync'
   ];
-
-  var ETH_DECIMALS = 18;
-  var GWEI_DECIMALS = 9;
   var U64_MAX = (1n << 64n) - 1n;
   var U128_MAX = (1n << 128n) - 1n;
 
@@ -84,13 +239,158 @@
     return parseUnits(text, GWEI_DECIMALS);
   }
 
+  /* ------------------------------------------------------------- keccak-256 */
+
+  /* Keccak-256 as used by Ethereum (original 0x01 padding, not SHA3-256).
+   * It has no native browser primitive and the wasm core does not export one,
+   * so the checksum and the transaction hash are computed here. */
+  var KECCAK_MASK = (1n << 64n) - 1n;
+  var KECCAK_ROUNDS = [
+    0x0000000000000001n, 0x0000000000008082n, 0x800000000000808an,
+    0x8000000080008000n, 0x000000000000808bn, 0x0000000080000001n,
+    0x8000000080008081n, 0x8000000000008009n, 0x000000000000008an,
+    0x0000000000000088n, 0x0000000080008009n, 0x000000008000000an,
+    0x000000008000808bn, 0x800000000000008bn, 0x8000000000008089n,
+    0x8000000000008003n, 0x8000000000008002n, 0x8000000000000080n,
+    0x000000000000800an, 0x800000008000000an, 0x8000000080008081n,
+    0x8000000000008080n, 0x0000000080000001n, 0x8000000080008008n
+  ];
+  var KECCAK_ROTATIONS = [
+    [0, 36, 3, 41, 18],
+    [1, 44, 10, 45, 2],
+    [62, 6, 43, 15, 61],
+    [28, 55, 25, 21, 56],
+    [27, 20, 39, 8, 14]
+  ];
+
+  function rotl64(value, count) {
+    var shift = count % 64;
+    if (shift === 0) return value & KECCAK_MASK;
+    var bits = BigInt(shift);
+    return ((value << bits) | (value >> (64n - bits))) & KECCAK_MASK;
+  }
+
+  function keccakF(state) {
+    for (var round = 0; round < 24; round += 1) {
+      var c = [];
+      var d = [];
+      var x;
+      var y;
+      for (x = 0; x < 5; x += 1) {
+        c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
+      }
+      for (x = 0; x < 5; x += 1) {
+        d[x] = c[(x + 4) % 5] ^ rotl64(c[(x + 1) % 5], 1);
+      }
+      for (var lane = 0; lane < 25; lane += 1) {
+        state[lane] = (state[lane] ^ d[lane % 5]) & KECCAK_MASK;
+      }
+      var b = new Array(25);
+      for (x = 0; x < 5; x += 1) {
+        for (y = 0; y < 5; y += 1) {
+          b[y + 5 * ((2 * x + 3 * y) % 5)] =
+            rotl64(state[x + 5 * y], KECCAK_ROTATIONS[x][y]);
+        }
+      }
+      for (x = 0; x < 5; x += 1) {
+        for (y = 0; y < 5; y += 1) {
+          state[x + 5 * y] = b[x + 5 * y] ^
+            ((~b[(x + 1) % 5 + 5 * y] & KECCAK_MASK) & b[(x + 2) % 5 + 5 * y]);
+        }
+      }
+      state[0] = (state[0] ^ KECCAK_ROUNDS[round]) & KECCAK_MASK;
+    }
+  }
+
+  function keccak256Bytes(bytes) {
+    var rate = 136;
+    var padded = new Uint8Array(Math.ceil((bytes.length + 1) / rate) * rate);
+    padded.set(bytes);
+    padded[bytes.length] ^= 0x01;
+    padded[padded.length - 1] ^= 0x80;
+    var state = new Array(25);
+    for (var i = 0; i < 25; i += 1) state[i] = 0n;
+    for (var offset = 0; offset < padded.length; offset += rate) {
+      for (var word = 0; word < rate / 8; word += 1) {
+        var laneValue = 0n;
+        for (var byte = 0; byte < 8; byte += 1) {
+          laneValue |= BigInt(padded[offset + word * 8 + byte]) << BigInt(8 * byte);
+        }
+        state[word] ^= laneValue;
+      }
+      keccakF(state);
+    }
+    var out = new Uint8Array(32);
+    for (var wordIndex = 0; wordIndex < 4; wordIndex += 1) {
+      var lane = state[wordIndex];
+      for (var index = 0; index < 8; index += 1) {
+        out[wordIndex * 8 + index] = Number(lane & 0xffn);
+        lane >>= 8n;
+      }
+    }
+    return out;
+  }
+
+  function bytesToHex(bytes) {
+    var out = '';
+    for (var i = 0; i < bytes.length; i += 1) {
+      out += bytes[i].toString(16).padStart(2, '0');
+    }
+    return out;
+  }
+
+  function hexToBytes(hex) {
+    var value = hex.replace(/^0x/i, '');
+    var out = new Uint8Array(value.length / 2);
+    for (var i = 0; i < out.length; i += 1) {
+      out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+    }
+    return out;
+  }
+
+  function keccak256Hex(text) {
+    var bytes = typeof text === 'string' ? new TextEncoder().encode(text) : text;
+    return bytesToHex(keccak256Bytes(bytes));
+  }
+
+  /* EIP-55 mixed-case checksum for a lowercase 0x address. */
+  function checksumAddress(address) {
+    var lower = String(address).toLowerCase().replace(/^0x/, '');
+    if (!/^[0-9a-f]{40}$/.test(lower)) {
+      throw new Error('Use 0x followed by 40 hex characters.');
+    }
+    var hash = keccak256Hex(lower);
+    var out = '0x';
+    for (var i = 0; i < lower.length; i += 1) {
+      var char = lower.charAt(i);
+      out += /[a-f]/.test(char) && parseInt(hash.charAt(i), 16) >= 8
+        ? char.toUpperCase()
+        : char;
+    }
+    return out;
+  }
+
+  /* EIP-55 recipient validation. All-lowercase and all-uppercase input is
+   * accepted without a checksum (the convention); mixed case must match the
+   * EIP-55 checksum exactly. The zero address is always refused because value
+   * sent there is unrecoverable. */
   function normalizeAddress(text) {
     if (typeof text !== 'string') throw new Error('Enter a 0x-prefixed 20-byte address.');
     var value = text.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
       throw new Error('Use 0x followed by 40 hex characters.');
     }
-    return value.toLowerCase();
+    var lower = value.toLowerCase();
+    if (/^0x0{40}$/.test(lower)) {
+      throw new Error('The zero address cannot be a transfer recipient; value sent there is not recoverable.');
+    }
+    var body = value.slice(2);
+    var hasLower = /[a-f]/.test(body);
+    var hasUpper = /[A-F]/.test(body);
+    if (hasLower && hasUpper && checksumAddress(lower) !== value) {
+      throw new Error('The address fails the EIP-55 checksum. Copy it again or use the all-lowercase form.');
+    }
+    return lower;
   }
 
   function normalizeData(text) {
@@ -208,6 +508,56 @@
     return Number(actual);
   }
 
+  /* The descriptor table is the allowlist: an id outside it is not signable
+   * even if a caller asks for it. */
+  function assertKnownNetwork(id) {
+    var network = networkById(id);
+    if (!network) {
+      throw new Error('Chain id ' + String(id) +
+        ' is not in the wallet chain table. Refusing to sign.');
+    }
+    return network;
+  }
+
+  /* A mainnet send is only allowed after the user arms it for the session.
+   * This check lives in the codec, not only in the DOM. */
+  function assertMainnetArmed(network, armed) {
+    if (network.testnet) return;
+    if (armed !== true) {
+      throw new Error('Mainnet signing is not armed. Tick "I understand this spends real ' +
+        network.symbol + ' on ' + network.name + ' for this session" before signing.');
+    }
+  }
+
+  function bufferedGasLimit(estimate) {
+    var percent = 100n + GAS_BUFFER_PERCENT;
+    var buffered = (estimate * percent + 99n) / 100n;
+    if (buffered === 0n || buffered > U64_MAX) {
+      throw new Error('The buffered gas limit is out of range.');
+    }
+    return buffered;
+  }
+
+  function assertFeeCap(network, gasLimit, maxFee) {
+    if (network.feeCapWei === null) return;
+    var feeWei = gasLimit * maxFee;
+    if (feeWei > network.feeCapWei) {
+      throw new Error('The maximum network fee ' + formatUnits(feeWei, ETH_DECIMALS) + ' ' +
+        network.symbol + ' exceeds the ' + network.name + ' cap of ' +
+        formatUnits(network.feeCapWei, ETH_DECIMALS) + ' ' + network.symbol +
+        '; refusing to sign. Lower the gas limit or the max fee.');
+    }
+  }
+
+  function assertSufficientBalance(network, balance, totalWei) {
+    if (totalWei > balance) {
+      throw new Error('The amount plus the maximum network fee (' +
+        formatUnits(totalWei, ETH_DECIMALS) + ' ' + network.symbol +
+        ') exceeds the balance of ' + formatUnits(balance, ETH_DECIMALS) + ' ' +
+        network.symbol + '; refusing to sign.');
+    }
+  }
+
   /* ------------------------------------------------------------------ RPC */
 
   function rpcCall(fetchJson, url, method, params) {
@@ -239,8 +589,10 @@
   }
 
   function providerLabel(url) {
-    for (var i = 0; i < PROVIDERS.length; i += 1) {
-      if (PROVIDERS[i].url === url) return PROVIDERS[i].label;
+    for (var n = 0; n < NETWORKS.length; n += 1) {
+      for (var i = 0; i < NETWORKS[n].providers.length; i += 1) {
+        if (NETWORKS[n].providers[i].url === url) return NETWORKS[n].providers[i].label;
+      }
     }
     return url;
   }
@@ -338,10 +690,22 @@
    *            unsigned(fields) -> hex, expectedChainId?, chainName? } */
   async function prepareTransaction(options) {
     var settings = options || {};
-    var expectedChainId = settings.expectedChainId === undefined
+    var network = assertKnownNetwork(settings.expectedChainId === undefined
       ? SEPOLIA.chainId
-      : settings.expectedChainId;
+      : settings.expectedChainId);
+    assertMainnetArmed(network, settings.mainnetArmed);
+    var expectedChainId = network.chainId;
     var validated = validateForm(settings.form);
+    /* Mainnet in this slice is native-token transfers only: no calldata and
+     * no zero-value contract call. */
+    if (!network.testnet) {
+      if (!validated.errors.data && validated.values.data !== '0x') {
+        validated.errors.data = 'Mainnet signing here is native-token transfers only; clear the data field.';
+      }
+      if (!validated.errors.value && validated.values.value === 0n) {
+        validated.errors.value = 'Enter an amount greater than zero for a native-token transfer.';
+      }
+    }
     if (Object.keys(validated.errors).length) {
       var invalid = new Error('Fix the highlighted fields before review.');
       invalid.fieldErrors = validated.errors;
@@ -360,7 +724,10 @@
     var values = validated.values;
     var providers = settings.providerUrl
       ? [settings.providerUrl]
-      : (settings.providers || PROVIDERS.map(function (provider) { return provider.url; }));
+      : (settings.providers || network.providers.map(function (provider) { return provider.url; }));
+    if (!providers.length) {
+      throw new Error('No RPC provider is configured for ' + network.name + '.');
+    }
 
     var providerUrl;
     var nonce;
@@ -372,7 +739,8 @@
     var feesSource = 'eth_feeHistory';
     var prioritySource = 'eth_maxPriorityFeePerGas';
 
-    return chooseProvider(settings.fetchJson, providers, expectedChainId, settings.networkName)
+    return chooseProvider(settings.fetchJson, providers, expectedChainId,
+      settings.networkName || network.name)
       .then(function (chosen) {
         providerUrl = chosen;
         return read(settings.fetchJson, chosen, 'eth_getTransactionCount', [from, 'pending'], 'the nonce');
@@ -436,8 +804,19 @@
           conflict.fieldErrors = { priorityFee: 'Priority fee must not exceed the max fee.' };
           throw conflict;
         }
-        var gasLimit = values.gasLimit === null ? estimate : values.gasLimit;
+        /* Mainnet never signs a blind gas limit: the node estimate gets a 20%
+         * buffer. A manual limit is the user's explicit value and is reviewed
+         * as such. */
+        var gasLimit = values.gasLimit === null
+          ? (network.testnet ? estimate : bufferedGasLimit(estimate))
+          : values.gasLimit;
+        if (gasLimit > U64_MAX) throw new Error('The gas limit is too large.');
         var totalMaxCost = values.value + gasLimit * maxFee;
+        var symbol = settings.nativeSymbol || network.symbol;
+        if (!network.testnet) {
+          assertFeeCap(network, gasLimit, maxFee);
+          assertSufficientBalance(network, balance, totalMaxCost);
+        }
         var fields = {
           chain_id: String(expectedChainId),
           nonce: nonce.toString(),
@@ -461,18 +840,20 @@
               ' is below the node estimate of ' + estimate.toString() +
               '; the transaction may run out of gas.');
           }
-          if (totalMaxCost > balance) {
+          if (network.testnet && totalMaxCost > balance) {
             warnings.push('The maximum cost exceeds the balance of ' +
-              formatUnits(balance, ETH_DECIMALS) + ' ' + (settings.nativeSymbol || 'ETH') +
+              formatUnits(balance, ETH_DECIMALS) + ' ' + symbol +
               '; the node will reject the transaction.');
-          }
-          if (/^0x0{40}$/.test(values.to)) {
-            warnings.push('The destination is the zero address; value sent there is not recoverable.');
           }
 
           return {
             chainId: expectedChainId,
-            chainName: settings.chainName || SEPOLIA.name,
+            chainName: settings.chainName || network.name,
+            networkSlug: network.slug,
+            testnet: network.testnet,
+            symbol: symbol,
+            explorerTx: network.explorerTx,
+            feeCapWei: network.feeCapWei,
             from: from,
             to: values.to,
             valueWei: values.value,
@@ -499,18 +880,25 @@
 
   /* --------------------------------------------------------------- confirm */
 
-  /* options: { review, fetchJson, sign(fields) -> signed hex } */
+  /* options: { review, fetchJson, sign(fields) -> signed hex,
+   *            mainnetArmed? } */
   async function confirmTransaction(options) {
     var settings = options || {};
     var review = settings.review;
     if (!review || typeof review !== 'object') {
       throw new Error('Prepare and review the transaction first.');
     }
+    var network = assertKnownNetwork(review.chainId);
+    assertMainnetArmed(network, settings.mainnetArmed);
     if (typeof settings.sign !== 'function') {
       throw new Error('Local signing is unavailable.');
     }
     if (typeof settings.fetchJson !== 'function' || !review.providerUrl) {
       throw new Error('The RPC provider is missing from the review.');
+    }
+    if (!network.testnet) {
+      assertFeeCap(network, review.gasLimit, review.maxFeeWei);
+      assertSufficientBalance(network, review.balanceWei, review.totalMaxCostWei);
     }
     assertType2Hex(review.unsignedHex, 'unsigned transaction');
 
@@ -531,6 +919,9 @@
       })
       .then(function (signedHex) {
         assertType2Hex(signedHex, 'signed transaction');
+        /* One broadcast, no retry: a provider error is surfaced verbatim so
+         * the user can decide, and a duplicate send cannot be triggered by
+         * this code. */
         return rpcCall(settings.fetchJson, review.providerUrl, 'eth_sendRawTransaction', [signedHex])
           .catch(function (err) {
             throw new Error('Broadcasting to ' + providerLabel(review.providerUrl) +
@@ -544,15 +935,19 @@
             return {
               signedHex: signedHex,
               txHash: txHash,
+              chainName: network.name,
+              symbol: network.symbol,
+              testnet: network.testnet,
               providerUrl: review.providerUrl,
               providerLabel: providerLabel(review.providerUrl),
-              explorerUrl: SEPOLIA.explorerTx + txHash
+              explorerUrl: network.explorerTx + txHash
             };
           });
       });
   }
 
   return {
+    NETWORKS: NETWORKS,
     SEPOLIA: SEPOLIA,
     PROVIDERS: PROVIDERS,
     EVM_CHAIN_SLUGS: EVM_CHAIN_SLUGS,
@@ -562,14 +957,22 @@
     formatUnits: formatUnits,
     parseEthToWei: parseEthToWei,
     parseGweiToWei: parseGweiToWei,
+    keccak256Hex: keccak256Hex,
+    checksumAddress: checksumAddress,
     normalizeAddress: normalizeAddress,
     normalizeData: normalizeData,
     parseChainId: parseChainId,
     assertChainId: assertChainId,
+    assertKnownNetwork: assertKnownNetwork,
+    assertMainnetArmed: assertMainnetArmed,
+    bufferedGasLimit: bufferedGasLimit,
     validateForm: validateForm,
     callWasmString: callWasmString,
     prepareTransaction: prepareTransaction,
     confirmTransaction: confirmTransaction,
-    providerLabel: providerLabel
+    providerLabel: providerLabel,
+    networkById: networkById,
+    networkBySlug: networkBySlug,
+    walletNetworks: walletNetworks
   };
 });
