@@ -9,8 +9,9 @@ Status: normative for new UI; existing pages migrate batch by batch through
 
 In scope: every visible element on the coordinator-served site — controls,
 fields, cards, stats, tables, status, navigation, overlays, empty/loading/error
-states. The system is plain CSS custom properties and class contracts; there is
-no build step and no framework.
+states. The system is plain CSS custom properties and class contracts; token
+values are generated from `design/tokens/tokens.json` by
+`scripts/build-tokens.mjs`, and there is no framework.
 
 Out of scope for v0.1: changing behaviour, renaming routes, restructuring page
 content, new imagery, coordinator/Rust changes, wasm.
@@ -50,7 +51,8 @@ components.
 
 ## 2. Token architecture
 
-Three layers, all in `apps/site/site.css`:
+Three layers, declared in `design/tokens/tokens.json` and generated into
+`apps/site/site.css`:
 
 1. **Primitive** — the raw scales below (space, radius, type, weight, motion,
    elevation, z-index).
@@ -618,6 +620,10 @@ The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
   inline page `<style>` blocks into `site.css`; moved the brainwallet status
   badge, address-type and retry controls onto the shared status/chip/icon-button
   grammar; added the `legacy-token` detector.
+- Phase 0-1 (2026-11-21): froze the 95 root names in
+  `design/tokens/tokens.contract.json`; `design/tokens/tokens.json` is the
+  source and `scripts/build-tokens.mjs` generates the marked `site.css` regions
+  and `design/generated/tokens.ts`. No token value changed.
 
 ## 10. Page-scoped CSS exceptions
 

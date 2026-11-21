@@ -16,6 +16,10 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
   tests, commit `apps/site/rotor_wasm.wasm`.
 - Run the area test commands from `projects.json`; then
   `node scripts/check-projects.mjs`.
+- Design tokens: `design/tokens/tokens.json` is the source. After editing it run
+  `node scripts/build-tokens.mjs`; `node scripts/build-tokens.mjs --check` is a
+  CI gate and fails when `apps/site/site.css` or
+  `design/generated/tokens.ts` is stale. Never hand-edit the marked region.
 - Parallel writers: use a worktree under `.claude/worktrees/` per area/change.
   Do not share a working tree with another writer.
 - New top-level files/directories must be added to an area in `projects.json`;
