@@ -61,6 +61,8 @@ const DEFAULT_ROUTES = [
   "/tx/bitcoin",
   "/tx/ethereum",
   "/docs",
+  // Internal design-system gallery: every component family, both themes.
+  "/design",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
 const DEFAULT_SETTLE_MS = 700;

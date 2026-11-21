@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Crypto - design gallery</title>
+<link rel="stylesheet" href="/site.css">
+<script src="/theme.js"></script>
+<style>
+/* Gallery layout only. Component appearance comes from site.css. */
+.design-gallery__family { display: grid; gap: var(--space-4); padding-top: var(--space-6); border-top: 1px solid var(--line-subtle); }
+.design-gallery__examples { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
+.design-gallery__examples--stack { display: grid; grid-template-columns: minmax(0, 1fr); }
+.design-gallery__example { display: grid; gap: var(--space-2); margin: 0; min-width: 0; }
+.design-gallery__label { color: var(--ink-3); font-size: var(--text-xs); font-weight: var(--weight-regular); }
+.design-gallery__stage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.design-gallery__stage--block { display: block; }
+.design-gallery__note { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+</style>
+</head>
+<body>
+<header data-component="nav" data-variant="site" data-size="default" data-state="default" class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main>
+  <nav class="breadcrumbs" aria-label="Breadcrumb" data-component="breadcrumb" data-variant="default" data-size="default" data-state="default"><a href="/">Home</a><span class="breadcrumbs__sep" aria-hidden="true" data-slot="sep">/</span><span aria-current="page">Design</span></nav>
+  <h1>Design gallery</h1>
+  <p class="muted">
+    Every normalized component family, rendered from
+    <code>design/components/*.json</code> with the production classes from
+    <code>apps/site/site.css</code>. The page is internal, noindex and not linked
+    from the navigation; <code>/design</code> is the only address.
+  </p>
+
+    <section class="design-gallery__family" data-family="breadcrumb">
+      <h2>breadcrumb <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/breadcrumb.md</code> · detectors: <code>breadcrumb-grammar, breadcrumb-current, small-touch-target</code></p>
+      <p class="design-gallery__note">The trail above the title is the live <code>.breadcrumbs</code> example; its current marker is this page.</p>
+    </section>
+
+    <section class="design-gallery__family" data-family="button">
+      <h2>button <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/button.md</code> · detectors: <code>small-touch-target, clipped-control, horizontal-overflow</code></p>
+      <div class="design-gallery__examples">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">button · Default · Default (44px) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <button class="btn" type="button" data-component="button" data-variant="default" data-size="default" data-state="default"><span data-slot="label">Search</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">button · Primary · Default (44px) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <button class="btn primary" type="button" data-component="button" data-variant="primary" data-size="default" data-state="default"><span data-slot="label">Search</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">button · Default · Default (44px) · Hover (live)</figcaption>
+        <div class="design-gallery__stage">
+          <button class="btn" type="button" data-component="button" data-variant="default" data-size="default" data-state="hover"><span data-slot="label">Search</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">button · Default · Default (44px) · Focus-visible (live, tab)</figcaption>
+        <div class="design-gallery__stage">
+          <button class="btn" type="button" data-component="button" data-variant="default" data-size="default" data-state="focus-visible"><span data-slot="label">Search</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">button · Default · Default (44px) · Disabled</figcaption>
+        <div class="design-gallery__stage">
+          <button class="btn" disabled type="button" data-component="button" data-variant="default" data-size="default" data-state="disabled"><span data-slot="label">Search</span></button>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="card">
+      <h2>card <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/card.md</code> · detectors: <code>card-padding-scale, mostly-empty-block</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">card · Default card · Default (20px padding, radius 16) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <section class="card" data-component="card" data-variant="default" data-size="default" data-state="default"><h2 data-slot="title">Card title</h2><p data-slot="body">One sentence that explains the block and the action it offers.</p></section>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="chip">
+      <h2>chip <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/chip.md</code> · detectors: <code>control-height-scale, small-touch-target, clipped-control</code></p>
+      <div class="design-gallery__examples">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">chip · Default filter or preset · Default (44px) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <button class="chip" type="button" data-component="chip" data-variant="default" data-size="default" data-state="default"><span data-slot="label">Bitcoin</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">chip · Primary navigation action · Default (44px) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <button class="chip chip--primary" type="button" data-component="chip" data-variant="primary" data-size="default" data-state="default"><span data-slot="label">Bitcoin</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">chip · Default filter or preset · Default (44px) · Pressed</figcaption>
+        <div class="design-gallery__stage">
+          <button class="chip" aria-pressed="true" type="button" data-component="chip" data-variant="default" data-size="default" data-state="pressed"><span data-slot="label">Bitcoin</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">chip · Default filter or preset · Default (44px) · Current page</figcaption>
+        <div class="design-gallery__stage">
+          <button class="chip" aria-current="page" type="button" data-component="chip" data-variant="default" data-size="default" data-state="current"><span data-slot="label">Bitcoin</span></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">chip · Default filter or preset · Default (44px) · Disabled</figcaption>
+        <div class="design-gallery__stage">
+          <button class="chip" disabled type="button" data-component="chip" data-variant="default" data-size="default" data-state="disabled"><span data-slot="label">Bitcoin</span></button>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="empty">
+      <h2>empty <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/empty.md</code> · detectors: <code>empty-state-grammar</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">empty · Empty state · Default (20px padding, radius 12) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="empty-state" data-component="empty" data-variant="default" data-size="default" data-state="default"><span class="empty-state__title" data-slot="title">No rows yet</span><p data-slot="body">Change the filter or run a scan to fill this table.</p></div>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="error">
+      <h2>error <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/error.md</code> · detectors: <code>empty-state-grammar</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">error · Shared error box · Default · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <p class="error" role="alert" data-component="error" data-variant="default" data-size="default" data-state="default"><span data-slot="message">The RPC rejected the request. Retry in a moment.</span></p>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">error · Key-page error · Default · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <p class="error key-error" role="alert" data-component="error" data-variant="key" data-size="default" data-state="default"><span data-slot="message">The RPC rejected the request. Retry in a moment.</span></p>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">error · Range-page error · Default · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <p class="error range-error" role="alert" data-component="error" data-variant="range" data-size="default" data-state="default"><span data-slot="message">The RPC rejected the request. Retry in a moment.</span></p>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="field">
+      <h2>field <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/field.md</code> · detectors: <code>control-height-scale, field-geometry, clipped-control</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">field · Field with label and hint · Default (44px) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <label class="field" data-component="field" data-variant="default" data-size="default" data-state="default"><span class="field__label" data-slot="label">Private key</span><input class="field__control" id="gallery-field-16" type="text" placeholder="64 hex or WIF" aria-describedby="gallery-field-hint-16" aria-invalid="false" data-slot="control"><span class="field__hint" id="gallery-field-hint-16" data-slot="hint">Hex, WIF or brainwallet text.</span><span class="field__error" id="gallery-field-error-16" role="alert" hidden data-slot="error">Enter a valid private key.</span></label>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">field · Field with label and hint · Hero (56px) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <label class="field field--hero" data-component="field" data-variant="default" data-size="hero" data-state="default"><span class="field__label" data-slot="label">Private key</span><input class="field__control" id="gallery-field-17" type="text" placeholder="64 hex or WIF" aria-describedby="gallery-field-hint-17" aria-invalid="false" data-slot="control"><span class="field__hint" id="gallery-field-hint-17" data-slot="hint">Hex, WIF or brainwallet text.</span><span class="field__error" id="gallery-field-error-17" role="alert" hidden data-slot="error">Enter a valid private key.</span></label>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">field · Field with label and hint · Default (44px) · Focus-visible (live, tab)</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <label class="field" data-component="field" data-variant="default" data-size="default" data-state="focus-visible"><span class="field__label" data-slot="label">Private key</span><input class="field__control" id="gallery-field-18" type="text" placeholder="64 hex or WIF" aria-describedby="gallery-field-hint-18" aria-invalid="false" data-slot="control"><span class="field__hint" id="gallery-field-hint-18" data-slot="hint">Hex, WIF or brainwallet text.</span><span class="field__error" id="gallery-field-error-18" role="alert" hidden data-slot="error">Enter a valid private key.</span></label>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">field · Field with label and hint · Default (44px) · Invalid</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <label class="field" data-component="field" data-variant="default" data-size="default" data-state="invalid"><span class="field__label" data-slot="label">Private key</span><input class="field__control" id="gallery-field-19" type="text" placeholder="64 hex or WIF" aria-describedby="gallery-field-hint-19" aria-invalid="true" data-slot="control"><span class="field__hint" id="gallery-field-hint-19" data-slot="hint">Hex, WIF or brainwallet text.</span><span class="field__error" id="gallery-field-error-19" role="alert" data-slot="error">Enter a valid private key.</span></label>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">field · Field with label and hint · Default (44px) · Disabled</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <label class="field" data-component="field" data-variant="default" data-size="default" data-state="disabled"><span class="field__label" data-slot="label">Private key</span><input class="field__control" id="gallery-field-20" type="text" placeholder="64 hex or WIF" aria-describedby="gallery-field-hint-20" aria-invalid="false" disabled data-slot="control"><span class="field__hint" id="gallery-field-hint-20" data-slot="hint">Hex, WIF or brainwallet text.</span><span class="field__error" id="gallery-field-error-20" role="alert" hidden data-slot="error">Enter a valid private key.</span></label>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="icon-button">
+      <h2>icon-button <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/icon-button.md</code> · detectors: <code>icon-button-scale, small-touch-target, tooltip-primitive, row-action-geometry</code></p>
+      <div class="design-gallery__examples">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Quiet (row action) · Large (44px) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--quiet icon-button--lg" aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="quiet" data-size="lg" data-state="default"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Outline (toolbar) · Large (44px) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--outline icon-button--lg" aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="outline" data-size="lg" data-state="default"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Quiet (row action) · Large (44px) · Hover (live)</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--quiet icon-button--lg" aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="quiet" data-size="lg" data-state="hover"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Quiet (row action) · Large (44px) · Focus-visible (live, tab)</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--quiet icon-button--lg" aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="quiet" data-size="lg" data-state="focus-visible"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Quiet (row action) · Large (44px) · Disabled</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--quiet icon-button--lg" disabled aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="quiet" data-size="lg" data-state="disabled"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Quiet (row action) · Large (44px) · Copied</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--quiet icon-button--lg is-copied" aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="quiet" data-size="lg" data-state="copied"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">icon-button · Quiet (row action) · Large (44px) · Busy</figcaption>
+        <div class="design-gallery__stage">
+          <button class="icon-button icon-button--quiet icon-button--lg" aria-busy="true" aria-label="Copy address" data-tooltip="Copy address" type="button" data-component="icon-button" data-variant="quiet" data-size="lg" data-state="busy"><svg class="icon" aria-hidden="true" data-slot="icon"><use href="/icons.svg#ui-copy"></use></svg></button>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="nav">
+      <h2>nav <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/nav.md</code> · detectors: <code>nav-link-height, nav-destination, small-touch-target, icon-button-scale</code></p>
+      <p class="design-gallery__note">The page header above is the live <code>.site-nav</code> example. Its links are the production markup.</p>
+    </section>
+
+    <section class="design-gallery__family" data-family="pager">
+      <h2>pager <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/pager.md</code> · detectors: <code>pager-grammar, pager-geometry, small-touch-target</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">pager · First / Previous / Next / Last / Random · Default (44px box, radius 10) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <nav class="pager" aria-label="Key pages" data-component="pager" data-variant="default" data-size="default" data-state="default"><a class="pager-btn" href="#" aria-disabled="false" data-slot="first">First</a><a class="pager-btn" href="#" aria-disabled="false" data-slot="previous">Previous</a><a class="pager-btn" href="#" aria-disabled="false" data-slot="next">Next</a><a class="pager-btn" href="#" aria-disabled="false" data-slot="last">Last</a><a class="pager-btn pager-btn--random" href="#" aria-disabled="false" data-slot="random">Random</a></nav>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">pager · Numeric page jump · Default (44px box, radius 10) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <form class="page-jump" aria-label="Key pages" data-component="pager" data-variant="jump" data-size="default" data-state="default"><label for="gallery-page-29">Page</label><input id="gallery-page-29" type="number" min="1" value="2" data-slot="input"><button class="primary" type="submit" data-slot="submit">Jump<svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg></button></form>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">pager · First / Previous / Next / Last / Random · Default (44px box, radius 10) · Unavailable first/previous</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <nav class="pager" aria-label="Key pages" data-component="pager" data-variant="default" data-size="default" data-state="disabled"><a class="pager-btn" href="#" aria-disabled="true" data-slot="first">First</a><a class="pager-btn" href="#" aria-disabled="true" data-slot="previous">Previous</a><a class="pager-btn" href="#" aria-disabled="false" data-slot="next">Next</a><a class="pager-btn" href="#" aria-disabled="false" data-slot="last">Last</a><a class="pager-btn pager-btn--random" href="#" aria-disabled="false" data-slot="random">Random</a></nav>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="segmented">
+      <h2>segmented <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/segmented.md</code> · detectors: <code>segmented-geometry, control-height-scale, small-touch-target</code></p>
+      <div class="design-gallery__examples">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">segmented · Two mutually exclusive modes · Default (44px items) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <div class="segmented" role="group" aria-label="Curve" data-component="segmented" data-variant="default" data-size="default" data-state="default"><button class="segmented__item" type="button" aria-pressed="true" data-slot="first">secp256k1</button><button class="segmented__item" type="button" aria-pressed="false" data-slot="second">ed25519</button></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">segmented · Two mutually exclusive modes · Default (44px items) · Second item selected</figcaption>
+        <div class="design-gallery__stage">
+          <div class="segmented" role="group" aria-label="Curve" data-component="segmented" data-variant="default" data-size="default" data-state="selected"><button class="segmented__item" type="button" aria-pressed="false" data-slot="first">secp256k1</button><button class="segmented__item" type="button" aria-pressed="true" data-slot="second">ed25519</button></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">segmented · Two mutually exclusive modes · Default (44px items) · Disabled</figcaption>
+        <div class="design-gallery__stage">
+          <div class="segmented" role="group" aria-label="Curve" data-component="segmented" data-variant="default" data-size="default" data-state="disabled"><button class="segmented__item" type="button" aria-pressed="true" disabled data-slot="first">secp256k1</button><button class="segmented__item" type="button" aria-pressed="false" disabled data-slot="second">ed25519</button></div>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="skeleton">
+      <h2>skeleton <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/skeleton.md</code> · not machine-checkable</p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">skeleton · Shimmer block · Default (12px high) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <span class="skeleton" aria-hidden="true" data-component="skeleton" data-variant="default" data-size="default" data-state="default"><span data-slot="placeholder"></span></span>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">skeleton · Text placeholder · Default (12px high) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <span class="cell-skeleton" aria-hidden="true" data-component="skeleton" data-variant="cell" data-size="default" data-state="default"><span data-slot="placeholder">0.00000000</span></span>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="stat">
+      <h2>stat <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/stat.md</code> · detectors: <code>stat-geometry, card-padding-scale</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">stat · Default stat · Default (24px value) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="stat" data-component="stat" data-variant="default" data-size="default" data-state="default"><span class="stat__label" data-slot="label">Keys scanned</span><span class="stat__value" data-slot="value">18,890</span><span class="stat__meta" data-slot="meta">last 24 hours</span></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">stat · Key summary stat · Default (24px value) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="key-stat" data-component="stat" data-variant="key" data-size="default" data-state="default"><span class="stat__label" data-slot="label">Keys scanned</span><span class="stat__value" data-slot="value">18,890</span><span class="stat__meta" data-slot="meta">last 24 hours</span></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">stat · Boxless strip cell · Default (24px value) · Default</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="stat-card" data-component="stat" data-variant="card" data-size="default" data-state="default"><span class="stat__label" data-slot="label">Keys scanned</span><span class="stat__value" data-slot="value">18,890</span><span class="stat__meta" data-slot="meta">last 24 hours</span></div>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="status">
+      <h2>status <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/status.md</code> · detectors: <code>status-pill-geometry</code></p>
+      <div class="design-gallery__examples">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">status · Neutral badge · Default (20px pill) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <span class="badge" data-component="status" data-variant="badge" data-size="default" data-state="default"><span data-slot="label">Settled</span></span>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">status · Chain status · Default (20px pill) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <span class="monitor-chain" data-component="status" data-variant="chain" data-size="default" data-state="default"><span data-slot="label">Watch</span></span>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">status · Count badge · Default (20px pill) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <span class="balance-refresh-count" data-component="status" data-variant="count" data-size="default" data-state="default"><span data-slot="label">12</span></span>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">status · Puzzle status · Default (20px pill) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <span class="pz-pill" data-component="status" data-variant="puzzle" data-size="default" data-state="default"><span data-slot="label">Unsolved</span></span>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">status · Puzzle solved · Default (20px pill) · Default</figcaption>
+        <div class="design-gallery__stage">
+          <span class="pz-pill solved" data-component="status" data-variant="puzzle-solved" data-size="default" data-state="default"><span data-slot="label">Solved</span></span>
+        </div>
+      </figure>
+      </div>
+    </section>
+
+    <section class="design-gallery__family" data-family="table">
+      <h2>table <span class="design-gallery__label">v0.1.0 · stable</span></h2>
+      <p class="design-gallery__note">Contract: <code>docs/design-system/components/table.md</code> · detectors: <code>table-grammar, table-header-style, table-row-height, row-action-geometry, raw-path-text</code></p>
+      <div class="design-gallery__examples design-gallery__examples--stack">
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Default data table · Default (row min-height 44) · Default row</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="default" data-size="default" data-state="default"><table class="data-table" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Derived-address table · Default (row min-height 44) · Default row</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="key" data-size="default" data-state="default"><table class="data-table key-addr-tbl" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Puzzle table · Default (row min-height 44) · Default row</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="puzzle" data-size="default" data-state="default"><table class="data-table pz-table" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Key-range table · Default (row min-height 44) · Default row</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="range" data-size="default" data-state="default"><table class="data-table range-table" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Default data table · Default (row min-height 44) · Row with a balance</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="default" data-size="default" data-state="has-balance"><table class="data-table" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr class="has-balance" data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Default data table · Default (row min-height 44) · Active row</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="default" data-size="default" data-state="is-active"><table class="data-table" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr class="is-active" data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      <figure class="design-gallery__example">
+        <figcaption class="design-gallery__label">table · Default data table · Default (row min-height 44) · Focused row</figcaption>
+        <div class="design-gallery__stage design-gallery__stage--block">
+          <div class="table-scroll" tabindex="0" aria-label="Example data table" data-component="table" data-variant="default" data-size="default" data-state="key-row-focus"><table class="data-table" data-slot="table"><caption class="visually-hidden">Example derived addresses</caption><thead><tr><th scope="col">Chain</th><th scope="col">Address</th><th scope="col">Balance</th><th scope="col">Actions</th></tr></thead><tbody><tr class="key-row-focus" data-slot="row"><td>Bitcoin</td><td><code class="mono">bc1q…7f3k</code></td><td class="mono">0.00000000</td><td><button class="icon-button icon-button--quiet icon-button--lg" type="button" aria-label="Copy address" data-tooltip="Copy address"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button></td></tr></tbody></table></div>
+        </div>
+      </figure>
+      </div>
+    </section>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

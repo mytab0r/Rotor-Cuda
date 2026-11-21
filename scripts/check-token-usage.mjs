@@ -56,7 +56,7 @@ const RADIUS_EXCEPTIONS = new Set(["0", "inherit", "50%"]);
 
 // Shared component families from DESIGN-SYSTEM §3. A page-scoped selector
 // that reaches one of these is the legacy override the batch-7 cleanup removed.
-const SHARED_FAMILIES = [
+export const SHARED_FAMILIES = [
   "card",
   "data-table",
   "table-scroll",
@@ -548,7 +548,7 @@ export function checkRawHex({ cssFiles, htmlFiles, regions }) {
 }
 
 // 6. legacy-selector --------------------------------------------------------
-function classes(compound) {
+export function classes(compound) {
   return [...compound.matchAll(/\.([A-Za-z_][\w-]*)/g)].map((match) => match[1]);
 }
 
@@ -556,7 +556,7 @@ function isPageLocal(name) {
   return PAGE_ROOTS.includes(name) || PAGE_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 
-function isSharedFamily(name) {
+export function isSharedFamily(name) {
   return SHARED_FAMILIES.some((family) => name === family || name.startsWith(`${family}-`));
 }
 
