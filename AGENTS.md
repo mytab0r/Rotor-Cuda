@@ -62,6 +62,11 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   stat labels are 12px sentence case with no tracking, values are 20/24/28 and
   tabular. Audit IDs: `card-padding-scale`, `stat-geometry`; page-local card
   overrides (`.key-page > .card`) are not allowed.
+- One table/row grammar: every table is `.data-table` inside `.table-scroll`,
+  header 12/600 sentence case, cell padding `8/12`, row min-height 44, row
+  actions at the trailing edge. Mobile keeps the scroll wrapper and all
+  columns. Audit IDs: `table-grammar`, `table-header-style`,
+  `table-row-height`, `row-action-geometry`.
 - Do not add page-local `<style>` rules for a shared component. Move the rule
   into `apps/site/site.css` in the batch that owns the family
   (`docs/design-system/plan.md`); a new family needs an entry in
