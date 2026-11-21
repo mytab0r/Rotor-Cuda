@@ -925,6 +925,45 @@
     return rowFamily(text);
   }
 
+  /* One formatter for the balance row and its title. `decimals` and `symbol`
+   * come from the provider summary, never from a chain-page constant. */
+  function formatAtomic(summary) {
+    var amount = 0n;
+    try {
+      amount = BigInt(summary && summary.amount != null ? summary.amount : 0);
+    } catch (err) {
+      amount = 0n;
+    }
+    var decimals = summary && Number.isInteger(summary.decimals) ? summary.decimals : 0;
+    if (decimals < 0) decimals = 0;
+    if (decimals > 30) decimals = 30;
+    var unit = 1n;
+    for (var index = 0; index < decimals; index += 1) unit *= 10n;
+    var whole = amount / unit;
+    var fraction = decimals > 0
+      ? (amount % unit).toString().padStart(decimals, '0').replace(/0+$/, '')
+      : '';
+    var text = fraction ? whole.toString() + '.' + fraction : whole.toString();
+    return text + (summary && summary.symbol ? ' ' + summary.symbol : '');
+  }
+
+  /* The row text and the title are the same line: amount, tx count, nonce,
+   * note and one relative time. */
+  function balanceLine(summary, options) {
+    var settings = options || {};
+    var parts = [formatAtomic(summary)];
+    if (summary && summary.txs !== null && summary.txs !== undefined) {
+      parts.push(String(summary.txs) + ' tx');
+    }
+    if (summary && summary.nonce !== null && summary.nonce !== undefined) {
+      parts.push('nonce ' + String(summary.nonce));
+    }
+    if (summary && summary.note) parts.push(String(summary.note));
+    if (settings.lastTxAge) parts.push('last ' + String(settings.lastTxAge));
+    else if (settings.age) parts.push(String(settings.age));
+    return parts.join(' · ');
+  }
+
   /* Counters over the visible address rows. `rows` entries:
    * { chain, state, amount, active, checkable, visible }.
    * - Has balance: unique chain groups with amount > 0 (not addresses).
@@ -1218,6 +1257,8 @@
     addressTypeLabel: addressTypeLabel,
     counterChainKey: counterChainKey,
     balanceCounters: balanceCounters,
+    formatAtomic: formatAtomic,
+    balanceLine: balanceLine,
     tickerFor: tickerFor,
     tickerList: tickerList,
     priceRequestUrl: priceRequestUrl,

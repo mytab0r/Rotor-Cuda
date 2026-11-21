@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Crypto</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261127f">
-<script src="/theme.js?v=20261127f"></script>
+<link rel="stylesheet" href="/site.css?v=20261127g">
+<script src="/theme.js?v=20261127g"></script>
 <style>
 .mnemonic-directory-only { display: none; }
 body.mnemonic-directory-mode .mnemonic-directory-only { display: block; }
@@ -38,7 +38,7 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
   align-items: start;
   row-gap: 4px;
 }
-.mnemonic-seeds-page .key-row { padding-top: 10px; padding-bottom: 10px; }
+.mnemonic-seeds-page .key-row { min-height: var(--control-h); }
 .mnemonic-seeds-page .keys-header { align-items: center; }
 .mnemonic-seed,
 .mnemonic-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
@@ -76,7 +76,6 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px 14px;
   }
   .mnemonic-text { white-space: normal; overflow-wrap: anywhere; }
   .col-mnemonic { width: 100%; }
@@ -87,7 +86,6 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
   .mnemonic-path-row input { flex-basis: 100%; }
   .mnemonic-path-row button { width: 100%; }
 }
-.mnemonic-seeds-page .keys-header { padding-top: 10px; padding-bottom: 10px; }
 </style>
 </head>
 <body class="mnemonic-directory-mode">
@@ -228,9 +226,9 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261127f"></script>
-<script src="/balance-cache.js?v=20261127f"></script>
-<script src="/mnemonic-seeds.js?v=20261127f"></script>
-<script src="/site.js?v=20261127f"></script>
+<script src="/seed.js?v=20261127g"></script>
+<script src="/balance-cache.js?v=20261127g"></script>
+<script src="/mnemonic-seeds.js?v=20261127g"></script>
+<script src="/site.js?v=20261127g"></script>
 </body>
 </html>

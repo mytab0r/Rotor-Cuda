@@ -32,6 +32,11 @@ evidence (a screenshot or the DOM check below).
 - [ ] Cards use padding 16/20/24 and radius 12/16 with no translateY hover;
       stat labels are 12px sentence case and values are 20/24/28 with tabular
       digits (`card-padding-scale`, `stat-geometry`).
+- [ ] Tables use `.data-table` inside `.table-scroll`; headers are 12px/600
+      sentence case, cell padding is 8/12, rows are ≥44 and row actions sit at
+      the trailing edge (`table-grammar`, `table-header-style`,
+      `table-row-height`, `row-action-geometry`). Mobile keeps the scroll
+      wrapper and all columns.
 - [ ] No page-local `<style>` rule re-implements a shared component; move it
       to `site.css` in the batch that owns the family.
 - [ ] Every icon-only action uses `.icon-button` (quiet/outline/solid,

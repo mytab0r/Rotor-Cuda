@@ -1104,22 +1104,26 @@
   /* Chain identity for one address row: icon id from /icons.svg plus ticker. */
   function chainMeta(id) {
     if (EVM_CHAINS[id]) {
-      return { ticker: EVM_CHAINS[id].symbol, icon: 'chain-' + EVM_CHAINS[id].slug };
+      return {
+        ticker: EVM_CHAINS[id].symbol,
+        icon: 'chain-' + EVM_CHAINS[id].slug,
+        decimals: Number.isInteger(EVM_CHAINS[id].decimals) ? EVM_CHAINS[id].decimals : 18
+      };
     }
     var table = {
-      btc: { ticker: 'BTC', icon: 'chain-bitcoin' },
-      ltc: { ticker: 'LTC', icon: 'chain-litecoin' },
-      doge: { ticker: 'DOGE', icon: 'chain-dogecoin' },
-      bch: { ticker: 'BCH', icon: 'chain-bitcoin-cash' },
-      zcash: { ticker: 'ZEC', icon: 'chain-zcash' },
-      xrp: { ticker: 'XRP', icon: 'chain-xrp' },
-      solana: { ticker: 'SOL', icon: 'chain-solana' },
-      sui: { ticker: 'SUI', icon: 'chain-sui' },
-      ton: { ticker: 'TON', icon: 'chain-ton' },
-      tron: { ticker: 'TRX', icon: 'chain-tron' }
+      btc: { ticker: 'BTC', icon: 'chain-bitcoin', decimals: 8 },
+      ltc: { ticker: 'LTC', icon: 'chain-litecoin', decimals: 8 },
+      doge: { ticker: 'DOGE', icon: 'chain-dogecoin', decimals: 8 },
+      bch: { ticker: 'BCH', icon: 'chain-bitcoin-cash', decimals: 8 },
+      zcash: { ticker: 'ZEC', icon: 'chain-zcash', decimals: 8 },
+      xrp: { ticker: 'XRP', icon: 'chain-xrp', decimals: 6 },
+      solana: { ticker: 'SOL', icon: 'chain-solana', decimals: 9 },
+      sui: { ticker: 'SUI', icon: 'chain-sui', decimals: 9 },
+      ton: { ticker: 'TON', icon: 'chain-ton', decimals: 9 },
+      tron: { ticker: 'TRX', icon: 'chain-tron', decimals: 6 }
     };
     var prefix = String(id).split('_')[0];
-    return table[id] || table[prefix] || { ticker: String(id).toUpperCase(), icon: 'ui-blockchain' };
+    return table[id] || table[prefix] || { ticker: String(id).toUpperCase(), icon: 'ui-blockchain', decimals: 0 };
   }
 
   function typeLabel(addr) {
@@ -1783,66 +1787,62 @@
     });
   }
 
-  /* Full precision stays in `title`; the table shows a shortened amount. */
-  function fullAmount(summary) {
-    var amount = 0n;
-    try {
-      amount = BigInt(summary && summary.amount != null ? summary.amount : 0);
-    } catch (err) {
-      amount = 0n;
-    }
-    var decimals = summary && Number.isInteger(summary.decimals) ? summary.decimals : 0;
-    var unit = 1n;
-    for (var index = 0; index < decimals; index += 1) unit *= 10n;
-    var whole = amount / unit;
-    var fraction = decimals > 0 ? (amount % unit).toString().padStart(decimals, '0').replace(/0+$/, '') : '';
-    var text = fraction ? whole.toString() + '.' + fraction : whole.toString();
-    return text + (summary && summary.symbol ? ' ' + summary.symbol : '');
-  }
-
-  function shortAmount(text) {
-    var point = text.indexOf('.');
-    if (point < 0) return text;
-    var whole = text.slice(0, point);
-    if (whole === '0') return text;
-    var match = /^\.(\d+)/.exec(text.slice(point));
-    if (!match || match[1].length <= 2) return text;
-    return whole + '.' + match[1].slice(0, 2) + text.slice(point + 1 + match[1].length);
+  /* One formatter for the row and its title. Missing provider decimals fall
+   * back to the chain metadata (TRX 6, SOL 9, BTC 8, EVM 18, ...), never to a
+   * blanket 18. */
+  function normalizedSummary(summary, id) {
+    if (!summary) return summary;
+    var meta = chainMeta(id);
+    return {
+      amount: summary.amount,
+      chain: summary.chain,
+      symbol: summary.symbol || meta.ticker,
+      decimals: Number.isInteger(summary.decimals) ? summary.decimals : meta.decimals,
+      active: summary.active === true,
+      txs: summary.txs,
+      nonce: summary.nonce,
+      lastTxAt: summary.lastTxAt,
+      note: summary.note,
+      balanceSat: summary.balanceSat,
+      receivedSat: summary.receivedSat
+    };
   }
 
   function renderBalanceOutcome(row, badge, summary, meta) {
     var settings = meta || {};
+    var id = row.getAttribute('data-id');
+    var normalized = normalizedSummary(summary, id);
     var amount = 0n;
     try {
-      amount = BigInt(summary && summary.amount != null ? summary.amount : 0);
+      amount = BigInt(normalized && normalized.amount != null ? normalized.amount : 0);
     } catch (err) {
       amount = 0n;
     }
-    var full = fullAmount(summary);
-    var detail = settings.detail && settings.detail !== full ? ' · ' + settings.detail : '';
+    var helper = window.RotorKeyTools;
+    var lastTxAge = normalized && normalized.lastTxAt ? timeAgo(normalized.lastTxAt) : '';
+    var line = helper && typeof helper.balanceLine === 'function'
+      ? helper.balanceLine(normalized, { age: settings.age, lastTxAge: lastTxAge })
+      : '';
     row.classList.toggle('has-balance', amount > 0n);
-    row.classList.toggle('is-active', !!(summary && summary.active === true));
-    row.dataset.active = summary && summary.active === true ? '1' : '0';
+    row.classList.toggle('is-active', !!(normalized && normalized.active === true));
+    row.dataset.active = normalized && normalized.active === true ? '1' : '0';
     if (amount > 0n) {
-      setBalance(badge, 'ok', shortAmount(full), {
-        title: full + detail,
-        ariaLabel: full + ' balance',
-        age: settings.age
+      setBalance(badge, 'ok', line, {
+        title: line,
+        ariaLabel: line + ' balance'
       });
       return;
     }
-    if (summary && summary.active === true) {
-      setBalance(badge, 'active', '✓', {
-        title: 'Active, zero balance' + detail,
-        ariaLabel: 'Active, zero balance',
-        age: settings.age
+    if (normalized && normalized.active === true) {
+      setBalance(badge, 'active', line || '✓', {
+        title: line || 'Active, zero balance',
+        ariaLabel: line || 'Active, zero balance'
       });
       return;
     }
-    setBalance(badge, 'empty', '-', {
-      title: 'Checked; no balance or activity' + detail,
-      ariaLabel: 'Checked, no balance or activity',
-      age: settings.age
+    setBalance(badge, 'empty', line || '-', {
+      title: line || 'Checked; no balance or activity',
+      ariaLabel: line || 'Checked, no balance or activity'
     });
   }
 
@@ -1997,7 +1997,8 @@
         chain: chain.slug,
         symbol: chain.symbol,
         decimals: 18,
-        active: nonceCount > 0n
+        active: nonceCount > 0n,
+        nonce: Number(nonceCount)
       }
     };
   }
@@ -2047,7 +2048,15 @@
     if (response.status === 404) {
       return {
         text: '0 TRX · account not activated',
-        summary: { amount: 0n, chain: 'tron', symbol: 'TRX', decimals: 6, active: false }
+        summary: {
+          amount: 0n,
+          chain: 'tron',
+          symbol: 'TRX',
+          decimals: 6,
+          active: false,
+          txs: 0,
+          note: 'account not activated'
+        }
       };
     }
     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -2068,7 +2077,8 @@
         chain: 'tron',
         symbol: 'TRX',
         decimals: 6,
-        active: txs !== null && txs > 0
+        active: txs !== null && txs > 0,
+        txs: txs
       }
     };
   }
@@ -2101,7 +2111,15 @@
     var lastTxAt = typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : null;
     return {
       text: tronText(sun, txs, lastTxAt),
-      summary: { amount: sun === null ? 0n : sun, chain: 'tron', symbol: 'TRX' }
+      summary: {
+        amount: sun === null ? 0n : sun,
+        chain: 'tron',
+        symbol: 'TRX',
+        decimals: 6,
+        active: txs !== null && txs > 0,
+        txs: txs,
+        lastTxAt: lastTxAt
+      }
     };
   }
 
@@ -2125,8 +2143,16 @@
     );
     if (response.status === 404) {
       return {
-        text: '0 drops · account not activated',
-        summary: { amount: 0n, chain: 'xrp', symbol: 'XRP', decimals: 6, active: false }
+        text: '0 XRP · account not activated',
+        summary: {
+          amount: 0n,
+          chain: 'xrp',
+          symbol: 'XRP',
+          decimals: 6,
+          active: false,
+          txs: 0,
+          note: 'account not activated'
+        }
       };
     }
     var parsed = await parseProviderJson(response, 'parseXrpAccount');
@@ -2139,7 +2165,8 @@
         chain: 'xrp',
         symbol: 'XRP',
         decimals: 6,
-        active: txs === null ? drops > 0n : txs > 0
+        active: txs === null ? drops > 0n : txs > 0,
+        txs: txs
       }
     };
   }
@@ -2354,7 +2381,7 @@
       chain: summary.chain || meta.ticker,
       symbol: summary.symbol || meta.ticker,
       amount: summary.amount,
-      decimals: Number.isInteger(summary.decimals) ? summary.decimals : 18
+      decimals: Number.isInteger(summary.decimals) ? summary.decimals : meta.decimals
     };
   }
 
@@ -2444,8 +2471,8 @@
       chain: chain,
       address: address,
       key: cacheApi
-        ? cacheApi.cacheKey(provider, chain, address)
-        : provider + '|' + chain + '|' + address
+        ? cacheApi.cacheKey('v2:' + provider, chain, address)
+        : 'v2:' + provider + '|' + chain + '|' + address
     };
   }
 
@@ -2471,11 +2498,14 @@
         amount: BigInt(String(summary.amount)),
         chain: summary.chain || '',
         symbol: summary.symbol || '',
-        decimals: Number.isInteger(summary.decimals) ? summary.decimals : 18,
+        decimals: Number.isInteger(summary.decimals) ? summary.decimals : undefined,
         active: summary.active === true,
+        txs: Number.isInteger(summary.txs) ? summary.txs : undefined,
+        nonce: Number.isInteger(summary.nonce) ? summary.nonce : undefined,
+        lastTxAt: Number.isFinite(summary.lastTxAt) ? summary.lastTxAt : undefined,
+        note: summary.note || '',
         balanceSat: BigInt(String(summary.balanceSat || '0')),
-        receivedSat: BigInt(String(summary.receivedSat || '0')),
-        txs: Number(summary.txs || 0)
+        receivedSat: BigInt(String(summary.receivedSat || '0'))
       };
     } catch (err) {
       return null;
@@ -2490,11 +2520,14 @@
         amount: summary.amount == null ? '0' : String(summary.amount),
         chain: summary.chain || '',
         symbol: summary.symbol || '',
-        decimals: Number.isInteger(summary.decimals) ? summary.decimals : 18,
+        decimals: Number.isInteger(summary.decimals) ? summary.decimals : undefined,
         active: summary.active === true,
+        txs: Number.isInteger(summary.txs) ? summary.txs : undefined,
+        nonce: Number.isInteger(summary.nonce) ? summary.nonce : undefined,
+        lastTxAt: Number.isFinite(summary.lastTxAt) ? summary.lastTxAt : undefined,
+        note: summary.note || '',
         balanceSat: String(summary.balanceSat == null ? '0' : summary.balanceSat),
-        receivedSat: String(summary.receivedSat == null ? '0' : summary.receivedSat),
-        txs: Number(summary.txs || 0)
+        receivedSat: String(summary.receivedSat == null ? '0' : summary.receivedSat)
       };
     }
     return value;
@@ -2512,8 +2545,7 @@
     row.dataset.balanceAt = String(entry.fetchedAt || '');
     if (summary) {
       renderBalanceOutcome(row, badge, summary, {
-        age: cacheApi ? cacheApi.ageLabel(entry, now) : '',
-        detail: value.text
+        age: cacheApi ? cacheApi.ageLabel(entry, now) : ''
       });
     } else {
       setBalance(badge, 'ok', value.text, { title: value.text, age: cacheApi ? cacheApi.ageLabel(entry, now) : '' });
@@ -2602,8 +2634,7 @@
       }
       if (result && result.summary) {
         renderBalanceOutcome(row, badge, result.summary, {
-          age: entry ? cacheApi.ageLabel(entry, Date.now()) : '',
-          detail: value.text
+          age: entry ? cacheApi.ageLabel(entry, Date.now()) : ''
         });
       } else {
         setBalance(badge, 'ok', value.text, {

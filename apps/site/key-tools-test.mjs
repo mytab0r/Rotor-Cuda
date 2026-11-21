@@ -60,6 +60,12 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertEqual(actual, expected, message) {
+  if (actual !== expected) {
+    throw new Error(`${message}\n  expected: ${expected}\n  actual:   ${actual}`);
+  }
+}
+
 // ---------------------------------------------------------------- integer helpers
 
 const integerCases = [
@@ -827,6 +833,58 @@ const unchecked = tools.balanceCounters([
 ]);
 assert(unchecked.checked === 0, "a loading row keeps its chain group unchecked");
 assert(unchecked.total === 18, "the Checked denominator is the fixed 18 chain groups");
+
+// Balance line: decimals and symbol come from the summary. The row text and
+// the title are built by the same function, so a TRX balance cannot use 18
+// decimals while its title uses 6.
+assertEqual(
+  tools.formatAtomic({ amount: 10343145665n, decimals: 6, symbol: "TRX" }),
+  "10343.145665 TRX",
+  "TRX uses 6 decimals from the summary"
+);
+assertEqual(
+  tools.formatAtomic({ amount: 10343145665n, decimals: 18, symbol: "TRX" }),
+  "0.000000010343145665 TRX",
+  "the same atomic amount at 18 decimals is the regression value"
+);
+assertEqual(
+  tools.balanceLine(
+    { amount: 10343145665n, decimals: 6, symbol: "TRX", txs: 1122 },
+    { lastTxAge: "2h ago" }
+  ),
+  "10343.145665 TRX · 1122 tx · last 2h ago",
+  "TRX line carries the tx count and last-tx age"
+);
+assertEqual(
+  tools.balanceLine({ amount: 1234567890n, decimals: 9, symbol: "SOL" }),
+  "1.23456789 SOL",
+  "SOL uses 9 decimals"
+);
+assertEqual(
+  tools.balanceLine({ amount: 1234567n, decimals: 6, symbol: "XRP", txs: 4 }),
+  "1.234567 XRP · 4 tx",
+  "XRP uses 6 decimals and keeps the tx count"
+);
+assertEqual(
+  tools.balanceLine({ amount: 1000000000000000000n, decimals: 18, symbol: "ETH", nonce: 3 }),
+  "1 ETH · nonce 3",
+  "EVM lines use 18 decimals and the nonce"
+);
+assertEqual(
+  tools.balanceLine({ amount: 100000000000n, decimals: 9, symbol: "TON" }),
+  "100 TON",
+  "TON uses 9 decimals"
+);
+assertEqual(
+  tools.balanceLine({ amount: 0n, decimals: 6, symbol: "TRX", txs: 1122 }, { lastTxAge: "2h ago" }),
+  "0 TRX · 1122 tx · last 2h ago",
+  "a zero TRX balance still carries the activity"
+);
+assertEqual(
+  tools.balanceLine({ amount: 0n, decimals: 6, symbol: "TRX", note: "account not activated" }),
+  "0 TRX · account not activated",
+  "a provider note is part of the same line"
+);
 
 // ------------------------------------------------------ both-curve row merge
 // The donor derives every 32-byte value on both curves, so the key page table
