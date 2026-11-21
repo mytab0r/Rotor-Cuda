@@ -1,0 +1,21 @@
+[package]
+name = "rust-gpu-secp-spike"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone: never part of the root workspace.
+[workspace]
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+spirv-std = "0.11.0"
+
+[package.metadata.rust-gpu.build]
+output-dir = "."
+target = "spirv-unknown-vulkan1.2"
+release = true
+multimodule = false
+spirv-metadata = "None"
