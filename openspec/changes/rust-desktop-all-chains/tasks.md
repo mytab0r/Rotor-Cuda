@@ -39,7 +39,7 @@
 ## 3. secp-hash160 family [desktop]
 - [ ] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160
       with chain-specific display. (blocked by: 2)
-- [ ] Target loaders accept `.bin` 20-byte records and text addresses for each
+- [x] Target loaders accept `.bin` 20-byte records and text addresses for each
       chain; mixed chains in one file are rejected.
 - [ ] Compressed/uncompressed modes and address types remain explicit; tests
       use published vectors.
