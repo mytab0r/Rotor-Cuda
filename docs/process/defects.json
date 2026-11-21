@@ -232,6 +232,13 @@
       "symptom": "At <=560px the phone-density rule forced a three-column grid on the account-chain directory summary, so its two Balance/Active cards left the third cell empty.",
       "detector": "summary-grid-orphan",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-info-page-local-button",
+      "reported": "2026-11-21",
+      "symptom": "The /key info control shipped a page-local button.key-info-btn (44px box, radius 8, 16px glyph) instead of the shared .icon-button component, so icon-only actions had a second control size.",
+      "detector": "icon-only-shared-component",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

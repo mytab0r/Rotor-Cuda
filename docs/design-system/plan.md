@@ -509,3 +509,11 @@ entry in the same PR.
     (31 entries), `site-map-test`, all 19 site test commands and
     `cargo test --release --test coordinator_api --test coordinator_client`
     (19 + 3) pass.
+- Batch 2 follow-up: the `/key` info affordance moved from the page-local
+  `button.key-info-btn` (deleted from `site.css`) to
+  `.icon-button icon-button--quiet`, closing the one control batch 2 excluded.
+  Detector `icon-only-shared-component` fails any rendered interactive element
+  that has an icon and no visible text without `.icon-button`; ledger entry
+  `key-info-page-local-button`. Asset version `20261128a`; full default route
+  set (release coordinator on `127.0.0.1:7900`, `:7899` contended): **PASS, 204
+  page runs across 34 routes, 0 violations**.
