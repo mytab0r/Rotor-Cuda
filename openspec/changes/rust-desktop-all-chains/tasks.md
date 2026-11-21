@@ -53,7 +53,7 @@
 - [ ] Explorer/network metadata shared with the site descriptor fixture.
 
 ## 5. Ed25519 family [desktop+wasm]
-- [ ] New CPU engine for 32-byte seed ranges: ed25519 public key; SOL base58,
+- [x] New CPU engine for 32-byte seed ranges: ed25519 public key; SOL base58,
       SUI BLAKE2b-256 account. (blocked by: 2)
 - [ ] Target parsing and `Found.txt` for both; xpoint/BSGS rejected.
 - [ ] Fixtures from `derive_report` curve=1; test seed 1 and a random seed.

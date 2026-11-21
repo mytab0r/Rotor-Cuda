@@ -177,6 +177,13 @@ follow-ups were code-only.
   before `brainwallet-directory.js`. Tests: `apps/site/key-tools-test.mjs`
   uncompressed LTC/DOGE round-trip, `apps/site/brainwallet-test.mjs`
   LTC/DOGE WIF prefixes.
+- [x] Key-directory search copy follows the chain (2026-11-22, code-only): the
+  donor names each chain's own WIF shape in the search placeholder and hint;
+  ours said Bitcoin's 5/K/L on all 18 directories. `browse_search_placeholder` /
+  `browse_search_hint` now render BTC/BCH/ZEC 5/K/L, LTC 6/T, DOGE Q/6 and
+  `HEX or Brainwallet` on account-model chains. Evidence:
+  `src/coordinator/mod.rs` (helpers + call sites). Test:
+  `browse_search_placeholder_names_the_chain_wif_shape`.
 
 ## P1 — shell and templates
 

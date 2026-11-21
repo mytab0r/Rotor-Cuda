@@ -171,7 +171,8 @@ fn main() {
                 ),
                 Family::SecpHash160,
             )
-            | (Some(SearchMode::Address | SearchMode::Addresses), Family::EvmKeccak) => {
+            | (Some(SearchMode::Address | SearchMode::Addresses), Family::EvmKeccak)
+            | (Some(SearchMode::Address | SearchMode::Addresses), Family::Ed25519) => {
                 #[cfg(feature = "gpu")]
                 if config.gpu {
                     match rotor::gpu_search::run(&config) {
@@ -202,11 +203,13 @@ fn main() {
                 }
             }
             _ => {
-                let mode = config.mode.unwrap_or(SearchMode::Address);
-                eprintln!(
-                    "  Error: {}",
-                    cli::unsupported_mode_message(config.chain, mode)
-                );
+                let error = match config.mode {
+                    Some(mode) => cli::unsupported_mode_message(config.chain, mode),
+                    None => {
+                        "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
+                    }
+                };
+                eprintln!("  Error: {error}");
                 std::process::exit(2);
             }
         }
