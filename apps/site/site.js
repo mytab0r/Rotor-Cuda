@@ -449,10 +449,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261126a'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261126a'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261126a'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261126a'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261126c'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261126c'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261126c'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261126c'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
@@ -1381,10 +1381,154 @@
     });
   }
 
+  /* Shared tooltip for any element with data-tooltip. Delegated, so rows and
+   * menus rendered later get it without setup. Hover waits ~150ms; keyboard
+   * focus shows it at once; a pointer press keeps it out of the way. The node
+   * is fixed-position and lives on <body>, so it never shifts layout. */
+  function setupTooltips() {
+    var HOVER_DELAY = 150;
+    var CLICK_GRACE = 500;
+    var shownFor = null;
+    var pendingFor = null;
+    var originalDescribedBy = null;
+    var timer = null;
+    var tip = null;
+    var pointerDownAt = 0;
+
+    function node() {
+      if (tip && tip.isConnected) return tip;
+      tip = document.createElement('div');
+      tip.id = 'ui-tooltip';
+      tip.className = 'ui-tooltip';
+      tip.setAttribute('role', 'tooltip');
+      tip.hidden = true;
+      document.body.appendChild(tip);
+      return tip;
+    }
+
+    function targetOf(event) {
+      var from = event.target;
+      if (!from || typeof from.closest !== 'function') return null;
+      return from.closest('[data-tooltip]');
+    }
+
+    function clearTimer() {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      pendingFor = null;
+    }
+
+    function withoutTooltipId(target) {
+      var value = (target.getAttribute('aria-describedby') || '').trim();
+      if (!value) return '';
+      return value.split(/\s+/).filter(function (part) {
+        return part && part !== 'ui-tooltip';
+      }).join(' ');
+    }
+
+    function place(target) {
+      var el = node();
+      el.style.visibility = 'hidden';
+      var tipBox = el.getBoundingClientRect();
+      var targetBox = target.getBoundingClientRect();
+      var gap = 8;
+      var edge = 8;
+      var top = targetBox.top - tipBox.height - gap;
+      if (top < edge) top = targetBox.bottom + gap;
+      var left = targetBox.left + (targetBox.width - tipBox.width) / 2;
+      var maxLeft = window.innerWidth - tipBox.width - edge;
+      if (left < edge) left = edge;
+      if (left > maxLeft) left = Math.max(edge, maxLeft);
+      el.style.top = Math.round(top) + 'px';
+      el.style.left = Math.round(left) + 'px';
+      el.style.visibility = '';
+    }
+
+    function show(target) {
+      if (!target || !target.isConnected) return;
+      var text = target.getAttribute('data-tooltip') || '';
+      if (!text) return;
+      if (shownFor === target) return;
+      hide();
+      var el = node();
+      el.textContent = text;
+      el.hidden = false;
+      place(target);
+      shownFor = target;
+      originalDescribedBy = target.getAttribute('aria-describedby');
+      var ids = withoutTooltipId(target);
+      target.setAttribute('aria-describedby', ids ? ids + ' ui-tooltip' : 'ui-tooltip');
+    }
+
+    function hide() {
+      clearTimer();
+      if (!shownFor) {
+        if (tip) tip.hidden = true;
+        return;
+      }
+      if (originalDescribedBy === null) shownFor.removeAttribute('aria-describedby');
+      else shownFor.setAttribute('aria-describedby', originalDescribedBy);
+      shownFor = null;
+      originalDescribedBy = null;
+      if (tip) tip.hidden = true;
+    }
+
+    document.addEventListener('pointerover', function (event) {
+      if (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen') return;
+      var target = targetOf(event);
+      if (!target || target === shownFor || target === pendingFor) return;
+      clearTimer();
+      pendingFor = target;
+      timer = window.setTimeout(function () {
+        timer = null;
+        pendingFor = null;
+        show(target);
+      }, HOVER_DELAY);
+    });
+
+    document.addEventListener('pointerout', function (event) {
+      var target = targetOf(event);
+      if (!target) return;
+      var next = event.relatedTarget;
+      if (next && typeof next.closest === 'function' && next.closest('[data-tooltip]') === target) return;
+      clearTimer();
+      if (shownFor === target) hide();
+    });
+
+    document.addEventListener('focusin', function (event) {
+      var target = targetOf(event);
+      if (!target) return;
+      if (Date.now() - pointerDownAt < CLICK_GRACE) return;
+      show(target);
+    });
+
+    document.addEventListener('focusout', function (event) {
+      var target = targetOf(event);
+      if (target && shownFor === target) hide();
+    });
+
+    document.addEventListener('pointerdown', function () {
+      pointerDownAt = Date.now();
+      hide();
+    }, true);
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' || event.key === 'Esc') hide();
+    });
+
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+
+    window.RotorTooltip = { show: show, hide: hide };
+  }
+
   installGlobalSearch();
   markNavigation();
   setupNav();
   bindKeySearches();
+  setupTooltips();
 
   window.Rotor = {
     TOKEN_KEY: TOKEN_KEY,
