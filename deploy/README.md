@@ -83,7 +83,15 @@ to a TronScan Pro API key. The key stays on the server: it is sent only as the
 `TRON-PRO-API-KEY` header to `apilist.tronscanapi.com` and never appears in
 responses, errors or browser code. The route is public but rate-limited per
 client IP. Without the key it answers `501 {"error":"no_provider"}` and the
-browser falls back to its previous direct TronScan request. If TronScan reports
+browser falls back to its previous direct TronScan request.
+
+To stop the provider from seeing the origin, set `EDGE_PROXY_URL`
+(for example `https://rotor.pxbt.app/edge`) and `EDGE_PROXY_SECRET` in the
+environment. TRON lookups then go through the `deploy/cloudflare/provider-proxy`
+Worker, which adds its own `TRONSCAN_API_KEY`; the coordinator sends only
+`X-Edge-Secret`. With both variables unset the direct path above is unchanged.
+See `docs/ops/privacy.md` for the tunnel, DNS, firewall, header and Logpush
+model. If TronScan reports
 a negative balance (its own 64-bit overflow for huge accounts), the route
 returns `balance_sun:null` with `balance_error:"provider_overflow"` instead of a
 wrong number. TronScan failures are a short `502`; one retry is made on
