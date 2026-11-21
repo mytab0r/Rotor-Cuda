@@ -55,6 +55,26 @@ HTML MUST stay `no-store`. Source: `src/coordinator/mod.rs` (`handle`,
 - WHEN the coordinator handles it
 - THEN the response is `404`
 
+### Requirement: HEAD mirrors GET for public resources
+Every public route (embedded assets, build-fingerprinted assets, SEO pages,
+redirects and the unknown non-API 404 page) MUST accept `HEAD` and answer with
+the same status and the same `Cache-Control`, `ETag` and `Content-Type` a `GET`
+would produce, with an empty body. `HEAD` MUST NOT enter an API handler or
+create a side effect. Source: `src/coordinator/mod.rs` (`handle`); `tiny_http`
+suppresses the body for a `HEAD` response while keeping the headers.
+
+#### Scenario: HEAD on assets and a page
+- GIVEN a coordinator serving `/site.css`, `/docs` and `/a/<build>/site.css`
+- WHEN each is requested with `HEAD`
+- THEN the status and the `Cache-Control`, `ETag` and `Content-Type` headers
+  equal the `GET` response for the same path
+- AND the `HEAD` body is empty while the `GET` body is not
+
+#### Scenario: HEAD on an unknown page
+- GIVEN an unknown non-API path
+- WHEN it is requested with `HEAD`
+- THEN the response is `404` with an empty body
+
 ### Requirement: no protocol change
 The browser client MUST use the existing `/api/v1/jobs`, `/lease`, `/heartbeat`
 and `/result` endpoints and the existing token, lease-nonce and challenge-sample
