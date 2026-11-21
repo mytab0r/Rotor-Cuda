@@ -73,6 +73,12 @@ directory and printed at the end.
 | `wallet-seed-strength` | `/cabinet/wallet` seed block: strength line missing/hidden or without a word count/entropy figure, info control not the shared `.icon-button`, or Generate/Add under 44x44 | Fix the block markup and keep the shared field/segmented/icon-button grammar; the line must be computed from the phrase. |
 | `brainwallet-row-count` / `puzzle-row-count` | directory/home row count regressed | Restore the 60 / 160 row contract or update the audit deliberately with the change spec. |
 | `site-map-still-served` | `/site-map` returns 200 | After the docs move it must 404; remove the route rather than hiding the link. |
+| `token-contract` | tokens.json, the generated region and the frozen contract disagree, or a first-party `var(--x)` has no declaration | Fix the JSON/generator/contract together; never hand-edit the generated region. |
+| `orphan-token` | a declared token has no first-party consumer | Add the consumer in the batch that needs it, or mark it `reserved` in tokens.json with a reason; the grace period lives in review, not in code. |
+| `theme-parity` | a colour token declared in `:root` has no declaration under `html[data-theme="light"]` | Add the light value (an alias is enough); never leave light mode on a dark fallback. |
+| `radius-scale` | a literal `border-radius` outside `0`/`inherit`/`50%` | Use `var(--radius-*)`; an off-scale value needs a scale decision, not a page-local literal. |
+| `raw-hex-outside-root` | a raw colour outside the generated token regions (CSS or inline style) | Use the exact token, or baseline it with a reason; never edit the generated region by hand. |
+| `legacy-selector` | a page-scoped selector overrides a shared component family | Move the rule into the shared component; keep a temporary exception as a baseline entry with a reason. |
 
 Console errors are recorded as warnings, not failures. A warning still needs a
 look when it comes from the page you changed.

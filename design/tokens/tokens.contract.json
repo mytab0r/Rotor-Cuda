@@ -125,6 +125,21 @@
     "--text",
     "--text-2",
     "--track",
-    "--warn"
+    "--warn",
+    "--surface-0",
+    "--surface-1",
+    "--surface-2",
+    "--surface-3",
+    "--line-subtle",
+    "--line-strong",
+    "--ink-1",
+    "--ink-2",
+    "--ink-3",
+    "--signal",
+    "--signal-soft",
+    "--signal-ink",
+    "--state-ok",
+    "--state-warn",
+    "--state-err"
   ]
 }
