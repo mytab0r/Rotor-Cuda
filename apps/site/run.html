@@ -418,7 +418,7 @@
     setError('Page error: ' + (event.message || 'unknown error'));
   });
 
-  worker = new Worker('/rotor-worker.js');
+  worker = new Worker(window.RotorAssets ? window.RotorAssets.url('/rotor-worker.js') : '/rotor-worker.js');
   worker.onmessage = function (event) {
     var message = event.data || {};
     if (message.type === 'state') handleState(message);

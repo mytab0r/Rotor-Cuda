@@ -506,7 +506,9 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 - The app and cabinet shells (`/app`, `/run`, `/me`, `/cabinet`,
   `/cabinet/wallet`) intentionally render no footer.
 - HTML responses are served with `Cache-Control: no-store`, so a cache cannot
-  keep an older shell without the footer; non-HTML assets keep `no-cache`.
+  keep an older shell without the footer. Every first-party asset is referenced
+  as `/a/<build>/<path>` and served `public, max-age=31536000, immutable`; bare
+  asset paths keep `no-cache` with an `ETag` for old links.
 - Enforced by `scripts/ui-audit.mjs` `footer-presence` per route and by
   `tests/coordinator_api.rs::every_public_content_route_renders_exactly_one_footer`
   across the coordinator's public content route list.
@@ -582,9 +584,9 @@ off shimmer/spin/entrance.
    change the threshold with a comment and a ledger entry.
 5. Every defect gets a detector before its fix (`docs/process/defects.json`,
    `scripts/check-defect-ledger.mjs`).
-6. Never add a `?v=` cache token: HTML is served with `no-store` and every
-   other asset with `no-cache` plus a content `ETag`, so it revalidates on the
-   next request.
+6. Never add a `?v=` cache token: HTML is served with `no-store` and references
+   assets as `/a/<build>/<path>` (immutable); bare asset paths revalidate by
+   `ETag`.
 7. The author never signs off their own UI PR; a different agent reviews
    screenshots and computed geometry at 375/768/1280 in both themes.
 

@@ -8,7 +8,14 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
+  /* The worker is started from `/a/<build>/rotor-worker.js`; derive the build
+   * from its own URL so the wasm fetch stays immutable too. */
+  function assetUrl(path) {
+    var match = self.location && /^\/a\/([^/]+)\//.exec(self.location.pathname);
+    return match ? '/a/' + match[1] + path : path;
+  }
+
+  var WASM_URL = assetUrl('/rotor_wasm.wasm');
   // One slice is sized for roughly SLICE_TARGET_SECONDS of work so a progress
   // heartbeat is not delayed by a long scan on a slow phone. The next size is
   // re-derived from the measured per-slice rate after every call.

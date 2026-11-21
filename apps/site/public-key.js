@@ -33,7 +33,7 @@
   function loadWasm() {
     if (state.wasm) return Promise.resolve(state.wasm);
     if (state.promise) return state.promise;
-    state.promise = window.RotorKeyTools.loadWasm('/rotor_wasm.wasm').then(function (wasm) {
+    state.promise = window.RotorKeyTools.loadWasm(window.RotorAssets.url('/rotor_wasm.wasm')).then(function (wasm) {
       if (typeof wasm.public_key_report !== 'function') {
         throw new Error('This build of the calculation core has no public_key_report export. Reload the page.');
       }

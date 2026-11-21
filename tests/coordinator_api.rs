@@ -112,6 +112,15 @@ fn response_header(head: &str, name: &str) -> Option<String> {
         .map(|(_, value)| value.trim().to_string())
 }
 
+/// Build id the coordinator stamped into the served document. Tests do not
+/// link against the private `BUILD_ID`; they read what a browser would read.
+fn page_build(body: &str) -> String {
+    let marker = "data-build=\"";
+    let start = body.find(marker).expect("page carries data-build") + marker.len();
+    let end = start + body[start..].find('"').expect("closing data-build quote");
+    body[start..end].to_string()
+}
+
 fn hex_bytes(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -215,6 +224,93 @@ fn site_assets_revalidate_by_etag() {
         &[("If-None-Match", "\"stale\"")],
     );
     assert_eq!(status, 200);
+}
+
+#[test]
+fn html_references_build_fingerprinted_assets() {
+    let temp = TempState::new("fingerprint");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    // Both render paths (static pages and generated SEO pages) must point at
+    // the build-prefixed URL; a bare asset reference would be cached with the
+    // edge's own TTL instead of the immutable one.
+    let mut build = String::new();
+    for (route, asset) in [
+        ("/", "/site.js"),
+        ("/docs", "/site.css"),
+        ("/faq", "/site.js"),
+    ] {
+        let (status, headers, body) = raw(addr, "GET", route, None, None);
+        assert_eq!(status, 200, "{route}");
+        assert!(
+            headers
+                .to_ascii_lowercase()
+                .contains("cache-control: no-store"),
+            "{route}: {headers}"
+        );
+        build = page_build(&body);
+        let fingerprinted = format!("\"/a/{build}{asset}\"");
+        assert!(
+            body.contains(&fingerprinted),
+            "{route} must reference {fingerprinted}"
+        );
+        assert!(
+            !body.contains(&format!("\"{asset}\"")),
+            "{route} must not reference the bare {asset}"
+        );
+    }
+
+    let (status, headers, _) = raw(addr, "GET", &format!("/a/{build}/site.css"), None, None);
+    assert_eq!(status, 200);
+    let lower = headers.to_ascii_lowercase();
+    assert!(
+        lower.contains("cache-control: public, max-age=31536000, immutable"),
+        "fingerprinted assets must be immutable: {headers}"
+    );
+    assert!(lower.contains("etag:"), "immutable assets keep their ETag");
+    let etag = response_header(&headers, "ETag").expect("ETag");
+    let (status, headers, body) = raw_with_headers(
+        addr,
+        "GET",
+        &format!("/a/{build}/site.css"),
+        None,
+        None,
+        &[("If-None-Match", &etag)],
+    );
+    assert_eq!(status, 304);
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("cache-control: public, max-age=31536000, immutable"),
+        "304 keeps the immutable policy: {headers}"
+    );
+    assert!(body.is_empty());
+
+    // Old bookmarks and curl keep working on the bare path.
+    let (status, _, _) = raw(addr, "GET", "/site.css", None, None);
+    assert_eq!(status, 200);
+
+    // A build segment from an older deploy still resolves (the bytes are this
+    // build's), so a cached shell does not 404 its assets.
+    let (status, _, body_older) = raw(addr, "GET", "/a/older-build/site.css", None, None);
+    assert_eq!(status, 200);
+    let (_, _, bare_body) = raw(addr, "GET", "/site.css", None, None);
+    assert_eq!(body_older, bare_body);
+
+    // An unknown file under the build prefix is a real 404.
+    let (status, _, _) = raw(addr, "GET", &format!("/a/{build}/nope.css"), None, None);
+    assert_eq!(status, 404);
+
+    // The 404 document is emitted HTML too, so it must not ship bare assets.
+    let (status, _, body) = raw(addr, "GET", "/does-not-exist", None, None);
+    assert_eq!(status, 404);
+    assert!(
+        body.contains(&format!("/a/{build}/site.js")),
+        "404 page must reference the fingerprinted site.js: {body}"
+    );
+
+    handle.shutdown();
 }
 
 #[test]

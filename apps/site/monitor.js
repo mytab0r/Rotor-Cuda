@@ -907,7 +907,7 @@
     if (walletConnectLoader) return walletConnectLoader;
     walletConnectLoader = new Promise(function (resolve, reject) {
       var script = document.createElement('script');
-      script.src = '/walletconnect.js';
+      script.src = window.RotorAssets.url('/walletconnect.js');
       script.async = true;
       script.onload = function () {
         if (window.RotorWC && typeof window.RotorWC.connect === 'function') {

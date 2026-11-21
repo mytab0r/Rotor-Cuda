@@ -22,6 +22,39 @@ with `text/html; charset=utf-8`, `application/javascript; charset=utf-8` and
 - THEN the build fails loudly (`include_bytes!`); it MUST NOT serve a redirect,
   a 404 or a stale inline stub
 
+### Requirement: build-fingerprinted assets
+Every HTML document the coordinator emits MUST reference each first-party
+`.css`, `.js`, `.wasm`, `.svg`, `.woff2`, `.png` and `.ico` asset as
+`/a/<ROTOR_BUILD_ID>/<path>`, and MUST expose the build to the runtime as
+`data-build` on `<html>`. The rewrite MUST NOT touch external URLs, `/api/v1/*`
+paths or page routes, and MUST preserve a query string or fragment on the
+original reference. The coordinator MUST serve a build-prefixed asset by
+stripping the first `/a/<segment>/`, answering `Cache-Control: public,
+max-age=31536000, immutable` plus the content `ETag`; any non-empty segment
+resolves, so a shell cached from an older deploy does not 404 its assets. Bare
+asset paths MUST keep working with `Cache-Control: no-cache` and the `ETag`, and
+HTML MUST stay `no-store`. Source: `src/coordinator/mod.rs` (`handle`,
+`fingerprint_assets`, `prefixed_asset_path`), `apps/site/theme.js`
+(`RotorAssets`).
+
+#### Scenario: served page references the build
+- GIVEN a coordinator built with `ROTOR_BUILD_ID=<build>`
+- WHEN `GET /` or `GET /docs` is requested
+- THEN the body references `/a/<build>/site.js` and `/a/<build>/site.css` and
+  contains no bare `"/site.js"` or `"/site.css"` asset reference
+
+#### Scenario: immutable asset
+- GIVEN a page referenced `/a/<build>/site.css`
+- WHEN that URL is requested
+- THEN the response is `200` with `Cache-Control: public,
+  max-age=31536000, immutable` and an `ETag`
+- AND `GET /site.css` still answers `200` with `Cache-Control: no-cache`
+
+#### Scenario: unknown asset under the prefix
+- GIVEN a request for `/a/<build>/nope.css`
+- WHEN the coordinator handles it
+- THEN the response is `404`
+
 ### Requirement: no protocol change
 The browser client MUST use the existing `/api/v1/jobs`, `/lease`, `/heartbeat`
 and `/result` endpoints and the existing token, lease-nonce and challenge-sample
