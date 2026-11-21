@@ -70,11 +70,17 @@ Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdow
    and `:3382-3384` (`summary_cards` in the `/private-keys/<chain>` body),
    `apps/site/site.css:1517-1519`
    (`.balance-summary--account`, two columns, collapsed by the mobile rule at
-   `:1819`), `apps/site/browse.js:156,411-416,578-602,906-945`
+   `:1819`) and `:1898-1901` (the ≤560px phone-density block keeps three
+   columns for three-card summaries and two for the account variant),
+   `apps/site/browse.js:156,411-416,578-602,906-945`
    (`totalActive`, `setSummary` 4th arg, active counting in `renderSummary`,
    best-effort `eth_getTransactionCount` batch in `evmProvider`),
    `tests/coordinator_api.rs:1218`
-   (`private_key_pages_shape_summary_cards_by_chain_model`).
+   (`private_key_pages_shape_summary_cards_by_chain_model`). The
+   `summary-grid-orphan` detector in `scripts/ui-audit.mjs` (ledger entry
+   `docs/process/defects.json`) fails any summary whose card count does not
+   fill its computed column count; it caught the empty third cell at 375px
+   before the ≤560px fix.
 4. **Search controls.** Replace the `#global-search-mode` `<select>` (`apps/site/site.js` ~220) with six chips; keep auto-detect default. Show the BIP39 passphrase + 1/3/5/10 select only for mnemonics — today counts are always visible; no passphrase.
 5. **Search results as cards.** Donor renders 18 `.ws-chain-card`s with name/symbol/balance/`Active` and per-address rows; ours is one table (`renderResults`, `site.js:517`). Switch to cards (table as accessible fallback) and use `N active chains • M active addresses`.
 6. **Split Copy All from CSV.** Donor Copy All = `=== Chain ===` + `address<TAB>key`; CSV is separate. In `apps/site/site.js` both call `toCsv` (~698): add `toText` in `apps/site/search.js`; keep private keys out of CSV (it already exports chain/address/type/explorer, `search.js:388`).

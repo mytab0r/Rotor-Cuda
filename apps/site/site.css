@@ -1897,6 +1897,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 /* Phone density: keep the page scannable rather than a column of cards */
 @media (max-width: 560px) {
   .balance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* Account chains have two cards; keep their row full at phone density. */
+  .balance-summary--account { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat-card { gap: 3px; }
   .stat-card .stat-label { font-size: 12px; letter-spacing: .04em; }
 

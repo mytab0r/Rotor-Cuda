@@ -218,6 +218,13 @@
       "symptom": "Empty states shipped as three page-local classes (.key-empty defined twice, .range-empty, .monitor-empty) with no shared box; error margins drifted to 10px while .error itself carried no margin.",
       "detector": "empty-state-grammar",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "summary-grid-orphan",
+      "reported": "2026-11-21",
+      "symptom": "At <=560px the phone-density rule forced a three-column grid on the account-chain directory summary, so its two Balance/Active cards left the third cell empty.",
+      "detector": "summary-grid-orphan",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

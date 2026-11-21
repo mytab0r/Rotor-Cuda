@@ -117,10 +117,15 @@ a worktree; one writer per area.
       Evidence (2026-11-21): `src/coordinator/mod.rs:1272`
       (`AddressKind::is_utxo`), `:3336-3349` and `:3382-3384` (card markup),
       `apps/site/site.css:1517-1519` (`.balance-summary--account`; the mobile
-      rule at `:1819` still collapses it), `apps/site/browse.js:156,411-416,
+      rule at `:1819` still collapses it) and `:1898-1901` (the ≤560px
+      phone-density block keeps two columns for the account variant),
+      `apps/site/browse.js:156,411-416,
       578-602,906-945` (`totalActive`, 4-argument `setSummary`, active counting,
       best-effort `eth_getTransactionCount` batch), `tests/coordinator_api.rs:1218`
-      (`private_key_pages_shape_summary_cards_by_chain_model`).
+      (`private_key_pages_shape_summary_cards_by_chain_model`), plus the
+      `summary-grid-orphan` detector in `scripts/ui-audit.mjs` and its ledger
+      entry in `docs/process/defects.json` (it reproduced the empty third cell
+      at 375px before the ≤560px CSS fix).
       Limitation: Solana/Sui/Ton have no per-address tx count, so they count an
       address as active only when it is funded.
 
