@@ -197,6 +197,82 @@ function legacyTokenViolations() {
   }];
 }
 
+// empty-state-grammar: one shared empty box and one shared error box.
+// Page-local empty classes and page-local error margins are deleted; the
+// shared box uses the documented tokens. Static half of the check.
+function emptyStateViolations() {
+  const siteDir = path.join(REPO_ROOT, "apps", "site");
+  const issues = [];
+  const legacySelector = /\.(key-empty|range-empty|monitor-empty)\b/;
+  for (const name of readdirSync(siteDir)) {
+    if (!/\.(css|html|js)$/.test(name)) continue;
+    const text = readFileSync(path.join(siteDir, name), "utf8");
+    text.split("\n").forEach((line, index) => {
+      const match = legacySelector.exec(line);
+      if (match) issues.push(`${name}:${index + 1} keeps ${match[0]}`);
+    });
+  }
+
+  const css = readFileSync(path.join(siteDir, "site.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "));
+  const rules = [];
+  for (const match of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    const line = css.slice(0, match.index).split("\n").length;
+    rules.push({ selector: match[1].trim(), body: match[2], line });
+  }
+  const declarations = (body) => {
+    const map = new Map();
+    for (const part of body.split(";")) {
+      const colon = part.indexOf(":");
+      if (colon < 0) continue;
+      map.set(part.slice(0, colon).trim(), part.slice(colon + 1).trim());
+    }
+    return map;
+  };
+
+  const emptyRules = rules.filter((rule) =>
+    rule.selector.split(",").map((selector) => selector.trim()).includes(".empty-state"),
+  );
+  if (emptyRules.length !== 1) {
+    issues.push(`.empty-state is declared ${emptyRules.length} time(s) in site.css`);
+  }
+  for (const rule of emptyRules) {
+    const decl = declarations(rule.body);
+    if (!/\bdashed\b/.test(decl.get("border") || "")) {
+      issues.push(`site.css:${rule.line} .empty-state border is not dashed`);
+    }
+    if ((decl.get("border-radius") || "") !== "var(--radius-l)") {
+      issues.push(`site.css:${rule.line} .empty-state radius is ${decl.get("border-radius") || "unset"}`);
+    }
+    if ((decl.get("padding") || "") !== "var(--space-5)") {
+      issues.push(`site.css:${rule.line} .empty-state padding is ${decl.get("padding") || "unset"}`);
+    }
+  }
+
+  const errorSelectors = new Set([".error", ".key-error", ".range-error", ".monitor-status", ".wallet-field-error"]);
+  for (const rule of rules) {
+    if (!rule.selector.split(",").map((selector) => selector.trim()).some((selector) => errorSelectors.has(selector))) {
+      continue;
+    }
+    const decl = declarations(rule.body);
+    for (const name of ["margin", "margin-top"]) {
+      const value = decl.get(name);
+      if (value === undefined) continue;
+      const top = name === "margin" ? value.split(/\s+/)[0] : value;
+      if (top !== "var(--space-2)" && top !== "var(--space-3)") {
+        issues.push(`site.css:${rule.line} ${rule.selector} ${name}: ${value}`);
+      }
+    }
+  }
+
+  if (!issues.length) return [];
+  return [{
+    id: "empty-state-grammar",
+    message: `${issues.length} empty/error state issue(s) outside the shared grammar`,
+    detail: issues.slice(0, 12),
+  }];
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1069,6 +1145,46 @@ function auditPage(args) {
   metrics.statusPills = statusPills;
   if (statusPills.length) {
     add("status-pill-geometry", `${statusPills.length} status pill(s) outside the shared geometry`, statusPills.slice(0, 8));
+  }
+
+  // 4b-2. Empty and error states share one grammar: a dashed, radius-12,
+  //       20px-padded empty box, and an error box whose top margin is on the
+  //       8/12px scale. Enforced together with the static half above.
+  const emptyStateIssues = [];
+  const emptyStateCount = { boxes: 0, errors: 0 };
+  const emptyStateSamples = [];
+  for (const el of document.querySelectorAll(".empty-state")) {
+    if (!visible(el)) continue;
+    emptyStateCount.boxes += 1;
+    const style = getComputedStyle(el);
+    const issues = [];
+    if (style.borderTopStyle !== "dashed") issues.push(`border ${style.borderTopStyle || "none"}`);
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    if (!(Math.abs(radius - 12) <= 0.5)) issues.push(`radius ${radius}px`);
+    const pad = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
+      .map((value) => Number.parseFloat(value));
+    if (pad.some((value) => !(Math.abs(value - 20) <= 0.5))) issues.push(`padding ${pad.join("/")}px`);
+    if (emptyStateSamples.length < 8) {
+      emptyStateSamples.push({ selector: selectorOf(el), border: style.borderTopStyle, radius, padding: pad });
+    }
+    if (issues.length) emptyStateIssues.push({ selector: selectorOf(el), kind: "empty", issues });
+  }
+  for (const el of document.querySelectorAll(".error")) {
+    if (!visible(el)) continue;
+    emptyStateCount.errors += 1;
+    const marginTop = Number.parseFloat(getComputedStyle(el).marginTop);
+    if (emptyStateSamples.length < 8) {
+      emptyStateSamples.push({ selector: selectorOf(el), kind: "error", marginTop });
+    }
+    if (![8, 12].some((step) => Math.abs(step - marginTop) <= 0.5)) {
+      emptyStateIssues.push({ selector: selectorOf(el), kind: "error", issues: [`margin-top ${marginTop}px`] });
+    }
+  }
+  metrics.emptyStates = emptyStateIssues;
+  metrics.emptyStateCount = emptyStateCount;
+  metrics.emptyStateSamples = emptyStateSamples;
+  if (emptyStateIssues.length) {
+    add("empty-state-grammar", `${emptyStateIssues.length} empty/error state(s) outside the shared grammar`, emptyStateIssues.slice(0, 8));
   }
 
   // 4c. Tooltip contract: data-tooltip targets carry short text, never a
@@ -1989,6 +2105,7 @@ async function main() {
     const siteMapStatus = siteMapResponse ? siteMapResponse.status : null;
     const globalViolations = [];
     globalViolations.push(...legacyTokenViolations());
+    globalViolations.push(...emptyStateViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({
         id: "site-map-still-served",

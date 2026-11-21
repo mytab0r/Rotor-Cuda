@@ -108,10 +108,19 @@ follow-ups were code-only.
   `.icon-button` variants and `icon-button-scale` (batch 2),
   `row-action-geometry` and the shared row rhythm (batch 5); `--control-h-lg`
   is 44px and `--lg` uses it.
-- [ ] Shared skeleton/empty/error primitives. `.key-empty`, `.range-empty` and
-  `.monitor-empty` are still page-local `site.css` rules. Batch 7 (PR #167) has
-  merged, so `site.css` is free; the next step is one shared `.empty-state`
-  component plus the loading skeleton, with a detector.
+- [x] Shared skeleton/empty/error primitives. Evidence: `.empty-state`
+  (dashed `--line-subtle`, radius `--radius-l`, padding `--space-5`) replaced
+  `.key-empty` (both rules), `.range-empty` and `.monitor-empty` in `site.css`,
+  `key.html`, `key.js`, `range.html`, `range.js` and `monitor.html`; `.skeleton`
+  is the block primitive for the range rows and the key-status bar (tokens,
+  12px, `aria-hidden`, shimmer off under reduced motion); `.error`,
+  `.key-error`, `.range-error` and `.monitor-status` share one
+  `--space-3` top margin. Detector `empty-state-grammar` (static + rendered
+  geometry) and the `page-local-empty-states` ledger entry are in place.
+  Rendered coverage: four cabinet empty boxes measured at 375/1280 in both
+  themes (dashed, radius 12, padding 20); the `/key` and range placeholders and
+  the error boxes are hidden until interaction and are enforced by the static
+  half. PR #170.
 - [x] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
   Evidence: `apps/site/site.js` (`RotorSiteNav.splitLinks`/`activeInTail` and
   `setupNav`: four inline links, the rest in an `aria-expanded` More

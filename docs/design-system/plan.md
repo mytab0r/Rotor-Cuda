@@ -483,3 +483,29 @@ entry in the same PR.
     `git diff --check`, all 50 site build/test commands and
     `cargo test --test coordinator_api --test coordinator_client` (18 + 3)
     pass.
+- Batch 7 follow-up (2026-11-21): the last open P1 shell row, one shared
+  async-state grammar. Added `.empty-state` (dashed `--line-subtle`, radius
+  `--radius-l`, padding `--space-5`, `__title`/`__action` slots), promoted
+  `.skeleton` to the block primitive (tokens `--surface-2`/`--surface-3`,
+  radius `--radius-xs`, 10–12px high, `aria-hidden`), and documented `.error`
+  as the shipped error box. Migrated `.key-empty` (both definitions),
+  `.range-empty` and `.monitor-empty` in `key.html`, `key.js`, `range.html`,
+  `range.js` and `monitor.html`; table empties keep the `<td>` and use an inner
+  `<div>`. The range/key-status skeletons now consume `.skeleton`. One error
+  margin (`--space-3`) is declared once for `.error`/`.key-error`/
+  `.range-error`/`.monitor-status`; field-level errors use `--space-2`.
+  Asset version `20261127j`; detector `empty-state-grammar` (static class/token
+  scan plus rendered dashed/radius-12/padding-20 and error-margin geometry) and
+  ledger entry added.
+- Batch 7 follow-up evidence:
+  - Full default route set (release coordinator on `127.0.0.1:7900`; `:7899`
+    was contended during the run): **PASS, 198 page runs across 33 routes, 0
+    violations** (`target/audit-state-primitives.json`).
+  - DOM half on `/cabinet` (the route that renders visible empty states; the
+    key-page boxes sit in cards that stay hidden until derivation): **PASS, 6
+    page runs at 375/768/1280 dark/light**, 4 `.empty-state` boxes measured per
+    run, 0 geometry issues (`target/audit-empty-state-dom.json`).
+  - `check-projects` 405/406, `check-asset-version`, `check-defect-ledger`
+    (31 entries), `site-map-test`, all 19 site test commands and
+    `cargo test --release --test coordinator_api --test coordinator_client`
+    (19 + 3) pass.

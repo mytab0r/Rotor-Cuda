@@ -135,7 +135,9 @@ token, not a new literal.
 
 Rules: one accent in the chrome; semantic colours only carry meaning; never
 encode meaning by colour alone (pair with text, icon or a labelled dot). Raw hex
-belongs only in the root token blocks.
+belongs only in the root token blocks. Async states consume the semantic roles
+in §3.13: `.empty-state` uses `--line-subtle`/`--ink-3`, `.error` uses the
+failure palette, and `.skeleton` uses `--surface-2`→`--surface-3`.
 
 ### 2.3 Contrast
 
@@ -417,14 +419,19 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 ### 3.13 Empty, loading and error states
 
 - `.empty-state`: dashed `--line-subtle`, radius `--radius-l`, padding
-  `--space-5`, centred `--ink-3` text, one next action.
+  `--space-5`, centred `--ink-3` text, optional `.empty-state__title` and one
+  `.empty-state__action` slot. In a table use it on an inner `<div>` inside the
+  spanning `<td>` so the cell keeps its table context.
 - `.skeleton`: one implementation, `--surface-2` to `--surface-3` shimmer,
   radius `--radius-xs`, height 10–12px, `aria-hidden`, animation off under
-  reduced motion.
-- `.error-state`: message tone `--err`, actionable text, retry button; never a
-  blank card.
+  reduced motion. `.cell-skeleton` remains the text-placeholder variant.
+- `.error`: tinted failure box (border, background and text), actionable text,
+  retry button; never a blank card. Top margin is `--space-3` (12); field-level
+  errors may use `--space-2` (8). The page modifiers `.key-error`/
+  `.range-error`/`.monitor-status` add no geometry of their own.
 - Every async surface ships loading → empty → error → success. A failed fetch
-  says what failed and what to do.
+  says what failed and what to do. Enforced by `scripts/ui-audit.mjs`
+  `empty-state-grammar` (static class/token scan plus rendered geometry).
 
 ### 3.14 Dialog, popover and tooltip
 
@@ -631,4 +638,5 @@ The surviving exceptions, by file:
 
 Documented component APIs that no current route uses yet are reserved, not dead
 CSS: `.field__*`, `.stat__*`, `.card--flat`, `.card--stat`, `.stat--sm`, the
-`.icon-button--sm/--md/--solid` variants and the `.is-*` state classes.
+`.icon-button--sm/--md/--solid` variants, `.empty-state__title`/`__action` and
+the `.is-*` state classes.
