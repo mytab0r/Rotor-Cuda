@@ -506,6 +506,6 @@ entry in the same PR.
     page runs at 375/768/1280 dark/light**, 4 `.empty-state` boxes measured per
     run, 0 geometry issues (`target/audit-empty-state-dom.json`).
   - `check-projects` 405/406, `check-asset-version`, `check-defect-ledger`
-    (25 entries), `site-map-test`, all 19 site test commands and
+    (31 entries), `site-map-test`, all 19 site test commands and
     `cargo test --release --test coordinator_api --test coordinator_client`
     (19 + 3) pass.
