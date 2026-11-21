@@ -1,0 +1,105 @@
+{
+  "name": "icon-button",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "button",
+  "variants": [
+    {
+      "id": "quiet",
+      "label": "Quiet (row action)",
+      "classes": ["icon-button", "icon-button--quiet"]
+    },
+    {
+      "id": "outline",
+      "label": "Outline (toolbar)",
+      "classes": ["icon-button", "icon-button--outline"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "lg",
+      "label": "Large (44px)",
+      "classes": ["icon-button--lg"]
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    },
+    {
+      "id": "hover",
+      "label": "Hover (live)"
+    },
+    {
+      "id": "focus-visible",
+      "label": "Focus-visible (live, tab)"
+    },
+    {
+      "id": "disabled",
+      "label": "Disabled",
+      "attrs": { "disabled": "" }
+    },
+    {
+      "id": "copied",
+      "label": "Copied",
+      "classes": ["is-copied"]
+    },
+    {
+      "id": "busy",
+      "label": "Busy",
+      "attrs": { "aria-busy": "true" }
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "aria-label",
+      "value": "Copy address"
+    },
+    {
+      "name": "data-tooltip",
+      "value": "Copy address"
+    },
+    {
+      "name": "type",
+      "value": "button"
+    }
+  ],
+  "forbidden": [
+    "A native title attribute beside data-tooltip; the shared tooltip primitive owns the text.",
+    "An icon-only control without the .icon-button class (the audit reports icon-only-shared-component).",
+    "A fourth variant or an unlisted size: the grammar is quiet/outline and 44px, with 28/36 reserved and not rendered by any page.",
+    "Two unlabeled icon controls side by side without distinct accessible names."
+  ],
+  "slots": [
+    {
+      "name": "icon",
+      "tag": "svg",
+      "classes": ["icon"],
+      "attrs": { "aria-hidden": "true" },
+      "children": [
+        {
+          "tag": "use",
+          "attrs": { "href": "/icons.svg#ui-copy" }
+        }
+      ]
+    }
+  ],
+  "tokens": [
+    "--control-h-lg",
+    "--icon-size-lg",
+    "--radius-control",
+    "--ink-3",
+    "--surface-2",
+    "--surface-3",
+    "--line-strong",
+    "--signal",
+    "--signal-ink",
+    "--state-ok",
+    "--accent-2",
+    "--duration-fast",
+    "--ease-standard"
+  ],
+  "detectors": ["icon-button-scale", "small-touch-target", "tooltip-primitive", "row-action-geometry"],
+  "docs": "docs/design-system/components/icon-button.md"
+}

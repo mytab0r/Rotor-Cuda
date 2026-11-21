@@ -42,12 +42,17 @@
         "node --check apps/site/tx-page.js",
         "node --check scripts/ui-audit.mjs",
         "node --check scripts/check-token-usage.mjs",
+        "node --check scripts/build-gallery.mjs",
+        "node --check scripts/check-components.mjs",
         "node scripts/build-tokens.mjs --check",
-        "node scripts/check-token-usage.mjs"
+        "node scripts/check-token-usage.mjs",
+        "node scripts/build-gallery.mjs --check",
+        "node scripts/check-components.mjs"
       ],
       "test": [
         "node scripts/ui-audit.mjs --help",
         "node --test scripts/build-tokens.test.mjs",
+        "node --test scripts/check-token-usage.test.mjs",
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",

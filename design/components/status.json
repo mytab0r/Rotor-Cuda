@@ -1,0 +1,80 @@
+{
+  "name": "status",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "span",
+  "variants": [
+    {
+      "id": "badge",
+      "label": "Neutral badge",
+      "classes": ["badge"],
+      "overrides": [{ "slot": "label", "text": "Settled" }]
+    },
+    {
+      "id": "chain",
+      "label": "Chain status",
+      "classes": ["monitor-chain"],
+      "overrides": [{ "slot": "label", "text": "Watch" }]
+    },
+    {
+      "id": "count",
+      "label": "Count badge",
+      "classes": ["balance-refresh-count"],
+      "overrides": [{ "slot": "label", "text": "12" }]
+    },
+    {
+      "id": "puzzle",
+      "label": "Puzzle status",
+      "classes": ["pz-pill"],
+      "overrides": [{ "slot": "label", "text": "Unsolved" }]
+    },
+    {
+      "id": "puzzle-solved",
+      "label": "Puzzle solved",
+      "classes": ["pz-pill", "solved"],
+      "overrides": [{ "slot": "label", "text": "Solved" }]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (20px pill)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [],
+  "forbidden": [
+    "A page-local pill: all status and badge surfaces use the shared 20px geometry.",
+    "Uppercase or tracked text; the shared block resets both.",
+    "Colour as the only state signal: pair the tone with text, an icon or a labelled dot.",
+    "A status pill used as a button; it is not interactive."
+  ],
+  "slots": [
+    {
+      "name": "label",
+      "tag": "span",
+      "text": "Settled"
+    }
+  ],
+  "tokens": [
+    "--space-2",
+    "--radius-pill",
+    "--text-xs",
+    "--weight-semibold",
+    "--border",
+    "--muted",
+    "--accent",
+    "--text",
+    "--warn",
+    "--ok",
+    "--mono"
+  ],
+  "detectors": ["status-pill-geometry"],
+  "docs": "docs/design-system/components/status.md"
+}

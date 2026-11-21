@@ -805,7 +805,7 @@
           "file": "apps/site/site.css",
           "line": 2750,
           "match": ".puzzle-hero .btn",
-          "reason": "Puzzle CTA sizing override (46px) waits for the shared button batch; removing it changes rendering."
+          "reason": "Puzzle hero button padding override (10px 18px); min-height already 44. Waits for the shared button batch; removing it changes rendering."
         },
         {
           "file": "apps/site/site.css",
