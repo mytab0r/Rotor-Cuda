@@ -17,6 +17,9 @@
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
   var BALANCE_LIMIT = 4;
+  /* One public ticker request per six hours; the entry lives in localStorage. */
+  var PRICE_CACHE_KEY = 'rotor.prices.v1';
+  var PRICE_TTL_MS = 6 * 60 * 60 * 1000;
 
   /* One EVM account, eight networks. Every row carries the same address; the
    * balance is read from each network's public RPC, never assumed. */
@@ -219,7 +222,11 @@
     exposurePostedGeneration: -1,
     urlKey: null,
     urlExposurePosted: false,
-    wifNetwork: null
+    wifNetwork: null,
+    prices: null,
+    priceMeta: null,
+    priceStatus: 'idle',
+    pricePromise: null
   };
 
   var AUTO_DERIVE_MS = 200;
@@ -2127,13 +2134,151 @@
     var counters = helper && typeof helper.balanceCounters === 'function'
       ? helper.balanceCounters(entries, 18)
       : { withBalance: 0, activeChains: 0, checked: 0, total: 18 };
-    if (statTotal) {
-      statTotal.textContent = '—';
-      statTotal.classList.add('empty');
-    }
+    renderTotalValue();
     if (statHasBalance) statHasBalance.textContent = String(counters.withBalance);
     if (statActive) statActive.textContent = String(counters.activeChains);
     if (statChecked) statChecked.textContent = counters.checked + '/' + counters.total;
+  }
+
+  /* ---------------------------------------------------------------- prices */
+  /* Public ticker only: symbols, never a key, address or balance. A successful
+   * response is cached for six hours; a failed refresh keeps the previous
+   * cache and marks it stale instead of inventing a number. */
+  function readPriceCache() {
+    try {
+      var raw = window.localStorage.getItem(PRICE_CACHE_KEY);
+      if (!raw) return null;
+      var entry = JSON.parse(raw);
+      return entry && typeof entry === 'object' ? entry : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function writePriceCache(entry) {
+    try {
+      window.localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(entry));
+    } catch (err) {
+      /* private mode or a full quota: keep the in-memory copy */
+    }
+  }
+
+  function applyPrices(prices, meta) {
+    state.prices = prices;
+    state.priceMeta = meta || null;
+    updateCounters();
+  }
+
+  function ensurePrices() {
+    var helper = window.RotorKeyTools;
+    if (!helper || typeof helper.priceRequestUrl !== 'function') {
+      state.priceStatus = 'unavailable';
+      return Promise.resolve();
+    }
+    if (state.prices) return Promise.resolve();
+    if (state.pricePromise) return state.pricePromise;
+    var cached = readPriceCache();
+    if (helper.priceCacheState(cached, Date.now(), PRICE_TTL_MS) === 'fresh') {
+      state.priceStatus = 'ready';
+      applyPrices(cached.prices, { fetchedAt: cached.fetchedAt, stale: false });
+      return Promise.resolve();
+    }
+    state.priceStatus = 'loading';
+    state.pricePromise = (async function () {
+      try {
+        var response = await fetchWithTimeout(
+          helper.priceRequestUrl(),
+          { headers: { Accept: 'application/json' } },
+          null
+        );
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        var prices = helper.parsePriceResponse(data);
+        if (!Object.keys(prices).length) throw new Error('no ticker prices');
+        var entry = { prices: prices, fetchedAt: Date.now(), source: 'binance' };
+        writePriceCache(entry);
+        state.priceStatus = 'ready';
+        applyPrices(prices, { fetchedAt: entry.fetchedAt, stale: false });
+      } catch (err) {
+        if (cached && cached.prices) {
+          state.priceStatus = 'stale';
+          applyPrices(cached.prices, { fetchedAt: cached.fetchedAt, stale: true });
+        } else {
+          state.priceStatus = 'unavailable';
+          state.prices = null;
+          state.priceMeta = null;
+          updateCounters();
+        }
+      } finally {
+        state.pricePromise = null;
+      }
+    })();
+    return state.pricePromise;
+  }
+
+  function pricedRow(row) {
+    var id = row.getAttribute('data-id');
+    if (!id || row.dataset.balanceState !== 'ok') return null;
+    var summary = state.balances[id];
+    if (!summary || summary.amount === null || summary.amount === undefined) return null;
+    var meta = chainMeta(id);
+    return {
+      chain: summary.chain || meta.ticker,
+      symbol: summary.symbol || meta.ticker,
+      amount: summary.amount,
+      decimals: Number.isInteger(summary.decimals) ? summary.decimals : 18
+    };
+  }
+
+  function renderTotalValue() {
+    if (!statTotal) return;
+    var helper = window.RotorKeyTools;
+    var entries = [];
+    var addressRows = 0;
+    var loading = false;
+    rowList().forEach(function (row) {
+      if (row.getAttribute('data-parent') === '1') return;
+      addressRows += 1;
+      if (row.dataset.balanceState === 'loading') loading = true;
+      var entry = pricedRow(row);
+      if (entry) entries.push(entry);
+    });
+    statTotal.classList.add('empty');
+    if (loading || state.priceStatus === 'loading') {
+      statTotal.textContent = '…';
+      statTotal.title = loading
+        ? 'Waiting for balances to settle before showing a USD total.'
+        : 'Waiting for the price ticker.';
+      statTotal.setAttribute('aria-label', 'Total value is still loading');
+      return;
+    }
+    if (!state.prices || !helper || typeof helper.fiatTotals !== 'function') {
+      statTotal.textContent = '—';
+      statTotal.title = 'No price source reachable';
+      statTotal.setAttribute('aria-label', 'No price source reachable');
+      return;
+    }
+    var totals = helper.fiatTotals(entries, state.prices);
+    var excluded = addressRows - totals.included;
+    if (totals.included === 0) {
+      statTotal.textContent = '—';
+      statTotal.title = 'No loaded balance has a USD price' +
+        (excluded ? '; ' + excluded + ' row(s) excluded.' : '.');
+      statTotal.setAttribute('aria-label', statTotal.title);
+      return;
+    }
+    var amount = helper.formatUsd(totals.cents);
+    var when = helper.formatPriceTime(state.priceMeta && state.priceMeta.fetchedAt);
+    statTotal.classList.remove('empty');
+    statTotal.textContent = amount;
+    statTotal.title = 'Exact total ' + amount + ' from ' + totals.included + ' priced row(s)' +
+      (when ? '; prices fetched ' + when : '') +
+      (state.priceMeta && state.priceMeta.stale ? '; stale cache' : '') +
+      (excluded ? '; ' + excluded + ' row(s) excluded (no price or no balance)' : '') + '.';
+    statTotal.setAttribute(
+      'aria-label',
+      'Total value ' + amount + (excluded ? ', ' + excluded + (excluded === 1 ? ' row' : ' rows') + ' excluded' : '')
+    );
   }
 
   function rowCacheInfo(row) {
@@ -2817,5 +2962,6 @@
 
   summaryPlaceholder();
   rowsPlaceholder();
+  ensurePrices();
   initUrlKey();
 })();
