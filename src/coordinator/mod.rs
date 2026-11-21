@@ -2559,7 +2559,7 @@ fn brainwallet_chain_tabs(active: Option<&str>) -> String {
     for chain in &CHAINS {
         let is_active = active == Some(chain.slug);
         out.push_str(&format!(
-            "<a class=\"chain-tab{}\" href=\"/brainwallet/{}\" style=\"--chain:{}\"{}>{}{}</a>",
+            "<a class=\"chain-tab chip{}\" href=\"/brainwallet/{}\" style=\"--chain:{}\"{}>{}{}</a>",
             if is_active { " active" } else { "" },
             chain.slug,
             chain.color,
@@ -3131,7 +3131,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
             _ => format!("/private-keys/{}", other.slug),
         };
         tabs.push_str(&format!(
-            "<a class=\"chain-tab{active}\" href=\"{href}\" style=\"--chain:{}\">{}<span>{}</span></a>",
+            "<a class=\"chain-tab chip{active}\" href=\"{href}\" style=\"--chain:{}\">{}<span>{}</span></a>",
             other.color,
             chain_icon(other, "chain-tab-icon"),
             other.name,
@@ -3582,10 +3582,10 @@ fn puzzle_table(only_unsolved: bool) -> String {
 fn puzzle_filter_bar(total: usize, solved: usize, unsolved: usize) -> String {
     format!(
         "<div class=\"pz-toolbar\">\
-         <div class=\"pz-seg\" role=\"group\" aria-label=\"Filter puzzles\">\
-         <button type=\"button\" class=\"pz-seg-btn active\" data-puzzle-filter=\"all\" aria-pressed=\"true\">All <span>{total}</span></button>\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-filter=\"solved\" aria-pressed=\"false\">Solved <span>{solved}</span></button>\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-filter=\"unsolved\" aria-pressed=\"false\">Unsolved <span>{unsolved}</span></button>\
+         <div class=\"segmented\" role=\"group\" aria-label=\"Filter puzzles\">\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"all\" aria-pressed=\"true\">All <span>{total}</span></button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"solved\" aria-pressed=\"false\">Solved <span>{solved}</span></button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"unsolved\" aria-pressed=\"false\">Unsolved <span>{unsolved}</span></button>\
          </div>\
          <label class=\"pz-search\">{icon}<span class=\"pz-visually-hidden\">Search puzzles</span>\
          <input type=\"search\" data-puzzle-search placeholder=\"Search #, address or status\" autocomplete=\"off\" spellcheck=\"false\"></label>\
@@ -4145,13 +4145,13 @@ fn render_puzzle_random(
         ));
     }
     let presets = "<div class=\"pz-presets\" role=\"group\" aria-label=\"Range presets\">\
-         <button type=\"button\" class=\"active\" data-range-preset=\"full\">Full</button>\
-         <button type=\"button\" data-range-preset=\"first\">1st half</button>\
-         <button type=\"button\" data-range-preset=\"second\">2nd half</button>\
-         <button type=\"button\" data-range-preset=\"q1\">Q1</button>\
-         <button type=\"button\" data-range-preset=\"q2\">Q2</button>\
-         <button type=\"button\" data-range-preset=\"q3\">Q3</button>\
-         <button type=\"button\" data-range-preset=\"q4\">Q4</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"full\" aria-pressed=\"true\">Full</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"first\" aria-pressed=\"false\">1st half</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"second\" aria-pressed=\"false\">2nd half</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q1\" aria-pressed=\"false\">Q1</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q2\" aria-pressed=\"false\">Q2</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q3\" aria-pressed=\"false\">Q3</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q4\" aria-pressed=\"false\">Q4</button>\
          </div>";
     format!(
         "<section class=\"card puzzle-app\" data-puzzle-app data-puzzle-number=\"{number}\" data-puzzle-target=\"{target}\" data-puzzle-start=\"{start_hex}\" data-puzzle-end=\"{end_hex}\" data-puzzle-solved=\"{solved}\">\
@@ -4174,10 +4174,10 @@ fn render_puzzle_random(
          <button type=\"button\" data-puzzle-check>Check balance</button>\
          </div>\
          <div class=\"pz-control-row pz-run-row\">\
-         <div class=\"pz-seg\" role=\"group\" aria-label=\"Scan mode\">\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-mode data-mode-value=\"team\" aria-pressed=\"false\">Team</button>\
-         <button type=\"button\" class=\"pz-seg-btn active\" data-puzzle-mode data-mode-value=\"random\" aria-pressed=\"true\">Solo Random</button>\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-mode data-mode-value=\"seq\" aria-pressed=\"false\">Solo Seq</button>\
+         <div class=\"segmented\" role=\"group\" aria-label=\"Scan mode\">\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-mode data-mode-value=\"team\" aria-pressed=\"false\">Team</button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-mode data-mode-value=\"random\" aria-pressed=\"true\">Solo Random</button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-mode data-mode-value=\"seq\" aria-pressed=\"false\">Solo Seq</button>\
          </div>\
          <label class=\"pz-inline\">Workers <select data-puzzle-workers>{worker_options}</select></label>\
          <button type=\"button\" class=\"primary\" data-puzzle-start-btn>Start</button>\

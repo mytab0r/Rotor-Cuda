@@ -513,7 +513,7 @@
 
     function modeValue() {
       for (var i = 0; i < modeButtons.length; i++) {
-        if (modeButtons[i].classList.contains('active')) {
+        if (modeButtons[i].getAttribute('aria-pressed') === 'true') {
           return modeButtons[i].getAttribute('data-mode-value') || 'random';
         }
       }
@@ -603,6 +603,7 @@
       for (var i = 0; i < presetButtons.length; i++) {
         var active = presetButtons[i].getAttribute('data-range-preset') === key;
         presetButtons[i].classList.toggle('active', active);
+        presetButtons[i].setAttribute('aria-pressed', active ? 'true' : 'false');
       }
       setState('Range set to ' + key + '.');
     }
@@ -611,7 +612,9 @@
       if (els.startInput) els.startInput.value = padHex(puzzleStart);
       if (els.endInput) els.endInput.value = padHex(puzzleEnd);
       for (var i = 0; i < presetButtons.length; i++) {
-        presetButtons[i].classList.toggle('active', presetButtons[i].getAttribute('data-range-preset') === 'full');
+        var full = presetButtons[i].getAttribute('data-range-preset') === 'full';
+        presetButtons[i].classList.toggle('active', full);
+        presetButtons[i].setAttribute('aria-pressed', full ? 'true' : 'false');
       }
     }
 
