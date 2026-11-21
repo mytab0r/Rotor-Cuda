@@ -50,6 +50,13 @@
       "symptom": "Key page cards reserved far more vertical space than their content.",
       "detector": "mostly-empty-block",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "status-pill-geometry-drift",
+      "reported": "2026-11-21",
+      "symptom": "Status pills shipped with 10.5-12px text, 7-10px inline padding, four uppercase tracking values and heights from 18 to 28px for the same concept.",
+      "detector": "status-pill-geometry",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

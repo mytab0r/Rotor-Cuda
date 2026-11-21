@@ -626,6 +626,39 @@ function auditPage(args) {
     add("unlabeled-icon-control", `${unlabeledIcons.length} icon-only control(s) without aria-label/title`, unlabeledIcons.slice(0, 8));
   }
 
+  // 4b. Status pills share one geometry. Regression guard for
+  //     docs/design-system/DESIGN-SYSTEM.md §3.5: >=12px text, pill radius,
+  //     8px inline padding, 18-32px height.
+  const statusPillSelectors = [
+    ".badge",
+    ".key-badges span",
+    ".puzzle-badge",
+    ".puzzle-status",
+    ".pz-pill",
+    ".ws-chain-status",
+    ".monitor-chain",
+    ".balance-refresh-count",
+  ].join(", ");
+  const statusPills = [];
+  for (const el of document.querySelectorAll(statusPillSelectors)) {
+    if (!visible(el)) continue;
+    const style = getComputedStyle(el);
+    const box = boxOf(el);
+    const fontSize = Number.parseFloat(style.fontSize);
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    const padInline = Number.parseFloat(style.paddingLeft);
+    const issues = [];
+    if (!Number.isFinite(fontSize) || fontSize < 12) issues.push(`font ${fontSize}px`);
+    if (!(box.height >= 18 && box.height <= 32)) issues.push(`height ${Math.round(box.height)}px`);
+    if (!(radius >= Math.min(box.width, box.height) / 2 - 1)) issues.push(`radius ${radius}px not pill`);
+    if (![6, 8, 10, 12].includes(Math.round(padInline))) issues.push(`padding-inline ${padInline}px`);
+    if (issues.length) statusPills.push({ selector: selectorOf(el), issues });
+  }
+  metrics.statusPills = statusPills;
+  if (statusPills.length) {
+    add("status-pill-geometry", `${statusPills.length} status pill(s) outside the shared geometry`, statusPills.slice(0, 8));
+  }
+
   // 5. Duplicate address-type implementations on one page.
   const keyFamily = document.querySelector(".key-types, .key-btc-panel");
   const panelFamily = document.querySelector(".address-type-panel");
