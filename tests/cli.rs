@@ -254,6 +254,22 @@ fn list_chains_prints_all_18_slugs_families_curves_and_modes() {
     assert!(ethereum_line.contains("address, addresses, bsgs"));
     assert!(!ethereum_line.contains("xpoint"));
 
+    // The secp-hash160 family reports the two modes the CPU engine really
+    // implements for them; xpoint/xpoints/bsgs stay off.
+    for id in ["litecoin", "dogecoin", "bitcoin-cash", "zcash", "xrp"] {
+        let line = text
+            .lines()
+            .find(|line| line.split_whitespace().next() == Some(id))
+            .unwrap_or_else(|| panic!("missing {id} in:\n{text}"));
+        assert!(
+            line.contains("address, addresses"),
+            "{id} should report its real modes: {line}"
+        );
+        assert!(!line.contains("xpoint"), "{id} line: {line}");
+        assert!(!line.contains("bsgs"), "{id} line: {line}");
+        assert!(!line.contains("not implemented"), "{id} line: {line}");
+    }
+
     // The ed25519 seed engine supports single and multi address targets only.
     for id in ["solana", "sui"] {
         let line = text
@@ -315,6 +331,39 @@ fn unsupported_chain_mode_pairs_name_the_chain_and_its_modes() {
     assert_eq!(
         err.message(),
         "chain 'ethereum' is not implemented for mode 'xpoint' yet; supported modes: address, addresses, bsgs"
+    );
+
+    // The new secp-hash160 chains expose only the two hash160 modes.
+    for mode in ["xpoint", "xpoints", "bsgs"] {
+        let err = parse_err(&["--chain", "litecoin", "-m", mode]);
+        assert_eq!(
+            err.message(),
+            format!(
+                "chain 'litecoin' is not implemented for mode '{mode}' yet; supported modes: address, addresses"
+            )
+        );
+    }
+
+    // Server and benchmark paths still carry the legacy coin field.
+    let err = parse_err(&[
+        "--chain",
+        "litecoin",
+        "-m",
+        "address",
+        "--coordinator",
+        "http://127.0.0.1:7878",
+        "--token",
+        "secret",
+        "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ",
+    ]);
+    assert_eq!(
+        err.message(),
+        "chain 'litecoin' is not implemented for --coordinator yet; supported chains: bitcoin, ethereum"
+    );
+    let err = parse_err(&["--chain", "litecoin", "--benchmark", "-m", "address"]);
+    assert_eq!(
+        err.message(),
+        "chain 'litecoin' is not implemented for --benchmark yet; supported chains: bitcoin, ethereum"
     );
 
     // An unimplemented chain with a positional target but no -m is rejected
@@ -909,6 +958,16 @@ fn binary_list_chains_shows_all_18() {
             stdout.contains(descriptor.id),
             "missing {} in:\n{stdout}",
             descriptor.id
+        );
+    }
+    for id in ["litecoin", "dogecoin", "bitcoin-cash", "zcash", "xrp"] {
+        let line = stdout
+            .lines()
+            .find(|line| line.split_whitespace().next() == Some(id))
+            .unwrap_or_else(|| panic!("missing {id} in:\n{stdout}"));
+        assert!(
+            line.contains("address, addresses"),
+            "{id} should list the new modes: {line}"
         );
     }
 }
