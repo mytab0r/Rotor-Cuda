@@ -681,7 +681,11 @@ fn handle(app: Arc<App>, request: Request) {
     let url = request.url().to_string();
     let (path, query) = url.split_once('?').unwrap_or((&url, ""));
 
-    if method == Method::Get {
+    // HEAD mirrors GET for public resources. tiny_http suppresses the body of
+    // a HEAD response while keeping the headers, so entering the GET branch
+    // yields the same status, `Cache-Control`, `ETag` and `Content-Type` for
+    // free. API routes stay method-specific and keep their old behaviour.
+    if method == Method::Get || method == Method::Head {
         if let Some(location) = redirect_target(path) {
             respond_redirect(request, &location);
             return;

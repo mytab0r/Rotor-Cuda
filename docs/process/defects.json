@@ -274,6 +274,13 @@
       "symptom": "After the manual ?v= tokens were removed, assets relied on origin no-cache; Cloudflare's zone Browser Cache TTL overrode it (max-age=14400, cf-cache-status: REVALIDATED), so a returning browser kept old JS/CSS for up to 4 hours after a deploy. HTML must reference build-prefixed /a/<build>/ URLs instead of bare assets.",
       "detector": "asset-fingerprint",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "head-requests-404",
+      "reported": "2026-11-21",
+      "symptom": "HEAD /rotor_wasm.wasm and every public asset/page answered 404 while GET returned 200, because only GET entered the public branch; monitors, CDNs and link checkers saw the whole site as missing.",
+      "detector": "head_mirrors_get_for_public_resources",
+      "where": "tests/coordinator_api.rs"
     }
   ]
 }
