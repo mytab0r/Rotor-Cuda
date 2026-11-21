@@ -33,8 +33,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::chain::{self, ChainDescriptor};
 use crate::checkpoint;
-use crate::cli::{Coin, CompMode, Config, SearchMode, U256};
+use crate::cli::{CompMode, Config, SearchMode, U256};
 use crate::coordinator::chunk_loop::{self, ChunkScanner, LeaseJob, ScanOutcome};
 use crate::coordinator::client::CoordinatorClient;
 use crate::engine::{self, RandomSpec, SearchOutcome, Split};
@@ -101,17 +102,17 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
         .mode
         .ok_or_else(|| "a search mode is required".to_owned())?;
     let supported = matches!(
-        (config.coin, mode),
+        (config.chain.family, mode),
         (
-            Coin::Btc,
+            chain::Family::SecpHash160,
             SearchMode::Address | SearchMode::Addresses | SearchMode::XPoint | SearchMode::XPoints
-        ) | (Coin::Eth, SearchMode::Address | SearchMode::Addresses)
+        ) | (
+            chain::Family::EvmKeccak,
+            SearchMode::Address | SearchMode::Addresses
+        )
     );
     if !supported {
-        return Err(match config.coin {
-            Coin::Eth => "xpoint modes are not supported for ETH".to_owned(),
-            Coin::Btc => "unsupported search mode for the GPU engine".to_owned(),
-        });
+        return Err(crate::cli::unsupported_mode_message(config.chain, mode));
     }
     if matches!(mode, SearchMode::Addresses | SearchMode::XPoints) && !config.operands.is_empty() {
         return Err("Wrong search mode provided for multiple addresses or xpoints".to_owned());
@@ -144,7 +145,7 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
     }
 
     let target = Arc::new(engine::build_target(config, mode)?);
-    let modes: &[bool] = if config.coin == Coin::Eth {
+    let modes: &[bool] = if config.chain.uses_keccak() {
         &[false]
     } else {
         match config.comp_mode {
@@ -183,7 +184,7 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
             config.gpu_ids[0],
             (thread_groups, threads_per_group),
             mode,
-            config.coin,
+            config.chain,
             config.comp_mode,
             &target,
             &gen_x,
@@ -245,7 +246,7 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
                 &sink,
                 &target,
                 modes,
-                config.coin,
+                config.chain,
                 config.display,
                 None,
                 target.stop_after(),
@@ -300,7 +301,7 @@ pub fn run(config: &Config) -> Result<SearchOutcome, String> {
                 &sink,
                 &target,
                 modes,
-                config.coin,
+                config.chain,
                 chunk.end,
                 config.display,
                 None,
@@ -402,7 +403,7 @@ fn create_engine(
     device: i32,
     grid: (i32, i32),
     mode: SearchMode,
-    coin: Coin,
+    coin: &'static ChainDescriptor,
     comp: CompMode,
     target: &engine::Target,
     gen_x: &[u64],
@@ -424,7 +425,7 @@ fn create_engine(
         MAX_FOUND,
         gpu_plan::gpu_mode(mode),
         gpu_plan::gpu_comp_mode(mode, coin, comp),
-        if coin == Coin::Eth {
+        if coin.uses_keccak() {
             gpu_plan::COIN_ETH
         } else {
             gpu_plan::COIN_BTC
@@ -445,7 +446,7 @@ struct EngineRunner {
     job: DeviceJob,
     grid: (i32, i32),
     mode: SearchMode,
-    coin: Coin,
+    coin: &'static ChainDescriptor,
     comp: CompMode,
     target: Arc<engine::Target>,
     modes: Vec<bool>,
@@ -591,7 +592,7 @@ fn run_multi(
                 },
                 grid: grids[index],
                 mode,
-                coin: config.coin,
+                coin: config.chain,
                 comp: config.comp_mode,
                 target: Arc::clone(&target),
                 modes: modes.to_vec(),
@@ -631,7 +632,7 @@ fn run_multi(
                 },
                 grid: grids[index],
                 mode,
-                coin: config.coin,
+                coin: config.chain,
                 comp: config.comp_mode,
                 target: Arc::clone(&target),
                 modes: modes.to_vec(),
@@ -760,7 +761,7 @@ fn run_coordinator_multi(
                         device_id,
                         grid,
                         mode,
-                        config.coin,
+                        config.chain,
                         config.comp_mode,
                         &target,
                         &gen_x,
@@ -862,7 +863,7 @@ fn run_coordinator_device(
         sink,
         target,
         modes,
-        coin: config.coin,
+        coin: config.chain,
         display: config.display,
         device,
     };
@@ -877,7 +878,7 @@ fn run_coordinator_device(
 fn lease_job(config: &Config, mode: SearchMode, start: Split, end: Split) -> LeaseJob {
     LeaseJob {
         mode: engine::mode_name(mode).to_owned(),
-        coin: if config.coin == Coin::Eth {
+        coin: if config.chain.uses_keccak() {
             "eth".to_owned()
         } else {
             "btc".to_owned()
@@ -903,7 +904,7 @@ struct GpuScanner<'a> {
     sink: &'a OutputSink,
     target: &'a engine::Target,
     modes: &'a [bool],
-    coin: Coin,
+    coin: &'static ChainDescriptor,
     display: i32,
     /// `Some(id)` in multi-GPU mode adds the device to the progress line.
     device: Option<i32>,
@@ -959,7 +960,7 @@ fn scan_window(
     sink: &OutputSink,
     target: &engine::Target,
     modes: &[bool],
-    coin: Coin,
+    coin: &'static ChainDescriptor,
     end: Split,
     display: i32,
     device: Option<i32>,
@@ -1023,8 +1024,8 @@ fn scan_window(
             } else {
                 // The kernel sets bit 15 for the compressed hash
                 // (`GPUCompute.h`: CHECK_POINT_SEARCH_MODE_MA(..., true)).
-                let compressed = coin != Coin::Eth && hits.mode[index] != 0;
-                let needle = if coin == Coin::Eth {
+                let compressed = !coin.uses_keccak() && hits.mode[index] != 0;
+                let needle = if coin.uses_keccak() {
                     secp::eth_address(&point)
                 } else {
                     secp::hash160(&point, compressed)
@@ -1102,7 +1103,7 @@ fn scan_random(
     sink: &OutputSink,
     target: &engine::Target,
     modes: &[bool],
-    coin: Coin,
+    coin: &'static ChainDescriptor,
     display: i32,
     device: Option<i32>,
     stop_after: u64,

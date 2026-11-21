@@ -21,12 +21,12 @@
 - [x] Descriptor/family tests: 18 unique ids, family mapping, key-1 BTC/ETH
       and secp/ed25519 fixtures from the site, TON v4R2 vectors
       (`tests/chain.rs`).
-- [ ] Replace `enum Coin` with the `Chain` descriptor table covering all 18
+- [x] Replace `enum Coin` with the `Chain` descriptor table covering all 18
       slugs; keep `--coin` as an alias. (blocked by: 1 for GPU phase; CPU work
       may start)
-- [ ] Add `--chain`, `--list-chains`, target aliases; reject unsupported
+- [x] Add `--chain`, `--list-chains`, target aliases; reject unsupported
       mode/chain pairs loudly.
-- [ ] Move address encoders into `src/address/` with per-chain fixtures from
+- [x] Move address encoders into `src/address/` with per-chain fixtures from
       the WASM report (key 1 and an ed25519 seed).
 - [ ] `Found.txt` writes chain-specific WIF/secret only where defined; tests
       for BTC, LTC, DOGE, BCH, ZEC, XRP, ETH, TRON.
@@ -34,7 +34,7 @@
       the Rust sorter already covers it; remove the `.vcxproj`/Makefile.
       Evaluate `rust-anything` (record/diff) for this non-GPU port. This is
       independent of the CUDA gate.
-- [ ] CLI help/docs updated; deprecated `--coin` emits a warning, not an error.
+- [x] CLI help/docs updated; deprecated `--coin` emits a warning, not an error.
 
 ## 3. secp-hash160 family [desktop]
 - [ ] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160

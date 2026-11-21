@@ -24,7 +24,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use crate::base58;
 use crate::chain;
 use crate::checkpoint;
-use crate::cli::{self, Coin, CompMode, Config, SearchMode, U256};
+use crate::cli::{self, CompMode, Config, SearchMode, U256};
 use crate::coordinator::client::{CoordinatorClient, JobInfo};
 use crate::filter::TargetSet;
 use crate::point::{Affine, Jacobian, batch_to_affine};
@@ -116,17 +116,17 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
         "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
     })?;
     let supported = matches!(
-        (config.coin, mode),
+        (config.chain.family, mode),
         (
-            Coin::Btc,
+            chain::Family::SecpHash160,
             SearchMode::Address | SearchMode::Addresses | SearchMode::XPoint | SearchMode::XPoints
-        ) | (Coin::Eth, SearchMode::Address | SearchMode::Addresses)
+        ) | (
+            chain::Family::EvmKeccak,
+            SearchMode::Address | SearchMode::Addresses
+        )
     );
     if !supported {
-        return Err(match config.coin {
-            Coin::Eth => "xpoint modes are not supported for ETH".to_owned(),
-            Coin::Btc => "unsupported search mode for the CPU engine".to_owned(),
-        });
+        return Err(cli::unsupported_mode_message(config.chain, mode));
     }
     // `Main.cpp:513-540`: multi-address/xpoint modes take their targets from
     // `-i FILE` only, never from positional operands.
@@ -233,7 +233,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
 
     print_banner(config, mode, start, end, "CPU");
 
-    let modes: &[bool] = if config.coin == Coin::Eth {
+    let modes: &[bool] = if config.chain.uses_keccak() {
         // ETH is always uncompressed, whatever the CLI default says.
         &[false]
     } else {
@@ -275,7 +275,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
                 let target = &target;
                 let spec = random_spec.as_ref();
                 workers.push(scope.spawn(move || {
-                    worker(None, index, spec, target, modes, config.coin, shared);
+                    worker(None, index, spec, target, modes, config.chain, shared);
                 }));
                 index += 1;
             }
@@ -290,7 +290,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
                         None,
                         target,
                         modes,
-                        config.coin,
+                        config.chain,
                         shared,
                     );
                 }));
@@ -360,7 +360,7 @@ struct CoordinatorContext<'a> {
     client: &'a CoordinatorClient,
     target: &'a Target,
     modes: &'a [bool],
-    coin: Coin,
+    coin: &'static chain::ChainDescriptor,
     shared: &'a Shared,
     mode_text: &'a str,
     coin_text: &'a str,
@@ -382,17 +382,17 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
         "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
     })?;
     let supported = matches!(
-        (config.coin, mode),
+        (config.chain.family, mode),
         (
-            Coin::Btc,
+            chain::Family::SecpHash160,
             SearchMode::Address | SearchMode::Addresses | SearchMode::XPoint | SearchMode::XPoints
-        ) | (Coin::Eth, SearchMode::Address | SearchMode::Addresses)
+        ) | (
+            chain::Family::EvmKeccak,
+            SearchMode::Address | SearchMode::Addresses
+        )
     );
     if !supported {
-        return Err(match config.coin {
-            Coin::Eth => "xpoint modes are not supported for ETH".to_owned(),
-            Coin::Btc => "unsupported search mode for the CPU engine".to_owned(),
-        });
+        return Err(cli::unsupported_mode_message(config.chain, mode));
     }
     if matches!(mode, SearchMode::Addresses | SearchMode::XPoints) && !config.operands.is_empty() {
         return Err("Wrong search mode provided for multiple addresses or xpoints".to_owned());
@@ -439,7 +439,7 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
 
     print_banner(config, mode, start, end, "CPU");
 
-    let modes: &[bool] = if config.coin == Coin::Eth {
+    let modes: &[bool] = if config.chain.uses_keccak() {
         &[false]
     } else {
         match config.comp_mode {
@@ -468,12 +468,12 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
     let started = Instant::now();
 
     let mode_text = mode_name(mode);
-    let coin_text = if config.coin == Coin::Eth {
+    let coin_text = if config.chain.uses_keccak() {
         "eth"
     } else {
         "btc"
     };
-    let comp_mode_text = if config.coin == Coin::Eth {
+    let comp_mode_text = if config.chain.uses_keccak() {
         "compressed"
     } else {
         match config.comp_mode {
@@ -492,7 +492,7 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
         client: &client,
         target: &target,
         modes,
-        coin: config.coin,
+        coin: config.chain,
         shared: &shared,
         mode_text,
         coin_text,
@@ -789,20 +789,24 @@ fn set_error(shared: &Shared, message: &str) {
     }
 }
 
-/// Builds the search target for the requested coin/mode pair.
+/// Builds the search target for the requested chain family/mode pair.
 pub(crate) fn build_target(config: &Config, mode: SearchMode) -> Result<Target, String> {
-    Ok(match (config.coin, mode) {
-        (Coin::Btc, SearchMode::Address) => Target::Hash(parse_btc_address(config)?),
-        (Coin::Btc, SearchMode::Addresses) => {
+    Ok(match (config.chain.family, mode) {
+        (chain::Family::SecpHash160, SearchMode::Address) => {
+            Target::Hash(parse_btc_address(config)?)
+        }
+        (chain::Family::SecpHash160, SearchMode::Addresses) => {
             Target::Hashes(load_target_set(config, 20, "addresses")?)
         }
-        (Coin::Btc, SearchMode::XPoint) => Target::X(parse_xpoint(config)?),
-        (Coin::Btc, SearchMode::XPoints) => Target::Xs(load_target_set(config, 32, "xpoints")?),
-        (Coin::Eth, SearchMode::Address) => Target::Hash(parse_eth_address(config)?),
-        (Coin::Eth, SearchMode::Addresses) => {
+        (chain::Family::SecpHash160, SearchMode::XPoint) => Target::X(parse_xpoint(config)?),
+        (chain::Family::SecpHash160, SearchMode::XPoints) => {
+            Target::Xs(load_target_set(config, 32, "xpoints")?)
+        }
+        (chain::Family::EvmKeccak, SearchMode::Address) => Target::Hash(parse_eth_address(config)?),
+        (chain::Family::EvmKeccak, SearchMode::Addresses) => {
             Target::Hashes(load_target_set(config, 20, "addresses")?)
         }
-        _ => return Err("unsupported search mode for the CPU engine".to_owned()),
+        _ => return Err(cli::unsupported_mode_message(config.chain, mode)),
     })
 }
 
@@ -938,10 +942,10 @@ fn load_target_set(config: &Config, record_len: usize, what: &str) -> Result<Tar
             .ok_or_else(|| "--targets-text requires -m addresses or -m xpoints".to_owned())?;
         if source == "-" {
             let stdin = io::stdin();
-            return targets_text::load(stdin.lock(), config.coin, mode);
+            return targets_text::load(stdin.lock(), config.chain, mode);
         }
         let file = File::open(source).map_err(|err| format!("failed to read {source}: {err}"))?;
-        return targets_text::load(io::BufReader::new(file), config.coin, mode);
+        return targets_text::load(io::BufReader::new(file), config.chain, mode);
     }
     let path = config
         .input_file
@@ -1117,7 +1121,7 @@ fn worker(
     random_spec: Option<&RandomSpec>,
     target: &Target,
     modes: &[bool],
-    coin: Coin,
+    coin: &'static chain::ChainDescriptor,
     shared: &Shared,
 ) {
     let batch_scalar = Scalar::from_u64(BATCH_SIZE as u64);
@@ -1204,7 +1208,7 @@ fn scan_batch(
     count: usize,
     target: &Target,
     modes: &[bool],
-    coin: Coin,
+    coin: &'static chain::ChainDescriptor,
     shared: &Shared,
     on_hit: Option<HitCallback<'_>>,
 ) -> Jacobian {
@@ -1241,7 +1245,7 @@ fn scan_batch(
         }
 
         for &compressed in modes {
-            let needle = if coin == Coin::Eth {
+            let needle = if coin.uses_keccak() {
                 secp::eth_address(affine)
             } else {
                 secp::hash160(affine, compressed)
@@ -1273,7 +1277,7 @@ fn scan_chunk(
     thread_index: u64,
     target: &Target,
     modes: &[bool],
-    coin: Coin,
+    coin: &'static chain::ChainDescriptor,
     shared: &Shared,
     on_hit: Option<HitCallback<'_>>,
     on_batch: Option<BatchCallback<'_>>,
@@ -1360,7 +1364,13 @@ fn record_random_key(shared: &Shared, key: &Scalar) {
 
 /// Appends the C++ hit block to `config.output_file` and duplicates it on
 /// stdout with a two-space indent (`Rotor.cpp:344-369`).
-fn emit(shared: &Shared, key: &Scalar, point: &Affine, compressed: bool, coin: Coin) {
+fn emit(
+    shared: &Shared,
+    key: &Scalar,
+    point: &Affine,
+    compressed: bool,
+    coin: &'static chain::ChainDescriptor,
+) {
     let mut file = shared.output.lock().expect("output mutex");
     if let Err(err) = emit_hit(&mut file, key, point, compressed, coin) {
         let mut slot = shared.error.lock().expect("error mutex");
@@ -1377,16 +1387,10 @@ pub(crate) fn emit_hit(
     key: &Scalar,
     point: &Affine,
     compressed: bool,
-    coin: Coin,
+    coin: &'static chain::ChainDescriptor,
 ) -> io::Result<()> {
     let private_hex = scalar_hex_trimmed(key);
-    let chain_id = match coin {
-        Coin::Btc => "bitcoin",
-        Coin::Eth => "ethereum",
-    };
-    let descriptor = chain::by_id(chain_id)
-        .ok_or_else(|| io::Error::other(format!("missing chain descriptor: {chain_id}")))?;
-    let derived = descriptor
+    let derived = coin
         .derive(chain::KeyMaterial::Secp {
             key,
             point,
@@ -1395,7 +1399,7 @@ pub(crate) fn emit_hit(
         .map_err(io::Error::other)?;
     // The legacy key report printed EVM addresses in lowercase; keep that output
     // byte-for-byte while the descriptor itself carries the EIP-55 form.
-    let address = if coin == Coin::Eth {
+    let address = if coin.family == chain::Family::EvmKeccak {
         derived.address.to_ascii_lowercase()
     } else {
         derived.address
@@ -1639,17 +1643,10 @@ pub(crate) fn print_banner(
     println!();
     println!("  {}", cli::VERSION_LINE);
     println!();
-    if config.coin == Coin::Btc {
+    if config.chain.family == chain::Family::SecpHash160 {
         println!("  COMP MODE    : {comp}");
     }
-    println!(
-        "  COIN TYPE    : {}",
-        if config.coin == Coin::Btc {
-            "BITCOIN"
-        } else {
-            "ETHEREUM"
-        }
-    );
+    println!("  COIN TYPE    : {}", config.chain.name.to_uppercase());
     println!("  SEARCH MODE  : {search}");
     println!("  DEVICE       : {device}");
     let target_source = config
@@ -1657,19 +1654,25 @@ pub(crate) fn print_banner(
         .as_deref()
         .or(config.input_file.as_deref())
         .unwrap_or("");
-    match (config.coin, mode) {
-        (Coin::Btc, SearchMode::Address) => {
+    match (config.chain.family, mode) {
+        (chain::Family::SecpHash160, SearchMode::Address) => {
             println!("  BTC ADDRESS  : {}", config.operands[0]);
         }
-        (Coin::Btc, SearchMode::Addresses) => println!("  BTC HASH160s : {target_source}"),
-        (Coin::Btc, SearchMode::XPoint) => {
+        (chain::Family::SecpHash160, SearchMode::Addresses) => {
+            println!("  BTC HASH160s : {target_source}");
+        }
+        (chain::Family::SecpHash160, SearchMode::XPoint) => {
             println!("  BTC XPOINT   : {}", config.operands[0]);
         }
-        (Coin::Btc, SearchMode::XPoints) => println!("  BTC XPOINTS  : {target_source}"),
-        (Coin::Eth, SearchMode::Address) => {
+        (chain::Family::SecpHash160, SearchMode::XPoints) => {
+            println!("  BTC XPOINTS  : {target_source}");
+        }
+        (chain::Family::EvmKeccak, SearchMode::Address) => {
             println!("  ETH ADDRESS  : {}", config.operands[0]);
         }
-        (Coin::Eth, SearchMode::Addresses) => println!("  ETH ADDRESS  : {target_source}"),
+        (chain::Family::EvmKeccak, SearchMode::Addresses) => {
+            println!("  ETH ADDRESS  : {target_source}");
+        }
         _ => {}
     }
     println!("  OUTPUT FILE  : {}", config.output_file);

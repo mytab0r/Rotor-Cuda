@@ -7,7 +7,8 @@
 use std::path::{Path, PathBuf};
 
 use rotor::base58;
-use rotor::cli::{Coin, CompMode, Config, Range, SearchMode, U256};
+use rotor::chain;
+use rotor::cli::{CompMode, Config, Range, SearchMode, U256};
 use rotor::engine;
 use rotor::gpu_search;
 use rotor::scalar::Scalar;
@@ -32,7 +33,21 @@ fn has_device() -> bool {
     true
 }
 
-fn config(mode: SearchMode, coin: Coin, comp: CompMode, target: String, output: &Path) -> Config {
+fn bitcoin() -> &'static chain::ChainDescriptor {
+    chain::by_id("bitcoin").expect("bitcoin descriptor")
+}
+
+fn ethereum() -> &'static chain::ChainDescriptor {
+    chain::by_id("ethereum").expect("ethereum descriptor")
+}
+
+fn config(
+    mode: SearchMode,
+    chain: &'static chain::ChainDescriptor,
+    comp: CompMode,
+    target: String,
+    output: &Path,
+) -> Config {
     let start = U256::from_u64(0x1F2E_3D4C_5B6A - 0x400);
     let end = U256::from_u64(0x1F2E_3D4C_5B6A + 0x400);
     Config {
@@ -78,14 +93,14 @@ fn cpu_and_gpu_find_the_same_btc_key() {
 
     let cpu_config = config(
         SearchMode::Address,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Compressed,
         address.clone(),
         &cpu_out,
     );
     let gpu_config = config(
         SearchMode::Address,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Compressed,
         address,
         &gpu_out,
@@ -115,14 +130,14 @@ fn cpu_and_gpu_find_the_same_eth_key() {
     let gpu_out = temp_path("eth_gpu");
     let cpu_config = config(
         SearchMode::Address,
-        Coin::Eth,
+        ethereum(),
         CompMode::Uncompressed,
         address.clone(),
         &cpu_out,
     );
     let gpu_config = config(
         SearchMode::Address,
-        Coin::Eth,
+        ethereum(),
         CompMode::Uncompressed,
         address,
         &gpu_out,
@@ -156,7 +171,7 @@ fn cpu_and_gpu_agree_for_uncompressed_and_both_modes() {
 
         engine::run(&config(
             SearchMode::Address,
-            Coin::Btc,
+            bitcoin(),
             comp,
             address.clone(),
             &cpu_out,
@@ -164,7 +179,7 @@ fn cpu_and_gpu_agree_for_uncompressed_and_both_modes() {
         .expect("CPU search");
         gpu_search::run(&config(
             SearchMode::Address,
-            Coin::Btc,
+            bitcoin(),
             comp,
             address,
             &gpu_out,
@@ -188,7 +203,7 @@ fn unavailable_device_is_a_loud_error() {
     let output = temp_path("no_device");
     let mut config = config(
         SearchMode::Address,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Compressed,
         address,
         &output,
@@ -209,7 +224,7 @@ fn invalid_gpu_ids_are_rejected() {
     let output = temp_path("limits");
     let mut config = config(
         SearchMode::Address,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Compressed,
         address,
         &output,
@@ -243,12 +258,12 @@ fn cpu_and_gpu_find_the_same_xpoint() {
     let gpu_out = temp_path("sx_gpu");
     let cpu_config = config(
         SearchMode::XPoint,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Both,
         x.clone(),
         &cpu_out,
     );
-    let gpu_config = config(SearchMode::XPoint, Coin::Btc, CompMode::Both, x, &gpu_out);
+    let gpu_config = config(SearchMode::XPoint, bitcoin(), CompMode::Both, x, &gpu_out);
 
     engine::run(&cpu_config).expect("CPU search");
     gpu_search::run(&gpu_config).expect("GPU search");
@@ -282,7 +297,7 @@ fn cpu_and_gpu_find_multi_target_records() {
     let gpu_out = temp_path("ma_gpu");
     let mut cpu_config = config(
         SearchMode::Addresses,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Compressed,
         String::new(),
         &cpu_out,
@@ -310,7 +325,7 @@ fn cpu_and_gpu_find_multi_target_records() {
     let gpu_out = temp_path("mx_gpu");
     let mut cpu_config = config(
         SearchMode::XPoints,
-        Coin::Btc,
+        bitcoin(),
         CompMode::Both,
         String::new(),
         &cpu_out,

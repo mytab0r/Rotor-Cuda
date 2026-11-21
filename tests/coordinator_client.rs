@@ -6,9 +6,14 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rotor::bsgs::{build_table, solve_with_table};
-use rotor::cli::{Coin, Config, Range, SearchMode, U256};
+use rotor::chain;
+use rotor::cli::{Config, Range, SearchMode, U256};
 use rotor::coordinator::client::CoordinatorClient;
 use rotor::coordinator::spawn;
+
+fn bitcoin() -> &'static chain::ChainDescriptor {
+    chain::by_id("bitcoin").expect("bitcoin descriptor")
+}
 use rotor::engine;
 use rotor::scalar::Scalar;
 use rotor::secp;
@@ -81,7 +86,7 @@ fn engine_leases_chunks_and_reports_the_found_key() {
 
     let config = Config {
         mode: Some(SearchMode::Address),
-        coin: Coin::Btc,
+        chain: bitcoin(),
         range: Some(Range {
             start: hex("1757756A90"),
             end: hex("1757756A95"),

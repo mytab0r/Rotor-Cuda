@@ -3,6 +3,8 @@
 
 use std::fmt;
 
+use crate::chain::{self, ChainDescriptor};
+
 pub const RELEASE: &str = "2.0-rotor  mytab0r";
 pub const VERSION_LINE: &str = "Rotor-Cuda v2.0-rotor  mytab0r";
 
@@ -28,11 +30,17 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
                                                       Xpoint   : for single xpoint
                                                       Xpoints : for multiple xpoints
                                                       BSGS     : recover scalar from a public key in --range (CPU-BSGS; -g selects GPU-BSGS)
---coin BTC/ETH                      : Specify Coin name to search
-                                                      BTC: available mode :-
-                                                      ADDRESS, ADDRESSES, XPOINT, XPOINTS
-                                                      ETH: available mode :-
-                                                      ADDRESS, ADDRESSES
+--chain SLUG                       : Specify the chain to search (see --list-chains)
+                                                      slugs and aliases: bitcoin/btc,
+                                                      ethereum/eth, bnb, arbitrum/arb,
+                                                      optimism/op, base, polygon/matic,
+                                                      avalanche/avax, zksync, solana/sol,
+                                                      tron/trx, xrp, litecoin/ltc,
+                                                      bitcoin-cash/bch, dogecoin/doge,
+                                                      zcash/zec, sui, ton
+--list-chains                      : List all 18 chains (slug, family, curve, modes)
+--coin BTC/ETH                      : Deprecated alias for --chain bitcoin/ethereum
+                                                      (prints a warning)
 -l, --list.                                      : List Cuda enabled devices
 --range KEYSPACE                  : Specify the range:
                                                       START:END
@@ -100,13 +108,6 @@ pub enum CompMode {
     Both,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Coin {
-    #[default]
-    Btc,
-    Eth,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchMode {
     Address,
@@ -114,6 +115,98 @@ pub enum SearchMode {
     Addresses,
     XPoints,
     Bsgs,
+}
+
+impl SearchMode {
+    /// Lowercase name used by the coordinator protocol, `--list-chains` and
+    /// error messages.
+    pub const fn name(self) -> &'static str {
+        match self {
+            SearchMode::Address => "address",
+            SearchMode::Addresses => "addresses",
+            SearchMode::XPoint => "xpoint",
+            SearchMode::XPoints => "xpoints",
+            SearchMode::Bsgs => "bsgs",
+        }
+    }
+}
+
+/// Search modes the desktop engine implements for a chain today.
+///
+/// Every other chain has a descriptor (so `--list-chains` and address
+/// derivation work) but no search path yet; selecting one must fail loudly.
+pub fn supported_modes(chain: &ChainDescriptor) -> &'static [SearchMode] {
+    const BITCOIN: &[SearchMode] = &[
+        SearchMode::Address,
+        SearchMode::Addresses,
+        SearchMode::XPoint,
+        SearchMode::XPoints,
+        SearchMode::Bsgs,
+    ];
+    const ETHEREUM: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses, SearchMode::Bsgs];
+    match chain.id {
+        "bitcoin" => BITCOIN,
+        "ethereum" => ETHEREUM,
+        _ => &[],
+    }
+}
+
+/// True when the chain has at least one implemented search mode.
+fn chain_is_implemented(chain: &ChainDescriptor) -> bool {
+    !supported_modes(chain).is_empty()
+}
+
+/// Modes as a comma-separated list, or `none` for an unimplemented chain.
+pub fn modes_text(modes: &[SearchMode]) -> String {
+    if modes.is_empty() {
+        "none".to_owned()
+    } else {
+        modes
+            .iter()
+            .map(|mode| mode.name())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+/// Error for a mode the selected chain does not implement yet.
+pub fn unsupported_mode_message(chain: &ChainDescriptor, mode: SearchMode) -> String {
+    format!(
+        "chain '{}' is not implemented for mode '{}' yet; supported modes: {}",
+        chain.id,
+        mode.name(),
+        modes_text(supported_modes(chain))
+    )
+}
+
+/// Human-readable `--list-chains` table: slug, family, curve and modes.
+pub fn list_chains_text() -> String {
+    let mut out = String::from(
+        "  CHAIN ID        NAME             FAMILY        CURVE      ALIASES        MODES\n",
+    );
+    for descriptor in chain::all() {
+        let modes = supported_modes(descriptor);
+        let modes = if modes.is_empty() {
+            "not implemented yet".to_owned()
+        } else {
+            modes_text(modes)
+        };
+        let aliases = chain::aliases_for(descriptor.id);
+        let aliases = if aliases.is_empty() {
+            "-".to_owned()
+        } else {
+            aliases.join(",")
+        };
+        out.push_str(&format!(
+            "  {:<15} {:<16} {:<13} {:<10} {:<14} {modes}\n",
+            descriptor.id,
+            descriptor.name,
+            descriptor.family.label(),
+            descriptor.curve.label(),
+            aliases,
+        ));
+    }
+    out
 }
 
 /// Big-endian 256-bit integer used for range endpoints.
@@ -245,6 +338,7 @@ pub struct Config {
     pub help: bool,
     pub check: bool,
     pub list: bool,
+    pub list_chains: bool,
     pub version: bool,
     pub check_update: bool,
     pub update: bool,
@@ -258,7 +352,10 @@ pub struct Config {
     pub targets_text: Option<String>,
     pub output_file: String,
     pub mode: Option<SearchMode>,
-    pub coin: Coin,
+    /// Selected chain descriptor; defaults to Bitcoin.
+    pub chain: &'static ChainDescriptor,
+    /// True when the deprecated `--coin` alias was used.
+    pub coin_deprecated: bool,
     pub range: Option<Range>,
     pub rkey: u64,
     pub next: i32,
@@ -289,6 +386,7 @@ impl Default for Config {
             help: false,
             check: false,
             list: false,
+            list_chains: false,
             version: false,
             check_update: false,
             update: false,
@@ -304,7 +402,8 @@ impl Default for Config {
             targets_text: None,
             output_file: "Found.txt".to_owned(),
             mode: None,
-            coin: Coin::Btc,
+            chain: chain::by_id("bitcoin").expect("bitcoin descriptor is part of CHAINS"),
+            coin_deprecated: false,
             range: None,
             rkey: 0,
             next: 0,
@@ -346,6 +445,8 @@ enum Opt {
     TargetsText,
     Out,
     Mode,
+    Chain,
+    ListChains,
     Coin,
     Range,
     Rkey,
@@ -398,6 +499,8 @@ const OPTIONS: &[(&str, Opt, bool)] = &[
     ("--out", Opt::Out, true),
     ("-m", Opt::Mode, true),
     ("--mode", Opt::Mode, true),
+    ("--chain", Opt::Chain, true),
+    ("--list-chains", Opt::ListChains, false),
     ("--coin", Opt::Coin, true),
     ("--range", Opt::Range, true),
     ("-r", Opt::Rkey, true),
@@ -440,7 +543,13 @@ fn lookup(token: &str) -> Option<(Opt, bool)> {
 fn is_action(opt: Opt) -> bool {
     matches!(
         opt,
-        Opt::Help | Opt::Check | Opt::List | Opt::Version | Opt::CheckUpdate | Opt::Update
+        Opt::Help
+            | Opt::Check
+            | Opt::List
+            | Opt::ListChains
+            | Opt::Version
+            | Opt::CheckUpdate
+            | Opt::Update
     )
 }
 
@@ -470,6 +579,8 @@ pub fn parse_from<I: IntoIterator<Item = String>>(args: I) -> Result<Config, Cli
 
     let mut config = Config::default();
     let mut benchmark_seconds_given = false;
+    let mut chain_seen: Option<&'static ChainDescriptor> = None;
+    let mut coin_seen: Option<&'static ChainDescriptor> = None;
     for token in tokens {
         match token {
             Token::Operand(value) => config.operands.push(value),
@@ -485,7 +596,34 @@ pub fn parse_from<I: IntoIterator<Item = String>>(args: I) -> Result<Config, Cli
                 if opt == Opt::BenchmarkSeconds {
                     benchmark_seconds_given = true;
                 }
-                apply_value(&mut config, opt, value)?;
+                match opt {
+                    Opt::Chain => {
+                        let selected = parse_chain(&value)?;
+                        if let Some(coin) = coin_seen
+                            && coin.id != selected.id
+                        {
+                            return Err(CliError::new(
+                                "--chain and the deprecated --coin select different chains; use --chain only",
+                            ));
+                        }
+                        config.chain = selected;
+                        chain_seen = Some(selected);
+                    }
+                    Opt::Coin => {
+                        let selected = parse_coin(&value)?;
+                        if let Some(chain) = chain_seen
+                            && chain.id != selected.id
+                        {
+                            return Err(CliError::new(
+                                "--chain and the deprecated --coin select different chains; use --chain only",
+                            ));
+                        }
+                        config.chain = selected;
+                        config.coin_deprecated = true;
+                        coin_seen = Some(selected);
+                    }
+                    _ => apply_value(&mut config, opt, value)?,
+                }
             }
         }
     }
@@ -506,6 +644,7 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         Opt::Help => config.help = true,
         Opt::Check => config.check = true,
         Opt::List => config.list = true,
+        Opt::ListChains => config.list_chains = true,
         Opt::Uncomp => config.comp_mode = CompMode::Uncompressed,
         Opt::Both => config.comp_mode = CompMode::Both,
         Opt::Gpu => config.gpu = true,
@@ -524,6 +663,7 @@ fn apply_flag(config: &mut Config, opt: Opt) {
         | Opt::TargetsText
         | Opt::Out
         | Opt::Mode
+        | Opt::Chain
         | Opt::Coin
         | Opt::Range
         | Opt::Rkey
@@ -560,7 +700,6 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         Opt::TargetsText => config.targets_text = Some(value),
         Opt::Out => config.output_file = value,
         Opt::Mode => config.mode = Some(parse_mode(&value)?),
-        Opt::Coin => config.coin = parse_coin(&value)?,
         Opt::Range => config.range = Some(parse_range(&value)?),
         Opt::Rkey => {
             config.rkey = value
@@ -588,6 +727,9 @@ fn apply_value(config: &mut Config, opt: Opt, value: String) -> Result<(), CliEr
         Opt::Help
         | Opt::Check
         | Opt::List
+        | Opt::ListChains
+        | Opt::Chain
+        | Opt::Coin
         | Opt::Uncomp
         | Opt::Both
         | Opt::Gpu
@@ -647,12 +789,23 @@ fn parse_mode(value: &str) -> Result<SearchMode, CliError> {
     }
 }
 
-fn parse_coin(value: &str) -> Result<Coin, CliError> {
-    let lowered = value.to_ascii_lowercase();
-    match lowered.as_str() {
-        "btc" => Ok(Coin::Btc),
-        "eth" => Ok(Coin::Eth),
-        _ => Err(CliError::new(format!("Invalid coin name: {lowered}"))),
+/// Resolve `--chain` from a site slug or ticker alias.
+fn parse_chain(value: &str) -> Result<&'static ChainDescriptor, CliError> {
+    chain::by_alias(value).ok_or_else(|| {
+        CliError::new(format!(
+            "Invalid chain name: {value} (expected a site slug or alias; run --list-chains)"
+        ))
+    })
+}
+
+/// Deprecated `--coin BTC|ETH` alias for `--chain bitcoin|ethereum`.
+fn parse_coin(value: &str) -> Result<&'static ChainDescriptor, CliError> {
+    match value.to_ascii_lowercase().as_str() {
+        "btc" => Ok(chain::by_id("bitcoin").expect("bitcoin descriptor")),
+        "eth" => Ok(chain::by_id("ethereum").expect("ethereum descriptor")),
+        _ => Err(CliError::new(format!(
+            "Invalid coin name: {value} (--coin is deprecated; use --chain <slug>)"
+        ))),
     }
 }
 
@@ -714,9 +867,9 @@ fn validate_mnemonic(config: &Config) -> Result<(), CliError> {
                 "mnemonic flags are not supported with --benchmark",
             ));
         }
-        if config.coin == Coin::Eth {
+        if config.chain.id != "bitcoin" {
             return Err(CliError::new(
-                "mnemonic tools support BTC P2PKH addresses only",
+                "mnemonic tools support BTC P2PKH addresses only; use --chain bitcoin",
             ));
         }
         if config.comp_mode != CompMode::Compressed {
@@ -797,14 +950,32 @@ fn validate_mnemonic(config: &Config) -> Result<(), CliError> {
 fn validate(config: &mut Config) -> Result<(), CliError> {
     validate_mnemonic(config)?;
 
-    if config.coin == Coin::Eth
-        && matches!(config.mode, Some(SearchMode::XPoint | SearchMode::XPoints))
+    // The descriptor table knows every site network, but only the chains in
+    // `supported_modes` have a desktop search path today. Reject any other
+    // pair instead of silently searching the wrong primitive.
+    if let Some(mode) = config.mode {
+        if !supported_modes(config.chain).contains(&mode) {
+            return Err(CliError::new(unsupported_mode_message(config.chain, mode)));
+        }
+    } else if !config.operands.is_empty()
+        && !config.benchmark
+        && !chain_is_implemented(config.chain)
     {
-        return Err(CliError::new(
-            "Wrong search or compress mode provided for ETH coin type",
-        ));
+        return Err(CliError::new(unsupported_mode_message(
+            config.chain,
+            SearchMode::Address,
+        )));
     }
-    if config.coin == Coin::Eth {
+
+    if config.benchmark && !chain_is_implemented(config.chain) {
+        return Err(CliError::new(format!(
+            "chain '{}' is not implemented for --benchmark yet; supported chains: bitcoin, ethereum",
+            config.chain.id
+        )));
+    }
+
+    // Keccak chains compare an account, not a compressed/uncompressed hash.
+    if config.chain.uses_keccak() {
         config.comp_mode = CompMode::Uncompressed;
     }
 

@@ -1,4 +1,5 @@
-use rotor::cli::{self, Coin, SearchMode, USAGE, VERSION_LINE};
+use rotor::chain::Family;
+use rotor::cli::{self, SearchMode, USAGE, VERSION_LINE};
 use rotor::engine;
 
 fn main() {
@@ -20,6 +21,12 @@ fn main() {
         }
     };
 
+    if config.coin_deprecated {
+        eprintln!(
+            "  Warning: --coin is deprecated; use --chain bitcoin or --chain ethereum instead."
+        );
+    }
+
     if config.help {
         print!("{USAGE}");
         return;
@@ -27,6 +34,11 @@ fn main() {
 
     if config.version {
         println!("{VERSION_LINE}");
+        return;
+    }
+
+    if config.list_chains {
+        print!("{}", cli::list_chains_text());
         return;
     }
 
@@ -149,7 +161,7 @@ fn main() {
     }
 
     if config.mode.is_some() || !config.operands.is_empty() {
-        match (config.mode, config.coin) {
+        match (config.mode, config.chain.family) {
             (
                 Some(
                     SearchMode::Address
@@ -157,9 +169,9 @@ fn main() {
                     | SearchMode::XPoint
                     | SearchMode::XPoints,
                 ),
-                Coin::Btc,
+                Family::SecpHash160,
             )
-            | (Some(SearchMode::Address | SearchMode::Addresses), Coin::Eth) => {
+            | (Some(SearchMode::Address | SearchMode::Addresses), Family::EvmKeccak) => {
                 #[cfg(feature = "gpu")]
                 if config.gpu {
                     match rotor::gpu_search::run(&config) {
@@ -180,7 +192,7 @@ fn main() {
                     std::process::exit(1);
                 }
             }
-            (Some(SearchMode::Bsgs), Coin::Btc | Coin::Eth) => {
+            (Some(SearchMode::Bsgs), Family::SecpHash160 | Family::EvmKeccak) => {
                 match rotor::bsgs::run_cli(&config) {
                     Ok(code) => std::process::exit(code),
                     Err(err) => {
@@ -190,7 +202,11 @@ fn main() {
                 }
             }
             _ => {
-                println!("  not implemented in this milestone");
+                let mode = config.mode.unwrap_or(SearchMode::Address);
+                eprintln!(
+                    "  Error: {}",
+                    cli::unsupported_mode_message(config.chain, mode)
+                );
                 std::process::exit(2);
             }
         }
