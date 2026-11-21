@@ -261,7 +261,7 @@
   }
 
   async function decrypt(request) {
-    var wasm = await window.RotorKeyTools.loadWasm('/rotor_wasm.wasm');
+    var wasm = await window.RotorKeyTools.loadWasm(window.RotorAssets.url('/rotor_wasm.wasm'));
     if (typeof wasm.keystore_decrypt !== 'function' || typeof wasm.derive_report !== 'function') {
       throw new Error('This build of the calculation core has no keystore export. Reload the page.');
     }

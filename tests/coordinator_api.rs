@@ -93,16 +93,48 @@ fn raw_with_headers(
     stream.write_all(request.as_bytes()).expect("write request");
     let mut response = Vec::new();
     stream.read_to_end(&mut response).expect("read response");
-    let text = String::from_utf8_lossy(&response).into_owned();
-    let split = text.find("\r\n\r\n").expect("header terminator");
-    let (head, rest) = text.split_at(split);
+    let split = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("header terminator");
+    let head = String::from_utf8_lossy(&response[..split]).into_owned();
+    let body = &response[split + 4..];
+    let body = match response_header(&head, "transfer-encoding") {
+        Some(value) if value.to_ascii_lowercase().contains("chunked") => decode_chunked(body),
+        _ => body.to_vec(),
+    };
     let status = head
         .lines()
         .next()
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|code| code.parse::<u16>().ok())
         .expect("status code");
-    (status, head.to_string(), rest[4..].to_string())
+    (status, head, String::from_utf8_lossy(&body).into_owned())
+}
+
+/// Decode a chunked body. tiny_http frames any response at or above 32 KiB, so
+/// a large asset arrives chunked; reading the raw bytes would leave chunk sizes
+/// inside the payload and miss a string that straddles a chunk boundary.
+fn decode_chunked(body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut rest = body;
+    while let Some(size_end) = rest.windows(2).position(|window| window == b"\r\n") {
+        let size_text = String::from_utf8_lossy(&rest[..size_end]);
+        let size = usize::from_str_radix(size_text.split(';').next().unwrap_or("").trim(), 16)
+            .unwrap_or(0);
+        let after = &rest[size_end + 2..];
+        if size == 0 {
+            break;
+        }
+        let take = size.min(after.len());
+        out.extend_from_slice(&after[..take]);
+        rest = if after.len() >= take + 2 && &after[take..take + 2] == b"\r\n" {
+            &after[take + 2..]
+        } else {
+            &after[take..]
+        };
+    }
+    out
 }
 
 fn response_header(head: &str, name: &str) -> Option<String> {
@@ -110,6 +142,15 @@ fn response_header(head: &str, name: &str) -> Option<String> {
         .filter_map(|line| line.split_once(':'))
         .find(|(field, _)| field.eq_ignore_ascii_case(name))
         .map(|(_, value)| value.trim().to_string())
+}
+
+/// Build id the coordinator stamped into the served document. Tests do not
+/// link against the private `BUILD_ID`; they read what a browser would read.
+fn page_build(body: &str) -> String {
+    let marker = "data-build=\"";
+    let start = body.find(marker).expect("page carries data-build") + marker.len();
+    let end = start + body[start..].find('"').expect("closing data-build quote");
+    body[start..end].to_string()
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
@@ -215,6 +256,93 @@ fn site_assets_revalidate_by_etag() {
         &[("If-None-Match", "\"stale\"")],
     );
     assert_eq!(status, 200);
+}
+
+#[test]
+fn html_references_build_fingerprinted_assets() {
+    let temp = TempState::new("fingerprint");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    // Both render paths (static pages and generated SEO pages) must point at
+    // the build-prefixed URL; a bare asset reference would be cached with the
+    // edge's own TTL instead of the immutable one.
+    let mut build = String::new();
+    for (route, asset) in [
+        ("/", "/site.js"),
+        ("/docs", "/site.css"),
+        ("/faq", "/site.js"),
+    ] {
+        let (status, headers, body) = raw(addr, "GET", route, None, None);
+        assert_eq!(status, 200, "{route}");
+        assert!(
+            headers
+                .to_ascii_lowercase()
+                .contains("cache-control: no-store"),
+            "{route}: {headers}"
+        );
+        build = page_build(&body);
+        let fingerprinted = format!("\"/a/{build}{asset}\"");
+        assert!(
+            body.contains(&fingerprinted),
+            "{route} must reference {fingerprinted}"
+        );
+        assert!(
+            !body.contains(&format!("\"{asset}\"")),
+            "{route} must not reference the bare {asset}"
+        );
+    }
+
+    let (status, headers, _) = raw(addr, "GET", &format!("/a/{build}/site.css"), None, None);
+    assert_eq!(status, 200);
+    let lower = headers.to_ascii_lowercase();
+    assert!(
+        lower.contains("cache-control: public, max-age=31536000, immutable"),
+        "fingerprinted assets must be immutable: {headers}"
+    );
+    assert!(lower.contains("etag:"), "immutable assets keep their ETag");
+    let etag = response_header(&headers, "ETag").expect("ETag");
+    let (status, headers, body) = raw_with_headers(
+        addr,
+        "GET",
+        &format!("/a/{build}/site.css"),
+        None,
+        None,
+        &[("If-None-Match", &etag)],
+    );
+    assert_eq!(status, 304);
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("cache-control: public, max-age=31536000, immutable"),
+        "304 keeps the immutable policy: {headers}"
+    );
+    assert!(body.is_empty());
+
+    // Old bookmarks and curl keep working on the bare path.
+    let (status, _, _) = raw(addr, "GET", "/site.css", None, None);
+    assert_eq!(status, 200);
+
+    // A build segment from an older deploy still resolves (the bytes are this
+    // build's), so a cached shell does not 404 its assets.
+    let (status, _, body_older) = raw(addr, "GET", "/a/older-build/site.css", None, None);
+    assert_eq!(status, 200);
+    let (_, _, bare_body) = raw(addr, "GET", "/site.css", None, None);
+    assert_eq!(body_older, bare_body);
+
+    // An unknown file under the build prefix is a real 404.
+    let (status, _, _) = raw(addr, "GET", &format!("/a/{build}/nope.css"), None, None);
+    assert_eq!(status, 404);
+
+    // The 404 document is emitted HTML too, so it must not ship bare assets.
+    let (status, _, body) = raw(addr, "GET", "/does-not-exist", None, None);
+    assert_eq!(status, 404);
+    assert!(
+        body.contains(&format!("/a/{build}/site.js")),
+        "404 page must reference the fingerprinted site.js: {body}"
+    );
+
+    handle.shutdown();
 }
 
 #[test]
@@ -1378,6 +1506,12 @@ fn send_routes_are_served_with_testnet_only_copy() {
     }
 
     let (status, headers, script) = raw(addr, "GET", "/send.js", None, None);
+    eprintln!(
+        "DEBUG headers={:?} len={} head={:?}",
+        headers,
+        script.len(),
+        &script[..40.min(script.len())]
+    );
     assert_eq!(status, 200);
     assert!(
         headers

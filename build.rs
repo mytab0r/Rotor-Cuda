@@ -9,6 +9,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// The id resolution is shared with the coordinator unit tests so the
+// precedence (explicit env, git commit, `dev`) has one source of truth.
+include!("src/coordinator/build_id.rs");
+
 // One device translation unit only: GPUMath/GPUCompute declare non-inline
 // `__device__` globals, so GpuAddressAbi.cu unity-includes bsgs/BsgsGpu.cu
 // (the same pattern GPUEngine.cu uses). BsgsGpuAbi.cu is host-only.
@@ -20,6 +24,7 @@ const CU_SOURCES: [&str; 2] = [
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-env-changed=ROTOR_BUILD_ID");
     println!("cargo:rustc-env=ROTOR_BUILD_ID={}", build_id());
     for rel in [
         "Rotor-Cuda/bsgs/BsgsGpu.cu",
@@ -171,8 +176,17 @@ fn main() {
     }
 }
 
-/// Short git commit of the checkout being built, or `dev` outside a repository.
+/// Build id for the footer and the `/a/<build>/` asset URLs. A Docker build
+/// has no `.git`, so the image passes the commit in through `ROTOR_BUILD_ID`;
+/// that explicit value wins over the local git lookup. `dev` is only used when
+/// neither the environment nor git supplies an id.
 fn build_id() -> String {
+    let explicit = env::var("ROTOR_BUILD_ID").ok();
+    let git = git_commit();
+    resolve_build_id(explicit.as_deref(), git.as_deref())
+}
+
+fn git_commit() -> Option<String> {
     Command::new("git")
         .args(["rev-parse", "--short=12", "HEAD"])
         .output()
@@ -180,7 +194,6 @@ fn build_id() -> String {
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
         .filter(|id| !id.is_empty())
-        .unwrap_or_else(|| "dev".to_string())
 }
 
 fn nvcc_file_name() -> &'static str {

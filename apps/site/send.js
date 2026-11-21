@@ -43,7 +43,9 @@
   var TRON_CHAIN = 'tron-nile';
   var SEPOLIA_CHAIN_ID = 11155111;
   var BNB_CHAIN_ID = 97;
-  var WASM_URL = '/rotor_wasm.wasm';
+  var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/rotor_wasm.wasm')
+    : '/rotor_wasm.wasm';
   var BTC_API = 'https://mempool.space/testnet/api';
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var WIF_MIN = 50;

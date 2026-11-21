@@ -77,6 +77,17 @@
 
   if (typeof document === 'undefined') return;
 
+  /* Build-prefixed URL for lazily loaded scripts and wasm. theme.js owns the
+   * helper (it runs first); the local branch keeps a standalone page working. */
+  function assetUrl(path) {
+    if (typeof window === 'undefined') return path;
+    if (window.RotorAssets && typeof window.RotorAssets.url === 'function') {
+      return window.RotorAssets.url(path);
+    }
+    var build = document.documentElement.getAttribute('data-build');
+    return build ? '/a/' + build + path : path;
+  }
+
   var TOKEN_KEY = 'rotor-coord-token';
 
   function token() {
@@ -494,10 +505,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', assetUrl('/key-tools.js')); }
+    function ensureSearch() { return ensureScript('RotorSearch', assetUrl('/search.js')); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', assetUrl('/balance-cache.js')); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', assetUrl('/address-codecs.js')); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
@@ -505,7 +516,7 @@
       wasmState.promise = (async function () {
         var response;
         try {
-          response = await fetch('/rotor_wasm.wasm');
+          response = await fetch(assetUrl('/rotor_wasm.wasm'));
         } catch (err) {
           throw new Error('Cannot load the derivation core: ' + (err && err.message ? err.message : String(err)));
         }
