@@ -50,6 +50,13 @@
       "symptom": "Key page cards reserved far more vertical space than their content.",
       "detector": "mostly-empty-block",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "unaudited-page-route",
+      "reported": "2026-11-21",
+      "symptom": "A public page route could be served without appearing in the UI audit route list (found: /milk-sad had 2 sub-12px exponents).",
+      "detector": "route-coverage",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
