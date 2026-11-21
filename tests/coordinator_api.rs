@@ -259,6 +259,52 @@ fn site_assets_revalidate_by_etag() {
 }
 
 #[test]
+fn head_mirrors_get_for_public_resources() {
+    let temp = TempState::new("head");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    // Read the build id the way a browser does: from the served document.
+    let (status, _, page) = raw(addr, "GET", "/docs", None, None);
+    assert_eq!(status, 200);
+    let build = page_build(&page);
+
+    for path in [
+        "/site.css".to_string(),
+        "/docs".to_string(),
+        "/faq".to_string(),
+        "/robots.txt".to_string(),
+        format!("/a/{build}/site.css"),
+    ] {
+        let (get_status, get_headers, get_body) = raw(addr, "GET", &path, None, None);
+        let (head_status, head_headers, head_body) = raw(addr, "HEAD", &path, None, None);
+
+        assert_eq!(head_status, get_status, "{path}: HEAD status differs");
+        assert_eq!(head_status, 200, "{path}: expected 200");
+        assert!(!get_body.is_empty(), "{path}: GET must carry a body");
+        assert!(head_body.is_empty(), "{path}: HEAD body must be empty");
+        for name in ["Cache-Control", "ETag", "Content-Type"] {
+            assert_eq!(
+                response_header(&head_headers, name),
+                response_header(&get_headers, name),
+                "{path}: HEAD {name} differs from GET"
+            );
+        }
+    }
+
+    // An unknown non-API path is still a real 404 for HEAD, with no body.
+    let (status, headers, body) = raw(addr, "HEAD", "/definitely-not-a-page", None, None);
+    assert_eq!(status, 404);
+    assert!(
+        headers.to_ascii_lowercase().contains("text/html"),
+        "headers: {headers}"
+    );
+    assert!(body.is_empty(), "HEAD 404 must not carry a body");
+
+    handle.shutdown();
+}
+
+#[test]
 fn html_references_build_fingerprinted_assets() {
     let temp = TempState::new("fingerprint");
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
