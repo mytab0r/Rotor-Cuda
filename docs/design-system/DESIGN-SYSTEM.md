@@ -495,7 +495,11 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 - Links are 44px targets; the row wraps without overflow at 375px.
 - The app and cabinet shells (`/app`, `/run`, `/me`, `/cabinet`,
   `/cabinet/wallet`) intentionally render no footer.
-- Enforced by `scripts/ui-audit.mjs` `footer-presence`.
+- HTML responses are served with `Cache-Control: no-store`, so a cache cannot
+  keep an older shell without the footer; non-HTML assets keep `no-cache`.
+- Enforced by `scripts/ui-audit.mjs` `footer-presence` per route and by
+  `tests/coordinator_api.rs::every_public_content_route_renders_exactly_one_footer`
+  across the coordinator's public content route list.
 
 ## 4. State matrix
 
