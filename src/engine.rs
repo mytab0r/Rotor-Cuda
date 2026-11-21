@@ -951,7 +951,7 @@ fn load_target_set(config: &Config, record_len: usize, what: &str) -> Result<Tar
         .input_file
         .as_deref()
         .ok_or_else(|| format!("{what} mode requires -i FILE with {record_len}-byte records"))?;
-    TargetSet::load(Path::new(path), record_len)
+    TargetSet::load_for_chain(Path::new(path), config.chain, record_len)
 }
 
 /// Random-start parameters derived from `-r`, `-n`, `-z` and `--range`
@@ -1369,10 +1369,10 @@ fn emit(
     key: &Scalar,
     point: &Affine,
     compressed: bool,
-    coin: &'static chain::ChainDescriptor,
+    chain: &'static chain::ChainDescriptor,
 ) {
     let mut file = shared.output.lock().expect("output mutex");
-    if let Err(err) = emit_hit(&mut file, key, point, compressed, coin) {
+    if let Err(err) = emit_hit(&mut file, key, point, compressed, chain) {
         let mut slot = shared.error.lock().expect("error mutex");
         if slot.is_none() {
             *slot = Some(format!("failed to write the output file: {err}"));
@@ -1380,66 +1380,97 @@ fn emit(
     }
 }
 
+/// One `Found.txt` hit record.
+///
+/// The block format is stable and shared by the CPU and GPU writers:
+///
+/// ```text
+/// PubAddress: <address>
+/// Priv (WIF): <secret>       (only when the chain defines a WIF version)
+/// Priv (HEX): <scalar>
+/// PubK (HEX): <public key>
+/// <86 '=' characters>
+/// ```
+///
+/// `secret` comes from `ChainDescriptor::wif_version`, so Bitcoin, Litecoin,
+/// Dogecoin, Bitcoin Cash and Zcash each get their own WIF. EVM, TRON and XRP
+/// define no WIF version, so their blocks carry only the hex key (XRP's Ripple
+/// family seed is not implemented by the descriptor).
+struct FoundRecord {
+    address: String,
+    secret: Option<String>,
+    private_hex: String,
+    public_hex: String,
+}
+
+impl FoundRecord {
+    fn derive(
+        chain: &chain::ChainDescriptor,
+        key: &Scalar,
+        point: &Affine,
+        compressed: bool,
+    ) -> Result<Self, String> {
+        let derived = chain.derive(chain::KeyMaterial::Secp {
+            key,
+            point,
+            compressed,
+        })?;
+        // The legacy key report printed EVM addresses in lowercase; keep that
+        // output byte-for-byte while the descriptor itself carries the site's
+        // EIP-55 form.
+        let address = if chain.family == chain::Family::EvmKeccak {
+            derived.address.to_ascii_lowercase()
+        } else {
+            derived.address
+        };
+        Ok(Self {
+            address,
+            secret: derived.secret,
+            private_hex: scalar_hex_trimmed(key),
+            public_hex: derived.public_hex,
+        })
+    }
+}
+
 /// Writes one hit block to `file` and prints it. Shared by the CPU and GPU
 /// search paths so both produce identical Found.txt contents.
-pub(crate) fn emit_hit(
+///
+/// The record is derived through `chain`, so the address encoding and the
+/// presence of `Priv (WIF)` follow the descriptor. A chain whose family does
+/// not implement the descriptor's encoding, or whose material is a different
+/// curve, returns an error before anything is written.
+pub fn emit_hit(
     file: &mut File,
     key: &Scalar,
     point: &Affine,
     compressed: bool,
-    coin: &'static chain::ChainDescriptor,
+    chain: &chain::ChainDescriptor,
 ) -> io::Result<()> {
-    let private_hex = scalar_hex_trimmed(key);
-    let derived = coin
-        .derive(chain::KeyMaterial::Secp {
-            key,
-            point,
-            compressed,
-        })
-        .map_err(io::Error::other)?;
-    // The legacy key report printed EVM addresses in lowercase; keep that output
-    // byte-for-byte while the descriptor itself carries the EIP-55 form.
-    let address = if coin.family == chain::Family::EvmKeccak {
-        derived.address.to_ascii_lowercase()
-    } else {
-        derived.address
-    };
+    let record = FoundRecord::derive(chain, key, point, compressed).map_err(io::Error::other)?;
 
-    write_block(
-        file,
-        &address,
-        derived.secret.as_deref(),
-        &private_hex,
-        &derived.public_hex,
-    )?;
+    write_block(file, &record)?;
 
     print!("\n  {}\n", "=".repeat(96));
-    println!("  PubAddress: {address}");
-    if let Some(wif) = &derived.secret {
+    println!("  PubAddress: {}", record.address);
+    if let Some(wif) = &record.secret {
         // Found keys are the intended key-finder output.
         println!("  Priv (WIF): {wif}");
     }
     // Found keys are the intended key-finder output.
-    println!("  Priv (HEX): {private_hex}");
-    println!("  PubK (HEX): {}", derived.public_hex);
+    println!("  Priv (HEX): {}", record.private_hex);
+    println!("  PubK (HEX): {}", record.public_hex);
     println!();
     let _ = io::stdout().flush();
     Ok(())
 }
 
-fn write_block(
-    file: &mut File,
-    address: &str,
-    wif: Option<&str>,
-    private_hex: &str,
-    public_hex: &str,
-) -> io::Result<()> {
-    writeln!(file, "PubAddress: {address}")?;
-    if let Some(wif) = wif {
+fn write_block(file: &mut File, record: &FoundRecord) -> io::Result<()> {
+    writeln!(file, "PubAddress: {}", record.address)?;
+    if let Some(wif) = &record.secret {
         writeln!(file, "Priv (WIF): {wif}")?;
     }
-    writeln!(file, "Priv (HEX): {private_hex}")?;
-    writeln!(file, "PubK (HEX): {public_hex}")?;
+    writeln!(file, "Priv (HEX): {}", record.private_hex)?;
+    writeln!(file, "PubK (HEX): {}", record.public_hex)?;
     writeln!(file, "{}", "=".repeat(86))?;
     file.flush()
 }

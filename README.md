@@ -487,6 +487,13 @@ pre-sorted `.bin`: one target per line, decoded and sorted internally.
 - BTC (`addresses`): P2PKH addresses, e.g. `1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH`
 - ETH (addresses, `--chain ethereum`): `0x` + 40 hex chars
 - `xpoints`: 64 hex chars (the X coordinate)
+- The loader decodes every address with the encoding the selected `--chain`
+  declares: Base58Check for BTC/LTC/DOGE/BCH, the two-byte Base58Check form for
+  ZEC, Ripple Base58 for XRP, `0x` + 40 hex for EVM chains, Base58Check for
+  TRON. An address that belongs to another supported chain is an error, never
+  a fallback; a file mixing two chains is rejected with the offending line
+  number and both chain names. `--list-chains` shows which chains have an
+  implemented search mode today.
 - Blank lines and `#` comments are skipped; surrounding whitespace and CRLF are
   tolerated; a malformed line aborts with `line N: <reason>`.
 
@@ -499,6 +506,11 @@ cat Btc-h160.txt | ./Rotor -m addresses --chain bitcoin --range 400000000:7fffff
 requires `-m addresses` or `-m xpoints`; it feeds the same target set as the
 `.bin` path, so the CPU and GPU engines behave identically.
 
+Binary (`-i`) records carry no chain tag: `--chain` decides which chain the
+20-byte hash160/keccak account is compared against, so one `.bin` file cannot
+mix chains. A 20-byte record file is rejected for chains whose target is 32
+bytes (SOL/SUI/TON) instead of being truncated.
+
    |      GPU Model     |     Scanning Speed     |    Grid Size    |
    |-------------------|:--------------:|:------------------:|
    |    Tesla  T4    |   600 Mkeys   |     128×256     |
@@ -509,6 +521,11 @@ requires `-m addresses` or `-m xpoints`; it feeds the same target set as the
 
 
 ---
+
+> **Warning:** `Found.txt` contains the recovered private keys in cleartext;
+> it is the product output of this tool, not a diagnostic log. The operator is
+> responsible for it: keep the file encrypted and offline, and never share it.
+
 ### Range Scan Sequentially :
 ```
 $./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin --range 1000000000:1fffffffff 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
@@ -719,9 +736,10 @@ Implemented in Rust:
 - `-n` checkpoint files (`Rotor-Cuda_Continue.bat` / `Rotor-Cuda_START.bat`)
 - `--check-update` / `--update` self-update on Windows (WinHTTP + SHA-256,
   assets `rotor.exe` / `rotor-gpu.exe` and their `.sha256`)
-- headerless `.bin` targets (20-byte hash160 / 32-byte xpoint records, sorted internally)
-- `--targets-text FILE` text/stdin lists (BTC/ETH addresses, xpoints; sorted and
-  decoded internally)
+- headerless `.bin` targets (20-byte chain-agnostic hash160/keccak records or
+  32-byte xpoint records, sorted internally; `--chain` decides)
+- `--targets-text FILE` text/stdin lists (addresses decoded for `--chain`,
+  xpoints; sorted internally; a mixed-chain file is rejected)
 - `Found.txt` block format and progress line of the C++ binary
 - `--benchmark` key-rate measurement of the selected backend (human or JSON)
 - `--mnemonic-derive` / `--mnemonic-from-entropy` and the bounded
