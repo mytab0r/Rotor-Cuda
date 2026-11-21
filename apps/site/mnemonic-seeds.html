@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Crypto</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261128a">
-<script src="/theme.js?v=20261128a"></script>
+<link rel="stylesheet" href="/site.css?v=20261128b">
+<script src="/theme.js?v=20261128b"></script>
 </head>
 <body class="mnemonic-directory-mode">
 <header class="site-nav">
@@ -15,7 +15,7 @@
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
-    <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
     <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
     <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
@@ -33,6 +33,8 @@
 
   <h1 class="visually-hidden"><span data-chain-title>Mnemonic seeds</span></h1>
 
+  <p class="muted key-help mnemonic-chain-only mnemonic-lead"><span data-chain-intro>Browse deterministic seed phrases: enumerate English BIP39 phrases across the entropy space, 60 per page, and derive the matching addresses locally.</span> <a href="/seed">Convert or generate your own phrase in the studio</a>.</p>
+
   <div class="chain-tabs" id="mnemonic-chain-tabs" role="navigation" aria-label="Chains">
     <a class="chain-tab chip" href="/mnemonic-seeds/bitcoin" style="--chain:#f7931a"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/ethereum" style="--chain:#8a9cf5"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a>
@@ -45,21 +47,21 @@
     <a class="chain-tab chip" href="/mnemonic-seeds/zksync" style="--chain:#8c8dfc"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zksync"></use></svg>zkSync Era</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/solana" style="--chain:#14f195"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/tron" style="--chain:#ff4d4d"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/ton" style="--chain:#0098ea"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/sui" style="--chain:#6fbcf0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-sui"></use></svg>Sui</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/xrp" style="--chain:#7fa8d9"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/litecoin" style="--chain:#b8c2d6"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-litecoin"></use></svg>Litecoin</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/bitcoin-cash" style="--chain:#8dc351"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>Bitcoin Cash</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/dogecoin" style="--chain:#c2a633"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-dogecoin"></use></svg>Dogecoin</a>
     <a class="chain-tab chip" href="/mnemonic-seeds/zcash" style="--chain:#ecb244"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zcash"></use></svg>Zcash</a>
-    <a class="chain-tab chip" href="/mnemonic-seeds/sui" style="--chain:#6fbcf0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-sui"></use></svg>Sui</a>
-    <a class="chain-tab chip" href="/mnemonic-seeds/ton" style="--chain:#0098ea"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a>
   </div>
 
   <section class="mnemonic-directory-only mnemonic-directory-card card">
     <h2>Mnemonic seed directory</h2>
-    <p>Select a chain above to enumerate deterministic English BIP39 phrases, 60 per page. Each page can use 12, 18 or 24 words (128, 192 or 256 bits of entropy), a standard or custom BIP32 derivation path, and the chain's address types.</p>
+    <p>Browse deterministic seed phrases across 18 chains. Select a chain above to enumerate deterministic English BIP39 phrases, 60 per page. Each page can use 12, 18 or 24 words (128, 192 or 256 bits of entropy), a standard or custom BIP32 derivation path, and the chain's address types.</p>
     <p>The seed index is converted to entropy with BigInt arithmetic, so pages are reproducible but never stored. Phrases, keys and addresses are derived in this browser; the only network calls are public balance lookups for the derived addresses.</p>
     <ul class="mnemonic-directory-list">
-      <li><a href="/seed">Seed phrase converter</a> — derive addresses from one phrase you already have.</li>
+      <li><a href="/seed">Convert your own phrase</a> — open the seed studio to derive addresses from a phrase you already have, or generate a new one.</li>
       <li><a href="/private-keys">Private key directory</a> — browse the raw key space instead of mnemonics.</li>
       <li><a href="/key">Key calculator</a> — inspect one hex, decimal or WIF key.</li>
     </ul>
@@ -148,9 +150,9 @@
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261128a"></script>
-<script src="/balance-cache.js?v=20261128a"></script>
-<script src="/mnemonic-seeds.js?v=20261128a"></script>
-<script src="/site.js?v=20261128a"></script>
+<script src="/seed.js?v=20261128b"></script>
+<script src="/balance-cache.js?v=20261128b"></script>
+<script src="/mnemonic-seeds.js?v=20261128b"></script>
+<script src="/site.js?v=20261128b"></script>
 </body>
 </html>
