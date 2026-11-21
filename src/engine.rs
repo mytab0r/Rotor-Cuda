@@ -1,6 +1,10 @@
 //! CPU multi-threaded key search for the BTC address/xpoint and ETH address
 //! modes, with optional random-start scanning.
 //!
+//! The ed25519 family (Solana, Sui) has its own seed-range loop
+//! (`seed_worker`): the range value is the 32-byte seed, not a secp256k1
+//! scalar, so it is not bounded by the curve order.
+//!
 //! Ported from the CPU path in `Rotor-Cuda/Rotor.cpp` (range split, batch point
 //! generation, hit output and progress line) and the startup banner in
 //! `Rotor-Cuda/Main.cpp`.
@@ -21,6 +25,7 @@ use std::sync::{Mutex, Once};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::address;
 use crate::base58;
 use crate::chain;
 use crate::checkpoint;
@@ -121,12 +126,19 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
             chain::Family::SecpHash160,
             SearchMode::Address | SearchMode::Addresses | SearchMode::XPoint | SearchMode::XPoints
         ) | (
-            chain::Family::EvmKeccak,
+            chain::Family::EvmKeccak | chain::Family::Ed25519,
             SearchMode::Address | SearchMode::Addresses
         )
     );
     if !supported {
         return Err(cli::unsupported_mode_message(config.chain, mode));
+    }
+    let seed_family = config.chain.family == chain::Family::Ed25519;
+    if config.rkey > 0 && seed_family {
+        return Err(format!(
+            "random start (-r) is not implemented for the {} family yet",
+            config.chain.family.label()
+        ));
     }
     // `Main.cpp:513-540`: multi-address/xpoint modes take their targets from
     // `-i FILE` only, never from positional operands.
@@ -153,7 +165,9 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
             if end < start {
                 return Err("--range END must be >= START".to_owned());
             }
-            if Scalar::from_bytes_be(&range.end.0).is_none() {
+            // Seed ranges span arbitrary 32-byte values; only the secp256k1
+            // families are bounded by the curve order.
+            if !seed_family && Scalar::from_bytes_be(&range.end.0).is_none() {
                 return Err("--range END must be below the secp256k1 curve order n".to_owned());
             }
             (start, end)
@@ -163,6 +177,14 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
     };
 
     let target = build_target(config, mode)?;
+    if seed_family && end.sub(start).add_u64(1) == Split::from_u64(0) {
+        // The full 2^256 seed space does not fit the 256-bit chunk arithmetic;
+        // refusing beats scanning chunks that overlap.
+        return Err(
+            "--range cannot span all 2^256 seeds in one run; split it into smaller ranges"
+                .to_owned(),
+        );
+    }
 
     // `Rotor.cpp:213-255`: sequential runs with `-n` resume from the stored
     // per-worker counts and otherwise leave a START.bat behind. A coordinator
@@ -196,7 +218,8 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
     // `-t 0` was rejected above; keep the divisor non-zero.
     let threads = config.threads.max(1);
 
-    let mut chunks = Vec::new();
+    let mut secp_chunks = Vec::new();
+    let mut seed_chunks = Vec::new();
     let mut baseline: Vec<u64> = Vec::new();
     let mut chunk_count = 0usize;
     if !random {
@@ -208,15 +231,19 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
             let Some((low, high)) = shift_chunk(low, high, offsets[index], end) else {
                 continue;
             };
+            if seed_family {
+                seed_chunks.push((index, low, high));
+                continue;
+            }
             let low = low.to_scalar().ok_or_else(|| {
                 "--range START must be below the secp256k1 curve order n".to_owned()
             })?;
             let high = high.to_scalar().ok_or_else(|| {
                 "--range END must be below the secp256k1 curve order n".to_owned()
             })?;
-            chunks.push((index, low, high));
+            secp_chunks.push((index, low, high));
         }
-        if resume.is_some() && chunks.is_empty() {
+        if resume.is_some() && secp_chunks.is_empty() && seed_chunks.is_empty() {
             // Every chunk was fully scanned already.
             return Ok(SearchOutcome {
                 found: 0,
@@ -267,7 +294,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
     prepare_ctrl_c();
 
     thread::scope(|scope| {
-        let mut workers = Vec::with_capacity(chunks.len().max(threads));
+        let mut workers = Vec::with_capacity(secp_chunks.len().max(seed_chunks.len()).max(threads));
         let mut index = 0u64;
         if random {
             for _ in 0..threads {
@@ -280,7 +307,7 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
                 index += 1;
             }
         } else {
-            for (chunk_index, low, high) in chunks {
+            for (chunk_index, low, high) in secp_chunks {
                 let shared = &shared;
                 let target = &target;
                 workers.push(scope.spawn(move || {
@@ -290,6 +317,19 @@ pub fn run_in(config: &Config, checkpoint_dir: Option<&Path>) -> Result<SearchOu
                         None,
                         target,
                         modes,
+                        config.chain,
+                        shared,
+                    );
+                }));
+            }
+            for (chunk_index, low, high) in seed_chunks {
+                let shared = &shared;
+                let target = &target;
+                workers.push(scope.spawn(move || {
+                    seed_worker(
+                        (low, high),
+                        chunk_index as u64,
+                        target,
                         config.chain,
                         shared,
                     );
@@ -381,6 +421,11 @@ pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
     let mode = config.mode.ok_or_else(|| {
         "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
     })?;
+    // The coordinator protocol carries secp targets only; keep the CPU seed
+    // engine local until `chain` is part of job/lease/result payloads.
+    if config.chain.family == chain::Family::Ed25519 {
+        return Err("coordinator mode does not support the ed25519 family yet".to_owned());
+    }
     let supported = matches!(
         (config.chain.family, mode),
         (
@@ -806,24 +851,34 @@ pub(crate) fn build_target(config: &Config, mode: SearchMode) -> Result<Target, 
         (chain::Family::EvmKeccak, SearchMode::Addresses) => {
             Target::Hashes(load_target_set(config, 20, "addresses")?)
         }
+        (chain::Family::Ed25519, SearchMode::Address) => {
+            Target::Seed(parse_ed25519_address(config)?)
+        }
+        (chain::Family::Ed25519, SearchMode::Addresses) => {
+            Target::Seeds(load_target_set(config, 32, "addresses")?)
+        }
         _ => return Err(cli::unsupported_mode_message(config.chain, mode)),
     })
 }
 
-/// Search target: a single hash160/X, or a loaded `.bin` record set.
+/// Search target: a single hash160/X/ed25519 account, or a loaded `.bin`
+/// record set.
 pub(crate) enum Target {
     Hash([u8; 20]),
     Hashes(TargetSet),
     X([u8; 32]),
     Xs(TargetSet),
+    /// Raw 32-byte ed25519 account (Solana public key, Sui BLAKE2b digest).
+    Seed([u8; 32]),
+    Seeds(TargetSet),
 }
 
 impl Target {
     pub(crate) fn matches(&self, needle: &[u8]) -> bool {
         match self {
             Target::Hash(target) => target.as_slice() == needle,
-            Target::X(target) => target.as_slice() == needle,
-            Target::Hashes(set) | Target::Xs(set) => set.contains(needle),
+            Target::X(target) | Target::Seed(target) => target.as_slice() == needle,
+            Target::Hashes(set) | Target::Xs(set) | Target::Seeds(set) => set.contains(needle),
         }
     }
 
@@ -835,17 +890,18 @@ impl Target {
     /// record count for multi modes (`Rotor.cpp:3266`).
     pub(crate) fn stop_after(&self) -> u64 {
         match self {
-            Target::Hash(_) | Target::X(_) => 1,
-            Target::Hashes(set) | Target::Xs(set) => set.len() as u64,
+            Target::Hash(_) | Target::X(_) | Target::Seed(_) => 1,
+            Target::Hashes(set) | Target::Xs(set) | Target::Seeds(set) => set.len() as u64,
         }
     }
 
-    /// Exact target record length in bytes (20 for hash160/ETH, 32 for X).
+    /// Exact target record length in bytes (20 for hash160/ETH, 32 for X and
+    /// ed25519 accounts).
     #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
     pub(crate) fn record_len(&self) -> usize {
         match self {
             Target::Hash(_) | Target::Hashes(_) => 20,
-            Target::X(_) | Target::Xs(_) => 32,
+            Target::X(_) | Target::Xs(_) | Target::Seed(_) | Target::Seeds(_) => 32,
         }
     }
 
@@ -853,7 +909,7 @@ impl Target {
     #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
     pub(crate) fn target_set(&self) -> Option<&TargetSet> {
         match self {
-            Target::Hashes(set) | Target::Xs(set) => Some(set),
+            Target::Hashes(set) | Target::Xs(set) | Target::Seeds(set) => Some(set),
             _ => None,
         }
     }
@@ -910,6 +966,46 @@ fn parse_eth_address(config: &Config) -> Result<[u8; 20], String> {
     let bytes = parse_hex_bytes(hex, 20)
         .ok_or_else(|| format!("invalid ETH address (expected 0x + 40 hex chars): {address}"))?;
     Ok(bytes.try_into().expect("20 bytes"))
+}
+
+/// Decodes an ed25519-family address operand into the 32 bytes the search
+/// compares: Solana base58 public key or Sui `0x` + BLAKE2b-256 account.
+fn parse_ed25519_address(config: &Config) -> Result<[u8; 32], String> {
+    if config.operands.len() != 1 {
+        return Err("address mode requires exactly one address operand".to_owned());
+    }
+    let address = &config.operands[0];
+    match config.chain.encoding {
+        chain::AddressEncoding::SolanaBase58 => {
+            let bytes = bs58::decode(address).into_vec().map_err(|err| {
+                format!(
+                    "invalid SOL address (expected a 32-byte base58 public key): {address}: {err}"
+                )
+            })?;
+            let len = bytes.len();
+            bytes.try_into().map_err(|_| {
+                format!(
+                    "invalid SOL address: decoded {len} bytes, expected a 32-byte base58 public key: {address}"
+                )
+            })
+        }
+        chain::AddressEncoding::SuiHex => {
+            let hex = address
+                .strip_prefix("0x")
+                .or_else(|| address.strip_prefix("0X"))
+                .ok_or_else(|| {
+                    format!("invalid SUI address (expected 0x + 64 hex chars): {address}")
+                })?;
+            let bytes = parse_hex_bytes(hex, 32).ok_or_else(|| {
+                format!("invalid SUI address (expected 0x + 64 hex chars): {address}")
+            })?;
+            Ok(bytes.try_into().expect("32 bytes"))
+        }
+        other => Err(format!(
+            "{} does not support {other:?} in the ed25519 family",
+            config.chain.name
+        )),
+    }
 }
 
 fn parse_xpoint(config: &Config) -> Result<[u8; 32], String> {
@@ -1339,6 +1435,90 @@ fn starting_point(key: &Scalar) -> Jacobian {
     }
 }
 
+/// Scans the inclusive `[start, end]` seed chunk for an ed25519-family target.
+///
+/// The 32 range bytes are the seed itself (big-endian), so no curve order
+/// bounds apply and no point arithmetic is involved: each candidate is hashed
+/// to its account and compared with the target.
+fn seed_worker(
+    (start, end): (Split, Split),
+    thread_index: u64,
+    target: &Target,
+    coin: &'static chain::ChainDescriptor,
+    shared: &Shared,
+) {
+    let batch_split = Split::from_u64(BATCH_SIZE as u64);
+    let mut key = start;
+    let mut seed = start.to_bytes32();
+
+    loop {
+        if STOP.load(AtomicOrdering::SeqCst) {
+            break;
+        }
+
+        let difference = end.sub(key);
+        let remaining = if difference < batch_split {
+            Some(difference.low_u64() + 1)
+        } else {
+            None
+        };
+        let count = remaining.unwrap_or(BATCH_SIZE as u64) as usize;
+
+        for _ in 0..count {
+            let account = match address::ed25519_account(coin, &seed) {
+                Ok(account) => account,
+                Err(err) => {
+                    set_error(shared, &err);
+                    return;
+                }
+            };
+            if target.matches(&account) {
+                shared.found.fetch_add(1, AtomicOrdering::SeqCst);
+                emit_seed(shared, &seed, coin);
+            }
+            increment_seed(&mut seed);
+        }
+
+        shared
+            .scanned
+            .fetch_add(count as u64, AtomicOrdering::SeqCst);
+        if let Some(counter) = shared.counters.get(thread_index as usize) {
+            counter.fetch_add(count as u64, AtomicOrdering::SeqCst);
+        }
+
+        if shared.found.load(AtomicOrdering::SeqCst) >= shared.stop_after {
+            break;
+        }
+        if remaining.is_some() {
+            break;
+        }
+        key = key.add_u64(count as u64);
+    }
+}
+
+/// Big-endian increment of a 32-byte seed; wrapping is unreachable because the
+/// chunk end bounds the loop below `2^256 - 1`.
+fn increment_seed(seed: &mut [u8; 32]) {
+    for byte in seed.iter_mut().rev() {
+        let (next, carry) = byte.overflowing_add(1);
+        *byte = next;
+        if !carry {
+            return;
+        }
+    }
+}
+
+/// Appends one ed25519 hit block to the output file and echoes it.
+fn emit_seed(shared: &Shared, seed: &[u8; 32], chain: &'static chain::ChainDescriptor) {
+    let mut file = shared.output.lock().expect("output mutex");
+    if let Err(err) = emit_seed_hit(&mut file, seed, chain) {
+        let mut slot = shared.error.lock().expect("error mutex");
+        if slot.is_none() {
+            *slot = Some(format!("failed to write the output file: {err}"));
+        }
+    }
+}
+
 /// Announces a new random epoch once, no matter how many workers observe it.
 fn note_rotation(shared: &Shared, epoch: u64) {
     let mut current = shared.epoch.load(AtomicOrdering::SeqCst);
@@ -1393,9 +1573,10 @@ fn emit(
 /// ```
 ///
 /// `secret` comes from `ChainDescriptor::wif_version`, so Bitcoin, Litecoin,
-/// Dogecoin, Bitcoin Cash and Zcash each get their own WIF. EVM, TRON and XRP
-/// define no WIF version, so their blocks carry only the hex key (XRP's Ripple
-/// family seed is not implemented by the descriptor).
+/// Dogecoin, Bitcoin Cash and Zcash each get their own WIF. EVM, TRON, XRP and
+/// the ed25519 family (Solana, Sui) define no WIF version, so their blocks
+/// carry only the hex key (XRP's Ripple family seed is not implemented by the
+/// descriptor). For ed25519 the hex key is the 32-byte seed itself.
 struct FoundRecord {
     address: String,
     secret: Option<String>,
@@ -1430,6 +1611,18 @@ impl FoundRecord {
             public_hex: derived.public_hex,
         })
     }
+
+    /// Ed25519-family record: the 32-byte seed is the private key and the
+    /// descriptor has no WIF form for these chains.
+    fn derive_seed(chain: &chain::ChainDescriptor, seed: &[u8; 32]) -> Result<Self, String> {
+        let derived = chain.derive(chain::KeyMaterial::Seed(seed))?;
+        Ok(Self {
+            address: derived.address,
+            secret: None,
+            private_hex: hex_upper_trimmed(seed),
+            public_hex: derived.public_hex,
+        })
+    }
 }
 
 /// Writes one hit block to `file` and prints it. Shared by the CPU and GPU
@@ -1449,7 +1642,29 @@ pub fn emit_hit(
     let record = FoundRecord::derive(chain, key, point, compressed).map_err(io::Error::other)?;
 
     write_block(file, &record)?;
+    echo_record(&record);
+    Ok(())
+}
 
+/// Writes one ed25519-family hit block to `file` and prints it.
+///
+/// The record goes through the same descriptor and block writer as
+/// [`emit_hit`]; the seed has no WIF, so the chain's `wif_version` and the
+/// `Priv (WIF)` line never appear.
+pub fn emit_seed_hit(
+    file: &mut File,
+    seed: &[u8; 32],
+    chain: &chain::ChainDescriptor,
+) -> io::Result<()> {
+    let record = FoundRecord::derive_seed(chain, seed).map_err(io::Error::other)?;
+
+    write_block(file, &record)?;
+    echo_record(&record);
+    Ok(())
+}
+
+/// Duplicates one written hit block on stdout with a two-space indent.
+fn echo_record(record: &FoundRecord) {
     print!("\n  {}\n", "=".repeat(96));
     println!("  PubAddress: {}", record.address);
     if let Some(wif) = &record.secret {
@@ -1461,7 +1676,6 @@ pub fn emit_hit(
     println!("  PubK (HEX): {}", record.public_hex);
     println!();
     let _ = io::stdout().flush();
-    Ok(())
 }
 
 fn write_block(file: &mut File, record: &FoundRecord) -> io::Result<()> {
@@ -1704,6 +1918,19 @@ pub(crate) fn print_banner(
         (chain::Family::EvmKeccak, SearchMode::Addresses) => {
             println!("  ETH ADDRESS  : {target_source}");
         }
+        (chain::Family::Ed25519, SearchMode::Address) => {
+            println!(
+                "  {} ACCOUNT  : {}",
+                config.chain.id.to_uppercase(),
+                config.operands[0]
+            );
+        }
+        (chain::Family::Ed25519, SearchMode::Addresses) => {
+            println!(
+                "  {} TARGETS  : {target_source}",
+                config.chain.id.to_uppercase()
+            );
+        }
         _ => {}
     }
     println!("  OUTPUT FILE  : {}", config.output_file);
@@ -1744,12 +1971,17 @@ impl Split {
     }
 
     pub(crate) fn to_scalar(self) -> Option<Scalar> {
+        Scalar::from_bytes_be(&self.to_bytes32())
+    }
+
+    /// Big-endian 32 bytes, used as the ed25519 seed for a range position.
+    pub(crate) fn to_bytes32(self) -> [u8; 32] {
         let mut bytes = [0u8; 32];
         for (index, limb) in self.0.iter().enumerate() {
             let start = (3 - index) * 8;
             bytes[start..start + 8].copy_from_slice(&limb.to_be_bytes());
         }
-        Scalar::from_bytes_be(&bytes)
+        bytes
     }
 
     pub(crate) fn add(self, other: Self) -> (Self, bool) {
@@ -1920,11 +2152,15 @@ fn scalar_low_u64(value: &Scalar) -> u64 {
 
 /// Uppercase hexadecimal without leading zeros (`Int::GetBase16`).
 fn scalar_hex_trimmed(key: &Scalar) -> String {
-    let bytes = key.to_bytes_be();
+    hex_upper_trimmed(&key.to_bytes_be())
+}
+
+/// Uppercase hexadecimal without leading zero bytes.
+fn hex_upper_trimmed(bytes: &[u8]) -> String {
     match bytes.iter().position(|&byte| byte != 0) {
         None => "0".to_owned(),
         Some(first) => {
-            let mut out = String::with_capacity(64);
+            let mut out = String::with_capacity(bytes.len() * 2);
             let _ = write!(out, "{:X}", bytes[first]);
             for byte in &bytes[first + 1..] {
                 let _ = write!(out, "{byte:02X}");

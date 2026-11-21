@@ -254,18 +254,30 @@ fn list_chains_prints_all_18_slugs_families_curves_and_modes() {
     assert!(ethereum_line.contains("address, addresses, bsgs"));
     assert!(!ethereum_line.contains("xpoint"));
 
-    // Descriptors without an engine must say so, never advertise modes.
-    for id in ["solana", "sui", "ton"] {
+    // The ed25519 seed engine supports single and multi address targets only.
+    for id in ["solana", "sui"] {
         let line = text
             .lines()
             .find(|line| line.split_whitespace().next() == Some(id))
             .unwrap_or_else(|| panic!("missing {id} in:\n{text}"));
         assert!(
-            line.contains("not implemented yet"),
-            "{id} should be honest about having no modes: {line}"
+            line.contains("address, addresses"),
+            "{id} should advertise its two modes: {line}"
         );
-        assert!(!line.contains("address,"), "{id} line: {line}");
+        assert!(!line.contains("xpoint"), "{id} line: {line}");
+        assert!(!line.contains("bsgs"), "{id} line: {line}");
     }
+
+    // Descriptors without an engine must say so, never advertise modes.
+    let ton_line = text
+        .lines()
+        .find(|line| line.split_whitespace().next() == Some("ton"))
+        .expect("ton line");
+    assert!(
+        ton_line.contains("not implemented yet"),
+        "ton should be honest about having no modes: {ton_line}"
+    );
+    assert!(!ton_line.contains("address,"), "ton line: {ton_line}");
 
     assert!(parse(&["--list-chains"]).list_chains);
 }
@@ -273,8 +285,11 @@ fn list_chains_prints_all_18_slugs_families_curves_and_modes() {
 #[test]
 fn unsupported_chain_mode_pairs_name_the_chain_and_its_modes() {
     let cases = [
-        ("solana", "address", "none"),
-        ("sui", "xpoint", "none"),
+        ("solana", "xpoint", "address, addresses"),
+        ("solana", "xpoints", "address, addresses"),
+        ("solana", "bsgs", "address, addresses"),
+        ("sui", "xpoint", "address, addresses"),
+        ("sui", "bsgs", "address, addresses"),
         ("ton", "addresses", "none"),
         ("bnb", "address", "none"),
         ("tron", "addresses", "none"),
@@ -306,12 +321,12 @@ fn unsupported_chain_mode_pairs_name_the_chain_and_its_modes() {
     // with the same precise message instead of the generic fallback.
     let err = parse_err(&[
         "--chain",
-        "solana",
-        "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z",
+        "ton",
+        "EQCcCUPw6Gl_Q9MuCKaOFkqCJAnwNqDO-Tt_y4sIUdpyT_5l",
     ]);
     assert_eq!(
         err.message(),
-        "chain 'solana' is not implemented for mode 'address' yet; supported modes: none"
+        "chain 'ton' is not implemented for mode 'address' yet; supported modes: none"
     );
 
     // The implemented pairs still parse.
@@ -324,11 +339,41 @@ fn unsupported_chain_mode_pairs_name_the_chain_and_its_modes() {
             mode
         );
     }
+    for id in ["solana", "sui"] {
+        for mode in ["address", "addresses"] {
+            assert_eq!(
+                parse(&["--chain", id, "-m", mode]).mode.unwrap().name(),
+                mode,
+                "{id} {mode}"
+            );
+        }
+    }
     let pubkey = compressed_pubkey();
     parse(&[
         "--chain", "bitcoin", "-m", "bsgs", "--range", "1:10", &pubkey,
     ]);
     parse(&["--chain", "ethereum", "-m", "addresses"]);
+}
+
+#[test]
+fn ed25519_chains_reject_gpu_and_benchmark() {
+    let err = parse_err(&["--chain", "solana", "-m", "address", "-g"]);
+    assert_eq!(
+        err.message(),
+        "GPU search is not implemented for the ed25519 family yet; drop -g"
+    );
+
+    let err = parse_err(&["--chain", "sui", "-m", "addresses", "-g"]);
+    assert_eq!(
+        err.message(),
+        "GPU search is not implemented for the ed25519 family yet; drop -g"
+    );
+
+    let err = parse_err(&["--chain", "sui", "--benchmark"]);
+    assert_eq!(
+        err.message(),
+        "chain 'sui' is not implemented for --benchmark yet; supported chains: bitcoin, ethereum"
+    );
 }
 
 #[test]

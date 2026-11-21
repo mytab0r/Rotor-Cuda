@@ -342,8 +342,9 @@ impl ChainDescriptor {
     /// Bytes compared by the search target.
     ///
     /// `secp-hash160`, `evm-keccak` and `tron-keccak` compare a 20-byte
-    /// hash160/account; `ed25519` compares a 32-byte public key and TON a
-    /// 32-byte StateInit hash. Target files must match this width.
+    /// hash160/account; `ed25519` compares a 32-byte account (the public key on
+    /// Solana, its BLAKE2b-256 digest on Sui) and TON a 32-byte StateInit hash.
+    /// Target files must match this width.
     pub const fn target_len(&self) -> usize {
         match self.family {
             Family::SecpHash160 | Family::EvmKeccak | Family::TronKeccak => 20,
