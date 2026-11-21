@@ -1919,9 +1919,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261126a\">\n\
-         <script src=\"/theme.js?v=20261126a\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261126a\"></script>\n<script src=\"/site.js?v=20261126a\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261126c\">\n\
+         <script src=\"/theme.js?v=20261126c\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261126c\"></script>\n<script src=\"/site.js?v=20261126c\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2636,7 +2636,7 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261126a\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261126c\">\n");
     let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
          <span aria-current=\"page\">Brainwallet</span></nav>";
@@ -2746,7 +2746,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261126a\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261126c\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2806,8 +2806,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261126a\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261126a\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261126c\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261126c\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2845,7 +2845,7 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261126a\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261126c\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
@@ -2896,8 +2896,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261126a\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261126a\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261126c\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261126c\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -3252,7 +3252,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261126a\"></script>\n         <script src=\"/browse.js?v=20261126a\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261126c\"></script>\n         <script src=\"/browse.js?v=20261126c\"></script>",
         site_header(),
         "",
         chain.color,
@@ -5445,7 +5445,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261126a"),
+                page.contains("/theme.js?v=20261126c"),
                 "{path} does not load the theme script"
             );
         }
@@ -5487,8 +5487,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261126a\"></script>"));
-        assert!(page.contains("/site.css?v=20261126a"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261126c\"></script>"));
+        assert!(page.contains("/site.css?v=20261126c"));
     }
 
     #[test]
@@ -5798,7 +5798,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261126a"));
+        assert!(body.contains("brainwallet.css?v=20261126c"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5818,7 +5818,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261126a"));
+        assert!(body.contains("brainwallet.css?v=20261126c"));
     }
 
     #[test]
@@ -5847,12 +5847,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261126a"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261126c"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261126a"),
+                body.contains("brainwallet-directory.js?v=20261126c"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261126a"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261126c"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -5916,9 +5916,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261126a"));
-        assert!(body.contains("brainwallet.js?v=20261126a"));
-        assert!(body.contains("brainwallet.css?v=20261126a"));
+        assert!(body.contains("brainwallet-engine.js?v=20261126c"));
+        assert!(body.contains("brainwallet.js?v=20261126c"));
+        assert!(body.contains("brainwallet.css?v=20261126c"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -6292,11 +6292,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261126a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261126a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261126a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261126a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261126a\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261126c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261126c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261126c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261126c\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261126c\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 

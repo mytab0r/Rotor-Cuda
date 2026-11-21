@@ -2777,6 +2777,7 @@
     }
 
     function openInfoPopover() {
+      if (window.RotorTooltip) window.RotorTooltip.hide();
       infoPopover.hidden = false;
       /* Keep the card inside the viewport even when it opens near the bottom
        * edge on a short screen; the body scrolls instead of the page moving. */
