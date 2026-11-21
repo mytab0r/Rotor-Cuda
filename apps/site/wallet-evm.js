@@ -97,8 +97,11 @@
       testnet: false,
       explorerTx: 'https://optimistic.etherscan.io/tx/',
       feeCapWei: 10n ** 16n,
+      /* mainnet.optimism.io answers HTTP 403 to a browser-like request even
+       * with an Origin header (checked 2026-11-22), so it is not offered. */
       providers: [
-        { id: 'optimism', url: 'https://mainnet.optimism.io', label: 'mainnet.optimism.io' }
+        { id: 'publicnode', url: 'https://optimism-rpc.publicnode.com', label: 'publicnode.com' },
+        { id: 'drpc', url: 'https://optimism.drpc.org', label: 'dRPC' }
       ]
     },
     {
@@ -123,8 +126,11 @@
       testnet: false,
       explorerTx: 'https://polygonscan.com/tx/',
       feeCapWei: 10n ** 16n,
+      /* polygon-rpc.com answers "API key disabled, tenant disabled" (checked
+       * 2026-11-22), so it is not offered. */
       providers: [
-        { id: 'polygon', url: 'https://polygon-rpc.com', label: 'polygon-rpc.com' }
+        { id: 'publicnode', url: 'https://polygon-bor-rpc.publicnode.com', label: 'publicnode.com' },
+        { id: 'drpc', url: 'https://polygon.drpc.org', label: 'dRPC' }
       ]
     },
     {
@@ -529,6 +535,20 @@
     }
   }
 
+  /* Defense in depth at confirm time: a review object can be mutated after it
+   * was prepared, so the native-only shape is re-checked before signing. */
+  function assertMainnetNativeTransfer(network, dataHex, valueWei) {
+    if (network.testnet) return;
+    if (dataHex !== '0x') {
+      throw new Error('Mainnet signing here is native-token transfers only; ' +
+        'the reviewed transaction has calldata. Refusing to sign.');
+    }
+    if (typeof valueWei !== 'bigint' || valueWei <= 0n) {
+      throw new Error('Mainnet signing here is native-token transfers only; ' +
+        'the reviewed amount is not greater than zero. Refusing to sign.');
+    }
+  }
+
   function bufferedGasLimit(estimate) {
     var percent = 100n + GAS_BUFFER_PERCENT;
     var buffered = (estimate * percent + 99n) / 100n;
@@ -897,6 +917,7 @@
       throw new Error('The RPC provider is missing from the review.');
     }
     if (!network.testnet) {
+      assertMainnetNativeTransfer(network, review.dataHex, review.valueWei);
       assertFeeCap(network, review.gasLimit, review.maxFeeWei);
       assertSufficientBalance(network, review.balanceWei, review.totalMaxCostWei);
     }
