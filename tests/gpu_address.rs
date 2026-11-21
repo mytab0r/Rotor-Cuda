@@ -53,7 +53,7 @@ fn config(
     Config {
         gpu: true,
         mode: Some(mode),
-        coin,
+        chain,
         comp_mode: comp,
         range: Some(Range { start, end }),
         operands: vec![target],
