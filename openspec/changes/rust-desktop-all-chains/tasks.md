@@ -1,14 +1,14 @@
 # Tasks: Rust-only desktop, all chains
 
 ## 1. Inventory and GPU ADR [desktop]
-- [ ] Write `openspec/changes/rust-desktop-all-chains/gpu-spike.md` with the
+- [x] Write `openspec/changes/rust-desktop-all-chains/gpu-spike.md` with the
       current CUDA kernel inventory (`Rotor-Cuda/GPU/*`, `bsgs/*`), measured
       keys/s baseline, and the two candidate ports. (blocked by: -)
-- [ ] Time-boxed `wgpu` WGSL secp kernel spike; record keys/s, build size,
+- [x] Time-boxed `wgpu` WGSL secp kernel spike; record keys/s, build size,
       Windows/Linux status.
-- [ ] Time-boxed `rust-gpu` SPIR-V spike; record toolchain pin, driver status,
+- [x] Time-boxed `rust-gpu` SPIR-V spike; record toolchain pin, driver status,
       keys/s.
-- [ ] Decide: port winner, or keep CUDA feature-gated and mark Rust-only
+- [x] Decide: port winner, or keep CUDA feature-gated and mark Rust-only
       blocked. Record the verdict and the 98% floor in `design.md`.
 
 ## 2. Chain descriptors and CLI [desktop]
