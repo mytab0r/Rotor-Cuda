@@ -119,6 +119,10 @@ hooks, licence and last commit.
    gated routes, then expand.
 6. **Ledger + checker (M).** `docs/process/defects.yml` plus
    `scripts/check-defect-ledger.mjs`, invoked from `check-projects.mjs` and CI.
+7. **Generated token layer (S).** `design/tokens/tokens.json` is the source;
+   `node scripts/build-tokens.mjs --check` is a CI gate and fails when the
+   marked region in `apps/site/site.css` or `design/generated/tokens.ts` is
+   stale.
 
 **Later:** Lighthouse CI budgets on `/` and `/key`; `cargo mutants` quarterly;
 Playwright only if the CDP harness becomes the bottleneck.

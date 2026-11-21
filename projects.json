@@ -5,7 +5,8 @@
       "title": "Browser site and wasm client UI",
       "owner": "site-ui",
       "paths": [
-        "apps/site/**"
+        "apps/site/**",
+        "design/**"
       ],
       "build": [
         "node --check apps/site/site.js",
@@ -39,10 +40,12 @@
         "node --check apps/site/send.js",
         "node --check apps/site/tx-decoders.js",
         "node --check apps/site/tx-page.js",
-        "node --check scripts/ui-audit.mjs"
+        "node --check scripts/ui-audit.mjs",
+        "node scripts/build-tokens.mjs --check"
       ],
       "test": [
         "node scripts/ui-audit.mjs --help",
+        "node --test scripts/build-tokens.test.mjs",
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",
