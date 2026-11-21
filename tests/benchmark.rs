@@ -2,17 +2,22 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use rotor::benchmark::{self, Measurement};
-use rotor::cli::{self, Coin, Config, Range, SearchMode, U256};
+use rotor::chain;
+use rotor::cli::{self, Config, Range, SearchMode, U256};
 use rotor::engine;
 
 /// The stop flag is process-wide, so engine-touching tests must not overlap.
 static ENGINE: Mutex<()> = Mutex::new(());
 
+fn bitcoin() -> &'static chain::ChainDescriptor {
+    chain::by_id("bitcoin").expect("bitcoin descriptor")
+}
+
 fn bench_config() -> Config {
     Config {
         threads: 1,
         display: 0,
-        coin: Coin::Btc,
+        chain: bitcoin(),
         mode: Some(SearchMode::Address),
         ..Config::default()
     }

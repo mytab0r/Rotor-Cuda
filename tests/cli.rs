@@ -1,6 +1,15 @@
 use std::process::Command;
 
-use rotor::cli::{self, Coin, CompMode, Config, Range, SearchMode, U256};
+use rotor::chain;
+use rotor::cli::{self, CompMode, Config, Range, SearchMode, U256};
+
+fn bitcoin() -> &'static chain::ChainDescriptor {
+    chain::by_id("bitcoin").expect("bitcoin descriptor")
+}
+
+fn ethereum() -> &'static chain::ChainDescriptor {
+    chain::by_id("ethereum").expect("ethereum descriptor")
+}
 
 fn args(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
@@ -107,7 +116,7 @@ fn defaults_match_cpp() {
     assert!(config.threads >= 1);
     assert!(!config.thread_specified);
     assert_eq!(config.comp_mode, CompMode::Compressed);
-    assert_eq!(config.coin, Coin::Btc);
+    assert_eq!(config.chain, bitcoin());
     assert!(config.mode.is_none());
     assert!(config.range.is_none());
     assert_eq!(config.display, 1);
@@ -128,25 +137,198 @@ fn mode_and_coin_are_lowercased() {
 
     let config = parse(&["-m", "AdDrEsSeS", "--coin", "ETH"]);
     assert_eq!(config.mode, Some(SearchMode::Addresses));
-    assert_eq!(config.coin, Coin::Eth);
+    assert_eq!(config.chain, ethereum());
 }
 
 #[test]
-fn eth_rejects_xpoint_modes() {
+fn eth_rejects_xpoint_modes_with_the_supported_list() {
+    let expected = "chain 'ethereum' is not implemented for mode 'xpoint' yet; supported modes: address, addresses, bsgs";
     let err = parse_err(&["--coin", "eth", "-m", "xpoint"]);
-    assert_eq!(
-        err.message(),
-        "Wrong search or compress mode provided for ETH coin type"
-    );
+    assert_eq!(err.message(), expected);
 
-    let err = parse_err(&["--coin", "eth", "-m", "xpoints"]);
+    let err = parse_err(&["--chain", "ethereum", "-m", "xpoints"]);
     assert_eq!(
         err.message(),
-        "Wrong search or compress mode provided for ETH coin type"
+        "chain 'ethereum' is not implemented for mode 'xpoints' yet; supported modes: address, addresses, bsgs"
     );
 
     let config = parse(&["--coin", "eth", "-m", "addresses"]);
     assert_eq!(config.comp_mode, CompMode::Uncompressed);
+    assert!(config.coin_deprecated);
+}
+
+#[test]
+fn every_site_slug_and_ticker_alias_selects_its_descriptor() {
+    for descriptor in chain::all() {
+        let config = parse(&["--chain", descriptor.id]);
+        assert_eq!(config.chain, descriptor, "{}", descriptor.id);
+        assert!(!config.coin_deprecated, "{}", descriptor.id);
+    }
+
+    for (alias, id) in [
+        ("BTC", "bitcoin"),
+        ("Btc", "bitcoin"),
+        ("ETH", "ethereum"),
+        ("arb", "arbitrum"),
+        ("op", "optimism"),
+        ("matic", "polygon"),
+        ("avax", "avalanche"),
+        ("sol", "solana"),
+        ("trx", "tron"),
+        ("ltc", "litecoin"),
+        ("doge", "dogecoin"),
+        ("bch", "bitcoin-cash"),
+        ("zec", "zcash"),
+    ] {
+        assert_eq!(parse(&["--chain", alias]).chain.id, id, "{alias}");
+    }
+
+    let err = parse_err(&["--chain", "not-a-chain"]);
+    assert!(
+        err.message().contains("Invalid chain name: not-a-chain"),
+        "unexpected error: {}",
+        err.message()
+    );
+}
+
+#[test]
+fn deprecated_coin_is_an_alias_not_an_error() {
+    let btc = parse(&["--coin", "BTC"]);
+    assert_eq!(btc.chain, bitcoin());
+    assert!(btc.coin_deprecated);
+
+    let eth = parse(&["--coin", "eth"]);
+    assert_eq!(eth.chain, ethereum());
+    assert!(eth.coin_deprecated);
+
+    let err = parse_err(&["--coin", "sol"]);
+    assert!(
+        err.message()
+            .contains("--coin is deprecated; use --chain <slug>"),
+        "unexpected error: {}",
+        err.message()
+    );
+
+    // Same chain through both options is accepted; a conflict is loud.
+    let same = parse(&["--coin", "btc", "--chain", "bitcoin"]);
+    assert_eq!(same.chain.id, "bitcoin");
+    let err = parse_err(&["--coin", "btc", "--chain", "ethereum"]);
+    assert!(err.message().contains("select different chains"));
+}
+
+#[test]
+fn list_chains_prints_all_18_slugs_families_curves_and_modes() {
+    let text = cli::list_chains_text();
+    assert_eq!(text.lines().count(), 19, "header plus 18 chains");
+    assert!(text.contains("CHAIN ID"));
+    assert!(text.contains("FAMILY"));
+    assert!(text.contains("CURVE"));
+
+    for descriptor in chain::all() {
+        let line = text
+            .lines()
+            .find(|line| line.split_whitespace().next() == Some(descriptor.id))
+            .unwrap_or_else(|| panic!("missing {} in:\n{text}", descriptor.id));
+        assert!(
+            line.contains(descriptor.family.label()),
+            "{} family line: {line}",
+            descriptor.id
+        );
+        assert!(
+            line.contains(descriptor.curve.label()),
+            "{} curve line: {line}",
+            descriptor.id
+        );
+    }
+
+    let bitcoin_line = text
+        .lines()
+        .find(|line| line.split_whitespace().next() == Some("bitcoin"))
+        .expect("bitcoin line");
+    assert!(bitcoin_line.contains("address, addresses, xpoint, xpoints, bsgs"));
+
+    let ethereum_line = text
+        .lines()
+        .find(|line| line.split_whitespace().next() == Some("ethereum"))
+        .expect("ethereum line");
+    assert!(ethereum_line.contains("address, addresses, bsgs"));
+    assert!(!ethereum_line.contains("xpoint"));
+
+    // Descriptors without an engine must say so, never advertise modes.
+    for id in ["solana", "sui", "ton"] {
+        let line = text
+            .lines()
+            .find(|line| line.split_whitespace().next() == Some(id))
+            .unwrap_or_else(|| panic!("missing {id} in:\n{text}"));
+        assert!(
+            line.contains("not implemented yet"),
+            "{id} should be honest about having no modes: {line}"
+        );
+        assert!(!line.contains("address,"), "{id} line: {line}");
+    }
+
+    assert!(parse(&["--list-chains"]).list_chains);
+}
+
+#[test]
+fn unsupported_chain_mode_pairs_name_the_chain_and_its_modes() {
+    let cases = [
+        ("solana", "address", "none"),
+        ("sui", "xpoint", "none"),
+        ("ton", "addresses", "none"),
+        ("bnb", "address", "none"),
+        ("tron", "addresses", "none"),
+        ("lightning", "address", "none"),
+    ];
+    for (chain_id, mode, modes) in cases {
+        if chain::by_id(chain_id).is_none() {
+            // Unknown slugs fail earlier with the chain-name error.
+            let err = parse_err(&["--chain", chain_id, "-m", mode]);
+            assert!(err.message().contains("Invalid chain name"));
+            continue;
+        }
+        let err = parse_err(&["--chain", chain_id, "-m", mode]);
+        assert_eq!(
+            err.message(),
+            format!(
+                "chain '{chain_id}' is not implemented for mode '{mode}' yet; supported modes: {modes}"
+            )
+        );
+    }
+
+    let err = parse_err(&["--chain", "ethereum", "-m", "xpoint"]);
+    assert_eq!(
+        err.message(),
+        "chain 'ethereum' is not implemented for mode 'xpoint' yet; supported modes: address, addresses, bsgs"
+    );
+
+    // An unimplemented chain with a positional target but no -m is rejected
+    // with the same precise message instead of the generic fallback.
+    let err = parse_err(&[
+        "--chain",
+        "solana",
+        "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z",
+    ]);
+    assert_eq!(
+        err.message(),
+        "chain 'solana' is not implemented for mode 'address' yet; supported modes: none"
+    );
+
+    // The implemented pairs still parse.
+    for mode in ["address", "addresses", "xpoint", "xpoints"] {
+        assert_eq!(
+            parse(&["--chain", "bitcoin", "-m", mode])
+                .mode
+                .unwrap()
+                .name(),
+            mode
+        );
+    }
+    let pubkey = compressed_pubkey();
+    parse(&[
+        "--chain", "bitcoin", "-m", "bsgs", "--range", "1:10", &pubkey,
+    ]);
+    parse(&["--chain", "ethereum", "-m", "addresses"]);
 }
 
 #[test]
@@ -546,7 +728,7 @@ fn gpu_coordinator_is_allowed_for_address_and_xpoint_modes() {
         "secret",
         "0xfda5c442e76a95f96c09782f1a15d3b58e32404f",
     ]);
-    assert_eq!(eth.coin, Coin::Eth);
+    assert_eq!(eth.chain, ethereum());
     assert!(eth.gpu);
 }
 
@@ -657,6 +839,33 @@ fn run_rotor(args: &[&str]) -> std::process::Output {
         .args(args)
         .output()
         .expect("binary should run")
+}
+
+#[test]
+fn binary_warns_on_deprecated_coin_but_does_not_fail() {
+    let output = run_rotor(&["--coin", "btc", "--list-chains"]);
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Warning: --coin is deprecated"),
+        "stderr: {stderr}"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("solana"), "stdout: {stdout}");
+}
+
+#[test]
+fn binary_list_chains_shows_all_18() {
+    let output = run_rotor(&["--list-chains"]);
+    assert!(output.status.success(), "status: {:?}", output.status);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for descriptor in chain::all() {
+        assert!(
+            stdout.contains(descriptor.id),
+            "missing {} in:\n{stdout}",
+            descriptor.id
+        );
+    }
 }
 
 #[test]
@@ -877,7 +1086,7 @@ fn mnemonic_derive_validations() {
     ]);
     assert_eq!(
         err.message(),
-        "mnemonic tools support BTC P2PKH addresses only"
+        "mnemonic tools support BTC P2PKH addresses only; use --chain bitcoin"
     );
 }
 

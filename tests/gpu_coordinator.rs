@@ -407,7 +407,12 @@ fn lost_lease_after_the_job_was_found_stops_normally() {
 #[cfg(feature = "gpu")]
 mod device {
     use super::*;
-    use rotor::cli::{Coin, CompMode, Config, Range, SearchMode, U256};
+    use rotor::chain;
+    use rotor::cli::{CompMode, Config, Range, SearchMode, U256};
+
+    fn bitcoin() -> &'static chain::ChainDescriptor {
+        chain::by_id("bitcoin").expect("bitcoin descriptor")
+    }
 
     #[test]
     fn gpu_coordinator_without_a_device_fails_loudly() {
@@ -419,7 +424,7 @@ mod device {
         let config = Config {
             gpu: true,
             mode: Some(SearchMode::Address),
-            coin: Coin::Btc,
+            chain: bitcoin(),
             comp_mode: CompMode::Compressed,
             range: Some(Range {
                 start: U256::from_u64(1),
