@@ -6,9 +6,9 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 
 | Area | privatekeyfinder.io / secretscan.org | rotor.pxbt.app | Status | P |
 |---|---|---|---|---|
-| Key directory | 18 chains, 60 rows, pager/random/jump, auto-derive, multiple address types, copy | same core; some chains have one address type | partial | P1 |
+| Key directory | 18 chains, 60 rows, pager/random/jump, auto-derive, multiple address types, copy | same core; some chains have one address type; account-model chains summarise Balance/Active, UTXO chains Balance/Received/TX (donor copy) | partial | P1 |
 | Key entity `/key` | auto-derive, 7 key formats, aggregate counters, 8 EVM rows, CSV/Copy All | same donor rows: auto-derive, 7 formats, counters, 8 EVM rows (`↑ same`), Copy All/CSV; signing entry remains | partial | P0 |
-| Global search | modal interpret-as, 1/3/5/10 addresses, result table, export | Ctrl+K modal, interpret-as detection, inline result table with Copy All/CSV (no redirect) | partial | P0 |
+| Global search | modal interpret-as, 1/3/5/10 addresses, result table, export | Ctrl+K modal, interpret-as detection, inline result cards (`ws-chain-card`) with Copy All (TSV)/CSV (no redirect) | partial | P0 |
 | Mnemonic directory | 60 rows, pager, path/word/type, balances, key+phrase copy | same plus hex private-key copy and full-phrase cell; WIF stays on `/key`, as in the donor | partial | P0 |
 | Mnemonic converter | live word count, 20 addresses, Load next 5, Copy All, Received/Active | live word count, 20 addresses, Load next 5, Copy All, aggregates (current balance; no lifetime Received) | partial | P1 |
 | Puzzle home | stats, CTA, All/Solved/Unsolved, search, 160-row table | 160-row table with All/Solved/Unsolved, search and Balance/TX/Actions | parity | P0 |
