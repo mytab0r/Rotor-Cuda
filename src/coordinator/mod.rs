@@ -1038,12 +1038,19 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
     }
 }
 
-/// Permanent redirects to the canonical naming: `/monitor` -> `/cabinet`
-/// and the old `/keys` hubs -> `/private-keys`. Key-range pages keep their
-/// `/keys/<chain>/<start>-<end>` URLs and are not redirected.
+/// Permanent redirects to the canonical naming: `/monitor` -> `/cabinet`,
+/// the donor aliases `/vanity-generator` -> `/vanity` and `/downloads` ->
+/// `/wallets`, and the old `/keys` hubs -> `/private-keys`. Key-range pages
+/// keep their `/keys/<chain>/<start>-<end>` URLs and are not redirected.
 fn redirect_target(path: &str) -> Option<String> {
     if path == "/monitor" {
         return Some("/cabinet".to_string());
+    }
+    if path == "/vanity-generator" {
+        return Some("/vanity".to_string());
+    }
+    if path == "/downloads" {
+        return Some("/wallets".to_string());
     }
     if path == "/keys" {
         return Some("/private-keys".to_string());
@@ -1627,8 +1634,27 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
     None
 }
 
-/// Exactly 64 hex digits, non-zero; secp256k1 keys must also be below the
-/// curve order (the existing scalar parser enforces that). Returns lowercase.
+/// Donor key URL forms: an optional `0x`/`0X` prefix and 1..=64 hex digits,
+/// left-padded to 32 bytes. A short numeric string is hex here, not decimal —
+/// the donor's hex route reads it the same way; decimal stays on `/key/decimal`.
+fn prefixed_hex_key(value: &str) -> Option<String> {
+    let digits = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+        .unwrap_or(value);
+    if digits.is_empty()
+        || digits.len() > 64
+        || !digits.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    Some(format!("{digits:0>64}").to_ascii_lowercase())
+}
+
+/// The key a donor key URL names: 1..=64 hex digits (optional `0x` prefix,
+/// left-padded to 64) or a mainnet WIF; non-zero, and secp256k1 keys must also
+/// be below the curve order (the existing scalar parser enforces that).
+/// Returns lowercase.
 fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
     // A mainnet WIF is accepted in the /key/<value> path as well, matching the
     // donor-style key links. Bitcoin, Litecoin and Dogecoin share the encoding;
@@ -1639,25 +1665,25 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
             hex.as_bytes().first(),
             Some(b'5' | b'K' | b'L' | b'T' | b'Q')
         )
+        && let Ok(decoded) = bs58::decode(hex).with_check(None).into_vec()
     {
-        let decoded = bs58::decode(hex).with_check(None).into_vec().ok()?;
         let key = match decoded.as_slice() {
-            [0x80 | 0xb0 | 0x9e, rest @ ..] if rest.len() == 32 => rest.to_vec(),
-            [0x80 | 0xb0 | 0x9e, rest @ .., 0x01] if rest.len() == 32 => rest.to_vec(),
-            _ => return None,
+            [0x80 | 0xb0 | 0x9e, rest @ ..] if rest.len() == 32 => Some(rest.to_vec()),
+            [0x80 | 0xb0 | 0x9e, rest @ .., 0x01] if rest.len() == 32 => Some(rest.to_vec()),
+            _ => None,
         };
-        let lower = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        return crate::scalar::Scalar::from_hex(&lower)
-            .filter(|value| !value.is_zero())
-            .map(|_| lower);
+        if let Some(key) = key {
+            let lower = key
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            return crate::scalar::Scalar::from_hex(&lower)
+                .filter(|value| !value.is_zero())
+                .map(|_| lower);
+        }
+        // Not a valid WIF: a 51/52-digit hex value is still a donor key URL.
     }
-    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
-    }
-    let lower = hex.to_ascii_lowercase();
+    let lower = prefixed_hex_key(hex)?;
     if curve == "ed25519" {
         if lower.bytes().all(|byte| byte == b'0') {
             return None;
@@ -5612,6 +5638,21 @@ mod tests {
     }
 
     #[test]
+    fn donor_route_aliases_redirect_to_canonical_paths() {
+        assert_eq!(
+            redirect_target("/vanity-generator"),
+            Some("/vanity".to_string())
+        );
+        assert_eq!(redirect_target("/downloads"), Some("/wallets".to_string()));
+        // Exact paths only: subpaths are not alias hubs.
+        assert_eq!(redirect_target("/vanity-generator/"), None);
+        assert_eq!(redirect_target("/vanity-generator/foo"), None);
+        assert_eq!(redirect_target("/downloads/foo"), None);
+        assert_eq!(redirect_target("/vanity"), None);
+        assert_eq!(redirect_target("/wallets"), None);
+    }
+
+    #[test]
     fn keys_hub_links_tools_pages() {
         let base = "https://rotor.pxbt.app";
         let (body, _, status) = seo_asset(base, "/keys", "").expect("/keys");
@@ -6027,6 +6068,46 @@ mod tests {
             "window.__ROTOR_KEY__=\"{}\"",
             upper.to_ascii_lowercase()
         )));
+    }
+
+    #[test]
+    fn seo_key_page_accepts_short_and_prefixed_hex() {
+        let base = "https://rotor.pxbt.app";
+        let key_one = format!("{:064x}", 1);
+        let key_two = format!("{:064x}", 2);
+        for path in [
+            "/key/1".to_string(),
+            "/key/0x1".to_string(),
+            "/key/0X1".to_string(),
+            format!("/key/0x{key_two}"),
+            format!("/key/0X{key_two}"),
+        ] {
+            let (body, _, status) = seo_asset(base, &path, "").expect(&path);
+            assert_eq!(status, 200, "{path}");
+            let expected = if path.ends_with(&key_two) {
+                key_two.clone()
+            } else {
+                key_one.clone()
+            };
+            assert!(
+                body.contains(&format!("window.__ROTOR_KEY__=\"{expected}\"")),
+                "{path} must render the left-padded key"
+            );
+        }
+        // The plain 64-digit form is unchanged.
+        let (body, _, status) =
+            seo_asset(base, &format!("/key/{key_one}"), "").expect("/key/<64 hex>");
+        assert_eq!(status, 200);
+        assert!(body.contains(&format!("window.__ROTOR_KEY__=\"{key_one}\"")));
+        // Arbitrary non-key text stays a real 404, not a donor soft-404.
+        assert_eq!(seo_asset(base, "/key/zzz", "").unwrap().2, 404);
+        assert_eq!(seo_asset(base, "/key/0x0", "").unwrap().2, 404);
+        assert_eq!(
+            seo_asset(base, &format!("/key/{}", "f".repeat(65)), "")
+                .unwrap()
+                .2,
+            404
+        );
     }
 
     #[test]

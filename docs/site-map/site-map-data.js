@@ -437,8 +437,8 @@
     area: 'wallet',
     status: 'ours-only',
     priority: '-',
-    donorIds: ['ss:/wallets'],
-    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. ref-site-a has no real catalogue (soft landing); ref-site-b shows a market/price table.'
+    donorIds: ['pkf:/downloads', 'ss:/wallets'],
+    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. ref-site-a serves ten direct files on /downloads (that exact path now redirects here); ref-site-b shows a market/price table.'
   });
 
   oursRoute({
@@ -762,6 +762,16 @@
     status: 'ours-only',
     ours: '/wallets',
     note: 'The donor URL returns a generic soft landing, not a catalogue.'
+  });
+
+  donorRoute({
+    source: 'pkf',
+    path: '/downloads',
+    title: 'Downloadable datasets',
+    area: 'wallet',
+    status: 'partial',
+    ours: '/wallets',
+    note: 'Ten direct dataset files on the donor; Crypto mirrors six under /wallets and redirects this exact path there.'
   });
 
   donorRoute({

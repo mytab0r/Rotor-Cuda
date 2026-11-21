@@ -73,34 +73,24 @@
     };
   }
 
-  /* 1–64 hex digits with an optional 0x prefix, left-padded to 64. The donor
-   * accepts these short key URLs; an empty string means "not a hex key". */
-  function normalizeKeyHex(raw) {
-    var text = String(raw == null ? '' : raw).trim().toLowerCase();
-    if (text.slice(0, 2) === '0x') text = text.slice(2);
-    if (!/^[0-9a-f]{1,64}$/.test(text)) return '';
-    return text.padStart(64, '0');
-  }
-
-  /* The directory page that holds a 1-based key: 60 keys per page, clamped to
-   * [1, pages]. Returns null when the key is not numeric. */
-  function jumpPageFor(key, pages) {
+  /* The page that contains a key: 60 keys per page. Accepts 1..=64 hex
+   * digits with an optional 0x prefix (the same forms `search.js` resolves);
+   * a short numeric string is hex here, not decimal. Returns a BigInt page
+   * clamped to `1..=pages`, or null when the value is not a positive key. */
+  function pageForHexKey(hex, pages) {
+    var digits = String(hex || '').replace(/^0[xX]/, '');
+    if (!/^[0-9a-fA-F]{1,64}$/.test(digits)) return null;
     var value;
+    var last;
     try {
-      value = typeof key === 'bigint' ? key : BigInt(String(key));
+      value = BigInt('0x' + digits);
+      last = BigInt(String(pages));
     } catch (err) {
       return null;
     }
-    var page = (value - 1n) / PAGE_SIZE + 1n;
-    if (page < 1n) page = 1n;
-    var total = 1n;
-    try {
-      total = pages === undefined || pages === null || pages === '' ? 1n : BigInt(String(pages));
-    } catch (err) {
-      total = 1n;
-    }
-    if (total < 1n) total = 1n;
-    return page > total ? total : page;
+    if (value <= 0n || last < 1n) return null;
+    var page = (value - 1n) / 60n + 1n;
+    return page > last ? last : page;
   }
 
   if (typeof window !== 'undefined') {
@@ -108,9 +98,8 @@
       addressEntriesFor: addressEntriesFor,
       keyModel: keyModel,
       metricFlags: metricFlags,
-      normalizeKeyHex: normalizeKeyHex,
-      jumpPageFor: jumpPageFor,
-      tronValue: tronValue
+      tronValue: tronValue,
+      pageForHexKey: pageForHexKey
     };
   }
 
@@ -1081,20 +1070,42 @@
 
   /* --------------------------------------------------------------- search */
 
-  /* `?key=` jumps to the page that holds the key, like the donor: page =
-   * (key - 1) / 60 + 1, clamped to the last page. The highlight is then the
-   * same row lookup as before. When the key is not numeric (a WIF handled by
-   * the resolver, or arbitrary text) the client-side resolver decides. */
+  /* `?key=` pre-fills the input and highlights a matching row; when the key
+   * lives on another page it navigates to the page that contains it, as the
+   * donor does. The donor normalises hex/WIF client-side, so the same
+   * resolution runs here before the row lookup. */
   function highlightRow(hex) {
     var wanted = String(hex || '').toLowerCase();
-    if (!wanted) return;
+    if (!wanted) return false;
+    var found = false;
     rows.forEach(function (row) {
       if (String(row.getAttribute('data-key')).toLowerCase() !== wanted) return;
+      found = true;
       row.classList.add('highlighted');
       if (row.scrollIntoView) {
         try { row.scrollIntoView({ block: 'center' }); } catch (err) { /* ignore */ }
       }
     });
+    return found;
+  }
+
+  /* Navigate to the page holding `hex`, keeping the query so the destination
+   * highlights the matching row. `replace` keeps the transient page-1 URL out
+   * of history (Back does not bounce into the jump again); navigating only
+   * when the target differs from the current page keeps the jump loop-free. */
+  function jumpToKeyPage(hex) {
+    if (!config.chain) return;
+    var page = pageForHexKey(hex, config.pages);
+    if (page === null) return;
+    var current;
+    try { current = BigInt(String(config.page)); } catch (err) { current = 1n; }
+    if (page === current) return;
+    var params = new URLSearchParams(window.location.search);
+    if ((params.get('type') || 'legacy') === 'legacy') params.delete('type');
+    var query = params.toString();
+    var path = '/private-keys/' + encodeURIComponent(config.chain);
+    if (page !== 1n) path += '/' + page.toString();
+    window.location.replace(path + (query ? '?' + query : ''));
   }
 
   function currentPageNumber() {
@@ -1127,15 +1138,18 @@
     var raw = new URLSearchParams(window.location.search).get('key');
     if (!raw || !searchInput) return;
     searchInput.value = raw;
+    var direct = function () {
+      if (highlightRow(raw)) return;
+      jumpToKeyPage(raw);
+    };
     if (!window.RotorSearch) {
       jumpToKey(raw, raw);
       return;
     }
     window.RotorSearch.resolve(raw, 'auto').then(function (hex) {
-      jumpToKey(hex, raw);
-    }, function () {
-      jumpToKey(raw, raw);
-    });
+      if (highlightRow(hex)) return;
+      jumpToKeyPage(hex);
+    }, direct);
   }
 
   if (searchForm) {
