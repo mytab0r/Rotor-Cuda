@@ -99,7 +99,7 @@
       status: 'partial',
       priority: 'P1',
       donorIds: ['pkf:/private-keys/' + item[0]],
-      note: 'Missing CSV export and balance sorting. BTC and LTC directories expose legacy/segwit/script/taproot; BCH/TON/DOGE/ZEC directories expose one type tab per chain, while /key derives every shipped type for them.'
+      note: 'Missing CSV export and balance sorting. BTC and LTC directories expose legacy/segwit/script/taproot; BCH/TON/DOGE/ZEC directories expose one type tab per chain, while /key derives every shipped type for them. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does.'
     });
   });
 

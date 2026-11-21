@@ -62,8 +62,17 @@ Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdow
 
 ## What our pages must change
 
-1. **Add `?key=` deep link.** Donor jumps to the directory page containing the key and puzzle "Browse Keys in Range" uses it. `apps/site/browse.js` currently redirects search to `/key/…` (~line 1030): parse `key`, compute `(BigInt(key)-1n)/60n+1n`, clamp, render that page, label it "key page". Point the puzzle action (`apps/site/puzzle-browser.js` / `src/coordinator/mod.rs`) at `?key=<start>`.
-2. **Both WIFs in the key cell.** Donor shows `(c)`/`(u)` anchors to `/key/<WIF>` beside the hex; `apps/site/browse.js` `fillAddressCell` (~257) adds one Bitcoin-only "WIF" action. Render two labelled `.key-wif` rows for BTC/LTC/DOGE; style in `apps/site/site.css`.
+1. **Add `?key=` deep link.** Done (2026-11-21): `apps/site/browse.js`
+   (`pageForHexKey` computes `(BigInt(key)-1n)/60n+1n` and clamps;
+   `jumpToKeyPage` navigates only when the computed page differs), pinned by
+   `apps/site/search-test.mjs` (`0xdeadbeef` -> page 62,265,476, clamping,
+   non-hex/zero rejection). The puzzle detail link already uses the short
+   canonical `/bitcoin-puzzle/<n>` URL.
+2. **Both WIFs in the key cell.** Done (2026-11-21): `fillAddressCell` in
+   `apps/site/browse.js` renders `.key-wif` rows labelled `(c)`/`(u)` linking
+   to `/key/<WIF>` for every chain that exposes a WIF (BTC/LTC/DOGE); styles in
+   `apps/site/site.css` (`.key-wif`, `.key-wif-prefix`). BCH/ZEC have no WIF
+   link, as in the donor.
 3. **Per-chain stats.** Done (2026-11-21): UTXO chains render Balance/Received/TX,
    account-model chains (EVM/Tron/Solana/Sui/XRP/Ton) render Balance/Active.
    Evidence: `src/coordinator/mod.rs:1272` (`AddressKind::is_utxo`), `:3336-3349`
@@ -81,11 +90,33 @@ Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdow
    `docs/process/defects.json`) fails any summary whose card count does not
    fill its computed column count; it caught the empty third cell at 375px
    before the ≤560px fix.
-4. **Search controls.** Replace the `#global-search-mode` `<select>` (`apps/site/site.js` ~220) with six chips; keep auto-detect default. Show the BIP39 passphrase + 1/3/5/10 select only for mnemonics — today counts are always visible; no passphrase.
-5. **Search results as cards.** Donor renders 18 `.ws-chain-card`s with name/symbol/balance/`Active` and per-address rows; ours is one table (`renderResults`, `site.js:517`). Switch to cards (table as accessible fallback) and use `N active chains • M active addresses`.
-6. **Split Copy All from CSV.** Donor Copy All = `=== Chain ===` + `address<TAB>key`; CSV is separate. In `apps/site/site.js` both call `toCsv` (~698): add `toText` in `apps/site/search.js`; keep private keys out of CSV (it already exports chain/address/type/explorer, `search.js:388`).
-7. **Mnemonic URL contract.** Donor uses `?bits=128|192|256` and `?preset=<id>`; ours writes `words=` (`apps/site/mnemonic-seeds.js:253,298`). Accept `bits` as alias, emit `bits`, add preset ids (`bip44/bip84/bip49/bip86`) beside `type=`.
-8. **Mnemonic presets as chips.** Donor shows five `.preset-btn`s under the path input; ours is `#mnemonic-path-preset` `<select>` (`mnemonic-seeds.js:518`). Render chip rows per chain, keep select as fallback.
-9. **Show the full mnemonic.** Donor prints the whole phrase; `apps/site/mnemonic-seeds.js:175-181` keeps first two + last word. Render the full phrase (wrap, mono) with its copy button.
+4. **Search controls.** Done (2026-11-21): `apps/site/site.js`
+   (`SEARCH_CHIPS`, the `#global-search-chips` group built from it) replaces the
+   mode select; the BIP39 passphrase and 1/3/5/10 count live in the hidden
+   `#global-search-mnemonic` block and are unhidden only when the selected mode
+   is `mnemonic` (`site.js` `mnemonicEl.hidden = selectedMode !== 'mnemonic'`).
+   Auto-detection stays the default (`apps/site/search.js`, `detect`).
+5. **Search results as cards.** Done (2026-11-21): `buildCard` in
+   `apps/site/site.js` renders `article.ws-chain-card` per chain with per-address
+   rows, name/symbol/balance and an `Active` status; the summary line renders
+   `N active chains • M active addresses`. The cards are the only rendering —
+   there is no separate table view.
+6. **Split Copy All from CSV.** Done (2026-11-21): `apps/site/site.js` — Copy All
+   calls `RotorSearch.cardsToTsv` (`apps/site/search.js`), Copy CSV calls
+   `cardsToCsv` (`apps/site/search.js`) and exports public fields only.
+7. **Mnemonic URL contract.** Done (2026-11-21): `directoryQuery` in
+   `apps/site/mnemonic-seeds.js` emits `bits` and `preset`, omits the default
+   `bits=128`/address type, and falls back to `path` only for a custom path.
+8. **Mnemonic presets as chips.** Done (2026-11-21):
+   `apps/site/mnemonic-seeds.html` (`#mnemonic-path-presets`) and `renderPresets`
+   in `apps/site/mnemonic-seeds.js` render `.preset-btn.chip` buttons with
+   `aria-pressed`; no preset select remains.
+9. **Show the full mnemonic.** Done (2026-11-21): `apps/site/mnemonic-seeds.js`
+   (`col-mnemonic`/`mnemonic-text`: the full phrase in `textContent` and in
+   `title`) plus a `Copy mnemonic` icon button.
 10. **Puzzle defaults/URL.** Done: default filter is Unsolved, `/bitcoin-puzzle/<n>` is the canonical detail URL (links, JSON-LD and sitemap updated), and `/bitcoin-puzzle/<n>/detail` permanently redirects (301) to it.
-11. **Add `/richest/<chain>`.** Missing entirely. Add a top-100 table (`Rank | Address | Label | Type | Balance | Actions`), All/Exchanges/Contracts/Unknown filters, address/label search, no pagination, lazy balances via the existing cache; new `apps/site/richest.js` + route in `src/coordinator/mod.rs`.
+11. **Add `/richest/<chain>`.** **Blocked:** the repo has no licensed ranked
+    top-100 dataset (only gzip download mirrors, `src/coordinator/wallets.rs`),
+    so the donor's ranks, 100 `Unknown` labels and balances cannot be
+    reproduced. Nothing is faked; the row stays open until a dataset/API is
+    chosen by the owner.
