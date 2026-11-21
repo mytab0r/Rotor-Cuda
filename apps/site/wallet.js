@@ -77,7 +77,8 @@
     btcPreparing: false,
     btcSending: false,
     btcReview: null,
-    btcReviewEntryId: null
+    btcReviewEntryId: null,
+    seedWordCount: 12
   };
 
   var vault = window.RotorWalletVault;
@@ -97,6 +98,14 @@
   var importSecret = byId('wallet-secret');
   var importChain = byId('wallet-chain');
   var importLabel = byId('wallet-label');
+
+  /* Seed-phrase block: phrase generation and one-chain derivation. */
+  var seedPhrase = byId('wallet-seed-phrase');
+  var seedStrength = byId('wallet-seed-strength');
+  var seedInfo = byId('wallet-seed-info');
+  var seedGenerate = byId('wallet-seed-generate');
+  var seedAdd = byId('wallet-seed-add');
+  var seedWordButtons = document.querySelectorAll('[data-seed-words]');
 
   /* Send form (EVM Sepolia). Nothing in this block holds a private key. */
   var sendCard = byId('wallet-send');
@@ -436,6 +445,205 @@
     return state.tonPromise;
   }
 
+  /* --------------------------------------------------------- seed phrase */
+
+  var seedScripts = {};
+  var seedWordSet = null;
+  var seedStrengthSeq = 0;
+
+  /* Load a lazily-needed script once. The seed bundle and its crypto helpers
+   * are not part of the page's blocking scripts. */
+  function ensureScript(globalName, src) {
+    if (window[globalName]) return Promise.resolve(window[globalName]);
+    if (seedScripts[globalName]) return seedScripts[globalName];
+    seedScripts[globalName] = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = src;
+      script.onload = function () {
+        if (window[globalName]) resolve(window[globalName]);
+        else reject(new Error(globalName + ' did not load.'));
+      };
+      script.onerror = function () { reject(new Error('Cannot load ' + src + '.')); };
+      document.head.appendChild(script);
+    });
+    seedScripts[globalName].catch(function () { seedScripts[globalName] = null; });
+    return seedScripts[globalName];
+  }
+
+  function ensureSeedLibraries() {
+    if (window.RotorSeed && window.RotorSeedCrypto) return Promise.resolve();
+    return ensureScript('RotorSeed', '/seed.js?v=20261129a').then(function () {
+      return ensureScript('RotorSeedCrypto', '/seed-crypto.js?v=20261129a');
+    });
+  }
+
+  function seedWordMap() {
+    if (!seedWordSet) {
+      seedWordSet = Object.create(null);
+      var words = window.RotorSeed && window.RotorSeed.wordlist;
+      if (!Array.isArray(words)) throw new Error('The BIP39 wordlist did not load.');
+      for (var i = 0; i < words.length; i += 1) seedWordSet[words[i]] = true;
+    }
+    return seedWordSet;
+  }
+
+  function normalizeSeedPhrase() {
+    return String(seedPhrase ? seedPhrase.value : '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  function seedEntropyBits(count) {
+    /* BIP39: entropy bits = 32 x words / 3, only for the five valid lengths. */
+    return [12, 15, 18, 21, 24].indexOf(count) >= 0 ? (count * 32) / 3 : 0;
+  }
+
+  /* The tooltip primitive is a short hover/focus label; the long estimate is
+   * visible text (see #wallet-seed-estimate). */
+  function updateSeedTooltip(bits) {
+    if (!seedInfo) return;
+    if (bits >= 256) seedInfo.setAttribute('data-tooltip', '256-bit ≈ 3.7×10^57 years');
+    else if (bits === 128) seedInfo.setAttribute('data-tooltip', '128-bit ≈ 1.1×10^19 years');
+    else seedInfo.setAttribute('data-tooltip', bits + '-bit entropy');
+  }
+
+  async function analyzeSeedPhrase() {
+    var phrase = normalizeSeedPhrase();
+    var words = phrase ? phrase.split(' ') : [];
+    if (!words.length) return { ok: false, empty: true, words: words, bits: 0 };
+    var bits = seedEntropyBits(words.length);
+    if (!bits) {
+      return {
+        ok: false,
+        words: words,
+        bits: 0,
+        message: 'BIP39 uses 12, 15, 18, 21 or 24 words; this one has ' + words.length + '.'
+      };
+    }
+    await ensureSeedLibraries();
+    var known = seedWordMap();
+    for (var i = 0; i < words.length; i += 1) {
+      if (!known[words[i]]) {
+        return {
+          ok: false,
+          words: words,
+          bits: bits,
+          message: '"' + words[i] + '" is not in the BIP39 wordlist.'
+        };
+      }
+    }
+    if (!window.RotorSeed.validate(phrase)) {
+      return { ok: false, words: words, bits: bits, message: 'BIP39 checksum does not match.' };
+    }
+    return { ok: true, phrase: phrase, words: words, bits: bits };
+  }
+
+  async function refreshSeedStrength() {
+    if (!seedStrength || !seedAdd) return;
+    var seq = (seedStrengthSeq += 1);
+    var selectedBits = seedEntropyBits(state.seedWordCount);
+    var info;
+    try {
+      info = await analyzeSeedPhrase();
+    } catch (err) {
+      if (seq !== seedStrengthSeq) return;
+      seedStrength.textContent = 'Cannot check the phrase: ' + errorText(err);
+      seedAdd.disabled = true;
+      return;
+    }
+    if (seq !== seedStrengthSeq) return;
+    updateSeedTooltip(info.bits || selectedBits);
+    if (info.empty) {
+      seedStrength.textContent = state.seedWordCount + ' words · ' + selectedBits +
+        '-bit entropy · generate or paste a phrase';
+      seedAdd.disabled = true;
+      return;
+    }
+    if (!info.ok) {
+      seedStrength.textContent = info.words.length + ' words' +
+        (info.bits ? ' · ' + info.bits + '-bit entropy' : '') + ' · ' + info.message;
+      seedAdd.disabled = true;
+      return;
+    }
+    seedStrength.textContent = info.words.length + ' words · ' + info.bits +
+      '-bit entropy · BIP39 checksum ok';
+    seedAdd.disabled = false;
+  }
+
+  function resetSeedPhrase() {
+    if (seedPhrase) seedPhrase.value = '';
+    refreshSeedStrength().catch(function () {});
+  }
+
+  /* BIP32 needs a compressed public key; the wasm core owns all curve work. */
+  async function seedPubkeyFor(keyHex) {
+    var wasm = await loadWasm();
+    var report = deriveReport(wasm, hexToBytes(keyHex), 0, 0);
+    if (!report || typeof report.pubkey_compressed !== 'string') {
+      throw new Error('The derivation core returned no compressed public key.');
+    }
+    return hexToBytes(report.pubkey_compressed);
+  }
+
+  async function addSeedKey() {
+    setError('wallet-add-error', '');
+    if (!state.unlocked) {
+      setError('wallet-add-error', 'Unlock the vault first.');
+      return;
+    }
+    var chainSlug = importChain.value;
+    if (!chainSlug) {
+      setError('wallet-add-error', 'Choose a chain for the derived key.');
+      return;
+    }
+    var info;
+    try {
+      info = await analyzeSeedPhrase();
+    } catch (err) {
+      setError('wallet-add-error', errorText(err));
+      return;
+    }
+    if (!info.ok) {
+      setError('wallet-add-error', info.message || 'Paste a valid BIP39 phrase first.');
+      return;
+    }
+    var path = window.RotorSeedCrypto.seedPathFor(chainSlug);
+    if (!path) {
+      setError('wallet-add-error', chainLabel(chainSlug) +
+        ' has no BIP44 preset on this page. Import a WIF or hex key instead.');
+      return;
+    }
+    var spec = chainSpec(chainSlug);
+    seedAdd.disabled = true;
+    try {
+      var seed = await window.RotorSeedCrypto.bip39Seed(info.phrase, '');
+      var keyHex = await window.RotorSeedCrypto.bip32PrivateKey(seed, path, seedPubkeyFor);
+      var parsed = {
+        chain: chainSlug,
+        curve: spec.curve,
+        addressId: spec.addressId,
+        network: spec.network || 0,
+        key: hexToBytes(keyHex),
+        secret_type: 'hex',
+        secret: keyHex
+      };
+      var derived;
+      try {
+        derived = await deriveAddress(parsed);
+      } catch (err) {
+        setError('wallet-add-error', 'Address derivation failed, so the key was not stored: ' + errorText(err));
+        seedAdd.disabled = false;
+        return;
+      }
+      await addParsedEntry(parsed, derived, importLabel.value);
+    } catch (err) {
+      setError('wallet-add-error', err.duplicate ? err.message : 'Cannot save the vault: ' + errorText(err));
+      seedAdd.disabled = false;
+      return;
+    }
+    importLabel.value = '';
+    resetSeedPhrase();
+    renderEntries();
+  }
+
   /* ------------------------------------------------------------- key parsing */
 
   function base58Decode(text) {
@@ -607,6 +815,7 @@
     importSecret.value = '';
     importLabel.value = '';
     importChain.value = '';
+    if (seedPhrase) seedPhrase.value = '';
     byId('wallet-create-pass').value = '';
     byId('wallet-create-pass2').value = '';
     byId('wallet-unlock-pass').value = '';
@@ -643,6 +852,7 @@
     renderSend();
     if (stateEl) stateEl.textContent = 'unlocked · auto-locks after 10 minutes idle';
     setError('wallet-unlock-error', '');
+    refreshSeedStrength().catch(function () {});
   }
 
   /* ------------------------------------------------------------------- lock */
@@ -745,6 +955,37 @@
     return record;
   }
 
+  /* One path for every key that enters the vault, whether it was pasted or
+   * derived from a phrase. Returns the new entry; throws a tagged error for a
+   * duplicate and a plain error when the vault cannot be saved. */
+  async function addParsedEntry(parsed, derived, labelText) {
+    var duplicate = state.entries.some(function (entry) {
+      if (entry.chain !== parsed.chain) return false;
+      if (entry.secret === parsed.secret) return true;
+      var cached = state.derived[entry.id];
+      return cached && cached.address === derived.address;
+    });
+    if (duplicate) {
+      var duplicateError = new Error('That key is already in the vault.');
+      duplicateError.duplicate = true;
+      throw duplicateError;
+    }
+    var label = String(labelText || '').trim().slice(0, MAX_LABEL);
+    var entry = {
+      id: randomId(),
+      chain: parsed.chain,
+      label: label || chainLabel(parsed.chain) + ' key',
+      secret_type: parsed.secret_type,
+      secret: parsed.secret
+    };
+    var nextEntries = state.entries.concat([entry]);
+    var nextDerived = {};
+    Object.keys(state.derived).forEach(function (id) { nextDerived[id] = state.derived[id]; });
+    nextDerived[entry.id] = derived;
+    await saveEntries(nextEntries, nextDerived);
+    return entry;
+  }
+
   importForm.addEventListener('submit', async function (event) {
     event.preventDefault();
     setError('wallet-add-error', '');
@@ -769,31 +1010,10 @@
       setError('wallet-add-error', 'Address derivation failed, so the key was not stored: ' + errorText(err));
       return;
     }
-    var duplicate = state.entries.some(function (entry) {
-      if (entry.chain !== parsed.chain) return false;
-      if (entry.secret === parsed.secret) return true;
-      var cached = state.derived[entry.id];
-      return cached && cached.address === derived.address;
-    });
-    if (duplicate) {
-      setError('wallet-add-error', 'That key is already in the vault.');
-      return;
-    }
-    var entry = {
-      id: randomId(),
-      chain: parsed.chain,
-      label: label || chainLabel(parsed.chain) + ' key',
-      secret_type: parsed.secret_type,
-      secret: parsed.secret
-    };
-    var nextEntries = state.entries.concat([entry]);
-    var nextDerived = {};
-    Object.keys(state.derived).forEach(function (id) { nextDerived[id] = state.derived[id]; });
-    nextDerived[entry.id] = derived;
     try {
-      await saveEntries(nextEntries, nextDerived);
+      await addParsedEntry(parsed, derived, label);
     } catch (err) {
-      setError('wallet-add-error', 'Cannot save the vault: ' + errorText(err));
+      setError('wallet-add-error', err.duplicate ? err.message : 'Cannot save the vault: ' + errorText(err));
       return;
     }
     importSecret.value = '';
@@ -801,6 +1021,51 @@
     importChain.value = '';
     renderEntries();
   });
+
+  /* ------------------------------------------------------- seed phrase actions */
+
+  if (seedWordButtons && seedWordButtons.length) {
+    Array.prototype.forEach.call(seedWordButtons, function (button) {
+      button.addEventListener('click', function () {
+        var count = Number(button.getAttribute('data-seed-words'));
+        state.seedWordCount = count;
+        Array.prototype.forEach.call(seedWordButtons, function (item) {
+          item.setAttribute('aria-pressed', item === button ? 'true' : 'false');
+        });
+        var current = normalizeSeedPhrase();
+        var currentWords = current ? current.split(' ').length : 0;
+        if (currentWords && currentWords !== count) seedPhrase.value = '';
+        refreshSeedStrength().catch(function () {});
+      });
+    });
+  }
+
+  if (seedGenerate) {
+    seedGenerate.addEventListener('click', async function () {
+      setError('wallet-add-error', '');
+      seedGenerate.disabled = true;
+      try {
+        await ensureSeedLibraries();
+        seedPhrase.value = window.RotorSeedCrypto.generateBip39(state.seedWordCount);
+        await refreshSeedStrength();
+        seedPhrase.focus();
+      } catch (err) {
+        setError('wallet-add-error', 'Cannot generate a phrase: ' + errorText(err));
+      } finally {
+        seedGenerate.disabled = false;
+      }
+    });
+  }
+
+  if (seedPhrase) {
+    seedPhrase.addEventListener('input', function () {
+      refreshSeedStrength().catch(function () {});
+    });
+  }
+
+  if (seedAdd) {
+    seedAdd.addEventListener('click', function () { addSeedKey(); });
+  }
 
   /* ---------------------------------------------------------------- removal */
 
