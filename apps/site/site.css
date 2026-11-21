@@ -131,7 +131,6 @@ p { text-wrap: pretty; }
   padding: 0;
   color: #e3b341;
 }
-.key-error { margin: 10px 0 0; overflow-wrap: anywhere; }
 
 .key-copy:focus-visible,
 .key-toggle input:focus-visible {
@@ -167,7 +166,6 @@ p { text-wrap: pretty; }
 }
 .key-copy-sm:hover { color: var(--text); border-color: var(--border); background: var(--panel-2); }
 .key-copy-spacer { display: block; width: 54px; }
-.key-empty { margin: 4px 0 0; }
 
 .key-toggle { flex-direction: row; align-items: center; gap: 7px; font-size: 12px; color: var(--text); }
 .key-toggle input { accent-color: var(--accent-2); }
@@ -316,7 +314,7 @@ p { text-wrap: pretty; }
 .monitor-no-wallet p:last-of-type { margin-bottom: 10px; }
 .monitor-note { font-size: 12px; color: var(--muted); max-width: 62ch; }
 #monitor-wallet-note { max-width: 62ch; overflow-wrap: anywhere; }
-.monitor-status { margin: 10px 0 0; font-size: 12px; }
+.monitor-status { font-size: 12px; }
 .monitor-status.ok { color: var(--ok); }
 .monitor-status.err { color: var(--err); }
 .monitor-warning-text { margin: 10px 0 0; max-width: 62ch; }
@@ -471,7 +469,6 @@ p { text-wrap: pretty; }
 .range-export button { background: var(--range-panel-2); border-color: var(--range-border); color: var(--text); }
 .range-export button:disabled { color: var(--muted); cursor: not-allowed; border-color: var(--range-border); }
 .range-notice { margin: 14px 0 0; font-size: 12px; }
-.range-error { margin: 10px 0 0; overflow-wrap: anywhere; }
 .range-status { margin: 8px 0 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .range-balance-note { margin: 10px 0 0; font-size: 12px; }
 
@@ -490,25 +487,9 @@ p { text-wrap: pretty; }
 .range-secondary { display: grid; gap: 3px; }
 .range-secondary-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
 .range-dash { color: var(--muted); }
-.range-empty { margin: 0; padding: 14px 10px; color: var(--muted); }
-.range-skeleton {
-  display: block;
-  height: 12px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #232c38 0%, #2e3a49 50%, #232c38 100%);
-  background-size: 200% 100%;
-  animation: range-shimmer 1.2s ease-in-out infinite;
-}
 .range-skeleton.w1 { width: 22px; }
 .range-skeleton.w2 { width: 72%; }
 .range-skeleton.w3 { width: 100%; }
-@keyframes range-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .range-skeleton { animation: none; }
-}
 
 @media (max-width: 900px) {
   .range-form { grid-template-columns: 1fr 1fr; }
@@ -1275,12 +1256,52 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   color: #f2cf8f;
   padding: 11px 14px;
 }
+/* Shared async states (DESIGN-SYSTEM §3.13). One empty box, one error box,
+ * one skeleton primitive. Page modifiers (.key-error, .range-error,
+ * .monitor-status) add no geometry. Enforced by ui-audit empty-state-grammar. */
+.empty-state {
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px dashed var(--line-subtle);
+  border-radius: var(--radius-l);
+  color: var(--ink-3);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.empty-state__title {
+  display: block;
+  margin: 0 0 var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.empty-state__action { margin: var(--space-3) 0 0; }
+.error,
+.key-error,
+.range-error,
+.monitor-status { margin: var(--space-3) 0 0; }
 .error {
   border: 1px solid rgba(255, 112, 112, .4);
-  border-radius: 12px;
+  border-radius: var(--radius-l);
   background: rgba(255, 112, 112, .1);
   color: #ffb3b3;
   padding: 11px 14px;
+  overflow-wrap: anywhere;
+}
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
 }
 
 /* ------------------------------------------------------------ directory */
@@ -1731,7 +1752,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-preset-chips, .key-chains{ display: flex; flex-wrap: wrap; gap: 7px; }
 .key-addr-line, .key-row { min-width: 0; }
 .key-copy, .key-copy-sm { border-radius: 7px; }
-.key-error, .key-warning { border-radius: 10px; }
+.key-warning { border-radius: 10px; }
 
 /* --------------------------------------------------------------- cabinet */
 
@@ -1991,7 +2012,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-buttons button { min-height: 44px; padding: 0 16px; }
 .key-buttons #step-down, .key-buttons #step-up { min-width: 44px; padding: 0 10px; font-family: var(--mono); }
 .key-help { max-width: 82ch; margin: 9px 0 0; font-size: 12px; line-height: 1.55; }
-.key-error { margin-top: 12px; }
 
 /* One filter bar: chains, address types, path, presets, export and refresh. */
 .key-filter-bar {
@@ -2261,7 +2281,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-step-list li { margin: 4px 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .key-step-list .mono { color: var(--text-2); }
 .key-soon { margin-left: 4px; color: var(--warn); font-size: 12px; text-transform: uppercase; }
-.key-empty { padding: 18px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
 
 /* Key counters and facts */
 .key-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 10px; }
@@ -3257,10 +3276,6 @@ html[data-theme="light"] .range-page {
   display: none;
   width: 72px;
   height: 10px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--panel-2) 0%, var(--panel-3) 50%, var(--panel-2) 100%);
-  background-size: 200% 100%;
-  animation: range-shimmer 1.2s ease-in-out infinite;
 }
 .key-input-status.is-deriving .key-status-skeleton { display: inline-block; }
 .key-page .key-input-label input[aria-invalid="true"],
@@ -4011,7 +4026,7 @@ button.key-info-btn .icon { width: 16px; height: 16px; }
 .wallet-review dd { margin: 0; overflow-wrap: anywhere; }
 .wallet-review dd code { overflow-wrap: anywhere; }
 .wallet-hex { display: block; margin: 6px 0 12px; padding: 10px; border: 1px solid var(--line-subtle); border-radius: var(--radius-control); background: var(--surface-2); overflow-wrap: anywhere; }
-.wallet-field-error { margin: 0 0 var(--space-2); }
+.wallet-field-error { margin: var(--space-2) 0; }
 .wallet-warnings { margin: var(--space-2) 0 0; padding-left: 18px; color: var(--state-err); font-size: var(--text-sm); }
 #wallet-send select { width: 100%; max-width: 100%; }
 #wallet-send-from, #wallet-send-provider-note, #wallet-send-hash,

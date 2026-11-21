@@ -566,7 +566,7 @@
   function summaryPlaceholder() {
     summaryEl.textContent = '';
     var note = document.createElement('p');
-    note.className = 'muted key-empty';
+    note.className = 'muted empty-state';
     note.textContent = 'Derive a key to see its numeric forms and public point.';
     summaryEl.appendChild(note);
   }
@@ -575,9 +575,11 @@
     rowsEl.textContent = '';
     var row = document.createElement('tr');
     var cell = document.createElement('td');
-    cell.className = 'key-empty';
     cell.colSpan = 5;
-    cell.textContent = 'Derive a key to see its addresses.';
+    var note = document.createElement('div');
+    note.className = 'muted empty-state';
+    note.textContent = 'Derive a key to see its addresses.';
+    cell.appendChild(note);
     row.appendChild(cell);
     rowsEl.appendChild(row);
   }

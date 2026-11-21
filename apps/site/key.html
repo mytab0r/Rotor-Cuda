@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261127i">
-<script src="/theme.js?v=20261127i"></script>
+<link rel="stylesheet" href="/site.css?v=20261127j">
+<script src="/theme.js?v=20261127j"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -54,7 +54,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="icon-button icon-button--outline icon-button--lg" aria-label="Clear key and results" data-tooltip="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127i#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127j#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -67,7 +67,7 @@
       <p id="key-status" class="key-input-status is-idle" role="status" aria-live="polite">
         <span class="key-status-dot" aria-hidden="true"></span>
         <span id="key-status-text">Paste a key to derive automatically.</span>
-        <span class="key-status-skeleton" aria-hidden="true"></span>
+        <span class="skeleton key-status-skeleton" aria-hidden="true"></span>
       </p>
       <span id="key-url-notice" class="key-url-chip" role="note" title="Key is in the page URL — already exposed to browser history and server logs." hidden>
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v.01"/><path d="M12 11v5"/></svg>
@@ -120,7 +120,7 @@
     </div>
     <p class="muted key-help key-stats-note" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols.">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value sums the loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title.</p>
     <div class="key-summary" id="summary">
-      <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
+      <p class="muted empty-state">Derive a key to see its numeric forms and public point.</p>
     </div>
   </section>
 
@@ -215,15 +215,15 @@
       </table>
     </div>
     <p id="evm-shared-note" class="muted key-help key-evm-note" hidden>All EVM networks share the same 0x address.</p>
-    <p id="preset-empty" class="muted key-empty" hidden>No rows match this chain and wallet preset on the selected curve.</p>
+    <p id="preset-empty" class="muted empty-state" hidden>No rows match this chain and wallet preset on the selected curve.</p>
     <p class="muted key-preset-foot">Chain tabs, address types and path chips only filter or highlight rows; the derivation never changes. Chains marked “soon” appear once the derivation core exposes them.</p>
   </section>
 </main>
 
-<script src="/key-tools.js?v=20261127i"></script>
-<script src="/balance-cache.js?v=20261127i"></script>
-<script src="/address-codecs.js?v=20261127i"></script>
-<script src="/key.js?v=20261127i"></script>
-<script src="/site.js?v=20261127i"></script>
+<script src="/key-tools.js?v=20261127j"></script>
+<script src="/balance-cache.js?v=20261127j"></script>
+<script src="/address-codecs.js?v=20261127j"></script>
+<script src="/key.js?v=20261127j"></script>
+<script src="/site.js?v=20261127j"></script>
 </body>
 </html>

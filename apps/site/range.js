@@ -253,7 +253,8 @@
     for (var i = 0; i < widths.length; i++) {
       var cell = document.createElement('td');
       var bar = document.createElement('span');
-      bar.className = 'range-skeleton ' + widths[i];
+      bar.className = 'skeleton range-skeleton ' + widths[i];
+      bar.setAttribute('aria-hidden', 'true');
       cell.appendChild(bar);
       row.appendChild(cell);
     }
@@ -272,8 +273,10 @@
     var row = document.createElement('tr');
     var cell = document.createElement('td');
     cell.colSpan = 4;
-    cell.className = 'range-empty muted';
-    cell.textContent = message;
+    var note = document.createElement('div');
+    note.className = 'muted empty-state';
+    note.textContent = message;
+    cell.appendChild(note);
     row.appendChild(cell);
     rowsEl.appendChild(row);
   }
