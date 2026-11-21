@@ -149,6 +149,8 @@
   var keyEl = byId('vanity-key');
   var wifRow = byId('vanity-wif-row');
   var wifEl = byId('vanity-wif');
+  var qrRow = byId('vanity-qr-row');
+  var qrCanvas = byId('vanity-qr');
   var recentBox = byId('vanity-recent');
   var recentListEl = byId('vanity-recent-list');
 
@@ -541,6 +543,38 @@
     refreshDifficulty();
   }
 
+  /* Address-only QR: the key and WIF are never encoded or drawn. */
+  function paintQr(address) {
+    if (!qrRow || !qrCanvas) return;
+    try {
+      var root = typeof globalThis !== 'undefined' ? globalThis : window;
+      var encoder = root.RotorQR;
+      if (!encoder || typeof encoder.encode !== 'function') throw new Error('QR encoder unavailable');
+      var code = encoder.encode(address);
+      var quiet = 4;
+      var total = code.size + quiet * 2;
+      var scale = Math.max(1, Math.floor(200 / total));
+      var pixelSize = total * scale;
+      qrCanvas.width = pixelSize;
+      qrCanvas.height = pixelSize;
+      var context = qrCanvas.getContext('2d');
+      if (!context) throw new Error('Canvas unavailable');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, pixelSize, pixelSize);
+      context.fillStyle = '#000000';
+      for (var r = 0; r < code.size; r += 1) {
+        for (var c = 0; c < code.size; c += 1) {
+          if (code.modules[r][c]) {
+            context.fillRect((quiet + c) * scale, (quiet + r) * scale, scale, scale);
+          }
+        }
+      }
+      qrRow.hidden = false;
+    } catch (err) {
+      qrRow.hidden = true;
+    }
+  }
+
   function finish(report, address) {
     if (!state.running) return;
     state.matched = true;
@@ -550,6 +584,7 @@
     stopBtn.disabled = true;
     resultBox.hidden = false;
     addressEl.textContent = address;
+    paintQr(address);
     keyEl.textContent = report.priv_hex || '';
     if (report.wif_compressed) {
       wifRow.hidden = false;
