@@ -70,6 +70,7 @@ directory and printed at the end.
 | `manual-balance-control` | visible `Check balances`, `Check public balances`, `Online balance lookups`, `#check-balances`, `#seed-balances` | Balances must auto-compute from derived rows; delete the button/checkbox, do not restyle it. |
 | `key-calculate-button` / `key-auto-derive` | `/key` needs an explicit action | Derive on input (debounced) and keep the form as the only control. |
 | `seed-form-narrow` | `/seed` form uses ≤80% of the card width | Fix the shared seed form grid, not a page-local width. |
+| `wallet-seed-strength` | `/cabinet/wallet` seed block: strength line missing/hidden or without a word count/entropy figure, info control not the shared `.icon-button`, or Generate/Add under 44x44 | Fix the block markup and keep the shared field/segmented/icon-button grammar; the line must be computed from the phrase. |
 | `brainwallet-row-count` / `puzzle-row-count` | directory/home row count regressed | Restore the 60 / 160 row contract or update the audit deliberately with the change spec. |
 | `site-map-still-served` | `/site-map` returns 200 | After the docs move it must 404; remove the route rather than hiding the link. |
 

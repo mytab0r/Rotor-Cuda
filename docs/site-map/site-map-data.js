@@ -448,7 +448,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'Encrypted local vault and Sepolia review/confirm flow. No donor equivalent.'
+    note: 'Encrypted local vault and Sepolia review/confirm flow. The import card also generates a 12/24-word BIP39 phrase, shows its word count, entropy bits and checksum state with a brute-force estimate, then derives one chain-specific key (BIP44 preset) into the vault. No donor equivalent.'
   });
 
   oursRoute({
