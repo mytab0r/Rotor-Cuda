@@ -19,6 +19,17 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
 
 Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
 
+## Security alerts
+
+- Code scanning alerts are triaged within one working day. `.github/workflows/codeql-alerts.yml`
+  fails daily while any alert stays open, so an ignored alert turns the monitor red.
+- Fix a real finding; dismiss a false positive only with `dismissed_reason` and a
+  written comment naming the evidence (for example: deterministic test fixture
+  inside `#[test]`, never used by production code). Never dismiss silently and
+  never suppress a whole rule to clear a list.
+- Production cryptographic values (keys, nonces, salts) come from the OS RNG or
+  environment variables; only tests may use fixed vectors.
+
 ## UI/UX gate (all site changes)
 
 - Before designing or changing a page/component, query the installed
