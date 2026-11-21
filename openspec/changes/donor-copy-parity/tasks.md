@@ -16,10 +16,11 @@ a worktree; one writer per area.
       add it. Evidence: `docs/donor-parity/key-page.md` §1, §8.
 - [x] Stats row (TOTAL VALUE / HAS BALANCE / ACTIVE / CHECKED) with the donor's
       meaning, or an explicit reason we cannot compute it client-side.
-      Evidence: `apps/site/key.html:158-176` (four cards plus the explanatory
-      note), `apps/site/key.js:2199-2206` (counters update from
-      `balanceCounters`); TOTAL VALUE shows `—` with a title because there is
-      no price source.
+      Evidence: `apps/site/key.html` (four cards plus the explanatory note),
+      `apps/site/key.js` (`updateCounters`/`renderTotalValue`);
+      `apps/site/key-tools.js` (`fiatTotals`). TOTAL VALUE sums the loaded
+      balances at a public ticker price cached for six hours, excludes rows
+      without a price or balance and counts them in the title.
 - [x] Keys table row order and labels match the donor.
       Evidence: `apps/site/key-tools.js:526-599` (`buildKeyFacts`) emits HEX,
       Decimal, WIF, WIF (u), Keypair (SOL), Secret (XRP), PubKey, Page.
@@ -62,11 +63,17 @@ a worktree; one writer per area.
       key form renders the same page in place.
       Evidence: no `replaceState`/`pushState` in `apps/site/key.js` or
       `apps/site/site.js` (grep, 2026-11-20).
-- [x] Stats row `TOTAL VALUE` in USD needs a price source. Decision: no price
-      feed is wired, so the card shows `—` with an explicit title and native
-      balances stay per chain; never a fake USD total.
-      Evidence: `apps/site/key.html:161` (title), `:176` (note). Wiring a price
-      source remains an owner decision, not a parity gap.
+- [x] Stats row `TOTAL VALUE` in USD from a public price source. Decision
+      (2026-11-21): Binance's public ticker, one request per six hours cached in
+      localStorage; on 429/network failure keep the previous cache and mark it
+      stale. Rows without a price or a balance are excluded and counted, never
+      treated as zero; with no reachable source and no cache the card shows
+      `—`, never a fake number.
+      Evidence: `apps/site/key-tools.js` (`tickerFor`, `atomicToCents`,
+      `fiatTotals`, `priceCacheState`), `apps/site/key.js` (`ensurePrices`,
+      `renderTotalValue`), `apps/site/key-tools-test.mjs` (chain→symbol
+      mapping, 6/8/18-decimal BigInt math, cache TTL/stale, missing-price
+      exclusion).
 
 
 ## 2. Search and directories (donor audit)
