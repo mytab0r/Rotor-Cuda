@@ -57,6 +57,8 @@ directory and printed at the end.
 | `control-height-scale` | input/select/chip/segmented height outside 28/36/44/56 | Fix the shared `.field`/`.segmented`/`.chip` geometry, not the page. |
 | `field-geometry` | field radius not 10/16, label below 12px, or no focus ring | Fix the shared field grammar in `site.css`. |
 | `segmented-geometry` | track padding/radius wrong, item under 44, or not exactly one selected | Fix the shared `.segmented` component; one control per purpose. |
+| `card-padding-scale` | card padding outside 16/20/24 or radius outside 12/16 | Fix the shared card component in `site.css`; never restore a page-local `.key-page > .card` override. |
+| `stat-geometry` | stat label under 12px/uppercase/tracked, or value outside 20/24/28 with non-tabular digits | Fix the shared stat grammar; use `.stat--sm` for small values. |
 | `status-pill-geometry` | a status/badge pill outside the shared box: text <12px, height outside 18–32px, non-pill radius, or inline padding outside 6/8/10/12 | Fix the shared `.status`/`.badge` geometry in `site.css`; never restyle one page's pill. |
 | `duplicate-address-type-implementation` | `.key-types`/`.key-btc-panel` and `.address-type-panel` both used | Unify on one address-type component and delete the other markup/CSS family. |
 | `address-type-width-spread` | cards in one row differ by >15% | Fix the grid (`repeat(auto-fit, minmax(...))` or equal `1fr`) in the shared component. |

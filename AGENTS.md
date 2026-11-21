@@ -58,6 +58,10 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   12, 44px items, exactly one `aria-pressed="true"`) and one `.chip` (44px,
   pill, `aria-pressed`/`aria-current`). Audit IDs: `control-height-scale`,
   `field-geometry`, `segmented-geometry`; never add a page-local control size.
+- One card/stat grammar: cards pad 16/20/24, radius 12/16, no translateY hover;
+  stat labels are 12px sentence case with no tracking, values are 20/24/28 and
+  tabular. Audit IDs: `card-padding-scale`, `stat-geometry`; page-local card
+  overrides (`.key-page > .card`) are not allowed.
 - Do not add page-local `<style>` rules for a shared component. Move the rule
   into `apps/site/site.css` in the batch that owns the family
   (`docs/design-system/plan.md`); a new family needs an entry in
