@@ -309,6 +309,7 @@ On Git Bash, omit the leading slash in `--routes` (MSYS path rewriting), or pass
 | `radius-scale` | component radii in the scale | 7 | yes |
 | `raw-hex-outside-root` | no hex outside root blocks | 7 | yes |
 | `legacy-selector` | no shared-family page override | 7 | yes |
+| `legacy-token` | one `:root` token block; no duplicate custom-property declarations | 7 | yes |
 | `tooltip-timing` | 400ms delay, Esc dismiss | 2 | partial (DOM events; manual evidence) |
 | `status-line-margin` | margin top in {8,12} | 1/3 | yes (proposed) |
 
@@ -451,61 +452,34 @@ entry in the same PR.
   - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
-- Batch 6: one navigation grammar (44px links, 18px icon, `aria-current`
-  active state, focus ring, More/drawer at ≤860), one utility cluster (search
-  and theme are `.icon-button`, cabinet is `.chip--primary`; `.nav-pill` and
-  `.nav-icon-pill` deleted), one breadcrumb grammar with
-  `.breadcrumbs__sep` and one human `aria-current` marker (server
-  `breadcrumb_nav`, client `RotorBreadcrumbs`), one pager (`.pager` +
-  `.pager-btn`, radius 10, 44px, `aria-disabled`, `.pager-btn--random`) for
-  private keys, mnemonic seeds and brainwallet, and one marketing footer
-  (`site_footer`, inserted once at serve time; app/cabinet shells excluded).
-  Asset version `20261127h`; detectors `nav-link-height`,
-  `breadcrumb-grammar`, `breadcrumb-current`, `pager-grammar`,
-  `pager-geometry`, `footer-presence` and ledger entries added.
-- Batch 6 evidence:
+- Batch 7: one `:root` token block (the legacy blue root, the overridden
+  control/nav/breadcrumb rules and the dead legacy page selectors — 191 rule
+  blocks deleted); the four inline page `<style>` blocks moved into
+  `site.css`; `brainwallet.css` and `seed-studio.css` reduced to page-specific
+  layout, with status badges, address-type/count chips and explorer/retry
+  actions on the shared status/chip/icon-button grammar; `legacy-token` detector
+  and ledger entry added; asset version `20261127i`. Surviving page-scoped rules
+  are listed in `DESIGN-SYSTEM.md` §10.
+- Batch 7 evidence:
   - Full default route set: **PASS, 198 page runs across 33 routes, 0
-    violations** (`target/batch6-full-final2.json`); the three paginated routes
-    (`/private-keys/bitcoin`, `/mnemonic-seeds/bitcoin`,
-    `/brainwallet/bitcoin`) each report one pager block, and no other route
-    invents one. The live puzzle results table is capped at 25 sampled rows
-    and has no pages, so there was no pager variant to replace there.
-  - Targeted nav/breadcrumb/pager/footer set (25 routes, including `/`,
-    `/app`, `/me`, `/run`, `/cabinet`, `/cabinet/wallet`, `/key`, a key page,
-    both directories, `/brainwallet`, `/bitcoin-puzzle`, `/wallets` and a real
-    `/keys/tron/...` range): **PASS, 150 page runs, 0 violations**
-    (`target/batch6-targeted2.json`); every run reports
-    `overflow.excess = 0`, `smallTargets = []`, `navLinks = []`,
-    `breadcrumbGrammar = []`, `breadcrumbCurrent = []`, `pagerGrammar = []`,
-    `pagerGeometry = []`, and `footer.count = 1` on content routes / `0` on the
-    shells.
-  - Final pager recheck after the last JS state cleanup: **PASS, 18 runs
-    across the three pager routes** (`target/batch6-pager-final.json`).
-  - Footer-link routes `/faq`, `/disclaimer`, `/donate`, `/wallets`:
-    **PASS, 24 runs, 0 violations** (`target/batch6-footer-info2.json`). The
-    run exposed a pre-existing 21px overflow on `/donate` (long mono donation
-    addresses); the shared CSS now wraps `.donate-addresses code`.
-  - Screenshots: `%TEMP%/rotor-ui-audit-11Rj6y/screenshots` (full run),
-    `%TEMP%/rotor-ui-audit-vjZvsP/screenshots` (targeted run),
-    `%TEMP%/rotor-ui-audit-9QLlg4/screenshots` (final pager run) and
-    `%TEMP%/rotor-ui-audit-SI6TeF/screenshots` (footer-link run).
-  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
-    area tests and `cargo test --test coordinator_api --test coordinator_client`
+    violations** (`target/audit-batch7-final.json`); 33 routes × 3 viewports
+    (375/768/1280) × 2 themes (dark/light).
+  - Style equivalence: a fixed sample (body, header, nav link, card, table,
+    header cell, body row, input, select, button, primary, chip, segmented,
+    stat, status, icon button, footer) was captured on all 33 routes at
+    375/768/1280 dark/light before and after the cleanup: 198 runs, 1,494
+    sample elements compared. No computed-style property changed. The only
+    geometry deltas are intentional: the seed count buttons now match `.chip`
+    (`chip` sample appears; the page label/row width moves by 11px at 1280),
+    the brainwallet type tabs use the same chip grammar (the control row loses
+    51px at 375/768), and async balance content changed between runs
+    (`0 BTC` vs `—` on /private-keys/bitcoin; balance rows on
+    /mnemonic-seeds/bitcoin). Evidence: `target/style-before.json`,
+    `target/style-after.json`, comparison in `target/compare-styles.mjs`.
+    Review caught one legacy label-direction dependency (the wallet file
+    input); it is preserved by the kept `label` migration alias, so the wallet
+    body height matches exactly.
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`,
+    `git diff --check`, all 50 site build/test commands and
+    `cargo test --test coordinator_api --test coordinator_client` (18 + 3)
     pass.
-- Batch 6 follow-up (footer route audit): a route-level check of the merged
-  build found the footer present on every content route, including
-  `/private-keys/<chain>`, `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`,
-  `/bitcoin-puzzle/<n>/random` and `/keys/<chain>/<start>-<end>`. The two
-  routes reported missing in production were a measurement error: curl ran
-  without `--compressed`, so Cloudflare's Brotli stream was stored as a
-  truncated body. With `--compressed` the public body is byte-identical to the
-  origin (241 856 bytes, one `.site-footer`). HTML responses still send
-  `Cache-Control: no-store` as hardening
-  (non-HTML assets keep `no-cache`) and
-  `tests/coordinator_api.rs::every_public_content_route_renders_exactly_one_footer`
-  now requests 44 public content routes (exactly one footer) plus the five
-  app/cabinet shells (zero). Evidence: curl over the same 44+5 route list
-  (`footer=1` / `footer=0`, `cache=no-store`), coordinator tests 19 + 3,
-  audit **PASS, 36 runs across the six affected routes**
-  (`target/batch6-footer-regression.json`).
-- Batch 7: not started; owner/reviewer assigned above.

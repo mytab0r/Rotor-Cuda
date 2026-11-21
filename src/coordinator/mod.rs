@@ -5576,7 +5576,7 @@ mod tests {
         assert!(
             std::str::from_utf8(css)
                 .expect("css is UTF-8")
-                .contains(".seed-count-btn")
+                .contains(".seed-controls")
         );
 
         let base = "https://rotor.pxbt.app";
@@ -6426,7 +6426,7 @@ mod tests {
         assert!(script.contains("privateKeyFor"));
         assert!(script.contains("Copy mnemonic"));
         assert!(script.contains("phraseText.textContent = entry.phrase"));
-        assert!(directory.contains("col-mnemonic"));
+        assert!(SITE_CSS.contains("col-mnemonic"));
 
         let (body, _, status) = seo_asset(base, "/mnemonic-seeds/bitcoin", "").expect("chain page");
         assert_eq!(status, 200);

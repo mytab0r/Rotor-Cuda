@@ -60,8 +60,11 @@ Three layers, all in `apps/site/site.css`:
    value must resolve to a primitive or semantic token.
 
 The existing names (`--bg`, `--panel`, `--text`, `--accent`, `--radius`,
-`--radius-sm`) stay as aliases until the migration batches delete the legacy
-root at `site.css:2-17`. New code must use the canonical names.
+`--radius-sm`) stay as aliases; the legacy duplicate root above them was deleted
+in batch 7, so there is one `:root` source of truth. New code must use the
+canonical names. The light theme overrides the palette through
+`html[data-theme="light"]`, never a second `:root`; `scripts/ui-audit.mjs`
+enforces this with the `legacy-token` detector.
 
 ### 2.1 Primitive tokens (added in batch 1)
 
@@ -587,9 +590,9 @@ adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
 `segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
-`row-action-geometry`; batch 6 adds `nav-link-height`, `breadcrumb-grammar`,
-`breadcrumb-current`, `pager-grammar`, `pager-geometry` and `footer-presence`;
-later batches add the detectors listed in `plan.md` §3.
+`row-action-geometry`; batch 7 adds `legacy-token` (one `:root` token block,
+light theme overrides only through `html[data-theme]`). Later batches add the
+detectors listed in `plan.md` §3.
 The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
@@ -600,3 +603,32 @@ The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 - Adding a component variant requires an entry in §3 and a detector or an
   explicit "not machine-checkable" note.
 - Removing a legacy alias requires the batch that migrated the last usage.
+- Batch 7 (2026-11-21): deleted the duplicate legacy `:root`, the overridden
+  control/nav/breadcrumb rules and the dead page selectors; moved the four
+  inline page `<style>` blocks into `site.css`; moved the brainwallet status
+  badge, address-type and retry controls onto the shared status/chip/icon-button
+  grammar; added the `legacy-token` detector.
+
+## 10. Page-scoped CSS exceptions
+
+Cleanup rule: a page-local rule survives only when it describes a layout that
+has no shared component; everything else consumes a shared component or token.
+The surviving exceptions, by file:
+
+- `apps/site/site.css` — the "Page-scoped rules (batch 7)" section. Wallet vault
+  rows/split/review grid, send form/review/hex blocks, the tools family grid and
+  the mnemonic seed row grid. These are page-only layouts; they use `--space-*`,
+  `--text-*`, `--radius-*` and the semantic colours.
+- `apps/site/brainwallet.css` — the directory row grid (`bw-rows-header`/
+  `bw-row`), key/phrase/address line layout, the generator form grid, the
+  checkbox row and the balance cell. The badge box comes from the shared status
+  grammar; the type tabs are `.chip`; the explorer action is `.icon-button`.
+  The light-theme warning and address-link literals (`#d6a13a`, `#fff7e6`,
+  `#7a4b00`, `#1f5f9e`) are theme-specific, not component tokens.
+- `apps/site/seed-studio.css` — the seed form grid, the count row and the
+  checkbox row. Count buttons are `.chip`, the retry action is `.icon-button`,
+  and fields follow the shared control tokens.
+
+Documented component APIs that no current route uses yet are reserved, not dead
+CSS: `.field__*`, `.stat__*`, `.card--flat`, `.card--stat`, `.stat--sm`, the
+`.icon-button--sm/--md/--solid` variants and the `.is-*` state classes.

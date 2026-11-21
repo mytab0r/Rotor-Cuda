@@ -169,6 +169,34 @@ function log(message) {
   process.stdout.write(`${message}\n`);
 }
 
+// legacy-token: token truth lives in exactly one `:root` block. A second block
+// (the pre-batch-7 legacy palette) silently overrides the first and makes every
+// later token edit ambiguous. Theme overrides must use `html[data-theme]`, not
+// a second `:root`.
+function legacyTokenViolations() {
+  const cssDir = path.join(REPO_ROOT, "apps", "site");
+  const owners = new Map();
+  for (const name of readdirSync(cssDir).filter((file) => file.endsWith(".css"))) {
+    const text = readFileSync(path.join(cssDir, name), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "));
+    for (const match of text.matchAll(/(^|\})\s*:root\s*\{([^}]*)\}/g)) {
+      const line = text.slice(0, match.index).split("\n").length;
+      for (const declaration of match[2].matchAll(/(--[\w-]+)\s*:/g)) {
+        const token = declaration[1];
+        if (!owners.has(token)) owners.set(token, []);
+        owners.get(token).push(`${name}:${line}`);
+      }
+    }
+  }
+  const duplicates = [...owners].filter(([, where]) => where.length > 1);
+  if (!duplicates.length) return [];
+  return [{
+    id: "legacy-token",
+    message: `${duplicates.length} custom property(ies) declared in more than one :root block`,
+    detail: duplicates.slice(0, 12).map(([token, where]) => `${token} (${where.join(", ")})`),
+  }];
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1960,6 +1988,7 @@ async function main() {
     }).catch(() => null);
     const siteMapStatus = siteMapResponse ? siteMapResponse.status : null;
     const globalViolations = [];
+    globalViolations.push(...legacyTokenViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({
         id: "site-map-still-served",

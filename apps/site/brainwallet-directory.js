@@ -320,11 +320,11 @@
     entry.addressLine.appendChild(link);
 
     var explorer = document.createElement('a');
-    explorer.className = 'bw-explorer';
+    explorer.className = 'icon-button icon-button--quiet icon-button--lg';
     explorer.href = link.href;
     explorer.target = '_blank';
     explorer.rel = 'noopener noreferrer';
-    explorer.title = 'Open in explorer';
+    explorer.setAttribute('data-tooltip', 'Open in explorer');
     explorer.setAttribute('aria-label', 'Open ' + entry.address + ' in an external explorer');
     explorer.appendChild(icon('ui-external', 'icon'));
     entry.addressLine.appendChild(explorer);
