@@ -524,11 +524,9 @@
       path: '/private-keys/' + item[0],
       title: item[1] + ' private keys',
       area: 'directory',
-      status: 'partial',
+      status: 'parity',
       ours: '/private-keys/' + item[0],
-      note: (item[0] === 'zcash' || item[0] === 'zksync')
-        ? 'Live on the donor but absent from its sitemap.'
-        : ''
+      note: ''
     });
   });
 
@@ -894,18 +892,6 @@
     priority: '-',
     sources: ['ref-site-a'],
     note: 'BTC rows link to /key/<WIF>; details show compressed and uncompressed WIF.'
-  });
-
-  feature({
-    id: 'key-csv-sort',
-    area: 'directory',
-    capability: 'Directory CSV export and sort by balance',
-    donor: 'present',
-    rotor: 'missing',
-    status: 'missing',
-    priority: 'P1',
-    sources: ['ref-site-a'],
-    note: 'Our /private-keys/<chain> derives, pages and filters, but cannot export or sort by balance.'
   });
 
   feature({

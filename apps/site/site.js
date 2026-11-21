@@ -494,10 +494,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127m'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127m'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127m'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127m'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261128b'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261128b'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261128b'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261128b'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
