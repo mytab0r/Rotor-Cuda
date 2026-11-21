@@ -423,12 +423,32 @@ async function waitForSelector(cdp, selector, timeoutMs) {
 }
 
 async function goto(cdp, url) {
+  // A load event can belong to the previous navigation, and the shared footer
+  // is the last node in <body>: measuring too early reports it missing. Mark
+  // the old document, then wait until the new one has finished parsing.
+  const navToken = `nav-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  await evaluate(cdp, `window.__auditNavToken = ${JSON.stringify(navToken)}`).catch(() => {});
   const loaded = cdp.waitEvent("Page.loadEventFired", NAV_TIMEOUT_MS);
   const navigation = await cdp.send("Page.navigate", { url }, NAV_TIMEOUT_MS);
   if (navigation.errorText) throw new Error(`navigation failed: ${navigation.errorText}`);
   await loaded.catch(() => {
     /* the page can still be inspected after a load timeout */
   });
+  const started = Date.now();
+  let complete = false;
+  while (Date.now() - started < NAV_TIMEOUT_MS) {
+    const state = await evaluate(
+      cdp,
+      `({ token: window.__auditNavToken, ready: document.readyState })`,
+      5000,
+    ).catch(() => null);
+    if (state && state.token !== navToken && state.ready !== "loading") {
+      complete = true;
+      break;
+    }
+    await sleep(50);
+  }
+  if (!complete) throw new Error(`navigation did not finish parsing: ${url}`);
   // Give inline scripts and deferred bundles a beat to run.
   await sleep(DEFAULT_SETTLE_MS);
   await evaluate(
@@ -2127,12 +2147,17 @@ async function main() {
     } else {
       log(`ui-audit FAIL: ${violations} violation(s) in ${summary.totals.failedRuns}/${runs.length} page runs.`);
     }
+    const detailSuffix = (detail) => {
+      if (detail === undefined || detail === null) return "";
+      const text = typeof detail === "string" ? detail : JSON.stringify(detail);
+      return text ? ` — ${text}` : "";
+    };
     for (const violation of globalViolations) {
-      log(`VIOLATION [${violation.id}] ${violation.message}`);
+      log(`VIOLATION [${violation.id}] ${violation.message}${detailSuffix(violation.detail)}`);
     }
     for (const run of runs) {
       for (const violation of run.violations) {
-        log(`VIOLATION [${violation.id}] ${run.route} ${run.viewport.width}px ${run.theme}: ${violation.message}`);
+        log(`VIOLATION [${violation.id}] ${run.route} ${run.viewport.width}px ${run.theme}: ${violation.message}${detailSuffix(violation.detail)}`);
       }
     }
     if (warnings) {
