@@ -415,4 +415,40 @@ entry in the same PR.
   - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
-- Batches 5–7: not started; owners/reviewers assigned above.
+- Batch 5: one `.data-table` inside `.table-scroll`; header 12/600 sentence
+  case, header/body row height 44, cell padding 8/12, token row states and
+  trailing icon actions. Migrated `.key-addr-tbl`, `.pz-table`, `.range-table`
+  and the landing/app/me leaderboards; removed the dead global-search table;
+  the puzzle/global-search mobile card transforms were removed, so tables now
+  keep one behaviour (horizontal scroll with all columns). Div rows
+  (`.keys-header`, `.key-row`, `.bw-row`, `.seed-row`) share the same rhythm and
+  states. Asset version `20261127g`; detectors `table-grammar`,
+  `table-header-style`, `table-row-height`, `row-action-geometry` and ledger
+  entries added.
+- Batch 5 key-row bugfix (same PR): the balance line now comes from one
+  formatter (`formatAtomic` + `balanceLine` in `key-tools.js`) using the
+  provider summary's decimals/symbol and the summary’s tx count, nonce,
+  last-tx time and note. The TRON row and title both render
+  `10343.145665 TRX · 1122 tx · last 2h ago`; the old 18-decimal display was
+  `0.000000010343145665 TRX`. On the same run the TRX price was 0.3004 and the
+  page total moved from `$1.31` (TRX at 18 decimals) to `$3,105.29` (TRX at 6
+  decimals), matching the row sum (310,529 cents from 8 priced rows). `#priv`
+  is now `type="text"` and shows the key; cache keys are v2 so old cached
+  lines cannot resurface. Detectors `balance-consistency` and `key-input-type`
+  added; unit coverage in `key-tools-test.mjs`.
+- Batch 5 evidence:
+  - Full default route set: **PASS, 192 page runs across 32 routes, 0
+    violations** (`target/full-batch5b.log`).
+  - Table routes (key, key row data, real range, puzzle list/results,
+    brainwallet, cabinet, mnemonic seeds, app, me, run) at 375/768/1280
+    dark/light: **PASS, 66 page runs, 0 violations**.
+  - CDP: key table header 44, cell padding 8/12, rows 44–69, overflow 0;
+    puzzle table header 44, padding 8/12, rows 115, overflow 0; directory rows
+    176–265, overflow 0.
+  - TRON row/input screenshots: `target/key-tron-row.png`,
+    `target/key-input-field.png`; CDP JSON `target/key-cdp-check.json`.
+  - Screenshots: `%TEMP%/rotor-ui-audit-ijvZOa/screenshots`.
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+    area tests and `cargo test --test coordinator_api --test coordinator_client`
+    pass.
+- Batches 6–7: not started; owners/reviewers assigned above.

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261127f">
-<script src="/theme.js?v=20261127f"></script>
+<link rel="stylesheet" href="/site.css?v=20261127g">
+<script src="/theme.js?v=20261127g"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -35,7 +35,7 @@
   <section class="card key-input-card">
     <form id="key-form" class="key-form field--hero" autocomplete="off" novalidate>
       <label class="visually-hidden" for="priv">Private key</label>
-      <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
+      <input id="priv" type="text" class="mono" placeholder="64 hex, decimal, or BTC WIF"
              autocomplete="new-password" spellcheck="false" autocapitalize="off"
              data-lpignore="true" data-1p-ignore="true" aria-describedby="key-status key-url-notice key-format">
       <div class="key-curve-field">
@@ -54,7 +54,7 @@
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="icon-button icon-button--outline icon-button--lg" aria-label="Clear key and results" data-tooltip="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127f#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127g#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -199,8 +199,8 @@
     <p class="muted key-help" id="balance-help" title="Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.">Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
     <p class="muted key-help key-export-status" id="key-export-status" role="status"></p>
 
-    <div class="key-table-wrap" tabindex="0" role="region" aria-label="Address table">
-      <table class="key-addr-tbl" id="addr-table">
+    <div class="key-table-wrap table-scroll" tabindex="0" role="region" aria-label="Address table">
+      <table class="key-addr-tbl data-table" id="addr-table">
         <caption class="visually-hidden">Derived public addresses by chain, type and status</caption>
         <thead>
           <tr>
@@ -220,10 +220,10 @@
   </section>
 </main>
 
-<script src="/key-tools.js?v=20261127f"></script>
-<script src="/balance-cache.js?v=20261127f"></script>
-<script src="/address-codecs.js?v=20261127f"></script>
-<script src="/key.js?v=20261127f"></script>
-<script src="/site.js?v=20261127f"></script>
+<script src="/key-tools.js?v=20261127g"></script>
+<script src="/balance-cache.js?v=20261127g"></script>
+<script src="/address-codecs.js?v=20261127g"></script>
+<script src="/key.js?v=20261127g"></script>
+<script src="/site.js?v=20261127g"></script>
 </body>
 </html>

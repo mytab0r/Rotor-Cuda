@@ -58,31 +58,32 @@
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.35fr) 126px;
   align-items: start;
   gap: 14px;
-  padding: 0 18px;
+  padding: 0 var(--space-3);
 }
 
 .bw-rows-header {
-  min-height: 42px;
+  min-height: var(--control-h);
   align-items: center;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: .07em;
-  text-transform: uppercase;
+  border-bottom: 1px solid var(--line-subtle);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .bw-rows-header .bw-balance { text-align: right; }
 .bw-row {
-  padding-top: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(31, 42, 56, .7);
+  min-height: var(--control-h);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line-subtle);
 }
 .bw-row:last-child { border-bottom: 0; }
-.bw-row:hover { background: rgba(255, 255, 255, .022); }
-html[data-theme="light"] .bw-row { border-bottom-color: var(--border); }
-html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
+.bw-row:hover { background: var(--row-hover); }
+html[data-theme="light"] .bw-row { border-bottom-color: var(--line-subtle); }
+html[data-theme="light"] .bw-row:hover { background: var(--row-hover); }
 
 .bw-cell { min-width: 0; }
 .bw-line {
@@ -285,7 +286,7 @@ html[data-theme="light"] .brainwallet-addr { color: #1f5f9e; }
   .bw-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-    padding: 12px 14px;
+    padding: var(--space-2) var(--space-3);
   }
   .bw-balance { align-items: flex-start; text-align: left; }
   .brainwallet-directory .balance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
