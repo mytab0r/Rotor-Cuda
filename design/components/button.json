@@ -1,0 +1,74 @@
+{
+  "name": "button",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "button",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Default",
+      "classes": ["btn"]
+    },
+    {
+      "id": "primary",
+      "label": "Primary",
+      "classes": ["btn", "primary"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (44px)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    },
+    {
+      "id": "hover",
+      "label": "Hover (live)"
+    },
+    {
+      "id": "focus-visible",
+      "label": "Focus-visible (live, tab)"
+    },
+    {
+      "id": "disabled",
+      "label": "Disabled",
+      "attrs": { "disabled": "" }
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "type",
+      "value": "button"
+    }
+  ],
+  "forbidden": [
+    "A second primary action in the same card or section.",
+    "A loading spinner built into the button: the button grammar has no loading state yet; keep the label and disable the control, or use an .icon-button[aria-busy] action.",
+    "A page-local button size. The shared control is 44px high; there is no --lg/--sm modifier in site.css.",
+    "A gradient on a non-brand surface. .primary is the one filled action; the brand mark owns the only gradient."
+  ],
+  "slots": [
+    {
+      "name": "label",
+      "tag": "span",
+      "text": "Search"
+    }
+  ],
+  "tokens": [
+    "--panel-2",
+    "--panel-3",
+    "--border-strong",
+    "--radius-sm",
+    "--text",
+    "--accent",
+    "--accent-ink"
+  ],
+  "detectors": ["small-touch-target", "clipped-control", "horizontal-overflow"],
+  "docs": "docs/design-system/components/button.md"
+}

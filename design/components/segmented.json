@@ -1,0 +1,104 @@
+{
+  "name": "segmented",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "div",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Two mutually exclusive modes",
+      "classes": ["segmented"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (44px items)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    },
+    {
+      "id": "selected",
+      "label": "Second item selected",
+      "overrides": [
+        {
+          "slot": "first",
+          "attrs": { "aria-pressed": "false" }
+        },
+        {
+          "slot": "second",
+          "attrs": { "aria-pressed": "true" }
+        }
+      ]
+    },
+    {
+      "id": "disabled",
+      "label": "Disabled",
+      "overrides": [
+        {
+          "slot": "first",
+          "attrs": { "disabled": "" }
+        },
+        {
+          "slot": "second",
+          "attrs": { "disabled": "" }
+        }
+      ]
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "role",
+      "value": "group"
+    },
+    {
+      "name": "aria-label",
+      "value": "Curve"
+    }
+  ],
+  "forbidden": [
+    "A track with fewer than two items or with more than four modes; use chips for combinable filters and links for navigation.",
+    "More than one aria-pressed=\"true\" (or .is-selected) item in a group.",
+    "A second control for the same purpose, for example a segmented control plus an equivalent select.",
+    "A page-local track padding or item height."
+  ],
+  "slots": [
+    {
+      "name": "first",
+      "tag": "button",
+      "classes": ["segmented__item"],
+      "attrs": { "type": "button", "aria-pressed": "true" },
+      "text": "secp256k1"
+    },
+    {
+      "name": "second",
+      "tag": "button",
+      "classes": ["segmented__item"],
+      "attrs": { "type": "button", "aria-pressed": "false" },
+      "text": "ed25519"
+    }
+  ],
+  "tokens": [
+    "--space-1",
+    "--space-4",
+    "--control-h",
+    "--radius-l",
+    "--radius-s",
+    "--line-subtle",
+    "--surface-0",
+    "--surface-2",
+    "--ink-1",
+    "--ink-3",
+    "--text-sm",
+    "--weight-bold",
+    "--signal",
+    "--signal-ink"
+  ],
+  "detectors": ["segmented-geometry", "control-height-scale", "small-touch-target"],
+  "docs": "docs/design-system/components/segmented.md"
+}

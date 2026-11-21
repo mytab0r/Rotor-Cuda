@@ -1,0 +1,58 @@
+{
+  "name": "error",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "p",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Shared error box",
+      "classes": ["error"]
+    },
+    {
+      "id": "key",
+      "label": "Key-page error",
+      "classes": ["error", "key-error"]
+    },
+    {
+      "id": "range",
+      "label": "Range-page error",
+      "classes": ["error", "range-error"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "role",
+      "value": "alert"
+    }
+  ],
+  "forbidden": [
+    "A blank card where an error belongs.",
+    "A colour-only error; the text must name what failed and what to do.",
+    "A page-local error box with its own border, radius or padding.",
+    "role=\"alert\" on progress messages; use role=\"status\" for progress."
+  ],
+  "slots": [
+    {
+      "name": "message",
+      "tag": "span",
+      "text": "The RPC rejected the request. Retry in a moment."
+    }
+  ],
+  "tokens": ["--space-3", "--radius-l"],
+  "detectors": ["empty-state-grammar"],
+  "docs": "docs/design-system/components/error.md"
+}

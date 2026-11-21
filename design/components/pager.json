@@ -1,0 +1,138 @@
+{
+  "name": "pager",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "nav",
+  "variants": [
+    {
+      "id": "default",
+      "label": "First / Previous / Next / Last / Random",
+      "classes": ["pager"]
+    },
+    {
+      "id": "jump",
+      "label": "Numeric page jump",
+      "element": "form",
+      "classes": ["page-jump"],
+      "slots": [
+        {
+          "tag": "label",
+          "attrs": { "for": "gallery-page" },
+          "text": "Page"
+        },
+        {
+          "name": "input",
+          "tag": "input",
+          "attrs": {
+            "id": "gallery-page",
+            "type": "number",
+            "min": "1",
+            "value": "2"
+          }
+        },
+        {
+          "name": "submit",
+          "tag": "button",
+          "classes": ["primary"],
+          "attrs": { "type": "submit" },
+          "text": "Jump",
+          "children": [
+            {
+              "tag": "svg",
+              "classes": ["icon"],
+              "attrs": { "aria-hidden": "true" },
+              "children": [{ "tag": "use", "attrs": { "href": "/icons.svg#ui-arrow-right" } }]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (44px box, radius 10)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    },
+    {
+      "id": "disabled",
+      "label": "Unavailable first/previous",
+      "overrides": [
+        { "slot": "first", "attrs": { "aria-disabled": "true" } },
+        { "slot": "previous", "attrs": { "aria-disabled": "true" } }
+      ]
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "aria-label",
+      "value": "Key pages"
+    }
+  ],
+  "forbidden": [
+    "A .pager child that is not .pager-btn.",
+    "The legacy .random modifier; use .pager-btn--random.",
+    "A .disabled class; use aria-disabled so the anchor stays focusable.",
+    "A second pager for the same table.",
+    "A numeric jump without a label or with a control below 44px."
+  ],
+  "slots": [
+    {
+      "name": "first",
+      "tag": "a",
+      "classes": ["pager-btn"],
+      "attrs": { "href": "#", "aria-disabled": "false" },
+      "text": "First"
+    },
+    {
+      "name": "previous",
+      "tag": "a",
+      "classes": ["pager-btn"],
+      "attrs": { "href": "#", "aria-disabled": "false" },
+      "text": "Previous"
+    },
+    {
+      "name": "next",
+      "tag": "a",
+      "classes": ["pager-btn"],
+      "attrs": { "href": "#", "aria-disabled": "false" },
+      "text": "Next"
+    },
+    {
+      "name": "last",
+      "tag": "a",
+      "classes": ["pager-btn"],
+      "attrs": { "href": "#", "aria-disabled": "false" },
+      "text": "Last"
+    },
+    {
+      "name": "random",
+      "tag": "a",
+      "classes": ["pager-btn", "pager-btn--random"],
+      "attrs": { "href": "#", "aria-disabled": "false" },
+      "text": "Random"
+    }
+  ],
+  "tokens": [
+    "--space-2",
+    "--space-3",
+    "--control-h",
+    "--radius-control",
+    "--line-strong",
+    "--surface-2",
+    "--ink-2",
+    "--ink-1",
+    "--text-sm",
+    "--weight-bold",
+    "--signal",
+    "--signal-soft"
+  ],
+  "detectors": ["pager-grammar", "pager-geometry", "small-touch-target"],
+  "docs": "docs/design-system/components/pager.md"
+}

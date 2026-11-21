@@ -1,0 +1,59 @@
+{
+  "name": "card",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "section",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Default card",
+      "classes": ["card"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (20px padding, radius 16)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [],
+  "forbidden": [
+    "A page-scoped override such as .key-page > .card; use a named card surface or the shared padding/radius scale.",
+    "A fixed height that leaves empty space; the audit reports mostly-empty-block.",
+    "A translateY hover on a card.",
+    "More than one primary action inside a card."
+  ],
+  "slots": [
+    {
+      "name": "title",
+      "tag": "h2",
+      "text": "Card title"
+    },
+    {
+      "name": "body",
+      "tag": "p",
+      "text": "One sentence that explains the block and the action it offers."
+    }
+  ],
+  "tokens": [
+    "--space-2",
+    "--space-3",
+    "--space-5",
+    "--radius-xl",
+    "--line-subtle",
+    "--surface-1",
+    "--elev-1",
+    "--ink-1",
+    "--text-xl",
+    "--weight-semibold"
+  ],
+  "detectors": ["card-padding-scale", "mostly-empty-block"],
+  "docs": "docs/design-system/components/card.md"
+}

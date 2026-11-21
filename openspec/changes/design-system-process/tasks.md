@@ -33,13 +33,13 @@
 
 ## 3. Component contracts and gallery
 
-- [ ] `design/components/<name>.json` for button, icon-button, field,
+- [x] `design/components/<name>.json` for button, icon-button, field,
       segmented, chip, status, card, stat, table, nav, breadcrumb, pager,
       empty, error, skeleton.
-- [ ] `docs/design-system/components/<name>.md` from the fixed template.
-- [ ] `scripts/check-components.mjs` (unknown variant/size, missing required
+- [x] `docs/design-system/components/<name>.md` from the fixed template.
+- [x] `scripts/check-components.mjs` (unknown variant/size, missing required
       attribute, page-local style for a shared family, missing gallery state).
-- [ ] `scripts/build-gallery.mjs` producing `apps/site/design.html`; register
+- [x] `scripts/build-gallery.mjs` producing `apps/site/design.html`; register
       the route in `static_asset`, the audit route list and `route-coverage`.
 
 ## 4. Review automation
