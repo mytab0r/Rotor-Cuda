@@ -368,10 +368,41 @@
     return oldEncode(bytesToHex(random));
   }
 
+  var ENTROPY_BITS = { 12: 128, 15: 160, 18: 192, 21: 224, 24: 256 };
+
+  /* Default receive path per wallet chain. These presets are the only paths
+   * this page offers: zcash, solana, sui and ton use a different derivation
+   * scheme, so there is no preset for them and the caller must refuse. */
+  var SEED_PATHS = {
+    bitcoin: "m/84'/0'/0'/0/0",
+    'bitcoin-testnet': "m/84'/0'/0'/0/0",
+    ethereum: "m/44'/60'/0'/0/0",
+    bnb: "m/44'/60'/0'/0/0",
+    arbitrum: "m/44'/60'/0'/0/0",
+    optimism: "m/44'/60'/0'/0/0",
+    base: "m/44'/60'/0'/0/0",
+    polygon: "m/44'/60'/0'/0/0",
+    avalanche: "m/44'/60'/0'/0/0",
+    zksync: "m/44'/60'/0'/0/0",
+    litecoin: "m/84'/2'/0'/0/0",
+    'bitcoin-cash': "m/44'/145'/0'/0/0",
+    dogecoin: "m/44'/3'/0'/0/0",
+    tron: "m/44'/195'/0'/0/0",
+    xrp: "m/44'/144'/0'/0/0"
+  };
+
+  function entropyBitsForWords(wordCount) {
+    return ENTROPY_BITS[wordCount] || 0;
+  }
+
   function entropyBytesForWords(wordCount) {
-    var bits = { 12: 128, 15: 160, 18: 192, 21: 224, 24: 256 }[wordCount];
+    var bits = entropyBitsForWords(wordCount);
     if (!bits) throw new Error('Use 12, 15, 18, 21 or 24 words.');
     return bits / 8;
+  }
+
+  function seedPathFor(chainSlug) {
+    return SEED_PATHS[chainSlug] || '';
   }
 
   function generateBip39(wordCount) {
@@ -456,7 +487,11 @@
     generateOld: generateOld,
     generateBip39: generateBip39,
     generateElectrumBip39: generateElectrumBip39,
+    ENTROPY_BITS: ENTROPY_BITS,
+    SEED_PATHS: SEED_PATHS,
+    entropyBitsForWords: entropyBitsForWords,
     entropyBytesForWords: entropyBytesForWords,
+    seedPathFor: seedPathFor,
     bip39Words: bip39Words,
     validateElectrumBip39: validateElectrumBip39
   };
