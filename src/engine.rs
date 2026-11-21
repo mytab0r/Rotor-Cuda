@@ -26,7 +26,6 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::address;
-use crate::base58;
 use crate::chain;
 use crate::checkpoint;
 use crate::cli::{self, CompMode, Config, SearchMode, U256};
