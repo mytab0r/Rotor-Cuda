@@ -3281,6 +3281,29 @@ fn random_page(chain: &ChainHub) -> BigUint {
     BigUint::from_bytes_be(&bytes) % total + BigUint::from(1u8)
 }
 
+// The donor's key-directory search bar names the chain's own WIF shape:
+// Bitcoin/BCH/ZEC 0x80 (5/K/L), Litecoin 0xb0 (6/T), Dogecoin 0x9e (Q/6), and
+// account-model chains offer no WIF at all.
+fn browse_search_placeholder(slug: &str) -> &'static str {
+    match slug {
+        "litecoin" => "HEX, WIF (6/T), or Brainwallet",
+        "dogecoin" => "HEX, WIF (Q/6), or Brainwallet",
+        "bitcoin" | "bitcoin-cash" | "zcash" => "HEX, WIF (5/K/L), or Brainwallet",
+        _ => "HEX or Brainwallet",
+    }
+}
+
+fn browse_search_hint(slug: &str) -> &'static str {
+    match slug {
+        "litecoin" => "Supports 64-char HEX, WIF (6.../T...), or any text as brainwallet",
+        "dogecoin" => "Supports 64-char HEX, WIF (Q.../6...), or any text as brainwallet",
+        "bitcoin" | "bitcoin-cash" | "zcash" => {
+            "Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet"
+        }
+        _ => "Supports 64-char HEX or any text as brainwallet",
+    }
+}
+
 fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_type: &str) -> String {
     let total = chain_total_pages(chain);
     let mut page = parse_page_number(requested).unwrap_or_else(|| BigUint::from(1u8));
@@ -3542,11 +3565,11 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
          <section class=\"search-panel\">\
            <form id=\"browse-search\" class=\"browse-search\">\
              <div class=\"search-leading\">{}</div>\
-             <input id=\"browse-search-input\" type=\"text\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"HEX, WIF (5/K/L), or Brainwallet\" aria-label=\"Search a private key, WIF or brainwallet\" aria-describedby=\"browse-search-hint\">\
+             <input id=\"browse-search-input\" type=\"text\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"{browse_placeholder}\" aria-label=\"Search a private key, WIF or brainwallet\" aria-describedby=\"browse-search-hint\">\
              {search_select}\
              <button type=\"submit\" class=\"primary\">{} Search</button>\
            </form>\
-           <p class=\"search-hint visually-hidden\" id=\"browse-search-hint\">Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet</p>\
+           <p class=\"search-hint visually-hidden\" id=\"browse-search-hint\">{browse_hint}</p>\
          </section>\
          <section class=\"{summary_class}\" aria-label=\"Balance summary\">\
            {summary_cards}\
@@ -3611,6 +3634,8 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         ui_icon("ui-wallet", "icon"),
         chain_icon(chain, "keys-header-icon"),
         chain.slug,
+        browse_placeholder = browse_search_placeholder(chain.slug),
+        browse_hint = browse_search_hint(chain.slug),
     );
     html_document(&title, &head, &body)
 }
@@ -5823,6 +5848,48 @@ mod tests {
         assert!(body.contains("Bitcoin keys page"));
 
         assert_eq!(seo_asset(base, "/private-keys/unknown", "").unwrap().2, 404);
+    }
+
+    #[test]
+    fn browse_search_placeholder_names_the_chain_wif_shape() {
+        assert_eq!(
+            browse_search_placeholder("bitcoin"),
+            "HEX, WIF (5/K/L), or Brainwallet"
+        );
+        assert_eq!(
+            browse_search_placeholder("bitcoin-cash"),
+            "HEX, WIF (5/K/L), or Brainwallet"
+        );
+        assert_eq!(
+            browse_search_placeholder("zcash"),
+            "HEX, WIF (5/K/L), or Brainwallet"
+        );
+        assert_eq!(
+            browse_search_placeholder("litecoin"),
+            "HEX, WIF (6/T), or Brainwallet"
+        );
+        assert_eq!(
+            browse_search_placeholder("dogecoin"),
+            "HEX, WIF (Q/6), or Brainwallet"
+        );
+        assert_eq!(browse_search_placeholder("ethereum"), "HEX or Brainwallet");
+        assert_eq!(browse_search_placeholder("tron"), "HEX or Brainwallet");
+        assert_eq!(
+            browse_search_hint("litecoin"),
+            "Supports 64-char HEX, WIF (6.../T...), or any text as brainwallet"
+        );
+        assert_eq!(
+            browse_search_hint("dogecoin"),
+            "Supports 64-char HEX, WIF (Q.../6...), or any text as brainwallet"
+        );
+        assert_eq!(
+            browse_search_hint("bitcoin"),
+            "Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet"
+        );
+        assert_eq!(
+            browse_search_hint("solana"),
+            "Supports 64-char HEX or any text as brainwallet"
+        );
     }
 
     #[test]
