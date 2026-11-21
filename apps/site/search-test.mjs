@@ -309,32 +309,23 @@ assert.deepEqual(
 );
 assert.equal(browse.tronValue({ balance_sun: "1" }), null, "a non-TRON payload is rejected");
 
-/* ?key= page jump: 60 keys per page, clamped to the last page. */
-assert.equal(browse.jumpPageFor(1n, 315n), 1n, "key 1 is on page 1");
-assert.equal(browse.jumpPageFor(60n, 315n), 1n, "key 60 closes page 1");
-assert.equal(browse.jumpPageFor(61n, 315n), 2n, "key 61 opens page 2");
+/* ?key= resolves to the page containing the key (60 keys per page).
+ * Short values use the hex route, so "3c" is 60 and "3d" is 61. */
+assert.equal(browse.pageForHexKey("1", "100"), 1n, "key 1 is on page 1");
+assert.equal(browse.pageForHexKey("0x1", "100"), 1n, "0x prefix is accepted");
+assert.equal(browse.pageForHexKey("0X1", "100"), 1n, "0X prefix is accepted");
+assert.equal(browse.pageForHexKey("3c", "100"), 1n, "page 1 ends at key 0x3c (60)");
+assert.equal(browse.pageForHexKey("3d", "100"), 2n, "key 0x3d (61) opens page 2");
 assert.equal(
-  browse.jumpPageFor(BigInt("0x" + browse.normalizeKeyHex("0xdeadbeef")), 10n ** 76n),
+  browse.pageForHexKey("0xdeadbeef", "62265476"),
   62265476n,
-  "the padded hex string survives the page math"
+  "0xdeadbeef lands on the donor page 62,265,476"
 );
-assert.equal(
-  browse.jumpPageFor(0xdeadbeefn, 10n ** 76n),
-  62265476n,
-  "0xdeadbeef is page 62,265,476"
-);
-assert.equal(browse.jumpPageFor(10n ** 40n, 315n), 315n, "a huge key clamps to the last page");
-assert.equal(browse.jumpPageFor(0n, 315n), 1n, "zero clamps to page 1");
-assert.equal(browse.jumpPageFor("not a number", 315n), null, "non-numeric input is not a page");
-assert.equal(browse.jumpPageFor(1n, "1"), 1n, "a one-page set is never exceeded");
-
-assert.equal(
-  browse.normalizeKeyHex("0xDEADBEEF"),
-  "00000000000000000000000000000000000000000000000000000000deadbeef",
-  "0x short hex is padded and lowercased"
-);
-assert.equal(browse.normalizeKeyHex("1"), "0000000000000000000000000000000000000000000000000000000000000001");
-assert.equal(browse.normalizeKeyHex("hello"), "", "arbitrary text is not a hex key");
-assert.equal(browse.normalizeKeyHex("0x"), "", "an empty 0x prefix is not a key");
+assert.equal(browse.pageForHexKey("ffffffff", "100"), 100n, "pages are clamped to the last page");
+assert.equal(browse.pageForHexKey("0", "100"), null, "zero is not a key");
+assert.equal(browse.pageForHexKey("0x0", "100"), null, "0x0 is not a key");
+assert.equal(browse.pageForHexKey("zzz", "100"), null, "non-hex text is not a key");
+assert.equal(browse.pageForHexKey("f".repeat(65), "100"), null, "more than 64 hex digits is not a key");
+assert.equal(browse.pageForHexKey("1", "0"), null, "a page range without pages is rejected");
 
 console.log("search-test: ok");
