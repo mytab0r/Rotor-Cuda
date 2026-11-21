@@ -15,7 +15,7 @@
 // Exit codes: 0 = no violations, 1 = violations found, 2 = harness/environment error.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -39,10 +39,24 @@ const DEFAULT_ROUTES = [
   "/tools",
   "/vanity",
   "/send",
+  "/send/bitcoin",
+  "/send/ethereum",
   "/send/bnb",
   "/send/usdt",
   "/send/tron",
   "/cabinet/wallet",
+  "/mnemonic-converter",
+  "/mnemonic-seeds",
+  "/milk-sad",
+  "/hex-dec-bin",
+  "/public-key",
+  "/pubkey-add",
+  "/keystore-parser",
+  "/reconstruction",
+  "/tx",
+  "/tx/bitcoin",
+  "/tx/ethereum",
+  "/docs",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
 const DEFAULT_SETTLE_MS = 700;
@@ -126,6 +140,28 @@ function parseArgs(argv) {
   if (options.themes.length === 0) throw new Error("--themes must contain dark and/or light");
   if (!options.base) options.base = options.serve ? "http://127.0.0.1:7899" : "http://127.0.0.1:7879";
   return options;
+}
+
+// route-coverage: every public text/html route in the coordinator's static_asset
+// map must be inspected by the default audit. Internal/auth pages are exempt.
+function missingPublicRoutes(routes) {
+  const file = path.join(REPO_ROOT, "src", "coordinator", "mod.rs");
+  const source = readFileSync(file, "utf8");
+  const start = source.indexOf("fn static_asset(");
+  const end = source.indexOf("_ => None", start);
+  const excluded = new Set(["/cabinet", "/cabinet/wallet", "/app", "/run", "/me"]);
+  const publicPages = new Set();
+  let pending = [];
+  for (const line of source.slice(start, end).split("\n")) {
+    if (/^\s{8}"/.test(line)) pending = [];
+    for (const match of line.matchAll(/"(\/[^"]*)"/g)) pending.push(match[1]);
+    if (!line.includes('"text/html')) continue;
+    for (const route of pending) {
+      if (!excluded.has(route) && !route.includes("/api/")) publicPages.add(route);
+    }
+    pending = [];
+  }
+  return [...publicPages].filter((route) => !routes.includes(route));
 }
 
 function log(message) {
@@ -659,6 +695,77 @@ function auditPage(args) {
     add("status-pill-geometry", `${statusPills.length} status pill(s) outside the shared geometry`, statusPills.slice(0, 8));
   }
 
+  // 4c. Tooltip contract: data-tooltip targets carry short text, never a
+  //     duplicate native title, and icon-only ones keep an aria-label.
+  const tooltipTargets = [...document.querySelectorAll("[data-tooltip]")].filter(visible);
+  const tooltipIssues = [];
+  for (const el of tooltipTargets) {
+    const text = (el.getAttribute("data-tooltip") || "").trim();
+    if (!text) tooltipIssues.push(`${selectorOf(el)} has an empty data-tooltip`);
+    else if (text.length > 40) tooltipIssues.push(`${selectorOf(el)} tooltip is ${text.length} chars: ${text.slice(0, 48)}`);
+    if (el.hasAttribute("title")) tooltipIssues.push(`${selectorOf(el)} keeps a native title alongside data-tooltip`);
+    if (!textOf(el) && el.querySelector("svg, img") &&
+        !(el.getAttribute("aria-label") || el.getAttribute("aria-labelledby"))) {
+      tooltipIssues.push(`${selectorOf(el)} is icon-only without an accessible name`);
+    }
+  }
+  metrics.tooltips = { targets: tooltipTargets.length, issues: tooltipIssues };
+  if (tooltipIssues.length) {
+    add("tooltip-primitive", `${tooltipIssues.length} tooltip target(s) break the shared primitive`, tooltipIssues.slice(0, 8));
+  }
+
+  // 4c. /key info affordance: a quiet 16px glyph with an invisible 44x44 hit
+  //     area must not read as another bordered button beside random/clear.
+  if (route === "/key" || route.startsWith("/key/")) {
+    const info = document.getElementById("key-info-btn");
+    const meta = document.querySelector(".key-input-meta");
+    metrics.keyInfo = {};
+    if (info && visible(info)) {
+      const style = getComputedStyle(info);
+      const box = boxOf(info);
+      const borderWidths = ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]
+        .map((name) => Number.parseFloat(style[name] || "0"));
+      const bg = style.backgroundColor || "";
+      const match = bg.match(/rgba?\(([^)]+)\)/);
+      const parts = match ? match[1].split(",").map(Number) : [];
+      const alpha = parts.length > 3 ? parts[3] : 1;
+      const issues = [];
+      if (box.width < 43.5 || box.height < 43.5) {
+        issues.push(`hit box ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=44x44)`);
+      }
+      if (borderWidths.some((width) => width > 0)) {
+        issues.push(`visible border ${borderWidths.map((width) => `${width}px`).join("/")}`);
+      }
+      if (alpha > 0.05) issues.push(`visible background ${bg}`);
+      if (style.backgroundImage && style.backgroundImage !== "none") issues.push(`background image ${style.backgroundImage}`);
+      if (info.classList.contains("key-icon-btn")) issues.push("still styled as a .key-icon-btn");
+      metrics.keyInfo = {
+        width: Math.round(box.width),
+        height: Math.round(box.height),
+        borderWidths,
+        background: bg,
+      };
+      if (issues.length) {
+        add("look-alike-icon-button", `#key-info-btn still looks like a full button: ${issues.join("; ")}`, issues);
+      }
+    }
+    if (meta && visible(meta)) {
+      const metaBox = boxOf(meta);
+      metrics.metaRow = { height: Math.round(metaBox.height) };
+      if (Math.abs(metaBox.height - 40) > 1) {
+        add("key-meta-row", `.key-input-meta is ${Math.round(metaBox.height)}px high (expected one 40px line)`);
+      }
+      if (info && visible(info)) {
+        const infoBox = boxOf(info);
+        const offset = Math.abs((infoBox.top + infoBox.height / 2) - (metaBox.top + metaBox.height / 2));
+        metrics.metaRow.infoCentreOffset = Number(offset.toFixed(1));
+        if (offset > 2) {
+          add("key-meta-row", `#key-info-btn is ${offset.toFixed(1)}px off the meta row centre`);
+        }
+      }
+    }
+  }
+
   // 5. Duplicate address-type implementations on one page.
   const keyFamily = document.querySelector(".key-types, .key-btc-panel");
   const panelFamily = document.querySelector(".address-type-panel");
@@ -950,6 +1057,136 @@ async function auditKeyAutoDerive(cdp) {
   );
 }
 
+async function auditKeyTooltips(cdp) {
+  return evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const info = document.getElementById('key-info-btn');
+      const random = document.getElementById('random-btn');
+      const popover = document.getElementById('key-info-popover');
+      const meta = document.querySelector('.key-input-meta');
+      const violations = [];
+      const evidence = {};
+      if (!info) return { ok: false, violations: [{ id: 'tooltip-behaviour', message: 'missing #key-info-btn' }], evidence };
+
+      const tip = () => document.getElementById('ui-tooltip');
+      const visibleTip = () => {
+        const el = tip();
+        if (!el || el.hidden) return null;
+        const style = getComputedStyle(el);
+        return style.display === 'none' || style.visibility === 'hidden' ? null : el;
+      };
+      const fire = (el, type, relatedTarget) => el.dispatchEvent(new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerType: 'mouse',
+        relatedTarget: relatedTarget || null
+      }));
+      const box = (el) => {
+        const rect = el.getBoundingClientRect();
+        return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+      };
+      const fail = (message) => violations.push({ id: 'tooltip-behaviour', message });
+
+      const scrollBefore = window.scrollY;
+      const metaBefore = meta ? box(meta) : null;
+
+      // Hover: ~150ms delay, but it must be visible within 300ms.
+      const hoverStarted = performance.now();
+      fire(info, 'pointerover');
+      let el = null;
+      while (performance.now() - hoverStarted < 300) {
+        el = visibleTip();
+        if (el) break;
+        await sleep(20);
+      }
+      const hoverLatency = Math.round(performance.now() - hoverStarted);
+      evidence.hover = { shown: Boolean(el), text: el ? el.textContent : '', latencyMs: hoverLatency };
+      if (!el) {
+        fail('tooltip did not appear within 300ms of hovering #key-info-btn');
+      } else {
+        const tipBox = box(el);
+        const targetBox = box(info);
+        const described = (info.getAttribute('aria-describedby') || '').split(/\\s+/);
+        const inside = tipBox.left >= -0.5 && tipBox.right <= window.innerWidth + 0.5 &&
+          tipBox.top >= -0.5 && tipBox.bottom <= window.innerHeight + 0.5;
+        const clearOfTarget = tipBox.bottom <= targetBox.top + 1 || tipBox.top >= targetBox.bottom - 1;
+        evidence.hover = {
+          shown: true,
+          text: el.textContent,
+          latencyMs: hoverLatency,
+          role: el.getAttribute('role'),
+          describedBy: described.includes('ui-tooltip'),
+          insideViewport: inside,
+          clearOfTarget,
+          box: tipBox
+        };
+        if (el.getAttribute('role') !== 'tooltip') fail('tooltip node has no role="tooltip"');
+        if (!described.includes('ui-tooltip')) fail('#key-info-btn is not aria-describedby the tooltip');
+        if (el.textContent !== (info.getAttribute('data-tooltip') || '')) fail('tooltip text does not match data-tooltip');
+        if (!inside) fail('tooltip is clipped by the viewport');
+        if (!clearOfTarget) fail('tooltip overlaps its trigger');
+      }
+      fire(info, 'pointerout', document.body);
+      await sleep(80);
+      if (visibleTip()) fail('tooltip stayed visible after the pointer left');
+      if ((info.getAttribute('aria-describedby') || '').includes('ui-tooltip')) {
+        fail('aria-describedby still names the tooltip after hiding');
+      }
+
+      // Keyboard focus: shown at once, Escape hides it.
+      if (random && !random.disabled) {
+        random.focus();
+        await sleep(80);
+        el = visibleTip();
+        evidence.focus = { shown: Boolean(el), text: el ? el.textContent : '', active: document.activeElement === random };
+        if (!el) fail('tooltip did not appear on keyboard focus');
+        else if (el.textContent !== (random.getAttribute('data-tooltip') || '')) fail('focus tooltip text does not match data-tooltip');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await sleep(40);
+        if (visibleTip()) fail('Escape did not hide the tooltip');
+        random.blur();
+      }
+
+      // Popover: opens without a scroll shift or a row height change, and it
+      // replaces the tooltip while open.
+      if (popover) {
+        info.focus();
+        await sleep(60);
+        info.click();
+        await sleep(80);
+        const metaAfter = meta ? box(meta) : null;
+        evidence.popover = {
+          open: !popover.hidden,
+          expanded: info.getAttribute('aria-expanded'),
+          tooltipHidden: !visibleTip(),
+          scrollShift: window.scrollY - scrollBefore,
+          heightBefore: metaBefore ? metaBefore.height : null,
+          heightAfter: metaAfter ? metaAfter.height : null
+        };
+        if (popover.hidden) fail('info popover did not open on click');
+        if (info.getAttribute('aria-expanded') !== 'true') fail('aria-expanded is not true while the popover is open');
+        if (visibleTip()) fail('tooltip stayed over the open popover');
+        if (Math.abs(evidence.popover.scrollShift) > 1) fail('page scrolled when the popover opened');
+        if (metaBefore && metaAfter && Math.abs(metaAfter.height - metaBefore.height) > 1) {
+          fail('meta row changed height when the popover opened');
+        }
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await sleep(80);
+        evidence.popover.closed = popover.hidden;
+        evidence.popover.focusReturned = document.activeElement === info;
+        if (!popover.hidden) fail('Escape did not close the info popover');
+        if (document.activeElement !== info) fail('focus did not return to the info control');
+        info.blur();
+      }
+
+      return { ok: violations.length === 0, violations, evidence };
+    })()`,
+    20000,
+  );
+}
+
 function viewportFor(width) {
   const height = VIEWPORT_HEIGHTS[width] || 900;
   return { width, height };
@@ -957,6 +1194,12 @@ function viewportFor(width) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  const uncovered = missingPublicRoutes(DEFAULT_ROUTES);
+  if (uncovered.length) {
+    throw new Error(
+      `[route-coverage] public page route(s) missing from DEFAULT_ROUTES: ${uncovered.join(", ")}`,
+    );
+  }
   if (options.help) {
     log(HELP);
     return 0;
@@ -1075,6 +1318,9 @@ async function main() {
     cdp = await createCdp(launched.wsUrl);
 
     await cdp.send("Page.enable");
+    // Headless pages may not own system focus, so element.focus() would not
+    // dispatch focusin. Emulate focus so keyboard tooltip/focus checks are real.
+    await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
     await cdp.send("Runtime.enable");
     await cdp.send("Log.enable").catch(() => {});
     await cdp.send("Network.enable").catch(() => {});
@@ -1237,6 +1483,14 @@ async function main() {
             const shotPath = path.join(screenshotsDir, shotName);
             await writeFile(shotPath, Buffer.from(shot.data, "base64"));
             run.screenshot = shotPath;
+
+            // Interaction checks run after the closed-state screenshot so the
+            // image above still shows the resting page.
+            if (route === "/key") {
+              const tooltips = await auditKeyTooltips(cdp);
+              run.metrics.tooltipBehaviour = tooltips.evidence;
+              if (!tooltips.ok) run.violations.push(...tooltips.violations);
+            }
           } catch (error) {
             run.status = "error";
             run.violations.push({

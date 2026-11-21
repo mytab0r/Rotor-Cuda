@@ -50,7 +50,7 @@
         </select>
       </div>
       <div class="key-buttons key-actions" role="group" aria-label="Key actions">
-        <button type="button" id="random-btn" class="key-icon-btn" aria-label="Generate random key" title="Generate random key">
+        <button type="button" id="random-btn" class="key-icon-btn" aria-label="Generate random key" data-tooltip="Generate random key">
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
         <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
@@ -58,8 +58,8 @@
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
-          <button type="button" id="step-down" aria-label="Decrease the key by one" title="Decrease the key by one">−1</button>
-          <button type="button" id="step-up" aria-label="Increase the key by one" title="Increase the key by one">+1</button>
+          <button type="button" id="step-down" aria-label="Decrease the key by one" data-tooltip="Decrease key by one">−1</button>
+          <button type="button" id="step-up" aria-label="Increase the key by one" data-tooltip="Increase key by one">+1</button>
         </div>
       </div>
     </form>
@@ -74,7 +74,7 @@
         <span class="visually-hidden">Key is in the page URL — already exposed to browser history and server logs.</span>
       </span>
       <p id="exposure-status" class="key-exposure-status" role="status" hidden></p>
-      <button type="button" id="key-info-btn" class="key-icon-btn key-info-btn" aria-label="Formats and behaviour" title="Formats and behaviour" aria-expanded="false" aria-controls="key-info-popover">
+      <button type="button" id="key-info-btn" class="key-info-btn" aria-label="Formats and behaviour" data-tooltip="Formats and behaviour" aria-expanded="false" aria-controls="key-info-popover">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
       </button>
       <div id="key-info-popover" class="key-info-popover" role="dialog" aria-modal="false" aria-labelledby="key-info-title" tabindex="-1" hidden>
@@ -100,10 +100,10 @@
 
   <section class="card" id="summary-card" hidden>
     <h2>Keys</h2>
-    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain." hidden>
+    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols." hidden>
       <div class="key-stat">
         <span class="key-stat-label">Total value</span>
-        <strong class="key-stat-value empty" id="stat-total" title="No price source is connected, so Crypto does not show a USD total.">—</strong>
+        <strong class="key-stat-value empty" id="stat-total" title="Waiting for balances and prices.">—</strong>
       </div>
       <div class="key-stat">
         <span class="key-stat-label">Has balance</span>
@@ -118,7 +118,7 @@
         <strong class="key-stat-value" id="stat-checked" title="Chain groups whose checkable rows all settled, out of 18 chain groups.">0/18</strong>
       </div>
     </div>
-    <p class="muted key-help key-stats-note" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain.">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value stays blank without a price source; balances are shown per chain.</p>
+    <p class="muted key-help key-stats-note" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols.">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value sums the loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title.</p>
     <div class="key-summary" id="summary">
       <p class="muted key-empty">Derive a key to see its numeric forms and public point.</p>
     </div>
