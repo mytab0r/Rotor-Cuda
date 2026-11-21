@@ -98,10 +98,20 @@ follow-ups were code-only.
 
 ## P1 — shell and templates
 
-- [ ] One filter bar (search + type + chain chips + reset), pager separate,
-  stats in the table footer.
-- [ ] Reusable icon-button (28/36/44, copied state), compact-row and
-  skeleton/empty/error primitives.
+- [x] One filter bar (search + type + chain chips + reset), pager separate,
+  stats in the table footer. The directory type select is donor parity, not a
+  duplicate: privatekeyfinder renders `#searchType` and syncs it with
+  `.address-type-selector` (`docs/donor-parity/directory-pages.md` §1). `/key`
+  renders one `.key-filter-bar` and a separate pager, and the audit
+  `duplicate-preset-control` detector fails a second copy of the same control.
+- [x] Reusable icon-button (28/36/44, copied state) and compact row. Evidence:
+  `.icon-button` variants and `icon-button-scale` (batch 2),
+  `row-action-geometry` and the shared row rhythm (batch 5); `--control-h-lg`
+  is 44px and `--lg` uses it.
+- [ ] Shared skeleton/empty/error primitives. `.key-empty`, `.range-empty` and
+  `.monitor-empty` are still page-local `site.css` rules. Batch 7 (PR #167) has
+  merged, so `site.css` is free; the next step is one shared `.empty-state`
+  component plus the loading skeleton, with a detector.
 - [x] Header: 4 primary links + More/drawer at ≤860 px; icon-only search/theme.
   Evidence: `apps/site/site.js` (`RotorSiteNav.splitLinks`/`activeInTail` and
   `setupNav`: four inline links, the rest in an `aria-expanded` More
