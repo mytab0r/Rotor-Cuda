@@ -1522,6 +1522,59 @@ fn browse_listing_rows_carry_no_wif() {
     handle.shutdown();
 }
 
+/// #220 and the BTC row model: the served listing row ships a real 44px key
+/// copy action (aria-label + the shared data-tooltip, no inline `display:none`),
+/// and the shipped script keeps the second address in a disclosed block instead
+/// of a second visible 44px line. Detector ids: `browse-row-key-copy` and
+/// `browse-row-address-disclosure` in scripts/ui-audit.mjs.
+#[test]
+fn browse_listing_row_exposes_key_copy_and_address_disclosure() {
+    let temp = TempState::new("browse-row-model");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let (status, _, body) = raw(addr, "GET", "/private-keys/bitcoin", None, None);
+    assert_eq!(status, 200);
+    let start = body.find("<div class=\"key-row\"").expect("listing row");
+    let after = &body[start + 1..];
+    let end = after
+        .find("<div class=\"key-row\"")
+        .map_or(body.len(), |index| start + 1 + index);
+    let row = &body[start..end];
+    assert!(
+        row.contains("class=\"icon-button icon-button--quiet icon-button--lg copy-btn\""),
+        "the row key copy action must use the shared 44px icon-button"
+    );
+    assert!(
+        row.contains("aria-label=\"Copy private key\"")
+            && row.contains("data-tooltip=\"Copy private key\""),
+        "the row key copy action must be labelled and carry the tooltip primitive"
+    );
+    assert!(
+        !row.contains("display:none"),
+        "the row key copy action must not ship hidden"
+    );
+
+    let (status, _, browse_js) = raw(addr, "GET", "/browse.js", None, None);
+    assert_eq!(status, 200, "/browse.js");
+    for needle in [
+        "addressCellModel",
+        "addr-extra",
+        "addr-extra-toggle",
+        "aria-expanded",
+        "Show uncompressed address",
+        "addr-expanded",
+        "balance-extra",
+    ] {
+        assert!(
+            browse_js.contains(needle),
+            "browse.js lost the address disclosure hook {needle}"
+        );
+    }
+
+    handle.shutdown();
+}
+
 /// UTXO chains keep the donor's Balance / Received / TX row; account-model
 /// chains show Balance / Active. The summary markup is chain-shaped, so this
 /// guards both variants against a regression to one shared three-card row.
