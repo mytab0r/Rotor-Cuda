@@ -3,10 +3,13 @@
   'use strict';
 
   var WASM_URL = '/rotor_wasm.wasm';
+  var WORKER_URL = '/vanity-worker.js';
   var BATCH = 120;
   var DECODER = new TextDecoder('utf-8');
   var RECENT_KEY = 'rotor-vanity-recent';
   var RECENT_LIMIT = 5;
+  var MAX_WORKERS = 4;
+  var STATS_MS = 250;
 
   /* Alphabet = number of equally likely symbols in the matched address part.
      EVM hex is matched case-insensitively; base58 and bech32 stay case-sensitive. */
@@ -43,6 +46,64 @@
     return expected / speed;
   }
 
+  /* One worker per core beyond the UI thread, clamped to 1..4. */
+  function threadCount(cores) {
+    var value = Math.floor(Number(cores));
+    if (!isFinite(value) || value < 2) return 1;
+    return Math.min(MAX_WORKERS, value - 1);
+  }
+
+  /* Normalize the page pattern once per run, before the search loop. */
+  function patternFor(config, prefix, suffix) {
+    var start = String(prefix || '').trim();
+    var end = String(suffix || '').trim();
+    if (config && config.field === 'evm' && start && !/^0x/i.test(start)) start = '0x' + start;
+    var lower = !!(config && config.lower);
+    return { prefix: lower ? start.toLowerCase() : start, suffix: lower ? end.toLowerCase() : end, lower: lower };
+  }
+
+  /* keep in sync with matches() in vanity-worker.js */
+  function addressMatches(address, pattern) {
+    var target = pattern.lower ? String(address).toLowerCase() : String(address);
+    if (pattern.prefix && target.indexOf(pattern.prefix) !== 0) return false;
+    if (!pattern.suffix) return true;
+    return target.lastIndexOf(pattern.suffix) === target.length - pattern.suffix.length;
+  }
+
+  /* Workers are untrusted input too: whitelist the message fields we render. */
+  function sanitizeWorkerMessage(data) {
+    if (!data || typeof data !== 'object') return null;
+    if (data.type === 'progress') {
+      var attempts = Number(data.attempts);
+      if (!isFinite(attempts) || attempts < 0) return null;
+      return { type: 'progress', attempts: Math.floor(attempts) };
+    }
+    if (data.type === 'match') {
+      var address = typeof data.address === 'string' ? data.address.slice(0, 128) : '';
+      var report = data.report && typeof data.report === 'object' ? data.report : null;
+      if (!address || !report) return null;
+      var privHex = typeof report.priv_hex === 'string' ? report.priv_hex : '';
+      if (!privHex) return null;
+      var attemptsAtMatch = Number(data.attempts);
+      return {
+        type: 'match',
+        address: address,
+        report: {
+          priv_hex: privHex,
+          wif_compressed: typeof report.wif_compressed === 'string' ? report.wif_compressed : ''
+        },
+        attempts: isFinite(attemptsAtMatch) && attemptsAtMatch >= 0 ? Math.floor(attemptsAtMatch) : 0
+      };
+    }
+    if (data.type === 'error') {
+      return {
+        type: 'error',
+        message: typeof data.message === 'string' ? data.message.slice(0, 200) : 'worker error'
+      };
+    }
+    return null;
+  }
+
   /* Whitelist only the public fields: a stored match must never carry a key. */
   function sanitizeRecentEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
@@ -59,6 +120,10 @@
     alphabetFor: alphabetFor,
     expectedSeconds: expectedSeconds,
     patternLength: patternLength,
+    threadCount: threadCount,
+    patternFor: patternFor,
+    addressMatches: addressMatches,
+    sanitizeWorkerMessage: sanitizeWorkerMessage,
     sanitizeRecentEntry: sanitizeRecentEntry
   };
 
@@ -77,6 +142,8 @@
   var etaEl = byId('vanity-eta');
   var difficultyEl = byId('vanity-difficulty');
   var elapsedEl = byId('vanity-elapsed');
+  var helpEl = byId('vanity-help');
+  var helpBase = helpEl ? helpEl.textContent : '';
   var resultBox = byId('vanity-result');
   var addressEl = byId('vanity-address');
   var keyEl = byId('vanity-key');
@@ -89,6 +156,9 @@
     wasm: null,
     wasmPromise: null,
     running: false,
+    matched: false,
+    mode: 'idle',
+    workers: [],
     attempts: 0,
     startedAt: 0,
     timer: null,
@@ -291,14 +361,70 @@
     renderRecent();
   }
 
+  function totalAttempts() {
+    var total = state.attempts;
+    for (var i = 0; i < state.workers.length; i += 1) total += state.workers[i].attempts || 0;
+    return total;
+  }
+
+  function setHelp(threads) {
+    if (!helpEl) return;
+    if (!threads) {
+      helpEl.textContent = helpBase;
+      return;
+    }
+    helpEl.textContent = helpBase.replace(
+      'The search runs in this tab',
+      'The search runs on ' + threads + ' thread' + (threads === 1 ? '' : 's')
+    );
+  }
+
+  function startTimer() {
+    clearTimer();
+    state.timer = window.setInterval(updateStats, STATS_MS);
+  }
+
+  function clearTimer() {
+    if (state.timer) {
+      window.clearInterval(state.timer);
+      state.timer = null;
+    }
+  }
+
+  function clearRaf() {
+    if (state.raf) {
+      window.cancelAnimationFrame(state.raf);
+      state.raf = null;
+    }
+  }
+
+  function terminateWorkers() {
+    for (var i = 0; i < state.workers.length; i += 1) {
+      try {
+        state.workers[i].worker.terminate();
+      } catch (err) {
+        /* already gone */
+      }
+    }
+    state.workers = [];
+    state.mode = 'idle';
+  }
+
+  /* Stops every source of attempts and folds their counters into one total. */
+  function haltSearch() {
+    state.running = false;
+    clearRaf();
+    clearTimer();
+    var total = totalAttempts();
+    terminateWorkers();
+    state.attempts = total;
+    setHelp(0);
+  }
+
   function tick() {
-    if (!state.running) return;
+    if (!state.running || state.mode !== 'fallback') return;
     var config = CHAINS[chainSelect.value];
-    var prefix = prefixInput.value.trim();
-    var suffix = suffixInput.value.trim();
-    if (config.field === 'evm' && prefix && !/^0x/i.test(prefix)) prefix = '0x' + prefix;
-    var comparePrefix = config.lower ? prefix.toLowerCase() : prefix;
-    var compareSuffix = config.lower ? suffix.toLowerCase() : suffix;
+    var pattern = patternFor(config, prefixInput.value, suffixInput.value);
     var bytes = new Uint8Array(32);
 
     for (var i = 0; i < BATCH; i += 1) {
@@ -308,9 +434,7 @@
         if (!report) continue;
         var address = addressFrom(report, config.field);
         if (!address) continue;
-        var target = config.lower ? address.toLowerCase() : address;
-        if ((!comparePrefix || target.indexOf(comparePrefix) === 0) &&
-            (!compareSuffix || target.lastIndexOf(compareSuffix) === target.length - compareSuffix.length)) {
+        if (addressMatches(address, pattern)) {
           finish(report, address);
           return;
         }
@@ -321,15 +445,93 @@
     state.raf = window.requestAnimationFrame(tick);
   }
 
+  function workerJob(config) {
+    var pattern = patternFor(config, prefixInput.value, suffixInput.value);
+    return {
+      type: 'start',
+      field: config.field,
+      curve: config.curve,
+      lower: pattern.lower,
+      prefix: pattern.prefix,
+      suffix: pattern.suffix
+    };
+  }
+
+  function onWorkerMessage(entry, raw) {
+    if (!state.running) return;
+    var message = sanitizeWorkerMessage(raw);
+    if (!message) return;
+    if (message.type === 'progress') {
+      entry.attempts = message.attempts;
+      return;
+    }
+    if (message.type === 'match') {
+      if (state.matched) return;
+      entry.attempts = message.attempts;
+      finish(message.report, message.address);
+      return;
+    }
+    if (message.type === 'error' && !state.matched) fallbackToTab();
+  }
+
+  /* One worker per thread; any failure before a match drops to the in-tab loop. */
+  function startWorkers() {
+    var config = CHAINS[chainSelect.value];
+    var count = threadCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 1);
+    var started = [];
+    try {
+      for (var i = 0; i < count; i += 1) {
+        started.push({ worker: new Worker(WORKER_URL), attempts: 0 });
+      }
+    } catch (err) {
+      for (var j = 0; j < started.length; j += 1) {
+        try { started[j].worker.terminate(); } catch (e) { /* already gone */ }
+      }
+      return false;
+    }
+    var job = workerJob(config);
+    state.workers = started;
+    state.mode = 'workers';
+    for (var k = 0; k < started.length; k += 1) {
+      (function (entry) {
+        entry.worker.onmessage = function (event) { onWorkerMessage(entry, event.data); };
+        entry.worker.onerror = function (event) {
+          onWorkerMessage(entry, { type: 'error', message: event && event.message ? event.message : 'worker crashed' });
+        };
+        entry.worker.postMessage(job);
+      })(started[k]);
+    }
+    setHelp(started.length);
+    return true;
+  }
+
+  function fallbackToTab() {
+    var total = totalAttempts();
+    terminateWorkers();
+    clearRaf();
+    state.attempts = total;
+    state.mode = 'fallback';
+    state.lastCount = total;
+    state.lastAt = performance.now();
+    if (helpEl) {
+      helpEl.textContent = helpBase.replace(
+        'The search runs in this tab',
+        'Multi-thread search is unavailable, so the search runs in this tab'
+      );
+    }
+    state.raf = window.requestAnimationFrame(tick);
+  }
+
   function updateStats() {
-    attemptsEl.textContent = formatNumber(state.attempts);
+    var total = totalAttempts();
+    attemptsEl.textContent = formatNumber(total);
     var now = performance.now();
     var seconds = Math.max(0.001, (now - state.startedAt) / 1000);
     elapsedEl.textContent = seconds < 60 ? seconds.toFixed(1) + ' s' : Math.floor(seconds / 60) + ' m ' + Math.floor(seconds % 60) + ' s';
     if (state.running) {
       if (now - state.lastAt > 400) {
-        state.rate = (state.attempts - state.lastCount) / ((now - state.lastAt) / 1000);
-        state.lastCount = state.attempts;
+        state.rate = (total - state.lastCount) / ((now - state.lastAt) / 1000);
+        state.lastCount = total;
         state.lastAt = now;
       }
     } else {
@@ -340,8 +542,9 @@
   }
 
   function finish(report, address) {
-    state.running = false;
-    if (state.raf) window.cancelAnimationFrame(state.raf);
+    if (!state.running) return;
+    state.matched = true;
+    haltSearch();
     updateStats();
     startBtn.disabled = false;
     stopBtn.disabled = true;
@@ -361,8 +564,12 @@
   }
 
   function stop() {
-    state.running = false;
-    if (state.raf) window.cancelAnimationFrame(state.raf);
+    if (!state.running) {
+      clearRaf();
+      clearTimer();
+      return;
+    }
+    haltSearch();
     startBtn.disabled = false;
     stopBtn.disabled = true;
     updateStats();
@@ -390,6 +597,7 @@
     }
     resultBox.hidden = true;
     state.attempts = 0;
+    state.matched = false;
     state.startedAt = performance.now();
     state.lastAt = state.startedAt;
     state.lastCount = 0;
@@ -400,7 +608,11 @@
     loadWasm().then(function () {
       setStatus('');
       state.running = true;
-      tick();
+      if (startWorkers()) {
+        startTimer();
+      } else {
+        fallbackToTab();
+      }
     }).catch(function (err) {
       fail(err && err.message ? err.message : 'The derivation core did not load.');
       startBtn.disabled = false;

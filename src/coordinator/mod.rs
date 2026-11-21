@@ -62,6 +62,7 @@ const BROWSE_JS: &str = include_str!("../../apps/site/browse.js");
 const BALANCE_CACHE_JS: &str = include_str!("../../apps/site/balance-cache.js");
 const VANITY_PAGE: &str = include_str!("../../apps/site/vanity.html");
 const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
+const VANITY_WORKER_JS: &str = include_str!("../../apps/site/vanity-worker.js");
 const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
 const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
 const SEED_PAGE_JS: &str = include_str!("../../apps/site/seed-page.js");
@@ -913,6 +914,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/vanity" => Some((VANITY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/vanity.js" => Some((
             VANITY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/vanity-worker.js" => Some((
+            VANITY_WORKER_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/seed" => Some((SEED_PAGE.as_bytes(), "text/html; charset=utf-8")),
@@ -6269,10 +6274,22 @@ mod tests {
             "/seed-page.js",
             "/vanity",
             "/vanity.js",
+            "/vanity-worker.js",
             "/milk-sad",
         ] {
             assert!(static_asset(path).is_some(), "{path} must be embedded");
         }
+        let (worker, content_type) = static_asset("/vanity-worker.js").expect("vanity worker");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let worker = std::str::from_utf8(worker).expect("utf-8 worker");
+        assert!(worker.contains("/rotor_wasm.wasm"));
+        assert!(worker.contains("derive_report"));
+        let (page_js, _) = static_asset("/vanity.js").expect("vanity page script");
+        assert!(
+            std::str::from_utf8(page_js)
+                .expect("utf-8 vanity")
+                .contains("/vanity-worker.js")
+        );
         let base = "https://rotor.pxbt.app";
         let sitemap = render_sitemap(base);
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/seed</loc>"));
