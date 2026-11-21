@@ -285,8 +285,11 @@
    * Order preserves the old page: exactly 64 hex characters win over decimal,
    * and every other plain number is decimal. Any other text is a brainwallet
    * phrase. The hint never includes the key itself. */
-  var WIF_RE = /^[5KLQT][1-9A-HJ-NP-Za-km-z]{50,51}$/;
-  var WIF_PARTIAL_RE = /^[5KLQT][1-9A-HJ-NP-Za-km-z]{8,49}$/;
+  /* The donor WIF shape, used by all three input contexts: base58, 51-52
+   * characters, first character 5/K/L (Bitcoin), T/6 (Litecoin) or Q/6
+   * (Dogecoin). Kept identical in key-tools.js and search.js. */
+  var WIF_RE = /^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  var WIF_PARTIAL_RE = /^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{8,49}$/;
   var WIF_NETWORK_LABELS = { bitcoin: 'Bitcoin', litecoin: 'Litecoin', dogecoin: 'Dogecoin' };
 
   function detectFormat(raw) {

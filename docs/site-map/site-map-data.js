@@ -247,7 +247,7 @@
       status: 'parity',
       priority: '-',
       donorIds: ['pkf:/brainwallet/' + item[0]],
-      note: '60 rows × 315 pages: SHA-256 key and phrase copy, chain address with explorer and copy, address types where the chain supports them, optional balances.'
+      note: '60 rows × 315 pages: SHA-256 key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE, chain address with explorer and copy, address types where the chain supports them, optional balances.'
     });
   });
 
@@ -877,7 +877,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, TRON, XRP, SOL, SUI and TON have providers; LTC/DOGE/BCH/ZEC stay provider-less (Blockchair 430, litecoinspace 525) and show — instead of a fake zero.'
+    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, TRON, XRP, SOL, SUI and TON have directory providers. LTC/DOGE do have a keyless BlockCypher provider on the single-key page, but a 60-row directory lookup would exceed its keyless rate limit, so their cells stay — (as do BCH/ZEC, which have no free keyless provider) instead of a fake zero.'
   });
 
   feature({
@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'All chains except TON: rows, pager, word counts, phrase/key/WIF copy, path, address types and balances are present; TON is an explicit unsupported state.'
+    note: 'All chains except TON: rows, pager, word counts, phrase/key/WIF copy, path and address types are present. Balance checks run for BTC and the EVM chains only (mnemonic-seeds providerMeta); TON is an explicit unsupported state.'
   });
 
   feature({
@@ -1033,7 +1033,7 @@
     status: 'parity',
     priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: '60 rows × 315 pages per chain with key and phrase copy, address/explorer/copy, address types and optional balances.'
+    note: '60 rows × 315 pages per chain with key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE, address/explorer/copy, address types and optional balances.'
   });
 
   feature({
@@ -1213,7 +1213,7 @@
     status: 'parity',
     priority: 'P0',
     sources: ['privatekeyfinder.io'],
-    note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. A live N chars/N words counter sits under the input, and a detected mnemonic is labelled with its Electrum SegWit/Legacy sub-type. Mnemonics hand off to /mnemonic-converter; keys never enter the URL or storage.'
+    note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. A live N chars/N words counter sits under the input, and a detected mnemonic is labelled with its Electrum SegWit/Legacy sub-type. Mnemonics hand off to /mnemonic-converter; keys never enter the URL or storage. WIF auto-detection accepts Bitcoin (5/K/L), Litecoin (T/6) and Dogecoin (Q/6) mainnet keys.'
   });
 
   feature({

@@ -14,7 +14,9 @@
 
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
-  var WIF_RE = /^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  /* The donor WIF shape, shared with the key page and the key tools: 5/K/L
+   * (Bitcoin), T/6 (Litecoin) or Q/6 (Dogecoin). */
+  var WIF_RE = /^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$/;
   var XRP_SECRET_RE = /^s[1-9A-HJ-NP-Za-km-z]{20,30}$/;
   var XRP_UNSUPPORTED = 'XRP family seeds (s…) are not supported in this search. ' +
     'Paste the 64-hex private key or export the hex key from your wallet.';
@@ -152,7 +154,10 @@
     }
     var raw = decodeBase58(text);
     if (raw.length !== 37 && raw.length !== 38) throw new Error('Not a WIF length.');
-    if (raw[0] !== 0x80) throw new Error('Not a mainnet WIF.');
+    /* 0x80 is Bitcoin and Bitcoin Cash; Litecoin uses 0xb0 and Dogecoin 0x9e. */
+    if (raw[0] !== 0x80 && raw[0] !== 0xb0 && raw[0] !== 0x9e) {
+      throw new Error('Not a Bitcoin, Litecoin or Dogecoin mainnet WIF.');
+    }
     if (raw.length === 38 && raw[33] !== 0x01) throw new Error('Bad compression marker.');
     var payload = raw.slice(0, raw.length - 4);
     var digest = new Uint8Array(await subtle.digest('SHA-256', payload));
@@ -210,7 +215,7 @@
 
   async function parseWifInput(value) {
     if (!WIF_RE.test(value)) {
-      throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K or L.');
+      throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K, L, T, 6 or Q.');
     }
     return { kind: 'wif', hex: await decodeWif(value) };
   }

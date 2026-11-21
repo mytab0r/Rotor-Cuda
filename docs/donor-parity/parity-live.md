@@ -97,8 +97,9 @@ paging, mnemonic seeds, brainwallet corpus, puzzle list, global search — is
 1:1, sometimes a superset (derivation controls, type tabs, local scanner,
 extra calculators). Gaps: richest lists, combined download datasets, Milk Sad
 chain directories and puzzle solution data are absent or thin; the key page
-has the right anatomy and checks 14 of 18 chain groups with a USD total, but
-LTC/BCH/DOGE/ZEC balances still show `—`. Intentional differences are
+has the right anatomy and checks 16 of 18 chain groups with a USD total (BTC,
+8 EVM, TRON, XRP, SOL, SUI, TON, LTC and DOGE via BlockCypher), while BCH/ZEC
+balances still show `—`. Intentional differences are
 the derivation controls on `/key`, testnet-only sends, no mainnet signing and
 the local-first model. What remains is mostly data and owner decisions
 (rich-list labels, 15 GB mirrors, Milk Sad corpus, solved-puzzle keys), not
