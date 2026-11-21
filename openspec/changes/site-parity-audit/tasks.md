@@ -164,8 +164,23 @@ follow-ups were code-only.
   (difficulty/ETA math and a sanitizer test proving `key`/`wif`/`priv_hex`
   never survive). Deliberate deviation: private keys and WIF are never saved,
   and the page keeps saying so.
-- [ ] Vanity: multi-thread workers and QR output. Threads need a served worker
-  file plus coordinator routes; QR is not implemented.
+- [x] Vanity: multi-thread workers. Evidence: `apps/site/vanity-worker.js`
+  (classic worker: `/rotor_wasm.wasm`, random key per attempt, 250 ms progress
+  and match messages), `apps/site/vanity.js` (`threadCount` clamped 1-4,
+  worker pool, aggregate attempts/rate/ETA, first match terminates the pool,
+  `sanitizeWorkerMessage`, single-thread fallback on worker failure),
+  `src/coordinator/mod.rs` (embedded `/vanity-worker.js` asset and route),
+  `apps/site/vanity-test.mjs` (thread clamp, pattern/match rule, message
+  sanitizer, keys never saved), `tests/coordinator_api.rs` (asset is served).
+- [ ] Vanity: QR output. Not implemented; the match is shown as address, hex
+  key and WIF with copy buttons only.
+- [x] Keystore parser: drag-drop file, examples, metadata. Evidence:
+  `apps/site/keystore-parser.html` (`.dropzone`, visible file label around a
+  focusable input, Load example), `apps/site/keystore-parser.js`
+  (`readKeystoreFile` with a 64 KiB cap, `KEYSTORE_EXAMPLES`, id/version/
+  cipher/declared-address facts), `apps/site/keystore-parser-test.mjs` (9
+  tests including a wasm decrypt of the shipped web3 secret-storage vector),
+  `apps/site/site.css` `.dropzone`, `docs/design-system/DESIGN-SYSTEM.md` 3.16.
 - [x] Pubkey-add: P−Q and scalar multiplication. Evidence:
   `crates/rotor-wasm/src/derive.rs:309` (`pubkey_subtract_report`),
   `:323` (`pubkey_mul_report`, scalar 1..n−1), `:346` (shared point report);
