@@ -135,6 +135,33 @@
     };
   }
 
+  /* Like atomicAmount but tolerates the signed `unconfirmed` delta. */
+  function signedAmount(value) {
+    if (typeof value === 'string' && /^-?\d+$/.test(value)) return value;
+    if (typeof value === 'number' && isFinite(value) && Math.floor(value) === value) {
+      return String(value);
+    }
+    return null;
+  }
+
+  /* Haskoin `/bch/address/balances?addresses=<address>`: an array with one
+   * entry per requested address, satoshis in `confirmed` + `unconfirmed`
+   * (the latter may be negative) and the lifetime transaction count in `txs`. */
+  function parseHaskoinBch(data) {
+    if (!Array.isArray(data)) return null;
+    var info = data[0];
+    if (!info || typeof info !== 'object' || Array.isArray(info)) return null;
+    var confirmed = atomicAmount(info.confirmed);
+    var unconfirmed = signedAmount(info.unconfirmed);
+    if (confirmed === null && unconfirmed === null) return null;
+    var txs = atomicAmount(info.txs);
+    return {
+      confirmed: confirmed === null ? '0' : confirmed,
+      unconfirmed: unconfirmed === null ? '0' : unconfirmed,
+      txs: txs === null ? null : Number(txs)
+    };
+  }
+
   function hasAddress(address) {
     return typeof address === 'string' && address.trim().length > 0;
   }
@@ -367,6 +394,7 @@
     parseSuiBalance: parseSuiBalance,
     parseTonBalance: parseTonBalance,
     parseBlockcypherBalance: parseBlockcypherBalance,
+    parseHaskoinBch: parseHaskoinBch,
     hasAddress: hasAddress,
     isSuccess: isSuccess,
     isFresh: isFresh,
