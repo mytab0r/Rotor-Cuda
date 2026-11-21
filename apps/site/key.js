@@ -2262,14 +2262,42 @@
     };
   }
 
+  /* BlockCypher's keyless balance endpoint allows browser CORS for both
+   * Litecoin (incl. taproot) and Dogecoin; amounts arrive in atomic units. */
+  async function fetchBlockcypher(address, signal, chainClass) {
+    var response = await fetchWithTimeout(
+      'https://api.blockcypher.com/v1/' + chainClass + '/main/addrs/' + encodeURIComponent(address) + '/balance',
+      null,
+      signal
+    );
+    var parsed = await parseProviderJson(response, 'parseBlockcypherBalance');
+    var sats = BigInt(parsed.amount);
+    var received = parsed.received === null ? null : BigInt(parsed.received);
+    var txs = parsed.txs;
+    return {
+      text: sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx',
+      summary: {
+        amount: sats,
+        chain: chainClass,
+        symbol: chainClass === 'ltc' ? 'LTC' : 'DOGE',
+        decimals: 8,
+        active: txs > 0,
+        balanceSat: sats,
+        receivedSat: received,
+        txs: txs
+      }
+    };
+  }
+
   /* Rows whose identifiers have a working public provider. Kept in one place
-   * so the counters and the checks agree on what "N" means. */
+   * so the counters and the checks agree on what "N" means. BCH and ZEC still
+   * have no free keyless provider (Blockchair answers 430 without a key). */
   function rowHasProvider(id) {
     if (!id) return false;
     if (id === 'solana' || id === 'sui' || id === 'ton' || id === 'ton_w5') return true;
     if (id.indexOf('xrp_') === 0) return true;
-    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0 ||
-        id.indexOf('bch_') === 0 || id.indexOf('zcash_') === 0) return false;
+    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return true;
+    if (id.indexOf('bch_') === 0 || id.indexOf('zcash_') === 0) return false;
     return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
   }
 
@@ -2467,6 +2495,12 @@
     } else if (id === 'ton' || id === 'ton_w5') {
       provider = 'toncenter';
       chain = 'ton';
+    } else if (id.indexOf('ltc_') === 0) {
+      provider = 'blockcypher';
+      chain = 'ltc';
+    } else if (id.indexOf('doge_') === 0) {
+      provider = 'blockcypher';
+      chain = 'doge';
     } else {
       return null;
     }
@@ -2620,6 +2654,8 @@
       if (id === 'solana') return fetchSolana(address, signal);
       if (id === 'sui') return fetchSui(address, signal);
       if (id === 'ton' || id === 'ton_w5') return fetchTon(address, signal);
+      if (id.indexOf('ltc_') === 0) return fetchBlockcypher(address, signal, 'ltc');
+      if (id === 'doge_p2pkh') return fetchBlockcypher(address, signal, 'doge');
       throw new Error('no provider in v1');
     };
     try {
