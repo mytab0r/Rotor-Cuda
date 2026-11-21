@@ -4106,7 +4106,7 @@ fn render_puzzle_detail(
         puzzle_fact(
             "Transactions",
             &format!(
-                "<a data-tx-address=\"{target}\" href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">mempool.space</a><span class=\"pz-sub\">live transaction count</span>"
+                "<a class=\"pz-tx-link\" data-tx-address=\"{target}\" href=\"https://mempool.space/address/{target}\" target=\"_blank\" rel=\"noopener noreferrer\">mempool.space</a><span class=\"pz-sub\">live transaction count</span>"
             )
         ),
     );
