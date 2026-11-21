@@ -198,6 +198,19 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
       `active=false` lists until they are set.
       `deploy/orders.example.json` ships every list with `active: false`.
 
+## Density measurement (owner, 2026-11-21)
+- [x] Repeatable donor reverse-engineering: `scripts/density-parity.mjs` measures
+      chrome height, visible rows/row height, controls above the fold, block
+      padding/gaps, title/stat/table-header fonts and document height for two
+      URLs at 375x812/1280x800/1440x900, with an honest unreachable-donor
+      report. Evidence: the script, the procedure in
+      `.claude/skills/donor-reverse/SKILL.md`, and the first measured run in
+      `docs/donor-parity/density-tron.md` + `density-tron.json`.
+- [ ] Apply the ranked change list from `docs/donor-parity/density-tron.md`
+      (browse-row WIF lines, stats compaction, jump-form width, chip strip,
+      search/page-header/gap micro-compaction) in a separate UI PR with
+      before/after measurements. Not implemented here.
+
 ## Gates
 - `node scripts/ui-audit.mjs --serve` — 0 violations at 375/768/1280, light/dark.
 - Site tests, coordinator tests, `node scripts/check-projects.mjs`.

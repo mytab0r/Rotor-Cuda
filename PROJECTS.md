@@ -74,6 +74,7 @@ node scripts/check-projects.mjs                  # schema, ownership, coverage
 node scripts/affected-areas.mjs                  # diff origin/main + working tree
 node scripts/affected-areas.mjs path/to/file ... # explicit paths
 node scripts/ui-audit.mjs --serve                # headless UI self-review (site)
+node scripts/density-parity.mjs --donor URL --ours URL [--json PATH]  # donor-vs-ours density
 node scripts/sync-board.mjs [--dry-run]          # mirror changes + PRs to the Rotor board
 ```
 
@@ -84,6 +85,15 @@ targets below 44px, icon-only controls without labels, duplicated address-type
 components, uneven card widths, half-empty cards, manual balance controls and
 the route-specific row counts. Exit 1 means a UI change is not done. The
 failure table and workflow live in `.claude/skills/ui-self-review/SKILL.md`.
+
+`scripts/density-parity.mjs` is the donor measurement gate: the same zero-dependency
+headless Chrome/Edge CDP path, two URLs, three viewports, and a report of chrome
+height (document top to the first data row), visible rows and row height,
+interactive controls above the fold, block padding/gaps, title/stat/table-header
+font sizes and document height. It never invents donor numbers: an unreachable
+donor is reported with the raw reason while our side is still measured. The
+procedure lives in `.claude/skills/donor-reverse/SKILL.md`; the first measured
+run is `docs/donor-parity/density-tron.md` with its raw JSON beside it.
 
 `scripts/sync-board.mjs` mirrors every OpenSpec change and open pull request
 into the Rotor Project (owner `mytab0r`, number 3) with `Area`, `Progress` and
