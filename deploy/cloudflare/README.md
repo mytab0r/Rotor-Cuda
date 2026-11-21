@@ -135,6 +135,11 @@ exponential backoff plus 50-100% jitter on `429`/`5xx`. These limits bound one
 isolate; they are not a global quota. For global protection use a provider-side
 key/quota or a Cloudflare Rate Limiting binding.
 
+Each client IP also has its own token bucket (burst 120, refill 20/s, LRU
+bounded at 5000 keys). `OPTIONS` and `GET /healthz` are exempt and
+`/v1/balances` charges one token per address (at most 60). This is likewise
+per isolate: a per-client safeguard, not a cross-isolate guarantee.
+
 ## Security model
 
 - The worker is public and unauthenticated; it stores nothing user-specific.
@@ -174,7 +179,8 @@ the fetch handler is tested with stubbed `caches.default` and `fetch`.
 
 ## Deliberately out of scope
 
-- Authentication, per-client quotas and a global (cross-colo) rate limiter.
+- Authentication and a global (cross-colo) rate limiter. The per-client bucket
+  is per isolate, like the provider bucket.
 - Persistence: there is no KV/D1/DO storage; the cache is the platform edge
   cache and may disappear at any time.
 - Historical balances, USD pricing and chart data.

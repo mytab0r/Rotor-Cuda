@@ -24,6 +24,7 @@ import {
 import {
   backoffDelay,
   createConcurrencyLimiter,
+  createKeyedLimiter,
   createTokenBucket,
   shouldRetryStatus,
 } from "../src/limiters.mjs";
@@ -34,7 +35,7 @@ import {
   resolveProvider,
 } from "../src/providers.mjs";
 import { containsSensitiveMaterial, findSensitiveMaterial } from "../src/security.mjs";
-import { handleRequest } from "../src/worker.mjs";
+import { handleRequest, resetClientLimits } from "../src/worker.mjs";
 
 const BTC_ADDR = "1BoatSLRHtKNngkdXEeobR76b53LETtpyT";
 const BTC_BECH32 = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
@@ -92,10 +93,11 @@ function balanceRequest(chain, address) {
   );
 }
 
-function balancesRequest(chain, addresses) {
+function balancesRequest(chain, addresses, headers) {
   const csv = Array.isArray(addresses) ? addresses.join(",") : addresses;
   return new Request(
     `https://edge.test/v1/balances?chain=${encodeURIComponent(chain)}&addresses=${encodeURIComponent(csv)}`,
+    headers ? { headers } : undefined,
   );
 }
 
@@ -112,6 +114,23 @@ function providerJson(payload, status = 200) {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+// Existing tests share the "unknown" client key, so every test starts with a
+// full per-client quota.
+test.beforeEach(() => resetClientLimits());
+
+async function exhaustClient(headers) {
+  for (let index = 0; index < 1000; index += 1) {
+    const response = await handleRequest(
+      new Request(`https://edge.test/v1/balance?chain=polygon&address=${EVM_ADDR}`, { headers }),
+      {},
+      {},
+    );
+    if (response.status === 429) return response;
+    assert.equal(response.status, 501);
+  }
+  assert.fail("client bucket did not drain within 1000 requests");
 }
 
 // --- address validation --------------------------------------------------
@@ -205,6 +224,61 @@ test("token bucket drains, refills and caps at capacity", () => {
   assert.equal(bucket.take(1_000), true);
   assert.equal(bucket.available(1_000), 0);
   assert.equal(bucket.available(100_000), 2);
+});
+
+test("keyed limiter keeps independent buckets per key and refills them", () => {
+  const limiter = createKeyedLimiter({ capacity: 2, refillPerSecond: 1 });
+  assert.equal(limiter.take("a", 0), true);
+  assert.equal(limiter.take("a", 0), true);
+  assert.equal(limiter.take("a", 0), false);
+  assert.equal(limiter.take("b", 0), true);
+  assert.equal(limiter.take("b", 0), true);
+  assert.equal(limiter.take("b", 0), false);
+  assert.equal(limiter.take("a", 1_000), true);
+  assert.equal(limiter.size, 2);
+  limiter.reset();
+  assert.equal(limiter.size, 0);
+});
+
+test("keyed limiter evicts the least recently used key at maxKeys", () => {
+  const limiter = createKeyedLimiter({ capacity: 1, refillPerSecond: 0, maxKeys: 2 });
+  assert.equal(limiter.take("a", 0), true);
+  assert.equal(limiter.take("b", 0), true);
+  assert.equal(limiter.take("a", 0), false); // touches "a"; "b" is now LRU
+  assert.equal(limiter.take("c", 0), true); // evicts "b"
+  assert.equal(limiter.size, 2);
+  assert.equal(limiter.take("a", 0), false); // "a" survived and is still empty
+  assert.equal(limiter.take("b", 0), true); // "b" was evicted, so a fresh bucket
+  assert.equal(limiter.size, 2);
+});
+
+test("keyed limiter prunes keys idle longer than idleMs", () => {
+  const limiter = createKeyedLimiter({
+    capacity: 1,
+    refillPerSecond: 0,
+    maxKeys: 10,
+    idleMs: 1_000,
+  });
+  assert.equal(limiter.take("a", 0), true);
+  assert.equal(limiter.take("b", 500), true);
+  assert.equal(limiter.size, 2);
+  assert.equal(limiter.take("c", 2_000), true); // "a" (2000 idle) and "b" (1500 idle) pruned
+  assert.equal(limiter.size, 1);
+  assert.equal(limiter.take("a", 3_000), true);
+  assert.equal(limiter.size, 2);
+});
+
+test("keyed limiter validates its options", () => {
+  assert.throws(() => createKeyedLimiter({ capacity: 0, refillPerSecond: 1 }), RangeError);
+  assert.throws(() => createKeyedLimiter({ capacity: 1, refillPerSecond: -1 }), RangeError);
+  assert.throws(
+    () => createKeyedLimiter({ capacity: 1, refillPerSecond: 0, maxKeys: 0 }),
+    RangeError,
+  );
+  assert.throws(
+    () => createKeyedLimiter({ capacity: 1, refillPerSecond: 0, idleMs: -1 }),
+    RangeError,
+  );
 });
 
 test("concurrency limiter never exceeds max and hands slots to waiters", async () => {
@@ -849,6 +923,57 @@ test("unknown routes return 404 and OPTIONS is answered", async (t) => {
   );
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get("access-control-allow-origin"), "*");
+});
+
+test("client quota returns 429 with Retry-After once an IP bucket is empty", async (t) => {
+  installRuntime(t);
+  const headers = { "cf-connecting-ip": "1.2.3.4" };
+  const limited = await exhaustClient(headers);
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get("retry-after"), "1");
+  assert.equal(limited.headers.get("access-control-allow-origin"), "*");
+  assert.deepEqual(await limited.json(), { error: "rate_limited", retryAfterMs: 250 });
+
+  const other = await handleRequest(
+    new Request(`https://edge.test/v1/balance?chain=polygon&address=${EVM_ADDR}`, {
+      headers: { "cf-connecting-ip": "5.6.7.8" },
+    }),
+    {},
+    {},
+  );
+  assert.equal(other.status, 501);
+});
+
+test("GET /healthz is exempt from the client quota", async (t) => {
+  installRuntime(t);
+  const headers = { "cf-connecting-ip": "9.9.9.9" };
+  assert.equal((await exhaustClient(headers)).status, 429);
+
+  const health = await handleRequest(new Request("https://edge.test/healthz", { headers }), {}, {});
+  assert.equal(health.status, 200);
+  assert.equal((await health.json()).ok, true);
+});
+
+test("client quota charges /v1/balances per address", async (t) => {
+  installRuntime(t);
+  const addresses = Array.from(
+    { length: 60 },
+    (_, index) => `0x${index.toString(16).padStart(40, "0")}`,
+  );
+  const headers = { "cf-connecting-ip": "7.7.7.7" };
+  const batch = (list) => handleRequest(balancesRequest("polygon", list, headers), {}, {});
+
+  // Two 60-address batches drain a fresh 120-token bucket exactly.
+  assert.equal((await batch(addresses)).status, 200);
+  assert.equal((await batch(addresses)).status, 200);
+  assert.equal((await batch(addresses)).status, 429);
+
+  // One address costs one token: 60 + 1 leaves ~59, so the next 60-address
+  // batch no longer fits while a single-address request still does.
+  resetClientLimits();
+  assert.equal((await batch(addresses)).status, 200);
+  assert.equal((await batch([addresses[0]])).status, 200);
+  assert.equal((await batch(addresses)).status, 429);
 });
 
 // --- health helper -------------------------------------------------------
