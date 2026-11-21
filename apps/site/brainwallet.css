@@ -252,3 +252,12 @@ html[data-theme="light"] .brainwallet-addr { color: #1f5f9e; }
   .bw-type-tabs .chip { flex: 1 1 auto; justify-content: center; }
   .bw-address-line { flex-wrap: wrap; }
 }
+
+/* Row addresses are links; keep the 44px touch target without widening rows. */
+.bw-address-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 6px;
+  margin: 0 -6px;
+}

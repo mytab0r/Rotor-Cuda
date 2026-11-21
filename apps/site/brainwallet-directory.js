@@ -30,7 +30,7 @@
   var pageBar = byId('brainwallet-page-bar');
   var pageProgress = byId('brainwallet-page-progress');
   var pageInput = byId('brainwallet-page-input');
-  var typeButtons = Array.prototype.slice.call(document.querySelectorAll('.bw-type-tabs .chip'));
+  var typeButtons = Array.prototype.slice.call(document.querySelectorAll('.bw-type-btn'));
 
   var state = {
     disposed: false,
@@ -320,7 +320,7 @@
     entry.addressLine.appendChild(link);
 
     var explorer = document.createElement('a');
-    explorer.className = 'icon-button icon-button--outline icon-button--lg';
+    explorer.className = 'icon-button icon-button--quiet icon-button--lg';
     explorer.href = link.href;
     explorer.target = '_blank';
     explorer.rel = 'noopener noreferrer';
@@ -593,12 +593,14 @@
 
     typeButtons.forEach(function (button) {
       var value = button.getAttribute('data-type');
+      button.classList.toggle('active', value === state.type);
       button.setAttribute('aria-pressed', value === state.type ? 'true' : 'false');
       button.addEventListener('click', function () {
         if (state.type === value) return;
         state.type = value;
         typeButtons.forEach(function (other) {
           var active = other.getAttribute('data-type') === value;
+          other.classList.toggle('active', active);
           other.setAttribute('aria-pressed', active ? 'true' : 'false');
         });
         refreshAddresses();
