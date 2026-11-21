@@ -134,7 +134,7 @@
       ]
     },
     "raw-hex-outside-root": {
-      "count": 106,
+      "count": 105,
       "entries": [
         {
           "file": "apps/site/brainwallet.css",
@@ -746,12 +746,6 @@
           "file": "apps/site/site.css",
           "line": 2427,
           "match": "#0098ea",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2570,
-          "match": "#c8d8ea",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
         },
         {

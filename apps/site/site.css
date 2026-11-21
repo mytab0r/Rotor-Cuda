@@ -1426,7 +1426,7 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 
 /* -------------------------------------------------------------- browser */
 
-.browse-page { gap: 18px; }
+.browse-page { gap: 16px; }
 .browse-hero { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; column-gap: 16px; row-gap: 8px; padding: 8px 2px 4px; }
 .browse-hero-title { display: contents; }
 .browse-hero-icon {
@@ -1443,11 +1443,26 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .browse-hero-title h1 { grid-column: 2; grid-row: 1; margin: 0; font-size: clamp(29px, 4vw, 40px); line-height: 1.08; letter-spacing: -.04em; }
 .browse-hero p { grid-column: 1 / -1; max-width: 76ch; margin: 4px 0 0; color: var(--text-2); font-size: 14.5px; }
 
-.chain-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* One 44px strip on desktop, wrapping on phones like the donor. The donor
+ * keeps all 18 chains on one row at 1440 and wraps them into four rows at
+ * 375; our chips are wider (icon + name), so the desktop row scrolls
+ * horizontally instead of pushing the first data row below the fold. */
+.chain-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: var(--space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.chain-tabs::-webkit-scrollbar { height: 6px; }
+.chain-tabs::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--radius-pill); }
 .chain-tab { --chain: var(--accent); }
 .chain-tab-icon { width: 19px; height: 19px; color: var(--chain); }
 
-.page-info { padding: 15px 18px 14px; display: grid; gap: 10px; }
+.page-info { padding: 10px 14px; display: grid; gap: 6px; }
 .page-info-text { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13.5px; }
 .page-info-text strong { color: var(--text); font-weight: 750; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .page-info-icon { width: 22px; height: 22px; color: var(--accent); flex: none; }
@@ -1491,7 +1506,7 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .pager-btn--random:hover { border-color: var(--signal); }
 .page-jump { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); grid-template-columns: none; }
 .page-jump label { display: block; color: var(--ink-3); font-size: var(--text-xs); white-space: nowrap; }
-.page-jump input { width: 150px; max-width: 100%; min-height: var(--control-h); padding: 6px 10px; font-family: var(--mono); font-size: var(--text-xs); }
+.page-jump input { flex: 0 0 150px; width: 150px; max-width: 100%; min-height: var(--control-h); padding: 6px 10px; font-family: var(--mono); font-size: var(--text-xs); }
 .page-jump button { min-height: var(--control-h); padding: 0 var(--space-3); font-size: var(--text-sm); }
 
 .search-panel { padding: 12px 14px; display: grid; gap: 9px; }
@@ -1506,7 +1521,6 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .browse-search input { min-width: 0; font-family: var(--mono); font-size: 13px; }
 .browse-search select { min-width: 150px; font-size: 13px; }
 .browse-search button { min-height: 44px; padding: 0 18px; }
-.search-hint { margin: 0; color: var(--muted); font-size: 12px; }
 
 .balance-summary {
   display: grid;
@@ -1523,10 +1537,6 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 18px 20px;
-  border: 0;
-  border-radius: 0;
-  background: var(--panel);
 }
 .stat-card .stat-label { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .stat-card .stat-value { color: var(--text); font-size: clamp(20px, 2.4vw, 28px); font-weight: 750; line-height: 1.15; letter-spacing: -.03em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -1579,6 +1589,35 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 @keyframes balance-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .balance-refresh-btn.busy .icon { animation: none; }
+}
+
+/* Browse listing summary: the cards, the refresh control and the note share
+ * one ~55px row instead of a stacked 197px block. The stat grammar is the
+ * shared one (12px sentence-case label, 24px tabular value, 16/20 padding);
+ * only the layout is inline. Other summaries keep the stacked cards. */
+.balance-summary--browse { display: flex; flex-wrap: wrap; align-items: stretch; grid-template-columns: none; }
+.balance-summary--browse .stat-card {
+  flex: 1 1 220px;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.balance-summary--browse .stat-card .stat-value { margin-top: 0; }
+.balance-summary--browse .balance-refresh {
+  grid-column: auto;
+  flex: 0 0 auto;
+  padding: 0 0 0 var(--space-2);
+  border-top: 0;
+  background: transparent;
+}
+.balance-summary--browse .balance-note {
+  flex: 0 1 320px;
+  margin: 0;
+  padding: 0;
+  align-self: center;
+  background: transparent;
 }
 
 .address-type-panel { padding: 15px 18px 17px; display: grid; gap: 11px; }
@@ -1813,7 +1852,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .nav-tools { margin-left: auto; }
   main, .directory-page, .browse-page, .key-page, .monitor-page, .range-page, .landing-page { padding: 20px 16px 56px; }
   .browse-controls { align-items: stretch; }
-  .chain-tabs { margin-right: 0; }
+  .chain-tabs { margin-right: 0; flex-wrap: wrap; overflow-x: visible; padding-block: 0; }
   .page-jump { width: 100%; justify-content: flex-end; }
   .browse-search { grid-template-columns: 42px minmax(0, 1fr); }
   .browse-search select, .browse-search button { grid-column: 1 / -1; }
@@ -1901,8 +1940,10 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .balance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   /* Account chains have two cards; keep their row full at phone density. */
   .balance-summary--account { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .balance-summary--browse { grid-template-columns: none; }
   .stat-card { gap: 3px; }
   .stat-card .stat-label { font-size: 12px; letter-spacing: .04em; }
+  .balance-summary--browse .stat-card { flex-basis: 140px; }
 
   .balance-note { padding: 9px 12px 11px; font-size: 12px; }
   .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2550,30 +2591,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 
 }
 
-/* Donor key directory rows: hex plus both WIF forms, `(c)/(u)` address lines
- * and a packed balance / TX / received cell. */
-.col-key { flex-wrap: wrap; }
-.key-wif {
-  display: flex;
-  flex: 1 1 100%;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.key-wif-prefix { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; }
-.key-wif .key-link {
-  flex: 1 1 auto;
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  min-height: 44px;
-  color: #c8d8ea;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.key-wif .key-link:hover { color: var(--accent-2); }
+/* Donor key directory rows pair the server-rendered hex with `(c)/(u)`
+ * address lines and a packed balance / TX / received cell. WIF stays on
+ * /key/<hex>; a listing row never carries it. */
 .addr-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; }
 .col-address .addr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .col-address .addr-line .address-link { flex: 1 1 auto; min-width: 0; }

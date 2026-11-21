@@ -59,16 +59,6 @@
     return entries;
   }
 
-  /* Bitcoin rows show the hex key plus both WIF forms. Other chains have no
-   * WIF, so the model carries the hex only. */
-  function keyModel(report) {
-    var model = { hex: report && report.priv_hex ? report.priv_hex : '', wifs: [] };
-    if (!report) return model;
-    if (report.wif_compressed) model.wifs.push({ prefix: 'c', value: report.wif_compressed });
-    if (report.wif_uncompressed) model.wifs.push({ prefix: 'u', value: report.wif_uncompressed });
-    return model;
-  }
-
   function metricFlags(value) {
     return {
       hasTx: Number(value && value.tx) > 0,
@@ -99,7 +89,6 @@
   if (typeof window !== 'undefined') {
     window.RotorBrowse = {
       addressEntriesFor: addressEntriesFor,
-      keyModel: keyModel,
       metricFlags: metricFlags,
       tronValue: tronValue,
       pageForHexKey: pageForHexKey
@@ -300,29 +289,6 @@
     });
   }
 
-  /* The key cell keeps the server-rendered hex link and appends the two WIF
-   * forms once the derivation report arrives (Bitcoin only). */
-  function renderKeyCell(row, report) {
-    var cell = row.querySelector('.col-key');
-    if (!cell || !report || cell.querySelector('.key-wif')) return;
-    keyModel(report).wifs.forEach(function (wif) {
-      var line = document.createElement('span');
-      line.className = 'key-wif';
-      var prefix = document.createElement('span');
-      prefix.className = 'key-wif-prefix';
-      prefix.textContent = '(' + wif.prefix + ')';
-      line.appendChild(prefix);
-      var link = document.createElement('a');
-      link.className = 'mono key-link';
-      link.href = '/key/' + encodeURIComponent(wif.value);
-      link.title = wif.value;
-      link.textContent = wif.value;
-      line.appendChild(link);
-      line.appendChild(copyButton(wif.value, 'Copy WIF'));
-      cell.appendChild(line);
-    });
-  }
-
   function addressMap(report) {
     var map = {};
     if (!report || !Array.isArray(report.addresses)) return map;
@@ -342,7 +308,6 @@
       var entries = addressEntriesFor(config.chain, type, map, field);
       state.addressSets[hex] = entries;
       fillAddressCell(row, entries);
-      renderKeyCell(row, report);
     });
   }
 
