@@ -77,6 +77,17 @@ MUST be checked before streaming, and the response MUST carry
   check
 - THEN the response is `404`, indistinguishable from an unknown order
 
+#### Scenario: licence document
+- GIVEN an order whose list carries a `licence` and an optional `provenance`
+- WHEN `GET /api/v1/orders/{id}/licence?token=...` carries the order token
+- THEN the response is `200 text/plain; charset=utf-8` with
+  `Content-Disposition: attachment; filename="<slug>-LICENCE.txt"`,
+  `Cache-Control: no-store` and `X-Robots-Tag: noindex`, and the body names the
+  list, its licence identifier and, when configured, its provenance
+- AND a missing or wrong token, or an unknown order, answers `404` with no
+  document
+- AND the order status response always exposes `licence_url` for the buyer
+
 #### Scenario: download cap is exhausted
 - GIVEN an entitlement whose `downloads` equals `max_downloads`
 - WHEN a correctly signed link is used again
