@@ -309,4 +309,23 @@ assert.deepEqual(
 );
 assert.equal(browse.tronValue({ balance_sun: "1" }), null, "a non-TRON payload is rejected");
 
+/* ?key= resolves to the page containing the key (60 keys per page).
+ * Short values use the hex route, so "3c" is 60 and "3d" is 61. */
+assert.equal(browse.pageForHexKey("1", "100"), 1n, "key 1 is on page 1");
+assert.equal(browse.pageForHexKey("0x1", "100"), 1n, "0x prefix is accepted");
+assert.equal(browse.pageForHexKey("0X1", "100"), 1n, "0X prefix is accepted");
+assert.equal(browse.pageForHexKey("3c", "100"), 1n, "page 1 ends at key 0x3c (60)");
+assert.equal(browse.pageForHexKey("3d", "100"), 2n, "key 0x3d (61) opens page 2");
+assert.equal(
+  browse.pageForHexKey("0xdeadbeef", "62265476"),
+  62265476n,
+  "0xdeadbeef lands on the donor page 62,265,476"
+);
+assert.equal(browse.pageForHexKey("ffffffff", "100"), 100n, "pages are clamped to the last page");
+assert.equal(browse.pageForHexKey("0", "100"), null, "zero is not a key");
+assert.equal(browse.pageForHexKey("0x0", "100"), null, "0x0 is not a key");
+assert.equal(browse.pageForHexKey("zzz", "100"), null, "non-hex text is not a key");
+assert.equal(browse.pageForHexKey("f".repeat(65), "100"), null, "more than 64 hex digits is not a key");
+assert.equal(browse.pageForHexKey("1", "0"), null, "a page range without pages is rejected");
+
 console.log("search-test: ok");
