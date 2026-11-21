@@ -135,11 +135,13 @@
     <p class="muted key-help" id="send-fee-help">Leave the fee rate empty to use mempool.space testnet recommendations; the review shows the exact fee.</p>
     <form id="send-form" class="key-form" autocomplete="off">
       <div class="send-key-field">
-        <label class="key-field-label" id="send-key-label" for="send-key">Bitcoin testnet WIF or 64-hex key</label>
+        <label class="key-field-label" id="send-key-label" for="send-key">Testnet WIF or 64-hex key</label>
+        <p class="muted key-help">WIF first, then 64-hex: paste a WIF or a 64-hex private key (0x optional).</p>
         <div class="send-key-row">
-          <input id="send-key" type="password" spellcheck="false" autocapitalize="off" placeholder="Paste a testnet key">
+          <input id="send-key" type="password" spellcheck="false" autocapitalize="off" placeholder="Paste a testnet WIF or 64-hex key">
           <button type="button" id="send-key-toggle" aria-pressed="false" aria-label="Show private key" title="Show private key">Show</button>
         </div>
+        <p id="send-wif-notice" class="muted key-help" role="note" hidden></p>
       </div>
 
       <div class="send-key-field">
