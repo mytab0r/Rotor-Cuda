@@ -74,9 +74,16 @@ root at `site.css:2-17`. New code must use the canonical names.
 /* Radii: control 10, panel 12, card 16, modal 20, pill 999. */
 --radius-xs: 4px;  --radius-s: 8px;   --radius-m: 10px;  --radius-l: 12px;
 --radius-xl: 16px; --radius-2xl: 20px; --radius-pill: 999px;
+--radius-control: var(--radius-m);
 
-/* Control heights. 44 is the floor; 56 is the hero input; 40 is compact. */
---control-h-sm: 40px; --control-h: 44px; --control-h-lg: 56px;
+/* Control heights. 44 is the touch floor and the default; 28 is reserved for
+   dense table rows whose row is the target; 36 is a compact desktop toolbar;
+   56 is the hero input. */
+--control-h-sm: 28px; --control-h-md: 36px; --control-h-lg: 44px;
+--control-h-xl: 56px; --control-h: 44px;
+
+/* Icons pair with the control heights. */
+--icon-size-sm: 14px; --icon-size-md: 16px; --icon-size-lg: 18px;
 
 /* Type scale. 12 is the minimum visible size. */
 --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-lg: 16px;
@@ -155,7 +162,7 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
   background `--surface-2`, font `--text-md`/`--weight-bold`.
 - Variants: `.btn--primary` (signal fill), `.btn--secondary` (default),
   `.btn--ghost` (transparent, text/border only), `.btn--danger` (error tone).
-- Sizes: `.btn--lg` min-height `--control-h-lg`; `.btn--sm` min-height
+- Sizes: `.btn--lg` min-height `--control-h-xl`; `.btn--sm` min-height
   `--control-h-sm` only inside dense desktop toolbars, never as the only action
   on a touch surface.
 - States: hover `--surface-3` or signal hover; focus-visible 2px signal outline
@@ -168,20 +175,35 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 ### 3.2 Icon button
 
 ```html
-<button class="icon-btn icon-btn--quiet" aria-label="Copy address"
-        title="Copy address" data-copy-state="idle">…</button>
+<button class="icon-button icon-button--quiet icon-button--lg"
+        aria-label="Copy address" data-tooltip="Copy address"
+        data-copy-state="idle">…</button>
 ```
 
-- 44×44, radius `--radius-m`, icon 16px, gap `--space-2` from a label if one is
-  visible.
-- Variants: `.icon-btn--quiet` (transparent; the default row action) and
-  `.icon-btn--solid` (bordered `--surface-2`). Do not invent a third.
-- Required: `aria-label` and `title` with the same text. `.is-copied` turns the
-  border/text `--state-ok` for 1.5s and announces via `role="status"`.
+- One grammar: `.icon-button` plus exactly one variant and one size.
+- Variants: `.icon-button--quiet` (transparent, no border; the default row
+  action), `.icon-button--outline` (1px `--line-strong`; a toolbar action beside
+  a field), `.icon-button--solid` (signal fill; one primary icon action). Do not
+  invent a fourth.
+- Sizes: `.icon-button--sm` (`--control-h-sm` 28, `--icon-size-sm` 14) is
+  reserved for dense table rows whose row is the target; `.icon-button--md`
+  (`--control-h-md` 36, `--icon-size-md` 16) is a compact desktop toolbar;
+  `.icon-button--lg` (`--control-h-lg` 44, `--icon-size-lg` 18) is the default
+  and the touch floor. Use `--lg` on any standalone control and at 375px.
+- Geometry: square box, radius `--radius-control`, icon size follows the box.
+- Required: `aria-label` (the accessible name, never the tooltip) plus
+  `data-tooltip` from the shared primitive. Do not add a native `title`
+  alongside `data-tooltip`. `.is-copied` turns the text/border `--state-ok` for
+  1.2s, swaps to the check glyph and announces via `aria-label`.
+- States: hover surface (`--surface-2`/`--surface-3`), active `--surface-3`,
+  focus-visible 2px signal outline offset 2, disabled opacity .42,
+  `aria-busy="true"` keeps the box and swaps the glyph for a spinner.
 - Adjacent icon buttons keep ≥8px gap. Do not place two unlabeled icon-only
   controls side by side without distinct labels.
-- Loading: replace the icon with a spinner, keep the box at 44×44,
-  `aria-busy="true"`.
+- Reduced motion disables the hover transition and the busy spin.
+- Migration: `.icon-btn`, `.key-icon-btn`, `.global-search-icon-btn`,
+  `.pz-icon`, `.key-copy-icon`, `.browse-balance-retry` map here; page-local
+  copies are deleted in the same batch.
 
 ### 3.3 Segmented control
 
@@ -264,8 +286,8 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 - Label 12/600, hint 12/400 `--ink-3`, error 12/600 `--state-err`.
 - Selects keep the custom arrow but the arrow position comes from the control
   height, not a fixed 18px.
-- Hero input exception: 56px height, radius `--radius-xl`, font `--text-md`;
-  this is a named size (`.field--hero`), not a page override.
+- Hero input exception: `--control-h-xl` height, radius `--radius-xl`, font
+  `--text-md`; this is a named size (`.field--hero`), not a page override.
 
 ### 3.8 Card
 
@@ -378,7 +400,7 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 | Component | Default | Hover | Focus-visible | Active/Selected | Disabled | Loading |
 |---|---|---|---|---|---|---|
 | Button | surface-2 + line-strong | surface-3 | 2px signal outline, offset 2 | pressed surface / signal fill for primary | opacity .42, no pointer | spinner + `aria-busy`, label kept |
-| Icon button | quiet or solid 44 | surface-2/3 | same ring | `.is-copied` ok tone | opacity .42 | spinner in a 44 box |
+| Icon button | quiet/outline/solid at 28/36/44 | surface-2/3 | same ring | `.is-copied` ok tone | opacity .42 | spinner in the same box |
 | Segmented item | transparent | surface-2 | ring offset 2 | signal fill + signal-ink | opacity .42 | n/a |
 | Chip | surface-2 | surface-3 | ring offset 2 | signal-soft + signal text | opacity .42 | n/a |
 | Status pill | tone | n/a | n/a | tone | n/a | dot pulse only while checking |
@@ -401,9 +423,10 @@ off shimmer/spin/entrance.
 3. **Contrast.** Text ≥4.5:1; UI borders/icons ≥3:1. Light accent is 4.52:1 —
    do not lighten it.
 4. **Text size.** No visible text below 12px. Status pills are 12px minimum.
-5. **Names.** Icon-only controls have `aria-label` and `title`. Inputs have a
-   visible `<label>`; hints/errors are wired with `aria-describedby` and
-   `aria-invalid`.
+5. **Names.** Icon-only controls have `aria-label`; the visible tooltip is
+   `data-tooltip` from the shared primitive, which must never be the only source
+   of the name. Inputs have a visible `<label>`; hints/errors are wired with
+   `aria-describedby` and `aria-invalid`.
 6. **Live regions.** Async progress uses `role="status"`/`aria-live="polite"`;
    errors use `role="alert"`. Copied state is announced.
 7. **Keyboard.** Native elements first; no positive `tabindex`; dialogs trap
@@ -453,9 +476,10 @@ off shimmer/spin/entrance.
 The automated gate is `scripts/ui-audit.mjs` (CI: `.github/workflows/ui.yml`).
 It already checks overflow, small text/targets, unlabeled icon controls,
 duplicate address-type components, half-empty blocks, manual balance controls,
-route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; later
-batches add the detectors listed in `plan.md` §5. The human checklist is
-`apps/site/UI-CHECKLIST.md` and the project skill
+route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; batch 2
+adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
+`data-tooltip`); later batches add the detectors listed in `plan.md` §3. The
+human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
 ## 9. Versioning

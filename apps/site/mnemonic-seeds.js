@@ -161,10 +161,10 @@
     var label = button && button.getAttribute ? button.getAttribute('aria-label') : '';
     function done() {
       if (!button || !button.classList) return;
-      button.classList.add('copied');
+      button.classList.add('is-copied');
       if (label) button.setAttribute('aria-label', 'Copied');
       window.setTimeout(function () {
-        button.classList.remove('copied');
+        button.classList.remove('is-copied');
         if (label) button.setAttribute('aria-label', label);
       }, 1200);
     }
@@ -633,8 +633,8 @@
   function iconButton(iconId, label, handler) {
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'icon-btn mnemonic-copy';
-    button.title = label;
+    button.className = 'icon-button icon-button--quiet icon-button--lg';
+    button.setAttribute('data-tooltip', label);
     button.setAttribute('aria-label', label);
     button.appendChild(iconUse(iconId));
     button.addEventListener('click', handler);
@@ -787,8 +787,8 @@
       line.textContent = 'unavailable ';
       var retry = document.createElement('button');
       retry.type = 'button';
-      retry.className = 'mnemonic-balance-retry';
-      retry.title = 'Retry this balance';
+      retry.className = 'icon-button icon-button--outline icon-button--lg';
+      retry.setAttribute('data-tooltip', 'Retry this balance');
       retry.setAttribute('aria-label', 'Retry balance check for this address');
       retry.appendChild(iconUse('ui-retry'));
       retry.addEventListener('click', function () {

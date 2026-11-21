@@ -2,7 +2,7 @@
  *
  * Rendering only: every decoded value comes from tx-decoders.js and is inserted
  * with textContent. No network calls, no storage, no URL payload. Icon-only
- * copy controls use the shared .icon-btn target (44x44) and flip to a check
+ * copy controls use the shared .icon-button target (44x44) and flip to a check
  * icon for the visible copied state.
  */
 (function () {
@@ -31,11 +31,11 @@
       button.setAttribute('data-label', button.getAttribute('aria-label') || '');
     }
     use.setAttribute('href', '/icons.svg#ui-check');
-    button.title = 'Copied';
+    button.setAttribute('data-tooltip', 'Copied');
     button.setAttribute('aria-label', 'Copied');
     button._resetTimer = window.setTimeout(function () {
       use.setAttribute('href', button.getAttribute('data-icon'));
-      button.title = button.getAttribute('data-label') || 'Copy';
+      button.setAttribute('data-tooltip', button.getAttribute('data-label') || 'Copy');
       button.setAttribute('aria-label', button.getAttribute('data-label') || 'Copy');
     }, 1200);
   }
@@ -55,9 +55,9 @@
   function iconButton(iconId, label) {
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'icon-btn';
+    button.className = 'icon-button icon-button--quiet icon-button--lg';
     button.setAttribute('aria-label', label);
-    button.title = label;
+    button.setAttribute('data-tooltip', label);
     var svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'icon');
     svg.setAttribute('aria-hidden', 'true');

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261127a">
-<script src="/theme.js?v=20261127a"></script>
+<link rel="stylesheet" href="/site.css?v=20261127b">
+<script src="/theme.js?v=20261127b"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -50,11 +50,11 @@
         </select>
       </div>
       <div class="key-buttons key-actions" role="group" aria-label="Key actions">
-        <button type="button" id="random-btn" class="key-icon-btn" aria-label="Generate random key" data-tooltip="Generate random key">
+        <button type="button" id="random-btn" class="icon-button icon-button--outline icon-button--lg" aria-label="Generate random key" data-tooltip="Generate random key">
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
-        <button type="button" id="clear-btn" class="key-icon-btn" aria-label="Clear key and results" title="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127a#ui-close"></use></svg>
+        <button type="button" id="clear-btn" class="icon-button icon-button--outline icon-button--lg" aria-label="Clear key and results" data-tooltip="Clear key and results">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127b#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -157,7 +157,7 @@
           <input id="derivation-path" class="mono key-path-input" type="text" value="m/44'/0'/0'/0/0"
                  spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="derivation-path-hint"
                  title="Informational: this page derives addresses from the final key, not from this path.">
-          <button type="button" class="key-path-copy" id="copy-derivation-path" aria-label="Copy derivation path" title="Copy derivation path">
+          <button type="button" class="icon-button icon-button--outline icon-button--lg" id="copy-derivation-path" aria-label="Copy derivation path" data-tooltip="Copy derivation path">
             <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
           </button>
         </span>
@@ -220,10 +220,10 @@
   </section>
 </main>
 
-<script src="/key-tools.js?v=20261127a"></script>
-<script src="/balance-cache.js?v=20261127a"></script>
-<script src="/address-codecs.js?v=20261127a"></script>
-<script src="/key.js?v=20261127a"></script>
-<script src="/site.js?v=20261127a"></script>
+<script src="/key-tools.js?v=20261127b"></script>
+<script src="/balance-cache.js?v=20261127b"></script>
+<script src="/address-codecs.js?v=20261127b"></script>
+<script src="/key.js?v=20261127b"></script>
+<script src="/site.js?v=20261127b"></script>
 </body>
 </html>
