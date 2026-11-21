@@ -2424,12 +2424,13 @@ async function main() {
       }
     });
     cdp.on("Network.loadingFailed", (params) => {
-      const url = requestUrls.get(params.requestId) || params.requestId;
+      const url = requestUrls.get(params.requestId);
+      if (!url) return;
       let origin = null;
       try {
         origin = new URL(url).origin;
       } catch {
-        origin = baseOrigin;
+        return;
       }
       if (origin !== baseOrigin) return;
       networkErrors.push(`failed ${params.errorText || "unknown"} ${url.slice(0, 160)}`);
