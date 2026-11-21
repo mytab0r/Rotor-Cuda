@@ -88,6 +88,15 @@
   (10,000 sat) is the inferred cut and is marked as such in `receivedText`.
   Evidence: `apps/site/mnemonic-seeds.js` (`ATOMIC_UNITS`, `receivedText`),
   `apps/site/mnemonic-seeds-test.mjs` (six cases).
+- [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
+  still claimed "the interactive curve editor and signing entry remain". The
+  donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
+  and ours ships the curve selector plus the `/send` signing entry (previous
+  bullet). The notes now name the real remainder: BCH and ZEC balances have no
+  keyless provider (Blockchair 430 without a key; WhatsOnChain 403; btc.com and
+  zcha.in unreachable, probed 2026-11-21), so those rows show `—` and the route
+  status stays `partial`. Evidence: `docs/site-map/site-map-data.js` (seven
+  donor rows).
 
 ## Live donor audit follow-ups (2026-11-21)
 
