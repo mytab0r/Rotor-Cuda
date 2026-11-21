@@ -3444,33 +3444,6 @@ details > summary { min-height: 44px; }
 }
 .key-exposure-status.ok { color: var(--ok); }
 .key-exposure-status.err { color: var(--err); }
-/* Quiet inline info affordance: a 16px glyph with a 44x44 hit area and no
- * visible box, so it never reads as a third look-alike button next to the
- * random/clear controls. The shared tooltip names it on hover/focus. */
-button.key-info-btn {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  margin-block: -2px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  box-shadow: none;
-}
-button.key-info-btn:hover,
-button.key-info-btn:focus-visible {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--accent);
-}
-button.key-info-btn .icon { width: 16px; height: 16px; }
 
 /* Shared tooltip for [data-tooltip] (site.js). Fixed-position and appended to
  * <body>, so it never affects layout or scroll. */
