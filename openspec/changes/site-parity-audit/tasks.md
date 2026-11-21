@@ -100,6 +100,15 @@ follow-ups were code-only.
   neither a CSV export nor balance sorting, so the site-map note, the
   `parity-live.md` row (now `same`) and the matrix row (now `parity`) state the
   matched controls instead.
+- [x] Ledger leftovers from that correction (2026-11-21, sixteenth run):
+  `docs/site-map/site-map-data.js` still carried a `key-csv-sort` feature row
+  with `donor: 'present'` / `status: 'missing'` and a donorRoute
+  `/private-keys/<chain>` still on `partial`. A full live fetch of the donor
+  page confirmed neither CSV nor sort controls (the only `csv` hits are inside
+  `%3csvg`), so the feature row was deleted and the donor route moved to
+  `parity` (PR #176). The matrix global-search cell also stopped claiming
+  "no redirect": a mnemonic hands off to `/mnemonic-converter` with the phrase
+  in sessionStorage, as the site-map note already recorded.
 
 ## P1 — shell and templates
 
@@ -112,7 +121,13 @@ follow-ups were code-only.
 - [x] Reusable icon-button (28/36/44, copied state) and compact row. Evidence:
   `.icon-button` variants and `icon-button-scale` (batch 2),
   `row-action-geometry` and the shared row rhythm (batch 5); `--control-h-lg`
-  is 44px and `--lg` uses it.
+  is 44px and `--lg` uses it. Page-local leftovers: `#key-info-btn` moved from
+  `key-info-btn` to `icon-button icon-button--quiet` and the local CSS block was
+  deleted; detector `icon-only-shared-component` fails any icon-only control
+  without the class, defect `key-info-page-local-button` (PR #177). Known
+  follow-up: the global `button:not(.primary):hover` rule still adds a hover
+  border to quiet buttons, contrary to DESIGN-SYSTEM §3.2; belongs in the
+  shared rule, not a page.
 - [x] Shared skeleton/empty/error primitives. Evidence: `.empty-state`
   (dashed `--line-subtle`, radius `--radius-l`, padding `--space-5`) replaced
   `.key-empty` (both rules), `.range-empty` and `.monitor-empty` in `site.css`,
