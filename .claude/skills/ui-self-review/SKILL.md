@@ -53,6 +53,7 @@ directory and printed at the end.
 | `small-text` | visible text below 12px | Raise the shared type token/class (`.stat-label`, `.type-desc`, etc.), not one page's rule. |
 | `small-touch-target` | control below 44x44 (inline prose links exempt) | Fix the shared icon-button/nav/pager primitive so every page inherits the size. |
 | `unlabeled-icon-control` | icon-only button/link without `aria-label`/`title` | Add the label to the shared component or icon helper. |
+| `status-pill-geometry` | a status/badge pill outside the shared box: text <12px, height outside 18–32px, non-pill radius, or inline padding outside 6/8/10/12 | Fix the shared `.status`/`.badge` geometry in `site.css`; never restyle one page's pill. |
 | `duplicate-address-type-implementation` | `.key-types`/`.key-btc-panel` and `.address-type-panel` both used | Unify on one address-type component and delete the other markup/CSS family. |
 | `address-type-width-spread` | cards in one row differ by >15% | Fix the grid (`repeat(auto-fit, minmax(...))` or equal `1fr`) in the shared component. |
 | `mostly-empty-block` | card/section taller than 220px is >45% empty | Rebalance the shared card layout, split the block, or remove the fixed height. |
