@@ -53,7 +53,8 @@
   var LTC_TYPES = [
     { value: 'legacy', label: 'Legacy', field: 'ltc_p2pkh' },
     { value: 'segwit', label: 'SegWit', field: 'ltc_p2wpkh' },
-    { value: 'script', label: 'Nested SegWit', field: 'ltc_p2sh_p2wpkh' }
+    { value: 'script', label: 'Nested SegWit', field: 'ltc_p2sh_p2wpkh' },
+    { value: 'taproot', label: 'Taproot', field: 'ltc_p2tr' }
   ];
 
   var EVM_RPC = {

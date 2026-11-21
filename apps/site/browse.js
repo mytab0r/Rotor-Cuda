@@ -18,7 +18,8 @@
     litecoin: {
       legacy: 'ltc_p2pkh',
       segwit: 'ltc_p2wpkh',
-      script: 'ltc_p2sh_p2wpkh'
+      script: 'ltc_p2sh_p2wpkh',
+      taproot: 'ltc_p2tr'
     }
   };
   var RPC = {

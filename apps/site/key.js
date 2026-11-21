@@ -90,6 +90,7 @@
     ltc_p2pkh: 'Litecoin legacy (compressed)',
     ltc_p2sh_p2wpkh: 'Litecoin P2SH-P2WPKH',
     ltc_p2wpkh: 'Litecoin native segwit',
+    ltc_p2tr: 'Litecoin taproot',
     doge_p2pkh: 'Dogecoin legacy (compressed)',
     bch_legacy: 'Bitcoin Cash legacy (compressed)',
     bch_cashaddr: 'Bitcoin Cash CashAddr (compressed)',
