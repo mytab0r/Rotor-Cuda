@@ -118,6 +118,93 @@ test("recent-entry sanitizer normalizes corrupt fields", () => {
   assert.equal(math.sanitizeRecentEntry({ chain: "solana", address: "x".repeat(200) }).address.length, 128);
 });
 
+test("thread count is cores minus one, clamped to 1..4", () => {
+  assert.equal(math.threadCount(undefined), 1);
+  assert.equal(math.threadCount(NaN), 1);
+  assert.equal(math.threadCount(0), 1);
+  assert.equal(math.threadCount(1), 1);
+  assert.equal(math.threadCount(2), 1);
+  assert.equal(math.threadCount(3), 2);
+  assert.equal(math.threadCount(8), 4);
+  assert.equal(math.threadCount(64), 4);
+  assert.equal(math.threadCount("6"), 4);
+});
+
+test("pattern normalization mirrors the search rule", () => {
+  const evm = math.patternFor({ field: "evm", lower: true }, " A1b2 ", "");
+  assert.deepEqual(evm, { prefix: "0xa1b2", suffix: "", lower: true });
+  assert.equal(math.patternFor({ field: "evm", lower: true }, "0xAB", "").prefix, "0xab");
+  const btc = math.patternFor({ field: "btc_p2pkh", alphabet: 58 }, "AbC", "xY");
+  assert.deepEqual(btc, { prefix: "AbC", suffix: "xY", lower: false });
+});
+
+test("address matching keeps EVM case-insensitive and base58 case-sensitive", () => {
+  const evm = math.patternFor({ field: "evm", lower: true }, "aB", "Cd");
+  assert.equal(math.addressMatches("0xAbCdefCd", evm), true);
+  assert.equal(math.addressMatches("0xAbCdefce", evm), false);
+  const btc = math.patternFor({ field: "btc_p2pkh", alphabet: 58 }, "1Ab", "");
+  assert.equal(math.addressMatches("1Abcdef", btc), true);
+  assert.equal(math.addressMatches("1abcdef", btc), false);
+  assert.equal(math.addressMatches("x1Ab", btc), false);
+  const tail = math.patternFor({ field: "solana", alphabet: 58 }, "", "xyz");
+  assert.equal(math.addressMatches("abcxyz", tail), true);
+  assert.equal(math.addressMatches("xyzabc", tail), false);
+  assert.equal(math.addressMatches("abc", math.patternFor({}, "", "")), true);
+});
+
+test("worker messages are sanitized to known fields", () => {
+  assert.deepEqual(math.sanitizeWorkerMessage({ type: "progress", attempts: 12.9 }), {
+    type: "progress",
+    attempts: 12,
+  });
+  assert.equal(math.sanitizeWorkerMessage({ type: "progress", attempts: -1 }), null);
+  assert.equal(math.sanitizeWorkerMessage({ type: "progress", attempts: "many" }), null);
+  assert.equal(math.sanitizeWorkerMessage(null), null);
+  assert.equal(math.sanitizeWorkerMessage("match"), null);
+  assert.equal(math.sanitizeWorkerMessage({ type: "unknown" }), null);
+});
+
+test("worker match sanitizer keeps the key only in the returned report", () => {
+  const clean = math.sanitizeWorkerMessage({
+    type: "match",
+    address: "TXYZ123",
+    attempts: 7,
+    report: {
+      priv_hex: "aa".repeat(32),
+      wif_compressed: "Lsecret",
+      addresses: [{ id: "tron", address: "TXYZ123" }],
+      extra: "drop-me",
+    },
+    wif: "float-wif",
+  });
+  assert.equal(clean.type, "match");
+  assert.equal(clean.address, "TXYZ123");
+  assert.equal(clean.attempts, 7);
+  assert.deepEqual(Object.keys(clean.report).sort(), ["priv_hex", "wif_compressed"]);
+  assert.equal(clean.wif, undefined);
+  assert.equal(clean.report.extra, undefined);
+  assert.equal(math.sanitizeWorkerMessage({ type: "match", report: {} }), null);
+  assert.equal(
+    math.sanitizeWorkerMessage({ type: "match", address: "x", report: { wif_compressed: "only" } }),
+    null,
+    "a match without priv_hex is not renderable",
+  );
+  assert.equal(
+    math.sanitizeWorkerMessage({ type: "match", address: "a".repeat(200), report: { priv_hex: "ab" } })
+      .address.length,
+    128,
+  );
+});
+
+test("worker error messages are bounded text", () => {
+  assert.deepEqual(math.sanitizeWorkerMessage({ type: "error", message: "boom" }), {
+    type: "error",
+    message: "boom",
+  });
+  assert.equal(math.sanitizeWorkerMessage({ type: "error" }).message, "worker error");
+  assert.equal(math.sanitizeWorkerMessage({ type: "error", message: "x".repeat(500) }).message.length, 200);
+});
+
 if (failed) {
   console.error(`${failed} vanity test(s) failed`);
   process.exit(1);
