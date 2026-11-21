@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (Total Value stays blank without a price source, Has Balance, Active Chains, Checked), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. The interactive curve editor and signing entry remain.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI and TON (TON Center) from free public providers; LTC, DOGE, BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex>, /key/0x… and /key/<text> render the page (text shows the client-side invalid state). The interactive curve editor and signing entry remain.'
   });
 
   oursRoute({
@@ -437,8 +437,8 @@
     area: 'wallet',
     status: 'ours-only',
     priority: '-',
-    donorIds: ['ss:/wallets'],
-    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. ref-site-a has no real catalogue (soft landing); ref-site-b shows a market/price table.'
+    donorIds: ['pkf:/downloads', 'ss:/wallets'],
+    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. ref-site-a serves ten direct files on /downloads (that exact path now redirects here); ref-site-b shows a market/price table.'
   });
 
   oursRoute({
@@ -540,7 +540,7 @@
     area: 'key',
     status: 'partial',
     ours: '/key',
-    note: 'Auto-derive is present; aggregates, CSV and eight EVM chain rows are not.'
+    note: 'Auto-derive, aggregates, CSV and eight EVM chain rows are present. Short and 0x-prefixed hex plus WIF resolve; arbitrary text stays a real 404 (not the donor soft-404).'
   });
 
   donorRoute({
@@ -766,6 +766,16 @@
 
   donorRoute({
     source: 'pkf',
+    path: '/downloads',
+    title: 'Downloadable datasets',
+    area: 'wallet',
+    status: 'partial',
+    ours: '/wallets',
+    note: 'Ten direct dataset files on the donor; Crypto mirrors six under /wallets and redirects this exact path there.'
+  });
+
+  donorRoute({
+    source: 'pkf',
     path: '/faq',
     title: 'FAQ',
     area: 'site',
@@ -847,7 +857,7 @@
     status: 'parity',
     priority: '-',
     sources: ['ref-site-a'],
-    note: '60 rows per page with First/Previous/Random/Next/Last and a page jump.'
+    note: '60 rows per page with First/Previous/Random/Next/Last and a page jump; `?key=` jumps to the page that contains the key.'
   });
 
   feature({
@@ -855,11 +865,11 @@
     area: 'directory',
     capability: 'Per-row automatic balance checks',
     donor: 'present',
-    rotor: 'present',
-    status: 'parity',
-    priority: '-',
+    rotor: 'partial',
+    status: 'partial',
+    priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Opt-in per row; only derived public addresses are queried.'
+    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows and TRON check today; XRP/SOL/TON/SUI/LTC/BCH/DOGE/ZEC show — because key.js has no provider for them yet.'
   });
 
   feature({

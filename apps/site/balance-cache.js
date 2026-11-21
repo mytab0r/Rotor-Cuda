@@ -40,6 +40,84 @@
     return String(provider) + '|' + String(chain) + '|' + String(address);
   }
 
+  /* ------------------------------------------------- provider response codecs
+   * Raw bodies from the free public providers, decoded to the one shape the
+   * pages cache: an atomic amount as a decimal string. A parser returns null
+   * when the body does not carry a balance, so the caller can fail loud
+   * instead of caching an invented zero. */
+
+  function atomicAmount(value) {
+    if (typeof value === 'string' && /^\d+$/.test(value)) return value;
+    if (typeof value === 'number' && isFinite(value) && value >= 0 && Math.floor(value) === value) {
+      return String(value);
+    }
+    return null;
+  }
+
+  /* XRPScan `/api/v1/account/<address>`: drops in `Balance` (a string); the
+   * live body is flat, while `account_data.Balance` and `balance_drops` cover
+   * the alternate shapes. An unactivated account answers 404 and the caller
+   * treats it as zero. */
+  function parseXrpAccount(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    var account = data.account_data && typeof data.account_data === 'object' ? data.account_data : {};
+    var amount = atomicAmount(account.Balance);
+    if (amount === null) amount = atomicAmount(data.Balance);
+    if (amount === null) amount = atomicAmount(data.balance_drops);
+    if (amount === null) return null;
+    var count = atomicAmount(account.TransactionCount);
+    if (count === null) count = atomicAmount(data.transaction_count);
+    if (count === null) count = atomicAmount(data.tx_count);
+    return { amount: amount, tx: count === null ? null : Number(count) };
+  }
+
+  /* Solana JSON-RPC. `getBalance` returns {result:{value:<lamports>}}; the
+   * unwrap also tolerates a bare number in `result`. */
+  function parseSolanaBalance(data) {
+    if (!data || typeof data !== 'object') return null;
+    var result = data.result;
+    if (result && typeof result === 'object' && !Array.isArray(result) && 'value' in result) {
+      result = result.value;
+    }
+    var amount = atomicAmount(result);
+    return amount === null ? null : { amount: amount };
+  }
+
+  /* `getMultipleAccounts` returns one entry per requested address in order;
+   * a missing account is null and counts as zero. */
+  function parseSolanaAccounts(data) {
+    if (!data || typeof data !== 'object') return null;
+    var value = data.result && data.result.value;
+    if (!Array.isArray(value)) return null;
+    return value.map(function (item) {
+      if (!item || typeof item !== 'object') return '0';
+      var amount = atomicAmount(item.lamports);
+      return amount === null ? '0' : amount;
+    });
+  }
+
+  /* Sui balance in MIST. The public JSON-RPC fullnodes now answer -32601
+   * (deprecated in favour of gRPC), so the page queries the GraphQL endpoint;
+   * the JSON-RPC `result.totalBalance` shape is still accepted. */
+  function parseSuiBalance(data) {
+    if (!data || typeof data !== 'object') return null;
+    var result = data.result;
+    if (result && typeof result === 'object') {
+      var rpc = atomicAmount(result.totalBalance);
+      if (rpc !== null) return { amount: rpc };
+    }
+    var gql = data.data && data.data.address && data.data.address.balance;
+    var graphql = gql && typeof gql === 'object' ? atomicAmount(gql.totalBalance) : null;
+    return graphql === null ? null : { amount: graphql };
+  }
+
+  /* TON Center `getAddressBalance`: nanotons in `result` (a string). */
+  function parseTonBalance(data) {
+    if (!data || typeof data !== 'object' || data.ok === false) return null;
+    var amount = atomicAmount(data.result);
+    return amount === null ? null : { amount: amount };
+  }
+
   function hasAddress(address) {
     return typeof address === 'string' && address.trim().length > 0;
   }
@@ -265,6 +343,12 @@
     providerKind: providerKind,
     ttlFor: ttlFor,
     cacheKey: cacheKey,
+    atomicAmount: atomicAmount,
+    parseXrpAccount: parseXrpAccount,
+    parseSolanaBalance: parseSolanaBalance,
+    parseSolanaAccounts: parseSolanaAccounts,
+    parseSuiBalance: parseSuiBalance,
+    parseTonBalance: parseTonBalance,
     hasAddress: hasAddress,
     isSuccess: isSuccess,
     isFresh: isFresh,

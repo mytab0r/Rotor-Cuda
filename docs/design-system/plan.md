@@ -333,7 +333,7 @@ entry in the same PR.
 - Batch 0: docs written.
 - Batch 1: tokens and status/badge grammar implemented; `status-pill-geometry`
   detector and ledger entry added; `AGENTS.md`, `apps/site/UI-CHECKLIST.md` and
-  the `ui-self-review` skill updated; asset version bumped to `20261127a` in
+  the `ui-self-review` skill updated; asset version bumped to `20261127c` in
   all 24 site HTML files, `site.js`, `src/coordinator/mod.rs` and
   `tests/coordinator_api.rs`.
 - Evidence:
@@ -357,7 +357,7 @@ entry in the same PR.
   `.browse-balance-retry` in `site.css`, the static pages, the runtime JS and
   the coordinator templates. Icon-only actions carry `aria-label` +
   `data-tooltip` and copied states use `.is-copied`. Control-height tokens are
-  now 28/36/44 plus a 56 hero step; asset version `20261127b`.
+  now 28/36/44 plus a 56 hero step; asset version `20261127c`.
   `icon-button-scale` detector and ledger entry added.
 - Batch 2 evidence:
   - `node scripts/ui-audit.mjs --serve`: **PASS, 192 page runs across 32
