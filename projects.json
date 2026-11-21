@@ -52,6 +52,7 @@
       "test": [
         "node scripts/ui-audit.mjs --help",
         "node --test scripts/build-tokens.test.mjs",
+        "node --test scripts/check-token-usage.test.mjs",
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",

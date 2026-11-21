@@ -351,6 +351,13 @@
       "symptom": "A page <style> block could restyle a shared family (.card, .chip, .icon-button) and bypass the shared component contract, including the generated gallery.",
       "detector": "page-local-family",
       "where": "scripts/check-components.mjs"
+    },
+    {
+      "id": "field-hero-dead-rule",
+      "reported": "2026-11-21",
+      "symptom": "The documented 56px .field--hero size never rendered: the base input:not(...) selector had higher specificity than .field--hero > input, so /key and the gallery measured 44px while the manifest and doc claimed 56px.",
+      "detector": "field-hero-height",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
