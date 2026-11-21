@@ -827,22 +827,13 @@ mod tests {
                 while !stopping.load(std::sync::atomic::Ordering::SeqCst) {
                     match listener.accept() {
                         Ok((mut stream, _)) => {
-                            use std::io::{Read, Write};
-                            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                            let mut buffer = [0u8; 8192];
-                            let read = stream.read(&mut buffer).unwrap_or(0);
-                            let text = String::from_utf8_lossy(&buffer[..read]).into_owned();
-                            if let Some(position) = text.find("\r\n\r\n") {
-                                recorded
-                                    .lock()
-                                    .expect("bodies")
-                                    .push(text[position + 4..].to_string());
+                            crate::monitor::mock_http::prepare(&mut stream);
+                            if let Some(body) =
+                                crate::monitor::mock_http::read_http_body(&mut stream)
+                            {
+                                recorded.lock().expect("bodies").push(body);
                             }
-                            let response = "HTTP/1.1 200 OK\r\n\
-                                Content-Type: application/json\r\n\
-                                Content-Length: 11\r\n\
-                                Connection: close\r\n\r\n{\"ok\":true}";
-                            let _ = stream.write_all(response.as_bytes());
+                            crate::monitor::mock_http::respond_ok(&mut stream);
                         }
                         Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
                             std::thread::sleep(Duration::from_millis(5));
