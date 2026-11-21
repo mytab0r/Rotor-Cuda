@@ -1665,22 +1665,21 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
             hex.as_bytes().first(),
             Some(b'5' | b'K' | b'L' | b'T' | b'Q')
         )
+        && let Ok(decoded) = bs58::decode(hex).with_check(None).into_vec()
     {
-        if let Ok(decoded) = bs58::decode(hex).with_check(None).into_vec() {
-            let key = match decoded.as_slice() {
-                [0x80 | 0xb0 | 0x9e, rest @ ..] if rest.len() == 32 => Some(rest.to_vec()),
-                [0x80 | 0xb0 | 0x9e, rest @ .., 0x01] if rest.len() == 32 => Some(rest.to_vec()),
-                _ => None,
-            };
-            if let Some(key) = key {
-                let lower = key
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
-                return crate::scalar::Scalar::from_hex(&lower)
-                    .filter(|value| !value.is_zero())
-                    .map(|_| lower);
-            }
+        let key = match decoded.as_slice() {
+            [0x80 | 0xb0 | 0x9e, rest @ ..] if rest.len() == 32 => Some(rest.to_vec()),
+            [0x80 | 0xb0 | 0x9e, rest @ .., 0x01] if rest.len() == 32 => Some(rest.to_vec()),
+            _ => None,
+        };
+        if let Some(key) = key {
+            let lower = key
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            return crate::scalar::Scalar::from_hex(&lower)
+                .filter(|value| !value.is_zero())
+                .map(|_| lower);
         }
         // Not a valid WIF: a 51/52-digit hex value is still a donor key URL.
     }
