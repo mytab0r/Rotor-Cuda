@@ -97,10 +97,20 @@ pub struct ListConfig {
     /// native coin transfer.
     #[serde(default)]
     pub contract: Option<String>,
+    /// SPDX-style licence identifier delivered alongside the package.
+    #[serde(default = "default_licence")]
+    pub licence: String,
+    /// Optional human-readable provenance for donor-derived data.
+    #[serde(default)]
+    pub provenance: Option<String>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_licence() -> String {
+    "MIT".to_string()
 }
 
 fn default_poll_interval() -> u64 {
@@ -186,6 +196,28 @@ impl OrdersConfig {
                 .is_some_and(|contract| contract.trim().is_empty())
             {
                 return Err(format!("list {} has an empty contract address", list.slug));
+            }
+            if list.licence.is_empty()
+                || list.licence.len() > 32
+                || !list
+                    .licence
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'+' | b'-'))
+            {
+                return Err(format!(
+                    "list {} licence must be 1..=32 ASCII letters, digits, '.', '+' or '-'",
+                    list.slug
+                ));
+            }
+            if let Some(provenance) = &list.provenance
+                && (provenance.trim().is_empty()
+                    || provenance.chars().count() > 300
+                    || provenance.chars().any(char::is_control))
+            {
+                return Err(format!(
+                    "list {} provenance must be non-empty printable text of at most 300 characters",
+                    list.slug
+                ));
             }
             // One fixed address carries only one asset: a native coin and a
             // token at the same address would make amounts ambiguous.
@@ -554,6 +586,7 @@ impl Orders {
             "expires_at": order.expires_at,
             "confirmations_required": self.config.confirmations_for(&order.chain),
         });
+        body["licence_url"] = json!(format!("/api/v1/orders/{}/licence?token={token}", order.id));
         if order.status == OrderStatus::Paid
             && let Some(entitlement) = data
                 .entitlements
@@ -580,6 +613,29 @@ impl Orders {
             body["download_expires_at"] = json!(entitlement.expires_at);
         }
         Ok(body)
+    }
+
+    /// The licence/attribution document delivered alongside the package.
+    fn licence_document(&self, id: &str, token: &str, _now: u64) -> Result<String, u16> {
+        let data = self.lock();
+        let order = data
+            .orders
+            .iter()
+            .find(|order| order.id == id)
+            .ok_or(404u16)?;
+        if !token_hash_matches(token, &order.order_token_hash) {
+            return Err(404);
+        }
+        let list = self.config.list(&order.list).ok_or(404u16)?;
+        Ok(render_licence_document(list))
+    }
+
+    /// Slug for the attachment filename; read after `licence_document` has
+    /// already verified the order and token.
+    fn licence_slug(&self, id: &str) -> Option<String> {
+        let data = self.lock();
+        let order = data.orders.iter().find(|order| order.id == id)?;
+        self.config.list(&order.list).map(|list| list.slug.clone())
     }
 
     /// Snapshot of orders a payment can still credit.
@@ -978,6 +1034,67 @@ fn token_hash_matches(token: &str, expected: &str) -> bool {
     constant_time_eq(digest.as_bytes(), expected.as_bytes())
 }
 
+/// Standard MIT body; the copyright line is prepended per list.
+const MIT_LICENCE_BODY: &str =
+    "Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the \"Software\"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+";
+
+fn mit_notice(holder: &str) -> String {
+    format!("MIT License\n\nCopyright (c) {holder}\n\n{MIT_LICENCE_BODY}")
+}
+
+/// Build the plain-text licence/attribution page for one list. Pure: the
+/// copyright holder is chosen from the configured provenance, never guessed.
+fn render_licence_document(list: &ListConfig) -> String {
+    let mut out = format!(
+        "{} ({})\nLicence: {}\n",
+        list.title, list.slug, list.licence
+    );
+    if let Some(provenance) = &list.provenance {
+        out.push_str(&format!("Provenance: {provenance}\n"));
+    }
+    out.push('\n');
+    match list.licence.as_str() {
+        "MIT" => {
+            let donor = list.provenance.as_deref().is_some_and(|provenance| {
+                let lower = provenance.to_ascii_lowercase();
+                lower.contains("mmdrza") || lower.contains("rich-address-wallet")
+            });
+            let holder = if donor {
+                "2022 MMDRZA"
+            } else {
+                "2026 the Rotor project contributors"
+            };
+            out.push_str(&mit_notice(holder));
+        }
+        "CC0-1.0" => out.push_str(
+            "This package is a derived work dedicated to the public domain under\n\
+             CC0 1.0 Universal.\n\
+             https://creativecommons.org/publicdomain/zero/1.0/\n",
+        ),
+        other => out.push_str(&format!(
+            "Licence: {other}\nContact the operator for the full licence terms.\n"
+        )),
+    }
+    out
+}
+
 fn mark_paid(
     data: &mut OrdersData,
     position: usize,
@@ -1126,6 +1243,16 @@ pub(super) fn handle(
                     .unwrap_or_default();
                 return download(&orders, request, id, &token);
             }
+            if let Some(id) = rest.strip_suffix("/licence") {
+                if !app.rate.allow(&format!("orders:{ip}")) {
+                    return respond_rate_limited(request);
+                }
+                let token = query_param(query, "token")
+                    .map(str::to_string)
+                    .or_else(|| bearer(&request).map(str::to_string))
+                    .unwrap_or_default();
+                return licence(&orders, request, id, &token);
+            }
             if !app.rate.allow(&format!("orders:{ip}")) {
                 return respond_rate_limited(request);
             }
@@ -1255,6 +1382,35 @@ fn download(orders: &Orders, request: Request, id: &str, token: &str) {
             &json!({ "error": "download link is no longer valid" }),
         ),
         Err(_) => respond_json(request, 404, &json!({ "error": "not found" })),
+    }
+}
+
+fn licence(orders: &Orders, request: Request, id: &str, token: &str) {
+    match orders.licence_document(id, token, state::now_secs()) {
+        Ok(document) => {
+            let slug = orders
+                .licence_slug(id)
+                .unwrap_or_else(|| "package".to_string());
+            let headers = vec![
+                header("Content-Type", "text/plain; charset=utf-8"),
+                header(
+                    "Content-Disposition",
+                    &format!("attachment; filename=\"{slug}-LICENCE.txt\""),
+                ),
+                header("Cache-Control", "no-store"),
+                header("X-Robots-Tag", "noindex"),
+            ];
+            let length = document.len();
+            let response = Response::new(
+                StatusCode(200),
+                headers,
+                std::io::Cursor::new(document.into_bytes()),
+                Some(length),
+                None,
+            );
+            let _ = request.respond(response);
+        }
+        Err(status) => respond_json(request, status, &json!({ "error": "not found" })),
     }
 }
 
@@ -2011,5 +2167,106 @@ mod tests {
             Err(CreateError::UnknownList)
         ));
         let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn licence_document_renders_mit_and_configured_provenance() {
+        let config = OrdersConfig::parse(&config_text(true)).expect("config");
+        assert_eq!(config.lists[0].licence, "MIT");
+        assert!(config.lists[0].provenance.is_none());
+
+        let document = render_licence_document(&config.lists[0]);
+        assert!(document.contains("Bitcoin package (btc-pack)"));
+        assert!(document.contains("Licence: MIT"));
+        assert!(document.contains("Copyright (c) 2026 the Rotor project contributors"));
+        assert!(!document.contains("Provenance:"));
+
+        let mut donor = config.clone();
+        donor.lists[0].provenance =
+            Some("Curated from the mirrored Rich-Address-Wallet release files.".to_string());
+        let document = render_licence_document(&donor.lists[0]);
+        assert!(document.contains("Provenance: Curated from the mirrored Rich-Address-Wallet"));
+        assert!(document.contains("Copyright (c) 2022 MMDRZA"));
+    }
+
+    #[test]
+    fn licence_document_renders_cc0_notice() {
+        let mut config = OrdersConfig::parse(&config_text(true)).expect("config");
+        config.lists[0].licence = "CC0-1.0".to_string();
+        let document = render_licence_document(&config.lists[0]);
+        assert!(document.contains("Licence: CC0-1.0"));
+        assert!(document.contains("CC0 1.0 Universal"));
+        assert!(document.contains("https://creativecommons.org/publicdomain/zero/1.0/"));
+    }
+
+    #[test]
+    fn licence_document_requires_the_order_and_its_token() {
+        let directory = std::env::temp_dir().join(format!(
+            "rotor-orders-licence-{}-{}",
+            std::process::id(),
+            state::now_secs()
+        ));
+        fs::create_dir_all(&directory).expect("temp directory");
+        let orders = Orders::new(
+            OrdersConfig::parse(&config_text(true)).expect("config"),
+            SECRET,
+            directory.join("orders.json"),
+        )
+        .expect("store");
+        let order = orders
+            .create(
+                CreateOrderRequest {
+                    list: "btc-pack".into(),
+                    contact: None,
+                },
+                1_000,
+            )
+            .map_err(|_| "create")
+            .expect("order");
+
+        assert_eq!(
+            orders.licence_document("missing", &order.order_token, 1_000),
+            Err(404)
+        );
+        assert_eq!(
+            orders.licence_document(&order.order_id, "wrong", 1_000),
+            Err(404)
+        );
+        let document = orders
+            .licence_document(&order.order_id, &order.order_token, 1_000)
+            .expect("document");
+        assert!(document.contains("Bitcoin package (btc-pack)"));
+        assert!(document.contains("Licence: MIT"));
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn config_validation_rejects_bad_licence_and_provenance() {
+        let config = OrdersConfig::parse(&config_text(true)).expect("config");
+
+        let mut empty = config.clone();
+        empty.lists[0].licence = String::new();
+        assert!(empty.validate().unwrap_err().contains("licence"));
+
+        let mut blank = config.clone();
+        blank.lists[0].licence = " ".to_string();
+        assert!(blank.validate().unwrap_err().contains("licence"));
+
+        let mut oversized = config.clone();
+        oversized.lists[0].licence = "a".repeat(33);
+        assert!(oversized.validate().unwrap_err().contains("licence"));
+
+        let mut illegal = config.clone();
+        illegal.lists[0].licence = "MIT/x".to_string();
+        assert!(illegal.validate().unwrap_err().contains("licence"));
+
+        let mut control = config.clone();
+        control.lists[0].provenance = Some("bad\u{0}text".to_string());
+        assert!(control.validate().unwrap_err().contains("provenance"));
+
+        let mut valid = config;
+        valid.lists[0].licence = "CC0-1.0".to_string();
+        valid.lists[0].provenance = Some("Derived from donor-provided data.".to_string());
+        assert!(valid.validate().is_ok());
     }
 }
