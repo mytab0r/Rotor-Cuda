@@ -358,6 +358,13 @@
       "symptom": "The documented 56px .field--hero size never rendered: the base input:not(...) selector had higher specificity than .field--hero > input, so /key and the gallery measured 44px while the manifest and doc claimed 56px.",
       "detector": "field-hero-height",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "browse-row-wif",
+      "reported": "2026-11-21",
+      "symptom": "Every browse listing row rendered the compressed and uncompressed WIF under the hex key (163px rows, 11,036px document at /private-keys/tron) and put the WIF next to the address, while the donor keeps the WIF key-level on /key/<hex>.",
+      "detector": "browse-row-wif",
+      "where": "scripts/check-token-usage.mjs"
     }
   ]
 }
