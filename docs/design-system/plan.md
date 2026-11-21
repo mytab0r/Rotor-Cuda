@@ -53,7 +53,7 @@ Definition of done for a batch:
 | 3 | Forms, fields, segmented controls, chips | `developer` | `critic` | batch 1 tokens | `control-height-scale`, `field-geometry`, `segmented-geometry` |
 | 4 | Cards and stat blocks | `developer` | `critic` | batch 1 tokens | `stat-geometry`, `card-padding-scale` |
 | 5 | Tables and rows | `developer` | `critic` | batch 1 tokens | `table-header-style`, `table-row-height`, `row-action-geometry` |
-| 6 | Navigation, breadcrumbs, pagination | `developer` | `critic` | batches 2–5 (shared link/button grammar) | `nav-link-height`, `breadcrumb-current`, `pager-geometry` |
+| 6 | Navigation, breadcrumbs, pagination, footer | `developer` | `critic` | batches 2–5 (shared link/button grammar) | `nav-link-height`, `breadcrumb-grammar`, `breadcrumb-current`, `pager-grammar`, `pager-geometry`, `footer-presence` |
 | 7 | Cleanup and final sweep | design-system lead + `developer` | `critic` | batches 1–6 | `radius-scale`, `raw-hex-outside-root`, `legacy-selector` |
 
 Ordering rationale: tokens first; then the smallest self-contained family
@@ -451,4 +451,45 @@ entry in the same PR.
   - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
-- Batches 6–7: not started; owners/reviewers assigned above.
+- Batch 6: one navigation grammar (44px links, 18px icon, `aria-current`
+  active state, focus ring, More/drawer at ≤860), one utility cluster (search
+  and theme are `.icon-button`, cabinet is `.chip--primary`; `.nav-pill` and
+  `.nav-icon-pill` deleted), one breadcrumb grammar with
+  `.breadcrumbs__sep` and one human `aria-current` marker (server
+  `breadcrumb_nav`, client `RotorBreadcrumbs`), one pager (`.pager` +
+  `.pager-btn`, radius 10, 44px, `aria-disabled`, `.pager-btn--random`) for
+  private keys, mnemonic seeds and brainwallet, and one marketing footer
+  (`site_footer`, inserted once at serve time; app/cabinet shells excluded).
+  Asset version `20261127h`; detectors `nav-link-height`,
+  `breadcrumb-grammar`, `breadcrumb-current`, `pager-grammar`,
+  `pager-geometry`, `footer-presence` and ledger entries added.
+- Batch 6 evidence:
+  - Full default route set: **PASS, 198 page runs across 33 routes, 0
+    violations** (`target/batch6-full-final2.json`); the three paginated routes
+    (`/private-keys/bitcoin`, `/mnemonic-seeds/bitcoin`,
+    `/brainwallet/bitcoin`) each report one pager block, and no other route
+    invents one. The live puzzle results table is capped at 25 sampled rows
+    and has no pages, so there was no pager variant to replace there.
+  - Targeted nav/breadcrumb/pager/footer set (25 routes, including `/`,
+    `/app`, `/me`, `/run`, `/cabinet`, `/cabinet/wallet`, `/key`, a key page,
+    both directories, `/brainwallet`, `/bitcoin-puzzle`, `/wallets` and a real
+    `/keys/tron/...` range): **PASS, 150 page runs, 0 violations**
+    (`target/batch6-targeted2.json`); every run reports
+    `overflow.excess = 0`, `smallTargets = []`, `navLinks = []`,
+    `breadcrumbGrammar = []`, `breadcrumbCurrent = []`, `pagerGrammar = []`,
+    `pagerGeometry = []`, and `footer.count = 1` on content routes / `0` on the
+    shells.
+  - Final pager recheck after the last JS state cleanup: **PASS, 18 runs
+    across the three pager routes** (`target/batch6-pager-final.json`).
+  - Footer-link routes `/faq`, `/disclaimer`, `/donate`, `/wallets`:
+    **PASS, 24 runs, 0 violations** (`target/batch6-footer-info2.json`). The
+    run exposed a pre-existing 21px overflow on `/donate` (long mono donation
+    addresses); the shared CSS now wraps `.donate-addresses code`.
+  - Screenshots: `%TEMP%/rotor-ui-audit-11Rj6y/screenshots` (full run),
+    `%TEMP%/rotor-ui-audit-vjZvsP/screenshots` (targeted run),
+    `%TEMP%/rotor-ui-audit-9QLlg4/screenshots` (final pager run) and
+    `%TEMP%/rotor-ui-audit-SI6TeF/screenshots` (footer-link run).
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+    area tests and `cargo test --test coordinator_api --test coordinator_client`
+    pass.
+- Batch 7: not started; owner/reviewer assigned above.

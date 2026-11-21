@@ -683,6 +683,11 @@ fn handle(app: Arc<App>, request: Request) {
         }
         // Dynamic SEO surface: key pages, chain hubs, robots and sitemap.
         if let Some((body, content_type, status)) = seo_asset(&app.public_url, path, query) {
+            let body = if content_type.starts_with("text/html") {
+                with_site_footer(path, body)
+            } else {
+                body
+            };
             let response = Response::from_string(body)
                 .with_status_code(StatusCode(status))
                 .with_header(header("Content-Type", content_type))
@@ -691,6 +696,11 @@ fn handle(app: Arc<App>, request: Request) {
             return;
         }
         if let Some((body, content_type)) = static_asset(path) {
+            let body = if content_type.starts_with("text/html") {
+                with_site_footer(path, String::from_utf8_lossy(body).into_owned()).into_bytes()
+            } else {
+                body.to_vec()
+            };
             let response = Response::from_data(body)
                 .with_header(header("Content-Type", content_type))
                 .with_header(header("Cache-Control", "no-cache"));
@@ -1895,7 +1905,7 @@ fn breadcrumb_nav(items: &[(&str, Option<&str>)]) -> String {
     let mut out = String::from("<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">");
     for (index, (label, href)) in items.iter().enumerate() {
         if index > 0 {
-            out.push_str(" / ");
+            out.push_str("<span class=\"breadcrumbs__sep\" aria-hidden=\"true\">/</span>");
         }
         match href {
             Some(href) => out.push_str(&format!(
@@ -1927,8 +1937,8 @@ fn site_header() -> String {
          <a href=\"/docs\" data-nav=\"docs\">{book}<span>Docs</span></a>\
          </nav>\
          <div class=\"nav-tools\">\
-         <a class=\"nav-pill nav-icon-pill\" href=\"/key\" data-nav=\"search\" aria-label=\"Search wallet\">{search}</a>\
-         <a class=\"nav-pill nav-cabinet\" href=\"/cabinet\" data-nav=\"cabinet\">{wallet}<span>Cabinet</span></a>\
+         <a class=\"icon-button icon-button--quiet icon-button--lg\" href=\"/key\" data-nav=\"search\" aria-label=\"Search wallet\" data-tooltip=\"Search wallet\">{search}</a>\
+         <a class=\"chip chip--primary\" href=\"/cabinet\" data-nav=\"cabinet\" aria-label=\"Cabinet\">{wallet}<span>Cabinet</span></a>\
          </div></header>",
         key = ui_icon("ui-rotor", "icon"),
         grid = ui_icon("ui-grid", "icon"),
@@ -1962,16 +1972,60 @@ fn replace_site_nav(html: String) -> String {
     out
 }
 
+/// Current static-asset query token. It is also printed in the footer so a
+/// visitor can name the build they see; keep it in step with `?v=` everywhere.
+const ASSET_VERSION: &str = "20261127h";
+const REPOSITORY_URL: &str = "https://github.com/mytab0r/Rotor-Cuda";
+
+/// One marketing footer for every public content page. The app and cabinet
+/// shells intentionally omit it (`is_app_shell`), and `with_site_footer`
+/// inserts it once for both static and generated HTML.
+fn site_footer() -> String {
+    format!(
+        "<footer class=\"site-footer\">\
+         <nav aria-label=\"Footer\">\
+         <a href=\"/faq\">FAQ</a>\
+         <a href=\"/disclaimer\">Disclaimer</a>\
+         <a href=\"/donate\">Donate</a>\
+         <a href=\"/docs\">Docs</a>\
+         <a href=\"{REPOSITORY_URL}\" rel=\"noopener noreferrer\">GitHub</a>\
+         </nav>\
+         <div class=\"site-footer__meta\"><span>© 2026 Crypto</span><span>v{ASSET_VERSION}</span></div>\
+         </footer>"
+    )
+}
+
+fn is_app_shell(path: &str) -> bool {
+    matches!(
+        path,
+        "/app" | "/run" | "/me" | "/cabinet" | "/cabinet/wallet"
+    )
+}
+
+/// Add the shared footer to a served HTML document unless it is an app shell
+/// or already carries one. Fails safe (returns the input) when `</body>` is
+/// missing so a malformed page is not silently rewritten.
+fn with_site_footer(path: &str, html: String) -> String {
+    if is_app_shell(path)
+        || html.contains("<footer class=\"site-footer\"")
+        || !html.contains("</body>")
+    {
+        return html;
+    }
+    html.replacen("</body>", &format!("{}\n</body>", site_footer()), 1)
+}
+
 fn html_document(title: &str, head_extra: &str, body: &str) -> String {
     format!(
         "<!doctype html>\n<html lang=\"en\">\n<head>\n\
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261127g\">\n\
-         <script src=\"/theme.js?v=20261127g\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261127g\"></script>\n<script src=\"/site.js?v=20261127g\"></script>\n</body>\n</html>\n",
-        escape_attr(title)
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261127h\">\n\
+         <script src=\"/theme.js?v=20261127h\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n{footer}\n<script src=\"/search.js?v=20261127h\"></script>\n<script src=\"/site.js?v=20261127h\"></script>\n</body>\n</html>\n",
+        escape_attr(title),
+        footer = site_footer(),
     )
 }
 
@@ -2122,7 +2176,7 @@ fn render_key_page(base: &str, key: &str, curve: &str) -> String {
     );
     html = html.replacen("</head>", &format!("{head}</head>"), 1);
     html = html.replacen(
-        "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><a href=\"/\">Home</a> <span>/</span> <a href=\"/tools\">Tools</a> <span>/</span> <span aria-current=\"page\">Key explorer</span></nav>",
+        "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><a href=\"/\">Home</a> <span class=\"breadcrumbs__sep\" aria-hidden=\"true\">/</span> <a href=\"/tools\">Tools</a> <span class=\"breadcrumbs__sep\" aria-hidden=\"true\">/</span> <span aria-current=\"page\">Key explorer</span></nav>",
         &crumbs,
         1,
     );
@@ -2253,7 +2307,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
     );
     html = html.replacen("</head>", &format!("{head}</head>"), 1);
     html = html.replacen(
-        "<nav class=\"breadcrumbs\" id=\"range-breadcrumbs\" aria-label=\"Breadcrumbs\"></nav>",
+        "<nav class=\"breadcrumbs\" id=\"range-breadcrumbs\" aria-label=\"Breadcrumb\"></nav>",
         &crumbs,
         1,
     );
@@ -2594,28 +2648,24 @@ fn brainwallet_pager(slug: &str, page: u32) -> String {
     let at_first = page <= 1;
     let at_last = page >= BRAINWALLET_TOTAL_PAGES;
     format!(
-        "<div class=\"pager\">\
-         <a class=\"pager-btn{}\" data-bw-first href=\"{}\" aria-disabled=\"{}\">{}First</a>\
-         <a class=\"pager-btn{}\" data-bw-prev href=\"{}\" aria-disabled=\"{}\">{}Previous</a>\
-         <a class=\"pager-btn random\" data-bw-random href=\"{}\" aria-disabled=\"false\">{}Random</a>\
-         <a class=\"pager-btn{}\" data-bw-next href=\"{}\" aria-disabled=\"{}\">Next{}</a>\
-         <a class=\"pager-btn{}\" data-bw-last href=\"{}\" aria-disabled=\"{}\">Last{}</a>\
-         </div>",
-        if at_first { " disabled" } else { "" },
+        "<nav class=\"pager\" aria-label=\"Directory pages\">\
+         <a class=\"pager-btn\" data-bw-first href=\"{}\" aria-disabled=\"{}\">{}First</a>\
+         <a class=\"pager-btn\" data-bw-prev href=\"{}\" aria-disabled=\"{}\">{}Previous</a>\
+         <a class=\"pager-btn pager-btn--random\" data-bw-random href=\"{}\" aria-disabled=\"false\">{}Random</a>\
+         <a class=\"pager-btn\" data-bw-next href=\"{}\" aria-disabled=\"{}\">Next{}</a>\
+         <a class=\"pager-btn\" data-bw-last href=\"{}\" aria-disabled=\"{}\">Last{}</a>\
+         </nav>",
         brainwallet_page_href(slug, 1),
         at_first,
         ui_icon("ui-first", "icon"),
-        if at_first { " disabled" } else { "" },
         brainwallet_page_href(slug, previous),
         at_first,
         ui_icon("ui-prev", "icon"),
         brainwallet_page_href(slug, page),
         ui_icon("ui-random", "icon"),
-        if at_last { " disabled" } else { "" },
         brainwallet_page_href(slug, next),
         at_last,
         ui_icon("ui-next", "icon"),
-        if at_last { " disabled" } else { "" },
         brainwallet_page_href(slug, BRAINWALLET_TOTAL_PAGES),
         at_last,
         ui_icon("ui-last", "icon"),
@@ -2685,10 +2735,12 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127g\">\n");
-    let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
-         <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
-         <span aria-current=\"page\">Brainwallet</span></nav>";
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127h\">\n");
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Tools", Some("/tools")),
+        ("Brainwallet", None),
+    ]);
     let mut cards = String::new();
     for chain in &CHAINS {
         cards.push_str(&format!(
@@ -2795,7 +2847,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127g\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127h\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2806,11 +2858,10 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
         json_ld(&ld_app),
         json_ld(&ld_crumbs),
     );
-    let chain_href = format!("/brainwallet/{}", chain.slug);
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
-        (chain.name, Some(&chain_href)),
+        (chain.name, None),
     ]);
     let body = format!(
         "{}<main class=\"browse-page brainwallet-page brainwallet-directory\" \
@@ -2855,8 +2906,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261127g\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261127g\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261127h\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261127h\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2894,11 +2945,11 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127g\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127h\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
-        ("Generator", Some("/brainwallet-generator")),
+        ("Generator", None),
     ]);
     let mut options = String::new();
     for chain in &CHAINS {
@@ -2945,8 +2996,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261127g\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261127g\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261127h\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261127h\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -3239,9 +3290,9 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     } else {
         page.clone()
     };
-    let first_disabled = if page == page_one { " disabled" } else { "" };
+    let first_disabled = page == page_one;
     let prev_disabled = first_disabled;
-    let next_disabled = if page >= total { " disabled" } else { "" };
+    let next_disabled = page >= total;
     let last_disabled = next_disabled;
     let random = random_page(chain);
     let curve_data = chain.kind.curve();
@@ -3252,10 +3303,15 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     } else {
         chain.name
     };
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Private Keys", Some("/private-keys")),
+        (chain.name, None),
+    ]);
 
     let body = format!(
         "{}{}<main class=\"browse-page\" style=\"--chain:{}\" data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-type=\"{}\" data-field=\"{}\" data-curve=\"{}\" data-pages=\"{}\" data-page=\"{}\">\
-         <nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\"><a href=\"/\">Home</a> <span>/</span> <a href=\"/private-keys\">Private Keys</a> <span>/</span> <span aria-current=\"page\">{}</span></nav>\
+         {crumbs}\
          <h1 class=\"visually-hidden\">{} private keys</h1>\
          <div class=\"chain-tabs\" role=\"navigation\" aria-label=\"Chains\">{tabs}</div>\
          <section class=\"page-info\">\
@@ -3263,13 +3319,13 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div class=\"progress-track\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"{}\"><span style=\"width:{}\"></span></div>\
          </section>\
          <section class=\"browse-controls\">\
-           <div class=\"pager\">\
-             <a class=\"pager-btn{first_disabled}\" href=\"{}\" aria-disabled=\"{}\">{} First</a>\
-             <a class=\"pager-btn{prev_disabled}\" href=\"{}\" aria-disabled=\"{}\">{} Previous</a>\
-             <a class=\"pager-btn random\" href=\"{}\">{} Random</a>\
-             <a class=\"pager-btn{next_disabled}\" href=\"{}\" aria-disabled=\"{}\">Next {}</a>\
-             <a class=\"pager-btn{last_disabled}\" href=\"{}\" aria-disabled=\"{}\">Last {}</a>\
-           </div>\
+           <nav class=\"pager\" aria-label=\"Key pages\">\
+             <a class=\"pager-btn\" href=\"{}\" aria-disabled=\"{}\">{} First</a>\
+             <a class=\"pager-btn\" href=\"{}\" aria-disabled=\"{}\">{} Previous</a>\
+             <a class=\"pager-btn pager-btn--random\" href=\"{}\" aria-disabled=\"false\">{} Random</a>\
+             <a class=\"pager-btn\" href=\"{}\" aria-disabled=\"{}\">Next {}</a>\
+             <a class=\"pager-btn\" href=\"{}\" aria-disabled=\"{}\">Last {}</a>\
+           </nav>\
            <form class=\"page-jump\" id=\"browse-jump\">\
              <label for=\"browse-page-input\">Page</label>\
              <input id=\"browse-page-input\" inputmode=\"numeric\" autocomplete=\"off\" value=\"{}\">\
@@ -3301,7 +3357,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261127g\"></script>\n         <script src=\"/browse.js?v=20261127g\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261127h\"></script>\n         <script src=\"/browse.js?v=20261127h\"></script>",
         site_header(),
         "",
         chain.color,
@@ -3314,7 +3370,6 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         total,
         page_text,
         chain.name,
-        chain.name,
         chain_icon(chain, "page-info-icon"),
         chain.name,
         page_text,
@@ -3323,18 +3378,10 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         percent,
         percent,
         browse_page_href(chain, &page_one, active_type.value),
-        if first_disabled.is_empty() {
-            "false"
-        } else {
-            "true"
-        },
+        first_disabled,
         ui_icon("ui-first", "icon"),
         browse_page_href(chain, &prev, active_type.value),
-        if prev_disabled.is_empty() {
-            "false"
-        } else {
-            "true"
-        },
+        prev_disabled,
         ui_icon("ui-prev", "icon"),
         if active_type.value == "legacy" {
             format!("/private-keys/{}/{}", chain.slug, random)
@@ -3346,18 +3393,10 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         },
         ui_icon("ui-random", "icon"),
         browse_page_href(chain, &next, active_type.value),
-        if next_disabled.is_empty() {
-            "false"
-        } else {
-            "true"
-        },
+        next_disabled,
         ui_icon("ui-next", "icon"),
         browse_page_href(chain, &total, active_type.value),
-        if last_disabled.is_empty() {
-            "false"
-        } else {
-            "true"
-        },
+        last_disabled,
         ui_icon("ui-last", "icon"),
         page_text,
         ui_icon("ui-arrow-right", "icon"),
@@ -5499,7 +5538,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261127g"),
+                page.contains("/theme.js?v=20261127h"),
                 "{path} does not load the theme script"
             );
         }
@@ -5541,8 +5580,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261127g\"></script>"));
-        assert!(page.contains("/site.css?v=20261127g"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261127h\"></script>"));
+        assert!(page.contains("/site.css?v=20261127h"));
     }
 
     #[test]
@@ -5826,6 +5865,41 @@ mod tests {
     }
 
     #[test]
+    fn site_footer_is_shared_and_skips_app_shells() {
+        let page = with_site_footer(
+            "/docs",
+            "<html><body><main>Docs</main></body></html>".into(),
+        );
+        assert_eq!(page.matches("<footer class=\"site-footer\">").count(), 1);
+        for href in [
+            "/faq",
+            "/disclaimer",
+            "/donate",
+            "/docs",
+            "https://github.com/",
+        ] {
+            assert!(page.contains(href), "footer misses {href}");
+        }
+        assert!(page.contains("© 2026 Crypto"));
+        assert!(page.contains(ASSET_VERSION));
+
+        // The app and cabinet shells intentionally have no footer.
+        for path in ["/app", "/run", "/me", "/cabinet", "/cabinet/wallet"] {
+            let shell =
+                with_site_footer(path, "<html><body><main>Shell</main></body></html>".into());
+            assert!(
+                !shell.contains("site-footer"),
+                "{path} must not render the marketing footer"
+            );
+        }
+
+        // A page that already carries one is never given a second.
+        let once = with_site_footer("/docs", page.clone());
+        assert_eq!(once.matches("<footer class=\"site-footer\">").count(), 1);
+        assert!(html_document("T", "", "<main>x</main>").contains("site-footer"));
+    }
+
+    #[test]
     fn faq_has_questions_and_faq_json_ld() {
         let base = "https://rotor.pxbt.app";
         let (body, _, _) = seo_asset(base, "/faq", "").expect("/faq");
@@ -5882,7 +5956,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261127g"));
+        assert!(body.contains("brainwallet.css?v=20261127h"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5902,7 +5976,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261127g"));
+        assert!(body.contains("brainwallet.css?v=20261127h"));
     }
 
     #[test]
@@ -5931,12 +6005,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261127g"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261127h"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261127g"),
+                body.contains("brainwallet-directory.js?v=20261127h"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261127g"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261127h"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -6000,9 +6074,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261127g"));
-        assert!(body.contains("brainwallet.js?v=20261127g"));
-        assert!(body.contains("brainwallet.css?v=20261127g"));
+        assert!(body.contains("brainwallet-engine.js?v=20261127h"));
+        assert!(body.contains("brainwallet.js?v=20261127h"));
+        assert!(body.contains("brainwallet.css?v=20261127h"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -6428,11 +6502,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261127g\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261127g\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261127g\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261127g\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261127g\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261127h\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261127h\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261127h\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261127h\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261127h\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 
