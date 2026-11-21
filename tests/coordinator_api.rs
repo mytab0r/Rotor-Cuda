@@ -1337,8 +1337,14 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
     assert!(page.contains("/wallets/LICENSE.txt"));
     assert!(page.contains("Request access"));
     assert!(page.contains("Copyright (c) 2022 MMDRZA"));
-    assert!(!page.contains("github.com/Pymmdrza"), "page links upstream: {page}");
-    assert!(!page.contains("/releases/download"), "page leaks the upstream release host: {page}");
+    assert!(
+        !page.contains("github.com/Pymmdrza"),
+        "page links upstream: {page}"
+    );
+    assert!(
+        !page.contains("/releases/download"),
+        "page leaks the upstream release host: {page}"
+    );
     let (status, headers, license) = raw(addr, "GET", "/wallets/LICENSE.txt", None, None);
     assert_eq!(status, 200);
     assert!(headers.to_ascii_lowercase().contains("text/plain"));
