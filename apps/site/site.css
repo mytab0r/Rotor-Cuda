@@ -1101,7 +1101,7 @@ a.button,
   cursor: pointer;
   transition: background .16s ease, border-color .16s ease, transform .16s ease, color .16s ease;
 }
-button:not(.primary):hover,
+button:not(.primary):not(.icon-button):hover,
 a.button:not(.primary):hover,
 .btn:not(.primary):hover { border-color: var(--border-strong); background: var(--panel-3); color: var(--text); text-decoration: none; }
 button.primary,
