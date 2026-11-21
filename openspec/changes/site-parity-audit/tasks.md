@@ -95,6 +95,11 @@ follow-ups were code-only.
   second path that called undefined `normalizeKeyHex`/`jumpPageFor` and threw
   on pages without `search.js`; removed, so `pageForHexKey`/`jumpToKeyPage` is
   the only path (PR #147).
+- [x] Directory ledger corrected (2026-11-21, thirteenth run):
+  `/private-keys/<chain>` re-checked against the live donor; the donor has
+  neither a CSV export nor balance sorting, so the site-map note, the
+  `parity-live.md` row (now `same`) and the matrix row (now `parity`) state the
+  matched controls instead.
 
 ## P1 — shell and templates
 
