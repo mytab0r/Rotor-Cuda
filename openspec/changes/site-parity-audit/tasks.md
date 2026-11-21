@@ -209,8 +209,18 @@ and not deployed**.
       (fresh order), `:578` (dedupe), `:598` (empty/61/bad chain), `:618`
       (one invalid item), `:639` (bucket: 8 resolve, 9th `rate_limited`),
       `:661` (stale + `waitUntil`); 41 worker tests pass.
-- [ ] Per-IP rate limiting. The current bucket is per provider per isolate, not
-      a global or per-client quota.
+- [x] Per-client (IP-keyed) token bucket wired into every public route
+      (120 burst, 20 tokens/s refill, LRU-bounded at 5000 keys, 10 min idle
+      prune); `OPTIONS` and `GET /healthz` are exempt and `/v1/balances`
+      charges one token per address (clamped to 60). Evidence:
+      `deploy/cloudflare/src/limiters.mjs:43` (`createKeyedLimiter`),
+      `src/worker.mjs:37` (module limiter), `:78` (pre-routing check),
+      `:294` (`requestCost`), `:303` (`enforceClientLimit`, 429 +
+      `Retry-After`), `test/worker.test.mjs:229` (keyed limiter unit tests),
+      `:928` (exhausted IP gets 429, another IP unaffected), `:947`
+      (`/healthz` exempt), `:957` (per-address batch cost); 48 tests pass.
+      Honest limitation: the counter is per isolate, so it is a best-effort
+      per-isolate quota across a PoP, not a global or cross-isolate guarantee.
 - [ ] Client wiring + deploy. **Blocked: no valid Cloudflare credential**
       (`CF_PAGES_TOKEN` is rejected by the API); needs `wrangler login` or a
       Workers token. The site must keep calling providers directly until the
