@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - app</title>
-<link rel="stylesheet" href="/site.css?v=20261127f">
-<script src="/theme.js?v=20261127f"></script>
+<link rel="stylesheet" href="/site.css?v=20261127g">
+<script src="/theme.js?v=20261127g"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -52,7 +52,7 @@
   <section class="card">
     <h2>Leaderboard</h2>
     <div class="table-scroll">
-      <table>
+      <table class="data-table">
         <thead><tr><th class="rank">#</th><th>Contributor</th><th>Scanned</th><th>Chunks</th><th>Found</th></tr></thead>
         <tbody id="leaderboard-body"><tr><td colspan="5" class="muted">no contributors yet</td></tr></tbody>
       </table>
@@ -111,7 +111,7 @@
   <section class="card">
     <h2>Active clients</h2>
     <div class="table-scroll">
-      <table>
+      <table class="data-table">
         <thead><tr><th>Client</th><th>Job</th><th>Chunk</th><th>Scanned</th><th>Rate</th><th>Lease</th></tr></thead>
         <tbody id="clients-body"><tr><td colspan="6" class="muted">no active leases</td></tr></tbody>
       </table>
@@ -121,7 +121,7 @@
   <section class="card">
     <h2>Results</h2>
     <div class="table-scroll">
-      <table>
+      <table class="data-table">
         <thead><tr><th>Job</th><th>Client</th><th>Key</th><th>Found</th></tr></thead>
         <tbody id="results-body"><tr><td colspan="4" class="muted">no results yet</td></tr></tbody>
       </table>
@@ -131,7 +131,7 @@
   <section class="card" id="bsgs-section" hidden>
     <h2>BSGS checkpoints</h2>
     <div class="table-scroll">
-      <table>
+      <table class="data-table">
         <thead><tr><th>Job</th><th>Giant index</th><th>Baby size</th><th>Range</th><th>Format</th><th>Checksum</th></tr></thead>
         <tbody id="bsgs-body"></tbody>
       </table>
@@ -139,7 +139,7 @@
   </section>
 </main>
 
-<script src="/site.js?v=20261127f"></script>
+<script src="/site.js?v=20261127g"></script>
 <script>
 (function () {
   'use strict';
