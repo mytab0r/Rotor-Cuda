@@ -162,6 +162,13 @@
       "symptom": "The /key private-key field rendered as type=password, hiding the key the donor shows as ordinary text.",
       "detector": "key-input-type",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "competing-token-roots",
+      "reported": "2026-11-21",
+      "symptom": "site.css carried a legacy blue :root above the amber token layer, so every token was declared twice and later edits depended on source order.",
+      "detector": "legacy-token",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

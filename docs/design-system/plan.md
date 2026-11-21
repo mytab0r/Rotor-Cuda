@@ -309,6 +309,7 @@ On Git Bash, omit the leading slash in `--routes` (MSYS path rewriting), or pass
 | `radius-scale` | component radii in the scale | 7 | yes |
 | `raw-hex-outside-root` | no hex outside root blocks | 7 | yes |
 | `legacy-selector` | no shared-family page override | 7 | yes |
+| `legacy-token` | one `:root` token block; no duplicate custom-property declarations | 7 | yes |
 | `tooltip-timing` | 400ms delay, Esc dismiss | 2 | partial (DOM events; manual evidence) |
 | `status-line-margin` | margin top in {8,12} | 1/3 | yes (proposed) |
 
@@ -451,4 +452,30 @@ entry in the same PR.
   - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
-- Batches 6–7: not started; owners/reviewers assigned above.
+- Batch 7: one `:root` token block (the legacy blue root, the overridden
+  control/nav/breadcrumb rules and the dead legacy page selectors — 191 rule
+  blocks deleted); the four inline page `<style>` blocks moved into
+  `site.css`; `brainwallet.css` and `seed-studio.css` reduced to page-specific
+  layout, with status badges, address-type/count chips and explorer/retry
+  actions on the shared status/chip/icon-button grammar; `legacy-token` detector
+  and ledger entry added; asset version `20261127h`. Surviving page-scoped rules
+  are listed in `DESIGN-SYSTEM.md` §10.
+- Batch 7 evidence:
+  - Full default route set: **PASS, 198 page runs across 33 routes, 0
+    violations** (`target/audit-batch7-final.json`); 33 routes × 3 viewports
+    (375/768/1280) × 2 themes (dark/light).
+  - Style equivalence: a fixed sample (body, header, nav link, card, table,
+    header cell, body row, input, select, button, primary, chip, segmented,
+    stat, status, icon button, footer) was captured on all 33 routes at
+    375/768/1280 dark/light before and after the cleanup: 198 runs, 1,494
+    sample elements compared. No computed-style property changed. The only
+    geometry deltas are intentional: the seed count buttons now match `.chip`
+    (`chip` sample appears; the page label/row width moves by 11px at 1280),
+    the brainwallet type tabs use the same chip grammar (controls shrink by
+    51px at 375/768) and async balance content changed between runs
+    (`0 BTC` vs `—`). Evidence: `target/style-before.json`,
+    `target/style-after.json`, comparison in `target/compare-styles.mjs`.
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`,
+    `git diff --check`, all 50 site build/test commands and
+    `cargo test --test coordinator_api --test coordinator_client` (18 + 3)
+    pass.
