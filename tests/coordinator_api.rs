@@ -93,16 +93,48 @@ fn raw_with_headers(
     stream.write_all(request.as_bytes()).expect("write request");
     let mut response = Vec::new();
     stream.read_to_end(&mut response).expect("read response");
-    let text = String::from_utf8_lossy(&response).into_owned();
-    let split = text.find("\r\n\r\n").expect("header terminator");
-    let (head, rest) = text.split_at(split);
+    let split = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .expect("header terminator");
+    let head = String::from_utf8_lossy(&response[..split]).into_owned();
+    let body = &response[split + 4..];
+    let body = match response_header(&head, "transfer-encoding") {
+        Some(value) if value.to_ascii_lowercase().contains("chunked") => decode_chunked(body),
+        _ => body.to_vec(),
+    };
     let status = head
         .lines()
         .next()
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|code| code.parse::<u16>().ok())
         .expect("status code");
-    (status, head.to_string(), rest[4..].to_string())
+    (status, head, String::from_utf8_lossy(&body).into_owned())
+}
+
+/// Decode a chunked body. tiny_http frames any response at or above 32 KiB, so
+/// a large asset arrives chunked; reading the raw bytes would leave chunk sizes
+/// inside the payload and miss a string that straddles a chunk boundary.
+fn decode_chunked(body: &[u8]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut rest = body;
+    while let Some(size_end) = rest.windows(2).position(|window| window == b"\r\n") {
+        let size_text = String::from_utf8_lossy(&rest[..size_end]);
+        let size = usize::from_str_radix(size_text.split(';').next().unwrap_or("").trim(), 16)
+            .unwrap_or(0);
+        let after = &rest[size_end + 2..];
+        if size == 0 {
+            break;
+        }
+        let take = size.min(after.len());
+        out.extend_from_slice(&after[..take]);
+        rest = if after.len() >= take + 2 && &after[take..take + 2] == b"\r\n" {
+            &after[take + 2..]
+        } else {
+            &after[take..]
+        };
+    }
+    out
 }
 
 fn response_header(head: &str, name: &str) -> Option<String> {
@@ -1474,6 +1506,12 @@ fn send_routes_are_served_with_testnet_only_copy() {
     }
 
     let (status, headers, script) = raw(addr, "GET", "/send.js", None, None);
+    eprintln!(
+        "DEBUG headers={:?} len={} head={:?}",
+        headers,
+        script.len(),
+        &script[..40.min(script.len())]
+    );
     assert_eq!(status, 200);
     assert!(
         headers
