@@ -1454,6 +1454,30 @@ function auditPage(args) {
     add("manual-balance-control", `${balanceControls.length} visible manual balance control(s)`, balanceControls.slice(0, 8));
   }
 
+  // 8b. Summary card grid: a chain-shaped summary (two cards on account
+  //     chains) rendered on a three-column grid leaves an empty cell. Count
+  //     rendered columns from the computed template; ".balance-refresh" and
+  //     ".balance-note" span every column and are not cards.
+  const summaryOrphans = [];
+  for (const summary of document.querySelectorAll(".balance-summary")) {
+    if (!visible(summary)) continue;
+    const template = (getComputedStyle(summary).gridTemplateColumns || "none").trim();
+    const columns = template === "none" ? 1 : template.split(/\s+/).filter(Boolean).length;
+    const cards = summary.querySelectorAll(":scope > .stat-card").length;
+    if (cards > 0 && columns > 0 && cards % columns !== 0) {
+      summaryOrphans.push({ selector: selectorOf(summary), cards, columns });
+    }
+  }
+  metrics.summaryGrid = summaryOrphans;
+  if (summaryOrphans.length) {
+    const first = summaryOrphans[0];
+    add(
+      "summary-grid-orphan",
+      `${route}: ${first.selector} has ${first.cards} card(s) on a ${first.columns}-column grid`,
+      summaryOrphans.slice(0, 8)
+    );
+  }
+
   // 9. Route-specific parity checks.
   metrics.routeChecks = {};
   if (route === "/key") {
