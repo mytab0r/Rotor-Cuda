@@ -212,10 +212,10 @@
     href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
-    status: 'parity',
+    status: 'partial',
     priority: '-',
     donorIds: ['pkf:/bitcoin-puzzle/<n>'],
-    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
+    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. Missing the donor’s Discussion link (its target is not recorded in the capture) and its Solution field (blocked: `puzzles.rs` stores only `solved: bool`).'
   });
 
   oursRoute({
@@ -315,8 +315,8 @@
     path: '/pubkey-add',
     title: 'Add public keys',
     area: 'tools',
-    status: 'partial',
-    priority: 'P1',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/pubkey-add', 'ss:/PubkeyAdd'],
     note: 'P + Q, P − Q and k · P are shipped; the donor offers the same three operations.'
   });
@@ -682,7 +682,7 @@
     path: '/pubkey-add',
     title: 'Add public keys',
     area: 'tools',
-    status: 'partial',
+    status: 'parity',
     ours: '/pubkey-add'
   });
 
@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'All chains except TON: rows, pager, word counts, phrase/key/WIF copy, path and address types are present. Balance checks run for BTC and the EVM chains only (mnemonic-seeds providerMeta); TON is an explicit unsupported state.'
+    note: 'All chains except TON: rows, pager, word counts, phrase/key copy, path and address types are present (the donor row has no WIF links, and neither do ours). Balance checks run for BTC and the EVM chains only (mnemonic-seeds providerMeta); TON is an explicit unsupported state.'
   });
 
   feature({
@@ -981,11 +981,11 @@
     area: 'puzzle',
     capability: 'Puzzle detail: copy target/range, difficulty/TX, decimal, grid',
     donor: 'present',
-    rotor: 'present',
-    status: 'parity',
+    rotor: 'partial',
+    status: 'partial',
     priority: '-',
     sources: ['ref-site-a'],
-    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
+    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. Missing the donor’s Discussion link (target not recorded) and its Solution field (blocked on puzzle data).'
   });
 
   feature({
