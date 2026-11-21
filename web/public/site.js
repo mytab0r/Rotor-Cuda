@@ -901,8 +901,8 @@
           if (!parser || typeof parser.mnemonicSubtype !== 'function' ||
               !seedCrypto || typeof seedCrypto.electrumSeedType !== 'function') return;
           return seedCrypto.electrumSeedType(phrase).then(function (type) {
-            if (selectedMode || !currentRoute || currentRoute.kind !== 'mnemonic' ||
-                currentRoute.phrase !== phrase) return;
+            var current = input.value.trim().split(/\s+/).join(' ');
+            if (selectedMode || current !== phrase) return;
             detectEl.textContent = 'Detected: ' + parser.mnemonicSubtype(type);
           });
         })
