@@ -6,6 +6,8 @@
 
 pub mod api;
 pub mod auth;
+#[cfg(test)]
+mod mock_http;
 pub mod notify;
 pub mod store;
 pub mod watcher;
