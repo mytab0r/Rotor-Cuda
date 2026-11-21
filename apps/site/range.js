@@ -46,6 +46,24 @@
   var rowsEl = byId('range-rows');
   var tableEl = byId('range-table');
 
+  /* The coordinator fills the trail server-side. When a range page is opened
+   * without that injection, render the same trail from the one shared helper. */
+  function renderCrumbs() {
+    var nav = byId('range-breadcrumbs');
+    if (!nav || nav.children.length || !window.RotorBreadcrumbs) return;
+    var match = RANGE_RE.exec(window.location.pathname);
+    if (!match) return;
+    var chain = CHAINS[match[1]] ? match[1] : 'bitcoin';
+    var start = match[2].toLowerCase();
+    var end = match[3].toLowerCase();
+    window.RotorBreadcrumbs.render(nav, [
+      { label: 'Home', href: '/' },
+      { label: 'Chains', href: '/private-keys' },
+      { label: CHAINS[chain].label, href: '/private-keys/' + chain },
+      { label: '0x' + start.slice(0, 8) + '…–0x' + end.slice(56) + '…' }
+    ]);
+  }
+
   function byId(id) {
     return document.getElementById(id);
   }
@@ -578,6 +596,7 @@
   }
 
   function init() {
+    renderCrumbs();
     if (!form || !rowsEl) return;
 
     var urlRange = rangeFromUrl();
