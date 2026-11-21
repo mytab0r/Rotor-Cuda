@@ -166,16 +166,17 @@ follow-ups were code-only.
   ("BTC key cell links hex + both WIFs", "BCH shares the 0x80 WIFs", LTC/DOGE
   network-prefix blocks, "ETH/TON keep only the hex link").
 - [x] Per-chain WIF encoding (2026-11-22, code-only): `derive_report` always
-  emits the Bitcoin version (0x80), so the key directory and the brainwallet
-  directory now re-encode LTC (0xb0) and DOGE (0x9e) while BTC/BCH keep the
-  report value; non-UTXO chains show no WIF. Evidence:
-  `apps/site/key-tools.js` (`wifEncode` optional `compressed` argument, 37-byte
-  form), `apps/site/browse.js` (`WIF_CHAINS`, `wifModel`, async
-  `renderKeyCell`/`renderAddresses`), `apps/site/brainwallet-directory.js`
-  (`WIF_NETWORKS`, `wifsFor`), templates load `/key-tools.js` before
-  `browse.js` and `brainwallet-directory.js` (`src/coordinator/mod.rs`).
-  Tests: `apps/site/key-tools-test.mjs` uncompressed LTC/DOGE round-trip,
-  `apps/site/brainwallet-test.mjs` LTC/DOGE WIF prefixes.
+  emits the Bitcoin version (0x80), so the brainwallet directory re-encodes
+  LTC (0xb0) and DOGE (0x9e) while BTC/BCH keep the report value; non-UTXO
+  chains show no WIF. The `/private-keys` listing intentionally renders no row
+  WIF links (PR #218: hex, address and balance only; the WIF stays on
+  /key/<hex>), so per-chain encoding applies to the brainwallet directory only.
+  Evidence: `apps/site/key-tools.js` (`wifEncode` optional `compressed`
+  argument, 37-byte form), `apps/site/brainwallet-directory.js`
+  (`WIF_NETWORKS`, `wifsFor`), `src/coordinator/mod.rs` loads `/key-tools.js`
+  before `brainwallet-directory.js`. Tests: `apps/site/key-tools-test.mjs`
+  uncompressed LTC/DOGE round-trip, `apps/site/brainwallet-test.mjs`
+  LTC/DOGE WIF prefixes.
 
 ## P1 — shell and templates
 

@@ -21,8 +21,8 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 --gpui  GPU ids: 0,1,2,...         : List of GPU(s) to use, default is 0
 --gpux gridsize: g0x,g0y,g1x,g1y,...     : Specify GPU(s) kernel gridsize, default is 8*(Device MP count),128
 -t, --thread N                            : Specify number of CPU thread, default is number of core
--i, --in FILE                                : Read rmd160 hashes or xpoints from FILE, should be in binary format with  .bin
---targets-text FILE                        : Read targets from a text FILE, one per line (- = stdin); needs -m addresses|xpoints
+-i, --in FILE                                : Read raw binary target records from FILE: 20-byte address records or 32-byte xpoints. Records carry no chain tag, so --chain decides the chain and one file cannot mix chains
+--targets-text FILE                        : Read targets from a text FILE, one per line (- = stdin); needs -m addresses|xpoints. Every address must belong to --chain; a file mixing chains is rejected
 -o, --out FILE                            : Write keys to FILE, default: Found.txt
 -m, --mode MODE                   : Specify search mode where MODE is
                                                       Address  : for single address

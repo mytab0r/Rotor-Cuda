@@ -3503,14 +3503,14 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     // chains show Balance / Active instead.
     let (summary_class, summary_cards) = if chain.kind.is_utxo() {
         (
-            "balance-summary",
+            "balance-summary balance-summary--browse",
             "<div class=\"stat-card\"><span class=\"stat-label\">Balance</span><span class=\"stat-value\" id=\"total-balance\">—</span></div>\
              <div class=\"stat-card\"><span class=\"stat-label\">Received</span><span class=\"stat-value\" id=\"total-received\">—</span></div>\
              <div class=\"stat-card\"><span class=\"stat-label\">TX</span><span class=\"stat-value\" id=\"total-tx\">—</span></div>",
         )
     } else {
         (
-            "balance-summary balance-summary--account",
+            "balance-summary balance-summary--account balance-summary--browse",
             "<div class=\"stat-card\"><span class=\"stat-label\">Balance</span><span class=\"stat-value\" id=\"total-balance\">—</span></div>\
              <div class=\"stat-card\"><span class=\"stat-label\">Active</span><span class=\"stat-value\" id=\"total-active\">—</span></div>",
         )
@@ -3542,19 +3542,19 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
          <section class=\"search-panel\">\
            <form id=\"browse-search\" class=\"browse-search\">\
              <div class=\"search-leading\">{}</div>\
-             <input id=\"browse-search-input\" type=\"text\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"HEX, WIF (5/K/L), or Brainwallet\" aria-label=\"Search a private key, WIF or brainwallet\">\
+             <input id=\"browse-search-input\" type=\"text\" autocomplete=\"off\" spellcheck=\"false\" placeholder=\"HEX, WIF (5/K/L), or Brainwallet\" aria-label=\"Search a private key, WIF or brainwallet\" aria-describedby=\"browse-search-hint\">\
              {search_select}\
              <button type=\"submit\" class=\"primary\">{} Search</button>\
            </form>\
-           <p class=\"search-hint\">Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet</p>\
+           <p class=\"search-hint visually-hidden\" id=\"browse-search-hint\">Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet</p>\
          </section>\
          <section class=\"{summary_class}\" aria-label=\"Balance summary\">\
            {summary_cards}\
+           <p class=\"balance-note\" id=\"balance-note\">Balances are checked in your browser for the addresses on this page.</p>\
            <div class=\"balance-refresh\">\
              <button type=\"button\" class=\"balance-refresh-btn\" id=\"balance-refresh\" aria-label=\"Refresh 0 failed or stale balances\" disabled>{retry_icon}<span>Refresh failed / stale</span><span class=\"balance-refresh-count\" id=\"balance-refresh-count\" aria-hidden=\"true\">0</span></button>\
              <span class=\"visually-hidden\" id=\"balance-refresh-status\" role=\"status\" aria-atomic=\"true\"></span>\
            </div>\
-           <p class=\"balance-note\" id=\"balance-note\">Balances are checked in your browser for the addresses on this page.</p>\
          </section>\
          {type_selector}\
          <section class=\"keys-panel\">\
@@ -3562,7 +3562,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/key-tools.js\"></script>\n         <script src=\"/balance-cache.js\"></script>\n         <script src=\"/browse.js\"></script>",
+         </main>\n         <script src=\"/balance-cache.js\"></script>\n         <script src=\"/browse.js\"></script>",
         site_header(),
         "",
         chain.color,

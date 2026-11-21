@@ -339,6 +339,18 @@ impl ChainDescriptor {
         matches!(self.family, Family::EvmKeccak | Family::TronKeccak)
     }
 
+    /// Bytes compared by the search target.
+    ///
+    /// `secp-hash160`, `evm-keccak` and `tron-keccak` compare a 20-byte
+    /// hash160/account; `ed25519` compares a 32-byte public key and TON a
+    /// 32-byte StateInit hash. Target files must match this width.
+    pub const fn target_len(&self) -> usize {
+        match self.family {
+            Family::SecpHash160 | Family::EvmKeccak | Family::TronKeccak => 20,
+            Family::Ed25519 | Family::Ton => 32,
+        }
+    }
+
     /// Derive this chain's address from key material.
     ///
     /// # Errors
