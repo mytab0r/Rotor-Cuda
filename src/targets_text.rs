@@ -54,7 +54,10 @@ pub fn load<R: BufRead>(
 }
 
 /// Decodes one address line into the chain's raw target bytes.
-fn parse_address(text: &str, chain: &ChainDescriptor) -> Result<Vec<u8>, String> {
+///
+/// Shared with the single-`-m address` path in [`crate::engine`] so both
+/// accept exactly the encodings the selected descriptor declares.
+pub(crate) fn parse_address(text: &str, chain: &ChainDescriptor) -> Result<Vec<u8>, String> {
     decode_for_chain(text, chain).map_err(|reason| describe_mismatch(text, chain, reason))
 }
 

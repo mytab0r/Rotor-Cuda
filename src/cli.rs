@@ -21,7 +21,7 @@ Where TARGETS is one address/xpont, or multiple hashes/xpoints file
 --gpui  GPU ids: 0,1,2,...         : List of GPU(s) to use, default is 0
 --gpux gridsize: g0x,g0y,g1x,g1y,...     : Specify GPU(s) kernel gridsize, default is 8*(Device MP count),128
 -t, --thread N                            : Specify number of CPU thread, default is number of core
--i, --in FILE                                : Read raw binary target records from FILE: 20-byte address records or 32-byte xpoints. Records carry no chain tag, so --chain decides the chain and one file cannot mix chains
+-i, --in FILE                                : Read raw binary target records from FILE: 20-byte address records or 32-byte xpoints/ed25519 accounts. Records carry no chain tag, so --chain decides the chain and one file cannot mix chains
 --targets-text FILE                        : Read targets from a text FILE, one per line (- = stdin); needs -m addresses|xpoints. Every address must belong to --chain; a file mixing chains is rejected
 -o, --out FILE                            : Write keys to FILE, default: Found.txt
 -m, --mode MODE                   : Specify search mode where MODE is
@@ -144,11 +144,26 @@ pub fn supported_modes(chain: &ChainDescriptor) -> &'static [SearchMode] {
         SearchMode::Bsgs,
     ];
     const ETHEREUM: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses, SearchMode::Bsgs];
+    const ED25519: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses];
+    // The six secp-hash160 chains share one search primitive: scalar → point →
+    // SHA256/RIPEMD160. XPoint and BSGS stay off until their per-chain target
+    // and display paths are covered by tests.
+    const SECP_HASH160: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses];
     match chain.id {
         "bitcoin" => BITCOIN,
+        "litecoin" | "dogecoin" | "bitcoin-cash" | "zcash" | "xrp" => SECP_HASH160,
         "ethereum" => ETHEREUM,
+        "solana" | "sui" => ED25519,
         _ => &[],
     }
+}
+
+/// True when `--benchmark` can measure the chain's backend.
+///
+/// The benchmark drives the secp256k1 CPU/GPU engine on a synthetic miss
+/// target; the ed25519 seed engine has no benchmark path yet.
+fn supports_benchmark(chain: &ChainDescriptor) -> bool {
+    matches!(chain.id, "bitcoin" | "ethereum")
 }
 
 /// True when the chain has at least one implemented search mode.
@@ -967,9 +982,34 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
         )));
     }
 
-    if config.benchmark && !chain_is_implemented(config.chain) {
+    if config.benchmark && !supports_benchmark(config.chain) {
         return Err(CliError::new(format!(
             "chain '{}' is not implemented for --benchmark yet; supported chains: bitcoin, ethereum",
+            config.chain.id
+        )));
+    }
+
+    // The GPU path has secp256k1 kernels only; the ed25519 family is CPU-only
+    // until its own kernel passes the 98% floor.
+    if config.gpu
+        && !matches!(
+            config.chain.family,
+            chain::Family::SecpHash160 | chain::Family::EvmKeccak
+        )
+    {
+        return Err(CliError::new(format!(
+            "GPU search is not implemented for the {} family yet; drop -g",
+            config.chain.family.label()
+        )));
+    }
+
+    // The coordinator protocol still carries the legacy `btc`/`eth` coin
+    // field, so a job created for a new chain would describe the wrong
+    // primitive. Keep the server path on the two chains it knows until the
+    // chain field lands (change task 3.4/7).
+    if config.coordinator.is_some() && !matches!(config.chain.id, "bitcoin" | "ethereum") {
+        return Err(CliError::new(format!(
+            "chain '{}' is not implemented for --coordinator yet; supported chains: bitcoin, ethereum",
             config.chain.id
         )));
     }

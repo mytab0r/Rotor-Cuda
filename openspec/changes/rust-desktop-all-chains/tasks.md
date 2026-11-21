@@ -37,7 +37,7 @@
 - [x] CLI help/docs updated; deprecated `--coin` emits a warning, not an error.
 
 ## 3. secp-hash160 family [desktop]
-- [ ] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160
+- [x] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160
       with chain-specific display. (blocked by: 2)
 - [x] Target loaders accept `.bin` 20-byte records and text addresses for each
       chain; mixed chains in one file are rejected.
@@ -53,7 +53,7 @@
 - [ ] Explorer/network metadata shared with the site descriptor fixture.
 
 ## 5. Ed25519 family [desktop+wasm]
-- [ ] New CPU engine for 32-byte seed ranges: ed25519 public key; SOL base58,
+- [x] New CPU engine for 32-byte seed ranges: ed25519 public key; SOL base58,
       SUI BLAKE2b-256 account. (blocked by: 2)
 - [ ] Target parsing and `Found.txt` for both; xpoint/BSGS rejected.
 - [ ] Fixtures from `derive_report` curve=1; test seed 1 and a random seed.

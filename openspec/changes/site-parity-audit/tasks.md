@@ -142,6 +142,48 @@ follow-ups were code-only.
   `parity` (PR #176). The matrix global-search cell also stopped claiming
   "no redirect": a mnemonic hands off to `/mnemonic-converter` with the phrase
   in sessionStorage, as the site-map note already recorded.
+- [x] WIF detection parity (2026-11-22, code-only): all three input contexts use
+  the donor shape `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$` and the global search
+  decodes Litecoin (0xb0) and Dogecoin (0x9e) WIFs, not just Bitcoin (0x80) and
+  BCH. Evidence: `apps/site/key.js:291` (`WIF_RE`/`WIF_PARTIAL_RE`),
+  `apps/site/key-tools.js:381` (`SEARCH_WIF_SHAPE`, also used by
+  `routeKeyInput` and `resolveKeyInput`; error text at `:459`),
+  `apps/site/search.js:19` (`WIF_RE`) and `:157-158` (`decodeWif` versions),
+  `docs/donor-parity/directory-pages.md:29`, `docs/donor-parity/directories.md:82`.
+  Tests: `apps/site/key-tools-test.mjs` ("Litecoin (version 0xb0) and Dogecoin
+  (0x9e) WIFs" round-trip block, "Litecoin/Dogecoin WIF" routing block) and
+  `apps/site/search-test.mjs` ("Litecoin (0xb0) and Dogecoin (0x9e) WIFs"
+  detection block).
+- [x] Brainwallet directory key links (2026-11-22, code-only): the hex key is an
+  `<a href="/key/<hex>">`, and BTC/BCH/LTC/DOGE rows append `WIF(c)` and `WIF(u)`
+  links; the error/— state calls `clearKeyLinks` so no stale target remains.
+  Evidence: `apps/site/brainwallet-engine.js` (`keyLinksFor`, explicit WIF
+  values), `apps/site/brainwallet-directory.js` (key link + WIF line,
+  `fillKey`/`wifsFor`/`clearKeyLinks`), `apps/site/brainwallet.css`
+  (`.bw-key-link`, `.bw-key-wif`), `docs/donor-parity/directory-pages.md:57`.
+  The index copy now states that a HEX/WIF click puts the key in the browser URL
+  (`src/coordinator/mod.rs:2969`). Test: `apps/site/brainwallet-test.mjs`
+  ("BTC key cell links hex + both WIFs", "BCH shares the 0x80 WIFs", LTC/DOGE
+  network-prefix blocks, "ETH/TON keep only the hex link").
+- [x] Per-chain WIF encoding (2026-11-22, code-only): `derive_report` always
+  emits the Bitcoin version (0x80), so the brainwallet directory re-encodes
+  LTC (0xb0) and DOGE (0x9e) while BTC/BCH keep the report value; non-UTXO
+  chains show no WIF. The `/private-keys` listing intentionally renders no row
+  WIF links (PR #218: hex, address and balance only; the WIF stays on
+  /key/<hex>), so per-chain encoding applies to the brainwallet directory only.
+  Evidence: `apps/site/key-tools.js` (`wifEncode` optional `compressed`
+  argument, 37-byte form), `apps/site/brainwallet-directory.js`
+  (`WIF_NETWORKS`, `wifsFor`), `src/coordinator/mod.rs` loads `/key-tools.js`
+  before `brainwallet-directory.js`. Tests: `apps/site/key-tools-test.mjs`
+  uncompressed LTC/DOGE round-trip, `apps/site/brainwallet-test.mjs`
+  LTC/DOGE WIF prefixes.
+- [x] Key-directory search copy follows the chain (2026-11-22, code-only): the
+  donor names each chain's own WIF shape in the search placeholder and hint;
+  ours said Bitcoin's 5/K/L on all 18 directories. `browse_search_placeholder` /
+  `browse_search_hint` now render BTC/BCH/ZEC 5/K/L, LTC 6/T, DOGE Q/6 and
+  `HEX or Brainwallet` on account-model chains. Evidence:
+  `src/coordinator/mod.rs` (helpers + call sites). Test:
+  `browse_search_placeholder_names_the_chain_wif_shape`.
 
 ## P1 — shell and templates
 
@@ -313,7 +355,7 @@ and not deployed**.
       base origin, so a browser-injected external request cannot surface as a
       false `http-error`. Known same-origin failures still violate. Defect
       `unknown-request-id-false-positive` in `docs/process/defects.json`
-      (37 entries, all detectors present), PR #185.
+      (51 entries, all detectors present), PR #185.
 - [x] Durable UI self-review harness: `scripts/ui-audit.mjs` (zero-dep CDP,
       375/768/1280, dark/light, screenshots + JSON), project skill
       `.claude/skills/ui-self-review/SKILL.md`, wired into the UI gate and
@@ -322,7 +364,7 @@ and not deployed**.
   Evidence: send rows now point at `/send/bitcoin` and `/send/ethereum`
   (partial, testnet-only), the six key rows and `key-page-flow` describe the
   shipped counters/Copy All/CSV instead of claiming they are absent;
-  `site-map-test.mjs` passes (92 ours, 117 donors, 41 features).
+  `site-map-test.mjs` passes (93 ours, 118 donors, 40 features).
 - [x] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
   Evidence: `node scripts/ui-audit.mjs --serve` PASS 192/192 page runs across 32
   routes after PR #139 added every public `text/html` route (tools, tx, docs,

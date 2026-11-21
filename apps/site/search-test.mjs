@@ -8,10 +8,14 @@
 // private-key fields from the wasm report never reach exported rows.
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import search from "./search.js";
+
+const require = createRequire(import.meta.url);
+const tools = require("./key-tools.js");
 
 const WASM_PATH = process.argv[2] ?? "apps/site/rotor_wasm.wasm";
 
@@ -45,6 +49,25 @@ assert.equal(wif.kind, "wif");
 assert.equal(wif.hex, KEY1_HEX);
 assert.equal((await search.detect(KEY1_WIF, "auto")).hex, KEY1_HEX);
 await assert.rejects(search.detect("not-a-wif", "wif"), /Not a WIF/);
+
+/* Litecoin (0xb0) and Dogecoin (0x9e) WIFs start with T/6 and Q/6. The search
+ * decodes them to the same 32-byte key as the Bitcoin WIF above. */
+const doubleSha256 = async (bytes) => {
+  const first = createHash("sha256").update(bytes).digest();
+  return createHash("sha256").update(first).digest();
+};
+const keyOneBytes = Uint8Array.from(Buffer.from(KEY1_HEX, "hex"));
+for (const [network, prefixes] of [
+  ["litecoin", ["T", "6"]],
+  ["dogecoin", ["Q", "6"]],
+]) {
+  const altWif = await tools.wifEncode(keyOneBytes, network, doubleSha256);
+  assert.ok(prefixes.includes(altWif[0]), `${network} WIF ${altWif} must start with ${prefixes.join(" or ")}`);
+  const detected = await search.detect(altWif, "auto");
+  assert.equal(detected.kind, "wif", `${network} WIF is detected in auto mode`);
+  assert.equal(detected.hex, KEY1_HEX, `${network} WIF decodes to the same key`);
+  assert.equal((await search.detect(altWif, "wif")).hex, KEY1_HEX, `${network} WIF decodes in WIF mode`);
+}
 
 const twelveWords = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const mnemonic = await search.detect(twelveWords, "mnemonic");
@@ -258,7 +281,6 @@ assert.deepEqual(search.summaryCounts([]), { chains: 0, addresses: 0 });
 
 /* ------------------------------- directory row shaping (browse.js) */
 
-const require = createRequire(import.meta.url);
 const priorWindow = globalThis.window;
 const priorDocument = globalThis.document;
 globalThis.window = globalThis;
