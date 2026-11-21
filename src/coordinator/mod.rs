@@ -937,10 +937,7 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             VANITY_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
-        "/qr.js" => Some((
-            QR_JS.as_bytes(),
-            "application/javascript; charset=utf-8",
-        )),
+        "/qr.js" => Some((QR_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/vanity-worker.js" => Some((
             VANITY_WORKER_JS.as_bytes(),
             "application/javascript; charset=utf-8",
