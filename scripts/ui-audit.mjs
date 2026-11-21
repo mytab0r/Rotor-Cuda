@@ -1604,6 +1604,29 @@ function auditPage(args) {
     add("nav-link-height", `${navIssues.length} nav link(s) outside the 44px/18px grammar`, navIssues.slice(0, 8));
   }
 
+  // 7b. The Seeds nav item is a destination, not a label: it must resolve to
+  //     the browsable directory, never the /seed converter studio.
+  const seedsNav = document.querySelector('.site-nav nav a[data-nav="seeds"]');
+  if (seedsNav) {
+    const rawHref = seedsNav.getAttribute("href") || "";
+    let destination = rawHref;
+    try {
+      destination = new URL(rawHref, location.href).pathname;
+    } catch {}
+    if (destination !== "/mnemonic-seeds") {
+      add("nav-destination", `Seeds nav points at ${destination || "(no href)"} instead of /mnemonic-seeds`, {
+        href: rawHref,
+      });
+    }
+    const onSeeds =
+      location.pathname === "/mnemonic-seeds" || location.pathname.startsWith("/mnemonic-seeds/");
+    if (onSeeds && seedsNav.getAttribute("aria-current") !== "page") {
+      add("nav-destination", `Seeds nav is not marked active on ${location.pathname}`, {
+        href: rawHref,
+      });
+    }
+  }
+
   // 8. Breadcrumbs: one grammar (current marker + separators) and one trail
   //    on every public content page. The app and cabinet shells and the
   //    landing page intentionally have none.
