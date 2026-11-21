@@ -208,13 +208,13 @@
   });
 
   oursRoute({
-    path: '/bitcoin-puzzle/<n>/detail',
-    href: '/bitcoin-puzzle/71/detail',
+    path: '/bitcoin-puzzle/<n>',
+    href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/bitcoin-puzzle/<n>/detail'],
+    donorIds: ['pkf:/bitcoin-puzzle/<n>'],
     note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
   });
 
@@ -378,7 +378,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['ss:/Easy_bitcoin_transaction_online', 'ss:/Easy_ethereum_transaction_online', 'ss:/Easy_bnb_transaction_online', 'ss:/Easy_usdt_erc20_transaction_online'],
-    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin, /send/ethereum, /send/bnb, /send/usdt and /send/tron. Keys derive, sign and broadcast locally; mainnet keys, mainnet chain ids and mainnet endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
+    note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin, /send/ethereum, /send/bnb, /send/usdt and /send/tron. Every route accepts a testnet WIF or a 64-hex key; on the EVM and TRON routes a Bitcoin mainnet/testnet WIF is only a 32-byte key container and its network byte does not select the chain. Keys derive, sign and broadcast locally; mainnet slugs, mainnet chain ids and mainnet endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
   });
 
   oursRoute({
@@ -398,7 +398,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['ss:/Easy_ethereum_transaction_online'],
-    note: 'Ethereum Sepolia only: chain-id 11155111 guard, fee/nonce estimates from allowlisted Sepolia RPCs, review, local EIP-1559 signing and an optional broadcast. Mainnet RPCs are rejected.'
+    note: 'Ethereum Sepolia only: testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain), chain-id 11155111 guard, fee/nonce estimates from allowlisted Sepolia RPCs, review, local EIP-1559 signing and an optional broadcast. Mainnet RPCs are rejected.'
   });
 
   oursRoute({
@@ -408,7 +408,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['ss:/Easy_bnb_transaction_online'],
-    note: 'BNB Smart Chain testnet only (chapel, chain id 97): allowlisted BSC-testnet RPCs, chain-id guard, review, local EIP-1559 signing and an optional testnet.bscscan.com broadcast. BSC mainnet (chain id 56) and mainnet RPCs are rejected. The donor also covers mainnet.'
+    note: 'BNB Smart Chain testnet only (chapel, chain id 97): testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain), allowlisted BSC-testnet RPCs, chain-id guard, review, local EIP-1559 signing and an optional testnet.bscscan.com broadcast. BSC mainnet (chain id 56) and mainnet RPCs are rejected. The donor also covers mainnet.'
   });
 
   oursRoute({
@@ -418,7 +418,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['ss:/Easy_tron_trx_transaction_online'],
-    note: 'TRON Nile testnet only: a 64-hex key, a T... base58 recipient and TRX->sun conversion feed the WASM TransferContract builder. Review shows the ref block, expiration, txID and raw_data_hex; signing is local and an optional broadcast posts only to api.nileex.io. Mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'
+    note: 'TRON Nile testnet only: a testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain; the same 32 bytes derive the same TRON address), a T... base58 recipient and TRX->sun conversion feed the WASM TransferContract builder. Review shows the ref block, expiration, txID and raw_data_hex; signing is local and an optional broadcast posts only to api.nileex.io. Mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'
   });
 
   oursRoute({
@@ -428,7 +428,7 @@
     status: 'partial',
     priority: 'P0',
     donorIds: ['ss:/Easy_usdt_erc20_transaction_online'],
-    note: 'Generic ERC-20 transfer(address,uint256) builder on Ethereum Sepolia. No token contract is hardcoded: the user supplies the contract, decimals (default 6) and amount, and the exact calldata is shown in the review. There is no canonical USDT deployment on Sepolia, so this is not a USDT-specific mainnet flow.'
+    note: 'Generic ERC-20 transfer(address,uint256) builder on Ethereum Sepolia from a testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain). No token contract is hardcoded: the user supplies the contract, decimals (default 6) and amount, and the exact calldata is shown in the review. There is no canonical USDT deployment on Sepolia, so this is not a USDT-specific mainnet flow.'
   });
 
   oursRoute({
@@ -584,12 +584,12 @@
 
   donorRoute({
     source: 'pkf',
-    path: '/bitcoin-puzzle/<n>/detail',
-    href: '/bitcoin-puzzle/71/detail',
+    path: '/bitcoin-puzzle/<n>',
+    href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
     status: 'parity',
-    ours: '/bitcoin-puzzle/<n>/detail'
+    ours: '/bitcoin-puzzle/<n>'
   });
 
   donorRoute({
@@ -817,10 +817,10 @@
     ['/Transaction_decoded_Bitcoin', 'Bitcoin transaction decoder', 'tools', '/tx/bitcoin', 'parity', '-', 'Raw hex to inputs, outputs, scripts, fee (with supplied prevouts) and JSON.'],
     ['/decode_ethereum_transaction', 'Ethereum transaction decoder', 'tools', '/tx/ethereum', 'parity', '-', 'Raw hex to type, gas/fee fields, access list, signature and JSON. No signature recovery.'],
     ['/Easy_bitcoin_transaction_online', 'Bitcoin transaction builder', 'tools', '/send/bitcoin', 'partial', 'P0', 'Top-level testnet-only /send/bitcoin page; the donor also covers mainnet.'],
-    ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', '/send/ethereum', 'partial', 'P0', 'Top-level Sepolia-only /send/ethereum page; mainnet RPCs are rejected in code.'],
-    ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', '/send/bnb', 'partial', 'P0', 'Top-level BNB Smart Chain testnet-only /send/bnb page (chapel, chain id 97); BSC mainnet chain id 56 and mainnet RPCs are rejected. The donor also covers mainnet.'],
-    ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', '/send/tron', 'partial', 'P0', 'Top-level TRON Nile testnet-only /send/tron page: TRX->sun conversion, local WASM TransferContract signing and an optional api.nileex.io broadcast; mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'],
-    ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', '/send/usdt', 'partial', 'P0', 'Generic ERC-20 transfer builder on Ethereum Sepolia with a user-supplied contract; no canonical USDT on Sepolia is assumed. The donor covers mainnet USDT.'],
+    ['/Easy_ethereum_transaction_online', 'Ethereum transaction builder', 'tools', '/send/ethereum', 'partial', 'P0', 'Top-level Sepolia-only /send/ethereum page that accepts a testnet WIF or 64-hex key; mainnet RPCs are rejected in code.'],
+    ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', '/send/bnb', 'partial', 'P0', 'Top-level BNB Smart Chain testnet-only /send/bnb page (chapel, chain id 97) that accepts a testnet WIF or 64-hex key; BSC mainnet chain id 56 and mainnet RPCs are rejected. The donor also covers mainnet.'],
+    ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', '/send/tron', 'partial', 'P0', 'Top-level TRON Nile testnet-only /send/tron page that accepts a testnet WIF or 64-hex key: TRX->sun conversion, local WASM TransferContract signing and an optional api.nileex.io broadcast; mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'],
+    ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', '/send/usdt', 'partial', 'P0', 'Generic ERC-20 transfer builder on Ethereum Sepolia from a testnet WIF or 64-hex key with a user-supplied contract; no canonical USDT on Sepolia is assumed. The donor covers mainnet USDT.'],
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; ref-site-b shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The ref-site-b nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
@@ -1181,7 +1181,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['ref-site-b'],
-    note: 'Top-level /send covers BTC testnet, ETH Sepolia, BNB Smart Chain testnet, TRON Nile testnet and a generic ERC-20 transfer builder on Sepolia. USDC-specific builders and all mainnet sends are still missing; /send/usdt uses a user-supplied contract because Sepolia has no canonical USDT deployment.'
+    note: 'Top-level /send covers BTC testnet, ETH Sepolia, BNB Smart Chain testnet, TRON Nile testnet and a generic ERC-20 transfer builder on Sepolia; every route accepts a testnet WIF or 64-hex key. USDC-specific builders and all mainnet sends are still missing; /send/usdt uses a user-supplied contract because Sepolia has no canonical USDT deployment.'
   });
 
   feature({

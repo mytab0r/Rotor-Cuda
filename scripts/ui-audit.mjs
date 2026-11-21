@@ -35,6 +35,7 @@ const DEFAULT_ROUTES = [
   "/brainwallet",
   "/brainwallet/bitcoin",
   "/bitcoin-puzzle",
+  "/bitcoin-puzzle/71",
   "/bitcoin-puzzle/71/random",
   "/tools",
   "/vanity",
