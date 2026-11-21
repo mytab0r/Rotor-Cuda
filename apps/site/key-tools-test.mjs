@@ -530,6 +530,20 @@ const uncompressed = await tools.wifDecode(
 assert(uncompressed.network === "bitcoin", "uncompressed BTC WIF network");
 assert(uncompressed.compressed === false, "uncompressed BTC WIF flag");
 assert(Buffer.from(uncompressed.bytes).toString("hex") === KEY_ONE, "uncompressed BTC WIF key");
+
+// The 37-byte (uncompressed) form has no 0x01 marker; LTC/DOGE versions must
+// round-trip through wifEncode/wifDecode with compressed=false.
+for (const [network, prefixes] of [
+  ["litecoin", ["6", "T"]],
+  ["dogecoin", ["6", "Q"]],
+]) {
+  const wif = await tools.wifEncode(hexToBytes(KEY_ONE), network, sha256Double, false);
+  assert(prefixes.includes(wif[0]), `${network} uncompressed WIF ${wif} prefix`);
+  const decoded = await tools.wifDecode(wif, sha256Double);
+  assert(decoded.network === network, `${network} uncompressed WIF keeps its network`);
+  assert(decoded.compressed === false, `${network} uncompressed WIF flag`);
+  assert(Buffer.from(decoded.bytes).toString("hex") === KEY_ONE, `${network} uncompressed WIF key`);
+}
 let wifRejected = false;
 try {
   await tools.wifDecode("T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjW", sha256Double);

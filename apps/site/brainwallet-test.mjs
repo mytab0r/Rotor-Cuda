@@ -9,9 +9,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash, webcrypto } from "node:crypto";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 import engine from "./brainwallet-engine.js";
+
+const require = createRequire(import.meta.url);
+const keyTools = require("./key-tools.js");
 
 const WASM_PATH = process.argv[2] ?? "apps/site/rotor_wasm.wasm";
 const PHRASE = "correct horse battery staple";
@@ -173,24 +177,54 @@ assert.equal(engine.chainConfig("solana").curve, 1);
 assert.equal(engine.chainConfig("ton").ton, true);
 assert.equal(engine.toCsv(["a", "b"], [["x,y", 'q"z']]), 'a,b\r\n"x,y","q""z"\r\n');
 
-// 3c. Key-cell links follow the donor: a UTXO report adds both WIF links, an
-// ETH-shaped report keeps only the hex link, and an empty key clears them all.
+// 3c. Key-cell links follow the donor. BTC and BCH use the report's 0x80 WIFs;
+// LTC (0xb0) and DOGE (0x9e) are re-encoded, so their links start with T/6 and
+// Q/6; ETH and TON pass no WIFs, so they keep only the hex link.
 const keyHex = engineReport.priv_hex;
+const sha256Double = async (bytes) => {
+  const first = createHash("sha256").update(bytes).digest();
+  return createHash("sha256").update(first).digest();
+};
+const keyBytes = Uint8Array.from(Buffer.from(keyHex, "hex"));
+const btcWifs = {
+  compressed: engineReport.wif_compressed,
+  uncompressed: engineReport.wif_uncompressed,
+};
+const btcLinks = engine.keyLinksFor(keyHex, btcWifs);
 assert.deepEqual(
-  engine.keyLinksFor(keyHex, engineReport),
+  btcLinks,
   [
     { label: keyHex, href: "/key/" + keyHex },
-    { label: "WIF(c)", href: "/key/" + engineReport.wif_compressed },
-    { label: "WIF(u)", href: "/key/" + engineReport.wif_uncompressed },
+    { label: "WIF(c)", href: "/key/" + btcWifs.compressed },
+    { label: "WIF(u)", href: "/key/" + btcWifs.uncompressed },
   ],
   "BTC key cell links hex + both WIFs",
 );
+assert.deepEqual(engine.keyLinksFor(keyHex, btcWifs), btcLinks, "BCH shares the 0x80 WIFs");
+for (const [network, prefixes] of [
+  ["litecoin", ["T", "6"]],
+  ["dogecoin", ["Q", "6"]],
+]) {
+  const compressed = await keyTools.wifEncode(keyBytes, network, sha256Double, true);
+  const uncompressed = await keyTools.wifEncode(keyBytes, network, sha256Double, false);
+  assert.ok(prefixes.includes(compressed[0]), `${network} WIF(c) prefix`);
+  assert.ok(uncompressed[0] === "6" || prefixes.includes(uncompressed[0]), `${network} WIF(u) prefix`);
+  assert.deepEqual(
+    engine.keyLinksFor(keyHex, { compressed, uncompressed }),
+    [
+      { label: keyHex, href: "/key/" + keyHex },
+      { label: "WIF(c)", href: "/key/" + compressed },
+      { label: "WIF(u)", href: "/key/" + uncompressed },
+    ],
+    `${network} key cell links hex + both network WIFs`,
+  );
+}
 assert.deepEqual(
-  engine.keyLinksFor(keyHex, { priv_hex: keyHex }),
+  engine.keyLinksFor(keyHex, null),
   [{ label: keyHex, href: "/key/" + keyHex }],
-  "an ETH-shaped report has no WIF links",
+  "ETH/TON keep only the hex link",
 );
-assert.deepEqual(engine.keyLinksFor("", engineReport), [], "no key means no links");
+assert.deepEqual(engine.keyLinksFor("", btcWifs), [], "no key means no links");
 assert.equal(engine.chainConfig("bitcoin").wif, true, "BTC exposes WIF links");
 assert.equal(engine.chainConfig("ethereum").wif, undefined, "ETH exposes no WIF links");
 

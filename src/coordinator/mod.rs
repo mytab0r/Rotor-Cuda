@@ -3094,8 +3094,9 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
            </div>\
          </section>\
          {pager_bottom}\
-         <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
+         <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave. Opening a row's HEX or WIF link goes to <code>/key/&lt;key&gt;</code>, which puts that key in the browser URL bar and history; everything else stays on this page.</p>\
          </main>\
+         <script src=\"/key-tools.js\" defer></script>\
          <script src=\"/brainwallet-engine.js\" defer></script>\
          <script src=\"/brainwallet-directory.js\" defer></script>",
         site_header(),
@@ -3561,7 +3562,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js\"></script>\n         <script src=\"/browse.js\"></script>",
+         </main>\n         <script src=\"/key-tools.js\"></script>\n         <script src=\"/balance-cache.js\"></script>\n         <script src=\"/browse.js\"></script>",
         site_header(),
         "",
         chain.color,

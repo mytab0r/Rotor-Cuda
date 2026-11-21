@@ -99,7 +99,7 @@
       status: 'parity',
       priority: '-',
       donorIds: ['pkf:/private-keys/' + item[0]],
-      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; BTC and LTC expose four address-type cards, other chains one row set as the donor. WIF (c)/(u) links are shown. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
+      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; BTC and LTC expose four address-type cards, other chains one row set as the donor. WIF (c)/(u) links are shown with the chain’s own encoding (BTC/BCH 0x80, LTC 0xb0, DOGE 0x9e). Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
     });
   });
 
@@ -247,7 +247,7 @@
       status: 'parity',
       priority: '-',
       donorIds: ['pkf:/brainwallet/' + item[0]],
-      note: '60 rows × 315 pages: SHA-256 key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE, chain address with explorer and copy, address types where the chain supports them, optional balances.'
+      note: '60 rows × 315 pages: SHA-256 key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE with the chain’s own WIF encoding (BTC/BCH 0x80, LTC 0xb0, DOGE 0x9e), chain address with explorer and copy, address types where the chain supports them, optional balances.'
     });
   });
 
@@ -1033,7 +1033,7 @@
     status: 'parity',
     priority: '-',
     sources: ['ref-site-a'],
-    note: '60 rows × 315 pages per chain with key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE, address/explorer/copy, address types and optional balances.'
+    note: '60 rows × 315 pages per chain with key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE with the chain’s own WIF encoding (BTC/BCH 0x80, LTC 0xb0, DOGE 0x9e), address/explorer/copy, address types and optional balances.'
   });
 
   feature({
