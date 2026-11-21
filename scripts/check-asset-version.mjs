@@ -16,29 +16,30 @@ function readVersion(text, where) {
 
 const head = readVersion(fs.readFileSync("projects.json", "utf8"), "projects.json");
 
-const htmlVersions = new Set();
+// Every token that can ship must match projects.json.asset_version: static
+// pages, coordinator-generated pages (/private-keys, /brainwallet, /cabinet,
+// seeded pages) and lazy-loaded scripts that fetch assets at runtime.
+const versions = new Map();
+function collect(where, text) {
+  for (const match of text.matchAll(/\?v=([0-9a-z]+)/g)) {
+    if (!versions.has(match[1])) versions.set(match[1], new Set());
+    versions.get(match[1]).add(where);
+  }
+}
+
 for (const file of fs.readdirSync("apps/site").filter((name) => name.endsWith(".html"))) {
-  const source = fs.readFileSync(`apps/site/${file}`, "utf8");
-  for (const match of source.matchAll(/\?v=([0-9a-z]+)/g)) htmlVersions.add(match[1]);
+  collect(`apps/site/${file}`, fs.readFileSync(`apps/site/${file}`, "utf8"));
+}
+collect("src/coordinator/mod.rs", fs.readFileSync("src/coordinator/mod.rs", "utf8"));
+for (const file of fs.readdirSync("apps/site").filter((name) => name.endsWith(".js"))) {
+  collect(`apps/site/${file}`, fs.readFileSync(`apps/site/${file}`, "utf8"));
 }
 
-// Coordinator-generated pages (/private-keys, /brainwallet, /cabinet, seeded
-// pages) hardcode their own tokens; a stale one ships without touching the
-// HTML files, so fold it into the same single-version requirement.
-const coordinatorFile = "src/coordinator/mod.rs";
-const versions = new Set(htmlVersions);
-for (const match of fs.readFileSync(coordinatorFile, "utf8").matchAll(/\?v=([0-9a-z]+)/g)) {
-  versions.add(match[1]);
-}
-
-if (versions.size !== 1) {
-  fail(
-    `pages and ${coordinatorFile} use ${versions.size} different ?v= values: ${[...versions].join(", ")}`,
-  );
-}
-const [pageVersion] = versions;
-if (pageVersion !== head) {
-  fail(`pages and ${coordinatorFile} use ?v=${pageVersion} but projects.json says ${head}`);
+if (versions.size !== 1 || !versions.has(head)) {
+  const stale = [...versions]
+    .filter(([version]) => version !== head)
+    .flatMap(([version, files]) => [...files].map((file) => `${file} uses ?v=${version}`));
+  fail(`expected a single ?v=${head} everywhere: ${stale.join(", ")}`);
 }
 
 if (process.env.GITHUB_EVENT_NAME === "pull_request") {
