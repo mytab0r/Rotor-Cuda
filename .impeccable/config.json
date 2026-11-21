@@ -56,6 +56,15 @@
         ],
         "createdAt": "2026-11-21T04:56:54.671Z",
         "reason": "Agent: shared .table-scroll shell from DESIGN-SYSTEM batch 5; cells inset text by 8px/12px, the border is deliberately flush with the table edge"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/me.html"
+        ],
+        "createdAt": "2026-11-21T06:00:45.081Z",
+        "reason": "Agent: the inset is on the table cells (.data-table th/td padding 8/12px); .table-scroll is the design-system-mandated wrapper with padding 0 (DESIGN-SYSTEM.md table grammar), so the wrapper heuristic cannot see child padding. Same class as the range.html scoping."
       }
     ]
   }
