@@ -181,6 +181,15 @@ test("short phrases are not masked", () => {
   assertEqual(api.compactPhrase(undefined), "", "missing phrase stays empty");
 });
 
+test("tiny received amounts use atomic units", () => {
+  assertEqual(api.receivedText(1, 8, "BTC", "bitcoin"), "1 sat", "BTC-family tiny received renders in sat");
+  assertEqual(api.receivedText(5000, 8, "LTC", "litecoin"), "5000 sat", "Litecoin tiny received renders in sat");
+  assertEqual(api.receivedText(1, 8, "ZEC", "zcash"), "1 zat", "Zcash tiny received renders in zat");
+  assertEqual(api.receivedText(50000000, 8, "BTC", "bitcoin"), "0.5 BTC", "ordinary received keeps the coin unit");
+  assertEqual(api.receivedText(10000, 8, "BTC", "bitcoin"), "0.0001 BTC", "amount at the cut keeps the coin unit");
+  assertEqual(api.receivedText(0, 8, "BTC", "bitcoin"), "0", "zero received stays zero");
+});
+
 test("copy wiring writes the exact value to the clipboard", async () => {
   clipboardWrites.length = 0;
   const target = button("Copy WIF private key");

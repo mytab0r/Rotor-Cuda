@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher) from free public providers; only BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The interactive curve editor and signing entry remain.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher) from free public providers; only BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
   });
 
   oursRoute({
@@ -159,7 +159,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances. TON is an explicit unsupported state. Rows carry no WIF links, matching the donor.'
+    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin and EVM chains; every other chain shows — with an unsupported state. TON is an explicit unsupported state. Rows carry no WIF links, matching the donor.'
   });
 
   CHAINS.forEach(function (item) {
@@ -173,7 +173,7 @@
       donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
       note: ton
         ? 'Seed derivation for TON is not implemented; the page shows an explicit unsupported state instead of a faked address.'
-        : 'Phrase, private key copy, path, address type and balances on every row; no WIF links, matching the donor.'
+        : 'Phrase, private key copy, path, address type and balances for Bitcoin and EVM chains (— elsewhere); no WIF links, matching the donor.'
     });
   });
 
