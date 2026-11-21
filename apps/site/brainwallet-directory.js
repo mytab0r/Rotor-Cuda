@@ -1,8 +1,9 @@
 /* Brainwallet directory: enumerate deterministic two-word passphrases, hash
  * each one locally, derive the chain address with the shared wasm report and
- * (optionally) check public balances. Passphrases and keys never leave this
- * page: no URL, no storage and no network except the public balance lookup
- * that the visible toggle controls. */
+ * (optionally) check public balances. This page never stores keys and sends
+ * nothing but public addresses, and it puts no key in its own URL. Its key
+ * cell follows the donor, though: a HEX/WIF link opens /key/<key>, which does
+ * place that key in the browser URL and history. */
 (function () {
   'use strict';
 
@@ -236,12 +237,16 @@
     var keyCell = cell('bw-key');
     var keyLine = document.createElement('div');
     keyLine.className = 'bw-line bw-key-line';
-    var keyCode = document.createElement('code');
-    keyCode.className = 'mono bw-key-value';
-    keyCode.textContent = 'Hashing…';
-    keyLine.appendChild(keyCode);
+    var keyLink = document.createElement('a');
+    keyLink.className = 'mono bw-key-value bw-key-link';
+    keyLink.textContent = 'Hashing…';
+    keyLine.appendChild(keyLink);
     keyLine.appendChild(copyButton('', 'private key'));
     keyCell.appendChild(keyLine);
+
+    var keyWifLine = document.createElement('div');
+    keyWifLine.className = 'bw-line bw-key-wif-line';
+    keyCell.appendChild(keyWifLine);
 
     var phraseLine = document.createElement('div');
     phraseLine.className = 'bw-line bw-phrase-line';
@@ -279,7 +284,8 @@
     rowsEl.appendChild(row);
 
     entry.row = row;
-    entry.keyCode = keyCode;
+    entry.keyLink = keyLink;
+    entry.keyWifLine = keyWifLine;
     entry.keyButton = keyLine.querySelector('.bw-copy');
     entry.phraseButton = phraseLine.querySelector('.bw-copy');
     entry.addressLine = addressLine;
@@ -294,11 +300,68 @@
     entry.balanceBadge.textContent = label;
   }
 
-  function fillKey(entry) {
-    entry.keyCode.textContent = entry.keyHex;
+  /* The derivation report encodes every WIF with the Bitcoin version (0x80),
+   * correct for BTC/BCH. Litecoin (0xb0) and Dogecoin (0x9e) need their own
+   * encoding, so the page re-encodes the same 32-byte key via key-tools.js. */
+  var WIF_NETWORKS = { litecoin: 'litecoin', dogecoin: 'dogecoin' };
+
+  async function doubleSha256(bytes) {
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle) throw new Error('The WIF checksum needs a secure context (https or localhost).');
+    var first = new Uint8Array(await subtle.digest('SHA-256', bytes));
+    return new Uint8Array(await subtle.digest('SHA-256', first));
+  }
+
+  async function wifsFor(report) {
+    if (!chain.wif || !report) return null;
+    var network = WIF_NETWORKS[slug];
+    if (!network) {
+      return {
+        compressed: report.wif_compressed || '',
+        uncompressed: report.wif_uncompressed || ''
+      };
+    }
+    var tools = window.RotorKeyTools;
+    if (!tools || typeof tools.wifEncode !== 'function' || typeof tools.hexToBytes !== 'function') {
+      return null;
+    }
+    try {
+      var keyBytes = tools.hexToBytes(report.priv_hex);
+      return {
+        compressed: await tools.wifEncode(keyBytes, network, doubleSha256, true),
+        uncompressed: await tools.wifEncode(keyBytes, network, doubleSha256, false)
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /* The chain page never stores keys, but the donor's key cell links the hex
+   * key and (on UTXO chains) both network-correct WIFs to /key/<key>, so a
+   * click does put the key in the browser URL bar and history. */
+  async function fillKey(entry) {
+    var links = engine.keyLinksFor(entry.keyHex, await wifsFor(entry.report));
+    entry.keyLink.textContent = entry.keyHex;
+    entry.keyLink.href = links[0].href;
+    entry.keyWifLine.textContent = '';
+    links.slice(1).forEach(function (item) {
+      var link = document.createElement('a');
+      link.className = 'mono bw-key-wif';
+      link.href = item.href;
+      link.textContent = item.label;
+      entry.keyWifLine.appendChild(link);
+    });
     entry.keyButton.setAttribute('data-tooltip', 'Copy SHA-256 private key');
     entry.keyButton.setAttribute('aria-label', 'Copy SHA-256 private key');
     entry.keyButton.dataset.copy = entry.keyHex;
+  }
+
+  /* Error/placeholder state: drop the link and any WIF links so a stale
+   * /key/<key> target is never left behind. */
+  function clearKeyLinks(entry) {
+    entry.keyLink.textContent = '—';
+    entry.keyLink.removeAttribute('href');
+    entry.keyWifLine.textContent = '';
   }
 
   function fillAddress(entry) {
@@ -336,7 +399,7 @@
   }
 
   function fillRowError(entry, err) {
-    entry.keyCode.textContent = '—';
+    clearKeyLinks(entry);
     entry.addressLine.textContent = err && err.message ? err.message : 'Derivation failed.';
     entry.addressLine.classList.add('bw-row-error');
     setBadge(entry, 'error', 'error');
@@ -516,11 +579,11 @@
   /* ------------------------------------------------------------- deriving */
 
   function deriveEntry(entry, wasm, ton) {
-    return engine.phraseKey(entry.phrase, window.crypto && window.crypto.subtle).then(function (key) {
+    return engine.phraseKey(entry.phrase, window.crypto && window.crypto.subtle).then(async function (key) {
       entry.keyHex = engine.bytesToHex(key);
-      fillKey(entry);
       var report = engine.deriveReport(wasm, key, chain.curve);
       entry.report = report;
+      await fillKey(entry);
       if (chain.ton) {
         return ton.address(report.ed_pubkey).then(function (address) {
           entry.address = address || '';
@@ -544,7 +607,7 @@
     }) : null;
     if (chain.ton && !ton) {
       state.entries.forEach(function (entry) {
-        entry.keyCode.textContent = '—';
+        clearKeyLinks(entry);
         entry.addressLine.textContent = 'TON address derivation is unavailable.';
       });
       return;
@@ -646,7 +709,7 @@
     } catch (err) {
       fail(err && err.message ? err.message : 'The derivation core did not load.');
       state.entries.forEach(function (entry) {
-        entry.keyCode.textContent = '—';
+        clearKeyLinks(entry);
         entry.addressLine.textContent = 'Derivation core unavailable.';
       });
       return;
