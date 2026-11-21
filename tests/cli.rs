@@ -246,11 +246,26 @@ fn list_chains_prints_all_18_slugs_families_curves_and_modes() {
         .find(|line| line.split_whitespace().next() == Some("bitcoin"))
         .expect("bitcoin line");
     assert!(bitcoin_line.contains("address, addresses, xpoint, xpoints, bsgs"));
-    let solana_line = text
+
+    let ethereum_line = text
         .lines()
-        .find(|line| line.split_whitespace().next() == Some("solana"))
-        .expect("solana line");
-    assert!(solana_line.contains("not implemented yet"));
+        .find(|line| line.split_whitespace().next() == Some("ethereum"))
+        .expect("ethereum line");
+    assert!(ethereum_line.contains("address, addresses, bsgs"));
+    assert!(!ethereum_line.contains("xpoint"));
+
+    // Descriptors without an engine must say so, never advertise modes.
+    for id in ["solana", "sui", "ton"] {
+        let line = text
+            .lines()
+            .find(|line| line.split_whitespace().next() == Some(id))
+            .unwrap_or_else(|| panic!("missing {id} in:\n{text}"));
+        assert!(
+            line.contains("not implemented yet"),
+            "{id} should be honest about having no modes: {line}"
+        );
+        assert!(!line.contains("address,"), "{id} line: {line}");
+    }
 
     assert!(parse(&["--list-chains"]).list_chains);
 }

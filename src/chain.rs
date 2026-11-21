@@ -88,8 +88,6 @@ pub struct ChainDescriptor {
     pub wif_version: Option<u8>,
     /// Explorer URL template containing `{address}`.
     pub explorer: &'static str,
-    /// False when the descriptor exists but derivation is not implemented.
-    pub enabled: bool,
 }
 
 /// All 18 chains, ordered as on the site.
@@ -103,7 +101,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/0'/0'/0/0"),
         wif_version: Some(0x80),
         explorer: "https://mempool.space/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "ethereum",
@@ -114,7 +111,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://etherscan.io/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "bnb",
@@ -125,7 +121,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://bscscan.com/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "arbitrum",
@@ -136,7 +131,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://arbiscan.io/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "optimism",
@@ -147,7 +141,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://optimistic.etherscan.io/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "base",
@@ -158,7 +151,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://basescan.org/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "polygon",
@@ -169,7 +161,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://polygonscan.com/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "avalanche",
@@ -180,7 +171,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://snowtrace.io/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "zksync",
@@ -191,7 +181,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
         explorer: "https://explorer.zksync.io/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "solana",
@@ -202,7 +191,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/501'/0'/0'"),
         wif_version: None,
         explorer: "https://solscan.io/account/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "tron",
@@ -213,7 +201,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/195'/0'/0/0"),
         wif_version: None,
         explorer: "https://tronscan.org/#/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "xrp",
@@ -224,7 +211,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/144'/0'/0/0"),
         wif_version: None,
         explorer: "https://xrpscan.com/account/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "litecoin",
@@ -235,7 +221,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/2'/0'/0/0"),
         wif_version: Some(0xb0),
         explorer: "https://blockchair.com/litecoin/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "bitcoin-cash",
@@ -246,7 +231,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/145'/0'/0/0"),
         wif_version: Some(0x80),
         explorer: "https://blockchair.com/bitcoin-cash/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "dogecoin",
@@ -257,7 +241,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/3'/0'/0/0"),
         wif_version: Some(0x9e),
         explorer: "https://blockchair.com/dogecoin/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "zcash",
@@ -268,7 +251,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/133'/0'/0/0"),
         wif_version: Some(0x80),
         explorer: "https://blockchair.com/zcash/address/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "sui",
@@ -279,7 +261,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/784'/0'/0'/0'"),
         wif_version: None,
         explorer: "https://suiscan.xyz/mainnet/account/{address}",
-        enabled: true,
     },
     ChainDescriptor {
         id: "ton",
@@ -290,7 +271,6 @@ pub const CHAINS: [ChainDescriptor; 18] = [
         hd_path: Some("m/44'/607'/0'/0/0"),
         wif_version: None,
         explorer: "https://tonviewer.com/{address}",
-        enabled: true,
     },
 ];
 
