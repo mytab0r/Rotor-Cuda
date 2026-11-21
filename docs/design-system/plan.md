@@ -395,4 +395,24 @@ entry in the same PR.
   - The audit harness now starts its temporary coordinator with a 3600s monitor
     interval; the old 300s interval made it poll the unreachable test RPC and
     exit before the last routes of a full 192-run pass.
-- Batches 4–7: not started; owners/reviewers assigned above.
+- Batch 4: one card grammar (`.card` pad 20, radius 16; `.card--flat`,
+  `.card--stat`), one stat grammar (12px sentence-case label, 24px 600
+  tabular value; `.stat--sm`/`.stat-value.small` 20), and the named card
+  surfaces `.chain-card` (20/16, translateY hover removed), `.tool-card`/
+  `.address-db-card` (16/12), `.tool-index-card`/`.tool-family`/
+  `.pz-picker-card` (16/16), `.ws-chain-card` radius 12. Removed the
+  `.key-page > .card` and `.key-page .card` overrides and the
+  `.mnemonic-controls` card padding. Asset version `20261127e`; detectors
+  `card-padding-scale`, `stat-geometry` and ledger entries added.
+- Batch 4 evidence:
+  - Full default route set: **PASS, 192 page runs across 32 routes, 0
+    violations** (`target/full-batch4b.log`).
+  - Acceptance routes `/`, `/app`, `/me`, `/run`, `/key`, `/tools`,
+    `/mnemonic-seeds/bitcoin`, `/bitcoin-puzzle` at 375/768/1280 dark/light:
+    **PASS** — 42 targeted runs (the seven non-default routes) plus the six
+    root runs in the full set; 0 card issues, 0 stat issues, 0 overflow.
+  - Screenshots: `%TEMP%/rotor-ui-audit-blUaQl/screenshots`.
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+    area tests and `cargo test --test coordinator_api --test coordinator_client`
+    pass.
+- Batches 5–7: not started; owners/reviewers assigned above.

@@ -320,18 +320,29 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
   quieter.
 - No fixed heights that leave empty space; the audit's `mostly-empty-block`
   check applies.
-- Page-scoped overrides (`.key-page > .card`) are deprecated; replace with a
-  documented size in the batch that touches the page.
+- Page-scoped overrides (`.key-page > .card`) are deleted; use a named variant.
+- Named card surfaces share the scale: `.chain-card` (20/16, no translateY
+  hover), `.tool-card`/`.address-db-card` (16/12), `.tool-index-card`,
+  `.tool-family` and `.pz-picker-card` (16/16). Enforced by
+  `scripts/ui-audit.mjs` `card-padding-scale`: padding in {16,20,24}, radius in
+  {12,16}; `.card--flat` and the boxless `.stat-card`/`.card--stat` strip cell
+  are the documented exceptions.
 
 ### 3.9 Stat
 
 - `.stat`: padding `--space-4`, radius `--radius-l`, border `--line-subtle`,
   background `--surface-2`.
-- `.stat__label`: `--text-xs`, 600, `--ink-3`, sentence case (no uppercase, no
-  tracking). `.stat__value`: `--text-2xl`, 600, tabular-nums, `--ink-1`.
+- `.stat-label`/`.stat__label` (also `.stat-card .stat-label`,
+  `.key-stat-label`, `.pz-stat-label`): `--text-xs`, 600, `--ink-3`, sentence
+  case (no uppercase, no tracking). `.stat-value`/`.stat__value` (also the
+  card/key/puzzle variants): 24 (`--text-2xl`), 600, tabular-nums, `--ink-1`.
   `.stat__meta`: `--text-xs`, `--ink-3`, includes units and timeframe.
 - Values align right in a row; labels start on one line; no sparkline or icon
-  used as filler. Small values use `.stat--sm` (`--text-xl`).
+  used as filler. Small values use `.stat--sm` or `.stat-value.small`
+  (`--text-xl`); `.key-stat-value` uses the small size. `.stat-card` is the
+  boxless cell inside `.balance-summary`.
+- Enforced by `scripts/ui-audit.mjs` `stat-geometry`: label >=12 and no
+  `text-transform`, value in {20,24,28} with tabular digits.
 
 ### 3.10 Data table
 
@@ -526,8 +537,9 @@ duplicate address-type components, half-empty blocks, manual balance controls,
 route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; batch 2
 adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
-`segmented-geometry`; later batches add the detectors listed in `plan.md` §3.
-The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
+`segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
+later batches add the detectors listed in `plan.md` §3. The human checklist is
+`apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
 ## 9. Versioning

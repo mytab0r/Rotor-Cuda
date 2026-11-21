@@ -234,7 +234,6 @@ p { text-wrap: pretty; }
   --key-border: #3b4654;
   --key-btc: #f7931a;
 }
-.key-page .card { background: var(--key-panel); border-color: var(--key-border); }
 .key-page .key-addr { background: var(--key-panel-2); border-color: var(--key-border); }
 
 .key-hero { padding: 18px 20px; }
@@ -2014,7 +2013,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 @media (max-width: 560px) {
   .directory-hero { padding: 28px 18px; }
   .directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-  .chain-card { min-height: 132px; padding: 18px 10px 15px; }
+  .chain-card { min-height: 132px; }
   .chain-icon-wrap { width: 50px; height: 50px; }
   .chain-card-icon { width: 26px; height: 26px; }
   .chain-card .chain-name { font-size: 14px; }
@@ -2025,7 +2024,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .pager-btn .icon { width: 13px; height: 13px; }
   .page-jump input { width: 100%; flex: 1; }
   .page-info-text { align-items: flex-start; }
-  .stat-card { padding: 15px 16px; }
   .address-type-cards { grid-template-columns: 1fr; }
   .landing-page .chain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -2084,7 +2082,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 /* Phone density: keep the page scannable rather than a column of cards */
 @media (max-width: 560px) {
   .balance-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .stat-card { padding: 12px 10px; gap: 3px; }
+  .stat-card { gap: 3px; }
   .stat-card .stat-label { font-size: 12px; letter-spacing: .04em; }
   .stat-card .stat-value { font-size: 16px; }
   .balance-note { padding: 9px 12px 11px; font-size: 12px; }
@@ -2184,9 +2182,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   font-weight: 650;
 }
 
-.key-page > .card { padding: 24px; }
-.key-page > .card > h2 { margin-bottom: 16px; font-size: 21px; }
-/* Exponents (2<sup>256</sup>) inherit `smaller` and drop below 12px. */
 .key-page sup { font-size: 12px; }
 
 /* Filled input + segmented curve */
@@ -3794,13 +3789,9 @@ details > summary { min-height: 44px; }
 .key-page .key-hero h1 { margin: 0 0 2px; font-size: clamp(22px, 2.6vw, 28px); line-height: 1.15; }
 .key-page .key-hero .key-tagline { max-width: none; margin: 0; font-size: 13.5px; }
 .key-page .entity-links { padding: 2px 12px; }
-.key-page > .card { padding: 12px 16px; }
-.key-page > .card > h2 { margin-bottom: 6px; font-size: 14px; letter-spacing: -.01em; }
 .key-page .key-filter-bar { gap: 6px 10px; margin-bottom: 8px; }
 .key-page .key-chains { min-width: 0; gap: 4px; }
 .key-page .key-filter-bar .balance-refresh { flex: none; padding: 0; border: 0; background: none; }
-.key-page .key-stat { padding: 4px 10px; }
-.key-page .key-stat-value { margin-top: 0; font-size: 16px; }
 .key-page .key-stats { gap: 8px; margin-bottom: 6px; }
 .key-page .key-stats-note {
   position: absolute;
@@ -3841,7 +3832,6 @@ details > summary { min-height: 44px; }
 .key-page .key-addr-tbl td { padding: 6px 8px; }
 
 /* Input card */
-.key-page .key-input-card { padding: 8px 14px; }
 .key-input-card .key-form {
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -4245,5 +4235,146 @@ button.key-info-btn .icon { width: 16px; height: 16px; }
   .icon-button,
   .icon-button > .icon { transition: none; }
   .icon-button[aria-busy="true"]::after { animation: none; }
+}
+
+/* ------------------------------------------------- cards / stats (batch 4) */
+/* One card surface: pad 20, radius 16, hairline. `.card--flat` is a section
+ * inside a card; `.card--stat` is a boxless cell inside a stat strip. Page
+ * overrides of these values are deleted in the batch that owns the page. */
+.card {
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--surface-1);
+  box-shadow: var(--elev-1);
+}
+.card h2 {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-1);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -.02em;
+  text-transform: none;
+}
+.card h3 { margin: 0 0 var(--space-2); }
+.card--flat { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.card--stat {
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-1);
+  box-shadow: none;
+}
+
+.stat {
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+}
+.stat-label,
+.stat__label,
+.stat-card .stat-label,
+.key-stat-label,
+.pz-stat-label {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.stat-value,
+.stat__value,
+.stat-card .stat-value,
+.key-stat-value,
+.pz-stat-value,
+.vanity-stat {
+  display: block;
+  color: var(--ink-1);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stat__meta { color: var(--ink-3); font-size: var(--text-xs); }
+.stat--sm .stat__value,
+.stat-value.small { font-size: var(--text-xl); }
+
+.key-stat,
+.pz-stat {
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+}
+.key-stat-value { margin-top: var(--space-1); font-size: var(--text-xl); }
+.stat-card {
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: var(--surface-1);
+}
+
+.chain-card {
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--surface-1);
+  box-shadow: var(--elev-1);
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    background var(--duration-base) var(--ease-standard);
+}
+.chain-card:hover,
+.chain-card:focus-visible {
+  transform: none;
+  border-color: color-mix(in srgb, var(--chain, var(--signal)) 62%, var(--line-subtle));
+  background: var(--surface-2);
+  box-shadow: var(--elev-1);
+  text-decoration: none;
+}
+
+.tool-card,
+.address-db-card {
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+}
+.tool-card:hover,
+.address-db-card:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+  text-decoration: none;
+}
+.tool-card h3 { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.tool-card p { color: var(--ink-3); font-size: var(--text-xs); }
+
+.tool-index-card {
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--surface-1);
+}
+.tool-index-card:hover {
+  transform: none;
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.pz-picker-card { padding: var(--space-4); }
+.ws-chain-card { border-radius: var(--radius-l); }
+.tool-family {
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--surface-1);
+}
+
+@media (max-width: 560px) {
+  .stat-card { padding: var(--space-4); }
+  .stat-card .stat-value { font-size: var(--text-xl); }
 }
 
