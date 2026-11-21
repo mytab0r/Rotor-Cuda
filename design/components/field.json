@@ -1,6 +1,6 @@
 {
   "name": "field",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "status": "stable",
   "element": "label",
   "variants": [
@@ -129,6 +129,6 @@
     "--duration-fast",
     "--ease-standard"
   ],
-  "detectors": ["control-height-scale", "field-geometry", "clipped-control"],
+  "detectors": ["control-height-scale", "field-geometry", "field-hero-height", "clipped-control"],
   "docs": "docs/design-system/components/field.md"
 }

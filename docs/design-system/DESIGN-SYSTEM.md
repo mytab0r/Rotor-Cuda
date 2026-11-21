@@ -631,7 +631,9 @@ duplicate address-type components, half-empty blocks, manual balance controls,
 route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; batch 2
 adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
-`segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
+`segmented-geometry`; phase 3 adds `field-hero-height` (every rendered
+`.field--hero` control is ≥56px); batch 4 adds `card-padding-scale` and
+`stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
 `row-action-geometry`; batch 7 adds `legacy-token` (one `:root` token block,
 light theme overrides only through `html[data-theme]`). Phase 2 adds the static
@@ -678,7 +680,12 @@ The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
   unknown class, missing variant/size/state, required attribute, page-local
   style). No production component was restyled; reserved CSS with no page
   consumer (`.card--flat`, `.card--stat`, `.stat--sm`, `.icon-button--solid`,
-  28/36 icon sizes) is documented but not in a manifest.
+  28/36 icon sizes) is documented but not in a manifest. Independent review
+  found the field hero rule was dead: the base input selector outranked
+  `.field--hero`, so `/key` and the gallery rendered 44px against the
+  documented 56px. The type exclusions now use `:where()` and the new
+  `field-hero-height` detector guards the size; `legacy-selector` now lists
+  each baselined page-scoped override with its reason.
 
 ## 10. Page-scoped CSS exceptions
 

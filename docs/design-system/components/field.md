@@ -1,6 +1,6 @@
 # Field
 
-Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
+Status: stable · Version: 0.1.1 · Owner: site-ui (design system).
 Source of truth: `design/components/field.json` · Gallery: `/design` (family
 `field`).
 
@@ -24,7 +24,10 @@ uses the classes.
 
 - Element: `label.field` wrapping the control.
 - Sizes: `default` (44px, radius 10) and `hero` (`.field--hero`, 56px, radius
-  16). The hero is a named size, not a page override.
+  16). The hero is a named size, not a page override. The broad base input rule
+  uses `:where()` for its type exclusions so it cannot outrank the hero rule;
+  `field-hero-height` measures every `.field--hero` control and fails below
+  56px.
 - Required attribute on the control: `aria-describedby` pointing at the hint
   (and the error id when it is visible).
 - State attributes: `aria-invalid="true"`, `disabled`.
@@ -76,12 +79,19 @@ selects, textareas and `.field__control`.
 ## Detectors
 
 `control-height-scale` (28/36/44/56; textareas keep the 44 floor),
-`field-geometry` (radius 10/16, label ≥12px, focus ring), `clipped-control`.
-The described-by/error wiring is checked by the rendered focus pass and the
-manifest's required attribute, not by a separate detector.
+`field-geometry` (radius 10/16, label ≥12px, focus ring), `field-hero-height`
+(every rendered `.field--hero` control is ≥56px, measured on `/key` and the
+gallery), `clipped-control`. The described-by/error wiring is checked by the
+rendered focus pass and the manifest's required attribute, not by a separate
+detector.
 
 ## Owner and changelog
 
 - Owner: site-ui.
 - 0.1.0 (2026-11-21): normalized the batch-3 field grammar; the hero size is the
   only shared modifier and the error slot is hidden by default.
+- 0.1.1 (2026-11-21): fixed the cascade so the documented hero size actually
+  renders. The base `input:not(...)` selector had higher specificity than
+  `.field--hero > input`, so `/key` and the gallery shipped 44px while the
+  contract claimed 56px. The type exclusions now sit in `:where()`, and
+  `field-hero-height` guards the geometry on every audited route.

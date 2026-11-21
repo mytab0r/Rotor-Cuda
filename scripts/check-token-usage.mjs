@@ -619,7 +619,8 @@ function applyBaseline(violations, entries) {
     else used.add(index);
   }
   const stale = entries.filter((_, index) => !used.has(index));
-  return { remaining, stale };
+  const matched = entries.filter((_, index) => used.has(index));
+  return { remaining, stale, matched };
 }
 
 function loadBaseline(root) {
@@ -663,7 +664,7 @@ export function run({ root = REPO_ROOT } = {}) {
     const baselined = baseline.checks[check.id] || { count: 0, entries: [] };
     const entries = Array.isArray(baselined.entries) ? baselined.entries : [];
     const countMatches = (baselined.count ?? 0) === entries.length;
-    const { remaining, stale } = applyBaseline(check.violations, entries);
+    const { remaining, stale, matched } = applyBaseline(check.violations, entries);
     total += remaining.length;
     let status = "OK";
     if (remaining.length > 0 || stale.length > 0 || !countMatches) {
@@ -674,6 +675,14 @@ export function run({ root = REPO_ROOT } = {}) {
       `${check.id}: ${status} (${remaining.length} new, ${entries.length - stale.length} baselined, ` +
         `${check.violations.length} total${entries.length ? `, baseline ${baselined.count ?? entries.length}` : ""})`,
     );
+    // Page-scoped shared-family overrides are design-contract debt, not token
+    // noise. List each matched entry with its reason so a baselined rule such
+    // as `.puzzle-cta .btn` is visible in the gate output, not just in JSON.
+    if (check.id === "legacy-selector") {
+      for (const entry of matched) {
+        messages.push(`  baselined ${entry.file}:${entry.line} ${entry.match} — ${entry.reason || "no reason recorded"}`);
+      }
+    }
     if (!countMatches) {
       messages.push(
         `  baseline count ${baselined.count ?? "(missing)"} does not match ${entries.length} entr(ies); update the count with the entries`,
