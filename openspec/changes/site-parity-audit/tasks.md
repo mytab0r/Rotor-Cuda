@@ -43,7 +43,12 @@
 - [x] Global search results in place: interpret-as, 1/3/5/10 addresses, table,
   Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
   shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
-  and the `key` route UI audit at 375/1280 in both themes.
+  and the `key` route UI audit at 375/1280 in both themes. Donor counter and
+  sub-type label: `apps/site/search.js` (`countLabel`, `mnemonicSubtype`),
+  `apps/site/site.js` (live `N chars`/`N words` counter and the
+  `Detected: Electrum SegWit|Legacy|Mnemonic` label from the lazily loaded
+  `seed-crypto.js` `electrumSeedType`), and their assertions in
+  `apps/site/search-test.mjs`.
 - [x] BNB Smart Chain testnet builder (`/send/bnb`, PR #97). Evidence:
   `apps/site/send.js:72` (chain table, chapel chain id 97), `:55` and `:163`
   (BSC-testnet provider allowlist), `apps/site/send-test.mjs:671` (chain-id
