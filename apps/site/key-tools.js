@@ -167,7 +167,9 @@
   var encoder = new TextEncoder();
 
   async function loadWasm(url) {
-    var response = await fetch(url || '/rotor_wasm.wasm');
+    var response = await fetch(url || (window.RotorAssets
+      ? window.RotorAssets.url('/rotor_wasm.wasm')
+      : '/rotor_wasm.wasm'));
     if (!response.ok) throw new Error('Cannot load the calculation core: HTTP ' + response.status);
     var module;
     try {

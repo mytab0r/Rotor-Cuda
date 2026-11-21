@@ -3,7 +3,9 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
+  var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/rotor_wasm.wasm')
+    : '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
   var MAX_KEYS = 64;
   var EXPOSURE_CAP = 50;

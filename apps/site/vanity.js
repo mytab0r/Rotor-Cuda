@@ -2,8 +2,12 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
-  var WORKER_URL = '/vanity-worker.js';
+  var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/rotor_wasm.wasm')
+    : '/rotor_wasm.wasm';
+  var WORKER_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/vanity-worker.js')
+    : '/vanity-worker.js';
   var BATCH = 120;
   var DECODER = new TextDecoder('utf-8');
   var RECENT_KEY = 'rotor-vanity-recent';

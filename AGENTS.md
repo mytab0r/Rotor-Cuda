@@ -7,9 +7,11 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
   both areas in one PR/commit. Cross-area changes are not "someone else's
   problem".
 - Site assets carry no cache-busting query: never add a `?v=` token. HTML is
-  served with `no-store` and every other asset with `no-cache` plus a content
-  `ETag`, so the browser revalidates on each request; `node
-  scripts/check-projects.mjs` fails if a token returns.
+  served with `no-store` and references every first-party asset as
+  `/a/<build>/<path>`; those URLs are immutable (the build changes on every
+  deploy), while bare asset paths (old links, curl) stay `no-cache` with a
+  content `ETag`. `node scripts/check-projects.mjs` fails if a token returns
+  and `scripts/ui-audit.mjs` fails on a bare asset reference.
 - `crates/rotor-wasm` change: run `sh scripts/build-wasm.sh`, run both JS
   tests, commit `apps/site/rotor_wasm.wasm`.
 - Run the area test commands from `projects.json`; then
