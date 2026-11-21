@@ -22,12 +22,23 @@ for (const file of fs.readdirSync("apps/site").filter((name) => name.endsWith(".
   for (const match of source.matchAll(/\?v=([0-9a-z]+)/g)) htmlVersions.add(match[1]);
 }
 
-if (htmlVersions.size !== 1) {
-  fail(`pages use ${htmlVersions.size} different ?v= values: ${[...htmlVersions].join(", ")}`);
+// Coordinator-generated pages (/private-keys, /brainwallet, /cabinet, seeded
+// pages) hardcode their own tokens; a stale one ships without touching the
+// HTML files, so fold it into the same single-version requirement.
+const coordinatorFile = "src/coordinator/mod.rs";
+const versions = new Set(htmlVersions);
+for (const match of fs.readFileSync(coordinatorFile, "utf8").matchAll(/\?v=([0-9a-z]+)/g)) {
+  versions.add(match[1]);
 }
-const [pageVersion] = htmlVersions;
+
+if (versions.size !== 1) {
+  fail(
+    `pages and ${coordinatorFile} use ${versions.size} different ?v= values: ${[...versions].join(", ")}`,
+  );
+}
+const [pageVersion] = versions;
 if (pageVersion !== head) {
-  fail(`pages use ?v=${pageVersion} but projects.json says ${head}`);
+  fail(`pages and ${coordinatorFile} use ?v=${pageVersion} but projects.json says ${head}`);
 }
 
 if (process.env.GITHUB_EVENT_NAME === "pull_request") {
