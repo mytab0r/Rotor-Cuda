@@ -21,12 +21,27 @@ import {
 } from "./cache.mjs";
 import { isKnownChain, isValidAddress, normalizeAddress, unitFor } from "./chains.mjs";
 import { validateHint } from "./hint.mjs";
+import { createKeyedLimiter } from "./limiters.mjs";
 import { findSensitiveMaterial } from "./security.mjs";
 import { ProviderError, fetchProviderBalance, providerHealth, resolveProvider } from "./providers.mjs";
 
 const MAX_BODY_BYTES = 4096;
 const MAX_BATCH_ADDRESSES = 60;
 const RETRY_AFTER_MS = 250;
+
+// Per-client quota (keyed by client IP). Honest limitation: the counter is
+// per isolate, so it is a per-isolate best-effort limit across a PoP, not a
+// global quota shared by every visitor of the worker.
+const CLIENT_LIMIT_CAPACITY = 120;
+const CLIENT_LIMIT_REFILL_PER_SECOND = 20;
+const clientLimiter = createKeyedLimiter({
+  capacity: CLIENT_LIMIT_CAPACITY,
+  refillPerSecond: CLIENT_LIMIT_REFILL_PER_SECOND,
+});
+
+export function resetClientLimits() {
+  clientLimiter.reset();
+}
 
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
@@ -59,6 +74,10 @@ export async function handleRequest(request, env = {}, ctx = {}) {
   if (url.pathname === "/healthz" && request.method === "GET") {
     return json({ ok: true, providers: providerHealth(env) });
   }
+
+  const refusal = enforceClientLimit(request, url);
+  if (refusal) return refusal;
+
   if (url.pathname === "/v1/balance" && request.method === "GET") {
     return handleBalance(url, env, ctx);
   }
@@ -272,6 +291,26 @@ function accepted() {
   });
 }
 
-function json(body, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: BASE_HEADERS });
+function requestCost(url) {
+  if (url.pathname !== "/v1/balances") return 1;
+  const count = (url.searchParams.get("addresses") ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0).length;
+  return Math.min(MAX_BATCH_ADDRESSES, Math.max(1, count));
+}
+
+function enforceClientLimit(request, url) {
+  const key = (request.headers.get("cf-connecting-ip") ?? "").trim() || "unknown";
+  if (clientLimiter.take(key, Date.now(), requestCost(url))) return null;
+  return json({ error: "rate_limited", retryAfterMs: RETRY_AFTER_MS }, 429, {
+    "retry-after": String(Math.max(1, Math.ceil(RETRY_AFTER_MS / 1000))),
+  });
+}
+
+function json(body, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...BASE_HEADERS, ...extraHeaders },
+  });
 }
