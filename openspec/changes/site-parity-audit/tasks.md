@@ -71,6 +71,23 @@
   (six routes and the served helper). Nile testnet only: mainnet TRON hosts
   and the mainnet `tron` route are rejected, and no live broadcast was
   executed (no funded Nile key).
+- [x] `/key` signing entry: the key page links to the testnet-only `/send`
+  page instead of handing the key over; the visitor re-enters it there.
+  Evidence: `apps/site/key.html` (`.key-sign-entry` link below the input
+  meta row, beside the key card),
+  `docs/site-map/site-map-data.js` (`/key` note: curve selector ships,
+  signing entry links to `/send`), `openspec/changes/site-parity-audit/matrix.md`
+  (`/key` row). Test note: the link is static markup with no key in the URL,
+  covered by `apps/site/site-nav-test.mjs` route rules and
+  `docs/site-map/site-map-test.mjs`; no browser assertion is needed because
+  there is no scripted handoff.
+- [x] Mnemonic directory Received formatting: values under 0.0001 coin render
+  in atomic units (`sat`, `zat` for Zcash) in both the row and the summary,
+  matching the donor's "small" wording (`docs/donor-parity/directories.md:183,
+  207,228`). The donor doc does not record the exact constant, so 0.0001 coin
+  (10,000 sat) is the inferred cut and is marked as such in `receivedText`.
+  Evidence: `apps/site/mnemonic-seeds.js` (`ATOMIC_UNITS`, `receivedText`),
+  `apps/site/mnemonic-seeds-test.mjs` (six cases).
 
 ## Live donor audit follow-ups (2026-11-21)
 

@@ -7,9 +7,9 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 | Area | ref-site-a / ref-site-b | rotor.pxbt.app | Status | P |
 |---|---|---|---|---|
 | Key directory | 18 chains, 60 rows, pager/random/jump, auto-derive, multiple address types, copy | same core: 60 rows/page, pager/random/jump, `?key=` jump, search + type select, WIF (c)/(u) links, BTC/LTC four type cards incl. LTC Taproot; account-model chains summarise Balance/Active, UTXO chains Balance/Received/TX. The donor has no CSV export or balance sorting. | parity | P1 |
-| Key entity `/key` | auto-derive, 7 key formats, aggregate counters, 8 EVM rows, per-value copy (no CSV/Copy All on the key page) | same donor rows: auto-derive, 7 formats, counters, 8 EVM rows (`↑ same`); ours adds Copy All/CSV; signing entry remains; LTC/DOGE now provider-backed (BlockCypher), only BCH/ZEC still show — | partial | P0 |
+| Key entity `/key` | auto-derive, 7 key formats, aggregate counters, 8 EVM rows, per-value copy (no CSV/Copy All on the key page) | same donor rows: auto-derive, 7 formats, counters, 8 EVM rows (`↑ same`); ours adds Copy All/CSV; signing entry links to the testnet `/send` page; LTC/DOGE now provider-backed (BlockCypher), only BCH/ZEC still show — | partial | P0 |
 | Global search | modal interpret-as, 1/3/5/10 addresses, result table, export | Ctrl+K modal, interpret-as detection, inline result cards (`ws-chain-card`) with Copy All (TSV)/CSV; a live `N chars`/`N words` counter under the input; mnemonics get an Electrum SegWit/Legacy detection label and hand off to `/mnemonic-converter` (phrase in sessionStorage); every interpret-as chip stays visible (deliberate superset) | parity | P0 |
-| Mnemonic directory | 60 rows, pager, path/word/type, balances, key+phrase copy | same plus hex private-key copy and full-phrase cell; WIF stays on `/key`, as in the donor | partial | P0 |
+| Mnemonic directory | 60 rows, pager, path/word/type, per-row balances, key+phrase copy | same plus hex private-key copy and full-phrase cell; balances load for Bitcoin and EVM chains, every other chain renders `—` with an unsupported state; WIF stays on `/key`, as in the donor | partial | P0 |
 | Mnemonic converter | live word count, 20 addresses, Load next 5, Copy All, Received/Active | live word count, 20 addresses, Load next 5, Copy All, aggregates (current balance; no lifetime Received) | partial | P1 |
 | Puzzle home | stats, CTA, All/Solved/Unsolved, search, 160-row table | 160-row table with All/Solved/Unsolved, search and Balance/TX/Actions | parity | P0 |
 | Puzzle random | range controls, segmented solo/team, metrics, Community Hunt, result table | worker plus Community Hunt counters and a live result table | parity | P0/P1 |
@@ -19,7 +19,7 @@ Status: `parity`, `partial`, `missing`, `ours-only`.
 | Dormant/Satoshi/Whale | three content hubs with stats/tables/paging | absent | missing | P1 |
 | Wallet viewer | wallet.dat import, password, address table | absent (ETH keystore only) | missing | P2 |
 | Wallets storefront | privatekeyfinder 404; secretscan market table | real mirrored downloads, no prices | ours-only/partial | P2 |
-| Send transactions | 9 secretscan `Easy_*` pages, fee/bytes/total/signed hex | top-level `/send/{bitcoin,ethereum,bnb,tron,usdt}` on testnets only; mainnet stays gated | partial | P0 |
+| Send transactions | secretscan `Easy_*` send family (5 routes captured), fee/bytes/total/signed hex | top-level `/send/{bitcoin,ethereum,bnb,tron,usdt}` on testnets only; mainnet stays gated | partial | P0 |
 | Tx decoders | BTC raw + EVM RLP decoders | `/tx/bitcoin` + `/tx/ethereum`, client-side, JSON view | parity | - |
 | Vanity | threads/ETA/difficulty/save/recent/QR | 6 chains, parallel workers (1-4), difficulty/ETA, recent addresses and an address-only QR (keys never saved); saving keys is intentionally absent | partial | P1 |
 | Keystore | drag-drop file, examples, metadata | paste/password plus drag-drop/file input, a verified web3 test-vector example and id/version/cipher/address metadata | partial | P1 |
