@@ -67,7 +67,9 @@ copies until phase 6 removes the embedded site). Do not hand-edit it.
   address encoding still come from the same code.
 - Balances use the same public endpoints (`blockchain.info` for BTC, a public
   Ethereum JSON-RPC endpoint for EVM); only derived public addresses leave the
-  page. The phrase, passphrase and keys stay in the tab and are not stored.
+  page. The phrase, passphrase and keys stay in the tab and are not stored. The
+  page reads the `/seed` handoff phrase once from `sessionStorage` under
+  `rotor-seed-phrase` and removes it immediately, exactly like the current page.
 - The page HTML uses `createElement`/`textContent`; there is no `innerHTML`
   with data. Source maps are disabled and not published.
 - UI copy, CSS and fonts are unchanged from the current page. This pilot does
