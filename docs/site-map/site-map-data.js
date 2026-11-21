@@ -881,7 +881,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'BTC and LTC have multi-type tabs. BCH, TON, DOGE and ZEC expose one type, while the donor also offers CashAddr+Legacy, v4R2+w5 and compressed+uncompressed forms.'
+    note: 'BTC exposes legacy/segwit/script/taproot and LTC the same four types (ltc_p2tr). BCH, TON, DOGE and ZEC expose one type, while the donor also offers CashAddr+Legacy, v4R2+w5 and compressed+uncompressed forms.'
   });
 
   feature({
