@@ -274,6 +274,13 @@ and not deployed**.
 
 ## Verification
 
+- [x] UI audit harness no longer invents a same-origin failure: a
+      `Network.loadingFailed` whose request id was never announced by
+      `Network.requestWillBeSent` is ignored instead of falling back to the
+      base origin, so a browser-injected external request cannot surface as a
+      false `http-error`. Known same-origin failures still violate. Defect
+      `unknown-request-id-false-positive` in `docs/process/defects.json`
+      (37 entries, all detectors present), PR #185.
 - [x] Durable UI self-review harness: `scripts/ui-audit.mjs` (zero-dep CDP,
       375/768/1280, dark/light, screenshots + JSON), project skill
       `.claude/skills/ui-self-review/SKILL.md`, wired into the UI gate and

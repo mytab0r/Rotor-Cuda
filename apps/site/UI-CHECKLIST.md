@@ -48,7 +48,7 @@ evidence (a screenshot or the DOM check below).
       `aria-disabled` and `.pager-btn--random`), with one `.page-jump` form and
       one `.page-info-text` status line (`pager-grammar`, `pager-geometry`).
 - [ ] Public content pages render exactly one `.site-footer` (FAQ, Disclaimer,
-      Donate, Docs, GitHub, copyright, asset version); `/app`, `/run`, `/me`,
+      Donate, Docs, GitHub, copyright, build id); `/app`, `/run`, `/me`,
       `/cabinet` and `/cabinet/wallet` render none (`footer-presence`).
 - [ ] No page-local `<style>` rule re-implements a shared component; move it
       to `site.css` in the batch that owns the family.
@@ -91,6 +91,6 @@ evidence (a screenshot or the DOM check below).
       console for errors, and re-read the empty state.
 - [ ] For the browser worker: `node apps/site/worker-test.mjs` and a real lease on a
       local coordinator (done only after the full chunk).
-- [ ] Changed `site.css` or `site.js`? Bump the `?v=` query in every page
-      (`site.css?v=...`, `site.js?v=...`): Cloudflare caches those URLs for
-      four hours regardless of the origin `Cache-Control`.
+- [ ] Changed `site.css` or `site.js`? No cache token to bump: the coordinator
+      serves assets with `Cache-Control: no-cache` and a content `ETag`, so the
+      next request revalidates.

@@ -27,8 +27,9 @@ Violation IDs, thresholds and the "fix the class, not the page" rule are in
 - Every page and asset is a compile-time input of the coordinator:
   `include_str!`/`include_bytes!` in `src/coordinator/mod.rs:31-41`. Renaming or
   removing a file breaks `cargo build --bin rotor-coord`.
-- Bump `?v=` in all `apps/site/*.html` when `site.css`, `site.js` or `key.js` change.
-  Keep pages on the same version.
+- Never add a `?v=` cache token to a page or script: HTML is served with
+  `no-store` and assets revalidate by `ETag`; `check-projects.mjs` rejects a
+  returning token.
 - `key.js` and `rotor-worker.js` load `/rotor_wasm.wasm`. Do not hand-edit the
   wasm file; rebuild it from `crates/rotor-wasm` with `sh scripts/build-wasm.sh`.
 - Served routes are fixed in `src/coordinator/mod.rs`; adding a page is also a

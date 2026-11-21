@@ -22,9 +22,8 @@ shown, or which routes exist.
    (`scrollWidth`/`clientWidth`), column spreads, and remaining violation IDs.
    The author never approves their own UI PR.
 5. **Area checks.** Run the `site` build/test commands from `projects.json`,
-   then `node scripts/check-projects.mjs`. Bump `?v=` in every
-   `apps/site/*.html` and `projects.json.asset_version` for any `site.css`,
-   `site.js`, `theme.js` or `key.js` change.
+   then `node scripts/check-projects.mjs`. Never add a `?v=` cache token: assets
+   revalidate by `ETag`.
 6. **Commit/PR.** One family per PR. The PR body names the family, the files,
    the detector, the audit command and the reviewer's geometry. No attribution
    trailers.
@@ -321,8 +320,7 @@ entry in the same PR.
 
 | Risk | Mitigation |
 |---|---|
-| Tooltip PR touches `site.css`/`site.js` and `key.html` | Batch 1 does not touch `#key-info-btn`, the popover, or tooltip rules. Batch 2 starts only after that PR merges. Version-bump conflicts are mechanical; rebase and keep one version. |
-| Asset-version collision with other open PRs | One version per landing; rebase and re-bump to the next value, never merge two different `?v=` values. |
+| Tooltip PR touches `site.css`/`site.js` and `key.html` | Batch 1 does not touch `#key-info-btn`, the popover, or tooltip rules. Batch 2 starts only after that PR merges. |
 | Light theme regressions | Every batch runs dark **and** light; new tokens are semantic, geometry is shared. |
 | Mobile tables collapse differently | Batch 5 standardises two behaviours (scroll or labelled blocks) and tests 375 with zero data. |
 | Audit false positives | `.impeccable/config.json` ignores are allowed only with measured evidence; remove them in batch 7 when the detector is fixed. |
@@ -369,7 +367,7 @@ entry in the same PR.
     and `/bitcoin-puzzle` at 375/768/1280 dark/light: metrics show 0 overflow,
     0 small targets, 0 unlabeled icons, 0 icon-button issues. Screenshots:
     `%TEMP%/rotor-ui-audit-5JN4mf/screenshots`.
-  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+  - `check-projects`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
 - Batch 3: one `.field` grammar (44x44 control, radius 10; `.field--hero`
@@ -390,7 +388,7 @@ entry in the same PR.
     runs, 0 violations**; 0 overflow, 0 off-scale controls, 0 field issues,
     0 segmented issues.
   - Screenshots: `%TEMP%/rotor-ui-audit-qgvMTp/screenshots`.
-  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+  - `check-projects`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
   - The audit harness now starts its temporary coordinator with a 3600s monitor
@@ -413,7 +411,7 @@ entry in the same PR.
     **PASS** — 42 targeted runs (the seven non-default routes) plus the six
     root runs in the full set; 0 card issues, 0 stat issues, 0 overflow.
   - Screenshots: `%TEMP%/rotor-ui-audit-blUaQl/screenshots`.
-  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+  - `check-projects`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
 - Batch 5: one `.data-table` inside `.table-scroll`; header 12/600 sentence
@@ -449,7 +447,7 @@ entry in the same PR.
   - TRON row/input screenshots: `target/key-tron-row.png`,
     `target/key-input-field.png`; CDP JSON `target/key-cdp-check.json`.
   - Screenshots: `%TEMP%/rotor-ui-audit-ijvZOa/screenshots`.
-  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+  - `check-projects`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
 - Batch 7: one `:root` token block (the legacy blue root, the overridden
@@ -479,7 +477,7 @@ entry in the same PR.
     Review caught one legacy label-direction dependency (the wallet file
     input); it is preserved by the kept `label` migration alias, so the wallet
     body height matches exactly.
-  - `check-projects`, `check-asset-version`, `check-defect-ledger`,
+  - `check-projects`, `check-defect-ledger`,
     `git diff --check`, all 50 site build/test commands and
     `cargo test --test coordinator_api --test coordinator_client` (18 + 3)
     pass.
@@ -505,7 +503,7 @@ entry in the same PR.
     key-page boxes sit in cards that stay hidden until derivation): **PASS, 6
     page runs at 375/768/1280 dark/light**, 4 `.empty-state` boxes measured per
     run, 0 geometry issues (`target/audit-empty-state-dom.json`).
-  - `check-projects` 405/406, `check-asset-version`, `check-defect-ledger`
+  - `check-projects` 405/406, `check-defect-ledger`
     (31 entries), `site-map-test`, all 19 site test commands and
     `cargo test --release --test coordinator_api --test coordinator_client`
     (19 + 3) pass.
