@@ -19,6 +19,8 @@ const CU_SOURCES: [&str; 2] = [
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rustc-env=ROTOR_BUILD_ID={}", build_id());
     for rel in [
         "Rotor-Cuda/bsgs/BsgsGpu.cu",
         "Rotor-Cuda/bsgs/BsgsGpuAbi.cu",
@@ -167,6 +169,18 @@ fn main() {
         Ok("macos") => println!("cargo:rustc-link-lib=dylib=c++"),
         _ => {}
     }
+}
+
+/// Short git commit of the checkout being built, or `dev` outside a repository.
+fn build_id() -> String {
+    Command::new("git")
+        .args(["rev-parse", "--short=12", "HEAD"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| "dev".to_string())
 }
 
 fn nvcc_file_name() -> &'static str {

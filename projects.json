@@ -1,5 +1,4 @@
 {
-  "asset_version": "20261129a",
   "areas": [
     {
       "id": "site",
@@ -69,7 +68,7 @@
       ],
       "contracts": [
         "coordinator-embeds-web-assets-at-compile-time",
-        "asset-version-?v=-bump-when-site.css-site.js-key.js-change",
+        "assets-revalidate-by-etag-html-no-store",
         "served-routes-are-fixed",
         "apps/site/rotor_wasm.wasm-is-rebuilt-by-wasm-core"
       ]

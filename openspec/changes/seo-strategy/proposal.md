@@ -26,8 +26,9 @@ Measured against the current tree (2026-11-16):
   (`src/coordinator/mod.rs:404-407`), so the Cloudflare proxy in front of the
   origin (`deploy/README.md:117-119`, host `rotor.pxbt.app` at `:109`) cannot
   cache pages or the 232 KB wasm artifact.
-- Asset URLs are partly versioned in HTML (`?v=20261116`, e.g.
-  `apps/site/landing.html:7`, `apps/site/key.html:124`) but `/rotor-worker.js` and
+- Asset URLs are partly versioned in HTML with a hand-bumped `v` query (for
+  example `20261116` on `apps/site/landing.html:7`, `apps/site/key.html:124`)
+  but `/rotor-worker.js` and
   `/rotor_wasm.wasm` are requested unversioned from JS (`apps/site/run.html:413`,
   `apps/site/key.js:6`, `apps/site/rotor-worker.js:11`). Long-lived caching is therefore
   unsafe until those references are versioned.

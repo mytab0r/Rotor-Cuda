@@ -41,9 +41,9 @@ Verified facts:
 - Legacy/vendor trees are tracked and indistinguishable from product code:
   `BinSort/` (8 files), `Others/` (4), `Release/` (6), `Rotor-Cuda/` (77, CUDA
   sources compiled by `build.rs:15-18`).
-- Asset cache busting is already drifting: all pages use
-  `?v=20261116c` except `web/key.html:124` (`/key.js?v=20261116`). There is no
-  automated bump check (grep over `web/*.html`, CI workflows).
+- Asset cache busting is already drifting: all pages used one hand-bumped
+  query token (`20261116c`) except `web/key.html:124` (`key.js`, `20261116`).
+  There is no automated bump check (grep over `web/*.html`, CI workflows).
 
 Consequences: an agent editing the site may forget the asset-version bump or
 the wasm rebuild; an agent editing the coordinator may break the site contract;
