@@ -120,6 +120,48 @@
       "symptom": "Stat labels were uppercase with 0.04-0.09em tracking and values ranged from 16 to 27px at weights 700/750, so the same stat strip read differently on each page.",
       "detector": "stat-geometry",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "table-grammar-drift",
+      "reported": "2026-11-21",
+      "symptom": "Four table implementations used header padding 4/6 vs 8/10, cell padding 8/10 vs 8/12, and half of them were not inside a scroll shell.",
+      "detector": "table-grammar",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "table-header-style-drift",
+      "reported": "2026-11-21",
+      "symptom": "Table headers shipped uppercase with 0.05-0.08em tracking at weights 700/750, so the same column label looked different on key, puzzle and directory tables.",
+      "detector": "table-header-style",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "table-row-height-drift",
+      "reported": "2026-11-21",
+      "symptom": "Rows collapsed below 44px when a table had no icon action, while rows with icon buttons were taller than every neighbour.",
+      "detector": "table-row-height",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "row-action-geometry-drift",
+      "reported": "2026-11-21",
+      "symptom": "Row actions were not consistently 44x44/radius 10/labelled across the key, browse and brainwallet rows.",
+      "detector": "row-action-geometry",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "balance-row-consistency-drift",
+      "reported": "2026-11-21",
+      "symptom": "The TRON row showed the raw sun amount at 18 decimals while its title showed 6 decimals, and the tx count existed only in the title.",
+      "detector": "balance-consistency",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-input-mask",
+      "reported": "2026-11-21",
+      "symptom": "The /key private-key field rendered as type=password, hiding the key the donor shows as ordinary text.",
+      "detector": "key-input-type",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
