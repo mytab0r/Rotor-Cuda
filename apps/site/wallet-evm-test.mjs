@@ -310,7 +310,7 @@ test("when every provider fails the error is explicit about CORS and names them"
         unsigned: () => UNSIGNED
       }),
     (err) => {
-      assert.match(err.message, /No public Sepolia RPC answered/);
+      assert.match(err.message, /No public Ethereum Sepolia RPC answered/);
       assert.match(err.message, /CORS/);
       assert.match(err.message, /does not proxy or spoof Origin/);
       assert.match(err.message, /publicnode\.com: Failed to fetch/);

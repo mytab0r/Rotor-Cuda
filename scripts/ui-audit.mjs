@@ -2151,6 +2151,88 @@ async function auditWalletSeed(cdp) {
   return { ok: result.problems.length === 0, ...result };
 }
 
+async function auditWalletMainnetArm(cdp) {
+  // The mainnet arm is the only new control in the mainnet slice. It must be
+  // a real labelled checkbox, unchecked by default, 44px high through the
+  // shared token scale, and it may only appear when a mainnet network is
+  // selected. Sepolia must stay the default network.
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const shown = (el) => Boolean(el) && !el.hidden && el.getClientRects().length > 0;
+      const problems = [];
+      const evidence = {};
+      const card = document.getElementById('wallet-send');
+      if (!shown(card)) {
+        const secret = document.getElementById('wallet-secret');
+        const chain = document.getElementById('wallet-chain');
+        const label = document.getElementById('wallet-label');
+        const form = document.getElementById('wallet-import-form');
+        if (!secret || !chain || !form) {
+          return { evidence, problems: ['the EVM send card and import form are missing'] };
+        }
+        secret.value = '0000000000000000000000000000000000000000000000000000000000000001';
+        chain.value = 'ethereum';
+        label.value = 'audit key';
+        form.requestSubmit();
+        await waitFor(() => shown(card), 15000);
+      }
+      if (!shown(card)) {
+        return { evidence, problems: ['the EVM send card did not become visible'] };
+      }
+      const network = document.getElementById('wallet-send-network');
+      const armed = document.getElementById('wallet-send-armed');
+      const row = document.getElementById('wallet-send-armed-row');
+      if (!network || !armed || !row) {
+        return { evidence, problems: ['the mainnet network/arm controls are missing'] };
+      }
+      evidence.defaultNetwork = network.value;
+      evidence.options = [...network.options].map((option) => option.value);
+      if (network.value !== '11155111') {
+        problems.push('Sepolia is not the default network: ' + network.value);
+      }
+      for (const id of ['1', '56', '42161', '10', '8453', '137', '43114', '324']) {
+        if (!evidence.options.includes(id)) problems.push('mainnet chain id ' + id + ' is missing');
+      }
+      if (armed.type !== 'checkbox') problems.push('the arm control is not a checkbox');
+      if (armed.checked) problems.push('the mainnet arm is checked before the user arms it');
+      network.value = '1';
+      network.dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(0);
+      if (row.hidden) problems.push('the arm row stays hidden on Ethereum mainnet');
+      const label = armed.closest('label');
+      const box = label ? label.getBoundingClientRect() : { width: 0, height: 0 };
+      evidence.armedBox = Math.round(box.width) + 'x' + Math.round(box.height);
+      evidence.label = label ? label.textContent.trim() : '';
+      if (!label) {
+        problems.push('the arm checkbox has no label');
+      } else {
+        if (box.width < 44 || box.height < 44) {
+          problems.push('the arm label is ' + evidence.armedBox + ' (expected >=44x44)');
+        }
+        if (!/real funds/i.test(evidence.label) || !/cannot be reversed/i.test(evidence.label)) {
+          problems.push('the arm label does not state the mainnet risk: ' + evidence.label);
+        }
+      }
+      if (armed.checked) problems.push('the arm control became checked without user input');
+      network.value = '11155111';
+      network.dispatchEvent(new Event('change', { bubbles: true }));
+      return { evidence, problems };
+    })()`,
+    40000,
+  );
+  return { ok: result.problems.length === 0, ...result };
+}
+
 async function auditKeyAutoDerive(cdp) {
   return evaluate(
     cdp,
@@ -2728,6 +2810,15 @@ async function main() {
                   id: "wallet-seed-strength",
                   message: `/cabinet/wallet seed flow failed: ${seed.reason || (seed.problems || []).join("; ")}`,
                   detail: seed,
+                });
+              }
+              const arm = await auditWalletMainnetArm(cdp);
+              run.metrics.walletMainnetArm = arm.evidence;
+              if (!arm.ok) {
+                run.violations.push({
+                  id: "wallet-mainnet-arm",
+                  message: `/cabinet/wallet mainnet arm control failed: ${(arm.problems || []).join("; ")}`,
+                  detail: arm,
                 });
               }
             }
