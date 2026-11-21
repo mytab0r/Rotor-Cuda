@@ -1,20 +1,26 @@
 //! Plain-text target lists for the multi-target modes.
 //!
-//! One target per line: a BTC P2PKH address, an ETH `0x…` address (selected by
-//! `Coin`) or a 64-hex xpoint, depending on [`SearchMode`]. Blank lines and
-//! `#` comments are skipped, surrounding whitespace and CRLF are tolerated, and
-//! a bad line fails with its 1-based line number.
+//! One target per line: a chain address (BTC P2PKH or an EVM `0x…` account,
+//! selected by [`crate::chain::Family`]) or a 64-hex xpoint, depending on
+//! [`SearchMode`]. Blank lines and `#` comments are skipped, surrounding
+//! whitespace and CRLF are tolerated, and a bad line fails with its 1-based
+//! line number.
 
 use std::io::BufRead;
 
 use crate::base58;
-use crate::cli::{Coin, SearchMode};
+use crate::chain::{ChainDescriptor, Family};
+use crate::cli::SearchMode;
 use crate::engine::parse_hex_bytes;
 use crate::filter::TargetSet;
 
 /// Loads a text target list and builds the same [`TargetSet`] the binary
 /// `-i` path uses, so CPU and GPU engines need no changes.
-pub fn load<R: BufRead>(reader: R, coin: Coin, mode: SearchMode) -> Result<TargetSet, String> {
+pub fn load<R: BufRead>(
+    reader: R,
+    chain: &ChainDescriptor,
+    mode: SearchMode,
+) -> Result<TargetSet, String> {
     let record_len = match mode {
         SearchMode::Addresses => 20,
         SearchMode::XPoints => 32,
@@ -30,7 +36,7 @@ pub fn load<R: BufRead>(reader: R, coin: Coin, mode: SearchMode) -> Result<Targe
             continue;
         }
         let record = match mode {
-            SearchMode::Addresses => parse_address(line, coin),
+            SearchMode::Addresses => parse_address(line, chain),
             SearchMode::XPoints => parse_hex_bytes(line, 32)
                 .ok_or_else(|| format!("invalid xpoint (expected 64 hex chars): {line}")),
             _ => unreachable!("mode was checked above"),
@@ -45,28 +51,46 @@ pub fn load<R: BufRead>(reader: R, coin: Coin, mode: SearchMode) -> Result<Targe
     Ok(TargetSet::from_records(&records, record_len))
 }
 
-/// Decodes one address line into its 20-byte hash160 record.
-fn parse_address(text: &str, coin: Coin) -> Result<Vec<u8>, String> {
-    match coin {
-        Coin::Btc => {
+/// Decodes one address line into its 20-byte account record.
+fn parse_address(text: &str, chain: &ChainDescriptor) -> Result<Vec<u8>, String> {
+    match chain.family {
+        Family::SecpHash160 => {
             let payload = base58::decode_check(text)?;
-            if payload.len() != 21 || payload[0] != 0x00 {
+            if payload.len() != 21 || payload[0] != chain_version(chain) {
                 return Err(format!(
-                    "invalid BTC P2PKH address (expected a 21-byte 0x00 payload): {text}"
+                    "invalid {} P2PKH address (expected a 21-byte 0x{:02x} payload): {text}",
+                    chain.name,
+                    chain_version(chain)
                 ));
             }
             Ok(payload[1..].to_vec())
         }
-        Coin::Eth => {
+        Family::EvmKeccak => {
             let hex = text
                 .strip_prefix("0x")
                 .or_else(|| text.strip_prefix("0X"))
                 .ok_or_else(|| {
-                    format!("invalid ETH address (expected 0x + 40 hex chars): {text}")
+                    format!("invalid EVM address (expected 0x + 40 hex chars): {text}")
                 })?;
             parse_hex_bytes(hex, 20)
-                .ok_or_else(|| format!("invalid ETH address (expected 0x + 40 hex chars): {text}"))
+                .ok_or_else(|| format!("invalid EVM address (expected 0x + 40 hex chars): {text}"))
         }
+        other => Err(format!(
+            "chain '{}' cannot parse address targets for the {} family yet",
+            chain.id,
+            other.label()
+        )),
+    }
+}
+
+/// Single-byte Base58Check version of a P2PKH-style chain.
+///
+/// The descriptor's version prefix is authoritative; multi-byte prefixes
+/// (Zcash) need a dedicated parser and are not reached by this path yet.
+fn chain_version(chain: &ChainDescriptor) -> u8 {
+    match chain.encoding {
+        crate::chain::AddressEncoding::Base58Check([version]) => *version,
+        _ => 0x00,
     }
 }
 
@@ -76,9 +100,18 @@ mod tests {
 
     use super::load;
     use crate::base58;
-    use crate::cli::{Coin, SearchMode};
+    use crate::chain;
+    use crate::cli::SearchMode;
     use crate::scalar::Scalar;
     use crate::secp::{self, mul_g};
+
+    fn bitcoin() -> &'static chain::ChainDescriptor {
+        chain::by_id("bitcoin").expect("bitcoin descriptor")
+    }
+
+    fn ethereum() -> &'static chain::ChainDescriptor {
+        chain::by_id("ethereum").expect("ethereum descriptor")
+    }
 
     fn btc_hash160(key: u64) -> [u8; 20] {
         secp::hash160(&mul_g(&Scalar::from_u64(key)), true)
@@ -98,7 +131,7 @@ mod tests {
         let text =
             format!("# leading comment\r\n\r\n   {five}   \r\n# between entries\r\n{seven}\r\n");
 
-        let set = load(Cursor::new(text), Coin::Btc, SearchMode::Addresses)
+        let set = load(Cursor::new(text), bitcoin(), SearchMode::Addresses)
             .expect("mixed fixture should load");
 
         assert_eq!(set.len(), 2);
@@ -114,7 +147,7 @@ mod tests {
             btc_address(5)
         );
 
-        let err = load(Cursor::new(text), Coin::Btc, SearchMode::Addresses)
+        let err = load(Cursor::new(text), bitcoin(), SearchMode::Addresses)
             .err()
             .expect("a bad address must fail");
 
@@ -125,7 +158,7 @@ mod tests {
     fn cursor_plays_the_stdin_role() {
         let text = format!("{}\n", btc_address(5));
 
-        let set = load(Cursor::new(text), Coin::Btc, SearchMode::Addresses)
+        let set = load(Cursor::new(text), bitcoin(), SearchMode::Addresses)
             .expect("stdin-style reader should load");
 
         assert_eq!(set.len(), 1);
@@ -142,7 +175,7 @@ mod tests {
             hex_upper(&two)
         );
 
-        let set = load(Cursor::new(text), Coin::Eth, SearchMode::Addresses)
+        let set = load(Cursor::new(text), ethereum(), SearchMode::Addresses)
             .expect("ETH fixture should load");
 
         assert_eq!(set.len(), 2);
@@ -155,7 +188,7 @@ mod tests {
         let x = mul_g(&Scalar::from_u64(9)).x.to_bytes_be();
         let text = format!("# xpoints\n\n{}\n", hex_upper(&x));
 
-        let set = load(Cursor::new(text), Coin::Btc, SearchMode::XPoints)
+        let set = load(Cursor::new(text), bitcoin(), SearchMode::XPoints)
             .expect("xpoint fixture should load");
 
         assert_eq!(set.len(), 1);
@@ -167,7 +200,7 @@ mod tests {
     fn empty_list_is_rejected() {
         let err = load(
             Cursor::new("# only comments\n\n"),
-            Coin::Btc,
+            bitcoin(),
             SearchMode::Addresses,
         )
         .err()
