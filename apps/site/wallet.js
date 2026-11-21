@@ -17,12 +17,23 @@
 (function () {
   'use strict';
 
+  /* Build-prefixed URL for lazily loaded scripts and wasm. theme.js owns the
+   * helper (it runs first); the local branch keeps a standalone page working. */
+  function assetUrl(path) {
+    if (typeof window === 'undefined') return path;
+    if (window.RotorAssets && typeof window.RotorAssets.url === 'function') {
+      return window.RotorAssets.url(path);
+    }
+    var build = document.documentElement.getAttribute('data-build');
+    return build ? '/a/' + build + path : path;
+  }
+
   var VAULT_DB = 'rotor-wallet';
   var VAULT_STORE = 'vault';
   var VAULT_KEY = 'vault';
   var IDLE_MS = 10 * 60 * 1000;
   var IDLE_CHECK_MS = 15 * 1000;
-  var WASM_URL = '/rotor_wasm.wasm';
+  var WASM_URL = assetUrl('/rotor_wasm.wasm');
   var TIMEOUT_MS = 10000;
   var MAX_LABEL = 64;
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -433,7 +444,7 @@
     if (state.tonPromise) return state.tonPromise;
     state.tonPromise = new Promise(function (resolve, reject) {
       var script = document.createElement('script');
-      script.src = '/ton.js';
+      script.src = assetUrl('/ton.js');
       script.onload = function () {
         if (window.RotorTon) resolve(window.RotorTon);
         else reject(new Error('The TON library did not load.'));
@@ -472,8 +483,8 @@
 
   function ensureSeedLibraries() {
     if (window.RotorSeed && window.RotorSeedCrypto) return Promise.resolve();
-    return ensureScript('RotorSeed', '/seed.js').then(function () {
-      return ensureScript('RotorSeedCrypto', '/seed-crypto.js');
+    return ensureScript('RotorSeed', assetUrl('/seed.js')).then(function () {
+      return ensureScript('RotorSeedCrypto', assetUrl('/seed-crypto.js'));
     });
   }
 

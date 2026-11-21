@@ -7,6 +7,15 @@
   var STORAGE_KEY = 'rotor-theme';
   var root = document.documentElement;
 
+  /* Build-prefixed asset URL. The coordinator writes `data-build` on <html>;
+   * a standalone page without it keeps the bare path. Lazy loaders in
+   * site.js and wallet.js share this helper. */
+  function assetUrl(path) {
+    var build = root.getAttribute('data-build');
+    return build ? '/a/' + build + path : path;
+  }
+  window.RotorAssets = { url: assetUrl };
+
   function readChoice() {
     try {
       var value = localStorage.getItem(STORAGE_KEY);
@@ -31,7 +40,7 @@
     if (!button) return;
     var use = button.querySelector('use');
     var toLight = theme !== 'light';
-    if (use) use.setAttribute('href', toLight ? '/icons.svg#ui-sun' : '/icons.svg#ui-moon');
+    if (use) use.setAttribute('href', assetUrl(toLight ? '/icons.svg#ui-sun' : '/icons.svg#ui-moon'));
     var label = toLight ? 'Switch to light theme' : 'Switch to dark theme';
     button.setAttribute('aria-label', label);
     button.setAttribute('data-tooltip', label);
@@ -48,7 +57,7 @@
     button.type = 'button';
     button.className = 'icon-button icon-button--quiet icon-button--lg theme-toggle';
     button.setAttribute('data-theme-toggle', '');
-    button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-moon"></use></svg>';
+    button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="' + assetUrl('/icons.svg#ui-moon') + '"></use></svg>';
     var search = tools.querySelector('[data-nav="search"]');
     if (search && search.parentNode === tools) tools.insertBefore(button, search.nextSibling);
     else tools.insertBefore(button, tools.firstChild);

@@ -7,6 +7,10 @@
 
 pub mod chunk_loop;
 pub mod client;
+
+#[cfg(test)]
+#[path = "build_id.rs"]
+mod build_id_rules;
 pub mod orders;
 pub mod puzzles;
 pub mod state;
@@ -685,26 +689,33 @@ fn handle(app: Arc<App>, request: Request) {
         // Dynamic SEO surface: key pages, chain hubs, robots and sitemap.
         if let Some((body, content_type, status)) = seo_asset(&app.public_url, path, query) {
             let body = if content_type.starts_with("text/html") {
-                with_site_footer(path, body)
+                prepare_html_document(path, body)
             } else {
                 body
             };
-            respond_asset(request, body.into_bytes(), content_type, status);
+            respond_asset(request, body.into_bytes(), content_type, status, false);
             return;
         }
-        if let Some((body, content_type)) = static_asset(path) {
+        // Assets under `/a/<build>/` are immutable because the build segment
+        // changes with every deploy; bare paths stay for old links and curl.
+        let (asset_path, immutable) = match prefixed_asset_path(path) {
+            Some(stripped) => (stripped, true),
+            None => (path.to_string(), false),
+        };
+        if let Some((body, content_type)) = static_asset(&asset_path) {
             let body = if content_type.starts_with("text/html") {
-                with_site_footer(path, String::from_utf8_lossy(body).into_owned()).into_bytes()
+                prepare_html_document(&asset_path, String::from_utf8_lossy(body).into_owned())
+                    .into_bytes()
             } else {
                 body.to_vec()
             };
-            respond_asset(request, body, content_type, 200);
+            respond_asset(request, body, content_type, 200, immutable);
             return;
         }
         if !path.starts_with("/api/v1/") {
             // Unknown non-API paths are a real 404, never a soft landing page.
             let (body, content_type, status) = unknown_html_page();
-            let response = Response::from_string(body)
+            let response = Response::from_string(fingerprint_assets(body, BUILD_ID))
                 .with_status_code(StatusCode(status))
                 .with_header(header("Content-Type", content_type));
             let _ = request.respond(response);
@@ -867,8 +878,15 @@ fn handle(app: Arc<App>, request: Request) {
 }
 
 /// Serve a public asset. HTML is never reused (`no-store`); every other asset
-/// is revalidated (`no-cache`) and answers `304` while its `ETag` still matches.
-fn respond_asset(request: Request, body: Vec<u8>, content_type: &str, status: u16) {
+/// is either immutable (build-prefixed URL) or revalidated (`no-cache`), and
+/// answers `304` while its `ETag` still matches.
+fn respond_asset(
+    request: Request,
+    body: Vec<u8>,
+    content_type: &str,
+    status: u16,
+    immutable: bool,
+) {
     if content_type.starts_with("text/html") {
         let response = Response::from_data(body)
             .with_status_code(StatusCode(status))
@@ -878,11 +896,16 @@ fn respond_asset(request: Request, body: Vec<u8>, content_type: &str, status: u1
         return;
     }
 
+    let cache_control = if immutable {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
     let etag = asset_etag(&body);
     if status == 200 && etag_is_fresh(&request, &etag) {
         let response = Response::empty(StatusCode(304))
             .with_header(header("ETag", &etag))
-            .with_header(header("Cache-Control", "no-cache"));
+            .with_header(header("Cache-Control", cache_control));
         let _ = request.respond(response);
         return;
     }
@@ -890,7 +913,7 @@ fn respond_asset(request: Request, body: Vec<u8>, content_type: &str, status: u1
     let response = Response::from_data(body)
         .with_status_code(StatusCode(status))
         .with_header(header("Content-Type", content_type))
-        .with_header(header("Cache-Control", "no-cache"))
+        .with_header(header("Cache-Control", cache_control))
         .with_header(header("ETag", &etag));
     let _ = request.respond(response);
 }
@@ -2036,7 +2059,7 @@ const REPOSITORY_URL: &str = "https://github.com/mytab0r/Rotor-Cuda";
 /// One marketing footer for every public content page. The app and cabinet
 /// shells intentionally omit it (`is_app_shell`), and `with_site_footer`
 /// inserts it once for both static and generated HTML.
-fn site_footer() -> String {
+fn site_footer(build_id: &str) -> String {
     format!(
         "<footer class=\"site-footer\">\
          <nav aria-label=\"Footer\">\
@@ -2046,7 +2069,7 @@ fn site_footer() -> String {
          <a href=\"/docs\">Docs</a>\
          <a href=\"{REPOSITORY_URL}\" rel=\"noopener noreferrer\">GitHub</a>\
          </nav>\
-         <div class=\"site-footer__meta\"><span>© 2026 Crypto</span><span>build {BUILD_ID}</span></div>\
+         <div class=\"site-footer__meta\"><span>© 2026 Crypto</span><span>build {build_id}</span></div>\
          </footer>"
     )
 }
@@ -2068,7 +2091,111 @@ fn with_site_footer(path: &str, html: String) -> String {
     {
         return html;
     }
-    html.replacen("</body>", &format!("{}\n</body>", site_footer()), 1)
+    html.replacen("</body>", &format!("{}\n</body>", site_footer(BUILD_ID)), 1)
+}
+
+/// Everything a served HTML document needs on its way out: the shared footer
+/// and the build-prefixed asset URLs. Both render paths (static pages and the
+/// generated SEO surface) go through here, so a page can never ship a bare
+/// asset link.
+fn prepare_html_document(path: &str, html: String) -> String {
+    fingerprint_assets(with_site_footer(path, html), BUILD_ID)
+}
+
+/// First-party asset types that may be referenced with the build prefix.
+/// Page routes deliberately have no extension and are never rewritten.
+const ASSET_EXTENSIONS: [&str; 8] = ["css", "js", "wasm", "svg", "woff2", "png", "ico", "txt"];
+
+/// Expose the build to the runtime (`document.documentElement.dataset.build`)
+/// and rewrite every first-party asset URL to `/a/<build>/<path>`, the
+/// immutable URL that changes with every deploy. External URLs, API paths and
+/// page routes are left untouched, and an existing query or fragment is kept.
+fn fingerprint_assets(html: String, build_id: &str) -> String {
+    let html = if html.contains("data-build=") {
+        html
+    } else {
+        html.replacen("<html", &format!("<html data-build=\"{build_id}\""), 1)
+    };
+    let mut html = html;
+    for attribute in ["src=\"", "href=\""] {
+        html = rewrite_asset_attribute(html, attribute, build_id);
+    }
+    html
+}
+
+fn rewrite_asset_attribute(html: String, attribute: &str, build_id: &str) -> String {
+    if !html.contains(attribute) {
+        return html;
+    }
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html.as_str();
+    while let Some(index) = rest.find(attribute) {
+        let value_start = index + attribute.len();
+        out.push_str(&rest[..value_start]);
+        let tail = &rest[value_start..];
+        let Some(end) = tail.find('"') else {
+            out.push_str(tail);
+            return out;
+        };
+        out.push_str(&fingerprinted_url(&tail[..end], build_id));
+        out.push('"');
+        rest = &tail[end + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn is_fingerprintable_asset_url(value: &str) -> bool {
+    let Some(path) = value.strip_prefix('/') else {
+        return false;
+    };
+    if path.starts_with('/') || path.is_empty() {
+        return false;
+    }
+    let path = path.split(['?', '#']).next().unwrap_or(path);
+    let Some((_, extension)) = path.rsplit_once('.') else {
+        return false;
+    };
+    ASSET_EXTENSIONS
+        .iter()
+        .any(|known| extension.eq_ignore_ascii_case(known))
+        && static_asset(&format!("/{path}")).is_some()
+}
+
+fn fingerprinted_url(value: &str, build_id: &str) -> String {
+    if !is_fingerprintable_asset_url(value) {
+        return value.to_string();
+    }
+    let (without_fragment, fragment) = match value.split_once('#') {
+        Some((head, fragment)) => (head, Some(fragment)),
+        None => (value, None),
+    };
+    let (path, query) = match without_fragment.split_once('?') {
+        Some((path, query)) => (path, Some(query)),
+        None => (without_fragment, None),
+    };
+    let mut url = format!("/a/{build_id}{path}");
+    if let Some(query) = query {
+        url.push('?');
+        url.push_str(query);
+    }
+    if let Some(fragment) = fragment {
+        url.push('#');
+        url.push_str(fragment);
+    }
+    url
+}
+
+/// Strip an optional `/a/<build>/` prefix and return the embedded asset path.
+/// Any non-empty build segment is accepted: a page cached from an older deploy
+/// then still resolves instead of 404ing (the bytes are always this build's).
+fn prefixed_asset_path(path: &str) -> Option<String> {
+    let rest = path.strip_prefix("/a/")?;
+    let (build, file) = rest.split_once('/')?;
+    if build.is_empty() || file.is_empty() {
+        return None;
+    }
+    Some(format!("/{file}"))
 }
 
 fn html_document(title: &str, head_extra: &str, body: &str) -> String {
@@ -2081,7 +2208,7 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <script src=\"/theme.js\"></script>\n\
          {head_extra}</head>\n<body>\n{body}\n{footer}\n<script src=\"/search.js\"></script>\n<script src=\"/site.js\"></script>\n</body>\n</html>\n",
         escape_attr(title),
-        footer = site_footer(),
+        footer = site_footer(BUILD_ID),
     )
 }
 
@@ -5969,6 +6096,90 @@ mod tests {
         let once = with_site_footer("/docs", page.clone());
         assert_eq!(once.matches("<footer class=\"site-footer\">").count(), 1);
         assert!(html_document("T", "", "<main>x</main>").contains("site-footer"));
+    }
+
+    #[test]
+    fn fingerprint_assets_rewrites_only_first_party_assets() {
+        let page = fingerprint_assets(
+            "<html><head><link rel=\"stylesheet\" href=\"/site.css\">\
+             <script src=\"/site.js?defer=1\"></script></head>\
+             <body><svg><use href=\"/icons.svg#ui-key\"></use></svg>\
+             <a href=\"/docs\">Docs</a>\
+             <a href=\"/api/v1/summary\">API</a>\
+             <a href=\"https://cdn.example/app.js\">External</a></body></html>"
+                .into(),
+            BUILD_ID,
+        );
+        assert!(
+            page.contains(&format!("href=\"/a/{BUILD_ID}/site.css\"")),
+            "{page}"
+        );
+        assert!(
+            page.contains(&format!("src=\"/a/{BUILD_ID}/site.js?defer=1\"")),
+            "a query string on the original reference must survive: {page}"
+        );
+        assert!(
+            page.contains(&format!("href=\"/a/{BUILD_ID}/icons.svg#ui-key\"")),
+            "{page}"
+        );
+        assert!(
+            page.contains(&format!("data-build=\"{BUILD_ID}\"")),
+            "{page}"
+        );
+        assert!(page.contains("href=\"/docs\""), "page routes stay bare");
+        assert!(
+            page.contains("href=\"/api/v1/summary\""),
+            "API paths stay bare"
+        );
+        assert!(
+            page.contains("href=\"https://cdn.example/app.js\""),
+            "external URLs stay untouched"
+        );
+    }
+
+    /// A Docker build has no `.git`; the workflow passes the commit in
+    /// `ROTOR_BUILD_ID`. Pin that the id reaches both the footer and the asset
+    /// URLs, and that `dev` is only the fallback when nothing is available.
+    #[test]
+    fn explicit_build_id_reaches_footer_and_asset_urls() {
+        let build = "abc123def456";
+        assert!(site_footer(build).contains("build abc123def456"));
+        let page = fingerprint_assets(
+            "<html><body><script src=\"/site.js\"></script></body></html>".into(),
+            build,
+        );
+        assert!(page.contains("data-build=\"abc123def456\""), "{page}");
+        assert!(page.contains("src=\"/a/abc123def456/site.js\""), "{page}");
+
+        assert_eq!(build_id_rules::resolve_build_id(Some(build), None), build);
+        assert_eq!(
+            build_id_rules::resolve_build_id(Some("  abc123def456  "), Some("git-sha")),
+            build
+        );
+        assert_eq!(
+            build_id_rules::resolve_build_id(Some("   "), Some("git-sha")),
+            "git-sha"
+        );
+        assert_eq!(
+            build_id_rules::resolve_build_id(None, Some("git-sha")),
+            "git-sha"
+        );
+        assert_eq!(build_id_rules::resolve_build_id(None, None), "dev");
+    }
+
+    #[test]
+    fn prefixed_asset_path_strips_any_build_segment() {
+        assert_eq!(
+            prefixed_asset_path(&format!("/a/{BUILD_ID}/site.css")).as_deref(),
+            Some("/site.css")
+        );
+        assert_eq!(
+            prefixed_asset_path("/a/older-build/site.js").as_deref(),
+            Some("/site.js")
+        );
+        assert_eq!(prefixed_asset_path("/site.css"), None);
+        assert_eq!(prefixed_asset_path("/a/site.css"), None);
+        assert_eq!(prefixed_asset_path("/a//site.css"), None);
     }
 
     #[test]

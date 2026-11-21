@@ -3,7 +3,9 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
+  var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/rotor_wasm.wasm')
+    : '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
   var EVM_RPC_URLS = [
     'https://ethereum-rpc.publicnode.com',
@@ -1009,7 +1011,7 @@
     if (tonLoader) return tonLoader;
     tonLoader = new Promise(function (resolve, reject) {
       var script = document.createElement('script');
-      script.src = '/ton.js';
+      script.src = window.RotorAssets.url('/ton.js');
       script.onload = function () {
         if (window.RotorTon) resolve(window.RotorTon);
         else reject(new Error('TON library did not load.'));

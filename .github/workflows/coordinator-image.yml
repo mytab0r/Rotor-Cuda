@@ -25,9 +25,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve build id
+        id: build
+        run: echo "sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
       - uses: docker/build-push-action@v6
         with:
           context: .
+          build-args: |
+            GIT_SHA=${{ steps.build.outputs.sha }}
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/rotor-coord:latest

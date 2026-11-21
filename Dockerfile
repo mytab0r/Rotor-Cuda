@@ -9,6 +9,11 @@ COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
 COPY crates ./crates
 COPY apps ./apps
+# The Docker context has no .git, so build.rs cannot read the commit: the
+# workflow passes it in and it becomes the footer build id and the
+# `/a/<build>/` asset prefix.
+ARG GIT_SHA=""
+ENV ROTOR_BUILD_ID=$GIT_SHA
 # The coordinator embeds the browser client, so the wasm artifact must exist
 # before the root build runs.
 RUN rustup target add wasm32-unknown-unknown \
