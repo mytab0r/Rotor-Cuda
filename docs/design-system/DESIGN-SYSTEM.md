@@ -356,17 +356,25 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 </div>
 ```
 
-- Wrapper: `overflow-x:auto`, border `--line-subtle`, radius `--radius-l`,
-  `tabindex="0"`, accessible name. A table never forces the page wider.
-- Header: `--text-xs`, 600, `--ink-3`, sentence case; no uppercase tracking.
-  Cell padding `--space-2 --space-3`; row min-height 44.
+- Wrapper: `.table-scroll` (`overflow-x:auto`, `overscroll-behavior-x:contain`,
+  border `--line-subtle`, radius `--radius-l`, no padding), `tabindex="0"`,
+  accessible name. Every table carries `.data-table`; a table never forces the
+  page wider.
+- Header: `--text-xs`, 600, `--ink-3`, sentence case; no uppercase tracking;
+  header row height `--control-h` (44).
+- Cell padding `--space-2 --space-3`; body row min-height 44; long values wrap
+  with `overflow-wrap:anywhere`; numeric columns use tabular-nums and align
+  right.
 - Row states: hover `--row-hover`; `has-balance` tinted ok; `is-active` tinted
   signal; `key-row-focus` signal hairline + surface. States are independent and
-  must be recognisable apart.
-- Actions: one icon-button grammar (44×44); long values wrap with
-  `overflow-wrap:anywhere`; numeric columns use tabular-nums and align right.
-- At ≤720px, either keep the scroll wrapper or transform to labelled blocks with
-  `data-label`; do not hide columns without an alternative view.
+  must be recognisable apart; the div-based directory/seed rows use the same
+  tokens.
+- Actions: one icon-button grammar at the trailing edge (44×44, radius
+  `--radius-control`, labelled).
+- Mobile: tables keep the horizontal scroll wrapper and all columns; they do
+  not turn into cards. Directory/seed row lists may stack, but keep their
+  labels. Enforced by `scripts/ui-audit.mjs` `table-grammar`,
+  `table-header-style`, `table-row-height` and `row-action-geometry`.
 
 ### 3.11 Pagination
 
@@ -538,8 +546,9 @@ route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; batch 2
 adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
 `segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
-later batches add the detectors listed in `plan.md` §3. The human checklist is
-`apps/site/UI-CHECKLIST.md` and the project skill
+batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
+`row-action-geometry`; later batches add the detectors listed in `plan.md` §3.
+The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
 ## 9. Versioning

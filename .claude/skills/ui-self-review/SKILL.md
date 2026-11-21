@@ -59,6 +59,10 @@ directory and printed at the end.
 | `segmented-geometry` | track padding/radius wrong, item under 44, or not exactly one selected | Fix the shared `.segmented` component; one control per purpose. |
 | `card-padding-scale` | card padding outside 16/20/24 or radius outside 12/16 | Fix the shared card component in `site.css`; never restore a page-local `.key-page > .card` override. |
 | `stat-geometry` | stat label under 12px/uppercase/tracked, or value outside 20/24/28 with non-tabular digits | Fix the shared stat grammar; use `.stat--sm` for small values. |
+| `table-grammar` | table without `.data-table`/`.table-scroll`, cell padding not 8/12, or uneven header heights | Fix the shared table shell; never add a page-local table style. |
+| `table-header-style` | header not 12px/600 sentence case, or uppercase/tracked | Fix `.data-table thead th`/`.keys-header` in `site.css`. |
+| `table-row-height` | a row below 44px without a 44px action | Raise the shared row floor or add the row action. |
+| `row-action-geometry` | row action not 44x44, radius 10, or unlabelled | Fix the shared icon-button/row action component. |
 | `status-pill-geometry` | a status/badge pill outside the shared box: text <12px, height outside 18–32px, non-pill radius, or inline padding outside 6/8/10/12 | Fix the shared `.status`/`.badge` geometry in `site.css`; never restyle one page's pill. |
 | `duplicate-address-type-implementation` | `.key-types`/`.key-btc-panel` and `.address-type-panel` both used | Unify on one address-type component and delete the other markup/CSS family. |
 | `address-type-width-spread` | cards in one row differ by >15% | Fix the grid (`repeat(auto-fit, minmax(...))` or equal `1fr`) in the shared component. |
