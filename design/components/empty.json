@@ -1,0 +1,58 @@
+{
+  "name": "empty",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "div",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Empty state",
+      "classes": ["empty-state"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (20px padding, radius 12)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [],
+  "forbidden": [
+    "An empty state without an action when the next step exists; use the .empty-state__action slot.",
+    "A blank card instead of an empty state.",
+    "A page-local dashed box: the shared grammar is dashed --line-subtle, radius 12, padding 20."
+  ],
+  "slots": [
+    {
+      "name": "title",
+      "tag": "span",
+      "classes": ["empty-state__title"],
+      "text": "No rows yet"
+    },
+    {
+      "name": "body",
+      "tag": "p",
+      "text": "Change the filter or run a scan to fill this table."
+    }
+  ],
+  "tokens": [
+    "--space-2",
+    "--space-3",
+    "--space-5",
+    "--radius-l",
+    "--line-subtle",
+    "--ink-2",
+    "--ink-3",
+    "--text-sm",
+    "--weight-semibold"
+  ],
+  "detectors": ["empty-state-grammar"],
+  "docs": "docs/design-system/components/empty.md"
+}

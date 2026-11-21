@@ -42,6 +42,7 @@ const LANDING: &str = include_str!("../../apps/site/landing.html");
 const APP_PAGE: &str = include_str!("../../apps/site/app.html");
 const ME_PAGE: &str = include_str!("../../apps/site/me.html");
 const DOCS_PAGE: &str = include_str!("../../apps/site/docs.html");
+const DESIGN_PAGE: &str = include_str!("../../apps/site/design.html");
 const SITE_CSS: &str = include_str!("../../apps/site/site.css");
 const SITE_JS: &str = include_str!("../../apps/site/site.js");
 const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
@@ -951,6 +952,8 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/run" => Some((RUN_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/me" => Some((ME_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        // Internal, noindex component gallery generated from design/components.
+        "/design" => Some((DESIGN_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/address-codecs.js" => Some((
