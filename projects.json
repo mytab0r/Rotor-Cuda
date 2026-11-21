@@ -60,6 +60,7 @@
         "node apps/site/tx-test.mjs",
         "node apps/site/search-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/vanity-test.mjs",
+        "node apps/site/qr-test.mjs",
         "node apps/site/site-nav-test.mjs"
       ],
       "consumes": [
