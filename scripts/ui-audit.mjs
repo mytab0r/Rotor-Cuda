@@ -1479,6 +1479,107 @@ function auditPage(args) {
     add("address-type-width-spread", `address-type cards differ by more than 15% inside a row`, spreadIssues);
   }
 
+  // 6a. Browse listing row model. The donor row is three cells at ~65px; a
+  //     BTC legacy key has a second address form. The row shows one 44px
+  //     address line and keeps the second in a disclosed block (still in the
+  //     DOM), so the row does not double and no information disappears. The
+  //     key cell carries a real 44px copy action (the donor has one); a
+  //     display:none button was the #220 defect.
+  if (route === "/private-keys/bitcoin") {
+    const browseRows = [...document.querySelectorAll("#keys-container .key-row")];
+    const addressIssues = [];
+    const balanceSplitIssues = [];
+    const copyIssues = [];
+    const tallRows = [];
+    const heights = [];
+    for (const row of browseRows) {
+      const key = row.getAttribute("data-key") || "(no key)";
+      const cell = row.querySelector(".col-address");
+      const primary = cell ? cell.querySelector(":scope > .addr-line") : null;
+      const extra = cell ? cell.querySelector(":scope > .addr-extra") : null;
+      const toggle = row.querySelector(".addr-extra-toggle");
+      const links = cell ? [...cell.querySelectorAll("a.address-link")] : [];
+      if (!primary || !visible(primary)) {
+        addressIssues.push(`${key.slice(0, 8)}: no visible address line`);
+      }
+      if (links.length < 2) {
+        addressIssues.push(`${key.slice(0, 8)}: ${links.length} address link(s), expected 2`);
+      }
+      if (!extra || !extra.querySelectorAll("a.address-link").length) {
+        addressIssues.push(`${key.slice(0, 8)}: the second address is missing from the DOM`);
+      }
+      if (!toggle) {
+        addressIssues.push(`${key.slice(0, 8)}: no address disclosure`);
+      } else {
+        const controls = toggle.getAttribute("aria-controls");
+        if (toggle.getAttribute("aria-expanded") !== "false") {
+          addressIssues.push(`${key.slice(0, 8)}: disclosure starts expanded`);
+        }
+        if (!controls || !document.getElementById(controls)) {
+          addressIssues.push(`${key.slice(0, 8)}: aria-controls points nowhere`);
+        }
+        if (extra && visible(extra)) {
+          addressIssues.push(`${key.slice(0, 8)}: the second address is visible while collapsed`);
+        }
+      }
+      if (extra && row.querySelector(".col-balance .balance-info")) {
+        const directLines = row.querySelectorAll(".col-balance > .balance-info").length;
+        const extraLines = row.querySelectorAll(".col-balance > .balance-extra .balance-info").length;
+        if (directLines !== 1 || extraLines < 1) {
+          balanceSplitIssues.push(`${key.slice(0, 8)}: ${directLines} visible + ${extraLines} disclosed balance line(s)`);
+        }
+      }
+      const copy = row.querySelector(".col-key .copy-btn");
+      if (!copy) {
+        copyIssues.push(`${key.slice(0, 8)}: key copy button missing`);
+      } else {
+        const box = boxOf(copy);
+        const issues = [];
+        if (!visible(copy)) issues.push("hidden");
+        if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
+          issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
+        }
+        if (!copy.getAttribute("aria-label")) issues.push("no aria-label");
+        if (!copy.getAttribute("data-tooltip")) issues.push("no data-tooltip");
+        if (issues.length) copyIssues.push(`${key.slice(0, 8)}: ${issues.join(", ")}`);
+      }
+      const height = boxOf(row).height;
+      heights.push(Math.round(height));
+      if (window.innerWidth >= 1000 && height > 75) {
+        tallRows.push({ key: key.slice(0, 8), height: Math.round(height) });
+      }
+    }
+    metrics.browseRows = {
+      rows: browseRows.length,
+      heights: [...new Set(heights)].sort((a, b) => a - b),
+      addressIssues,
+      balanceSplitIssues,
+      copyIssues,
+    };
+    if (addressIssues.length) {
+      add("browse-row-address-disclosure", `${addressIssues.length} listing row(s) break the address disclosure model`, addressIssues.slice(0, 8));
+    }
+    if (balanceSplitIssues.length) {
+      add("browse-row-balance-split", `${balanceSplitIssues.length} listing row(s) do not split the balance lines`, balanceSplitIssues.slice(0, 8));
+    }
+    if (copyIssues.length) {
+      add("browse-row-key-copy", `${copyIssues.length} listing row(s) ship a dead or malformed key copy action`, copyIssues.slice(0, 8));
+    }
+    if (tallRows.length) {
+      add("browse-row-height", `${tallRows.length} listing row(s) above the 75px desktop ceiling`, tallRows.slice(0, 8));
+    }
+
+    const statCards = [...document.querySelectorAll(".balance-summary .stat-card")].filter(visible);
+    if (statCards.length >= 3 && window.innerWidth >= 1000) {
+      const bottoms = statCards.map((card) => Math.round(boxOf(card).bottom));
+      const spread = Math.max(...bottoms) - Math.min(...bottoms);
+      metrics.browseStatCards = { cards: statCards.length, bottoms, spread };
+      if (spread > 2) {
+        add("browse-stat-level", `browse stat cards end ${spread}px apart (expected <=2)`, metrics.browseStatCards);
+      }
+    }
+  }
+
   // 7. Large blocks that are mostly empty. Threshold: a card/section taller
   //    than 220px with less than 55% of its content box covered by visible
   //    direct children. This is intentionally conservative to avoid flagging
@@ -2584,6 +2685,20 @@ async function main() {
               await waitForSelector(cdp, ".bw-row", SELECTOR_TIMEOUT_MS);
             } else if (route === "/bitcoin-puzzle") {
               await waitForSelector(cdp, "[data-puzzle-row]", SELECTOR_TIMEOUT_MS);
+            } else if (route === "/private-keys/bitcoin") {
+              // Derivation is local but chunked; the address model is only
+              // complete when the last row has its links. Balances settle
+              // later and are checked only when present.
+              await waitForSelector(
+                cdp,
+                "#keys-container .key-row:last-child .col-address .address-link",
+                SELECTOR_TIMEOUT_MS,
+              ).catch(() => {});
+              await waitForSelector(
+                cdp,
+                "#keys-container .key-row:last-child .col-balance .balance-info",
+                SELECTOR_TIMEOUT_MS,
+              ).catch(() => {});
             } else if (route === "/key" || route.startsWith("/key/")) {
               await waitForSelector(cdp, "#priv", SELECTOR_TIMEOUT_MS);
               // A key in the URL derives on load; wait for the rendered table

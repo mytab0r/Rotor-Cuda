@@ -1605,6 +1605,9 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   gap: var(--space-2);
 }
 .balance-summary--browse .stat-card .stat-value { margin-top: 0; }
+/* The three-card UTXO strip uses the 20px step so a long Received value stays
+ * on one line; the two-card account strip has room for the shared 24px. */
+.balance-summary--browse:not(.balance-summary--account) .stat-card .stat-value { font-size: var(--text-xl); }
 .balance-summary--browse .balance-refresh {
   grid-column: auto;
   flex: 0 0 auto;
@@ -1613,7 +1616,10 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   background: transparent;
 }
 .balance-summary--browse .balance-note {
-  flex: 0 1 320px;
+  /* 320px squeezed the three cards until the long Received balance broke
+   * mid-value. 200px keeps the note to two short lines while every card has
+   * room for its label and one-line value. */
+  flex: 0 1 200px;
   margin: 0;
   padding: 0;
   align-self: center;
@@ -1683,6 +1689,8 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .key-row:last-child { border-bottom: 0; }
 .col-key { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .private-key {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--text-2);
   min-height: 44px;
   padding-block: 12px;
@@ -2540,9 +2548,11 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .milk-result .key-form-row { grid-template-columns: 150px minmax(0, 1fr); }
 @media (max-width: 560px) { .milk-form { grid-template-columns: 1fr; } .milk-result .key-form-row { grid-template-columns: 1fr; } }
 
-/* Compact chain rows: one address, one balance, icon actions */
+/* Compact chain rows: one address, one balance, icon actions. The donor's
+ * balance column is minmax(200px, auto) with nowrap, so its packed line fits;
+ * our 132px column broke it into three wrapped lines and set the row height. */
 .keys-header,
-.key-row { grid-template-columns: minmax(0, 1.8fr) minmax(0, 2.1fr) 132px; }
+.key-row { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) 200px; }
 .key-row { min-height: 54px; padding-top: 6px; padding-bottom: 6px; }
 .col-address { display: block; min-width: 0; }
 
@@ -2585,7 +2595,16 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   font-size: 13px;
   line-height: 1.5;
 }
-.col-key .copy-btn { display: none; }
+/* The row key carries a real 44px copy action (the donor has one in the same
+ * cell). A second address form is one click away: the address cell shows the
+ * primary line and the disclosure expands the rest, so a BTC row stays one
+ * 44px address line instead of two. */
+.addr-extra-toggle .icon { transition: transform var(--duration-fast) var(--ease-standard); }
+.addr-extra-toggle[aria-expanded="true"] .icon { transform: rotate(180deg); }
+.addr-extra,
+.balance-extra { display: none; }
+.addr-expanded .addr-extra { display: block; }
+.addr-expanded .balance-extra { display: grid; gap: 2px; }
 .col-balance small { color: var(--text-2); font-size: 12px; }
 @media (max-width: 860px) {
 
