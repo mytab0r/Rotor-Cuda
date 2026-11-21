@@ -3,7 +3,7 @@
   "version": 1,
   "checks": {
     "radius-scale": {
-      "count": 21,
+      "count": 20,
       "entries": [
         {
           "file": "apps/site/site.css",
@@ -51,12 +51,6 @@
           "file": "apps/site/site.css",
           "line": 1597,
           "match": "border-radius: 11px",
-          "reason": "Off-scale radius literal with no exact --radius-* step; changing it is a visual decision, so it is baselined."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 1685,
-          "match": "border-radius: 6px",
           "reason": "Off-scale radius literal with no exact --radius-* step; changing it is a visual decision, so it is baselined."
         },
         {
