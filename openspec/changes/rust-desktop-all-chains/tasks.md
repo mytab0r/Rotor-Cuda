@@ -28,7 +28,7 @@
       mode/chain pairs loudly.
 - [x] Move address encoders into `src/address/` with per-chain fixtures from
       the WASM report (key 1 and an ed25519 seed).
-- [ ] `Found.txt` writes chain-specific WIF/secret only where defined; tests
+- [x] `Found.txt` writes chain-specific WIF/secret only where defined; tests
       for BTC, LTC, DOGE, BCH, ZEC, XRP, ETH, TRON.
 - [ ] Port `BinSort/BinSort.cpp` to a Rust subcommand/helper or delete it if
       the Rust sorter already covers it; remove the `.vcxproj`/Makefile.
@@ -39,7 +39,7 @@
 ## 3. secp-hash160 family [desktop]
 - [ ] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160
       with chain-specific display. (blocked by: 2)
-- [ ] Target loaders accept `.bin` 20-byte records and text addresses for each
+- [x] Target loaders accept `.bin` 20-byte records and text addresses for each
       chain; mixed chains in one file are rejected.
 - [ ] Compressed/uncompressed modes and address types remain explicit; tests
       use published vectors.
