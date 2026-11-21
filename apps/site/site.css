@@ -2134,6 +2134,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 
 .key-page > .card { padding: 24px; }
 .key-page > .card > h2 { margin-bottom: 16px; font-size: 21px; }
+/* Exponents (2<sup>256</sup>) inherit `smaller` and drop below 12px. */
+.key-page sup { font-size: 12px; }
 
 /* Filled input + segmented curve */
 .key-form {
@@ -4022,7 +4024,59 @@ details > summary { min-height: 44px; }
 }
 .key-exposure-status.ok { color: var(--ok); }
 .key-exposure-status.err { color: var(--err); }
-.key-info-btn { flex: none; margin-block: -2px; }
+/* Quiet inline info affordance: a 16px glyph with a 44x44 hit area and no
+ * visible box, so it never reads as a third look-alike button next to the
+ * random/clear controls. The shared tooltip names it on hover/focus. */
+button.key-info-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin-block: -2px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+button.key-info-btn:hover,
+button.key-info-btn:focus-visible {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--accent);
+}
+button.key-info-btn .icon { width: 16px; height: 16px; }
+
+/* Shared tooltip for [data-tooltip] (site.js). Fixed-position and appended to
+ * <body>, so it never affects layout or scroll. */
+.ui-tooltip {
+  position: fixed;
+  z-index: 90;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel-3);
+  color: var(--text);
+  font: 650 12px/1.35 var(--font);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .4);
+  pointer-events: none;
+  animation: ui-tooltip-in 120ms ease-out;
+}
+.ui-tooltip[hidden] { display: none; }
+@keyframes ui-tooltip-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-tooltip { animation: none; }
+}
 .key-info-popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -4048,9 +4102,9 @@ details > summary { min-height: 44px; }
   .key-page .key-chains { flex-basis: 100%; }
 }
 @media (max-width: 560px) {
-  /* The status keeps one line; optional chips may take a second line instead
-   * of squeezing it, and the popover stays inside the viewport. */
-  .key-input-meta { flex-wrap: wrap; height: auto; min-height: 40px; row-gap: 2px; padding-block: 2px; }
+  /* The status keeps one line; optional chips share the same 40px row and
+   * the popover stays inside the viewport. */
+  .key-input-meta { flex-wrap: nowrap; height: 40px; min-height: 40px; row-gap: 0; padding-block: 0; }
   .key-info-popover { width: min(430px, calc(100vw - 40px)); }
   .key-filter-bar .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Stacked label/value rows must grow: the 44px single-line height clipped

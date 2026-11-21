@@ -865,8 +865,96 @@ const edOnlyRows = tools.mergeCurveAddresses(null, edReport, { ed25519: [tonV4R2
 assert(edOnlyRows.length === 4, `out-of-range value renders 4 ed25519 rows, got ${edOnlyRows.length}`);
 assert(edOnlyRows.every((row) => row.curve === "ed25519"), "out-of-range rows are all ed25519");
 
+// ------------------------------------------------------------- USD prices
+// Chain -> ticker. EVM L2s settle in ETH; BNB/Polygon/Avalanche keep their own
+// coin, and the donor's supported set maps one ticker per symbol.
+assert(tools.tickerFor("bitcoin") === "BTC" && tools.tickerFor("btc") === "BTC", "BTC ticker");
+assert(
+  ["eth", "ethereum", "arbitrum", "optimism", "base", "zksync"].every((chain) => tools.tickerFor(chain) === "ETH"),
+  "EVM L2s price in ETH",
+);
+assert(tools.tickerFor("bnb") === "BNB", "BNB ticker");
+assert(tools.tickerFor("polygon") === "POL", "Polygon ticker");
+assert(tools.tickerFor("avalanche") === "AVAX", "Avalanche ticker");
+assert(tools.tickerFor("TRX") === "TRX" && tools.tickerFor("tron") === "TRX", "TRON ticker");
+assert(tools.tickerFor("unknown-chain") === "", "unknown chains have no ticker");
+assert(
+  tools.tickerList().join(",") ===
+    "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,TRXUSDT,LTCUSDT,DOGEUSDT,BCHUSDT,XRPUSDT,ZECUSDT,POLUSDT,AVAXUSDT,TONUSDT,SUIUSDT",
+  `ticker list ${tools.tickerList().join(",")}`,
+);
+assert(
+  tools.priceRequestUrl().startsWith("https://api.binance.com/api/v3/ticker/price?symbols="),
+  "price request targets the public Binance ticker",
+);
+const parsedPrices = tools.parsePriceResponse([
+  { symbol: "BTCUSDT", price: "60000.50" },
+  { symbol: "POLUSDT", price: "0.50" },
+  { symbol: "NOPEUSDT", price: "1" },
+  { symbol: "ETHUSDT", price: "0" },
+]);
+assert(parsedPrices.BTC === "60000.50" && parsedPrices.POL === "0.50", "supported prices kept");
+assert(!("NOPE" in parsedPrices) && !("ETH" in parsedPrices), "unsupported and non-positive prices dropped");
+
+// Atomic -> cents with BigInt at 6, 8 and 18 decimals. No float path.
+assert(tools.atomicToCents(100000000n, 8, tools.priceScaled("60000")) === 6000000n, "1 BTC at 60k");
+assert(
+  tools.atomicToCents(1500000000000000000n, 18, tools.priceScaled("3000")) === 450000n,
+  "1.5 ETH at 3k",
+);
+assert(tools.atomicToCents(2000000n, 6, tools.priceScaled("0.25")) === 50n, "2 TRX at 0.25");
+assert(tools.atomicToCents(1n, 8, tools.priceScaled("1")) === 0n, "sub-cent amounts round to zero cents");
+assert(tools.atomicToCents(1n, 8, tools.priceScaled("0")) === null, "a zero price is not usable");
+
+// Missing price excludes the row; it must never be counted as zero. Included
+// stays 2 and the total is the two priced rows only.
+const fiat = tools.fiatTotals(
+  [
+    { chain: "btc", symbol: "BTC", amount: "150000000", decimals: 8 },
+    { chain: "tron", symbol: "TRX", amount: "2000000", decimals: 6 },
+    { chain: "solana", symbol: "SOL", amount: "123", decimals: 9 },
+    { chain: "eth", symbol: "ETH", amount: null, decimals: 18 },
+  ],
+  { BTC: "60000", TRX: "0.25" },
+);
+assert(fiat.included === 2, `two priced rows, got ${fiat.included}`);
+assert(fiat.noPrice === 1 && fiat.noBalance === 1, "missing price and missing balance are counted separately");
+assert(fiat.cents === 9000050n, `priced total is 9000050 cents, got ${fiat.cents}`);
+assert(tools.formatUsd(fiat.cents) === "$90,000.50", `formatted ${tools.formatUsd(fiat.cents)}`);
+assert(tools.formatUsd(123456789n) === "$1,234,567.89", "thousands separators");
+assert(tools.formatUsd(0n) === "$0.00", "zero dollars");
+
+// Cache: fresh inside six hours, stale at the boundary, missing without prices.
+const TTL = 6 * 60 * 60 * 1000;
+const NOW = 1700000000000;
+assert(tools.priceCacheState(null, NOW, TTL) === "missing", "no cache is missing");
+assert(
+  tools.priceCacheState({ prices: {}, fetchedAt: NOW - 1 }, NOW, TTL) === "missing",
+  "an entry without prices is missing",
+);
+assert(
+  tools.priceCacheState({ prices: { BTC: "1" }, fetchedAt: NOW - 1000 }, NOW, TTL) === "fresh",
+  "a recent entry is fresh",
+);
+assert(
+  tools.priceCacheState({ prices: { BTC: "1" }, fetchedAt: NOW - TTL + 1 }, NOW, TTL) === "fresh",
+  "the last fresh millisecond",
+);
+assert(
+  tools.priceCacheState({ prices: { BTC: "1" }, fetchedAt: NOW - TTL }, NOW, TTL) === "stale",
+  "the TTL boundary is stale",
+);
+assert(
+  tools.priceCacheState({ prices: { BTC: "1" }, fetchedAt: NOW + 5000 }, NOW, TTL) === "fresh",
+  "clock skew stays fresh",
+);
+assert(
+  tools.formatPriceTime(Date.UTC(2026, 10, 21, 14, 3)) === "2026-11-21 14:03 UTC",
+  "price timestamp is UTC",
+);
+
 console.log(
   "key-tools ok: integer, fragments, pubkey report/add/subtract/multiply, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
     "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/Decimal/WIF/WIF-u/Keypair/XRP/PubKey/Page), " +
-    "row order/grouping/type labels, both-curve 30-row merge, chain-group counters",
+    "row order/grouping/type labels, both-curve 30-row merge, chain-group counters, USD ticker math/cache",
 );
