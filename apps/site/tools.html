@@ -6,8 +6,8 @@
 <title>Crypto calculators — keys, WIF, seeds, vanity | Crypto</title>
 <meta name="description" content="One page for every crypto calculator: hex and decimal private keys, WIF, brainwallets, BIP39 seed phrases, vanity addresses and the key explorer.">
 <link rel="canonical" href="https://rotor.pxbt.app/tools">
-<link rel="stylesheet" href="/site.css?v=20261127c">
-<script src="/theme.js?v=20261127c"></script>
+<link rel="stylesheet" href="/site.css?v=20261127d">
+<script src="/theme.js?v=20261127d"></script>
 <style>
 /* Tools index: eight scannable families, aliases as 44px chips. */
 .tool-family-grid {
@@ -45,32 +45,7 @@
 .tool-family-title { margin: 0; font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
 .tool-family-desc { margin: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
 .tool-family-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.tool-family-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-2);
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 650;
-  line-height: 1.2;
-  transition: border-color .15s ease, color .15s ease, background .15s ease;
-}
-.tool-family-links a:hover {
-  border-color: var(--border-strong);
-  background: var(--panel);
-  color: var(--text);
-  text-decoration: none;
-}
 .tool-family-links .icon { width: 18px; height: 18px; color: var(--accent); }
-@media (prefers-reduced-motion: reduce) {
-  .tool-family-links a { transition: none; }
-}
 </style>
 </head>
 <body>
@@ -112,13 +87,13 @@
       </div>
       <p class="tool-family-desc">Turn a key in any format into hex, WIF, decimal, public key and every address.</p>
       <ul class="tool-family-links">
-        <li><a href="/key">Key explorer</a></li>
-        <li><a href="/key/hex">Private key (hex)</a></li>
-        <li><a href="/key/wif">WIF calculator</a></li>
-        <li><a href="/key/decimal">Decimal key</a></li>
-        <li><a href="/hex-dec-bin">Hex / dec / bin</a></li>
-        <li><a href="/public-key">Public key</a></li>
-        <li><a href="/pubkey-add">Add public keys</a></li>
+        <li><a class="chip" href="/key">Key explorer</a></li>
+        <li><a class="chip" href="/key/hex">Private key (hex)</a></li>
+        <li><a class="chip" href="/key/wif">WIF calculator</a></li>
+        <li><a class="chip" href="/key/decimal">Decimal key</a></li>
+        <li><a class="chip" href="/hex-dec-bin">Hex / dec / bin</a></li>
+        <li><a class="chip" href="/public-key">Public key</a></li>
+        <li><a class="chip" href="/pubkey-add">Add public keys</a></li>
       </ul>
     </article>
 
@@ -129,9 +104,9 @@
       </div>
       <p class="tool-family-desc">BIP39 and Electrum phrases to the first keys on the standard derivation paths.</p>
       <ul class="tool-family-links">
-        <li><a href="/seed">Seed studio</a></li>
-        <li><a href="/mnemonic-converter">Mnemonic converter</a></li>
-        <li><a href="/mnemonic-seeds">Mnemonic seeds</a></li>
+        <li><a class="chip" href="/seed">Seed studio</a></li>
+        <li><a class="chip" href="/mnemonic-converter">Mnemonic converter</a></li>
+        <li><a class="chip" href="/mnemonic-seeds">Mnemonic seeds</a></li>
       </ul>
     </article>
 
@@ -142,10 +117,10 @@
       </div>
       <p class="tool-family-desc">Deterministic passphrase directories on 18 chains, plus a one-passphrase generator.</p>
       <ul class="tool-family-links">
-        <li><a href="/brainwallet">Directory</a></li>
-        <li><a href="/brainwallet/bitcoin">Bitcoin</a></li>
-        <li><a href="/brainwallet/ethereum">Ethereum</a></li>
-        <li><a href="/brainwallet-generator">Generator</a></li>
+        <li><a class="chip" href="/brainwallet">Directory</a></li>
+        <li><a class="chip" href="/brainwallet/bitcoin">Bitcoin</a></li>
+        <li><a class="chip" href="/brainwallet/ethereum">Ethereum</a></li>
+        <li><a class="chip" href="/brainwallet-generator">Generator</a></li>
       </ul>
     </article>
 
@@ -156,8 +131,8 @@
       </div>
       <p class="tool-family-desc">Scan the public puzzle ranges or grind a vanity prefix, both locally.</p>
       <ul class="tool-family-links">
-        <li><a href="/bitcoin-puzzle">Bitcoin puzzle</a></li>
-        <li><a href="/vanity">Vanity generator</a></li>
+        <li><a class="chip" href="/bitcoin-puzzle">Bitcoin puzzle</a></li>
+        <li><a class="chip" href="/vanity">Vanity generator</a></li>
       </ul>
     </article>
 
@@ -168,9 +143,9 @@
       </div>
       <p class="tool-family-desc">Encrypted local vault, UTC keystore decryption and wallet downloads.</p>
       <ul class="tool-family-links">
-        <li><a href="/cabinet/wallet">Cabinet wallet</a></li>
-        <li><a href="/keystore-parser">Keystore parser</a></li>
-        <li><a href="/wallets">Wallets &amp; downloads</a></li>
+        <li><a class="chip" href="/cabinet/wallet">Cabinet wallet</a></li>
+        <li><a class="chip" href="/keystore-parser">Keystore parser</a></li>
+        <li><a class="chip" href="/wallets">Wallets &amp; downloads</a></li>
       </ul>
     </article>
 
@@ -181,12 +156,12 @@
       </div>
       <p class="tool-family-desc">Decode a raw transaction, or build, review, sign and broadcast testnet sends; mainnet signing stays off.</p>
       <ul class="tool-family-links">
-        <li><a href="/send"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>Send · TESTNET</a></li>
-        <li><a href="/tx">Decoders overview</a></li>
-        <li><a href="/tx/bitcoin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin decoder</a></li>
-        <li><a href="/tx/ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum decoder</a></li>
-        <li><a href="/cabinet/wallet#wallet-send">EVM send · Sepolia</a></li>
-        <li><a href="/cabinet/wallet#wallet-btc-send">BTC send · testnet</a></li>
+        <li><a class="chip" href="/send"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>Send · TESTNET</a></li>
+        <li><a class="chip" href="/tx">Decoders overview</a></li>
+        <li><a class="chip" href="/tx/bitcoin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin decoder</a></li>
+        <li><a class="chip" href="/tx/ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum decoder</a></li>
+        <li><a class="chip" href="/cabinet/wallet#wallet-send">EVM send · Sepolia</a></li>
+        <li><a class="chip" href="/cabinet/wallet#wallet-btc-send">BTC send · testnet</a></li>
       </ul>
     </article>
 
@@ -197,9 +172,9 @@
       </div>
       <p class="tool-family-desc">Assemble a key from known bytes, read the Milk Sad audit and browse the docs.</p>
       <ul class="tool-family-links">
-        <li><a href="/reconstruction">Byte-fragment assembler</a></li>
-        <li><a href="/milk-sad">Milk Sad audit</a></li>
-        <li><a href="/docs">Docs</a></li>
+        <li><a class="chip" href="/reconstruction">Byte-fragment assembler</a></li>
+        <li><a class="chip" href="/milk-sad">Milk Sad audit</a></li>
+        <li><a class="chip" href="/docs">Docs</a></li>
       </ul>
     </article>
 
@@ -210,15 +185,15 @@
       </div>
       <p class="tool-family-desc">Open the key explorer with a chain or address type preselected; presets only filter rows.</p>
       <ul class="tool-family-links">
-        <li><a href="/key?chain=ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a></li>
-        <li><a href="/key?chain=bnb"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB</a></li>
-        <li><a href="/key?chain=tron"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a></li>
-        <li><a href="/key?chain=solana"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a></li>
-        <li><a href="/key?chain=xrp"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a></li>
-        <li><a href="/key?chain=ton"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a></li>
-        <li><a href="/key?chain=bitcoin-cash"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>BCH</a></li>
-        <li><a href="/key?chain=bitcoin&amp;type=taproot"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Taproot</a></li>
-        <li><a href="/key?chain=bitcoin&amp;type=segwit"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>SegWit</a></li>
+        <li><a class="chip" href="/key?chain=ethereum"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a></li>
+        <li><a class="chip" href="/key?chain=bnb"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB</a></li>
+        <li><a class="chip" href="/key?chain=tron"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a></li>
+        <li><a class="chip" href="/key?chain=solana"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a></li>
+        <li><a class="chip" href="/key?chain=xrp"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a></li>
+        <li><a class="chip" href="/key?chain=ton"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a></li>
+        <li><a class="chip" href="/key?chain=bitcoin-cash"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>BCH</a></li>
+        <li><a class="chip" href="/key?chain=bitcoin&amp;type=taproot"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Taproot</a></li>
+        <li><a class="chip" href="/key?chain=bitcoin&amp;type=segwit"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>SegWit</a></li>
       </ul>
     </article>
   </div>
@@ -227,6 +202,6 @@
   <p class="muted key-help">Every Crypto page and calculator is compared with ref-site-a and ref-site-b in the internal parity audit (<code>docs/site-map/index.html</code>).</p>
 </main>
 
-<script src="/site.js?v=20261127c"></script>
+<script src="/site.js?v=20261127d"></script>
 </body>
 </html>

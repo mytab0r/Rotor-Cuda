@@ -52,6 +52,12 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   `.monitor-chain`, `.balance-refresh-count`) is 20px high, 12px text,
   `2px var(--space-2)` padding and pill radius. The audit ID is
   `status-pill-geometry`; never add a page-local pill.
+- One field grammar: `label`/`.field` + `input`/`select`/`textarea` are 44 high
+  (56 for `.field--hero`), radius 10 (16 hero), 12px label, focus ring and
+  `[aria-invalid="true"]` error state. One `.segmented` track (4px pad, radius
+  12, 44px items, exactly one `aria-pressed="true"`) and one `.chip` (44px,
+  pill, `aria-pressed`/`aria-current`). Audit IDs: `control-height-scale`,
+  `field-geometry`, `segmented-geometry`; never add a page-local control size.
 - Do not add page-local `<style>` rules for a shared component. Move the rule
   into `apps/site/site.css` in the batch that owns the family
   (`docs/design-system/plan.md`); a new family needs an entry in
