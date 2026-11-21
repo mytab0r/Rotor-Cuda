@@ -4,26 +4,29 @@
 
 - [x] Brainwallet directory: `/brainwallet` index + 18 chain listings, 60 rows
   × 315 pages, auto addresses/balances, two copy icons per row, BTC type tabs,
-  First/Prev/Random/Next/Last + Jump. Evidence: `mod.rs:2291-2361`
-  (60×315, pager, jump), `brainwallet-directory.js:209-219,596-610`
-  (copy icons, type tabs), `brainwallet-directory.js:351-470` (balances).
+  First/Prev/Random/Next/Last + Jump. Evidence: `render_brainwallet_directory`
+  (`mod.rs:2979`; the 60×315 counts at `:2956`), `brainwallet-directory.js:36`
+  (type tabs), `:209-219` (copy icons), `:351-470` (balances).
 - [x] Brainwallet single calculator on `/brainwallet-generator` with network,
-  passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence: `mod.rs:2659-2700`,
-  `brainwallet.js:457-503`.
-- [x] Seed rows: private key/WIF + copy icons; full phrase in the donor layout.
+  passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence:
+  `render_brainwallet_generator` (`mod.rs:3123`), `brainwallet.js:457-503`.
+- [x] Seed rows: private key + copy icons; full phrase in the donor layout.
   The donor prints the whole mnemonic, so the earlier compact first-two/last-word
   reveal was dropped and each row shows the full phrase (mono, ellipsis with the
-  phrase in `title`) plus a 44px Copy mnemonic button. Evidence:
+  phrase in `title`) plus a 44px Copy mnemonic button. The donor's row carries
+  no WIF links (`directories.md:205`), and ours matches: the row links the hex
+  key only. Evidence:
   `docs/donor-parity/directories.md` §3 (row markup and difference 11);
   `apps/site/mnemonic-seeds.js` (`createRow`/`fillRow`: `col-mnemonic`,
   `mnemonic-text`, `phraseText.textContent = entry.phrase`),
   `src/coordinator/mod.rs` (directory assertions),
   `apps/site/mnemonic-seeds-test.mjs`.
 - [x] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
-  Balance/TX/Actions. Evidence: `mod.rs:3260-3332`,
+  Balance/TX/Actions. Evidence: `render_puzzle_home` (`mod.rs:4041`),
   `puzzle-browser.js:236-365`.
 - [x] Puzzle random: Community Hunt counters and a live result table.
-  Evidence: `mod.rs:3935-3947`, `puzzle-browser.js:367-432,864-886`.
+  Evidence: `render_puzzle_random` (`mod.rs:4419`),
+  `puzzle-browser.js:367-432,864-886`.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
   explorer. **Blocked: no dataset.** The repo has only gzip download mirrors
   (`src/coordinator/wallets.rs:34-40`); top-100 ranks/labels/balances require a
@@ -38,8 +41,8 @@
   proof), `tests/coordinator_api.rs` (three routes return 200 with TESTNET
   copy).
 - [x] `/key` debounced auto-derive, icon-only utility actions, full formats and
-  counters. Evidence: `key.js:211,569-575` (debounce),
-  `key.html:69-76` (icon actions), `key-tools.js:304-321` (formats).
+  counters. Evidence: `key.js:563-569` (`scheduleDerive`), `key.html:78`
+  (`#key-info-btn` icon action), `key-tools.js:218` (key-fact format summary).
 - [x] Global search results in place: interpret-as, 1/3/5/10 addresses, table,
   Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
   shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
@@ -66,7 +69,7 @@
   gate), `crates/rotor-wasm/src/tron.rs:89` / `:101` and
   `crates/rotor-wasm/src/lib.rs:547` / `:567` (sign/unsigned exports),
   `apps/site/send-test.mjs:417` (TRX->sun), `:431` (prepare) and `:499`
-  (sign/broadcast without a key leak), `src/coordinator/mod.rs:997` / `:1000`
+  (sign/broadcast without a key leak), `src/coordinator/mod.rs:1109` / `:1112`
   (route and embedded helper), `tests/coordinator_api.rs:1139` / `:1186`
   (six routes and the served helper). Nile testnet only: mainnet TRON hosts
   and the mainnet `tron` route are rejected, and no live broadcast was
@@ -226,8 +229,8 @@ follow-ups were code-only.
   ≤520px, reduced motion off); search and theme toggles were already
   icon-only; `apps/site/site-nav-test.mjs`.
 - [x] Tools index: 8 families with alias rows. Evidence:
-  `apps/site/tools.html:106` (eight `article.tool-family` blocks), `:113-121`
-  (alias chips per family), `apps/site/site.css:47-64` (44px link chips).
+  `apps/site/tools.html:45,62,75,89,101,114,130,143` (eight `article.tool-family`
+  blocks), `apps/site/site.css:4161` (`.tool-family-links` chips, 44px targets).
 - [x] Address types: BCH legacy + CashAddr, DOGE compressed/uncompressed,
   ZEC transparent compressed/uncompressed. Evidence:
   `apps/site/address-codecs.js` (CashAddr + Base58Check encoders),
@@ -246,11 +249,11 @@ follow-ups were code-only.
   types. Balance lookup already covers bech32m.
 - [x] TON v5/W5 address type (PR #105). Evidence:
   `crates/rotor-wasm/src/ton.rs` (official `wallet_v5` code cell, pinned
-  upstream commit), `crates/rotor-wasm/src/derive.rs:657-677` (`ton_w5` row
+  upstream commit), `crates/rotor-wasm/src/derive.rs:717` (`ton_w5` row
   from `w5_address`), `crates/rotor-wasm/ton-w5-vectors.mjs` (independent
   Tonkeeper V5R1 vectors), `apps/site/key.js:99,123,145` and
   `apps/site/key-tools.js:799` (label, explainer, derivation steps),
-  `crates/rotor-wasm/src/lib.rs:1813` (row assertion). v4R2 stays as the
+  `crates/rotor-wasm/src/lib.rs:1890` (row assertion). v4R2 stays as the
   second TON row; directory tabs still show one type per chain.
 - [x] Breadcrumbs on every public page; one current crumb per trail. Evidence:
   `apps/site/*.html` (crumb as the first child of `<main>` on docs, key, vanity,
@@ -281,7 +284,8 @@ follow-ups were code-only.
   never survive). Deliberate deviation: private keys and WIF are never saved,
   and the page keeps saying so.
 - [x] Vanity: multi-thread workers. Evidence: `apps/site/vanity-worker.js`
-  (classic worker: `/rotor_wasm.wasm`, random key per attempt, 250 ms progress
+  (classic worker: `assetUrl('/rotor_wasm.wasm')` at `:26-31`, random key per
+  attempt, 250 ms progress
   and match messages), `apps/site/vanity.js` (`threadCount` clamped 1-4,
   worker pool, aggregate attempts/rate/ETA, first match terminates the pool,
   `sanitizeWorkerMessage`, single-thread fallback on worker failure),
