@@ -2035,8 +2035,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <title>{}</title>\n\
          <link rel=\"stylesheet\" href=\"/site.css?v=20261127i\">\n\
          <script src=\"/theme.js?v=20261127i\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261127i\"></script>\n<script src=\"/site.js?v=20261127i\"></script>\n</body>\n</html>\n",
-        escape_attr(title)
+         {head_extra}</head>\n<body>\n{body}\n{footer}\n<script src=\"/search.js?v=20261127i\"></script>\n<script src=\"/site.js?v=20261127i\"></script>\n</body>\n</html>\n",
+        escape_attr(title),
+        footer = site_footer(),
     )
 }
 
@@ -2717,7 +2718,8 @@ fn brainwallet_address_types(chain: &ChainHub) -> String {
     );
     for (index, kind) in types.iter().enumerate() {
         out.push_str(&format!(
-            "<button type=\"button\" class=\"chip\" data-type=\"{}\" aria-pressed=\"{}\">{}</button>",
+            "<button type=\"button\" class=\"bw-type-btn{}\" data-type=\"{}\" aria-pressed=\"{}\">{}</button>",
+            if index == 0 { " active" } else { "" },
             kind.value,
             index == 0,
             kind.label,
@@ -2746,9 +2748,11 @@ fn render_brainwallet_index(base: &str) -> String {
         &[ld_crumbs],
     );
     head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127i\">\n");
-    let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
-         <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
-         <span aria-current=\"page\">Brainwallet</span></nav>";
+    let crumbs = breadcrumb_nav(&[
+        ("Home", Some("/")),
+        ("Tools", Some("/tools")),
+        ("Brainwallet", None),
+    ]);
     let mut cards = String::new();
     for chain in &CHAINS {
         cards.push_str(&format!(
@@ -5572,7 +5576,7 @@ mod tests {
         assert!(
             std::str::from_utf8(css)
                 .expect("css is UTF-8")
-                .contains(".seed-studio-form")
+                .contains(".seed-controls")
         );
 
         let base = "https://rotor.pxbt.app";
@@ -6422,7 +6426,7 @@ mod tests {
         assert!(script.contains("privateKeyFor"));
         assert!(script.contains("Copy mnemonic"));
         assert!(script.contains("phraseText.textContent = entry.phrase"));
-        assert!(directory.contains("col-mnemonic"));
+        assert!(SITE_CSS.contains("col-mnemonic"));
 
         let (body, _, status) = seo_asset(base, "/mnemonic-seeds/bitcoin", "").expect("chain page");
         assert_eq!(status, 200);

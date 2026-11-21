@@ -98,7 +98,7 @@
   var deriveBtn = byId('seed-derive');
   var generateBtn = byId('seed-generate');
   var clearBtn = byId('seed-clear');
-  var countButtons = Array.prototype.slice.call(document.querySelectorAll('.seed-count-row .chip'));
+  var countButtons = Array.prototype.slice.call(document.querySelectorAll('.seed-count-btn'));
 
   var state = {
     wasmPromise: null,
@@ -295,6 +295,7 @@
     state.count = value;
     countButtons.forEach(function (button) {
       var active = Number(button.getAttribute('data-count')) === value;
+      button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
   }
@@ -944,8 +945,8 @@
     element.textContent = message + ' ';
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'icon-button icon-button--outline icon-button--lg';
-    button.setAttribute('data-tooltip', 'Retry this balance');
+    button.className = 'seed-balance-retry';
+    button.title = 'Retry this balance';
     button.setAttribute('aria-label', 'Retry balance check for this address');
     button.appendChild(iconUse('ui-retry'));
     button.addEventListener('click', function () {
