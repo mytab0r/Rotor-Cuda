@@ -32,7 +32,7 @@ jobs:
       # Phase 3: the component manifests, the generated /design gallery and the
       # page-local-style rule. build-gallery --check also proves the committed
       # page matches the manifests.
-      - name: Check component contracts and the gallery
+      - name: Phase 3 - component contracts and the gallery
         run: |
           node scripts/build-gallery.mjs --check
           node scripts/check-components.mjs
