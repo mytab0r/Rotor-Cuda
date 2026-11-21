@@ -94,6 +94,24 @@ pub fn wif_encode_with_version(key: &Scalar, compressed: bool, version: u8) -> S
 /// Ripple's base58 alphabet, used by XRP classic addresses.
 const RIPPLE_ALPHABET: &[u8; 58] = b"rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
 
+/// Decode a Ripple Base58Check address and verify its four-byte double-SHA256
+/// checksum. The returned payload includes Ripple's leading version byte.
+pub fn decode_ripple(text: &str) -> Result<Vec<u8>, String> {
+    let raw = bs58::decode(text)
+        .with_alphabet(bs58::Alphabet::RIPPLE)
+        .into_vec()
+        .map_err(|err| format!("Invalid Ripple Base58 string: {err}"))?;
+    if raw.len() < 4 {
+        return Err("Invalid Ripple address: too short".to_owned());
+    }
+    let (payload, checksum) = raw.split_at(raw.len() - 4);
+    let calculated = sha256d(payload);
+    if calculated[..4] != *checksum {
+        return Err("Invalid Ripple address checksum".to_owned());
+    }
+    Ok(payload.to_vec())
+}
+
 /// Encode bytes with Ripple's base58 alphabet. The checksum is the caller's
 /// responsibility; this only replaces the alphabet, so the same bytes encode
 /// differently from Bitcoin base58.
