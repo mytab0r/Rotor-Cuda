@@ -1,0 +1,81 @@
+/* Seed studio layout shared by /seed and /mnemonic-converter. The form,
+ * checkbox, count chips and balance retry use the shared control grammar;
+ * this file owns only the page-specific grid. See DESIGN-SYSTEM.md §10. */
+.seed-studio-form { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.seed-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.seed-controls > label { min-width: 0; }
+.seed-controls select,
+.seed-controls input[type="checkbox"] { min-height: 0; }
+.seed-controls select { min-height: var(--control-h); }
+.seed-phrase-label textarea { min-height: 108px; font-size: var(--text-md); line-height: 1.7; resize: vertical; }
+.seed-secondary {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(0, 1.8fr);
+  align-items: end;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.seed-passphrase { min-width: 0; }
+.seed-passphrase input { min-height: var(--control-h); }
+.seed-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.seed-check input { width: 18px; height: 18px; flex: 0 0 auto; }
+.seed-count-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.seed-count-label {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+/* Counts are digits, so keep the mono face; the chip grammar owns the box. */
+.seed-count-row .chip { font-family: var(--mono); }
+.seed-studio-form .key-buttons { grid-column: auto; justify-content: flex-start; min-width: 0; }
+.seed-studio-form .key-buttons button { min-height: var(--control-h); }
+.seed-group { display: grid; gap: 10px; min-width: 0; }
+.seed-group .seed-rows, .seed-group .seed-row { min-width: 0; }
+.seed-result-head { flex-wrap: wrap; }
+.seed-group-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; min-width: 0; }
+.seed-group-head h3 { margin: 0; font-size: var(--text-md); font-weight: var(--weight-bold); }
+.seed-group-head span { color: var(--ink-3); font-family: var(--mono); font-size: var(--text-xs); }
+.seed-row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.seed-row-title h4 { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.seed-balance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: var(--space-2) 0 0; color: var(--ink-2); font-size: var(--text-xs); }
+.seed-balance.err { color: var(--state-err); }
+@media (max-width: 1100px) {
+  .seed-secondary { grid-template-columns: minmax(0, 1fr) auto; }
+  .seed-secondary .key-buttons { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .seed-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .seed-controls .seed-check { grid-column: 1 / -1; }
+  .seed-secondary { grid-template-columns: minmax(0, 1fr) auto; }
+  .seed-secondary .key-buttons { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  .seed-secondary { grid-template-columns: minmax(0, 1fr); }
+  .seed-secondary .key-buttons { grid-column: auto; }
+}
+@media (max-width: 560px) {
+  .seed-controls { grid-template-columns: minmax(0, 1fr); }
+  .seed-controls .seed-check { grid-column: auto; }
+  .seed-count-row .chip { flex: 1 1 44px; }
+}

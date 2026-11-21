@@ -74,6 +74,28 @@
       ]
     },
     {
+      "id": "web",
+      "title": "Astro frontend (phase 0-1 pilot)",
+      "owner": "site-ui",
+      "paths": [
+        "web/**"
+      ],
+      "build": [
+        "npm --prefix web ci && npm --prefix web run build"
+      ],
+      "test": [
+        "npm --prefix web test"
+      ],
+      "consumes": [
+        "wasm-core"
+      ],
+      "contracts": [
+        "web-assets-are-byte-copies-of-apps/site-until-the-shared-source-moves",
+        "web-loads-vendored-seed.js-and-seed-crypto.js-unchanged",
+        "web-output-is-a-static-astro-build-for-migrated-routes-only"
+      ]
+    },
+    {
       "id": "coordinator",
       "title": "Coordinator HTTP server, API, accounts and state",
       "owner": "coordinator",
