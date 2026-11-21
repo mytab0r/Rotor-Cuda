@@ -1,0 +1,70 @@
+{
+  "name": "breadcrumb",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "nav",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Public content trail",
+      "classes": ["breadcrumbs"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (44px links)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default with one current page"
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "aria-label",
+      "value": "Breadcrumb"
+    }
+  ],
+  "forbidden": [
+    "A bare text slash or a blank gap instead of .breadcrumbs__sep.",
+    "More than one aria-current=\"page\" item.",
+    "A raw path as a visible label; keep the path in href/title.",
+    "A trail on /, /app, /run, /me, /cabinet or /cabinet/wallet."
+  ],
+  "slots": [
+    {
+      "tag": "a",
+      "attrs": { "href": "/" },
+      "text": "Home"
+    },
+    {
+      "name": "sep",
+      "tag": "span",
+      "classes": ["breadcrumbs__sep"],
+      "attrs": { "aria-hidden": "true" },
+      "text": "/"
+    },
+    {
+      "tag": "span",
+      "attrs": { "aria-current": "page" },
+      "text": "Design"
+    }
+  ],
+  "tokens": [
+    "--space-1",
+    "--space-2",
+    "--control-h",
+    "--radius-s",
+    "--ink-1",
+    "--ink-2",
+    "--ink-3",
+    "--text-sm",
+    "--weight-semibold"
+  ],
+  "detectors": ["breadcrumb-grammar", "breadcrumb-current", "small-touch-target"],
+  "docs": "docs/design-system/components/breadcrumb.md"
+}

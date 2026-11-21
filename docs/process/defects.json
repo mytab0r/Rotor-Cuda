@@ -323,6 +323,41 @@
       "symptom": "Page-scoped rules still overrode shared families (.key-page .notice, .puzzle-cta .btn, .seed-count-row .chip), the .key-page > .card pattern the batch-7 cleanup removed.",
       "detector": "legacy-selector",
       "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "component-unknown-variant",
+      "reported": "2026-11-21",
+      "symptom": "A component manifest could declare a variant or size class that no rule in site.css styles (for example an aspirational .btn--ghost), so the gallery and production would disagree about what the contract means.",
+      "detector": "unknown-variant",
+      "where": "scripts/check-components.mjs"
+    },
+    {
+      "id": "component-gallery-drift",
+      "reported": "2026-11-21",
+      "symptom": "The generated /design gallery could miss a variant, size or state declared in a manifest, so a state shipped in the contract without rendered evidence.",
+      "detector": "gallery-variant",
+      "where": "scripts/check-components.mjs"
+    },
+    {
+      "id": "component-required-attribute",
+      "reported": "2026-11-21",
+      "symptom": "A gallery example could drop a required attribute (aria-label, data-tooltip, role, aria-describedby, aria-hidden), hiding an accessibility regression behind a green gallery.",
+      "detector": "required-attribute",
+      "where": "scripts/check-components.mjs"
+    },
+    {
+      "id": "page-local-family-style",
+      "reported": "2026-11-21",
+      "symptom": "A page <style> block could restyle a shared family (.card, .chip, .icon-button) and bypass the shared component contract, including the generated gallery.",
+      "detector": "page-local-family",
+      "where": "scripts/check-components.mjs"
+    },
+    {
+      "id": "field-hero-dead-rule",
+      "reported": "2026-11-21",
+      "symptom": "The documented 56px .field--hero size never rendered: the base input:not(...) selector had higher specificity than .field--hero > input, so /key and the gallery measured 44px while the manifest and doc claimed 56px.",
+      "detector": "field-hero-height",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

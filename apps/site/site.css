@@ -521,7 +521,7 @@ p { text-wrap: pretty; }
 .brainwallet-form label { min-width: 0; }
 .brainwallet-form input {
   background: var(--panel-2);
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
   padding: 10px 11px;
 }
 .brainwallet-form input:focus-visible,
@@ -1017,7 +1017,7 @@ label,
   font-weight: var(--weight-semibold);
   line-height: 1.45;
 }
-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+input:where(:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"])),
 select,
 textarea,
 .field__control {
@@ -2093,7 +2093,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   min-height: 44px;
   padding: 9px 12px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   background: var(--input-bg);
   color: var(--text);
   font-size: 13px;

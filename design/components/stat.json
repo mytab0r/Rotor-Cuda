@@ -1,0 +1,79 @@
+{
+  "name": "stat",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "div",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Default stat",
+      "classes": ["stat"]
+    },
+    {
+      "id": "key",
+      "label": "Key summary stat",
+      "classes": ["key-stat"]
+    },
+    {
+      "id": "card",
+      "label": "Boxless strip cell",
+      "classes": ["stat-card"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (24px value)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [],
+  "forbidden": [
+    "An uppercase or tracked label; labels are 12px sentence case.",
+    "A value below 20px or a non-tabular value font.",
+    "A sparkline or icon used as filler in place of a value.",
+    "A page-local stat size; .stat--sm is reserved but not rendered by any page."
+  ],
+  "slots": [
+    {
+      "name": "label",
+      "tag": "span",
+      "classes": ["stat__label"],
+      "text": "Keys scanned"
+    },
+    {
+      "name": "value",
+      "tag": "span",
+      "classes": ["stat__value"],
+      "text": "18,890"
+    },
+    {
+      "name": "meta",
+      "tag": "span",
+      "classes": ["stat__meta"],
+      "text": "last 24 hours"
+    }
+  ],
+  "tokens": [
+    "--space-1",
+    "--space-4",
+    "--space-5",
+    "--radius-l",
+    "--line-subtle",
+    "--surface-2",
+    "--surface-1",
+    "--ink-1",
+    "--ink-3",
+    "--text-xs",
+    "--text-2xl",
+    "--weight-semibold"
+  ],
+  "detectors": ["stat-geometry", "card-padding-scale"],
+  "docs": "docs/design-system/components/stat.md"
+}

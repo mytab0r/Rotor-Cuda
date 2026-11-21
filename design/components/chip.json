@@ -1,0 +1,87 @@
+{
+  "name": "chip",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "button",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Default filter or preset",
+      "classes": ["chip"]
+    },
+    {
+      "id": "primary",
+      "label": "Primary navigation action",
+      "classes": ["chip", "chip--primary"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (44px)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    },
+    {
+      "id": "pressed",
+      "label": "Pressed",
+      "attrs": { "aria-pressed": "true" }
+    },
+    {
+      "id": "current",
+      "label": "Current page",
+      "attrs": { "aria-current": "page" }
+    },
+    {
+      "id": "disabled",
+      "label": "Disabled",
+      "attrs": { "disabled": "" }
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "type",
+      "value": "button"
+    }
+  ],
+  "forbidden": [
+    "A second filled chip in the same surface: .chip--primary is reserved for the cabinet navigation action.",
+    "A chip that submits a form; chips filter, choose a preset or navigate.",
+    "A row of chips that duplicates a select or another toolbar for the same filter.",
+    "A page-local chip size."
+  ],
+  "slots": [
+    {
+      "name": "label",
+      "tag": "span",
+      "text": "Bitcoin"
+    }
+  ],
+  "tokens": [
+    "--space-1",
+    "--space-3",
+    "--control-h",
+    "--radius-pill",
+    "--line-subtle",
+    "--line-strong",
+    "--surface-2",
+    "--surface-3",
+    "--ink-1",
+    "--ink-2",
+    "--text-xs",
+    "--weight-semibold",
+    "--signal",
+    "--signal-soft",
+    "--signal-ink",
+    "--accent-2",
+    "--duration-fast",
+    "--ease-standard"
+  ],
+  "detectors": ["control-height-scale", "small-touch-target", "clipped-control"],
+  "docs": "docs/design-system/components/chip.md"
+}

@@ -74,6 +74,15 @@
         ],
         "createdAt": "2026-11-21T06:15:02.584Z",
         "reason": "Agent: the 8/12px inset is on .data-table th/td; .table-scroll is the DESIGN-SYSTEM-mandated scroll wrapper with padding 0, so the wrapper heuristic cannot see child padding. Same class as range.html, key.html, docs/site-map and me.html."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/design.html"
+        ],
+        "createdAt": "2026-11-21T19:42:45.444Z",
+        "reason": "Gallery renders production component geometry: .badge/.monitor-chain/.pz-pill keep the DESIGN-SYSTEM 3.5 2px vertical inset (20px pill), and .table-scroll is the mandated wrapper with padding 0 whose .data-table cells carry the 8/12px text inset (same exception as range/me/app/key pages)"
       }
     ]
   }

@@ -61,6 +61,8 @@ const DEFAULT_ROUTES = [
   "/tx/bitcoin",
   "/tx/ethereum",
   "/docs",
+  // Internal design-system gallery: every component family, both themes.
+  "/design",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
 const DEFAULT_SETTLE_MS = 700;
@@ -930,6 +932,49 @@ function auditPage(args) {
   metrics.fieldGeometry = fieldIssues;
   if (fieldIssues.length) {
     add("field-geometry", `${fieldIssues.length} field(s) outside the shared geometry`, fieldIssues.slice(0, 8));
+  }
+
+  // 4e-2. The hero field is a named 56px size. The base input rule is broad;
+  //      when it wins on specificity the hero rule dies silently and /key and
+  //      the gallery ship 44px while the manifest claims 56. Regression guard
+  //      for docs/design-system/DESIGN-SYSTEM.md §3.7 and design/components/field.json.
+  const heroControls = new Set();
+  for (const el of document.querySelectorAll(
+    '.field--hero > input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), .field--hero > .field__control, .field--hero .field__control',
+  )) {
+    heroControls.add(el);
+  }
+  const heroSamples = [];
+  const heroIssues = [];
+  for (const el of heroControls) {
+    if (!visible(el) || el.disabled) continue;
+    const box = boxOf(el);
+    const style = getComputedStyle(el);
+    const rawMinHeight = Number.parseFloat(style.minHeight);
+    const minHeight = Number.isFinite(rawMinHeight) ? Math.round(rawMinHeight) : null;
+    const height = Math.round(box.height);
+    const sample = { selector: selectorOf(el), minHeight, height };
+    heroSamples.push(sample);
+    const issues = [];
+    if (!(typeof minHeight === "number" && minHeight >= 55.5)) {
+      issues.push(`min-height ${minHeight === null ? style.minHeight : `${minHeight}px`}`);
+    }
+    if (!(height >= 55.5)) issues.push(`height ${height}px`);
+    if (issues.length) heroIssues.push({ ...sample, issues });
+  }
+  const normalFieldSamples = [];
+  for (const el of document.querySelectorAll(".field:not(.field--hero) input.field__control")) {
+    if (!visible(el) || el.disabled) continue;
+    normalFieldSamples.push({ selector: selectorOf(el), height: Math.round(boxOf(el).height) });
+  }
+  metrics.fieldHero = {
+    controls: heroControls.size,
+    samples: heroSamples,
+    normal: normalFieldSamples,
+    issues: heroIssues,
+  };
+  if (heroIssues.length) {
+    add("field-hero-height", `${heroIssues.length} hero field control(s) below 56px`, heroIssues.slice(0, 8));
   }
 
   // 4f. Segmented controls: one track grammar and exactly one selected item.

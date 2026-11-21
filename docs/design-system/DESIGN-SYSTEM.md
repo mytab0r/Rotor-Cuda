@@ -155,6 +155,37 @@ Every component API lists anatomy, sizes, states and accessibility. State names
 are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 `disabled`, `loading`, `copied` where relevant.
 
+### 3.0 Component contracts and the live gallery
+
+`design/components/<name>.json` is the machine contract for each normalized
+family: `name`, `version`, `status`, `element`, closed `variants` and `sizes`,
+`states`, `requiredAttrs`, `forbidden`, `slots`, `tokens`, `detectors`, `docs`.
+The human contract is `docs/design-system/components/<name>.md`; the rendered
+evidence is the generated `/design` gallery (`apps/site/design.html`, produced by
+`scripts/build-gallery.mjs` from the manifests and the production markup). The
+gallery is internal and noindex, and it is audited at 375/768/1280 in both
+themes like any other route.
+
+Gates: `node scripts/build-gallery.mjs --check` proves the committed page is not
+stale; `node scripts/check-components.mjs` fails on a manifest class with no rule
+in `site.css`, a variant/size/state missing from the gallery, a required
+attribute missing on an example, and a page-local `<style>` rule that targets a
+shared family.
+
+The prose in §3.1–§3.16 is the target grammar. Where a variant, size or alias is
+listed there but absent from the matching manifest, it is not rendered by any
+page today and is either reserved CSS (documented on the component page) or not
+implemented; the manifest and the gallery are the current contract.
+
+Component pages: [button](components/button.md),
+[icon-button](components/icon-button.md), [field](components/field.md),
+[segmented](components/segmented.md), [chip](components/chip.md),
+[status](components/status.md), [card](components/card.md),
+[stat](components/stat.md), [table](components/table.md),
+[nav](components/nav.md), [breadcrumb](components/breadcrumb.md),
+[pager](components/pager.md), [empty](components/empty.md),
+[error](components/error.md), [skeleton](components/skeleton.md).
+
 ### 3.1 Button
 
 ```html
@@ -600,7 +631,9 @@ duplicate address-type components, half-empty blocks, manual balance controls,
 route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; batch 2
 adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
-`segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
+`segmented-geometry`; phase 3 adds `field-hero-height` (every rendered
+`.field--hero` control is ≥56px); batch 4 adds `card-padding-scale` and
+`stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
 `row-action-geometry`; batch 7 adds `legacy-token` (one `:root` token block,
 light theme overrides only through `html[data-theme]`). Phase 2 adds the static
@@ -641,6 +674,18 @@ The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
   semantic colour roles explicitly in the light block. Off-scale radii (21),
   raw colours without an exact token (106) and page-scoped shared-family
   overrides (6) are listed in `design/tokens/token-usage-baseline.json`.
+- Phase 3 (2026-11-21): added manifests and component pages for the 15
+  normalized families, `scripts/build-gallery.mjs` and the generated internal
+  `/design` gallery, and `scripts/check-components.mjs` (manifest shape,
+  unknown class, missing variant/size/state, required attribute, page-local
+  style). No production component was restyled; reserved CSS with no page
+  consumer (`.card--flat`, `.card--stat`, `.stat--sm`, `.icon-button--solid`,
+  28/36 icon sizes) is documented but not in a manifest. Independent review
+  found the field hero rule was dead: the base input selector outranked
+  `.field--hero`, so `/key` and the gallery rendered 44px against the
+  documented 56px. The type exclusions now use `:where()` and the new
+  `field-hero-height` detector guards the size; `legacy-selector` now lists
+  each baselined page-scoped override with its reason.
 
 ## 10. Page-scoped CSS exceptions
 

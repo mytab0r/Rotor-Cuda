@@ -1,0 +1,164 @@
+{
+  "name": "table",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "div",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Default data table",
+      "classes": ["table-scroll"]
+    },
+    {
+      "id": "key",
+      "label": "Derived-address table",
+      "classes": ["table-scroll"],
+      "overrides": [{ "slot": "table", "classes": ["key-addr-tbl"] }]
+    },
+    {
+      "id": "puzzle",
+      "label": "Puzzle table",
+      "classes": ["table-scroll"],
+      "overrides": [{ "slot": "table", "classes": ["pz-table"] }]
+    },
+    {
+      "id": "range",
+      "label": "Key-range table",
+      "classes": ["table-scroll"],
+      "overrides": [{ "slot": "table", "classes": ["range-table"] }]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (row min-height 44)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default row"
+    },
+    {
+      "id": "has-balance",
+      "label": "Row with a balance",
+      "overrides": [{ "slot": "row", "classes": ["has-balance"] }]
+    },
+    {
+      "id": "is-active",
+      "label": "Active row",
+      "overrides": [{ "slot": "row", "classes": ["is-active"] }]
+    },
+    {
+      "id": "key-row-focus",
+      "label": "Focused row",
+      "overrides": [{ "slot": "row", "classes": ["key-row-focus"] }]
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "tabindex",
+      "value": "0"
+    },
+    {
+      "name": "aria-label",
+      "value": "Example data table"
+    }
+  ],
+  "forbidden": [
+    "A table outside .table-scroll; the wrapper owns the horizontal scroll at every width.",
+    "A table without .data-table.",
+    "Uppercase or tracked header text; headers are 12px/600 sentence case.",
+    "A page-local row height or cell padding.",
+    "A row action that is not the shared .icon-button at 44px with an accessible name.",
+    "A raw path as a cell label."
+  ],
+  "slots": [
+    {
+      "name": "table",
+      "tag": "table",
+      "classes": ["data-table"],
+      "children": [
+        {
+          "tag": "caption",
+          "classes": ["visually-hidden"],
+          "text": "Example derived addresses"
+        },
+        {
+          "tag": "thead",
+          "children": [
+            {
+              "tag": "tr",
+              "children": [
+                { "tag": "th", "attrs": { "scope": "col" }, "text": "Chain" },
+                { "tag": "th", "attrs": { "scope": "col" }, "text": "Address" },
+                { "tag": "th", "attrs": { "scope": "col" }, "text": "Balance" },
+                { "tag": "th", "attrs": { "scope": "col" }, "text": "Actions" }
+              ]
+            }
+          ]
+        },
+        {
+          "tag": "tbody",
+          "children": [
+            {
+              "name": "row",
+              "tag": "tr",
+              "children": [
+                { "tag": "td", "text": "Bitcoin" },
+                { "tag": "td", "children": [{ "tag": "code", "classes": ["mono"], "text": "bc1q…7f3k" }] },
+                { "tag": "td", "classes": ["mono"], "text": "0.00000000" },
+                {
+                  "tag": "td",
+                  "children": [
+                    {
+                      "tag": "button",
+                      "classes": ["icon-button", "icon-button--quiet", "icon-button--lg"],
+                      "attrs": {
+                        "type": "button",
+                        "aria-label": "Copy address",
+                        "data-tooltip": "Copy address"
+                      },
+                      "children": [
+                        {
+                          "tag": "svg",
+                          "classes": ["icon"],
+                          "attrs": { "aria-hidden": "true" },
+                          "children": [{ "tag": "use", "attrs": { "href": "/icons.svg#ui-copy" } }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tokens": [
+    "--space-2",
+    "--space-3",
+    "--control-h",
+    "--radius-l",
+    "--line-subtle",
+    "--row-hover",
+    "--state-ok",
+    "--signal",
+    "--signal-soft",
+    "--text-sm",
+    "--text-xs",
+    "--ink-3",
+    "--weight-semibold"
+  ],
+  "detectors": [
+    "table-grammar",
+    "table-header-style",
+    "table-row-height",
+    "row-action-geometry",
+    "raw-path-text"
+  ],
+  "docs": "docs/design-system/components/table.md"
+}
