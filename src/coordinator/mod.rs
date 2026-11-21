@@ -6285,7 +6285,11 @@ mod tests {
         assert!(worker.contains("/rotor_wasm.wasm"));
         assert!(worker.contains("derive_report"));
         let (page_js, _) = static_asset("/vanity.js").expect("vanity page script");
-        assert!(std::str::from_utf8(page_js).expect("utf-8 vanity").contains("/vanity-worker.js"));
+        assert!(
+            std::str::from_utf8(page_js)
+                .expect("utf-8 vanity")
+                .contains("/vanity-worker.js")
+        );
         let base = "https://rotor.pxbt.app";
         let sitemap = render_sitemap(base);
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/seed</loc>"));
