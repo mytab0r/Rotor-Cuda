@@ -170,7 +170,8 @@
           var number = parseInt(select.value, 10);
           if (!(number >= 1 && number <= 160)) return;
           var tab = select.getAttribute('data-puzzle-tab') || 'random';
-          window.location.assign('/bitcoin-puzzle/' + number + '/' + tab);
+          var path = tab === 'detail' ? '' : '/' + tab;
+          window.location.assign('/bitcoin-puzzle/' + number + path);
         });
       })(selects[i]);
     }
@@ -241,7 +242,14 @@
     var buttons = Array.prototype.slice.call(document.querySelectorAll('[data-puzzle-filter]'));
     var search = document.querySelector('[data-puzzle-search]');
     var empty = document.querySelector('[data-puzzle-empty]');
-    var filter = 'all';
+    var pressed = null;
+    for (var b = 0; b < buttons.length; b++) {
+      if (buttons[b].getAttribute('aria-pressed') === 'true') {
+        pressed = buttons[b];
+        break;
+      }
+    }
+    var filter = pressed ? (pressed.getAttribute('data-puzzle-filter') || 'all') : 'all';
 
     function apply() {
       var query = (search && search.value ? search.value : '').trim().toLowerCase();

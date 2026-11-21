@@ -52,7 +52,8 @@ owned by exactly one area; the most-specific glob wins.
   single-passphrase generator on `/brainwallet-generator`). `/brainwallet` is
   the index of 18 chain directories; `/brainwallet/<chain>` and
   `/brainwallet/<chain>/<page>` are the directory pages. SEO routes include
-  `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`, `/bitcoin-puzzle/<n>/detail`,
+  `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>` (canonical detail; the legacy
+  `/bitcoin-puzzle/<n>/detail` permanently redirects to it),
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
   The route/feature parity map is internal documentation, not a public route:
   it lives in `docs/site-map/index.html` with `site-map.css`, `site-map.js` and
