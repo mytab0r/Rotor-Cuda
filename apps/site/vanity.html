@@ -80,6 +80,7 @@
   <section class="card vanity-result" id="vanity-result" hidden>
     <h2>Match found</h2>
     <div class="key-form-row"><span class="key-field-label">Address</span><code class="mono key-addr" id="vanity-address"></code><button type="button" class="key-copy" id="vanity-copy-address">Copy</button></div>
+    <div class="key-form-row" id="vanity-qr-row"><span class="key-field-label">Address QR</span><canvas id="vanity-qr" role="img" aria-label="QR code for the matched address" width="200" height="200"></canvas></div>
     <div class="key-form-row"><span class="key-field-label">Private key (hex)</span><code class="mono key-addr" id="vanity-key"></code><button type="button" class="key-copy" id="vanity-copy-key">Copy</button></div>
     <div class="key-form-row" id="vanity-wif-row"><span class="key-field-label">WIF</span><code class="mono key-addr" id="vanity-wif"></code><button type="button" class="key-copy" id="vanity-copy-wif">Copy</button></div>
     <p class="muted key-help">Store this key offline. Anyone with it can spend the funds; this page does not save it.</p>
@@ -94,6 +95,7 @@
 
 <script src="/search.js?v=20261127h"></script>
 <script src="/site.js?v=20261127h"></script>
+<script src="/qr.js?v=20261127h"></script>
 <script src="/vanity.js?v=20261127h"></script>
 </body>
 </html>

@@ -62,6 +62,7 @@ const BROWSE_JS: &str = include_str!("../../apps/site/browse.js");
 const BALANCE_CACHE_JS: &str = include_str!("../../apps/site/balance-cache.js");
 const VANITY_PAGE: &str = include_str!("../../apps/site/vanity.html");
 const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
+const QR_JS: &str = include_str!("../../apps/site/qr.js");
 const VANITY_WORKER_JS: &str = include_str!("../../apps/site/vanity-worker.js");
 const SEED_PAGE: &str = include_str!("../../apps/site/seed.html");
 const SEED_BUNDLE: &str = include_str!("../../apps/site/seed.js");
@@ -934,6 +935,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/vanity" => Some((VANITY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/vanity.js" => Some((
             VANITY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/qr.js" => Some((
+            QR_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/vanity-worker.js" => Some((
@@ -6375,6 +6380,7 @@ mod tests {
             "/seed-page.js",
             "/vanity",
             "/vanity.js",
+            "/qr.js",
             "/vanity-worker.js",
             "/milk-sad",
         ] {

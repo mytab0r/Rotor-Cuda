@@ -172,8 +172,13 @@ follow-ups were code-only.
   `src/coordinator/mod.rs` (embedded `/vanity-worker.js` asset and route),
   `apps/site/vanity-test.mjs` (thread clamp, pattern/match rule, message
   sanitizer, keys never saved), `tests/coordinator_api.rs` (asset is served).
-- [ ] Vanity: QR output. Not implemented; the match is shown as address, hex
-  key and WIF with copy buttons only.
+- [x] Vanity: QR output. Evidence: `apps/site/qr.js:348` (`encode`: byte
+  mode, EC-M, versions 1-6), `apps/site/qr.js:55` (Reed-Solomon) and
+  `apps/site/qr.js:323` (mask penalty), `apps/site/vanity.js:547` (`paintQr`:
+  address-only payload, integer scale, 4-module quiet zone, hides the row if
+  encoding fails), `apps/site/vanity.html:83` (canvas in the result card),
+  `apps/site/qr-test.mjs` (pinned reference hashes and structural checks),
+  `src/coordinator/mod.rs` (embedded `/qr.js` asset and route).
 - [x] Keystore parser: drag-drop file, examples, metadata. Evidence:
   `apps/site/keystore-parser.html` (`.dropzone`, visible file label around a
   focusable input, Load example), `apps/site/keystore-parser.js`
