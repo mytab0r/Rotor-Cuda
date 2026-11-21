@@ -1049,8 +1049,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261127c",
-                "/theme.js?v=20261127c",
+                "/wallet-vault.js?v=20261127d",
+                "/theme.js?v=20261127d",
             ],
         ),
         (
@@ -1084,6 +1084,7 @@ fn public_pages_and_assets_are_served() {
         ("/wallet.js", "rotor-wallet"),
         ("/wallet-vault.js", "PBKDF2-SHA256"),
         ("/wallet-btc.js", "RotorBtcSend"),
+        ("/vanity-worker.js", "derive_report"),
     ] {
         let (status, headers, body) = raw(addr, "GET", path, None, None);
         assert_eq!(status, 200, "{path}");
