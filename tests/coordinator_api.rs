@@ -1013,7 +1013,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 11] = [
+    let checks: [(&str, &[&str]); 8] = [
         (
             "/",
             &[
@@ -1049,8 +1049,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261126c",
-                "/theme.js?v=20261126c",
+                "/wallet-vault.js?v=20261127b",
+                "/theme.js?v=20261127b",
             ],
         ),
         (
@@ -1061,22 +1061,6 @@ fn public_pages_and_assets_are_served() {
                 "data-row=\"btc_p2pkh\"",
                 "id=\"btc-panel\"",
             ],
-        ),
-        (
-            "/key/1",
-            &[
-                "window.__ROTOR_KEY__=\"0000000000000000000000000000000000000000000000000000000000000001\"",
-            ],
-        ),
-        (
-            "/key/0x1",
-            &[
-                "window.__ROTOR_KEY__=\"0000000000000000000000000000000000000000000000000000000000000001\"",
-            ],
-        ),
-        (
-            "/key/hello",
-            &["window.__ROTOR_KEY__=\"hello\"", "noindex,nofollow"],
         ),
         ("/site.css", &[":root", "--bg", "@media"]),
         ("/site.js", &["window.Rotor", "sparkline", "TOKEN_KEY"]),

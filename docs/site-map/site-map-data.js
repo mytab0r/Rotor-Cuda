@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. Balances load for XRP (XRPScan), SOL, SUI and TON (TON Center) from free public providers; LTC, DOGE, BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex>, /key/0x… and /key/<text> render the page (text shows the client-side invalid state). The interactive curve editor and signing entry remain.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI and TON (TON Center) from free public providers; LTC, DOGE, BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex>, /key/0x… and /key/<text> render the page (text shows the client-side invalid state). The interactive curve editor and signing entry remain.'
   });
 
   oursRoute({
@@ -540,7 +540,7 @@
     area: 'key',
     status: 'partial',
     ours: '/key',
-    note: 'Short, 0x-prefixed and arbitrary-text URL forms render the page; text gets the client-side invalid state. Counters reach 18/18, CSV/Copy All and the eight EVM rows are present.'
+    note: 'Auto-derive is present; aggregates, CSV and eight EVM chain rows are not.'
   });
 
   donorRoute({
