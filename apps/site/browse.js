@@ -59,16 +59,6 @@
     return entries;
   }
 
-  /* Bitcoin rows show the hex key plus both WIF forms. Other chains have no
-   * WIF, so the model carries the hex only. */
-  function keyModel(report) {
-    var model = { hex: report && report.priv_hex ? report.priv_hex : '', wifs: [] };
-    if (!report) return model;
-    if (report.wif_compressed) model.wifs.push({ prefix: 'c', value: report.wif_compressed });
-    if (report.wif_uncompressed) model.wifs.push({ prefix: 'u', value: report.wif_uncompressed });
-    return model;
-  }
-
   function metricFlags(value) {
     return {
       hasTx: Number(value && value.tx) > 0,
@@ -99,7 +89,6 @@
   if (typeof window !== 'undefined') {
     window.RotorBrowse = {
       addressEntriesFor: addressEntriesFor,
-      keyModel: keyModel,
       metricFlags: metricFlags,
       tronValue: tronValue,
       pageForHexKey: pageForHexKey
@@ -300,62 +289,6 @@
     });
   }
 
-  /* The derivation report always encodes the WIF with the Bitcoin version
-   * (0x80), which is correct for BTC and BCH. Litecoin (0xb0) and Dogecoin
-   * (0x9e) are re-encoded from the same 32-byte key. Other chains show none. */
-  var WIF_CHAINS = { bitcoin: true, 'bitcoin-cash': true, litecoin: true, dogecoin: true };
-  var WIF_NETWORKS = { litecoin: 'litecoin', dogecoin: 'dogecoin' };
-
-  async function doubleSha256(bytes) {
-    var subtle = typeof window !== 'undefined' && window.crypto && window.crypto.subtle;
-    if (!subtle) throw new Error('The WIF checksum needs a secure context (https or localhost).');
-    var first = new Uint8Array(await subtle.digest('SHA-256', bytes));
-    return new Uint8Array(await subtle.digest('SHA-256', first));
-  }
-
-  async function wifModel(report) {
-    var model = { hex: report && report.priv_hex ? report.priv_hex : '', wifs: [] };
-    if (!report || !WIF_CHAINS[config.chain]) return model;
-    var network = WIF_NETWORKS[config.chain];
-    if (!network) return keyModel(report);
-    var tools = typeof window !== 'undefined' ? window.RotorKeyTools : null;
-    if (!tools || typeof tools.wifEncode !== 'function' || typeof tools.hexToBytes !== 'function') {
-      return model;
-    }
-    try {
-      var keyBytes = tools.hexToBytes(report.priv_hex);
-      model.wifs.push({ prefix: 'c', value: await tools.wifEncode(keyBytes, network, doubleSha256, true) });
-      model.wifs.push({ prefix: 'u', value: await tools.wifEncode(keyBytes, network, doubleSha256, false) });
-    } catch (err) {
-      model.wifs = [];
-    }
-    return model;
-  }
-
-  /* The key cell keeps the server-rendered hex link and appends the two WIF
-   * forms once the derivation report arrives (BTC/BCH/LTC/DOGE). */
-  async function renderKeyCell(row, report) {
-    var cell = row.querySelector('.col-key');
-    if (!cell || !report || cell.querySelector('.key-wif')) return;
-    var model = await wifModel(report);
-    model.wifs.forEach(function (wif) {
-      var line = document.createElement('span');
-      line.className = 'key-wif';
-      var prefix = document.createElement('span');
-      prefix.className = 'key-wif-prefix';
-      prefix.textContent = '(' + wif.prefix + ')';
-      line.appendChild(prefix);
-      var link = document.createElement('a');
-      link.className = 'mono key-link';
-      link.href = '/key/' + encodeURIComponent(wif.value);
-      link.title = wif.value;
-      link.textContent = wif.value;
-      line.appendChild(link);
-      line.appendChild(copyButton(wif.value, 'Copy WIF'));
-      cell.appendChild(line);
-    });
-  }
-
   function addressMap(report) {
     var map = {};
     if (!report || !Array.isArray(report.addresses)) return map;
@@ -365,19 +298,17 @@
     return map;
   }
 
-  async function renderAddresses(type) {
+  function renderAddresses(type) {
     var field = fieldFor(type);
-    for (var index = 0; index < rows.length; index += 1) {
-      var row = rows[index];
+    rows.forEach(function (row) {
       var hex = row.getAttribute('data-key');
       var report = state.reports[hex];
-      if (!report) continue;
+      if (!report) return;
       var map = state.addressMaps[hex] || (state.addressMaps[hex] = addressMap(report));
       var entries = addressEntriesFor(config.chain, type, map, field);
       state.addressSets[hex] = entries;
       fillAddressCell(row, entries);
-      await renderKeyCell(row, report);
-    }
+    });
   }
 
   function attachRowEvents() {
@@ -1295,7 +1226,7 @@
       });
       done += slice.length;
       setNote('Deriving ' + done + ' of ' + rows.length + ' addresses in your browser…');
-      await renderAddresses(config.type);
+      renderAddresses(config.type);
       if (i + CHUNK < rows.length) {
         await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
       }
@@ -1307,7 +1238,7 @@
         setNote(err && err.message ? err.message : 'TON addresses are unavailable.', 'err');
       }
     }
-    await renderAddresses(config.type);
+    renderAddresses(config.type);
     rows.forEach(function (row) {
       var report = state.reports[row.getAttribute('data-key')];
       if (!report) {

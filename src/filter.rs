@@ -8,10 +8,18 @@
 //! hash160/ETH addresses, 32 bytes for xpoints). The C++ binary requires the
 //! file to be pre-sorted and its binary search loses record 0; this port sorts
 //! the records itself and searches them correctly.
+//!
+//! A 20-byte address record is chain-agnostic: it is the same hash160/keccak
+//! account regardless of which chain the CLI selects with `--chain`. The file
+//! therefore cannot mix chains, and [`TargetSet::load_for_chain`] rejects a
+//! 20-byte interpretation for chains whose target is 32 bytes instead of
+//! truncating it.
 
 use std::path::Path;
 
 use xorf::{BinaryFuse8, Filter};
+
+use crate::chain::ChainDescriptor;
 
 /// Record count from which the binary fuse prefilter replaces Bloom.
 pub const FUSE_THRESHOLD: usize = 1024;
@@ -194,6 +202,29 @@ impl TargetSet {
         }
         let records: Vec<Vec<u8>> = data.chunks_exact(record_len).map(|c| c.to_vec()).collect();
         Ok(Self::from_records(&records, record_len))
+    }
+
+    /// Loads a `.bin` file of `record_len`-byte records for `chain`.
+    ///
+    /// Records carry no chain tag, so the caller's `--chain` decides which
+    /// chain the 20-byte hash160/account is compared against. A chain whose
+    /// target is 32 bytes must not read a 20-byte file: that would compare
+    /// truncated records, so it is rejected before the file is opened.
+    pub fn load_for_chain(
+        path: &Path,
+        chain: &ChainDescriptor,
+        record_len: usize,
+    ) -> Result<Self, String> {
+        if record_len == 20 && chain.target_len() != 20 {
+            return Err(format!(
+                "chain '{}' compares {}-byte targets, but a 20-byte .bin address file is the \
+                 secp-hash160/EVM/TRON form and would be truncated; use a {}-byte record file",
+                chain.id,
+                chain.target_len(),
+                chain.target_len()
+            ));
+        }
+        Self::load(path, record_len)
     }
 
     /// Builds a target set from in-memory records, sorting a copy.
