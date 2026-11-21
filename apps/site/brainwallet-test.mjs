@@ -173,6 +173,27 @@ assert.equal(engine.chainConfig("solana").curve, 1);
 assert.equal(engine.chainConfig("ton").ton, true);
 assert.equal(engine.toCsv(["a", "b"], [["x,y", 'q"z']]), 'a,b\r\n"x,y","q""z"\r\n');
 
+// 3c. Key-cell links follow the donor: a UTXO report adds both WIF links, an
+// ETH-shaped report keeps only the hex link, and an empty key clears them all.
+const keyHex = engineReport.priv_hex;
+assert.deepEqual(
+  engine.keyLinksFor(keyHex, engineReport),
+  [
+    { label: keyHex, href: "/key/" + keyHex },
+    { label: "WIF(c)", href: "/key/" + engineReport.wif_compressed },
+    { label: "WIF(u)", href: "/key/" + engineReport.wif_uncompressed },
+  ],
+  "BTC key cell links hex + both WIFs",
+);
+assert.deepEqual(
+  engine.keyLinksFor(keyHex, { priv_hex: keyHex }),
+  [{ label: keyHex, href: "/key/" + keyHex }],
+  "an ETH-shaped report has no WIF links",
+);
+assert.deepEqual(engine.keyLinksFor("", engineReport), [], "no key means no links");
+assert.equal(engine.chainConfig("bitcoin").wif, true, "BTC exposes WIF links");
+assert.equal(engine.chainConfig("ethereum").wif, undefined, "ETH exposes no WIF links");
+
 // 3. Row selection and explorer links per page focus.
 const bitcoinRows = engine.addressRows(report, "bitcoin");
 assert.deepEqual(

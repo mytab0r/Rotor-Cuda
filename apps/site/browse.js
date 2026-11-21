@@ -425,9 +425,11 @@
     if (config.chain === 'tron') return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: config.symbol || 'TRX' };
     if (config.chain === 'xrp') return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
     if (config.chain === 'ton') return { provider: 'toncenter', chain: 'ton', decimals: 9, symbol: 'TON' };
-    /* LTC, DOGE, BCH and ZEC stay without a balance provider: Blockchair now
-     * answers 430 without a key and litecoinspace 525, so the cells show "—"
-     * (and each address keeps its explorer link) instead of a fake zero. */
+    /* LTC and DOGE do have a keyless provider (BlockCypher) on the single-key
+     * page. This 60-row directory does not use it: 60 lookups would exceed the
+     * keyless rate limit, so those cells stay "—" (each address keeps its
+     * explorer link) instead of a fake zero. BCH, ZEC and the other chains
+     * still have no free keyless provider of their own. */
     return null;
   }
 

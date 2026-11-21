@@ -376,7 +376,9 @@
    * and any other text is a brainwallet. Kept pure so Node tests can pin the
    * vectors and so the modal and the key page agree on what an input means. */
 
-  var SEARCH_WIF_SHAPE = /^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  /* The donor WIF shape, shared with the key page and the global search:
+   * 5/K/L (Bitcoin), T/6 (Litecoin) or Q/6 (Dogecoin). */
+  var SEARCH_WIF_SHAPE = /^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$/;
   var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
 
   function isMnemonicPhrase(text) {
@@ -454,7 +456,7 @@
 
     function wifRoute() {
       if (!SEARCH_WIF_SHAPE.test(value)) {
-        throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K or L.');
+        throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K, L, T, 6 or Q.');
       }
       return routeResult('wif', '/key/' + value);
     }
@@ -618,7 +620,7 @@
       return { bytes: integerBytesValue, hex: bytesToHex(integerBytesValue), format: 'decimal' };
     }
 
-    if (/^[5KLQT][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) {
+    if (SEARCH_WIF_SHAPE.test(value)) {
       if (typeof hashes.doubleSha256 !== 'function') {
         throw new Error('The WIF checksum needs SHA-256 support in this browser.');
       }
