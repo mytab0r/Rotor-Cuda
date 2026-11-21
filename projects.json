@@ -41,7 +41,9 @@
         "node --check apps/site/tx-decoders.js",
         "node --check apps/site/tx-page.js",
         "node --check scripts/ui-audit.mjs",
-        "node scripts/build-tokens.mjs --check"
+        "node --check scripts/check-token-usage.mjs",
+        "node scripts/build-tokens.mjs --check",
+        "node scripts/check-token-usage.mjs"
       ],
       "test": [
         "node scripts/ui-audit.mjs --help",
