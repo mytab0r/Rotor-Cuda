@@ -159,7 +159,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with phrase, private key/WIF copy, paths, address types and balances. TON is an explicit unsupported state.'
+    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances. TON is an explicit unsupported state. Rows carry no WIF links, matching the donor.'
   });
 
   CHAINS.forEach(function (item) {
@@ -173,7 +173,7 @@
       donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
       note: ton
         ? 'Seed derivation for TON is not implemented; the page shows an explicit unsupported state instead of a faked address.'
-        : 'Phrase, private key/WIF copy, path, address type and balances on every row.'
+        : 'Phrase, private key copy, path, address type and balances on every row; no WIF links, matching the donor.'
     });
   });
 
@@ -184,7 +184,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'BIP39 entropy 12/15/18/21/24 plus Electrum old and Electrum BIP39, passphrase, paths and address counts. The donor has no equivalent studio.'
+    note: 'BIP39 entropy 12/15/18/21/24 plus Electrum old and Electrum BIP39, passphrase, paths and address counts. The donor has no equivalent studio. It stays a tool ("Convert or generate your own phrase"), linked from /tools, /key, the /mnemonic-seeds hub and /mnemonic-converter; it is not the Seeds nav destination.'
   });
 
   oursRoute({
@@ -1239,7 +1239,7 @@
     status: 'parity',
     priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'Below 860px the first four links stay inline and the rest move into a More disclosure with Escape/outside-click close; search and theme toggles are icon-only.'
+    note: 'Below 860px the first four links stay inline and the rest move into a More disclosure with Escape/outside-click close; search and theme toggles are icon-only. The Seeds item resolves to the browsable /mnemonic-seeds directory (`data-nav="seeds"`, active on every /mnemonic-seeds/* page); the /seed studio is a tool page reached from /tools, /key, /mnemonic-seeds and /mnemonic-converter, not a primary nav destination.'
   });
 
   feature({
