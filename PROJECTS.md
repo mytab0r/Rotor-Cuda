@@ -23,10 +23,10 @@ owned by exactly one area; the most-specific glob wins.
   build. After any `crates/rotor-wasm` change, rebuild, run
   `crates/rotor-wasm/smoke.mjs` and `apps/site/worker-test.mjs`, and commit the
   artifact.
-- **Asset cache busting.** Bump `?v=` in every `apps/site/*.html` when
-  `site.css`, `site.js`, `theme.js` or `key.js` changes.
-  `projects.json.asset_version` tracks the current value; Phase 1 will make it
-  single-source.
+- **Asset revalidation.** Never stamp `?v=` tokens on served files. HTML is
+  served with `no-store` and every other asset with `no-cache` plus a content
+  `ETag`, so a deploy is visible on the next request.
+  `node scripts/check-projects.mjs` rejects a returning token.
 - **Routes.** `/`, `/app`, `/run`, `/me`, `/docs`, `/key` and the static asset
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
   coordinator + site change. Key utility pages `/hex-dec-bin`, `/public-key`,
