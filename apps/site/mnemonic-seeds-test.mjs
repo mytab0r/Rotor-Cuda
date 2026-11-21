@@ -194,7 +194,7 @@ test("copy wiring writes the exact value to the clipboard", async () => {
   }
   assertEqual(clipboardWrites.length, 1, "one clipboard write");
   assertEqual(clipboardWrites[0], WIF, "clipboard receives the key");
-  assert(target.classes.includes("copied"), "button shows the copied state");
+  assert(target.classes.includes("is-copied"), "button shows the copied state");
   assertEqual(target.getAttribute("aria-label"), "Copied", "button announces the copy");
   pending.forEach((fn) => fn());
   assertEqual(target.getAttribute("aria-label"), "Copy WIF private key", "label restored");

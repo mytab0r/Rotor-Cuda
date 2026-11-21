@@ -254,8 +254,8 @@
   function copyButton(text, label) {
     var copy = document.createElement('button');
     copy.type = 'button';
-    copy.className = 'icon-btn';
-    copy.title = label;
+    copy.className = 'icon-button icon-button--quiet icon-button--lg';
+    copy.setAttribute('data-tooltip', label);
     copy.setAttribute('aria-label', label);
     copy.appendChild(iconUse('ui-copy'));
     copy.addEventListener('click', function () { copyText(text, copy); });
@@ -356,11 +356,19 @@
   function copyText(text, button) {
     function done() {
       if (!button) return;
-      var original = button.textContent;
-      button.textContent = 'Copied';
+      var use = button.querySelector('use');
+      if (!button.getAttribute('data-icon')) {
+        button.setAttribute('data-icon', use ? use.getAttribute('href') : '');
+        button.setAttribute('data-label', button.getAttribute('aria-label') || 'Copy');
+      }
+      if (use) use.setAttribute('href', '/icons.svg#ui-check');
+      button.classList.add('is-copied');
+      button.setAttribute('aria-label', 'Copied');
       button.disabled = true;
       window.setTimeout(function () {
-        button.textContent = original;
+        if (use) use.setAttribute('href', button.getAttribute('data-icon') || '/icons.svg#ui-copy');
+        button.classList.remove('is-copied');
+        button.setAttribute('aria-label', button.getAttribute('data-label') || 'Copy');
         button.disabled = false;
       }, 1100);
     }
@@ -482,8 +490,8 @@
   function retryButton(row) {
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'icon-btn browse-balance-retry';
-    button.title = 'Retry this balance';
+    button.className = 'icon-button icon-button--quiet icon-button--lg';
+    button.setAttribute('data-tooltip', 'Retry this balance');
     button.setAttribute('aria-label', 'Retry balance check for this address');
     button.appendChild(iconUse('ui-retry', 'icon'));
     button.addEventListener('click', retryForRow(row));

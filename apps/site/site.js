@@ -449,10 +449,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127b'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127b'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127b'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127b'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127c'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127c'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127c'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127c'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
@@ -540,13 +540,13 @@
         var use = button.querySelector('use');
         button.classList.add('is-copied');
         button.setAttribute('aria-label', 'Copied');
-        button.title = 'Copied';
+        button.setAttribute('data-tooltip', 'Copied');
         if (use) use.setAttribute('href', '/icons.svg#ui-check');
         button.disabled = true;
         window.setTimeout(function () {
           button.classList.remove('is-copied');
           button.setAttribute('aria-label', label);
-          button.title = label;
+          button.setAttribute('data-tooltip', 'Copy address');
           if (use) use.setAttribute('href', '/icons.svg#ui-copy');
           button.disabled = false;
         }, 1200);
@@ -1030,20 +1030,20 @@
       actions.className = 'ws-address-actions';
       if (row.explorer) {
         var link = document.createElement('a');
-        link.className = 'global-search-icon-btn';
+        link.className = 'icon-button icon-button--outline icon-button--lg';
         link.href = row.explorer;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         link.setAttribute('aria-label', 'Open ' + card.label + ' ' + row.type + ' address in explorer');
-        link.title = 'Open in explorer';
+        link.setAttribute('data-tooltip', 'Open in explorer');
         link.appendChild(icon('ui-external'));
         actions.appendChild(link);
       }
       var copy = document.createElement('button');
       copy.type = 'button';
-      copy.className = 'global-search-icon-btn';
+      copy.className = 'icon-button icon-button--outline icon-button--lg';
       copy.setAttribute('aria-label', 'Copy ' + card.label + ' ' + row.type + ' address');
-      copy.title = 'Copy address';
+      copy.setAttribute('data-tooltip', 'Copy address');
       copy.appendChild(icon('ui-copy'));
       copy.addEventListener('click', function () {
         copyWithFeedback(row.address, copy, 'Copy ' + card.label + ' ' + row.type + ' address');

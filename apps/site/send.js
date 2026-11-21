@@ -601,12 +601,12 @@
       }
       clearTimers(button);
       use.setAttribute('href', '/icons.svg#ui-check');
-      button.title = 'Copied';
+      button.setAttribute('data-tooltip', 'Copied');
       button.setAttribute('aria-label', 'Copied');
       button._sendTimer = window.setTimeout(function () {
         use.setAttribute('href', button.getAttribute('data-icon') || '/icons.svg#ui-copy');
         var reset = button.getAttribute('data-label') || label;
-        button.title = reset;
+        button.setAttribute('data-tooltip', reset);
         button.setAttribute('aria-label', reset);
         button._sendTimer = null;
       }, 1400);

@@ -29,8 +29,10 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
 - Data-heavy pages use compact tables/rows with icon-only row actions, not a
   grid of explanatory cards. Cards are for navigation, empty states and
   summaries only.
-- Every icon-only action needs `aria-label`, `title`, a visible copied/active
-  state and a >=44px touch target.
+- Every icon-only action uses the shared `.icon-button` component with
+  `aria-label` + `data-tooltip` (the tooltip primitive; no native `title` beside
+  it), a visible copied/active state and a 44px touch target (28 only in a
+  dense table row whose row is the target).
 - Run the `ui-checklist` and verify 375/768/1280, light/dark, keyboard,
   reduced-motion and no horizontal overflow before claiming a UI fix.
 - Run the automated gate before reporting done:

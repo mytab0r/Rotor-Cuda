@@ -1151,13 +1151,13 @@
       if (use) use.setAttribute('href', '/icons.svg#ui-check');
       button.classList.add('is-copied');
       button.setAttribute('aria-label', label + ' copied');
-      button.setAttribute('title', label + ' copied');
+      button.setAttribute('data-tooltip', 'Copied');
       button.disabled = true;
       window.setTimeout(function () {
         if (use) use.setAttribute('href', '/icons.svg#ui-copy');
         button.classList.remove('is-copied');
         button.setAttribute('aria-label', label);
-        button.setAttribute('title', label);
+        button.setAttribute('data-tooltip', 'Copy address');
         button.disabled = false;
       }, 1200);
     });
@@ -1173,7 +1173,7 @@
     toggle.classList.toggle('is-open', open);
     var name = toggle.getAttribute('data-name') || 'address';
     toggle.setAttribute('aria-label', (open ? 'Hide' : 'Show') + ' details for ' + name);
-    toggle.setAttribute('title', (open ? 'Hide' : 'Show') + ' details for ' + name);
+    toggle.setAttribute('data-tooltip', (open ? 'Hide' : 'Show') + ' details');
   }
 
   function visuallyHidden(text) {
@@ -1315,19 +1315,19 @@
       var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
       if (explorer) {
         var ext = document.createElement('a');
-        ext.className = 'icon-btn key-row-action';
+        ext.className = 'icon-button icon-button--quiet icon-button--lg';
         ext.href = explorer + encodeURIComponent(addr.address);
         ext.target = '_blank';
         ext.rel = 'noopener noreferrer';
-        ext.title = 'Open ' + name + ' in explorer';
+        ext.setAttribute('data-tooltip', 'Open in explorer');
         ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
         ext.appendChild(svgUse('/icons.svg#ui-external'));
         actions.appendChild(ext);
       }
       var copy = document.createElement('button');
       copy.type = 'button';
-      copy.className = 'icon-btn key-row-action';
-      copy.title = 'Copy ' + name + ' address';
+      copy.className = 'icon-button icon-button--quiet icon-button--lg';
+      copy.setAttribute('data-tooltip', 'Copy address');
       copy.setAttribute('aria-label', 'Copy ' + name + ' address');
       copy.appendChild(svgUse('/icons.svg#ui-copy'));
       copy.addEventListener('click', function () {
@@ -1336,12 +1336,12 @@
       actions.appendChild(copy);
       var toggle = document.createElement('button');
       toggle.type = 'button';
-      toggle.className = 'icon-btn key-row-action key-details-toggle';
+      toggle.className = 'icon-button icon-button--quiet icon-button--lg key-details-toggle';
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-controls', details.id);
       toggle.setAttribute('data-name', name);
       toggle.setAttribute('aria-label', 'Show details for ' + name);
-      toggle.title = 'Show details for ' + name;
+      toggle.setAttribute('data-tooltip', 'Show details');
       toggle.appendChild(svgUse('/icons.svg#ui-chevron'));
       toggle.addEventListener('click', function () {
         setRowDetails(row, details.hidden);
@@ -1389,13 +1389,13 @@
       if (use) use.setAttribute('href', '/icons.svg#ui-check');
       copyPathBtn.classList.add('is-copied');
       copyPathBtn.setAttribute('aria-label', 'Derivation path copied');
-      copyPathBtn.setAttribute('title', 'Derivation path copied');
+      copyPathBtn.setAttribute('data-tooltip', 'Derivation path copied');
       copyPathBtn.disabled = true;
       window.setTimeout(function () {
         if (use) use.setAttribute('href', '/icons.svg#ui-copy');
         copyPathBtn.classList.remove('is-copied');
         copyPathBtn.setAttribute('aria-label', 'Copy derivation path');
-        copyPathBtn.setAttribute('title', 'Copy derivation path');
+        copyPathBtn.setAttribute('data-tooltip', 'Copy derivation path');
         copyPathBtn.disabled = false;
       }, 1200);
     });
@@ -1766,8 +1766,8 @@
     if (settings.onRetry) {
       var button = document.createElement('button');
       button.type = 'button';
-      button.className = 'key-balance-retry';
-      button.title = 'Retry this balance';
+      button.className = 'icon-button icon-button--quiet icon-button--lg';
+      button.setAttribute('data-tooltip', 'Retry this balance');
       button.setAttribute('aria-label', 'Retry balance check for this address');
       button.appendChild(retryIcon());
       button.addEventListener('click', settings.onRetry);
