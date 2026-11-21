@@ -96,10 +96,10 @@
       path: '/private-keys/' + item[0],
       title: item[1] + ' private keys',
       area: 'directory',
-      status: 'partial',
-      priority: 'P1',
+      status: 'parity',
+      priority: '-',
       donorIds: ['pkf:/private-keys/' + item[0]],
-      note: 'Missing CSV export and balance sorting. BTC and LTC directories expose legacy/segwit/script/taproot; BCH/TON/DOGE/ZEC directories expose one type tab per chain, while /key derives every shipped type for them. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does.'
+      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; BTC and LTC expose four address-type cards, other chains one row set as the donor. WIF (c)/(u) links are shown. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
     });
   });
 
