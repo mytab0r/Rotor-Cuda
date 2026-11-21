@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "rootDir": ".",
+    "outDir": ".test-build",
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["src/lib/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["dist", ".test-build", "node_modules", "src/scripts", "src/pages"]
+}

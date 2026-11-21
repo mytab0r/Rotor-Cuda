@@ -1,0 +1,10 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.astro", "tests/**/*.ts", "scripts/**/*.mjs"],
+  "exclude": ["dist", ".test-build", "node_modules"]
+}
