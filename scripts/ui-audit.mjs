@@ -1610,7 +1610,7 @@ function auditPage(args) {
     const strength = document.getElementById("wallet-seed-strength");
     const info = document.getElementById("wallet-seed-info");
     const generate = document.getElementById("wallet-seed-generate");
-    const add = document.getElementById("wallet-seed-add");
+    const addButton = document.getElementById("wallet-seed-add");
     const issues = [];
     metrics.routeChecks.walletSeed = {};
     if (!strength || !visible(strength)) {
@@ -1633,7 +1633,7 @@ function auditPage(args) {
       if (!label) issues.push("#wallet-seed-info has no aria-label");
       if (!tooltip) issues.push("#wallet-seed-info has no data-tooltip");
     }
-    for (const [name, button] of [["generate", generate], ["add", add]]) {
+    for (const [name, button] of [["generate", generate], ["add", addButton]]) {
       if (!button) {
         issues.push(`#wallet-seed-${name} is missing`);
         continue;
