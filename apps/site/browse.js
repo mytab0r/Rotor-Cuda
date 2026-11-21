@@ -59,6 +59,14 @@
     return entries;
   }
 
+  /* A listing row shows one address line; any further form (the uncompressed
+   * P2PKH address) stays in the DOM behind the row disclosure, so the second
+   * address is still reachable and auditable without doubling every row. */
+  function addressCellModel(entries) {
+    var list = Array.isArray(entries) ? entries : [];
+    return { primary: list.length ? list[0] : null, extra: list.slice(1) };
+  }
+
   function metricFlags(value) {
     return {
       hasTx: Number(value && value.tx) > 0,
@@ -89,6 +97,7 @@
   if (typeof window !== 'undefined') {
     window.RotorBrowse = {
       addressEntriesFor: addressEntriesFor,
+      addressCellModel: addressCellModel,
       metricFlags: metricFlags,
       tronValue: tronValue,
       pageForHexKey: pageForHexKey
@@ -255,10 +264,33 @@
     return copy;
   }
 
+  function addressLine(entry) {
+    var line = document.createElement('div');
+    line.className = 'addr-line';
+    if (entry.prefix) {
+      var prefix = document.createElement('span');
+      prefix.className = 'addr-label';
+      prefix.textContent = '(' + entry.prefix + ')';
+      line.appendChild(prefix);
+    }
+    var href = explorerUrl(entry.address);
+    var link = document.createElement('a');
+    link.className = 'mono address-link';
+    link.href = href || '#';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = entry.address;
+    link.title = entry.address;
+    line.appendChild(link);
+    line.appendChild(copyButton(entry.address, 'Copy address'));
+    return line;
+  }
+
   function fillAddressCell(row, entries) {
     var cell = row.querySelector('.col-address');
     if (!cell) return;
     cell.textContent = '';
+    row.classList.remove('addr-expanded');
     if (!entries.length) {
       var empty = document.createElement('span');
       empty.className = 'cell-skeleton';
@@ -266,27 +298,37 @@
       cell.appendChild(empty);
       return;
     }
-    entries.forEach(function (entry) {
-      var line = document.createElement('div');
-      line.className = 'addr-line';
-      if (entry.prefix) {
-        var prefix = document.createElement('span');
-        prefix.className = 'addr-label';
-        prefix.textContent = '(' + entry.prefix + ')';
-        line.appendChild(prefix);
-      }
-      var href = explorerUrl(entry.address);
-      var link = document.createElement('a');
-      link.className = 'mono address-link';
-      link.href = href || '#';
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = entry.address;
-      link.title = entry.address;
-      line.appendChild(link);
-      line.appendChild(copyButton(entry.address, 'Copy address'));
-      cell.appendChild(line);
+    var model = addressCellModel(entries);
+    var primary = addressLine(model.primary);
+    cell.appendChild(primary);
+    if (!model.extra.length) return;
+
+    var id = 'addr-extra-' + row.getAttribute('data-key');
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'icon-button icon-button--quiet icon-button--lg addr-extra-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', id);
+    toggle.setAttribute('aria-label', 'Show uncompressed address');
+    toggle.setAttribute('data-tooltip', 'Show uncompressed address');
+    toggle.appendChild(iconUse('ui-chevron'));
+    primary.appendChild(toggle);
+
+    var extra = document.createElement('div');
+    extra.className = 'addr-extra';
+    extra.id = id;
+    model.extra.forEach(function (entry) {
+      extra.appendChild(addressLine(entry));
     });
+    toggle.addEventListener('click', function () {
+      var expanded = toggle.getAttribute('aria-expanded') === 'true';
+      var label = expanded ? 'Show uncompressed address' : 'Hide uncompressed address';
+      toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+      toggle.setAttribute('aria-label', label);
+      toggle.setAttribute('data-tooltip', label);
+      row.classList.toggle('addr-expanded', !expanded);
+    });
+    cell.appendChild(extra);
   }
 
   function addressMap(report) {
@@ -856,15 +898,25 @@
     var positive = false;
     var failed = false;
     var fresh = true;
-    group.entries.forEach(function (entry) {
+    var extra = null;
+    group.entries.forEach(function (entry, index) {
       var result = balanceLine(group, entry, cached, errors, meta, now);
       if (result.ok) ok = true;
       if (result.positive) positive = true;
       if (result.failed) failed = true;
       var picked = cached[entry.key];
       if (!cacheApi || !cacheApi.isFresh(picked, meta.provider, now)) fresh = false;
-      cell.appendChild(result.line);
+      if (index === 0) {
+        cell.appendChild(result.line);
+      } else {
+        if (!extra) {
+          extra = document.createElement('div');
+          extra.className = 'balance-extra';
+        }
+        extra.appendChild(result.line);
+      }
     });
+    if (extra) cell.appendChild(extra);
     cell.classList.toggle('has-balance', positive);
     cell.title = '';
     group.row.dataset.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';

@@ -365,6 +365,27 @@
       "symptom": "Every browse listing row rendered the compressed and uncompressed WIF under the hex key (163px rows, 11,036px document at /private-keys/tron) and put the WIF next to the address, while the donor keeps the WIF key-level on /key/<hex>.",
       "detector": "browse-row-wif",
       "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "browse-row-second-address",
+      "reported": "2026-11-22",
+      "symptom": "Bitcoin legacy listing rows rendered both the compressed and uncompressed address (and both balance lines), so every row was 131-163px and only two reached the 1440x900 fold; the donor row model is one address line.",
+      "detector": "browse-row-address-disclosure",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "browse-row-dead-copy",
+      "reported": "2026-11-22",
+      "symptom": "Every listing row shipped a <button class=\"copy-btn\">Copy private key</button> that `.col-key .copy-btn` set to display:none (60 dead controls per page); the donor key cell has a real copy action.",
+      "detector": "browse-row-key-copy",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "browse-stat-cards-ragged",
+      "reported": "2026-11-22",
+      "symptom": "The Received balance wrapped mid-value, so the three browse stat cards rendered 87px high instead of one 60px line and the value baseline no longer matched the other two cards.",
+      "detector": "browse-stat-level",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

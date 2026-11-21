@@ -99,7 +99,7 @@
       status: 'parity',
       priority: '-',
       donorIds: ['pkf:/private-keys/' + item[0]],
-      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; BTC and LTC expose four address-type cards, other chains one row set as the donor. Listing rows show the hex key, the address and the balance; the WIF stays key-level on /key/<hex>. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
+      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; the search placeholder and hint name the chain’s own WIF shape (BTC/BCH/ZEC 5/K/L, LTC 6/T, DOGE Q/6, account chains “HEX or Brainwallet”), as the donor does; BTC and LTC expose four address-type cards, other chains one row set as the donor. Listing rows show the hex key with a real 44px copy action, one address line and the balance; a BTC legacy key keeps its second (uncompressed) address and balance in a disclosure, and the WIF stays key-level on /key/<hex>. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
     });
   });
 
