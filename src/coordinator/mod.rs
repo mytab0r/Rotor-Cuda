@@ -1038,12 +1038,19 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
     }
 }
 
-/// Permanent redirects to the canonical naming: `/monitor` -> `/cabinet`
-/// and the old `/keys` hubs -> `/private-keys`. Key-range pages keep their
-/// `/keys/<chain>/<start>-<end>` URLs and are not redirected.
+/// Permanent redirects to the canonical naming: `/monitor` -> `/cabinet`,
+/// the donor aliases `/vanity-generator` -> `/vanity` and `/downloads` ->
+/// `/wallets`, and the old `/keys` hubs -> `/private-keys`. Key-range pages
+/// keep their `/keys/<chain>/<start>-<end>` URLs and are not redirected.
 fn redirect_target(path: &str) -> Option<String> {
     if path == "/monitor" {
         return Some("/cabinet".to_string());
+    }
+    if path == "/vanity-generator" {
+        return Some("/vanity".to_string());
+    }
+    if path == "/downloads" {
+        return Some("/wallets".to_string());
     }
     if path == "/keys" {
         return Some("/private-keys".to_string());
@@ -1627,8 +1634,27 @@ fn seo_asset(base: &str, path: &str, query: &str) -> Option<(String, &'static st
     None
 }
 
-/// Exactly 64 hex digits, non-zero; secp256k1 keys must also be below the
-/// curve order (the existing scalar parser enforces that). Returns lowercase.
+/// Donor key URL forms: an optional `0x`/`0X` prefix and 1..=64 hex digits,
+/// left-padded to 32 bytes. A short numeric string is hex here, not decimal —
+/// the donor's hex route reads it the same way; decimal stays on `/key/decimal`.
+fn prefixed_hex_key(value: &str) -> Option<String> {
+    let digits = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+        .unwrap_or(value);
+    if digits.is_empty()
+        || digits.len() > 64
+        || !digits.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    Some(format!("{digits:0>64}").to_ascii_lowercase())
+}
+
+/// The key a donor key URL names: 1..=64 hex digits (optional `0x` prefix,
+/// left-padded to 64) or a mainnet WIF; non-zero, and secp256k1 keys must also
+/// be below the curve order (the existing scalar parser enforces that).
+/// Returns lowercase.
 fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
     // A mainnet WIF is accepted in the /key/<value> path as well, matching the
     // donor-style key links. Bitcoin, Litecoin and Dogecoin share the encoding;
@@ -1639,25 +1665,25 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
             hex.as_bytes().first(),
             Some(b'5' | b'K' | b'L' | b'T' | b'Q')
         )
+        && let Ok(decoded) = bs58::decode(hex).with_check(None).into_vec()
     {
-        let decoded = bs58::decode(hex).with_check(None).into_vec().ok()?;
         let key = match decoded.as_slice() {
-            [0x80 | 0xb0 | 0x9e, rest @ ..] if rest.len() == 32 => rest.to_vec(),
-            [0x80 | 0xb0 | 0x9e, rest @ .., 0x01] if rest.len() == 32 => rest.to_vec(),
-            _ => return None,
+            [0x80 | 0xb0 | 0x9e, rest @ ..] if rest.len() == 32 => Some(rest.to_vec()),
+            [0x80 | 0xb0 | 0x9e, rest @ .., 0x01] if rest.len() == 32 => Some(rest.to_vec()),
+            _ => None,
         };
-        let lower = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        return crate::scalar::Scalar::from_hex(&lower)
-            .filter(|value| !value.is_zero())
-            .map(|_| lower);
+        if let Some(key) = key {
+            let lower = key
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            return crate::scalar::Scalar::from_hex(&lower)
+                .filter(|value| !value.is_zero())
+                .map(|_| lower);
+        }
+        // Not a valid WIF: a 51/52-digit hex value is still a donor key URL.
     }
-    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
-    }
-    let lower = hex.to_ascii_lowercase();
+    let lower = prefixed_hex_key(hex)?;
     if curve == "ed25519" {
         if lower.bytes().all(|byte| byte == b'0') {
             return None;
@@ -1919,9 +1945,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261127a\">\n\
-         <script src=\"/theme.js?v=20261127a\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261127a\"></script>\n<script src=\"/site.js?v=20261127a\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261127b\">\n\
+         <script src=\"/theme.js?v=20261127b\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261127b\"></script>\n<script src=\"/site.js?v=20261127b\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2636,7 +2662,7 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127a\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127b\">\n");
     let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
          <span aria-current=\"page\">Brainwallet</span></nav>";
@@ -2746,7 +2772,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127a\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127b\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2806,8 +2832,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261127a\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261127a\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261127b\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261127b\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2845,7 +2871,7 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127a\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127b\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
@@ -2896,8 +2922,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261127a\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261127a\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261127b\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261127b\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -3252,7 +3278,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261127a\"></script>\n         <script src=\"/browse.js?v=20261127a\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261127b\"></script>\n         <script src=\"/browse.js?v=20261127b\"></script>",
         site_header(),
         "",
         chain.color,
@@ -5445,7 +5471,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261127a"),
+                page.contains("/theme.js?v=20261127b"),
                 "{path} does not load the theme script"
             );
         }
@@ -5487,8 +5513,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261127a\"></script>"));
-        assert!(page.contains("/site.css?v=20261127a"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261127b\"></script>"));
+        assert!(page.contains("/site.css?v=20261127b"));
     }
 
     #[test]
@@ -5609,6 +5635,21 @@ mod tests {
         // Range pages keep their canonical /keys URL.
         let range = format!("/keys/bitcoin/{}-{}", "1".repeat(64), "2".repeat(64));
         assert_eq!(redirect_target(&range), None);
+    }
+
+    #[test]
+    fn donor_route_aliases_redirect_to_canonical_paths() {
+        assert_eq!(
+            redirect_target("/vanity-generator"),
+            Some("/vanity".to_string())
+        );
+        assert_eq!(redirect_target("/downloads"), Some("/wallets".to_string()));
+        // Exact paths only: subpaths are not alias hubs.
+        assert_eq!(redirect_target("/vanity-generator/"), None);
+        assert_eq!(redirect_target("/vanity-generator/foo"), None);
+        assert_eq!(redirect_target("/downloads/foo"), None);
+        assert_eq!(redirect_target("/vanity"), None);
+        assert_eq!(redirect_target("/wallets"), None);
     }
 
     #[test]
@@ -5798,7 +5839,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261127a"));
+        assert!(body.contains("brainwallet.css?v=20261127b"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5818,7 +5859,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261127a"));
+        assert!(body.contains("brainwallet.css?v=20261127b"));
     }
 
     #[test]
@@ -5847,12 +5888,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261127a"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261127b"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261127a"),
+                body.contains("brainwallet-directory.js?v=20261127b"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261127a"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261127b"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -5916,9 +5957,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261127a"));
-        assert!(body.contains("brainwallet.js?v=20261127a"));
-        assert!(body.contains("brainwallet.css?v=20261127a"));
+        assert!(body.contains("brainwallet-engine.js?v=20261127b"));
+        assert!(body.contains("brainwallet.js?v=20261127b"));
+        assert!(body.contains("brainwallet.css?v=20261127b"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -6027,6 +6068,46 @@ mod tests {
             "window.__ROTOR_KEY__=\"{}\"",
             upper.to_ascii_lowercase()
         )));
+    }
+
+    #[test]
+    fn seo_key_page_accepts_short_and_prefixed_hex() {
+        let base = "https://rotor.pxbt.app";
+        let key_one = format!("{:064x}", 1);
+        let key_two = format!("{:064x}", 2);
+        for path in [
+            "/key/1".to_string(),
+            "/key/0x1".to_string(),
+            "/key/0X1".to_string(),
+            format!("/key/0x{key_two}"),
+            format!("/key/0X{key_two}"),
+        ] {
+            let (body, _, status) = seo_asset(base, &path, "").expect(&path);
+            assert_eq!(status, 200, "{path}");
+            let expected = if path.ends_with(&key_two) {
+                key_two.clone()
+            } else {
+                key_one.clone()
+            };
+            assert!(
+                body.contains(&format!("window.__ROTOR_KEY__=\"{expected}\"")),
+                "{path} must render the left-padded key"
+            );
+        }
+        // The plain 64-digit form is unchanged.
+        let (body, _, status) =
+            seo_asset(base, &format!("/key/{key_one}"), "").expect("/key/<64 hex>");
+        assert_eq!(status, 200);
+        assert!(body.contains(&format!("window.__ROTOR_KEY__=\"{key_one}\"")));
+        // Arbitrary non-key text stays a real 404, not a donor soft-404.
+        assert_eq!(seo_asset(base, "/key/zzz", "").unwrap().2, 404);
+        assert_eq!(seo_asset(base, "/key/0x0", "").unwrap().2, 404);
+        assert_eq!(
+            seo_asset(base, &format!("/key/{}", "f".repeat(65)), "")
+                .unwrap()
+                .2,
+            404
+        );
     }
 
     #[test]
@@ -6292,11 +6373,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261127a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261127a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261127a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261127a\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261127a\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261127b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261127b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261127b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261127b\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261127b\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 

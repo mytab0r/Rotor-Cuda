@@ -101,6 +101,16 @@ a worktree; one writer per area.
       `visually-hidden` (document outline/landmark) on both directories; the
       page-percent value is hidden at <=560px to keep the page-info line on
       one row; zero-provider metrics render `-`, never invented data.
+- [x] Donor key-URL and directory mechanics: `?key=` jumps to the page that
+      contains the key, the donor aliases `/vanity-generator` and `/downloads`
+      redirect, and `/key/<value>` accepts `0x` plus short hex.
+      Evidence (2026-11-21): `apps/site/browse.js` (`pageForHexKey`,
+      `jumpToKeyPage`, `data-page` config; navigation only when the computed
+      page differs from the current one), `apps/site/search-test.mjs`
+      (`0xdeadbeef` -> page 62,265,476, clamping, non-hex/zero rejection),
+      `src/coordinator/mod.rs` (`redirect_target` 301 aliases exact-path only,
+      `prefixed_hex_key` left-pads 1..=64 hex digits and rejects all-zero);
+      arbitrary non-key text stays a real 404.
 
 ## 3. secretscan.org ideas
 - [x] Lists/pricing pages, filters and density reviewed; adopted items listed
