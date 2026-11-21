@@ -1,0 +1,17 @@
+[package]
+name = "wgpu-secp-spike"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone crate: it must not join the root workspace, so the desktop
+# `cargo build --release` never compiles it.
+[workspace]
+
+[dependencies]
+wgpu = { version = "30.0.2", features = ["spirv"] }
+pollster = "0.4"
+bytemuck = { version = "1", features = ["derive"] }
+num-bigint = "0.4"
+num-traits = "0.2"
+k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
