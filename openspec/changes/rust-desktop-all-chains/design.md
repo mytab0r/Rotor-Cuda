@@ -78,6 +78,18 @@ Decision: run a 2-week spike with the secp kernel on one NVIDIA GPU:
 Gate: same fixture speed measured over ≥30s, same results, Windows + Linux.
 Shaders remain source in the repository; no generated artifacts.
 
+**Result (2026-11-21), see `gpu-spike.md` for the full evidence.** Measured
+CUDA baseline on the RTX 5070: 1.94 Gk/s (BTC single address) and 1.05 Gk/s
+(ETH). The `wgpu` WGSL spike measured 1.696-1.724 Mkeys/s for a generic `k*G`;
+its optimistic 3-modmul/key bound is 0.746-0.752 Gkeys/s with hashing
+excluded, below the 98% floor (1.90 Gk/s BTC, 1.03 Gk/s ETH). The `rust-gpu`
+spike builds and runs a trivial SPIR-V kernel, but has no secp port and no
+measured rate.
+CPU/GPU parity on published fixtures was not measured. Verdict: **keep CUDA
+feature-gated**; the Rust-only GPU goal is blocked until a parity harness
+exists and a candidate backend reaches ≥98% of the CUDA keys/s on the same GPU
+(Windows and Linux).
+
 ## D6. Coordinator protocol
 
 Add optional `chain` to job creation, lease and result payloads:
