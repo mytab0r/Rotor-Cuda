@@ -1,5 +1,5 @@
 {
-  "asset_version": "20261127c",
+  "asset_version": "20261127d",
   "areas": [
     {
       "id": "site",
@@ -18,6 +18,7 @@
         "node --check apps/site/search.js",
         "node --check apps/site/theme.js",
         "node --check apps/site/vanity.js",
+        "node --check apps/site/vanity-worker.js",
         "node --check apps/site/seed-page.js",
         "node --check apps/site/seed-crypto.js",
         "node --check apps/site/puzzle-browser.js",
