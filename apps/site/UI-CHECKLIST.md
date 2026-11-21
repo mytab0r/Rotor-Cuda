@@ -15,6 +15,19 @@ evidence (a screenshot or the DOM check below).
       the PR; do not weaken the threshold in `scripts/ui-audit.mjs` or add a
       page-local bypass.
 
+## Design system
+- [ ] New UI uses the tokens and component APIs in
+      `docs/design-system/DESIGN-SYSTEM.md`; the baseline and migration order
+      are in `inventory.md` and `plan.md`.
+- [ ] Spacing is on the 4px scale (`--space-*`); control heights are 40/44/56;
+      radii are 4/8/10/12/16/20/pill. No new literal values.
+- [ ] Status/badges use one grammar: 20px high, 12px text, `2px 8px` padding,
+      pill radius (`status-pill-geometry` in the audit).
+- [ ] No page-local `<style>` rule re-implements a shared component; move it
+      to `site.css` in the batch that owns the family.
+- [ ] Every icon-only action has `aria-label`, `title`, a visible copied/active
+      state and a 44×44 box; adjacent icon controls keep ≥8px gap.
+
 ## States
 - [ ] Every async surface has loading, empty, error and success states with
       actionable text; a failed fetch never leaves a blank card.
