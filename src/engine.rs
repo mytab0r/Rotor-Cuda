@@ -951,7 +951,7 @@ fn load_target_set(config: &Config, record_len: usize, what: &str) -> Result<Tar
         .input_file
         .as_deref()
         .ok_or_else(|| format!("{what} mode requires -i FILE with {record_len}-byte records"))?;
-    TargetSet::load(Path::new(path), record_len)
+    TargetSet::load_for_chain(Path::new(path), config.chain, record_len)
 }
 
 /// Random-start parameters derived from `-r`, `-n`, `-z` and `--range`
