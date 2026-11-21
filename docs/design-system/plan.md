@@ -53,7 +53,7 @@ Definition of done for a batch:
 | 3 | Forms, fields, segmented controls, chips | `developer` | `critic` | batch 1 tokens | `control-height-scale`, `field-geometry`, `segmented-geometry` |
 | 4 | Cards and stat blocks | `developer` | `critic` | batch 1 tokens | `stat-geometry`, `card-padding-scale` |
 | 5 | Tables and rows | `developer` | `critic` | batch 1 tokens | `table-header-style`, `table-row-height`, `row-action-geometry` |
-| 6 | Navigation, breadcrumbs, pagination | `developer` | `critic` | batches 2–5 (shared link/button grammar) | `nav-link-height`, `breadcrumb-current`, `pager-geometry` |
+| 6 | Navigation, breadcrumbs, pagination, footer | `developer` | `critic` | batches 2–5 (shared link/button grammar) | `nav-link-height`, `breadcrumb-grammar`, `breadcrumb-current`, `pager-grammar`, `pager-geometry`, `footer-presence` |
 | 7 | Cleanup and final sweep | design-system lead + `developer` | `critic` | batches 1–6 | `radius-scale`, `raw-hex-outside-root`, `legacy-selector` |
 
 Ordering rationale: tokens first; then the smallest self-contained family
@@ -458,7 +458,7 @@ entry in the same PR.
   `site.css`; `brainwallet.css` and `seed-studio.css` reduced to page-specific
   layout, with status badges, address-type/count chips and explorer/retry
   actions on the shared status/chip/icon-button grammar; `legacy-token` detector
-  and ledger entry added; asset version `20261127h`. Surviving page-scoped rules
+  and ledger entry added; asset version `20261127i`. Surviving page-scoped rules
   are listed in `DESIGN-SYSTEM.md` §10.
 - Batch 7 evidence:
   - Full default route set: **PASS, 198 page runs across 33 routes, 0

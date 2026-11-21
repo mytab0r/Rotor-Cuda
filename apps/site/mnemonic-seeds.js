@@ -559,7 +559,6 @@
   function setPager(link, href, disabled) {
     link.setAttribute('href', href);
     link.setAttribute('aria-disabled', disabled ? 'true' : 'false');
-    link.classList.toggle('disabled', disabled);
     if (disabled) {
       link.addEventListener('click', function (event) { event.preventDefault(); });
     }

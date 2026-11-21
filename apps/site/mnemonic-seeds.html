@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Crypto</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261127h">
-<script src="/theme.js?v=20261127h"></script>
+<link rel="stylesheet" href="/site.css?v=20261127i">
+<script src="/theme.js?v=20261127i"></script>
 </head>
 <body class="mnemonic-directory-mode">
 <header class="site-nav">
@@ -22,13 +22,13 @@
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
   <div class="nav-tools">
-    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
-    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+    <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
   </div>
 </header>
 
 <main class="browse-page mnemonic-seeds-page" data-chain="" data-symbol="" data-explorer="" data-curve="0" data-page="1" style="--chain:#f7931a">
-  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span>/</span> <a href="/mnemonic-seeds">Mnemonic seeds</a> <span>/</span> <span data-chain-name aria-current="page">Directory</span></nav>
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <a href="/mnemonic-seeds">Mnemonic seeds</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span data-chain-name aria-current="page">Directory</span></nav>
 
   <h1 class="visually-hidden"><span data-chain-title>Mnemonic seeds</span></h1>
 
@@ -97,13 +97,13 @@
   </section>
 
   <section class="browse-controls mnemonic-chain-only">
-    <div class="pager">
+    <nav class="pager" aria-label="Seed pages">
       <a class="pager-btn" id="mnemonic-first" href="#" aria-disabled="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-first"></use></svg>First</a>
       <a class="pager-btn" id="mnemonic-prev" href="#" aria-disabled="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-prev"></use></svg>Previous</a>
-      <a class="pager-btn random" id="mnemonic-random" href="#"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>Random</a>
+      <a class="pager-btn pager-btn--random" id="mnemonic-random" href="#" aria-disabled="false"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>Random</a>
       <a class="pager-btn" id="mnemonic-next" href="#" aria-disabled="false">Next <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-next"></use></svg></a>
       <a class="pager-btn" id="mnemonic-last" href="#" aria-disabled="false">Last <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-last"></use></svg></a>
-    </div>
+    </nav>
     <form class="page-jump" id="mnemonic-jump">
       <label for="mnemonic-page-input">Page</label>
       <input id="mnemonic-page-input" inputmode="numeric" autocomplete="off" value="1">
@@ -147,9 +147,9 @@
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261127h"></script>
-<script src="/balance-cache.js?v=20261127h"></script>
-<script src="/mnemonic-seeds.js?v=20261127h"></script>
-<script src="/site.js?v=20261127h"></script>
+<script src="/seed.js?v=20261127i"></script>
+<script src="/balance-cache.js?v=20261127i"></script>
+<script src="/mnemonic-seeds.js?v=20261127i"></script>
+<script src="/site.js?v=20261127i"></script>
 </body>
 </html>
