@@ -278,7 +278,7 @@
     status: 'partial',
     priority: 'P1',
     donorIds: ['pkf:/vanity-generator', 'ss:/vanity-generator'],
-    note: 'Six networks. Missing donor threads, ETA, difficulty, save action, recent-10 list and QR.'
+    note: 'Six networks, parallel workers (1-4), difficulty, ETA and a recent-5 list. No save action and no QR output.'
   });
 
   oursRoute({
@@ -338,7 +338,7 @@
     status: 'partial',
     priority: 'P1',
     donorIds: ['pkf:/keystore-parser', 'ss:/keystore-parser'],
-    note: 'Local V3 decrypt is present. Missing drag-and-drop file input, examples and metadata display.'
+    note: 'Local V3 decrypt, drag-drop/file input, a verified web3 test-vector example and id/version/cipher/address metadata.'
   });
 
   oursRoute({
@@ -824,8 +824,8 @@
     ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; ref-site-b shows prices and terms.'],
     ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The ref-site-b nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
-    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto shows difficulty, ETA and a recent-address list (addresses only; keys are never saved). Threads and QR are missing.'],
-    ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Crypto lacks drag-and-drop, examples and metadata.'],
+    ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto shows parallel workers (1-4), difficulty, ETA and a recent-address list (addresses only; keys are never saved). QR output is missing.'],
+    ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Crypto has drag-drop/file input, a verified public test-vector example and keystore metadata; decryption stays in the tab.'],
     ['/dashboard', 'Account dashboard', 'wallet', '/cabinet', 'partial', 'P2', 'Crypto /cabinet is an address monitor, not a calculator dashboard.'],
     ['/results', 'Scanner results', 'tools', null, 'missing', 'P2', 'No scanner in Crypto, so there is nothing honest to show.'],
     ['/scaner', 'Address scanner', 'tools', null, 'missing', 'P2', 'No fake progress: a real scanner is required first.'],
@@ -1061,7 +1061,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a', 'ref-site-b'],
-    note: 'Crypto supports six networks and local prefix/suffix generation.'
+    note: 'Crypto supports six networks, parallel workers (1-4) and local prefix/suffix generation; keys are never saved.'
   });
 
   feature({
@@ -1073,7 +1073,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a', 'ref-site-b'],
-    note: 'Local V3 decrypt works; file drop, examples and metadata display are missing.'
+    note: 'Local V3 decrypt, drag-drop/file input, a verified example and metadata display; nothing leaves the tab.'
   });
 
   feature({
