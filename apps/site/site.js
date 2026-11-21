@@ -424,6 +424,7 @@
       'placeholder="Enter private key, mnemonic, or any text (brainwallet)…"></textarea>' +
       '<p class="global-search-detect" id="global-search-detect" role="status" aria-live="polite">' +
       'Auto-detect: HEX, WIF, keypair, XRP secret, mnemonic or brainwallet</p>' +
+      '<p id="global-search-counter" class="muted" aria-live="polite" hidden></p>' +
       '<a class="global-search-view" id="global-search-view" href="/key" hidden>Key Details →</a>' +
       '<div class="global-search-section" role="group" aria-labelledby="global-search-interpret-label">' +
       '<span class="global-search-section-label" id="global-search-interpret-label">Interpret as</span>' +
@@ -462,6 +463,7 @@
     var input = dialog.querySelector('#global-search-input');
     var form = dialog.querySelector('#global-search-form');
     var detectEl = dialog.querySelector('#global-search-detect');
+    var counterEl = dialog.querySelector('#global-search-counter');
     var viewEl = dialog.querySelector('#global-search-view');
     var chips = Array.prototype.slice.call(dialog.querySelectorAll('.global-search-chip'));
     var mnemonicEl = dialog.querySelector('#global-search-mnemonic');
@@ -862,7 +864,53 @@
       chips.forEach(function (chip) { chip.disabled = busy; });
     }
 
+    function hideCounter() {
+      counterEl.textContent = '';
+      counterEl.hidden = true;
+    }
+
+    function renderCount() {
+      var parser = window.RotorSearch;
+      if (!parser || typeof parser.countLabel !== 'function') return false;
+      var count = parser.countLabel(input.value.trim());
+      counterEl.textContent = count.value + ' ' + count.unit;
+      counterEl.hidden = false;
+      return true;
+    }
+
+    function updateCounter() {
+      if (!input.value.trim()) {
+        hideCounter();
+        return;
+      }
+      if (renderCount()) return;
+      ensureSearch().then(function () {
+        if (!input.value.trim()) return;
+        if (!renderCount()) hideCounter();
+      }, hideCounter);
+    }
+
+    /* Label a detected mnemonic with its Electrum seed-version sub-type. The
+     * lookup is lazy and best-effort: a load or crypto failure leaves the
+     * plain "Detected: Mnemonic" label and never interrupts routing. */
+    function applyMnemonicSubtype(phrase) {
+      Promise.all([ensureSearch(), ensureScript('RotorSeedCrypto', assetUrl('/seed-crypto.js'))])
+        .then(function (modules) {
+          var parser = modules[0];
+          var seedCrypto = modules[1];
+          if (!parser || typeof parser.mnemonicSubtype !== 'function' ||
+              !seedCrypto || typeof seedCrypto.electrumSeedType !== 'function') return;
+          return seedCrypto.electrumSeedType(phrase).then(function (type) {
+            if (selectedMode || !currentRoute || currentRoute.kind !== 'mnemonic' ||
+                currentRoute.phrase !== phrase) return;
+            detectEl.textContent = 'Detected: ' + parser.mnemonicSubtype(type);
+          });
+        })
+        .catch(function () { /* keep the plain "Detected: Mnemonic" label */ });
+    }
+
     function refreshDetection() {
+      updateCounter();
       hideError();
       var value = input.value.trim();
       var tools = window.RotorKeyTools;
@@ -901,6 +949,7 @@
       viewEl.href = currentRoute.href;
       viewEl.textContent = currentRoute.viewLabel + ' →';
       mnemonicEl.hidden = currentRoute.kind !== 'mnemonic';
+      if (!selectedMode && currentRoute.kind === 'mnemonic') applyMnemonicSubtype(currentRoute.phrase);
     }
 
     function clearResults() {

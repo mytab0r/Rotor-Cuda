@@ -25,9 +25,10 @@ owned by exactly one area; the most-specific glob wins.
   `crates/rotor-wasm/smoke.mjs` and `apps/site/worker-test.mjs`, and commit the
   artifact.
 - **Asset revalidation.** Never stamp `?v=` tokens on served files. HTML is
-  served with `no-store` and every other asset with `no-cache` plus a content
-  `ETag`, so a deploy is visible on the next request.
-  `node scripts/check-projects.mjs` rejects a returning token.
+  served with `no-store` and references every first-party asset as
+  `/a/<build>/<path>`; those URLs are immutable (the build changes on every
+  deploy), while bare asset paths (old links, curl) stay `no-cache` with a
+  content `ETag`. `node scripts/check-projects.mjs` rejects a returning token.
 - **Routes.** `/`, `/app`, `/run`, `/me`, `/docs`, `/key` and the static asset
   routes are a fixed set in `src/coordinator/mod.rs`; changing one is a
   coordinator + site change. Key utility pages `/hex-dec-bin`, `/public-key`,
