@@ -2064,6 +2064,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 
 .key-page > .card { padding: 24px; }
 .key-page > .card > h2 { margin-bottom: 16px; font-size: 21px; }
+/* Exponents (2<sup>256</sup>) inherit `smaller` and drop below 12px. */
+.key-page sup { font-size: 12px; }
 
 /* Filled input + segmented curve */
 .key-form {

@@ -973,6 +973,212 @@
     };
   }
 
+  /* ------------------------------------------------------------ fiat prices */
+  /* Public ticker symbols for the USD total. Only these symbols leave the
+   * browser; no address, balance or key is part of a price request. */
+  var USD_TICKERS = {
+    BTC: 'BTCUSDT',
+    ETH: 'ETHUSDT',
+    BNB: 'BNBUSDT',
+    SOL: 'SOLUSDT',
+    TRX: 'TRXUSDT',
+    LTC: 'LTCUSDT',
+    DOGE: 'DOGEUSDT',
+    BCH: 'BCHUSDT',
+    XRP: 'XRPUSDT',
+    ZEC: 'ZECUSDT',
+    POL: 'POLUSDT',
+    AVAX: 'AVAXUSDT',
+    TON: 'TONUSDT',
+    SUI: 'SUIUSDT'
+  };
+
+  /* Balance summaries carry a chain slug, a ticker, or both. EVM L2s settle
+   * in ETH; Polygon, BNB Chain and Avalanche keep their own coin. */
+  var CHAIN_SYMBOLS = {
+    btc: 'BTC',
+    bitcoin: 'BTC',
+    eth: 'ETH',
+    ethereum: 'ETH',
+    arbitrum: 'ETH',
+    optimism: 'ETH',
+    base: 'ETH',
+    zksync: 'ETH',
+    bnb: 'BNB',
+    polygon: 'POL',
+    avalanche: 'AVAX',
+    tron: 'TRX',
+    solana: 'SOL',
+    ltc: 'LTC',
+    litecoin: 'LTC',
+    doge: 'DOGE',
+    dogecoin: 'DOGE',
+    bch: 'BCH',
+    bitcoincash: 'BCH',
+    'bitcoin-cash': 'BCH',
+    xrp: 'XRP',
+    zcash: 'ZEC',
+    ton: 'TON',
+    sui: 'SUI'
+  };
+
+  function tickerFor(chainOrSymbol) {
+    var text = String(chainOrSymbol == null ? '' : chainOrSymbol).trim();
+    if (!text) return '';
+    var upper = text.toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(USD_TICKERS, upper)) return upper;
+    return CHAIN_SYMBOLS[text.toLowerCase()] || '';
+  }
+
+  function tickerList() {
+    var out = [];
+    Object.keys(USD_TICKERS).forEach(function (base) {
+      var symbol = USD_TICKERS[base];
+      if (out.indexOf(symbol) < 0) out.push(symbol);
+    });
+    return out;
+  }
+
+  function priceRequestUrl() {
+    return 'https://api.binance.com/api/v3/ticker/price?symbols=' +
+      encodeURIComponent(JSON.stringify(tickerList()));
+  }
+
+  /* Accepts Binance's [{symbol, price}] array (or a {symbol: price} map in
+   * tests) and keeps only supported USDT pairs with a positive price. */
+  function parsePriceResponse(data) {
+    var prices = {};
+    var items = [];
+    if (Array.isArray(data)) {
+      items = data;
+    } else if (data && typeof data === 'object') {
+      Object.keys(data).forEach(function (symbol) {
+        items.push({ symbol: symbol, price: data[symbol] });
+      });
+    }
+    items.forEach(function (item) {
+      if (!item || typeof item.symbol !== 'string') return;
+      var symbol = item.symbol.trim().toUpperCase();
+      if (symbol.slice(-4) !== 'USDT') return;
+      var base = symbol.slice(0, -4);
+      if (USD_TICKERS[base] !== symbol) return;
+      if (priceScaled(item.price) === null) return;
+      prices[base] = String(item.price).trim();
+    });
+    return prices;
+  }
+
+  /* Binance prices have at most 8 decimals; a 9th digit rounds half up. */
+  function priceScaled(price) {
+    if (typeof price !== 'string' && typeof price !== 'number') return null;
+    var match = /^(\d+)(?:\.(\d*))?$/.exec(String(price).trim());
+    if (!match) return null;
+    var fraction = match[2] || '';
+    var kept = fraction.slice(0, 8).padEnd(8, '0');
+    var scaled = BigInt(match[1]) * 100000000n + BigInt(kept);
+    if (fraction.length > 8 && fraction.charCodeAt(8) >= 53) scaled += 1n;
+    return scaled > 0n ? scaled : null;
+  }
+
+  /* Atomic amount -> integer USD cents with BigInt, so 18-decimal wei and
+   * 8-decimal satoshis never pass through floating point. Rounds half up. */
+  function atomicToCents(amount, decimals, scaledPrice) {
+    var units;
+    try {
+      units = typeof amount === 'bigint' ? amount : BigInt(amount);
+    } catch (err) {
+      return null;
+    }
+    if (units < 0n) units = 0n;
+    var digits = Number(decimals);
+    if (!Number.isInteger(digits) || digits < 0 || digits > 36) return null;
+    var price;
+    try {
+      price = typeof scaledPrice === 'bigint' ? scaledPrice : BigInt(scaledPrice);
+    } catch (err) {
+      return null;
+    }
+    if (price <= 0n) return null;
+    var denominator = 10n ** BigInt(digits + 8);
+    var numerator = units * price * 100n;
+    return (numerator + denominator / 2n) / denominator;
+  }
+
+  /* rows: {chain, symbol, amount, decimals}. A row with no price is excluded
+   * and counted, never treated as zero, so the total cannot quietly shrink. */
+  function fiatTotals(rows, prices) {
+    var table = prices && typeof prices === 'object' ? prices : {};
+    var cents = 0n;
+    var included = 0;
+    var noPrice = 0;
+    var noBalance = 0;
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (!row || row.amount === null || row.amount === undefined || row.amount === '') {
+        noBalance += 1;
+        return;
+      }
+      var amount;
+      try {
+        amount = typeof row.amount === 'bigint' ? row.amount : BigInt(row.amount);
+      } catch (err) {
+        noBalance += 1;
+        return;
+      }
+      var base = tickerFor(row.symbol) || tickerFor(row.chain);
+      var scaled = base && Object.prototype.hasOwnProperty.call(table, base)
+        ? priceScaled(table[base])
+        : null;
+      if (!base || scaled === null) {
+        noPrice += 1;
+        return;
+      }
+      var value = atomicToCents(amount, row.decimals, scaled);
+      if (value === null) {
+        noPrice += 1;
+        return;
+      }
+      cents += value;
+      included += 1;
+    });
+    return { cents: cents, included: included, noPrice: noPrice, noBalance: noBalance };
+  }
+
+  function formatUsd(cents) {
+    var value;
+    try {
+      value = typeof cents === 'bigint' ? cents : BigInt(cents);
+    } catch (err) {
+      return '$0.00';
+    }
+    var negative = value < 0n;
+    if (negative) value = -value;
+    var dollars = value / 100n;
+    var rest = value % 100n;
+    var grouped = dollars.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return (negative ? '-' : '') + '$' + grouped + '.' + rest.toString().padStart(2, '0');
+  }
+
+  /* 'fresh' inside the TTL, 'stale' beyond it, 'missing' when there is no
+   * usable cache. A negative age (clock skew) stays fresh. */
+  function priceCacheState(entry, now, ttlMs) {
+    if (!entry || typeof entry !== 'object') return 'missing';
+    var prices = entry.prices;
+    if (!prices || typeof prices !== 'object' || !Object.keys(prices).length) return 'missing';
+    var fetchedAt = Number(entry.fetchedAt);
+    var ttl = Number(ttlMs);
+    var at = Number(now);
+    if (!isFinite(fetchedAt) || fetchedAt <= 0 || !isFinite(ttl) || ttl <= 0 || !isFinite(at)) {
+      return 'missing';
+    }
+    return at - fetchedAt < ttl ? 'fresh' : 'stale';
+  }
+
+  function formatPriceTime(ms) {
+    var at = Number(ms);
+    if (!isFinite(at) || at <= 0) return '';
+    return new Date(at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  }
+
   var api = {
     LIMIT: LIMIT,
     parseInteger: parseInteger,
@@ -1013,6 +1219,16 @@
     addressTypeLabel: addressTypeLabel,
     counterChainKey: counterChainKey,
     balanceCounters: balanceCounters,
+    tickerFor: tickerFor,
+    tickerList: tickerList,
+    priceRequestUrl: priceRequestUrl,
+    parsePriceResponse: parsePriceResponse,
+    priceScaled: priceScaled,
+    atomicToCents: atomicToCents,
+    fiatTotals: fiatTotals,
+    formatUsd: formatUsd,
+    priceCacheState: priceCacheState,
+    formatPriceTime: formatPriceTime,
     CHAIN_GROUP_TOTAL: CHAIN_GROUP_TOTAL
   };
 
