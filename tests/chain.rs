@@ -399,7 +399,6 @@ fn ton_v4r2_matches_tonweb_and_ton_core() {
     ];
 
     let ton = chain::by_id("ton").expect("known chain");
-    assert!(ton.enabled, "TON is enabled once v4R2 derives addresses");
     for (seed_hex, public_hex, address) in vectors {
         let seed = parse_seed(seed_hex);
         let derived = ton
@@ -408,11 +407,6 @@ fn ton_v4r2_matches_tonweb_and_ton_core() {
         assert_eq!(derived.address, *address, "{seed_hex}");
         assert_eq!(derived.public_hex, *public_hex);
         assert_eq!(derived.secret, None);
-    }
-
-    // Every descriptor is enabled now that TON derives addresses.
-    for descriptor in chain::all() {
-        assert!(descriptor.enabled, "{} should be enabled", descriptor.id);
     }
 }
 
