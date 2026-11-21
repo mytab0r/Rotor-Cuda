@@ -688,10 +688,15 @@ fn handle(app: Arc<App>, request: Request) {
             } else {
                 body
             };
+            let cache = if content_type.starts_with("text/html") {
+                "no-store"
+            } else {
+                "no-cache"
+            };
             let response = Response::from_string(body)
                 .with_status_code(StatusCode(status))
                 .with_header(header("Content-Type", content_type))
-                .with_header(header("Cache-Control", "no-cache"));
+                .with_header(header("Cache-Control", cache));
             let _ = request.respond(response);
             return;
         }
@@ -701,9 +706,14 @@ fn handle(app: Arc<App>, request: Request) {
             } else {
                 body.to_vec()
             };
+            let cache = if content_type.starts_with("text/html") {
+                "no-store"
+            } else {
+                "no-cache"
+            };
             let response = Response::from_data(body)
                 .with_header(header("Content-Type", content_type))
-                .with_header(header("Cache-Control", "no-cache"));
+                .with_header(header("Cache-Control", cache));
             let _ = request.respond(response);
             return;
         }
