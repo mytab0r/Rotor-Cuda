@@ -2,6 +2,8 @@
 // Validate projects.json and prove every tracked path has exactly one owner.
 // No dependencies, no network, no cargo.
 
+import fs from "node:fs";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
   IGNORED_PATHS,
@@ -29,6 +31,28 @@ function isStringArray(value) {
   return Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string" && v.length > 0);
 }
 
+// Cache tokens were hand-bumped across every page; assets now revalidate by
+// ETag, so a `?v=` in a served source means the old mechanism crept back.
+const CACHE_TOKEN = /\?v=/;
+
+function servedSourceFiles() {
+  const site = fs
+    .readdirSync(path.join(REPO_ROOT, "apps/site"))
+    .filter((name) => name.endsWith(".html") || name.endsWith(".js"))
+    .map((name) => `apps/site/${name}`);
+  const tests = fs
+    .readdirSync(path.join(REPO_ROOT, "tests"))
+    .filter((name) => name.endsWith(".rs"))
+    .map((name) => `tests/${name}`);
+  return [...site, "src/coordinator/mod.rs", ...tests];
+}
+
+function cacheTokenViolations() {
+  return servedSourceFiles()
+    .filter((relative) => CACHE_TOKEN.test(fs.readFileSync(path.join(REPO_ROOT, relative), "utf8")))
+    .map((relative) => `cache-token: ${relative} adds a ?v= query; assets revalidate by ETag`);
+}
+
 let projects;
 try {
   projects = loadProjects(REPO_ROOT);
@@ -38,9 +62,6 @@ try {
 }
 
 const errors = [];
-if (typeof projects.asset_version !== "string" || projects.asset_version.length === 0) {
-  errors.push("asset_version must be a non-empty string");
-}
 if (!Array.isArray(projects.areas) || projects.areas.length === 0) {
   fail(["areas must be a non-empty array"]);
   process.exit();
@@ -129,6 +150,8 @@ for (const filePath of tracked) {
     covered.push(filePath);
   }
 }
+
+errors.push(...cacheTokenViolations());
 
 if (errors.length > 0) {
   fail(errors);

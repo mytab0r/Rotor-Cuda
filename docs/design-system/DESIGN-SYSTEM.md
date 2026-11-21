@@ -501,7 +501,7 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 - One `<footer class="site-footer">` on every public content page, rendered by
   `site_footer()` in `src/coordinator/mod.rs` (and inserted once into static
   HTML at serve time). It carries FAQ, Disclaimer, Donate, Docs and GitHub
-  links, the copyright line and the current asset version.
+  links, the copyright line and the current build id.
 - Links are 44px targets; the row wraps without overflow at 375px.
 - The app and cabinet shells (`/app`, `/run`, `/me`, `/cabinet`,
   `/cabinet/wallet`) intentionally render no footer.
@@ -582,8 +582,9 @@ off shimmer/spin/entrance.
    change the threshold with a comment and a ledger entry.
 5. Every defect gets a detector before its fix (`docs/process/defects.json`,
    `scripts/check-defect-ledger.mjs`).
-6. Bump `?v=` in every `apps/site/*.html` and `projects.json.asset_version`
-   when `site.css`, `site.js`, `theme.js` or `key.js` changes.
+6. Never add a `?v=` cache token: HTML is served with `no-store` and every
+   other asset with `no-cache` plus a content `ETag`, so it revalidates on the
+   next request.
 7. The author never signs off their own UI PR; a different agent reviews
    screenshots and computed geometry at 375/768/1280 in both themes.
 

@@ -472,8 +472,8 @@
 
   function ensureSeedLibraries() {
     if (window.RotorSeed && window.RotorSeedCrypto) return Promise.resolve();
-    return ensureScript('RotorSeed', '/seed.js?v=20261129a').then(function () {
-      return ensureScript('RotorSeedCrypto', '/seed-crypto.js?v=20261129a');
+    return ensureScript('RotorSeed', '/seed.js').then(function () {
+      return ensureScript('RotorSeedCrypto', '/seed-crypto.js');
     });
   }
 
