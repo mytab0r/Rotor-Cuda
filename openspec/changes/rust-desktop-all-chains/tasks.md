@@ -37,7 +37,7 @@
 - [x] CLI help/docs updated; deprecated `--coin` emits a warning, not an error.
 
 ## 3. secp-hash160 family [desktop]
-- [ ] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160
+- [x] CPU engine supports BTC, LTC, DOGE, BCH, ZEC, XRP targets by hash160
       with chain-specific display. (blocked by: 2)
 - [x] Target loaders accept `.bin` 20-byte records and text addresses for each
       chain; mixed chains in one file are rejected.

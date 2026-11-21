@@ -154,6 +154,98 @@ fn key_one_compressed_address_is_found() {
 }
 
 #[test]
+fn secp_hash160_chains_find_key_one_with_chain_display() {
+    // Published key-1 fixtures: addresses from `tests/chain.rs` (site WASM
+    // report), WIFs from the descriptor's version byte. XRP defines no WIF.
+    let fixtures: &[(&str, &str, Option<&str>)] = &[
+        (
+            "bitcoin",
+            "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+            Some("KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn"),
+        ),
+        (
+            "litecoin",
+            "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ",
+            Some("T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjV"),
+        ),
+        (
+            "dogecoin",
+            "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
+            Some("QNcdLVw8fHkixm6NNyN6nVwxKek4u7qrioRbQmjxac5TVoTtZuot"),
+        ),
+        (
+            "bitcoin-cash",
+            "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+            Some("KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn"),
+        ),
+        (
+            "zcash",
+            "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs",
+            Some("KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn"),
+        ),
+        ("xrp", "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH", None),
+    ];
+
+    for (id, address, wif) in fixtures {
+        let output = temp_path(id);
+        let mut config = address_config(address, "1", "2", &output);
+        config.chain = chain::by_id(id).expect("known chain");
+
+        let outcome = engine::run(&config).expect("search should run");
+        let text = output_text(&output);
+        let _ = std::fs::remove_file(&output);
+
+        assert_eq!(outcome.found, 1, "{id}");
+        assert_eq!(outcome.scanned, 2, "{id}");
+        assert!(
+            text.contains(&format!("PubAddress: {address}")),
+            "{id} chain display:\n{text}"
+        );
+        assert!(text.contains("Priv (HEX): 1\n"), "{id}:\n{text}");
+        match wif {
+            Some(wif) => assert!(
+                text.contains(&format!("Priv (WIF): {wif}")),
+                "{id} WIF:\n{text}"
+            ),
+            None => assert!(
+                !text.contains("Priv (WIF)"),
+                "{id} has no WIF in its descriptor:\n{text}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn litecoin_multi_address_mode_uses_chain_encoding() {
+    let hash = secp::hash160(&mul_g(&Scalar::from_u64(1)), true);
+    let targets = temp_path("ltc_targets");
+    std::fs::write(&targets, hash).expect("write target file");
+    let output = temp_path("ltc_multi");
+
+    let mut config = config();
+    config.chain = chain::by_id("litecoin").expect("litecoin descriptor");
+    config.mode = Some(SearchMode::Addresses);
+    config.input_file = Some(targets.to_string_lossy().into_owned());
+    config.range = Some(range("1", "2"));
+    config.output_file = output.to_string_lossy().into_owned();
+
+    let outcome = engine::run(&config).expect("search should run");
+    let text = output_text(&output);
+    let _ = std::fs::remove_file(&output);
+    let _ = std::fs::remove_file(&targets);
+
+    assert_eq!(outcome.found, 1);
+    assert!(
+        text.contains("PubAddress: LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ"),
+        "missing Litecoin display:\n{text}"
+    );
+    assert!(
+        text.contains("Priv (WIF): T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjV"),
+        "missing Litecoin WIF:\n{text}"
+    );
+}
+
+#[test]
 fn key_one_uncompressed_address_is_found() {
     let output = temp_path("key1_uncompressed");
     let mut config = address_config("1EHNa6Q4Jz2uvNExL497mE43ikXhwF6kZm", "1", "2", &output);

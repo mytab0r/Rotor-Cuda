@@ -105,7 +105,7 @@
   var CHAIN_LIST = [
     {
       slug: 'bitcoin', name: 'Bitcoin', symbol: 'BTC', color: '#f7931a', icon: 'chain-bitcoin',
-      curve: 0, field: 'btc_p2pkh', types: BTC_TYPES,
+      curve: 0, field: 'btc_p2pkh', types: BTC_TYPES, wif: true,
       explorer: 'https://mempool.space/address/', balance: 'btc'
     },
     evmChain('ethereum', 'Ethereum', 'ETH', '#8a9cf5'),
@@ -130,17 +130,17 @@
     },
     {
       slug: 'litecoin', name: 'Litecoin', symbol: 'LTC', color: '#b8c2d6', icon: 'chain-litecoin',
-      curve: 0, field: 'ltc_p2pkh', types: LTC_TYPES,
+      curve: 0, field: 'ltc_p2pkh', types: LTC_TYPES, wif: true,
       explorer: 'https://blockchair.com/litecoin/address/', balance: null
     },
     {
       slug: 'bitcoin-cash', name: 'Bitcoin Cash', symbol: 'BCH', color: '#8dc351',
-      icon: 'chain-bitcoin-cash', curve: 0, field: 'bch_legacy',
+      icon: 'chain-bitcoin-cash', curve: 0, field: 'bch_legacy', wif: true,
       explorer: 'https://blockchair.com/bitcoin-cash/address/', balance: null
     },
     {
       slug: 'dogecoin', name: 'Dogecoin', symbol: 'DOGE', color: '#c2a633', icon: 'chain-dogecoin',
-      curve: 0, field: 'doge_p2pkh', explorer: 'https://blockchair.com/dogecoin/address/',
+      curve: 0, field: 'doge_p2pkh', wif: true, explorer: 'https://blockchair.com/dogecoin/address/',
       balance: null
     },
     {
@@ -326,6 +326,24 @@
     return fields.filter(function (field) { return Boolean(field[1]); });
   }
 
+  /* Key-cell links for the brainwallet directory, following the donor: the hex
+   * key opens /key/<hex>, and explicit WIF values add the WIF(c)/WIF(u) links
+   * to /key/<wif>. The caller owns the network encoding (BTC/BCH 0x80, LTC
+   * 0xb0, DOGE 0x9e). Returns [] when there is no key yet, which also clears
+   * stale links in the error state. */
+  function keyLinksFor(hex, wifs) {
+    var value = String(hex == null ? '' : hex).trim();
+    if (!value) return [];
+    var links = [{ label: value, href: '/key/' + encodeURIComponent(value) }];
+    if (wifs && wifs.compressed) {
+      links.push({ label: 'WIF(c)', href: '/key/' + encodeURIComponent(wifs.compressed) });
+    }
+    if (wifs && wifs.uncompressed) {
+      links.push({ label: 'WIF(u)', href: '/key/' + encodeURIComponent(wifs.uncompressed) });
+    }
+    return links;
+  }
+
   /* Incremented variants for the generator's 1/3/5/10 address count. Offset 0
    * is exactly the SHA-256 brainwallet key; later rows are key + offset, which
    * the page labels explicitly. secp256k1 wraps modulo the curve order;
@@ -428,6 +446,7 @@
     addressOf: addressOf,
     addressRows: addressRows,
     keyFields: keyFields,
+    keyLinksFor: keyLinksFor,
     addToKey: addToKey,
     csvEscape: csvEscape,
     toCsv: toCsv,

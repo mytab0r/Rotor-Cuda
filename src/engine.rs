@@ -418,6 +418,14 @@ struct CoordinatorContext<'a> {
 /// splitting the range locally. Progress lives on the server, so checkpoints
 /// (`-n`) are not written.
 pub fn run_coordinator(config: &Config) -> Result<SearchOutcome, String> {
+    // The coordinator job payload still carries the legacy `btc`/`eth` coin
+    // field, so leasing for a new chain would run the wrong primitive.
+    if !matches!(config.chain.id, "bitcoin" | "ethereum") {
+        return Err(format!(
+            "chain '{}' is not implemented for --coordinator yet; supported chains: bitcoin, ethereum",
+            config.chain.id
+        ));
+    }
     let mode = config.mode.ok_or_else(|| {
         "a search mode (-m address|addresses|xpoint|xpoints) is required".to_owned()
     })?;
@@ -838,7 +846,7 @@ fn set_error(shared: &Shared, message: &str) {
 pub(crate) fn build_target(config: &Config, mode: SearchMode) -> Result<Target, String> {
     Ok(match (config.chain.family, mode) {
         (chain::Family::SecpHash160, SearchMode::Address) => {
-            Target::Hash(parse_btc_address(config)?)
+            Target::Hash(parse_hash160_address(config)?)
         }
         (chain::Family::SecpHash160, SearchMode::Addresses) => {
             Target::Hashes(load_target_set(config, 20, "addresses")?)
@@ -938,20 +946,21 @@ struct Shared {
     epoch_len: u64,
 }
 
-fn parse_btc_address(config: &Config) -> Result<[u8; 20], String> {
+/// Decodes the single `-m address` operand through the selected chain's own
+/// encoding, so a Litecoin, Dogecoin, Bitcoin Cash, Zcash or XRP address
+/// reaches the same 20-byte hash160 target as Bitcoin's Base58Check form.
+fn parse_hash160_address(config: &Config) -> Result<[u8; 20], String> {
     if config.operands.len() != 1 {
         return Err("address mode requires exactly one address operand".to_owned());
     }
-    let address = &config.operands[0];
-    let payload = base58::decode_check(address)?;
-    if payload.len() != 21 || payload[0] != 0x00 {
-        return Err(format!(
-            "invalid BTC P2PKH address (expected a 21-byte 0x00 payload): {address}"
-        ));
-    }
-    let mut hash = [0u8; 20];
-    hash.copy_from_slice(&payload[1..]);
-    Ok(hash)
+    let record = targets_text::parse_address(&config.operands[0], config.chain)?;
+    record.try_into().map_err(|record: Vec<u8>| {
+        format!(
+            "invalid {} address: decoded {} bytes, expected a 20-byte hash160",
+            config.chain.name,
+            record.len()
+        )
+    })
 }
 
 fn parse_eth_address(config: &Config) -> Result<[u8; 20], String> {
@@ -1857,6 +1866,16 @@ pub(crate) fn shift_chunk(
     Some((low, high))
 }
 
+/// Short chain ticker for the banner (`BTC`, `LTC`, `BCH`, `DOGE`, `ZEC`,
+/// `XRP`). Bitcoin keeps the historical `BTC` label so its output stays
+/// byte-identical.
+fn chain_tag(chain: &chain::ChainDescriptor) -> String {
+    chain::aliases_for(chain.id)
+        .first()
+        .map(|alias| alias.to_ascii_uppercase())
+        .unwrap_or_else(|| chain.name.to_ascii_uppercase())
+}
+
 /// Startup banner: field names and layout from `Main.cpp:638-705` and the
 /// `Global start/end/range` block from `Rotor.cpp:280-282`.
 pub(crate) fn print_banner(
@@ -1901,16 +1920,24 @@ pub(crate) fn print_banner(
         .unwrap_or("");
     match (config.chain.family, mode) {
         (chain::Family::SecpHash160, SearchMode::Address) => {
-            println!("  BTC ADDRESS  : {}", config.operands[0]);
+            println!(
+                "  {} ADDRESS  : {}",
+                chain_tag(config.chain),
+                config.operands[0]
+            );
         }
         (chain::Family::SecpHash160, SearchMode::Addresses) => {
-            println!("  BTC HASH160s : {target_source}");
+            println!("  {} HASH160s : {target_source}", chain_tag(config.chain));
         }
         (chain::Family::SecpHash160, SearchMode::XPoint) => {
-            println!("  BTC XPOINT   : {}", config.operands[0]);
+            println!(
+                "  {} XPOINT   : {}",
+                chain_tag(config.chain),
+                config.operands[0]
+            );
         }
         (chain::Family::SecpHash160, SearchMode::XPoints) => {
-            println!("  BTC XPOINTS  : {target_source}");
+            println!("  {} XPOINTS  : {target_source}", chain_tag(config.chain));
         }
         (chain::Family::EvmKeccak, SearchMode::Address) => {
             println!("  ETH ADDRESS  : {}", config.operands[0]);

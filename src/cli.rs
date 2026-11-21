@@ -145,8 +145,13 @@ pub fn supported_modes(chain: &ChainDescriptor) -> &'static [SearchMode] {
     ];
     const ETHEREUM: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses, SearchMode::Bsgs];
     const ED25519: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses];
+    // The six secp-hash160 chains share one search primitive: scalar → point →
+    // SHA256/RIPEMD160. XPoint and BSGS stay off until their per-chain target
+    // and display paths are covered by tests.
+    const SECP_HASH160: &[SearchMode] = &[SearchMode::Address, SearchMode::Addresses];
     match chain.id {
         "bitcoin" => BITCOIN,
+        "litecoin" | "dogecoin" | "bitcoin-cash" | "zcash" | "xrp" => SECP_HASH160,
         "ethereum" => ETHEREUM,
         "solana" | "sui" => ED25519,
         _ => &[],
@@ -995,6 +1000,17 @@ fn validate(config: &mut Config) -> Result<(), CliError> {
         return Err(CliError::new(format!(
             "GPU search is not implemented for the {} family yet; drop -g",
             config.chain.family.label()
+        )));
+    }
+
+    // The coordinator protocol still carries the legacy `btc`/`eth` coin
+    // field, so a job created for a new chain would describe the wrong
+    // primitive. Keep the server path on the two chains it knows until the
+    // chain field lands (change task 3.4/7).
+    if config.coordinator.is_some() && !matches!(config.chain.id, "bitcoin" | "ethereum") {
+        return Err(CliError::new(format!(
+            "chain '{}' is not implemented for --coordinator yet; supported chains: bitcoin, ethereum",
+            config.chain.id
         )));
     }
 

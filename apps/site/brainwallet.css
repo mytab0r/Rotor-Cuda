@@ -85,6 +85,27 @@ html[data-theme="light"] .bw-row:hover { background: var(--row-hover); }
 .bw-key-value { color: var(--ink-1); }
 .bw-phrase-value { color: var(--ink-2); }
 
+/* Donor key cell: the hex key and both WIF forms link to /key/<key>. The
+ * links keep a 44px touch target like the row address link. */
+.bw-key-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.bw-key-link:hover { color: var(--accent-2); text-decoration: underline; }
+.bw-key-wif-line {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.bw-key-wif {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline: var(--space-1);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
 .bw-address-line { gap: 5px; }
 .bw-address-link {
   font-size: var(--text-xs);
