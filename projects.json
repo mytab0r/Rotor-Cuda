@@ -211,11 +211,13 @@
         "node --check docs/site-map/site-map-data.js",
         "node --check docs/site-map/theme.js",
         "node --check scripts/sync-board.mjs",
+        "node --check scripts/density-parity.mjs",
         "node scripts/check-projects.mjs"
       ],
       "test": [
         "node --test deploy/cloudflare/test/worker.test.mjs",
         "node docs/site-map/site-map-test.mjs",
+        "node scripts/density-parity.mjs --help",
         "node scripts/check-projects.mjs"
       ],
       "consumes": [],
