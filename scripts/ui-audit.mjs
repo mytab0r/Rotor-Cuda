@@ -30,6 +30,9 @@ const DEFAULT_ROUTES = [
   "/key/0000000000000000000000000000000000000000000000000000000000000001",
   "/private-keys",
   "/private-keys/bitcoin",
+  // The account-chain variant renders two summary cards (Balance / Active)
+  // instead of the UTXO three-card row.
+  "/private-keys/ethereum",
   "/seed",
   "/mnemonic-seeds/bitcoin",
   "/brainwallet",
