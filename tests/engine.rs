@@ -18,6 +18,14 @@ fn ethereum() -> &'static chain::ChainDescriptor {
     chain::by_id("ethereum").expect("ethereum descriptor")
 }
 
+fn solana() -> &'static chain::ChainDescriptor {
+    chain::by_id("solana").expect("solana descriptor")
+}
+
+fn sui() -> &'static chain::ChainDescriptor {
+    chain::by_id("sui").expect("sui descriptor")
+}
+
 fn temp_path(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -811,4 +819,202 @@ fn zero_threads_is_rejected() {
 
     let err = engine::run(&config).expect_err("zero threads must fail");
     assert_eq!(err, "no CPU threads requested");
+}
+
+// ---------------------------------------------------------------------------
+// ed25519 seed engine: Solana (base58 public key) and Sui (BLAKE2b account)
+// ---------------------------------------------------------------------------
+
+/// Site `derive_report` fixtures for ed25519 seed 1 (`curve=1`).
+const SOLANA_SEED1_ADDRESS: &str = "6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt";
+const SOLANA_SEED1_PUBLIC: &str =
+    "4CB5ABF6AD79FBF5ABBCCAFCC269D85CD2651ED4B885B5869F241AEDF0A5BA29";
+const SUI_SEED1_ADDRESS: &str =
+    "0xd0c2c91eda34bbfbaec6cfb9c7bb913e57dab3cbec4018a4b3f5e55531cd63af";
+
+fn seed_config(
+    chain: &'static chain::ChainDescriptor,
+    mode: SearchMode,
+    start: &str,
+    end: &str,
+    output: &Path,
+) -> Config {
+    let mut config = config();
+    config.chain = chain;
+    config.mode = Some(mode);
+    config.range = Some(range(start, end));
+    config.output_file = output.to_string_lossy().into_owned();
+    config
+}
+
+#[test]
+fn solana_address_mode_finds_seed_one() {
+    let output = temp_path("solana_seed1");
+    let mut config = seed_config(solana(), SearchMode::Address, "1", "1", &output);
+    config.operands = vec![SOLANA_SEED1_ADDRESS.to_owned()];
+
+    let outcome = engine::run(&config).expect("solana search should run");
+    let text = output_text(&output);
+    let _ = std::fs::remove_file(&output);
+
+    assert_eq!(outcome.found, 1);
+    assert_eq!(outcome.scanned, 1);
+    assert!(
+        text.contains(&format!("PubAddress: {SOLANA_SEED1_ADDRESS}")),
+        "missing solana address block:\n{text}"
+    );
+    assert!(
+        text.contains("Priv (HEX): 1\n"),
+        "missing seed hexadecimal:\n{text}"
+    );
+    assert!(
+        text.contains(&format!("PubK (HEX): {SOLANA_SEED1_PUBLIC}")),
+        "missing ed25519 public key:\n{text}"
+    );
+    assert!(
+        !text.contains("Priv (WIF)"),
+        "ed25519 chains have no WIF:\n{text}"
+    );
+}
+
+#[test]
+fn sui_address_mode_finds_seed_one() {
+    let output = temp_path("sui_seed1");
+    let mut config = seed_config(sui(), SearchMode::Address, "1", "1", &output);
+    config.operands = vec![SUI_SEED1_ADDRESS.to_owned()];
+
+    let outcome = engine::run(&config).expect("sui search should run");
+    let text = output_text(&output);
+    let _ = std::fs::remove_file(&output);
+
+    assert_eq!(outcome.found, 1);
+    assert_eq!(outcome.scanned, 1);
+    assert!(
+        text.contains(&format!("PubAddress: {SUI_SEED1_ADDRESS}")),
+        "missing sui address block:\n{text}"
+    );
+    assert!(
+        text.contains(&format!("PubK (HEX): {SOLANA_SEED1_PUBLIC}")),
+        "sui still reports the ed25519 public key:\n{text}"
+    );
+    assert!(
+        !text.contains("Priv (WIF)"),
+        "ed25519 chains have no WIF:\n{text}"
+    );
+}
+
+#[test]
+fn ed25519_multi_address_finds_seed_one_from_bin_file() {
+    // Solana compares the raw public key; Sui compares the BLAKE2b account.
+    let cases = [
+        (
+            solana(),
+            decode_hex(SOLANA_SEED1_PUBLIC),
+            SOLANA_SEED1_ADDRESS,
+        ),
+        (
+            sui(),
+            decode_hex(&SUI_SEED1_ADDRESS[2..]),
+            SUI_SEED1_ADDRESS,
+        ),
+    ];
+
+    for (chain, record, address) in cases {
+        assert_eq!(record.len(), 32, "{} record width", chain.id);
+        let targets = temp_path(&format!("{}_targets", chain.id));
+        std::fs::write(&targets, &record).expect("write target file");
+        let output = temp_path(&format!("{}_multi", chain.id));
+        let mut config = seed_config(chain, SearchMode::Addresses, "1", "2", &output);
+        config.input_file = Some(targets.to_string_lossy().into_owned());
+
+        let outcome = engine::run(&config).expect("multi search should run");
+        let text = output_text(&output);
+        let _ = std::fs::remove_file(&output);
+        let _ = std::fs::remove_file(&targets);
+
+        assert_eq!(outcome.found, 1, "{}", chain.id);
+        assert_eq!(outcome.scanned, 2, "{}", chain.id);
+        assert!(
+            text.contains(&format!("PubAddress: {address}")),
+            "{} missing address block:\n{text}",
+            chain.id
+        );
+        assert!(
+            text.contains("Priv (HEX): 1\n"),
+            "{} missing key 1:\n{text}",
+            chain.id
+        );
+    }
+}
+
+#[test]
+fn twenty_byte_bin_targets_are_rejected_for_seed_chains() {
+    let targets = temp_path("solana_20byte_targets");
+    std::fs::write(&targets, [0u8; 20]).expect("write 20-byte target file");
+
+    let err = TargetSet::load_for_chain(&targets, solana(), 20)
+        .err()
+        .expect("a 20-byte record must be rejected for a 32-byte chain");
+    assert!(
+        err.contains("compares 32-byte targets"),
+        "unexpected loader error: {err}"
+    );
+
+    let output = temp_path("solana_20byte_run");
+    let mut config = seed_config(solana(), SearchMode::Addresses, "1", "1", &output);
+    config.input_file = Some(targets.to_string_lossy().into_owned());
+    let err = engine::run(&config).expect_err("a 20-byte file must be rejected");
+    let _ = std::fs::remove_file(&targets);
+    assert!(err.contains("32-byte"), "unexpected engine error: {err}");
+}
+
+#[test]
+fn seed_ranges_are_not_bounded_by_the_secp_order() {
+    // Seed == secp256k1 n is still a valid ed25519 seed; the range check must
+    // not apply the secp order to the ed25519 family.
+    let order = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+    let output = temp_path("sui_above_order");
+    let mut config = seed_config(sui(), SearchMode::Address, order, order, &output);
+    config.operands = vec![SUI_SEED1_ADDRESS.to_owned()];
+
+    let outcome = engine::run(&config).expect("seed range above n should run");
+    let _ = std::fs::remove_file(&output);
+
+    assert_eq!(outcome.found, 0);
+    assert_eq!(outcome.scanned, 1);
+}
+
+#[test]
+fn ed25519_rejects_random_start() {
+    let output = temp_path("solana_random");
+    let mut config = seed_config(solana(), SearchMode::Address, "1", "1", &output);
+    config.operands = vec![SOLANA_SEED1_ADDRESS.to_owned()];
+    config.rkey = 1;
+
+    let err = engine::run(&config).expect_err("random ed25519 must fail");
+    let _ = std::fs::remove_file(&output);
+    assert_eq!(
+        err,
+        "random start (-r) is not implemented for the ed25519 family yet"
+    );
+}
+
+#[test]
+fn ed25519_rejects_the_full_2_pow_256_range() {
+    let output = temp_path("sui_full_range");
+    let mut config = seed_config(
+        sui(),
+        SearchMode::Address,
+        "0",
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+        &output,
+    );
+    config.operands = vec![SUI_SEED1_ADDRESS.to_owned()];
+
+    let err = engine::run(&config).expect_err("the full seed space must fail");
+    let _ = std::fs::remove_file(&output);
+    assert_eq!(
+        err,
+        "--range cannot span all 2^256 seeds in one run; split it into smaller ranges"
+    );
 }
