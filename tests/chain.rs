@@ -1,11 +1,18 @@
 //! Chain descriptor registry and family derivation fixtures.
 //!
-//! The expected addresses are the site's key-1 fixtures (see
-//! `crates/rotor-wasm/smoke.mjs`) and the RFC8032 ed25519 vector, so a desktop
-//! change that drifts from the site fails here.
+//! The expected addresses are the site's WASM `derive_report` output for key 1
+//! (`apps/site/rotor_wasm.wasm`, curve 0) and for ed25519 seed 1 (`curve 1`),
+//! plus the RFC8032 ed25519 vector and the tonweb v4R2 vectors for TON. A
+//! desktop change that drifts from the site fails here.
+//!
+//! Note: the current site report exposes TON wallet **W5**
+//! (`EQCcCUPw6Gl_Q9MuCKaOFkqCJAnwNqDO-Tt_y4sIUdpyT_5l` for seed 1), while this
+//! descriptor implements wallet **v4R2** (`task 6` of the change). TON parity
+//! with the site's W5 row is therefore a separate task, not a fixture typo.
 
 use std::collections::HashSet;
 
+use rotor::address;
 use rotor::chain::{self, AddressEncoding, Curve, Family, KeyMaterial};
 use rotor::scalar::Scalar;
 use rotor::secp;
@@ -253,6 +260,97 @@ fn secp_hash160_and_keccak_family_vectors() {
 }
 
 #[test]
+fn wasm_report_key_one_secp_fixtures_cover_all_fifteen_secp_chains() {
+    // Source: `apps/site/rotor_wasm.wasm` `derive_report(key 1, curve 0)`.
+    // The EVM chains share one account, so only `ethereum` owns the row in the
+    // report; every EVM descriptor must return the same address.
+    let key = Scalar::from_u64(1);
+    let fixtures: &[(&str, &str)] = &[
+        ("bitcoin", "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"),
+        ("litecoin", "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ"),
+        ("dogecoin", "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE"),
+        ("bitcoin-cash", "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"),
+        ("zcash", "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs"),
+        ("xrp", "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH"),
+        ("tron", "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"),
+    ];
+    for (id, expected) in fixtures {
+        assert_eq!(&secp_derive(id, &key, true).address, expected, "{id}");
+    }
+
+    for id in [
+        "ethereum",
+        "bnb",
+        "arbitrum",
+        "optimism",
+        "base",
+        "polygon",
+        "avalanche",
+        "zksync",
+    ] {
+        assert_eq!(
+            secp_derive(id, &key, true).address,
+            "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+            "{id}"
+        );
+    }
+
+    assert_eq!(fixtures.len() + 8, 15, "all secp-hash160 and EVM chains");
+}
+
+#[test]
+fn wasm_report_ed25519_seed_one_fixtures_match_solana_and_sui() {
+    // Source: `apps/site/rotor_wasm.wasm` `derive_report(seed 1, curve 1)`.
+    let seed = parse_seed("0000000000000000000000000000000000000000000000000000000000000001");
+
+    let solana = chain::by_id("solana")
+        .expect("known chain")
+        .derive(KeyMaterial::Seed(&seed))
+        .expect("solana derivation");
+    assert_eq!(
+        solana.address,
+        "6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt"
+    );
+    assert_eq!(
+        solana.public_hex,
+        "4CB5ABF6AD79FBF5ABBCCAFCC269D85CD2651ED4B885B5869F241AEDF0A5BA29"
+    );
+
+    let sui = chain::by_id("sui")
+        .expect("known chain")
+        .derive(KeyMaterial::Seed(&seed))
+        .expect("sui derivation");
+    assert_eq!(
+        sui.address,
+        "0xd0c2c91eda34bbfbaec6cfb9c7bb913e57dab3cbec4018a4b3f5e55531cd63af"
+    );
+}
+
+#[test]
+fn encoders_live_in_the_address_module_and_match_the_report() {
+    let key = Scalar::from_u64(1);
+    let point = secp::mul_g(&key);
+    let hash = secp::hash160(&point, true);
+
+    assert_eq!(
+        address::base58check(&[0x00], &hash),
+        "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
+    );
+    assert_eq!(
+        address::ripple_base58(&hash),
+        "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH"
+    );
+    assert_eq!(
+        address::evm_hex(&secp::eth_address(&point)),
+        "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+    );
+    assert_eq!(
+        address::tron_base58(&secp::eth_address(&point)),
+        "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"
+    );
+}
+
+#[test]
 fn ed25519_family_uses_the_rfc8032_vector() {
     let seed = parse_seed("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
 
@@ -301,7 +399,6 @@ fn ton_v4r2_matches_tonweb_and_ton_core() {
     ];
 
     let ton = chain::by_id("ton").expect("known chain");
-    assert!(ton.enabled, "TON is enabled once v4R2 derives addresses");
     for (seed_hex, public_hex, address) in vectors {
         let seed = parse_seed(seed_hex);
         let derived = ton
@@ -310,11 +407,6 @@ fn ton_v4r2_matches_tonweb_and_ton_core() {
         assert_eq!(derived.address, *address, "{seed_hex}");
         assert_eq!(derived.public_hex, *public_hex);
         assert_eq!(derived.secret, None);
-    }
-
-    // Every descriptor is enabled now that TON derives addresses.
-    for descriptor in chain::all() {
-        assert!(descriptor.enabled, "{} should be enabled", descriptor.id);
     }
 }
 

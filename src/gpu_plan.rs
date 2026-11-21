@@ -4,7 +4,8 @@
 //! hit filtering can be tested on machines without CUDA.
 #![cfg_attr(not(feature = "gpu"), allow(dead_code))]
 
-use crate::cli::{Coin, CompMode, SearchMode};
+use crate::chain::ChainDescriptor;
+use crate::cli::{CompMode, SearchMode};
 use crate::engine::{Split, split_range};
 use crate::point::Affine;
 use crate::scalar::Scalar;
@@ -170,8 +171,8 @@ pub fn gpu_mode(mode: SearchMode) -> i32 {
 /// Compression mode handed to the kernel. Xpoint search compares X, which is
 /// mode independent, so it always runs the compressed check; the host emits
 /// one block per selected mode (matching the CPU engine).
-pub fn gpu_comp_mode(mode: SearchMode, coin: Coin, comp: CompMode) -> i32 {
-    if coin == Coin::Eth || matches!(mode, SearchMode::XPoint | SearchMode::XPoints) {
+pub fn gpu_comp_mode(mode: SearchMode, chain: &ChainDescriptor, comp: CompMode) -> i32 {
+    if chain.uses_keccak() || matches!(mode, SearchMode::XPoint | SearchMode::XPoints) {
         return COMPRESSED;
     }
     match comp {
@@ -207,6 +208,14 @@ mod tests {
 
     fn split(value: u64) -> Split {
         Split::from_u256(&U256::from_u64(value))
+    }
+
+    fn bitcoin() -> &'static crate::chain::ChainDescriptor {
+        crate::chain::by_id("bitcoin").expect("bitcoin descriptor")
+    }
+
+    fn ethereum() -> &'static crate::chain::ChainDescriptor {
+        crate::chain::by_id("ethereum").expect("ethereum descriptor")
     }
 
     #[test]
@@ -329,19 +338,19 @@ mod tests {
         assert_eq!(gpu_mode(SearchMode::XPoints), 3);
 
         assert_eq!(
-            gpu_comp_mode(SearchMode::Address, Coin::Btc, CompMode::Both),
+            gpu_comp_mode(SearchMode::Address, bitcoin(), CompMode::Both),
             2
         );
         assert_eq!(
-            gpu_comp_mode(SearchMode::Address, Coin::Btc, CompMode::Uncompressed),
+            gpu_comp_mode(SearchMode::Address, bitcoin(), CompMode::Uncompressed),
             1
         );
         assert_eq!(
-            gpu_comp_mode(SearchMode::XPoint, Coin::Btc, CompMode::Uncompressed),
+            gpu_comp_mode(SearchMode::XPoint, bitcoin(), CompMode::Uncompressed),
             0
         );
         assert_eq!(
-            gpu_comp_mode(SearchMode::Address, Coin::Eth, CompMode::Both),
+            gpu_comp_mode(SearchMode::Address, ethereum(), CompMode::Both),
             0
         );
     }

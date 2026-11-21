@@ -1,11 +1,20 @@
 use std::path::{Path, PathBuf};
 
+use rotor::chain;
 use rotor::checkpoint;
-use rotor::cli::{Coin, CompMode, Config, Range, SearchMode, U256};
+use rotor::cli::{CompMode, Config, Range, SearchMode, U256};
 use rotor::engine;
 use rotor::filter::TargetSet;
 use rotor::scalar::Scalar;
 use rotor::{base58, secp, secp::mul_g};
+
+fn bitcoin() -> &'static chain::ChainDescriptor {
+    chain::by_id("bitcoin").expect("bitcoin descriptor")
+}
+
+fn ethereum() -> &'static chain::ChainDescriptor {
+    chain::by_id("ethereum").expect("ethereum descriptor")
+}
 
 fn temp_path(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -43,7 +52,7 @@ fn config() -> Config {
     Config {
         threads: 1,
         display: 0,
-        coin: Coin::Btc,
+        chain: bitcoin(),
         ..Config::default()
     }
 }
@@ -296,7 +305,7 @@ fn multi_xpoint_mode_finds_key_nine_from_bin_file() {
 fn eth_single_address_finds_key_one() {
     let output = temp_path("eth_single");
     let mut config = config();
-    config.coin = Coin::Eth;
+    config.chain = ethereum();
     config.mode = Some(SearchMode::Address);
     config.range = Some(range("1", "2"));
     config.operands = vec!["0x7e5f4552091a69125d5dfcb7b8c2659029395bdf".to_owned()];
@@ -335,7 +344,7 @@ fn eth_multi_address_finds_key_one_from_bin_file() {
 
     let output = temp_path("eth_multi");
     let mut config = config();
-    config.coin = Coin::Eth;
+    config.chain = ethereum();
     config.mode = Some(SearchMode::Addresses);
     config.input_file = Some(targets.to_string_lossy().into_owned());
     config.range = Some(range("1", "2"));

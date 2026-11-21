@@ -12,7 +12,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
-use crate::cli::{Coin, Config, Range, SearchMode, U256};
+use crate::chain::ChainDescriptor;
+use crate::cli::{Config, Range, SearchMode, U256};
 use crate::engine;
 
 /// README key-1 BTC address (compressed).
@@ -125,7 +126,7 @@ fn validate(config: &Config) -> Result<SearchMode, String> {
 fn synthetic_config(config: &Config, mode: SearchMode) -> Config {
     let mut synthetic = config.clone();
     synthetic.mode = Some(mode);
-    synthetic.operands = vec![benchmark_target(config.coin, mode).to_owned()];
+    synthetic.operands = vec![benchmark_target(config.chain, mode).to_owned()];
     // Key 1 is far below the start, so the synthetic target never matches.
     synthetic.range = Some(Range {
         start: U256::from_hex("100000000").expect("static benchmark range is valid hex"),
@@ -149,11 +150,11 @@ fn synthetic_config(config: &Config, mode: SearchMode) -> Config {
     synthetic
 }
 
-fn benchmark_target(coin: Coin, mode: SearchMode) -> &'static str {
-    match (coin, mode) {
-        (Coin::Eth, _) => ETH_KEY_ONE_ADDRESS,
-        (Coin::Btc, SearchMode::XPoint) => GENERATOR_X,
-        _ => BTC_KEY_ONE_ADDRESS,
+fn benchmark_target(chain: &ChainDescriptor, mode: SearchMode) -> &'static str {
+    match (chain.uses_keccak(), mode) {
+        (true, _) => ETH_KEY_ONE_ADDRESS,
+        (false, SearchMode::XPoint) => GENERATOR_X,
+        (false, _) => BTC_KEY_ONE_ADDRESS,
     }
 }
 
