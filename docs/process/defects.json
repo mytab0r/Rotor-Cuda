@@ -169,6 +169,13 @@
       "symptom": "site.css carried a legacy blue :root above the amber token layer, so every token was declared twice and later edits depended on source order.",
       "detector": "legacy-token",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "page-local-empty-states",
+      "reported": "2026-11-21",
+      "symptom": "Empty states shipped as three page-local classes (.key-empty defined twice, .range-empty, .monitor-empty) with no shared box; error margins drifted to 10px while .error itself carried no margin.",
+      "detector": "empty-state-grammar",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
