@@ -22,6 +22,11 @@
 //                         token regions, in first-party CSS and inline styles.
 //   legacy-selector       no page-scoped override of a shared component family
 //                         (the `.key-page > .card` pattern from plan.md batch 7).
+//   browse-row-wif        a browse listing row is HEX + copy, address and
+//                         balance. WIF belongs on /key/<hex>; rendering it in
+//                         the listing bloats the row and puts the secret next
+//                         to the address. Guards apps/site/browse.js and the
+//                         .key-wif rules in apps/site/site.css.
 //
 // Pre-existing debt that needs a design decision is listed in
 // design/tokens/token-usage-baseline.json with an exact file:line, the matched
@@ -600,6 +605,34 @@ export function checkLegacySelectors({ cssFiles, regions }) {
   return violations;
 }
 
+// 7. browse-row-wif ---------------------------------------------------------
+// The browse listing must not carry a WIF again: the row is HEX + copy,
+// address and balance, and the WIF stays on /key/<hex>. The listing is
+// rendered by apps/site/browse.js, so a rendered-DOM test cannot see the
+// regression without a browser; this static guard fails on the code path.
+const BROWSE_WIF_PATTERNS = [
+  ["apps/site/browse.js", /key-wif/g, "browse.js renders the removed .key-wif listing line"],
+  ["apps/site/browse.js", /renderKeyCell/g, "browse.js restores the removed WIF key-cell renderer"],
+  ["apps/site/browse.js", /wif_(?:un)?compressed/g, "browse.js reads a WIF into the listing row"],
+  ["apps/site/site.css", /\.key-wif\b/g, "site.css restores the removed .key-wif rule"],
+];
+
+export function checkBrowseRowWif({ jsFiles, cssFiles }) {
+  const violations = [];
+  const sources = new Map(
+    [...jsFiles, ...cssFiles].map((file) => [file.relative, file.text]),
+  );
+  for (const [relative, pattern, detail] of BROWSE_WIF_PATTERNS) {
+    const text = sources.get(relative);
+    if (!text) continue;
+    const starts = lineStarts(text);
+    for (const match of text.matchAll(pattern)) {
+      addViolation(violations, "browse-row-wif", relative, lineAt(starts, match.index), detail, match[0]);
+    }
+  }
+  return violations;
+}
+
 // Baseline ------------------------------------------------------------------
 // An entry records the exact file:line where the debt was accepted, but the
 // match is by file + matched text, not by line, so an unrelated edit above the
@@ -650,6 +683,7 @@ export function collectChecks(root = REPO_ROOT) {
     { id: "radius-scale", violations: checkRadiusScale({ tokens, cssFiles, regions }) },
     { id: "raw-hex-outside-root", violations: checkRawHex({ cssFiles, htmlFiles, regions }) },
     { id: "legacy-selector", violations: checkLegacySelectors({ cssFiles, regions }) },
+    { id: "browse-row-wif", violations: checkBrowseRowWif({ jsFiles, cssFiles }) },
   ];
 }
 
@@ -702,7 +736,7 @@ export function run({ root = REPO_ROOT } = {}) {
   }
 
   if (failed) messages.push(`token-usage: FAILED (${total} new violation(s))`);
-  else messages.push("token-usage: OK (all six token detectors clean)");
+  else messages.push("token-usage: OK (all seven token detectors clean)");
   return { ok: !failed, messages, total };
 }
 

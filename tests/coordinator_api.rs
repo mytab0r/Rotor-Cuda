@@ -1450,6 +1450,78 @@ fn every_public_content_route_renders_exactly_one_footer() {
     handle.shutdown();
 }
 
+/// Density regression guard: a browse listing row carries the hex key, the
+/// address cell and the balance cell, and never a WIF. The WIF is key-level
+/// and stays on `/key/<hex>`. The listing is rendered by `browse.js`, so this
+/// test checks both the served row markup and the shipped script; the static
+/// detector id is `browse-row-wif` in scripts/check-token-usage.mjs.
+#[test]
+fn browse_listing_rows_carry_no_wif() {
+    let temp = TempState::new("browse-row-wif");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let is_base58 =
+        |byte: u8| byte.is_ascii_alphanumeric() && !matches!(byte, b'0' | b'O' | b'I' | b'l');
+
+    for path in ["/private-keys/bitcoin", "/private-keys/tron"] {
+        let (status, _, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        let start = body.find("<div class=\"key-row\"").expect("listing row");
+        let after = &body[start + 1..];
+        let end = after
+            .find("<div class=\"key-row\"")
+            .map_or(body.len(), |index| start + 1 + index);
+        let row = &body[start..end];
+        assert!(
+            row.contains("class=\"col-key\""),
+            "{path} row misses the key cell"
+        );
+        assert!(
+            row.contains("class=\"col-address\""),
+            "{path} row misses the address cell"
+        );
+        assert!(
+            row.contains("class=\"col-balance\""),
+            "{path} row misses the balance cell"
+        );
+        assert!(!row.contains("Priv (WIF)"), "{path} row labels a WIF");
+        assert!(!row.contains("key-wif"), "{path} row renders a WIF line");
+        for token in row.split(|ch: char| !ch.is_ascii_alphanumeric()) {
+            let wif_shaped = matches!(token.len(), 51 | 52)
+                && matches!(token.as_bytes()[0], b'5' | b'K' | b'L')
+                && token.bytes().all(is_base58);
+            assert!(
+                !wif_shaped,
+                "{path} row carries the WIF-shaped value {token}"
+            );
+        }
+    }
+
+    let (status, _, browse_js) = raw(addr, "GET", "/browse.js", None, None);
+    assert_eq!(status, 200, "/browse.js");
+    assert!(
+        !browse_js.contains("key-wif") && !browse_js.contains("renderKeyCell"),
+        "browse.js must not render a WIF into a listing row"
+    );
+
+    let key_hex = "0000000000000000000000000000000000000000000000000000000000000001";
+    let (status, _, key_page) = raw(addr, "GET", &format!("/key/{key_hex}"), None, None);
+    assert_eq!(status, 200, "/key/<hex>");
+    assert!(
+        key_page.contains(&format!("window.__ROTOR_KEY__=\"{key_hex}\"")),
+        "/key/<hex> misses the key payload"
+    );
+    let (status, _, tools) = raw(addr, "GET", "/key-tools.js", None, None);
+    assert_eq!(status, 200, "/key-tools.js");
+    assert!(
+        tools.contains("id: 'wif'") && tools.contains("wif_compressed"),
+        "/key/<hex> lost the client-side WIF fact"
+    );
+
+    handle.shutdown();
+}
+
 /// UTXO chains keep the donor's Balance / Received / TX row; account-model
 /// chains show Balance / Active. The summary markup is chain-shaped, so this
 /// guards both variants against a regression to one shared three-card row.
