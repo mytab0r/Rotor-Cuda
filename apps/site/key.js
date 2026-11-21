@@ -2274,8 +2274,9 @@
     var sats = BigInt(parsed.amount);
     var received = parsed.received === null ? null : BigInt(parsed.received);
     var txs = parsed.txs;
+    var txLabel = txs === null ? '' : ' · ' + txs + ' tx';
     return {
-      text: sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx',
+      text: sats.toLocaleString('en-US') + ' sats' + txLabel,
       summary: {
         amount: sats,
         chain: chainClass,
@@ -2655,7 +2656,7 @@
       if (id === 'sui') return fetchSui(address, signal);
       if (id === 'ton' || id === 'ton_w5') return fetchTon(address, signal);
       if (id.indexOf('ltc_') === 0) return fetchBlockcypher(address, signal, 'ltc');
-      if (id === 'doge_p2pkh') return fetchBlockcypher(address, signal, 'doge');
+      if (id.indexOf('doge_') === 0) return fetchBlockcypher(address, signal, 'doge');
       throw new Error('no provider in v1');
     };
     try {

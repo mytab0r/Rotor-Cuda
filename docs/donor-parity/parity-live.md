@@ -45,8 +45,8 @@ later PR had closed an earlier gap; each edited row cites `file:line`.
 
 1. **Key-page chain providers + USD total** — mostly DONE. XRP/SOL/SUI/TON and
    the Binance USD total are wired (`apps/site/key.js:2295-2302,2304-2474`);
-   remaining: LTC/DOGE/BCH/ZEC providers from `apps/site/site.js:735-788`.
-   Decision: whether those four stay explorer-only.
+   remaining: BCH/ZEC providers (Blockchair answers 430 without a key) from
+   `apps/site/site.js:735-788`. Decision: whether those two stay explorer-only.
 2. **`/richest/<chain>`** — L. New `apps/site/richest.js`, route + render in
    `src/coordinator/mod.rs`, top-100 ingestion. Decision: address dataset and
    labels (donor shows 100 "Unknown").
