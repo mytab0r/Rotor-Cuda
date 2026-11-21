@@ -296,6 +296,20 @@ assert.deepEqual(
   "a missing derivation yields no address line"
 );
 assert.deepEqual(browse.addressEntriesFor("ethereum", "legacy", null, "evm"), [], "no map, no rows");
+assert.deepEqual(
+  browse.addressCellModel(browse.addressEntriesFor("bitcoin", "legacy", legacyMap, "btc_p2pkh")),
+  {
+    primary: { prefix: "c", address: "1Compressed" },
+    extra: [{ prefix: "u", address: "1Uncompressed" }]
+  },
+  "the row shows one address and keeps the uncompressed form in the disclosure"
+);
+assert.deepEqual(
+  browse.addressCellModel(browse.addressEntriesFor("bitcoin", "segwit", legacyMap, "btc_p2wpkh")),
+  { primary: { prefix: "", address: "bc1qexample" }, extra: [] },
+  "a single address needs no disclosure"
+);
+assert.deepEqual(browse.addressCellModel([]), { primary: null, extra: [] });
 
 assert.deepEqual(browse.metricFlags({ tx: 0, received: "0" }), { hasTx: false, hasRecv: false });
 assert.deepEqual(browse.metricFlags({ tx: 2, received: "5" }), { hasTx: true, hasRecv: true });
