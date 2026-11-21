@@ -1049,8 +1049,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261127g",
-                "/theme.js?v=20261127g",
+                "/wallet-vault.js?v=20261127h",
+                "/theme.js?v=20261127h",
             ],
         ),
         (
@@ -1337,7 +1337,8 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
     assert!(page.contains("/wallets/LICENSE.txt"));
     assert!(page.contains("Request access"));
     assert!(page.contains("Copyright (c) 2022 MMDRZA"));
-    assert!(!page.contains("github.com"), "page links upstream: {page}");
+    assert!(!page.contains("github.com/Pymmdrza"), "page links upstream: {page}");
+    assert!(!page.contains("/releases/download"), "page leaks the upstream release host: {page}");
     let (status, headers, license) = raw(addr, "GET", "/wallets/LICENSE.txt", None, None);
     assert_eq!(status, 200);
     assert!(headers.to_ascii_lowercase().contains("text/plain"));
@@ -1349,8 +1350,12 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
     assert_eq!(status, 200);
     assert!(landing.contains("href=\"/wallets\""));
     assert!(
-        !landing.contains("github.com"),
+        !landing.contains("github.com/Pymmdrza"),
         "landing leaks upstream: {landing}"
+    );
+    assert!(
+        !landing.contains("/releases/download"),
+        "landing leaks the upstream release host: {landing}"
     );
 
     // Successful proxied download.

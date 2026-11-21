@@ -14,6 +14,8 @@ runInThisContext(source, { filename: "site.js" });
 
 const nav = globalThis.RotorSiteNav;
 assert.ok(nav, "site.js must expose RotorSiteNav before the DOM guard");
+const crumbs = globalThis.RotorBreadcrumbs;
+assert.ok(crumbs, "site.js must expose RotorBreadcrumbs before the DOM guard");
 
 let failed = 0;
 function test(name, fn) {
@@ -68,6 +70,32 @@ test("restoring and re-splitting is idempotent and duplicates nothing", () => {
   assert.deepEqual(ids(second.inline), ids(first.inline));
   assert.deepEqual(ids(second.tail), ids(first.tail));
   assert.deepEqual(ids(second.inline.concat(second.tail)), ids(original));
+});
+
+test("a breadcrumb trail puts one separator between items", () => {
+  const trail = crumbs.trail([
+    { label: "Home", href: "/" },
+    { label: "Tools", href: "/tools" },
+    { label: "Key explorer" },
+  ]);
+  assert.deepEqual(trail.map((entry) => entry.separator ? "/" : entry.label), [
+    "Home", "/", "Tools", "/", "Key explorer",
+  ]);
+});
+
+test("only the last breadcrumb is current", () => {
+  const trail = crumbs.trail([
+    { label: "Home", href: "/" },
+    { label: "Docs" },
+  ]);
+  assert.equal(trail.filter((entry) => entry.current).length, 1);
+  assert.equal(trail[trail.length - 1].current, true);
+  assert.equal(trail[0].current, false);
+});
+
+test("empty and missing breadcrumb lists render nothing", () => {
+  assert.deepEqual(crumbs.trail([]), []);
+  assert.deepEqual(crumbs.trail(null), []);
 });
 
 if (failed) {

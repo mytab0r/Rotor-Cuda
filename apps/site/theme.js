@@ -34,7 +34,7 @@
     if (use) use.setAttribute('href', toLight ? '/icons.svg#ui-sun' : '/icons.svg#ui-moon');
     var label = toLight ? 'Switch to light theme' : 'Switch to dark theme';
     button.setAttribute('aria-label', label);
-    button.setAttribute('title', label);
+    button.setAttribute('data-tooltip', label);
     button.setAttribute('aria-pressed', String(theme === 'light'));
   }
 
@@ -46,7 +46,7 @@
     if (!tools || tools.querySelector('[data-theme-toggle]')) return;
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'nav-pill nav-icon-pill theme-toggle';
+    button.className = 'icon-button icon-button--quiet icon-button--lg theme-toggle';
     button.setAttribute('data-theme-toggle', '');
     button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-moon"></use></svg>';
     var search = tools.querySelector('[data-nav="search"]');

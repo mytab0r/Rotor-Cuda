@@ -1375,6 +1375,192 @@ function auditPage(args) {
     }
   }
 
+  // 7. Navigation shell: one link grammar at 44px with 18px icons, and one
+  //    utility cluster built from the shared icon-button and chip components.
+  const navIssues = [];
+  const navEvidence = { links: 0, tools: 0 };
+  for (const link of document.querySelectorAll(".site-nav nav a[data-nav], .nav-drawer a")) {
+    if (!visible(link)) continue;
+    navEvidence.links += 1;
+    const box = boxOf(link);
+    const icon = link.querySelector(".icon");
+    const issues = [];
+    if (box.width < 43.5 || box.height < 43.5) {
+      issues.push(`box ${Math.round(box.width)}x${Math.round(box.height)}px`);
+    }
+    if (icon) {
+      const iconBox = boxOf(icon);
+      if (Math.round(iconBox.width) !== 18 || Math.round(iconBox.height) !== 18) {
+        issues.push(`icon ${Math.round(iconBox.width)}x${Math.round(iconBox.height)}px`);
+      }
+    }
+    if (issues.length) navIssues.push({ selector: selectorOf(link), issues });
+  }
+  for (const control of document.querySelectorAll(".nav-tools .icon-button, .nav-tools .chip")) {
+    if (!visible(control)) continue;
+    navEvidence.tools += 1;
+    const box = boxOf(control);
+    if (box.width < 43.5 || box.height < 43.5) {
+      navIssues.push({
+        selector: selectorOf(control),
+        issues: [`box ${Math.round(box.width)}x${Math.round(box.height)}px`],
+      });
+    }
+  }
+  metrics.nav = navEvidence;
+  metrics.navLinks = navIssues;
+  if (navIssues.length) {
+    add("nav-link-height", `${navIssues.length} nav link(s) outside the 44px/18px grammar`, navIssues.slice(0, 8));
+  }
+
+  // 8. Breadcrumbs: one grammar (current marker + separators) and one trail
+  //    on every public content page. The app and cabinet shells and the
+  //    landing page intentionally have none.
+  const shellRoutes = new Set(["/app", "/me", "/run", "/cabinet", "/cabinet/wallet"]);
+  const shellPage = shellRoutes.has(route);
+  const needsBreadcrumbs = route !== "/" && !shellPage;
+  const crumbNavs = [...document.querySelectorAll("nav.breadcrumbs")].filter(visible);
+  const crumbIssues = [];
+  const currentIssues = [];
+  for (const nav of crumbNavs) {
+    const label = nav.getAttribute("aria-label") || "";
+    const issues = [];
+    if (label !== "Breadcrumb") issues.push(`aria-label "${label}"`);
+    const current = [...nav.querySelectorAll('[aria-current="page"]')].filter(visible);
+    if (current.length !== 1) {
+      currentIssues.push({ selector: selectorOf(nav), issues: [`${current.length} current marker(s)`] });
+    } else if (/^\/[a-z0-9]/i.test(textOf(current[0]))) {
+      currentIssues.push({ selector: selectorOf(current[0]), issues: [`raw path label "${textOf(current[0]).slice(0, 40)}"`] });
+    }
+    for (const link of [...nav.querySelectorAll("a")].filter(visible)) {
+      const box = boxOf(link);
+      if (box.width < 43.5 || box.height < 43.5) {
+        issues.push(`${selectorOf(link)} box ${Math.round(box.width)}x${Math.round(box.height)}px`);
+      }
+      if (/^\/[a-z0-9]/i.test(textOf(link))) {
+        issues.push(`${selectorOf(link)} shows a raw path`);
+      }
+    }
+    let separators = 0;
+    for (const child of [...nav.children]) {
+      if (child.tagName === "A" || child.hasAttribute("aria-current")) continue;
+      if (!child.classList.contains("breadcrumbs__sep")) {
+        issues.push(`${selectorOf(child)} is not a .breadcrumbs__sep`);
+        continue;
+      }
+      separators += 1;
+      if (textOf(child) !== "/") issues.push(`separator text "${textOf(child)}"`);
+      if (child.getAttribute("aria-hidden") !== "true") issues.push("separator is not aria-hidden");
+    }
+    const linkCount = nav.querySelectorAll("a").length;
+    if (linkCount > 0 && separators !== linkCount) {
+      issues.push(`${separators} separator(s) for ${linkCount} link(s)`);
+    }
+    if (issues.length) crumbIssues.push({ selector: selectorOf(nav), issues });
+  }
+  if (needsBreadcrumbs && crumbNavs.length !== 1) {
+    crumbIssues.push({ route, issues: [`${crumbNavs.length} breadcrumb nav(s), expected 1`] });
+  }
+  metrics.breadcrumbs = { navs: crumbNavs.length, required: needsBreadcrumbs };
+  metrics.breadcrumbGrammar = crumbIssues;
+  metrics.breadcrumbCurrent = currentIssues;
+  if (crumbIssues.length) {
+    add("breadcrumb-grammar", `${crumbIssues.length} breadcrumb trail(s) outside the shared grammar`, crumbIssues.slice(0, 8));
+  }
+  if (currentIssues.length) {
+    add("breadcrumb-current", `${currentIssues.length} breadcrumb(s) without one human current marker`, currentIssues.slice(0, 8));
+  }
+
+  // 9. Pagination: one pager built from `.pager` + `.pager-btn`, 44px boxes,
+  //    radius 10 and `aria-disabled` for unavailable directions.
+  const pagerIssues = [];
+  const pagerGeometry = [];
+  const pagerBlocks = [...document.querySelectorAll(".pager")].filter(visible);
+  metrics.pagers = {
+    blocks: pagerBlocks.length,
+    buttons: pagerBlocks.reduce((sum, pager) => sum + pager.querySelectorAll(".pager-btn").length, 0),
+    jumps: [...document.querySelectorAll(".page-jump")].filter(visible).length,
+  };
+  for (const pager of pagerBlocks) {
+    const issues = [];
+    if (!pager.getAttribute("aria-label")) issues.push("no aria-label");
+    for (const child of [...pager.children]) {
+      if (!child.classList.contains("pager-btn")) issues.push(`${selectorOf(child)} is not .pager-btn`);
+    }
+    const buttons = [...pager.querySelectorAll(".pager-btn")].filter(visible);
+    if (buttons.length < 4) issues.push(`${buttons.length} pager button(s)`);
+    for (const button of buttons) {
+      const geometry = [];
+      const box = boxOf(button);
+      const radius = Number.parseFloat(getComputedStyle(button).borderTopLeftRadius);
+      if (box.width < 43.5 || box.height < 43.5) {
+        geometry.push(`box ${Math.round(box.width)}x${Math.round(box.height)}px`);
+      }
+      if (Math.abs(radius - 10) > 0.5) geometry.push(`radius ${radius}px`);
+      if (!button.hasAttribute("aria-disabled")) issues.push(`${selectorOf(button)} has no aria-disabled`);
+      if (button.classList.contains("random")) issues.push(`${selectorOf(button)} uses the legacy .random modifier`);
+      const icon = button.querySelector(".icon");
+      if (icon) {
+        const iconBox = boxOf(icon);
+        if (Math.round(iconBox.width) !== 16 || Math.round(iconBox.height) !== 16) {
+          geometry.push(`icon ${Math.round(iconBox.width)}x${Math.round(iconBox.height)}px`);
+        }
+      }
+      if (geometry.length) pagerGeometry.push({ selector: selectorOf(button), issues: geometry });
+    }
+    if (issues.length) pagerIssues.push({ selector: selectorOf(pager), issues });
+  }
+  for (const jump of [...document.querySelectorAll(".page-jump")].filter(visible)) {
+    const issues = [];
+    if (!jump.querySelector("label")) issues.push("no label");
+    for (const control of jump.querySelectorAll("input, button")) {
+      if (!visible(control)) continue;
+      const box = boxOf(control);
+      if (box.height < 43.5) issues.push(`${selectorOf(control)} height ${Math.round(box.height)}px`);
+    }
+    if (issues.length) pagerIssues.push({ selector: selectorOf(jump), issues });
+  }
+  metrics.pagerGrammar = pagerIssues;
+  metrics.pagerGeometry = pagerGeometry;
+  if (pagerIssues.length) {
+    add("pager-grammar", `${pagerIssues.length} pager block(s) outside the shared structure`, pagerIssues.slice(0, 8));
+  }
+  if (pagerGeometry.length) {
+    add("pager-geometry", `${pagerGeometry.length} pager button(s) outside the 44px/radius-10 geometry`, pagerGeometry.slice(0, 8));
+  }
+
+  // 10. Footer: exactly one marketing footer on public content pages, none on
+  //     the app/cabinet shells, with the required links and build version.
+  const footerNodes = [...document.querySelectorAll("footer, .site-footer")].filter(visible);
+  const footerIssues = [];
+  metrics.footer = { count: footerNodes.length, shell: shellPage };
+  if (shellPage) {
+    if (footerNodes.length) footerIssues.push(`${footerNodes.length} footer(s) on an app shell`);
+  } else if (footerNodes.length !== 1) {
+    footerIssues.push(`${footerNodes.length} footer(s), expected 1`);
+  }
+  if (footerNodes.length === 1) {
+    const footer = footerNodes[0];
+    const hrefs = [...footer.querySelectorAll("a[href]")].map((link) => link.getAttribute("href") || "");
+    for (const required of ["/faq", "/disclaimer", "/donate", "/docs"]) {
+      if (!hrefs.includes(required)) footerIssues.push(`missing ${required} link`);
+    }
+    if (!hrefs.some((href) => href.startsWith("https://github.com/"))) footerIssues.push("missing GitHub link");
+    const text = textOf(footer);
+    if (!text.includes("©")) footerIssues.push("missing copyright");
+    if (!/v\d{8}[a-z]?/.test(text)) footerIssues.push("missing asset version");
+    for (const link of [...footer.querySelectorAll("a")].filter(visible)) {
+      const box = boxOf(link);
+      if (box.width < 43.5 || box.height < 43.5) {
+        footerIssues.push(`${selectorOf(link)} box ${Math.round(box.width)}x${Math.round(box.height)}px`);
+      }
+    }
+  }
+  metrics.footerIssues = footerIssues;
+  if (footerIssues.length) {
+    add("footer-presence", `${footerIssues.length} footer problem(s)`, footerIssues.slice(0, 8));
+  }
+
   return { violations, metrics };
 }
 

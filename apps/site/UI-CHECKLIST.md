@@ -37,6 +37,19 @@ evidence (a screenshot or the DOM check below).
       the trailing edge (`table-grammar`, `table-header-style`,
       `table-row-height`, `row-action-geometry`). Mobile keeps the scroll
       wrapper and all columns.
+- [ ] Navigation uses one 44px link grammar with 18px icons and
+      `aria-current="page"`; search/theme are `.icon-button` and the cabinet is
+      a `.chip` (`nav-link-height`). No `.nav-pill` or one-off icon wrapper.
+- [ ] Breadcrumbs are one `<nav class="breadcrumbs" aria-label="Breadcrumb">`
+      with `.breadcrumbs__sep` separators and exactly one human
+      `aria-current="page"` label (`breadcrumb-grammar`,
+      `breadcrumb-current`). The landing page and app/cabinet shells have none.
+- [ ] Pagers are `.pager` + `.pager-btn` (44px, radius 10,
+      `aria-disabled` and `.pager-btn--random`), with one `.page-jump` form and
+      one `.page-info-text` status line (`pager-grammar`, `pager-geometry`).
+- [ ] Public content pages render exactly one `.site-footer` (FAQ, Disclaimer,
+      Donate, Docs, GitHub, copyright, asset version); `/app`, `/run`, `/me`,
+      `/cabinet` and `/cabinet/wallet` render none (`footer-presence`).
 - [ ] No page-local `<style>` rule re-implements a shared component; move it
       to `site.css` in the batch that owns the family.
 - [ ] Every icon-only action uses `.icon-button` (quiet/outline/solid,

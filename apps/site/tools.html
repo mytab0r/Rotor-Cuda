@@ -6,8 +6,8 @@
 <title>Crypto calculators — keys, WIF, seeds, vanity | Crypto</title>
 <meta name="description" content="One page for every crypto calculator: hex and decimal private keys, WIF, brainwallets, BIP39 seed phrases, vanity addresses and the key explorer.">
 <link rel="canonical" href="https://rotor.pxbt.app/tools">
-<link rel="stylesheet" href="/site.css?v=20261127g">
-<script src="/theme.js?v=20261127g"></script>
+<link rel="stylesheet" href="/site.css?v=20261127h">
+<script src="/theme.js?v=20261127h"></script>
 <style>
 /* Tools index: eight scannable families, aliases as 44px chips. */
 .tool-family-grid {
@@ -53,17 +53,17 @@
     <a href="/seed" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
     <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
-    <a href="/tools" class="active" data-nav="tools" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/tools" data-nav="tools" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
   <div class="nav-tools">
-    <a class="nav-pill nav-icon-pill" href="/key" data-nav="search" aria-label="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
-    <a class="nav-pill nav-cabinet" href="/cabinet" data-nav="cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+    <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
   </div>
 </header>
 
 <main class="key-page tools-page">
-  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span>/</span> <span aria-current="page">Tools</span></nav>
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span aria-current="page">Tools</span></nav>
   <section class="hero key-hero">
     <div class="key-hero-head">
       <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg></span>
@@ -198,6 +198,6 @@
   <p class="muted key-help">Every Crypto page and calculator is compared with ref-site-a and ref-site-b in the internal parity audit (<code>docs/site-map/index.html</code>).</p>
 </main>
 
-<script src="/site.js?v=20261127g"></script>
+<script src="/site.js?v=20261127h"></script>
 </body>
 </html>

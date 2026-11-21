@@ -31,7 +31,7 @@ live DOM or captured HTML. Public pages only; no forms submitted.
 | PKF `/milk-sad/<chain>` | — | missing | `/milk-sad/bitcoin` and `/milk-sad/ethereum` are 404; donor serves 60 key rows/page per chain. | live 404 vs donor 200, 60 rows |
 | PKF `/tools` | `/tools` | ours-only | Donor `/tools` renders a 404 page inside 200; ours is a real calculator index. | live 200 donor body "404 Page not found" |
 | PKF global search (Ctrl+K) | Ctrl+K dialog | same | 18 chain cards, per-address rows, HEX/WIF/Keypair/XRP/Mnemonic/Brainwallet chips, BIP39 passphrase + 1/3/5/10, Copy All + CSV, `N active chains • M active addresses`. Ours has an extra Auto-detect chip. | `apps/site/site.js:305-430`; local modal present on every page |
-| PKF shell | shell | partial | Nav, breadcrumbs, theme toggle (injected) and search modal match. Missing footer: donor has FAQ/Disclaimer/Donate/privatekeys.lol/copyright/version on every page; ours renders none. Nav differs: ours `Home/Directory/Seeds/Puzzle/More` + search/Cabinet vs donor `Directory/Seed Phrases/BTC Puzzle/Mnemonic/Vanity/Milk Sad` + search, and donor has a full-width search trigger above content. | rendered local pages: `footer: []` |
+| PKF shell | shell | partial | Nav, breadcrumbs, theme toggle (injected) and search modal match. Footer added in batch 6: FAQ/Disclaimer/Donate/Docs/GitHub/copyright/version on every public content page (app/cabinet shells intentionally omit it). Nav differs: ours `Home/Directory/Seeds/Puzzle/More` + search/Cabinet vs donor `Directory/Seed Phrases/BTC Puzzle/Mnemonic/Vanity/Milk Sad` + search, and donor has a full-width search trigger above content. | rendered local pages: one `.site-footer` on content routes, none on `/app`, `/run`, `/me`, `/cabinet`, `/cabinet/wallet` |
 | secretscan `/Bitcoin_puzzle` | `/bitcoin-puzzle` | partial | Ours matches PKF's 7 columns; secretscan's table has `# Range Address Private key (Hex) Public key Solve date Balance` — missing solve date, published private key and public key columns on ours. | donor HTML `th` list; local puzzle table |
 | secretscan `/Easy_bitcoin_transaction_online`, `/Easy_ethereum_transaction_online`, `/Easy_tron_trx_transaction_online`, `/Easy_bnb_transaction_online` | `/send`, `/send/bitcoin`, `/send/ethereum`, `/send/bnb`, `/send/tron` | partial | Ours supports BTC/ETH/BNB/TRON + ERC-20, but testnet only (Bitcoin testnet, Sepolia, Chapel, Nile; mainnet rejected in code). Donor sends mainnet and adds USDT BEP20/TRC20/ERC20 and USDC ERC20. No USDT/USDC routes here. | local `/send`; donor menu |
 | secretscan `/Transaction_decoded_Bitcoin`, `/decode_ethereum_transaction` | `/tx/bitcoin`, `/tx/ethereum` | partial | Decode matches (legacy/SegWit; type 0/1/2). Donor also encodes and broadcasts and shows a mempool panel; ours is decode + JSON only. | local `/tx`; donor H1s |
@@ -62,9 +62,11 @@ live DOM or captured HTML. Public pages only; no forms submitted.
    200 with a client-side invalid state instead of 404.
 7. **`?key=` jump to containing page** — S. `apps/site/browse.js:1094-1118`:
    compute `(BigInt(key)-1n)/60n+1n`, clamp, navigate with `type`.
-8. **Site footer** — S. `html_document`/`replace_site_nav` in
-   `src/coordinator/mod.rs`, styles in `apps/site/site.css`; add FAQ/Disclaimer/
-   Donate/copyright/version, keep out of the app shell pages.
+8. **Site footer** — DONE (batch 6). `site_footer()` in
+   `src/coordinator/mod.rs` renders FAQ/Disclaimer/Donate/Docs/GitHub,
+   copyright and the asset version on every public content page; the
+   app/cabinet shells stay footer-free; styles in `apps/site/site.css`;
+   detector `footer-presence`.
 9. **LTC Taproot card + account-chain stats** — S. `CHAINS`/browse render in
    `src/coordinator/mod.rs`; `setSummary` in `apps/site/browse.js:376`.
 10. **Route aliases** — XS. `/vanity-generator` → `/vanity` and `/downloads` →

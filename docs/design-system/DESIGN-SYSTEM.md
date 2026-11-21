@@ -242,6 +242,8 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
   2px signal outline offset 2px. Disabled: opacity .42.
 - Chips filter a result set, choose a preset or navigate a directory. They do
   not submit. A row of chips must not duplicate a select or a second toolbar.
+- `.chip--primary` (signal fill, signal text) is the one filled chip and is
+  reserved for the cabinet navigation action; do not use it for filters.
 - The chain dot stays a small colour swatch (`--chain`); the chip surface itself
   uses the signal role, not a per-chain fill.
 
@@ -378,20 +380,36 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 
 ### 3.11 Pagination
 
-- `.pager` flex gap `--space-2`; `.pager__btn` min-height 44, padding
-  `0 --space-3`, radius `--radius-m`, font `--text-sm`/650.
-- `aria-current="page"` for the current page; `aria-disabled="true"` for
-  unavailable directions. Show the range ("1–60 of 18,890") as a status line.
-- One pager per table; do not add a second pager in the toolbar.
+- One pager per table: `<nav class="pager" aria-label="Key pages">` with
+  `.pager-btn` anchors for First/Previous/Next/Last and one optional
+  `.pager-btn--random` action.
+- `.pager` flex, `gap --space-2`; `.pager-btn` min 44×44, padding
+  `0 --space-3`, radius `--radius-control` (10), font `--text-sm`/650, icon 16.
+- `aria-current="page"` for the current page; `aria-disabled="true"` for an
+  unavailable direction (the anchor stays focusable, click is prevented). Do
+  not use a `.disabled` class or the legacy `.random` modifier.
+- The numeric jump is one `.page-jump` form: label, 44px input and 44px submit;
+  the range ("1–60 of 18,890") stays a `.page-info-text` status line.
+- Enforced by `scripts/ui-audit.mjs` `pager-grammar` (structure, label,
+  `aria-disabled`, no legacy modifiers) and `pager-geometry` (44px box,
+  radius 10, 16px icon).
 
 ### 3.12 Breadcrumbs
 
-- `<nav class="breadcrumbs" aria-label="Breadcrumb">` with a list; each link
-  min-height 44 and min-width 44. Current page uses `aria-current="page"` and
-  `--ink-2`.
-- Separator is a hairline chevron or `/` from the icon set; not a blank gap.
-- Long crumb labels truncate with `title`/`aria-label`; no raw path as the
-  visible label.
+- `<nav class="breadcrumbs" aria-label="Breadcrumb">` with one
+  `<span class="breadcrumbs__sep" aria-hidden="true">/</span>` between items;
+  never a bare text slash or a blank gap.
+- Each link is a 44px target; the current page is exactly one
+  `[aria-current="page"]` at `--ink-2`, and its visible label is human text,
+  not a raw path. Long labels truncate via `title`/`aria-label`.
+- Every public content page renders one trail. The landing page and the
+  `/app`, `/run`, `/me`, `/cabinet` and `/cabinet/wallet` shells intentionally
+  render none.
+- Server-rendered pages use `breadcrumb_nav` in `src/coordinator/mod.rs`;
+  client-filled trails use the shared `RotorBreadcrumbs` helper in `site.js`.
+- Enforced by `scripts/ui-audit.mjs` `breadcrumb-grammar` (one separator
+  marker, one landmark, 44px links) and `breadcrumb-current` (one human
+  current label).
 
 ### 3.13 Empty, loading and error states
 
@@ -426,13 +444,20 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 
 - `.site-nav`: sticky, min-height 70, horizontal padding
   `max(--space-5, (100vw - var(--maxw)) / 2)`, background `--nav-bg`, 16px
-  blur, hairline bottom.
+  blur, hairline bottom, z-index `--z-nav`.
 - Links: min-height 44, padding `0 --space-3`, radius `--radius-pill`, font
-  `--text-md`/600. Active: `--signal-soft` + signal text + hairline.
-- `.nav-pill`: 44 height, radius pill, one primary action (`.nav-cabinet` uses
-  the signal fill).
-- Below 860px the primary links collapse into one menu button; nothing is
-  hidden without a reachable equivalent. The brand mark is the only gradient.
+  `--text-md`/600, 18px icon. Active uses `aria-current="page"` with
+  `--signal-soft` + signal text + signal hairline; `.active` remains a legacy
+  alias for the same state. Focus-visible is the 2px signal ring.
+- Utility cluster: exactly three controls — search (`.icon-button
+  .icon-button--quiet .icon-button--lg` with `aria-label` + `data-tooltip`),
+  theme (the same icon-button, injected by `theme.js`) and cabinet
+  (`.chip .chip--primary`). No `.nav-pill` or one-off icon wrapper.
+- Below 860px the primary links collapse into one More chip; the remaining
+  links keep 44px targets and their accessible names. The brand mark is the
+  only gradient.
+- Enforced by `scripts/ui-audit.mjs` `nav-link-height` (44px box, 18px icon,
+  44px utility controls).
 
 ### 3.16 Dropzone
 
@@ -460,6 +485,17 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 - `.dropzone__hint` is `--text-xs`/`--ink-3`; `.dropzone__name` reports the
   loaded file at `--text-sm`/`--ink-2` with `role="status"`. Reduced motion
   removes the border/background transition.
+
+### 3.17 Footer
+
+- One `<footer class="site-footer">` on every public content page, rendered by
+  `site_footer()` in `src/coordinator/mod.rs` (and inserted once into static
+  HTML at serve time). It carries FAQ, Disclaimer, Donate, Docs and GitHub
+  links, the copyright line and the current asset version.
+- Links are 44px targets; the row wraps without overflow at 375px.
+- The app and cabinet shells (`/app`, `/run`, `/me`, `/cabinet`,
+  `/cabinet/wallet`) intentionally render no footer.
+- Enforced by `scripts/ui-audit.mjs` `footer-presence`.
 
 ## 4. State matrix
 
@@ -547,7 +583,9 @@ adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
 `segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
-`row-action-geometry`; later batches add the detectors listed in `plan.md` §3.
+`row-action-geometry`; batch 6 adds `nav-link-height`, `breadcrumb-grammar`,
+`breadcrumb-current`, `pager-grammar`, `pager-geometry` and `footer-presence`;
+later batches add the detectors listed in `plan.md` §3.
 The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
