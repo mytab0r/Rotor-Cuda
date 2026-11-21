@@ -1,0 +1,2716 @@
+{
+  "generatedAt": "2026-11-21T20:12:41.565Z",
+  "browser": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "width": 375,
+      "height": 812
+    }
+  ],
+  "themes": [
+    "dark"
+  ],
+  "selectors": {
+    "rows": {
+      "donor": "table tbody tr, tbody tr, .key-row, [class*='key-row'], [data-key]",
+      "ours": ".key-row, [data-key], table tbody tr"
+    },
+    "blocks": {
+      "donor": {
+        "header": "nav.navbar, header.site-nav, header, nav",
+        "globalSearch": "[class*='global-search']",
+        "breadcrumb": "nav[aria-label='breadcrumb' i], .breadcrumbs, [class*='breadcrumb']",
+        "chips": ".chain-tabs, [class*='chain-tabs'], [class*='chain-tab']",
+        "pageHeader": ".page-info-container, [class*='page-info'], [class*='page-header'], h1",
+        "pager": ".nav-bar, .nav-buttons, [class*='pagination'], [class*='pager'], nav[aria-label*='page' i]",
+        "search": ".search-bar, [role='search'], form[class*='search'], .search-panel",
+        "stats": ".balance-summary, [class*='balance-summary'], [class*='stats'], [class*='stat-card'], [class*='stat ']"
+      },
+      "ours": {
+        "header": ".site-nav, header.site-nav, header, nav",
+        "globalSearch": "[class*='global-search-trigger'], [class*='global-search']",
+        "breadcrumb": ".breadcrumbs, nav[aria-label='Breadcrumb' i], [class*='breadcrumb']",
+        "chips": ".chain-tabs, [class*='chain-tabs']",
+        "pageHeader": ".page-info, [class*='page-header'], [class*='page-info'], h1",
+        "pager": ".browse-controls, .pager, [class*='pagination'], nav[aria-label*='page' i]",
+        "search": ".search-panel, form.browse-search, [role='search'], form[class*='search']",
+        "stats": ".balance-summary, [class*='balance-summary'], [class*='stats'], [class*='stat-card']"
+      }
+    }
+  },
+  "sides": {
+    "ours": {
+      "url": "http://127.0.0.1:7915/private-keys/tron",
+      "status": "measured",
+      "error": null,
+      "httpStatus": 200,
+      "blocked": false,
+      "userAgent": "headless",
+      "attempts": [
+        {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "theme": "dark",
+          "userAgent": "headless",
+          "httpStatus": 200,
+          "httpStatuses": [
+            {
+              "url": "http://127.0.0.1:7915/private-keys/tron",
+              "status": 200
+            }
+          ],
+          "blocked": false,
+          "loadTimedOut": false,
+          "readyState": "complete",
+          "finalUrl": "http://127.0.0.1:7915/private-keys/tron",
+          "durationMs": 1485
+        },
+        {
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "theme": "dark",
+          "userAgent": "headless",
+          "httpStatus": 200,
+          "httpStatuses": [
+            {
+              "url": "http://127.0.0.1:7915/private-keys/tron",
+              "status": 200
+            }
+          ],
+          "blocked": false,
+          "loadTimedOut": false,
+          "readyState": "complete",
+          "finalUrl": "http://127.0.0.1:7915/private-keys/tron",
+          "durationMs": 1341
+        },
+        {
+          "viewport": {
+            "width": 375,
+            "height": 812
+          },
+          "theme": "dark",
+          "userAgent": "headless",
+          "httpStatus": 200,
+          "httpStatuses": [
+            {
+              "url": "http://127.0.0.1:7915/private-keys/tron",
+              "status": 200
+            }
+          ],
+          "blocked": false,
+          "loadTimedOut": false,
+          "readyState": "complete",
+          "finalUrl": "http://127.0.0.1:7915/private-keys/tron",
+          "durationMs": 1477
+        }
+      ],
+      "runs": [
+        {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "theme": "dark",
+          "status": "measured",
+          "error": null,
+          "measured": {
+            "url": "http://127.0.0.1:7915/private-keys/tron",
+            "title": "TRON private keys — browse addresses and balances | Crypto",
+            "rows": {
+              "selector": ".key-row",
+              "source": "selector",
+              "total": 60,
+              "visible": 0,
+              "height": {
+                "min": 158,
+                "median": 163,
+                "max": 163
+              },
+              "visibleHeight": null,
+              "firstTop": 903,
+              "firstInViewport": false,
+              "firstText": "0000000000000000000000000000000000000000000000000000000000000001 (c) KwDiBf89QgG"
+            },
+            "chromeHeight": 903,
+            "controls": {
+              "rendered": 468,
+              "inViewport": 42,
+              "byTag": {
+                "a": 282,
+                "button": 184,
+                "input": 2
+              }
+            },
+            "blocks": [
+              {
+                "name": "header",
+                "selector": ".site-nav",
+                "element": "html > body > header.site-nav",
+                "present": true,
+                "top": 0,
+                "bottom": 70,
+                "height": 70,
+                "padding": [
+                  0,
+                  60,
+                  0,
+                  60
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "sticky",
+                "rowGap": "16px",
+                "inViewport": true,
+                "gap": null
+              },
+              {
+                "name": "globalSearch",
+                "selector": null,
+                "present": false
+              },
+              {
+                "name": "breadcrumb",
+                "selector": ".breadcrumbs",
+                "element": "body > main.browse-page > nav.breadcrumbs",
+                "present": true,
+                "top": 96,
+                "bottom": 140,
+                "height": 44,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "4px",
+                "inViewport": true,
+                "gap": 26
+              },
+              {
+                "name": "chips",
+                "selector": ".chain-tabs",
+                "element": "body > main.browse-page > div.chain-tabs",
+                "present": true,
+                "top": 158,
+                "bottom": 254,
+                "height": 96,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "8px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "pageHeader",
+                "selector": ".page-info",
+                "element": "body > main.browse-page > section.page-info",
+                "present": true,
+                "top": 272,
+                "bottom": 341,
+                "height": 69,
+                "padding": [
+                  15,
+                  18,
+                  14,
+                  18
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "10px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "pager",
+                "selector": ".browse-controls",
+                "element": "body > main.browse-page > section.browse-controls",
+                "present": true,
+                "top": 359,
+                "bottom": 508,
+                "height": 149,
+                "padding": [
+                  12,
+                  14,
+                  12,
+                  14
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "12px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "search",
+                "selector": ".search-panel",
+                "element": "body > main.browse-page > section.search-panel",
+                "present": true,
+                "top": 526,
+                "bottom": 625,
+                "height": 98,
+                "padding": [
+                  12,
+                  14,
+                  12,
+                  14
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "9px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "stats",
+                "selector": ".balance-summary",
+                "element": "body > main.browse-page > section.balance-summary.balance-summary--account",
+                "present": true,
+                "top": 643,
+                "bottom": 840,
+                "height": 197,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "1px",
+                "inViewport": true,
+                "gap": 18
+              }
+            ],
+            "fonts": {
+              "title": {
+                "selector": null,
+                "text": null,
+                "size": null,
+                "visible": false
+              },
+              "titleFallback": {
+                "size": 15,
+                "selector": "body > main.browse-page > section.page-info",
+                "text": "TRON keys page #1 out of #1.93E+75 0.000"
+              },
+              "statValue": {
+                "selector": ".stat-value",
+                "size": 24,
+                "text": "—"
+              },
+              "statValueFallback": {
+                "size": 24,
+                "selector": "#total-balance",
+                "text": "—"
+              },
+              "tableHeader": {
+                "selector": ".keys-header",
+                "size": 12,
+                "text": "Private Key Address TRON Balance"
+              }
+            },
+            "docHeight": 11036,
+            "horizontalOverflow": 0,
+            "theme": {
+              "dataTheme": "dark",
+              "dataBsTheme": null,
+              "prefersDark": true,
+              "background": "rgb(7, 9, 14)",
+              "color": "rgb(255, 255, 255)"
+            },
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "scroll": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "theme": "dark",
+          "status": "measured",
+          "error": null,
+          "measured": {
+            "url": "http://127.0.0.1:7915/private-keys/tron",
+            "title": "TRON private keys — browse addresses and balances | Crypto",
+            "rows": {
+              "selector": ".key-row",
+              "source": "selector",
+              "total": 60,
+              "visible": 0,
+              "height": {
+                "min": 158,
+                "median": 163,
+                "max": 163
+              },
+              "visibleHeight": null,
+              "firstTop": 903,
+              "firstInViewport": false,
+              "firstText": "0000000000000000000000000000000000000000000000000000000000000001 (c) KwDiBf89QgG"
+            },
+            "chromeHeight": 903,
+            "controls": {
+              "rendered": 468,
+              "inViewport": 42,
+              "byTag": {
+                "a": 282,
+                "button": 184,
+                "input": 2
+              }
+            },
+            "blocks": [
+              {
+                "name": "header",
+                "selector": ".site-nav",
+                "element": "html > body > header.site-nav",
+                "present": true,
+                "top": 0,
+                "bottom": 70,
+                "height": 70,
+                "padding": [
+                  0,
+                  20,
+                  0,
+                  20
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "sticky",
+                "rowGap": "16px",
+                "inViewport": true,
+                "gap": null
+              },
+              {
+                "name": "globalSearch",
+                "selector": null,
+                "present": false
+              },
+              {
+                "name": "breadcrumb",
+                "selector": ".breadcrumbs",
+                "element": "body > main.browse-page > nav.breadcrumbs",
+                "present": true,
+                "top": 96,
+                "bottom": 140,
+                "height": 44,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "4px",
+                "inViewport": true,
+                "gap": 26
+              },
+              {
+                "name": "chips",
+                "selector": ".chain-tabs",
+                "element": "body > main.browse-page > div.chain-tabs",
+                "present": true,
+                "top": 158,
+                "bottom": 254,
+                "height": 96,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "8px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "pageHeader",
+                "selector": ".page-info",
+                "element": "body > main.browse-page > section.page-info",
+                "present": true,
+                "top": 272,
+                "bottom": 341,
+                "height": 69,
+                "padding": [
+                  15,
+                  18,
+                  14,
+                  18
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "10px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "pager",
+                "selector": ".browse-controls",
+                "element": "body > main.browse-page > section.browse-controls",
+                "present": true,
+                "top": 359,
+                "bottom": 508,
+                "height": 149,
+                "padding": [
+                  12,
+                  14,
+                  12,
+                  14
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "12px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "search",
+                "selector": ".search-panel",
+                "element": "body > main.browse-page > section.search-panel",
+                "present": true,
+                "top": 526,
+                "bottom": 625,
+                "height": 98,
+                "padding": [
+                  12,
+                  14,
+                  12,
+                  14
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "9px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "stats",
+                "selector": ".balance-summary",
+                "element": "body > main.browse-page > section.balance-summary.balance-summary--account",
+                "present": true,
+                "top": 643,
+                "bottom": 840,
+                "height": 197,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "1px",
+                "inViewport": true,
+                "gap": 18
+              }
+            ],
+            "fonts": {
+              "title": {
+                "selector": null,
+                "text": null,
+                "size": null,
+                "visible": false
+              },
+              "titleFallback": {
+                "size": 15,
+                "selector": "body > main.browse-page > section.page-info",
+                "text": "TRON keys page #1 out of #1.93E+75 0.000"
+              },
+              "statValue": {
+                "selector": ".stat-value",
+                "size": 24,
+                "text": "—"
+              },
+              "statValueFallback": {
+                "size": 24,
+                "selector": "#total-balance",
+                "text": "—"
+              },
+              "tableHeader": {
+                "selector": ".keys-header",
+                "size": 12,
+                "text": "Private Key Address TRON Balance"
+              }
+            },
+            "docHeight": 11036,
+            "horizontalOverflow": 0,
+            "theme": {
+              "dataTheme": "dark",
+              "dataBsTheme": null,
+              "prefersDark": true,
+              "background": "rgb(7, 9, 14)",
+              "color": "rgb(255, 255, 255)"
+            },
+            "viewport": {
+              "width": 1280,
+              "height": 800
+            },
+            "scroll": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "viewport": {
+            "width": 375,
+            "height": 812
+          },
+          "theme": "dark",
+          "status": "measured",
+          "error": null,
+          "measured": {
+            "url": "http://127.0.0.1:7915/private-keys/tron",
+            "title": "TRON private keys — browse addresses and balances | Crypto",
+            "rows": {
+              "selector": ".key-row",
+              "source": "selector",
+              "total": 60,
+              "visible": 0,
+              "height": {
+                "min": 224,
+                "median": 229,
+                "max": 229
+              },
+              "visibleHeight": null,
+              "firstTop": 1200,
+              "firstInViewport": false,
+              "firstText": "0000000000000000000000000000000000000000000000000000000000000001 (c) KwDiBf89QgG"
+            },
+            "chromeHeight": 1200,
+            "controls": {
+              "rendered": 465,
+              "inViewport": 36,
+              "byTag": {
+                "a": 278,
+                "button": 185,
+                "input": 2
+              }
+            },
+            "blocks": [
+              {
+                "name": "header",
+                "selector": ".site-nav",
+                "element": "html > body > header.site-nav.nav-split",
+                "present": true,
+                "top": 0,
+                "bottom": 118,
+                "height": 118,
+                "padding": [
+                  10,
+                  16,
+                  0,
+                  16
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "sticky",
+                "rowGap": "10px",
+                "inViewport": true,
+                "gap": null
+              },
+              {
+                "name": "globalSearch",
+                "selector": null,
+                "present": false
+              },
+              {
+                "name": "breadcrumb",
+                "selector": ".breadcrumbs",
+                "element": "body > main.browse-page > nav.breadcrumbs",
+                "present": true,
+                "top": 138,
+                "bottom": 182,
+                "height": 44,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "4px",
+                "inViewport": true,
+                "gap": 20
+              },
+              {
+                "name": "chips",
+                "selector": ".chain-tabs",
+                "element": "body > main.browse-page > div.chain-tabs",
+                "present": true,
+                "top": 200,
+                "bottom": 504,
+                "height": 304,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "8px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "pageHeader",
+                "selector": ".page-info",
+                "element": "body > main.browse-page > section.page-info",
+                "present": true,
+                "top": 522,
+                "bottom": 591,
+                "height": 69,
+                "padding": [
+                  15,
+                  18,
+                  14,
+                  18
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "10px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "pager",
+                "selector": ".browse-controls",
+                "element": "body > main.browse-page > section.browse-controls",
+                "present": true,
+                "top": 609,
+                "bottom": 787,
+                "height": 178,
+                "padding": [
+                  12,
+                  14,
+                  12,
+                  14
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "12px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "search",
+                "selector": ".search-panel",
+                "element": "body > main.browse-page > section.search-panel",
+                "present": true,
+                "top": 805,
+                "bottom": 976,
+                "height": 171,
+                "padding": [
+                  12,
+                  14,
+                  12,
+                  14
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "9px",
+                "inViewport": true,
+                "gap": 18
+              },
+              {
+                "name": "stats",
+                "selector": ".balance-summary",
+                "element": "body > main.browse-page > section.balance-summary.balance-summary--account",
+                "present": true,
+                "top": 994,
+                "bottom": 1181,
+                "height": 187,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "1px",
+                "inViewport": false,
+                "gap": 18
+              }
+            ],
+            "fonts": {
+              "title": {
+                "selector": null,
+                "text": null,
+                "size": null,
+                "visible": false
+              },
+              "titleFallback": {
+                "size": 15,
+                "selector": "body > main.browse-page > section.page-info",
+                "text": "TRON keys page #1 out of #1.93E+75"
+              },
+              "statValue": {
+                "selector": ".stat-value",
+                "size": 20,
+                "text": "—"
+              },
+              "statValueFallback": {
+                "size": 20,
+                "selector": "#total-balance",
+                "text": "—"
+              },
+              "tableHeader": null
+            },
+            "docHeight": 15324,
+            "horizontalOverflow": 0,
+            "theme": {
+              "dataTheme": "dark",
+              "dataBsTheme": null,
+              "prefersDark": true,
+              "background": "rgb(7, 9, 14)",
+              "color": "rgb(255, 255, 255)"
+            },
+            "viewport": {
+              "width": 375,
+              "height": 812
+            },
+            "scroll": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        }
+      ]
+    },
+    "donor": {
+      "url": "https://ref-site-a/private-keys/tron",
+      "status": "measured",
+      "error": null,
+      "httpStatus": 200,
+      "blocked": false,
+      "userAgent": "normal",
+      "attempts": [
+        {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "theme": "dark",
+          "userAgent": "headless",
+          "httpStatus": 200,
+          "httpStatuses": [
+            {
+              "url": "https://ref-site-a/private-keys/tron",
+              "status": 200
+            }
+          ],
+          "blocked": false,
+          "loadTimedOut": true,
+          "readyState": "loading",
+          "finalUrl": "https://ref-site-a/private-keys/tron",
+          "durationMs": 46225
+        },
+        {
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "theme": "dark",
+          "userAgent": "headless",
+          "httpStatus": 200,
+          "httpStatuses": [
+            {
+              "url": "https://ref-site-a/private-keys/tron",
+              "status": 200
+            }
+          ],
+          "blocked": false,
+          "loadTimedOut": true,
+          "readyState": "loading",
+          "finalUrl": "https://ref-site-a/private-keys/tron",
+          "durationMs": 46228
+        },
+        {
+          "viewport": {
+            "width": 375,
+            "height": 812
+          },
+          "theme": "dark",
+          "userAgent": "headless",
+          "error": "navigation failed: net::ERR_CONNECTION_RESET"
+        },
+        {
+          "viewport": {
+            "width": 375,
+            "height": 812
+          },
+          "theme": "dark",
+          "userAgent": "normal",
+          "httpStatus": 200,
+          "httpStatuses": [
+            {
+              "url": "https://ref-site-a/private-keys/tron",
+              "status": 200
+            }
+          ],
+          "blocked": false,
+          "loadTimedOut": false,
+          "readyState": "complete",
+          "finalUrl": "https://ref-site-a/private-keys/tron",
+          "durationMs": 44657
+        }
+      ],
+      "runs": [
+        {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "theme": "dark",
+          "status": "measured",
+          "error": null,
+          "measured": {
+            "url": "https://ref-site-a/private-keys/tron",
+            "title": "Tron Private Keys - Browse TRX Wallet Addresses | PKF",
+            "rows": {
+              "selector": ".key-row",
+              "source": "selector",
+              "total": 60,
+              "visible": 6,
+              "height": {
+                "min": 65,
+                "median": 65,
+                "max": 65
+              },
+              "visibleHeight": 65,
+              "firstTop": 544,
+              "firstInViewport": true,
+              "firstText": "0000000000000000000000000000000000000000000000000000000000000001 Calculating... "
+            },
+            "chromeHeight": 544,
+            "controls": {
+              "rendered": 167,
+              "inViewport": 45,
+              "byTag": {
+                "a": 93,
+                "button": 71,
+                "input": 2,
+                "textarea": 1
+              }
+            },
+            "blocks": [
+              {
+                "name": "header",
+                "selector": "nav.navbar",
+                "element": "html > body > nav.navbar.navbar-expand-xl",
+                "present": true,
+                "top": 0,
+                "bottom": 56,
+                "height": 56,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "fixed",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": null
+              },
+              {
+                "name": "globalSearch",
+                "selector": "[class*='global-search']",
+                "element": "main.main-content > div.container.mb-3 > div.global-search-trigger",
+                "present": true,
+                "top": 72,
+                "bottom": 115,
+                "height": 43,
+                "padding": [
+                  10,
+                  16,
+                  10,
+                  16
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "12px",
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "breadcrumb",
+                "selector": "nav[aria-label='breadcrumb' i]",
+                "element": "main.main-content > div.container.mb-3 > nav",
+                "present": true,
+                "top": 131,
+                "bottom": 194,
+                "height": 63,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "chips",
+                "selector": ".chain-tabs",
+                "element": "main.main-content > div.container > div.chain-tabs",
+                "present": true,
+                "top": 210,
+                "bottom": 258,
+                "height": 48,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "pageHeader",
+                "selector": ".page-info-container",
+                "element": "main.main-content > div.container > div.page-info-container",
+                "present": true,
+                "top": 258,
+                "bottom": 307,
+                "height": 49,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "pager",
+                "selector": ".nav-bar",
+                "element": "main.main-content > div.container > div.nav-bar",
+                "present": true,
+                "top": 307,
+                "bottom": 365,
+                "height": 58,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "search",
+                "selector": ".search-bar",
+                "element": "main.main-content > div.container > div.search-bar",
+                "present": true,
+                "top": 365,
+                "bottom": 439,
+                "height": 74,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "stats",
+                "selector": ".balance-summary",
+                "element": "main.main-content > div.container > div.balance-summary.cols-2",
+                "present": true,
+                "top": 439,
+                "bottom": 481,
+                "height": 42,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              }
+            ],
+            "fonts": {
+              "title": {
+                "selector": null,
+                "text": null,
+                "size": null,
+                "visible": false
+              },
+              "titleFallback": {
+                "size": 16,
+                "selector": "main.main-content > div.container > div.page-info-container",
+                "text": "Tron keys page #1 out of #1.93E+75 0.000"
+              },
+              "statValue": {
+                "selector": ".stat-value",
+                "size": 16,
+                "text": "0 TRX"
+              },
+              "statValueFallback": {
+                "size": 16,
+                "selector": "main.main-content > div.container > div.balance-summary.cols-2",
+                "text": "Balance 0 TRX Active 0"
+              },
+              "tableHeader": {
+                "selector": ".keys-header",
+                "size": 16,
+                "text": "Private Key Address TRX Balance"
+              }
+            },
+            "docHeight": 4963,
+            "horizontalOverflow": 0,
+            "theme": {
+              "dataTheme": null,
+              "dataBsTheme": "light",
+              "prefersDark": true,
+              "background": "rgb(245, 245, 245)",
+              "color": "rgb(0, 0, 0)"
+            },
+            "viewport": {
+              "width": 1440,
+              "height": 900
+            },
+            "scroll": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "viewport": {
+            "width": 1280,
+            "height": 800
+          },
+          "theme": "dark",
+          "status": "measured",
+          "error": null,
+          "measured": {
+            "url": "https://ref-site-a/private-keys/tron",
+            "title": "Tron Private Keys - Browse TRX Wallet Addresses | PKF",
+            "rows": {
+              "selector": ".key-row",
+              "source": "selector",
+              "total": 60,
+              "visible": 4,
+              "height": {
+                "min": 65,
+                "median": 65,
+                "max": 65
+              },
+              "visibleHeight": 65,
+              "firstTop": 544,
+              "firstInViewport": true,
+              "firstText": "0000000000000000000000000000000000000000000000000000000000000001 Calculating... "
+            },
+            "chromeHeight": 544,
+            "controls": {
+              "rendered": 167,
+              "inViewport": 41,
+              "byTag": {
+                "a": 93,
+                "button": 71,
+                "input": 2,
+                "textarea": 1
+              }
+            },
+            "blocks": [
+              {
+                "name": "header",
+                "selector": "nav.navbar",
+                "element": "html > body > nav.navbar.navbar-expand-xl",
+                "present": true,
+                "top": 0,
+                "bottom": 56,
+                "height": 56,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "fixed",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": null
+              },
+              {
+                "name": "globalSearch",
+                "selector": "[class*='global-search']",
+                "element": "main.main-content > div.container.mb-3 > div.global-search-trigger",
+                "present": true,
+                "top": 72,
+                "bottom": 115,
+                "height": 43,
+                "padding": [
+                  10,
+                  16,
+                  10,
+                  16
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "12px",
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "breadcrumb",
+                "selector": "nav[aria-label='breadcrumb' i]",
+                "element": "main.main-content > div.container.mb-3 > nav",
+                "present": true,
+                "top": 131,
+                "bottom": 194,
+                "height": 63,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "chips",
+                "selector": ".chain-tabs",
+                "element": "main.main-content > div.container > div.chain-tabs",
+                "present": true,
+                "top": 210,
+                "bottom": 258,
+                "height": 48,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "pageHeader",
+                "selector": ".page-info-container",
+                "element": "main.main-content > div.container > div.page-info-container",
+                "present": true,
+                "top": 258,
+                "bottom": 307,
+                "height": 49,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "pager",
+                "selector": ".nav-bar",
+                "element": "main.main-content > div.container > div.nav-bar",
+                "present": true,
+                "top": 307,
+                "bottom": 365,
+                "height": 58,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "search",
+                "selector": ".search-bar",
+                "element": "main.main-content > div.container > div.search-bar",
+                "present": true,
+                "top": 365,
+                "bottom": 439,
+                "height": 74,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "stats",
+                "selector": ".balance-summary",
+                "element": "main.main-content > div.container > div.balance-summary.cols-2",
+                "present": true,
+                "top": 439,
+                "bottom": 481,
+                "height": 42,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              }
+            ],
+            "fonts": {
+              "title": {
+                "selector": null,
+                "text": null,
+                "size": null,
+                "visible": false
+              },
+              "titleFallback": {
+                "size": 16,
+                "selector": "main.main-content > div.container > div.page-info-container",
+                "text": "Tron keys page #1 out of #1.93E+75 0.000"
+              },
+              "statValue": {
+                "selector": ".stat-value",
+                "size": 16,
+                "text": "0 TRX"
+              },
+              "statValueFallback": {
+                "size": 16,
+                "selector": "main.main-content > div.container > div.balance-summary.cols-2",
+                "text": "Balance 0 TRX Active 0"
+              },
+              "tableHeader": {
+                "selector": ".keys-header",
+                "size": 16,
+                "text": "Private Key Address TRX Balance"
+              }
+            },
+            "docHeight": 4963,
+            "horizontalOverflow": 0,
+            "theme": {
+              "dataTheme": null,
+              "dataBsTheme": "light",
+              "prefersDark": true,
+              "background": "rgb(245, 245, 245)",
+              "color": "rgb(0, 0, 0)"
+            },
+            "viewport": {
+              "width": 1280,
+              "height": 800
+            },
+            "scroll": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "viewport": {
+            "width": 375,
+            "height": 812
+          },
+          "theme": "dark",
+          "status": "measured",
+          "error": null,
+          "measured": {
+            "url": "https://ref-site-a/private-keys/tron",
+            "title": "Tron Private Keys - Browse TRX Wallet Addresses | PKF",
+            "rows": {
+              "selector": ".key-row",
+              "source": "selector",
+              "total": 60,
+              "visible": 2,
+              "height": {
+                "min": 86,
+                "median": 86,
+                "max": 86
+              },
+              "visibleHeight": 86,
+              "firstTop": 695,
+              "firstInViewport": true,
+              "firstText": "0000000000000000000000000000000000000000000000000000000000000001 Calculating... "
+            },
+            "chromeHeight": 695,
+            "controls": {
+              "rendered": 167,
+              "inViewport": 37,
+              "byTag": {
+                "a": 93,
+                "button": 71,
+                "input": 2,
+                "textarea": 1
+              }
+            },
+            "blocks": [
+              {
+                "name": "header",
+                "selector": "nav.navbar",
+                "element": "html > body > nav.navbar.navbar-expand-xl",
+                "present": true,
+                "top": 0,
+                "bottom": 56,
+                "height": 56,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "fixed",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": null
+              },
+              {
+                "name": "globalSearch",
+                "selector": "[class*='global-search']",
+                "element": "main.main-content > div.container.mb-3 > div.global-search-trigger",
+                "present": true,
+                "top": 72,
+                "bottom": 132,
+                "height": 60,
+                "padding": [
+                  10,
+                  16,
+                  10,
+                  16
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": "12px",
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "breadcrumb",
+                "selector": "nav[aria-label='breadcrumb' i]",
+                "element": "main.main-content > div.container.mb-3 > nav",
+                "present": true,
+                "top": 148,
+                "bottom": 211,
+                "height": 63,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "chips",
+                "selector": ".chain-tabs",
+                "element": "main.main-content > div.container > div.chain-tabs",
+                "present": true,
+                "top": 227,
+                "bottom": 395,
+                "height": 168,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 16
+              },
+              {
+                "name": "pageHeader",
+                "selector": ".page-info-container",
+                "element": "main.main-content > div.container > div.page-info-container",
+                "present": true,
+                "top": 395,
+                "bottom": 437,
+                "height": 42,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "pager",
+                "selector": ".nav-bar",
+                "element": "main.main-content > div.container > div.nav-bar",
+                "present": true,
+                "top": 437,
+                "bottom": 519,
+                "height": 82,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "search",
+                "selector": ".search-bar",
+                "element": "main.main-content > div.container > div.search-bar",
+                "present": true,
+                "top": 519,
+                "bottom": 590,
+                "height": 71,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              },
+              {
+                "name": "stats",
+                "selector": ".balance-summary",
+                "element": "main.main-content > div.container > div.balance-summary.cols-2",
+                "present": true,
+                "top": 590,
+                "bottom": 632,
+                "height": 42,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "margin": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "position": "static",
+                "rowGap": null,
+                "inViewport": true,
+                "gap": 0
+              }
+            ],
+            "fonts": {
+              "title": {
+                "selector": null,
+                "text": null,
+                "size": null,
+                "visible": false
+              },
+              "titleFallback": {
+                "size": 16,
+                "selector": "main.main-content > div.container > div.page-info-container",
+                "text": "Tron keys page #1 out of #1.93E+75 0.000"
+              },
+              "statValue": {
+                "selector": ".stat-value",
+                "size": 16,
+                "text": "0 TRX"
+              },
+              "statValueFallback": {
+                "size": 16,
+                "selector": "main.main-content > div.container > div.balance-summary.cols-2",
+                "text": "Balance 0 TRX Active 0"
+              },
+              "tableHeader": {
+                "selector": ".keys-header",
+                "size": 16,
+                "text": "Private Key Address TRX Balance"
+              }
+            },
+            "docHeight": 6523,
+            "horizontalOverflow": 0,
+            "theme": {
+              "dataTheme": null,
+              "dataBsTheme": "light",
+              "prefersDark": true,
+              "background": "rgb(245, 245, 245)",
+              "color": "rgb(0, 0, 0)"
+            },
+            "viewport": {
+              "width": 569,
+              "height": 1233
+            },
+            "scroll": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        }
+      ]
+    }
+  },
+  "comparisons": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "theme": "dark",
+      "chromeHeight": {
+        "donor": 544,
+        "ours": 903,
+        "delta": 359
+      },
+      "visibleRows": {
+        "donor": 6,
+        "ours": 0,
+        "delta": -6
+      },
+      "rowHeight": {
+        "donor": 65,
+        "ours": 163
+      },
+      "controlsInViewport": {
+        "donor": 45,
+        "ours": 42,
+        "delta": -3
+      },
+      "documentHeight": {
+        "donor": 4963,
+        "ours": 11036,
+        "delta": 6073
+      },
+      "rowsPer1000pxChrome": {
+        "donor": 11.03,
+        "ours": 0
+      },
+      "densityRatio": 0,
+      "blockDeltas": [
+        {
+          "name": "header",
+          "donor": {
+            "height": 56,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": null,
+            "top": 0
+          },
+          "ours": {
+            "height": 70,
+            "padding": [
+              0,
+              60,
+              0,
+              60
+            ],
+            "gap": null,
+            "top": 0
+          },
+          "heightDelta": 14,
+          "paddingDelta": [
+            0,
+            60,
+            0,
+            60
+          ],
+          "gapDelta": null
+        },
+        {
+          "name": "globalSearch",
+          "donor": {
+            "height": 43,
+            "padding": [
+              10,
+              16,
+              10,
+              16
+            ],
+            "gap": 16,
+            "top": 72
+          },
+          "ours": null,
+          "heightDelta": null,
+          "paddingDelta": null,
+          "gapDelta": null
+        },
+        {
+          "name": "breadcrumb",
+          "donor": {
+            "height": 63,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 16,
+            "top": 131
+          },
+          "ours": {
+            "height": 44,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 26,
+            "top": 96
+          },
+          "heightDelta": -19,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 10
+        },
+        {
+          "name": "chips",
+          "donor": {
+            "height": 48,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 16,
+            "top": 210
+          },
+          "ours": {
+            "height": 96,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 18,
+            "top": 158
+          },
+          "heightDelta": 48,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 2
+        },
+        {
+          "name": "pageHeader",
+          "donor": {
+            "height": 49,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 258
+          },
+          "ours": {
+            "height": 69,
+            "padding": [
+              15,
+              18,
+              14,
+              18
+            ],
+            "gap": 18,
+            "top": 272
+          },
+          "heightDelta": 20,
+          "paddingDelta": [
+            15,
+            18,
+            14,
+            18
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "pager",
+          "donor": {
+            "height": 58,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 307
+          },
+          "ours": {
+            "height": 149,
+            "padding": [
+              12,
+              14,
+              12,
+              14
+            ],
+            "gap": 18,
+            "top": 359
+          },
+          "heightDelta": 91,
+          "paddingDelta": [
+            12,
+            14,
+            12,
+            14
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "search",
+          "donor": {
+            "height": 74,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 365
+          },
+          "ours": {
+            "height": 98,
+            "padding": [
+              12,
+              14,
+              12,
+              14
+            ],
+            "gap": 18,
+            "top": 526
+          },
+          "heightDelta": 24,
+          "paddingDelta": [
+            12,
+            14,
+            12,
+            14
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "stats",
+          "donor": {
+            "height": 42,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 439
+          },
+          "ours": {
+            "height": 197,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 18,
+            "top": 643
+          },
+          "heightDelta": 155,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 18
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "theme": "dark",
+      "chromeHeight": {
+        "donor": 544,
+        "ours": 903,
+        "delta": 359
+      },
+      "visibleRows": {
+        "donor": 4,
+        "ours": 0,
+        "delta": -4
+      },
+      "rowHeight": {
+        "donor": 65,
+        "ours": 163
+      },
+      "controlsInViewport": {
+        "donor": 41,
+        "ours": 42,
+        "delta": 1
+      },
+      "documentHeight": {
+        "donor": 4963,
+        "ours": 11036,
+        "delta": 6073
+      },
+      "rowsPer1000pxChrome": {
+        "donor": 7.35,
+        "ours": 0
+      },
+      "densityRatio": 0,
+      "blockDeltas": [
+        {
+          "name": "header",
+          "donor": {
+            "height": 56,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": null,
+            "top": 0
+          },
+          "ours": {
+            "height": 70,
+            "padding": [
+              0,
+              20,
+              0,
+              20
+            ],
+            "gap": null,
+            "top": 0
+          },
+          "heightDelta": 14,
+          "paddingDelta": [
+            0,
+            20,
+            0,
+            20
+          ],
+          "gapDelta": null
+        },
+        {
+          "name": "globalSearch",
+          "donor": {
+            "height": 43,
+            "padding": [
+              10,
+              16,
+              10,
+              16
+            ],
+            "gap": 16,
+            "top": 72
+          },
+          "ours": null,
+          "heightDelta": null,
+          "paddingDelta": null,
+          "gapDelta": null
+        },
+        {
+          "name": "breadcrumb",
+          "donor": {
+            "height": 63,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 16,
+            "top": 131
+          },
+          "ours": {
+            "height": 44,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 26,
+            "top": 96
+          },
+          "heightDelta": -19,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 10
+        },
+        {
+          "name": "chips",
+          "donor": {
+            "height": 48,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 16,
+            "top": 210
+          },
+          "ours": {
+            "height": 96,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 18,
+            "top": 158
+          },
+          "heightDelta": 48,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 2
+        },
+        {
+          "name": "pageHeader",
+          "donor": {
+            "height": 49,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 258
+          },
+          "ours": {
+            "height": 69,
+            "padding": [
+              15,
+              18,
+              14,
+              18
+            ],
+            "gap": 18,
+            "top": 272
+          },
+          "heightDelta": 20,
+          "paddingDelta": [
+            15,
+            18,
+            14,
+            18
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "pager",
+          "donor": {
+            "height": 58,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 307
+          },
+          "ours": {
+            "height": 149,
+            "padding": [
+              12,
+              14,
+              12,
+              14
+            ],
+            "gap": 18,
+            "top": 359
+          },
+          "heightDelta": 91,
+          "paddingDelta": [
+            12,
+            14,
+            12,
+            14
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "search",
+          "donor": {
+            "height": 74,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 365
+          },
+          "ours": {
+            "height": 98,
+            "padding": [
+              12,
+              14,
+              12,
+              14
+            ],
+            "gap": 18,
+            "top": 526
+          },
+          "heightDelta": 24,
+          "paddingDelta": [
+            12,
+            14,
+            12,
+            14
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "stats",
+          "donor": {
+            "height": 42,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 439
+          },
+          "ours": {
+            "height": 197,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 18,
+            "top": 643
+          },
+          "heightDelta": 155,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 18
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "width": 375,
+        "height": 812
+      },
+      "theme": "dark",
+      "chromeHeight": {
+        "donor": 695,
+        "ours": 1200,
+        "delta": 505
+      },
+      "visibleRows": {
+        "donor": 2,
+        "ours": 0,
+        "delta": -2
+      },
+      "rowHeight": {
+        "donor": 86,
+        "ours": 229
+      },
+      "controlsInViewport": {
+        "donor": 37,
+        "ours": 36,
+        "delta": -1
+      },
+      "documentHeight": {
+        "donor": 6523,
+        "ours": 15324,
+        "delta": 8801
+      },
+      "rowsPer1000pxChrome": {
+        "donor": 2.88,
+        "ours": 0
+      },
+      "densityRatio": 0,
+      "blockDeltas": [
+        {
+          "name": "header",
+          "donor": {
+            "height": 56,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": null,
+            "top": 0
+          },
+          "ours": {
+            "height": 118,
+            "padding": [
+              10,
+              16,
+              0,
+              16
+            ],
+            "gap": null,
+            "top": 0
+          },
+          "heightDelta": 62,
+          "paddingDelta": [
+            10,
+            16,
+            0,
+            16
+          ],
+          "gapDelta": null
+        },
+        {
+          "name": "globalSearch",
+          "donor": {
+            "height": 60,
+            "padding": [
+              10,
+              16,
+              10,
+              16
+            ],
+            "gap": 16,
+            "top": 72
+          },
+          "ours": null,
+          "heightDelta": null,
+          "paddingDelta": null,
+          "gapDelta": null
+        },
+        {
+          "name": "breadcrumb",
+          "donor": {
+            "height": 63,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 16,
+            "top": 148
+          },
+          "ours": {
+            "height": 44,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 20,
+            "top": 138
+          },
+          "heightDelta": -19,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 4
+        },
+        {
+          "name": "chips",
+          "donor": {
+            "height": 168,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 16,
+            "top": 227
+          },
+          "ours": {
+            "height": 304,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 18,
+            "top": 200
+          },
+          "heightDelta": 136,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 2
+        },
+        {
+          "name": "pageHeader",
+          "donor": {
+            "height": 42,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 395
+          },
+          "ours": {
+            "height": 69,
+            "padding": [
+              15,
+              18,
+              14,
+              18
+            ],
+            "gap": 18,
+            "top": 522
+          },
+          "heightDelta": 27,
+          "paddingDelta": [
+            15,
+            18,
+            14,
+            18
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "pager",
+          "donor": {
+            "height": 82,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 437
+          },
+          "ours": {
+            "height": 178,
+            "padding": [
+              12,
+              14,
+              12,
+              14
+            ],
+            "gap": 18,
+            "top": 609
+          },
+          "heightDelta": 96,
+          "paddingDelta": [
+            12,
+            14,
+            12,
+            14
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "search",
+          "donor": {
+            "height": 71,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 519
+          },
+          "ours": {
+            "height": 171,
+            "padding": [
+              12,
+              14,
+              12,
+              14
+            ],
+            "gap": 18,
+            "top": 805
+          },
+          "heightDelta": 100,
+          "paddingDelta": [
+            12,
+            14,
+            12,
+            14
+          ],
+          "gapDelta": 18
+        },
+        {
+          "name": "stats",
+          "donor": {
+            "height": 42,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 0,
+            "top": 590
+          },
+          "ours": {
+            "height": 187,
+            "padding": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "gap": 18,
+            "top": 994
+          },
+          "heightDelta": 145,
+          "paddingDelta": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "gapDelta": 18
+        }
+      ]
+    }
+  ]
+}
