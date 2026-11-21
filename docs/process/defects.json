@@ -248,10 +248,24 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "quiet-icon-hover-border",
+      "reported": "2026-11-21",
+      "symptom": "Quiet icon buttons gained a 1px hover border from the generic button:hover rule, contradicting DESIGN-SYSTEM §3.2; outline buttons also lost their line-strong border on hover.",
+      "detector": "quiet-icon-hover-border",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "wallet-seed-no-strength",
       "reported": "2026-11-21",
       "symptom": "The wallet page only accepted a pasted WIF or hex key: there was no way to generate a phrase, the page never showed one and nothing reported its entropy or brute-force strength, so a user could not judge the phrase.",
       "detector": "wallet-seed-strength",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "unknown-request-id-false-positive",
+      "reported": "2026-11-21",
+      "symptom": "A Network.loadingFailed event whose request id was not in the request map was treated as same-origin because the URL parse fell back to the base origin, so a browser-injected external request surfaced as a false http-error violation and stalled the route.",
+      "detector": "http-error",
       "where": "scripts/ui-audit.mjs"
     }
   ]
