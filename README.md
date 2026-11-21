@@ -33,6 +33,25 @@ A secp256k1 key-search tool for authorized public puzzle events. This fork reuse
 - **Cloud CI/CD** — GitHub Actions run the Rust build/test matrix (CPU + wasm), compile the CUDA `gpu` feature (`gpu-bsgs-compile.yml`) and publish `rust-release.yml` assets; no local toolchain needed. The legacy C++ MSBuild workflows were removed with the application.
 - Only for **authorized public puzzle events** (known addresses, known bit ranges, official rewards). Not for mass scanning or de-anonymization.
 
+### Chain selection (`--chain`, `--list-chains`)
+`--chain <slug>` selects one of the 18 site networks (slug or ticker alias such
+as `btc`, `eth`, `sol`, `doge`). `--list-chains` prints every chain with its
+family, curve and the search modes implemented in this build:
+
+```sh
+./target/release/rotor --list-chains
+./target/release/rotor -m address --chain bitcoin --range 1:2 1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH
+./target/release/rotor -m addresses --chain ethereum --range 1:2 --targets-text eth.txt
+```
+
+Descriptor and address derivation cover all 18 chains, but the search engines
+currently implement `bitcoin` (secp-hash160: `address`, `addresses`, `xpoint`,
+`xpoints`, `bsgs`) and `ethereum` (evm-keccak: `address`, `addresses`, `bsgs`).
+Selecting any other chain/mode pair fails with a non-zero exit and names the
+chain plus its supported modes; there is no silent fallback. The old
+`--coin BTC|ETH` spelling still works as a deprecated alias for
+`--chain bitcoin|ethereum` and prints a warning.
+
 ### BSGS usage (CPU) :
 ```
 ./Rotor --mode bsgs --range 400000000000000000:7fffffffffffffffff 02CEB6CBBCDBDF5EF7150682150F4CE2C6F4807B349827DCDBDD1F2EFA885A2630
@@ -87,7 +106,7 @@ to use the default `8 * SM count, 128` per device):
 
 ```sh
 ./target/release/rotor -g --gpui 0,1 --gpux 2,128,2,128 \
-  -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+  -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
   1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
 ```
 
@@ -172,7 +191,7 @@ curl -s -H "Authorization: Bearer my-secret" -H "Content-Type: application/json"
 Run two clients (the second with `--client-id machine-b`) on the same target and range:
 
 ```sh
-./target/release/rotor -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+./target/release/rotor -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
   --coordinator http://127.0.0.1:7878 --token my-secret --client-id machine-a \
   1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
 ```
@@ -209,7 +228,7 @@ more devices; with several ids each device gets an independent lease loop and cl
 `<client-id>-gpu<index>`):
 
 ```sh
-./target/release/rotor -g --gpui 0 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff \
+./target/release/rotor -g --gpui 0 -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
   --coordinator http://127.0.0.1:7878 --token my-secret --client-id rig-a \
   1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
 ```
@@ -439,24 +458,24 @@ the landing uses `/api/v1/summary`, the dashboard `/api/v1/status`, the cabinet 
 - **-z ?** (end random range must be greater than -n value) example: -n 252 -z 256
 - Random for search [puzzle](https://privatekeys.pw/puzzles/bitcoin-puzzle-tx) 71 example:
 
-- ```./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC -r 5 --range 400000000000000000:7fffffffffffffffff 1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU```
+- ```./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin -r 5 --range 400000000000000000:7fffffffffffffffff 1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU```
 - If your GPU is weaker than RTX 1080 or the driver crashes. Remove **--gpux 256,256** from the row the grid will be auto-assigned
 ---
 ### GPU Bitcoin Multi Address mode :
-- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 400000000:7ffffffff -i Btc-h160.bin```
-- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC -r 5 -i Btc-h160.bin```
+- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --chain bitcoin --range 400000000:7ffffffff -i Btc-h160.bin```
+- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --chain bitcoin -r 5 -i Btc-h160.bin```
 ---
 ### GPU Bitcoin Single Address mode :
-- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 400000000:7ffffffff 1PWCx5fovoEaoBowAvF5k91m2Xat9bMgwb```
-- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 400000000:7ffffffff -r 5 1PWCx5fovoEaoBowAvF5k91m2Xat9bMgwb```
+- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin --range 400000000:7ffffffff 1PWCx5fovoEaoBowAvF5k91m2Xat9bMgwb```
+- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin --range 400000000:7ffffffff -r 5 1PWCx5fovoEaoBowAvF5k91m2Xat9bMgwb```
 ---
 ### GPU ETHEREUM Multi Address mode :
-- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin eth --range 4000000:ffffffff -i eth.bin```
-- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin eth --rang 4000000:ffffffff -r 5 -i eth.bin```
+- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --chain ethereum --range 4000000:ffffffff -i eth.bin```
+- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m addresses --chain ethereum --rang 4000000:ffffffff -r 5 -i eth.bin```
 ---
 ### GPU ETHEREUM Single Address mode :
-- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --coin eth --range 8000000:fffffff 0xfda5c442e76a95f96c09782f1a15d3b58e32404f```
-- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --coin eth --range 8000000:fffffff -r 5 0xfda5c442e76a95f96c09782f1a15d3b58e32404f```
+- Range: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --chain ethereum --range 8000000:fffffff 0xfda5c442e76a95f96c09782f1a15d3b58e32404f```
+- Random: ```./Rotor -g --gpui 0 --gpux 256,256 -m address --chain ethereum --range 8000000:fffffff -r 5 0xfda5c442e76a95f96c09782f1a15d3b58e32404f```
 
 ****Do not use non-standard grid sizes; dimensions must be multiples of 32.**
 
@@ -466,14 +485,14 @@ the landing uses `/api/v1/summary`, the dashboard `/api/v1/status`, the cabinet 
 pre-sorted `.bin`: one target per line, decoded and sorted internally.
 
 - BTC (`addresses`): P2PKH addresses, e.g. `1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH`
-- ETH (addresses, `--coin eth`): `0x` + 40 hex chars
+- ETH (addresses, `--chain ethereum`): `0x` + 40 hex chars
 - `xpoints`: 64 hex chars (the X coordinate)
 - Blank lines and `#` comments are skipped; surrounding whitespace and CRLF are
   tolerated; a malformed line aborts with `line N: <reason>`.
 
 ```sh
-./Rotor -m addresses --coin BTC --range 400000000:7ffffffff --targets-text Btc-h160.txt
-cat Btc-h160.txt | ./Rotor -m addresses --coin BTC --range 400000000:7ffffffff --targets-text -
+./Rotor -m addresses --chain bitcoin --range 400000000:7ffffffff --targets-text Btc-h160.txt
+cat Btc-h160.txt | ./Rotor -m addresses --chain bitcoin --range 400000000:7ffffffff --targets-text -
 ```
 
 `--targets-text -` reads stdin. The option is mutually exclusive with `-i` and
@@ -492,7 +511,7 @@ requires `-m addresses` or `-m xpoints`; it feeds the same target set as the
 ---
 ### Range Scan Sequentially :
 ```
-$./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 1000000000:1fffffffff 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
+$./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin --range 1000000000:1fffffffff 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
 
   Rotor-Cuda v2.0-rotor  mytab0r
 
@@ -536,7 +555,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 100
 ```
 ### Range Scan Randomly :
 ```
-$./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 1000000000:1fffffffff -r 5 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
+$./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin --range 1000000000:1fffffffff -r 5 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
 
   Rotor-Cuda v2.0-rotor  mytab0r
 
@@ -569,7 +588,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m address --coin BTC --range 100
 ```
 ### Range Scan with Multi Address :
 ```
-$./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 1000000000:1fffffffff -r 5 -i Puzzles_h160.bin
+$./Rotor -g --gpui 0 --gpux 256,256 -m addresses --chain bitcoin --range 1000000000:1fffffffff -r 5 -i Puzzles_h160.bin
 
   Rotor-Cuda v2.0-rotor  mytab0r
 
@@ -617,7 +636,7 @@ $./Rotor -g --gpui 0 --gpux 256,256 -m addresses --coin BTC --range 1000000000:1
 ```
 ### Puzzle 71 Scan with Multi GPU :
 ```
-$./Rotor -g --gpui 0,1,2 --gpux 256,256,256,256,256,256 -m address --coin BTC --range 400000000000000000:7fffffffffffffffff -r 15 1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
+$./Rotor -g --gpui 0,1,2 --gpux 256,256,256,256,256,256 -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff -r 15 1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU
 
   Rotor-Cuda v2.0-rotor  mytab0r
 
@@ -715,7 +734,7 @@ range: the target is key 1 while scanning starts at `0x100000000` and ends at
 `0xFFFFFFFFFFFFFFFFFFFFFFFF` (2^96 - 1, below the curve order), so the benchmark
 can never find a key and no backend can exhaust the range before the timer.
 `seconds` is the actual scan wall clock, not the requested duration. Backend
-options (`-g`, `-t`, `-m address|xpoint`, `--coin`, `-u/-b`) select what is
+options (`-g`, `-t`, `-m address|xpoint`, `--chain`, `-u/-b`) select what is
 measured; multi-target, BSGS and coordinator modes are rejected.
 
 ```sh
