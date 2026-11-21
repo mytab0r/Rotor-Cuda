@@ -54,13 +54,13 @@
 
 ## 5. Verification
 
-- [ ] `node apps/site/wallet-evm-test.mjs`
-- [ ] `node apps/site/wallet-mainnet-test.mjs`
-- [ ] `node apps/site/send-test.mjs`
-- [ ] `node scripts/ui-audit.mjs --serve`
-- [ ] `node scripts/check-projects.mjs`
-- [ ] `node scripts/check-defect-ledger.mjs`
-- [ ] `cargo test --release --test coordinator_api`
+- [x] `node apps/site/wallet-evm-test.mjs`
+- [x] `node apps/site/wallet-mainnet-test.mjs`
+- [x] `node apps/site/send-test.mjs`
+- [x] `node scripts/ui-audit.mjs --serve`
+- [x] `node scripts/check-projects.mjs`
+- [x] `node scripts/check-defect-ledger.mjs`
+- [x] `cargo test --release --test coordinator_api`
 
 ## 6. Next slices
 
