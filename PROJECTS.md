@@ -72,6 +72,7 @@ node scripts/check-projects.mjs                  # schema, ownership, coverage
 node scripts/affected-areas.mjs                  # diff origin/main + working tree
 node scripts/affected-areas.mjs path/to/file ... # explicit paths
 node scripts/ui-audit.mjs --serve                # headless UI self-review (site)
+node scripts/sync-board.mjs [--dry-run]          # mirror changes + PRs to the Rotor board
 ```
 
 `scripts/ui-audit.mjs` is the shared UI gate: headless Chrome/Edge over CDP
@@ -81,6 +82,12 @@ targets below 44px, icon-only controls without labels, duplicated address-type
 components, uneven card widths, half-empty cards, manual balance controls and
 the route-specific row counts. Exit 1 means a UI change is not done. The
 failure table and workflow live in `.claude/skills/ui-self-review/SKILL.md`.
+
+`scripts/sync-board.mjs` mirrors every OpenSpec change and open pull request
+into the Rotor Project (owner `mytab0r`, number 3) with `Area`, `Progress` and
+`Status` fields. It runs locally with the owner's `gh` login (`repo` and
+`project` scopes) and requires Issues to be enabled; see
+`docs/process/board.md`.
 
 Reading order: `AGENTS.md` -> this file -> the area `AGENTS.md` -> the
 `openspec/` change or spec.
