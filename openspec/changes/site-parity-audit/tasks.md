@@ -70,7 +70,7 @@
 ## Live donor audit follow-ups (2026-11-21)
 
 Source: `docs/donor-parity/parity-live.md` (live route/DOM comparison). These
-three were code-only and shipped together in PR #143.
+follow-ups were code-only.
 
 - [x] Directory `?key=` jumps to the page that contains the key (60 keys per
   page, clamped to `data-pages`, `location.replace`, only when the computed
@@ -86,6 +86,15 @@ three were code-only and shipped together in PR #143.
 - [x] `/vanity-generator` -> `/vanity` and `/downloads` -> `/wallets`
   permanent aliases, exact paths only. Evidence: `redirect_target`,
   `donor_route_aliases_redirect_to_canonical_paths`.
+- [x] Key-page balances: XRP (XRPScan), SOL, SUI (GraphQL) and TON (TON Center)
+  are wired in `apps/site/key.js` / `key-tools.js`, with response codecs in
+  `apps/site/balance-cache.js` and tests in `apps/site/balance-cache-test.mjs`.
+  LTC/DOGE/BCH/ZEC stay provider-less (Blockchair answers 430 without a key,
+  litecoinspace 525), so those rows show — instead of a fake zero.
+- [x] One `?key=` implementation on directory pages: a parallel change added a
+  second path that called undefined `normalizeKeyHex`/`jumpPageFor` and threw
+  on pages without `search.js`; removed, so `pageForHexKey`/`jumpToKeyPage` is
+  the only path (PR #147).
 
 ## P1 — shell and templates
 
