@@ -1,7 +1,7 @@
 # Empty state
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/empty.json` · Gallery: `/design` (family
+Source of truth: `design/components/empty.json` · Gallery: `/cabinet/admin/design` (family
 `empty`).
 
 ## Purpose
@@ -27,7 +27,7 @@ is the one optional action slot. In a table, put the empty state on an inner
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | dashed `--line-subtle`, radius 12, padding 20, centred `--ink-3` | yes |
 | With action | `.empty-state__action` adds a 12px top margin | composition, no separate state |

@@ -161,7 +161,7 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 family: `name`, `version`, `status`, `element`, closed `variants` and `sizes`,
 `states`, `requiredAttrs`, `forbidden`, `slots`, `tokens`, `detectors`, `docs`.
 The human contract is `docs/design-system/components/<name>.md`; the rendered
-evidence is the generated `/design` gallery (`apps/site/design.html`, produced by
+evidence is the generated `/cabinet/admin/design` gallery (`apps/site/design.html`, produced by
 `scripts/build-gallery.mjs` from the manifests and the production markup). The
 gallery is internal and noindex, and it is audited at 375/768/1280 in both
 themes like any other route.
@@ -695,7 +695,7 @@ The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
   overrides (6) are listed in `design/tokens/token-usage-baseline.json`.
 - Phase 3 (2026-11-21): added manifests and component pages for the 15
   normalized families, `scripts/build-gallery.mjs` and the generated internal
-  `/design` gallery, and `scripts/check-components.mjs` (manifest shape,
+  `/cabinet/admin/design` gallery, and `scripts/check-components.mjs` (manifest shape,
   unknown class, missing variant/size/state, required attribute, page-local
   style). No production component was restyled; reserved CSS with no page
   consumer (`.card--flat`, `.card--stat`, `.stat--sm`, `.icon-button--solid`,
