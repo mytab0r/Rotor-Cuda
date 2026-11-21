@@ -6,8 +6,7 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
 - Before touching another area, read its contracts in `PROJECTS.md` and include
   both areas in one PR/commit. Cross-area changes are not "someone else's
   problem".
-- Site change to `site.css`, `site.js` or `key.js`: bump `?v=` in every
-  `apps/site/*.html`.
+- Site change to `site.css`, `site.js` or `key.js`: bump `?v=` in every `apps/site/*.html`, the lazy-loaded tokens in `apps/site/*.js`, the coordinator templates in `src/coordinator/mod.rs` and the pinned tokens in `tests/coordinator_api.rs`; `node scripts/check-asset-version.mjs` enforces a single version across all of them.
 - `crates/rotor-wasm` change: run `sh scripts/build-wasm.sh`, run both JS
   tests, commit `apps/site/rotor_wasm.wasm`.
 - Run the area test commands from `projects.json`; then
@@ -41,6 +40,20 @@ Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
   controls. The failure table and the fix-the-class rule live in the project
   skill `.claude/skills/ui-self-review/SKILL.md`. A UI change with violations
   is not done; do not weaken the audit to get a green run.
+- The design system is normative: `docs/design-system/DESIGN-SYSTEM.md` defines
+  the token scales and component grammar, `inventory.md` records the baseline,
+  and `plan.md` owns the migration order. New UI uses `--space-*`,
+  `--radius-*`, `--text-*`, `--weight-*`, `--duration-*` and the semantic roles;
+  do not add a literal radius, control height or font size outside the scale.
+- One status/badge grammar: `.status` (aliases `.badge`, `.key-badges span`,
+  `.puzzle-badge`, `.puzzle-status`, `.pz-pill`, `.ws-chain-status`,
+  `.monitor-chain`, `.balance-refresh-count`) is 20px high, 12px text,
+  `2px var(--space-2)` padding and pill radius. The audit ID is
+  `status-pill-geometry`; never add a page-local pill.
+- Do not add page-local `<style>` rules for a shared component. Move the rule
+  into `apps/site/site.css` in the batch that owns the family
+  (`docs/design-system/plan.md`); a new family needs an entry in
+  `DESIGN-SYSTEM.md` and a detector or an explicit "not machine-checkable" note.
 - One control per purpose. Do not render the same filter twice (chips and a
   select, two toolbars of the same chips); do not let controls clip at any
   width; column sets and multi-column fact lists must end level (±2px).
