@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher) from free public providers; only BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher) and BCH (Haskoin) from free public providers; only ZEC has no provider and shows —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
   });
 
   oursRoute({
@@ -811,13 +811,13 @@
 
   /* ref-site-b navigation, 2026-11-19. */
   [
-    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto shows one shared `0x` EVM row plus the eight donor chain rows marked `↑ same`; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto shows one shared `0x` EVM row plus the eight donor chain rows marked `↑ same`; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'parity', '-', 'P + Q, P − Q and k · P run in the local wasm core, with the same compressed/uncompressed report.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
