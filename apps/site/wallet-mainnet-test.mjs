@@ -242,6 +242,17 @@ test("confirm re-reads the chain id and refuses a switch after review", async ()
   assert.deepEqual(sendMock.calls.map((call) => call.method), ["eth_chainId"]);
 });
 
+test("Polygon and Optimism use verified anonymous RPC endpoints", () => {
+  assert.deepEqual(
+    evm.networkBySlug("polygon").providers.map((provider) => provider.url),
+    ["https://polygon-bor-rpc.publicnode.com", "https://polygon.drpc.org"]
+  );
+  assert.deepEqual(
+    evm.networkBySlug("optimism").providers.map((provider) => provider.url),
+    ["https://optimism-rpc.publicnode.com", "https://optimism.drpc.org"]
+  );
+});
+
 /* ------------------------------------------------------------- arm gate */
 
 test("a mainnet review is refused until mainnet is armed", async () => {
@@ -283,6 +294,39 @@ test("a prepared mainnet review cannot be confirmed after the arm is removed", a
     /Mainnet signing is not armed/
   );
   assert.equal(signCalls, 0);
+  assert.equal(sendMock.calls.length, 0);
+});
+
+test("a mutated mainnet review cannot sign calldata or a zero-value transfer", async () => {
+  const prepareMock = rpcMock(MAINNET_ANSWERS);
+  const review = await evm.prepareTransaction(mainnetOptions({
+    fetchJson: prepareMock.fetchJson
+  }));
+  const sendMock = rpcMock({ eth_chainId: "0x1", eth_sendRawTransaction: TX_HASH });
+  const signCalls = [];
+  const sign = (value) => {
+    signCalls.push(value);
+    return VECTOR_RAW;
+  };
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review: { ...review, dataHex: "0xabcd" },
+      fetchJson: sendMock.fetchJson,
+      mainnetArmed: true,
+      sign
+    }),
+    /the reviewed transaction has calldata/
+  );
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review: { ...review, valueWei: 0n },
+      fetchJson: sendMock.fetchJson,
+      mainnetArmed: true,
+      sign
+    }),
+    /the reviewed amount is not greater than zero/
+  );
+  assert.equal(signCalls.length, 0);
   assert.equal(sendMock.calls.length, 0);
 });
 
