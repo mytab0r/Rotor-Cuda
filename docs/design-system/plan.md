@@ -471,10 +471,14 @@ entry in the same PR.
     sample elements compared. No computed-style property changed. The only
     geometry deltas are intentional: the seed count buttons now match `.chip`
     (`chip` sample appears; the page label/row width moves by 11px at 1280),
-    the brainwallet type tabs use the same chip grammar (controls shrink by
-    51px at 375/768) and async balance content changed between runs
-    (`0 BTC` vs `—`). Evidence: `target/style-before.json`,
+    the brainwallet type tabs use the same chip grammar (the control row loses
+    51px at 375/768), and async balance content changed between runs
+    (`0 BTC` vs `—` on /private-keys/bitcoin; balance rows on
+    /mnemonic-seeds/bitcoin). Evidence: `target/style-before.json`,
     `target/style-after.json`, comparison in `target/compare-styles.mjs`.
+    Review caught one legacy label-direction dependency (the wallet file
+    input); it is preserved by the kept `label` migration alias, so the wallet
+    body height matches exactly.
   - `check-projects`, `check-asset-version`, `check-defect-ledger`,
     `git diff --check`, all 50 site build/test commands and
     `cargo test --test coordinator_api --test coordinator_client` (18 + 3)

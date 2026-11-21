@@ -45,6 +45,9 @@ main {
 .card h3 { margin: 0 0 8px; font-size: 15px; }
 
 form.compact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Migration alias: the later `label, .field` rule owns the grid grammar; the
+ * column direction and 5px gap still apply to labels that carry a flex class. */
+label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 12px; }
 label.wide { grid-column: 1 / -1; }
 form button { align-self: end; justify-self: start; }
 form.compact label { flex-direction: row; align-items: center; }
