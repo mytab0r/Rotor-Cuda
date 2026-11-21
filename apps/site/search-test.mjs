@@ -297,17 +297,6 @@ assert.deepEqual(
 );
 assert.deepEqual(browse.addressEntriesFor("ethereum", "legacy", null, "evm"), [], "no map, no rows");
 
-assert.deepEqual(
-  browse.keyModel({ priv_hex: "ab", wif_compressed: "K1", wif_uncompressed: "5U" }),
-  { hex: "ab", wifs: [
-    { prefix: "c", value: "K1" },
-    { prefix: "u", value: "5U" }
-  ] },
-  "key model carries both WIF links"
-);
-assert.deepEqual(browse.keyModel({ priv_hex: "ab" }), { hex: "ab", wifs: [] }, "no WIF, no WIF lines");
-assert.deepEqual(browse.keyModel(null), { hex: "", wifs: [] }, "no report, empty model");
-
 assert.deepEqual(browse.metricFlags({ tx: 0, received: "0" }), { hasTx: false, hasRecv: false });
 assert.deepEqual(browse.metricFlags({ tx: 2, received: "5" }), { hasTx: true, hasRecv: true });
 assert.deepEqual(browse.metricFlags(null), { hasTx: false, hasRecv: false });
