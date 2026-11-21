@@ -47,6 +47,15 @@
         ],
         "createdAt": "2026-11-20T20:51:58.617Z",
         "reason": "Agent: key-segmented is a segmented control (2px track inset by design); balance-refresh has padding/border/background cleared by .key-page .key-filter-bar .balance-refresh, the detector reads the base rule statically"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/range.html"
+        ],
+        "createdAt": "2026-11-21T04:56:54.671Z",
+        "reason": "Agent: shared .table-scroll shell from DESIGN-SYSTEM batch 5; cells inset text by 8px/12px, the border is deliberately flush with the table edge"
       }
     ]
   }

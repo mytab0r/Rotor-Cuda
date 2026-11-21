@@ -158,8 +158,25 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
       confirmations come from config with the 3/6/19 defaults. One
       `(chain,txid,vout)` pays one order. ETH/BSC remain config-only chains:
       the current poller verifies BTC, LTC and TRON.
-- [ ] Every delivered package carries the licence/attribution page (MIT notice
-      for our lists; CC0 provenance for donor-derived data).
+- [x] Every delivered package carries the licence/attribution page (MIT notice
+      for our lists; CC0 provenance for donor-derived data). The operator
+      archive is streamed untouched, so the document is delivered next to it
+      from a token-guarded route: `GET /api/v1/orders/{id}/licence?token=...`
+      answers `text/plain; charset=utf-8` as `<slug>-LICENCE.txt` with
+      `Cache-Control: no-store` and `X-Robots-Tag: noindex`; a wrong token or
+      unknown order answers `404`. `ListConfig.licence` (default `MIT`) and
+      optional `provenance` are validated; the MIT copyright line is chosen
+      deterministically from provenance (Rich-Address-Wallet/MMDRZA vs. the
+      Rotor contributors), `CC0-1.0` gets the canonical public-domain notice,
+      and any other identifier falls back to a contact-the-operator note. The
+      order status always exposes `licence_url`. Evidence:
+      `src/coordinator/orders.rs:102` (config fields), `:208` (validation),
+      `:619` (`licence_document`), `:1064` (`render_licence_document`),
+      `:1246`-`:1255` (route dispatch), `:1388` (response), unit tests at
+      `:2173`-`:2244`; `deploy/orders.example.json` sets `licence: MIT` and a
+      provenance string only for the two Rich-Address-Wallet-derived packs.
+      Provenance stays optional and is omitted where the donor source is not
+      known (`usdt-trc20-pack`).
 - [ ] Prices, accepted chains and refund policy are owner decisions; ship with
       `active=false` lists until they are set.
       `deploy/orders.example.json` ships every list with `active: false`.
