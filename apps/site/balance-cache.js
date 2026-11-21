@@ -118,6 +118,23 @@
     return amount === null ? null : { amount: amount };
   }
 
+  /* BlockCypher `/v1/<chain>/main/addrs/<address>/balance`: atomic units in
+   * `final_balance` (unconfirmed included) with `balance` as the fallback,
+   * lifetime `total_received`, and the transaction counts `n_tx`/`final_n_tx`. */
+  function parseBlockcypherBalance(data) {
+    if (!data || typeof data !== 'object') return null;
+    var amount = atomicAmount(data.final_balance);
+    if (amount === null) amount = atomicAmount(data.balance);
+    if (amount === null) return null;
+    var txs = atomicAmount(data.final_n_tx);
+    if (txs === null) txs = atomicAmount(data.n_tx);
+    return {
+      amount: amount,
+      received: atomicAmount(data.total_received),
+      txs: txs === null ? null : Number(txs)
+    };
+  }
+
   function hasAddress(address) {
     return typeof address === 'string' && address.trim().length > 0;
   }
@@ -349,6 +366,7 @@
     parseSolanaAccounts: parseSolanaAccounts,
     parseSuiBalance: parseSuiBalance,
     parseTonBalance: parseTonBalance,
+    parseBlockcypherBalance: parseBlockcypherBalance,
     hasAddress: hasAddress,
     isSuccess: isSuccess,
     isFresh: isFresh,
