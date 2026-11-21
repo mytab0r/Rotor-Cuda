@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use rotor::chain;
@@ -5,6 +6,7 @@ use rotor::checkpoint;
 use rotor::cli::{CompMode, Config, Range, SearchMode, U256};
 use rotor::engine;
 use rotor::filter::TargetSet;
+use rotor::point::Affine;
 use rotor::scalar::Scalar;
 use rotor::{base58, secp, secp::mul_g};
 
@@ -364,6 +366,165 @@ fn eth_multi_address_finds_key_one_from_bin_file() {
         text.contains("PubAddress: 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"),
         "missing ETH multi address:\n{text}"
     );
+}
+
+#[test]
+fn found_txt_writes_chain_specific_secrets_only_where_defined() {
+    let key = Scalar::from_u64(1);
+    let point = mul_g(&key);
+
+    // Exact blocks the writer must produce for key 1, compressed. Addresses
+    // are the site fixtures; LTC/DOGE WIFs are the published vectors from
+    // `apps/site/key-tools-test.mjs`. BCH and ZEC share Bitcoin's 0x80 WIF
+    // version byte, XRP/ETH/TRON define no WIF version at all.
+    let cases: &[(&str, &[&str])] = &[
+        (
+            "bitcoin",
+            &[
+                "PubAddress: 1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+                "Priv (WIF): KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn",
+                "Priv (HEX): 1",
+                "PubK (HEX): 0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            ],
+        ),
+        (
+            "litecoin",
+            &[
+                "PubAddress: LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ",
+                "Priv (WIF): T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjV",
+                "Priv (HEX): 1",
+                "PubK (HEX): 0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            ],
+        ),
+        (
+            "dogecoin",
+            &[
+                "PubAddress: DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
+                "Priv (WIF): QNcdLVw8fHkixm6NNyN6nVwxKek4u7qrioRbQmjxac5TVoTtZuot",
+                "Priv (HEX): 1",
+                "PubK (HEX): 0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            ],
+        ),
+        (
+            "bitcoin-cash",
+            &[
+                "PubAddress: 1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+                "Priv (WIF): KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn",
+                "Priv (HEX): 1",
+                "PubK (HEX): 0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            ],
+        ),
+        (
+            "zcash",
+            &[
+                "PubAddress: t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs",
+                "Priv (WIF): KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn",
+                "Priv (HEX): 1",
+                "PubK (HEX): 0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            ],
+        ),
+        (
+            "xrp",
+            &[
+                "PubAddress: rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH",
+                "Priv (HEX): 1",
+                "PubK (HEX): 0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
+            ],
+        ),
+        (
+            "ethereum",
+            &[
+                "PubAddress: 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf",
+                "Priv (HEX): 1",
+                "PubK (HEX): 79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798\
+                 483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            ],
+        ),
+        (
+            "tron",
+            &[
+                "PubAddress: TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
+                "Priv (HEX): 1",
+                "PubK (HEX): 79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798\
+                 483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
+            ],
+        ),
+    ];
+
+    for (id, lines) in cases {
+        let expected = format!("{}\n{}\n", lines.join("\n"), "=".repeat(86));
+        assert_eq!(write_hit(id, &key, &point), expected, "{id}");
+    }
+}
+
+/// Writes one hit through the public writer and returns the file contents.
+fn write_hit(id: &str, key: &Scalar, point: &Affine) -> String {
+    let output = temp_path(&format!("found_{id}"));
+    let mut file = File::create(&output).expect("create Found.txt");
+    let descriptor = chain::by_id(id).expect("known chain");
+    engine::emit_hit(&mut file, key, point, true, descriptor).expect("hit should be written");
+    drop(file);
+    let text = output_text(&output);
+    let _ = std::fs::remove_file(&output);
+    text
+}
+
+/// Base58 token of a compressed mainnet WIF's shape/length.
+fn looks_like_wif_token(text: &str) -> bool {
+    const BASE58: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    text.split_whitespace().any(|token| {
+        (token.len() == 51 || token.len() == 52) && token.chars().all(|c| BASE58.contains(c))
+    })
+}
+
+#[test]
+fn evm_and_tron_hits_contain_no_wif_shaped_string() {
+    let key = Scalar::from_u64(1);
+    let point = mul_g(&key);
+
+    for id in ["ethereum", "tron"] {
+        let text = write_hit(id, &key, &point);
+        assert!(!text.contains("Priv (WIF)"), "{id}:\n{text}");
+        assert!(
+            !looks_like_wif_token(&text),
+            "{id} wrote a WIF-shaped token:\n{text}"
+        );
+    }
+
+    // The detector is not vacuous: a WIF chain still trips it.
+    assert!(looks_like_wif_token(&write_hit("bitcoin", &key, &point)));
+}
+
+#[test]
+fn a_chain_without_an_implemented_path_cannot_write_a_hit() {
+    let key = Scalar::from_u64(1);
+    let point = mul_g(&key);
+    let output = temp_path("found_unimplemented");
+    let mut file = File::create(&output).expect("create Found.txt");
+
+    // A secp-hash160 descriptor cannot encode an EVM address.
+    let unsupported = chain::ChainDescriptor {
+        id: "synthetic",
+        name: "Synthetic",
+        family: chain::Family::SecpHash160,
+        curve: chain::Curve::Secp256k1,
+        encoding: chain::AddressEncoding::EvmHex,
+        hd_path: None,
+        wif_version: Some(0x80),
+        explorer: "",
+    };
+    assert!(
+        engine::emit_hit(&mut file, &key, &point, true, &unsupported).is_err(),
+        "an unimplemented encoding must not write a block"
+    );
+
+    // TON's CPU search is not implemented for secp hits.
+    let ton = chain::by_id("ton").expect("known chain");
+    assert!(engine::emit_hit(&mut file, &key, &point, true, ton).is_err());
+
+    drop(file);
+    assert_eq!(output_text(&output), "", "a failed hit must write nothing");
+    let _ = std::fs::remove_file(&output);
 }
 
 #[test]
