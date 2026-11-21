@@ -21,6 +21,7 @@ jobs:
           node-version: 20
       - run: node scripts/check-projects.mjs
       - run: node scripts/check-asset-version.mjs
+      - run: npm --prefix deploy/cloudflare test
       - name: Affected areas (report only)
         if: github.event_name == 'pull_request'
         continue-on-error: true
