@@ -109,12 +109,6 @@ const affected = [...touched.values()].map(({ area, paths: areaPaths }) => ({
 const hasArea = (id) => touched.has(id);
 const hasPath = (predicate) => paths.some(predicate);
 const checklist = [];
-if (
-  hasArea("site") &&
-  hasPath((p) => ["apps/site/site.css", "apps/site/site.js", "apps/site/key.js"].includes(p))
-) {
-  checklist.push("Site assets changed: bump ?v= in every apps/site/*.html.");
-}
 if (hasArea("wasm-core") || hasPath((p) => p === "apps/site/rotor_wasm.wasm")) {
   checklist.push(
     "Wasm changed: run sh scripts/build-wasm.sh, both JS tests, and commit apps/site/rotor_wasm.wasm.",

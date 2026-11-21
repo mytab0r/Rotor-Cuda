@@ -1866,7 +1866,7 @@ function auditPage(args) {
     if (!hrefs.some((href) => href.startsWith("https://github.com/"))) footerIssues.push("missing GitHub link");
     const text = textOf(footer);
     if (!text.includes("©")) footerIssues.push("missing copyright");
-    if (!/v\d{8}[a-z]?/.test(text)) footerIssues.push("missing asset version");
+    if (!/\bbuild (?:[0-9a-f]{7,12}|dev)\b/.test(text)) footerIssues.push("missing build id");
     for (const link of [...footer.querySelectorAll("a")].filter(visible)) {
       const box = boxOf(link);
       if (box.width < 43.5 || box.height < 43.5) {
@@ -2424,12 +2424,13 @@ async function main() {
       }
     });
     cdp.on("Network.loadingFailed", (params) => {
-      const url = requestUrls.get(params.requestId) || params.requestId;
+      const url = requestUrls.get(params.requestId);
+      if (!url) return;
       let origin = null;
       try {
         origin = new URL(url).origin;
       } catch {
-        origin = baseOrigin;
+        return;
       }
       if (origin !== baseOrigin) return;
       networkErrors.push(`failed ${params.errorText || "unknown"} ${url.slice(0, 160)}`);

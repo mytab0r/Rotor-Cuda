@@ -60,6 +60,17 @@ fn raw(
     token: Option<&str>,
     body: Option<&str>,
 ) -> (u16, String, String) {
+    raw_with_headers(addr, method, path, token, body, &[])
+}
+
+fn raw_with_headers(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    body: Option<&str>,
+    extra_headers: &[(&str, &str)],
+) -> (u16, String, String) {
     let mut stream = TcpStream::connect(addr).expect("connect to coordinator");
     stream
         .set_read_timeout(Some(Duration::from_secs(10)))
@@ -71,6 +82,9 @@ fn raw(
     }
     if body.is_some() {
         request.push_str("Content-Type: application/json\r\n");
+    }
+    for (name, value) in extra_headers {
+        request.push_str(&format!("{name}: {value}\r\n"));
     }
     request.push_str(&format!(
         "Content-Length: {}\r\n\r\n{payload}",
@@ -89,6 +103,13 @@ fn raw(
         .and_then(|code| code.parse::<u16>().ok())
         .expect("status code");
     (status, head.to_string(), rest[4..].to_string())
+}
+
+fn response_header(head: &str, name: &str) -> Option<String> {
+    head.lines()
+        .filter_map(|line| line.split_once(':'))
+        .find(|(field, _)| field.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.trim().to_string())
 }
 
 fn hex_bytes(bytes: &[u8]) -> String {
@@ -151,6 +172,49 @@ fn auth_is_required_for_the_api_but_not_the_dashboard() {
     );
 
     handle.shutdown();
+}
+
+#[test]
+fn site_assets_revalidate_by_etag() {
+    let temp = TempState::new("etag");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let (status, headers, _) = raw(addr, "GET", "/site.css", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("cache-control: no-cache"),
+        "headers: {headers}"
+    );
+    let etag = response_header(&headers, "ETag").expect("/site.css has an ETag");
+    assert!(etag.starts_with('"') && etag.ends_with('"'), "etag: {etag}");
+
+    let (status, headers, body) = raw_with_headers(
+        addr,
+        "GET",
+        "/site.css",
+        None,
+        None,
+        &[("If-None-Match", &etag)],
+    );
+    assert_eq!(status, 304);
+    assert_eq!(
+        response_header(&headers, "ETag").as_deref(),
+        Some(etag.as_str())
+    );
+    assert!(body.is_empty(), "304 must not carry a body");
+
+    let (status, _, _) = raw_with_headers(
+        addr,
+        "GET",
+        "/site.css",
+        None,
+        None,
+        &[("If-None-Match", "\"stale\"")],
+    );
+    assert_eq!(status, 200);
 }
 
 #[test]
@@ -1049,8 +1113,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261129a",
-                "/theme.js?v=20261129a",
+                "/wallet-vault.js",
+                "/theme.js",
             ],
         ),
         (

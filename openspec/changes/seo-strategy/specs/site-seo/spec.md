@@ -6,8 +6,8 @@
 Every served page MUST have exactly one canonical URL: absolute, lowercase,
 extensionless, without a trailing slash and without a query string, rooted at
 `https://rotor.pxbt.app`. The key MUST NOT appear in any URL, history entry or
-storage. Query strings MUST NOT change HTML content; `?v=` is allowed only on
-static asset URLs.
+storage. Query strings MUST NOT change HTML content; static asset URLs carry no
+cache-busting query and revalidate by `ETag`.
 
 #### Scenario: key page canonical
 - GIVEN a visitor derives a key on `/key` and shares the page
@@ -15,11 +15,12 @@ static asset URLs.
 - THEN the canonical is `https://rotor.pxbt.app/key` and no key material is in
   the URL
 
-#### Scenario: asset versioning
-- GIVEN `/site.css?v=20261116` is requested
+#### Scenario: asset revalidation
+- GIVEN `/site.css` is requested
 - WHEN the coordinator responds
-- THEN the response is cacheable as an immutable versioned asset and the HTML
-  canonical still has no query string
+- THEN the response is `Cache-Control: no-cache` with an `ETag`, answers `304`
+  when the client sends that `ETag`, and the HTML canonical still has no query
+  string
 
 ### Requirement: path normalization
 Unknown non-API paths MUST return HTTP 404 with a not-found body. Trailing

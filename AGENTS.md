@@ -6,7 +6,10 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
 - Before touching another area, read its contracts in `PROJECTS.md` and include
   both areas in one PR/commit. Cross-area changes are not "someone else's
   problem".
-- Site change to `site.css`, `site.js` or `key.js`: bump `?v=` in every `apps/site/*.html`, the lazy-loaded tokens in `apps/site/*.js`, the coordinator templates in `src/coordinator/mod.rs` and the pinned tokens in `tests/coordinator_api.rs`; `node scripts/check-asset-version.mjs` enforces a single version across all of them.
+- Site assets carry no cache-busting query: never add a `?v=` token. HTML is
+  served with `no-store` and every other asset with `no-cache` plus a content
+  `ETag`, so the browser revalidates on each request; `node
+  scripts/check-projects.mjs` fails if a token returns.
 - `crates/rotor-wasm` change: run `sh scripts/build-wasm.sh`, run both JS
   tests, commit `apps/site/rotor_wasm.wasm`.
 - Run the area test commands from `projects.json`; then
