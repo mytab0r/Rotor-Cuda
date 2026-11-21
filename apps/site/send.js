@@ -12,8 +12,12 @@
  * Mainnet is refused at three layers:
  *   1. assertTestnetChain rejects every chain slug except the five testnets,
  *      naming bitcoin/ethereum/bnb/usdt/tron mainnet slugs explicitly;
- *   2. parseSecret rejects a Bitcoin mainnet WIF (version 0x80) and only
- *      accepts a 64-hex key for TRON;
+ *   2. parseSecret rejects a Bitcoin mainnet WIF (version 0x80) on the Bitcoin
+ *      route. On the EVM and TRON routes a Bitcoin WIF is only a 32-byte key
+ *      container: both the mainnet (0x80) and testnet (0xef) version bytes are
+ *      accepted, and neither selects the chain, so mainnet cannot be reached
+ *      from a WIF. Those routes still sign only Sepolia/BNB testnet/USDT
+ *      testnet/TRON Nile transactions;
  *   3. every HTTP wrapper allowlists the public testnet endpoints, so a
  *      mainnet RPC or mempool.space mainnet URL cannot be reached, and the
  *      EVM kernel refuses any chain id outside this table (BNB mainnet 56 is
@@ -61,29 +65,29 @@
   var CHAINS = {};
   CHAINS[BTC_CHAIN] = {
     slug: BTC_CHAIN, kind: 'btc', label: 'Bitcoin testnet',
-    title: 'Send Bitcoin testnet', keyLabel: 'Bitcoin testnet WIF or 64-hex key'
+    title: 'Send Bitcoin testnet', keyLabel: 'Testnet WIF or 64-hex key'
   };
   CHAINS[EVM_CHAIN] = {
     slug: EVM_CHAIN, kind: 'evm', label: 'Ethereum Sepolia',
-    title: 'Send Ethereum Sepolia', keyLabel: 'EVM private key (0x + 64 hex)',
+    title: 'Send Ethereum Sepolia', keyLabel: 'Testnet WIF or 64-hex key',
     chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
     explorerTx: 'https://sepolia.etherscan.io/tx/'
   };
   CHAINS[BNB_CHAIN] = {
     slug: BNB_CHAIN, kind: 'evm', label: 'BNB Smart Chain testnet',
-    title: 'Send BNB Smart Chain testnet', keyLabel: 'EVM private key (0x + 64 hex)',
+    title: 'Send BNB Smart Chain testnet', keyLabel: 'Testnet WIF or 64-hex key',
     chainId: BNB_CHAIN_ID, nativeSymbol: 'tBNB',
     explorerTx: 'https://testnet.bscscan.com/tx/'
   };
   CHAINS[USDT_CHAIN] = {
     slug: USDT_CHAIN, kind: 'evm', token: true, label: 'Ethereum Sepolia (ERC-20)',
-    title: 'Send ERC-20 on Ethereum Sepolia', keyLabel: 'EVM private key (0x + 64 hex)',
+    title: 'Send ERC-20 on Ethereum Sepolia', keyLabel: 'Testnet WIF or 64-hex key',
     chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
     explorerTx: 'https://sepolia.etherscan.io/tx/'
   };
   CHAINS[TRON_CHAIN] = {
     slug: TRON_CHAIN, kind: 'tron', label: 'TRON Nile testnet',
-    title: 'Send TRON Nile testnet', keyLabel: 'TRON private key (64 hex)',
+    title: 'Send TRON Nile testnet', keyLabel: 'Testnet WIF or 64-hex key',
     nativeSymbol: 'TRX',
     explorerTx: 'https://nile.tronscan.org/#/transaction/'
   };
@@ -247,30 +251,44 @@
     return { version: raw[0], compressed: compressed, key: raw.slice(1, 33) };
   }
 
+  function looksLikeWif(text) {
+    return text.length >= WIF_MIN && text.length <= WIF_MAX &&
+      /^[1-9A-HJ-NP-Za-km-z]+$/.test(text);
+  }
+
+  /* A Bitcoin WIF on the EVM and TRON routes is only a 32-byte key container:
+   * the network byte and the compression byte do not change the key and do not
+   * select the chain. Both Bitcoin mainnet (0x80) and testnet (0xef) versions
+   * are accepted; every other version is a different coin's WIF and is not. */
+  async function parseWifForSecpChain(text, chain) {
+    if (!looksLikeWif(text)) {
+      throw new Error(chainLabel(chain) +
+        ' needs a 32-byte private key: a Bitcoin WIF or 64 hex characters (0x optional).');
+    }
+    var wif = await decodeWif(text);
+    if (wif.version !== 0x80 && wif.version !== 0xef) {
+      throw new Error('Only Bitcoin mainnet (0x80) or testnet (0xef) WIFs are accepted; ' +
+        'the WIF network byte does not select the chain.');
+    }
+    var keyHex = bytesToHex(wif.key);
+    return { chain: chain, keyBytes: wif.key, keyHex: keyHex };
+  }
+
   /* Turn a pasted secret into a 32-byte key for the chain this route serves.
-   * Nothing here derives an address or touches the network. */
+   * Hex is tried first; the EVM and TRON routes then accept a Bitcoin WIF as a
+   * plain 32-byte key. Nothing here derives an address or touches the network. */
   async function parseSecret(text, chain) {
     assertTestnetChain(chain);
     var value = typeof text === 'string' ? text.trim() : '';
     if (!value) throw new Error('Paste a private key first.');
 
-    if (isEvmChain(chain)) {
-      var evmKey = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
-      if (!evmKey) {
-        throw new Error(chainLabel(chain) + ' needs a 32-byte private key (0x + 64 hex characters).');
+    if (isEvmChain(chain) || isTronChain(chain)) {
+      var key = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
+      if (key) {
+        var hexKey = key[1].toLowerCase();
+        return { chain: chain, keyBytes: hexToBytes(hexKey), keyHex: hexKey };
       }
-      var hexKey = evmKey[1].toLowerCase();
-      return { chain: chain, keyBytes: hexToBytes(hexKey), keyHex: hexKey };
-    }
-
-    if (isTronChain(chain)) {
-      var tronKey = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
-      if (!tronKey) {
-        throw new Error(chainLabel(chain) +
-          ' needs a 32-byte private key: 64 hex characters (0x optional). WIF is not accepted.');
-      }
-      var tronHex = tronKey[1].toLowerCase();
-      return { chain: chain, keyBytes: hexToBytes(tronHex), keyHex: tronHex };
+      return parseWifForSecpChain(value, chain);
     }
 
     var btcHex = /^(?:0x)?([0-9a-fA-F]{64})$/.exec(value);
@@ -278,7 +296,7 @@
       var rawHex = btcHex[1].toLowerCase();
       return { chain: BTC_CHAIN, keyBytes: hexToBytes(rawHex), keyHex: rawHex };
     }
-    if (value.length < WIF_MIN || value.length > WIF_MAX || !/^[1-9A-HJ-NP-Za-km-z]+$/.test(value)) {
+    if (!looksLikeWif(value)) {
       throw new Error('Use a Bitcoin testnet WIF or 64 hex characters (optionally 0x-prefixed).');
     }
     var wif = await decodeWif(value);
@@ -296,12 +314,8 @@
 
   function keyLooksComplete(value, chain) {
     var text = typeof value === 'string' ? value.trim() : '';
-    if (isEvmChain(chain) || isTronChain(chain)) {
-      return /^(?:0x)?[0-9a-fA-F]{64}$/.test(text);
-    }
     if (/^(?:0x)?[0-9a-fA-F]{64}$/.test(text)) return true;
-    return text.length >= WIF_MIN && text.length <= WIF_MAX &&
-      /^[1-9A-HJ-NP-Za-km-z]+$/.test(text);
+    return looksLikeWif(text);
   }
 
   /* Test helper: proves a captured payload never carries the key. */
@@ -485,6 +499,51 @@
     }
   }
 
+  /* --------------------------------------------------------- derivation */
+
+  function wasmText(wasm, pointer, length) {
+    if (!pointer || !length) return '';
+    return new TextDecoder('utf-8').decode(new Uint8Array(wasm.memory.buffer, pointer, length));
+  }
+
+  function deriveReport(wasm, bytes, curve, network) {
+    var pointer = wasm.alloc(bytes.length) >>> 0;
+    if (!pointer) throw new Error('WASM memory exhausted.');
+    try {
+      new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
+      var status = network === 1
+        ? wasm.derive_report_network(pointer, bytes.length, curve, 1) >>> 0
+        : wasm.derive_report(pointer, curve) >>> 0;
+      if (status !== 0) {
+        var detail = wasmText(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
+        throw new Error('Derivation failed' + (detail ? ': ' + detail : ' (status ' + status + ')'));
+      }
+      var text = wasmText(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0);
+      return JSON.parse(text);
+    } finally {
+      wasm.dealloc(pointer, bytes.length);
+    }
+  }
+
+  /* Derive the sending address for `chain` from a 32-byte key through the same
+   * local WASM core the page uses. EVM and TRON rows live in the mainnet report;
+   * Bitcoin uses the Bitcoin testnet report. */
+  function deriveAddress(wasm, keyBytes, chain) {
+    assertTestnetChain(chain);
+    var network = isEvmChain(chain) || isTronChain(chain) ? 0 : 1;
+    var report = deriveReport(wasm, keyBytes, 0, network);
+    var wanted = isEvmChain(chain) ? 'evm'
+      : isTronChain(chain) ? 'tron' : 'btc_p2wpkh';
+    var rows = Array.isArray(report.addresses) ? report.addresses : [];
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i] && rows[i].id === wanted &&
+          typeof rows[i].address === 'string' && rows[i].address) {
+        return rows[i].address;
+      }
+    }
+    throw new Error('The local core returned no "' + wanted + '" address.');
+  }
+
   /* ------------------------------------------------------------------ DOM */
 
   function init() {
@@ -510,6 +569,7 @@
 
     var keyInput = byId('send-key');
     var keyToggle = byId('send-key-toggle');
+    var wifNotice = byId('send-wif-notice');
     var addressEl = byId('send-address');
     var addressCopy = byId('send-address-copy');
     var toInput = byId('send-to');
@@ -567,6 +627,16 @@
     function setStatus(message) {
       if (!statusBox) return;
       statusBox.textContent = message || '';
+    }
+
+    /* The EVM and TRON routes use a Bitcoin WIF only as a 32-byte key
+     * container; remind the user that its network byte does not pick a chain. */
+    function setWifNotice(show) {
+      if (!wifNotice) return;
+      wifNotice.hidden = !show;
+      wifNotice.textContent = show
+        ? 'Bitcoin WIF accepted as a 32-byte key; the WIF network byte does not select the chain.'
+        : '';
     }
 
     function setAddress(value) {
@@ -698,30 +768,6 @@
       return state.wasmPromise;
     }
 
-    function wasmText(wasm, pointer, length) {
-      if (!pointer || !length) return '';
-      return new TextDecoder('utf-8').decode(new Uint8Array(wasm.memory.buffer, pointer, length));
-    }
-
-    function deriveReport(wasm, bytes, curve, network) {
-      var pointer = wasm.alloc(bytes.length) >>> 0;
-      if (!pointer) throw new Error('WASM memory exhausted.');
-      try {
-        new Uint8Array(wasm.memory.buffer, pointer, bytes.length).set(bytes);
-        var status = network === 1
-          ? wasm.derive_report_network(pointer, bytes.length, curve, 1) >>> 0
-          : wasm.derive_report(pointer, curve) >>> 0;
-        if (status !== 0) {
-          var detail = wasmText(wasm, wasm.error_ptr() >>> 0, wasm.error_len() >>> 0);
-          throw new Error('Derivation failed' + (detail ? ': ' + detail : ' (status ' + status + ')'));
-        }
-        var text = wasmText(wasm, wasm.result_ptr() >>> 0, wasm.result_len() >>> 0);
-        return JSON.parse(text);
-      } finally {
-        wasm.dealloc(pointer, bytes.length);
-      }
-    }
-
     function unsignedBtc(fields) {
       return loadWasm().then(function (wasm) {
         return btc.callWasmString(wasm, 'btc_unsigned_tx', JSON.stringify(fields));
@@ -786,6 +832,7 @@
       if (state.keyBytes) state.keyBytes.fill(0);
       state.keyBytes = null;
       state.keyHex = null;
+      setWifNotice(false);
       if (keyInput) keyInput.value = '';
       if (keyToggle && keyInput) {
         keyInput.type = 'password';
@@ -868,18 +915,7 @@
       try {
         var parsed = await parseSecret(value, state.chain);
         var wasm = await loadWasm();
-        var network = isEvmChain(state.chain) || isTronChain(state.chain) ? 0 : 1;
-        var report = deriveReport(wasm, parsed.keyBytes, 0, network);
-        var wanted = isEvmChain(state.chain) ? 'evm'
-          : isTronChain(state.chain) ? 'tron' : 'btc_p2wpkh';
-        var rows = Array.isArray(report.addresses) ? report.addresses : [];
-        var row = null;
-        for (var i = 0; i < rows.length; i += 1) {
-          if (rows[i] && rows[i].id === wanted) { row = rows[i]; break; }
-        }
-        if (!row || typeof row.address !== 'string' || !row.address) {
-          throw new Error('The local core returned no "' + wanted + '" address.');
-        }
+        var address = deriveAddress(wasm, parsed.keyBytes, state.chain);
         if (token !== deriveToken) {
           parsed.keyBytes.fill(0);
           return;
@@ -887,7 +923,9 @@
         if (state.keyBytes) state.keyBytes.fill(0);
         state.keyBytes = parsed.keyBytes;
         state.keyHex = parsed.keyHex;
-        setAddress(row.address);
+        setAddress(address);
+        setWifNotice((isEvmChain(state.chain) || isTronChain(state.chain)) &&
+          looksLikeWif(value.trim()));
         setError('');
         setStatus(chainLabel(state.chain) + ' address derived locally. Nothing was sent.');
       } catch (err) {
@@ -896,6 +934,7 @@
         state.keyBytes = null;
         state.keyHex = null;
         setAddress('');
+        setWifNotice(false);
         setError(errorText(err));
       }
     }
@@ -1359,8 +1398,10 @@
     assertEvmRpcUrl: assertEvmRpcUrl,
     base58Decode: base58Decode,
     decodeWif: decodeWif,
+    looksLikeWif: looksLikeWif,
     parseSecret: parseSecret,
     keyLooksComplete: keyLooksComplete,
+    deriveAddress: deriveAddress,
     containsSecret: containsSecret,
     normalizeEvmAddress: normalizeEvmAddress,
     tokenDecimals: tokenDecimals,

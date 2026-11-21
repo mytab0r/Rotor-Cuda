@@ -402,7 +402,7 @@ entry in the same PR.
   `.address-db-card` (16/12), `.tool-index-card`/`.tool-family`/
   `.pz-picker-card` (16/16), `.ws-chain-card` radius 12. Removed the
   `.key-page > .card` and `.key-page .card` overrides and the
-  `.mnemonic-controls` card padding. Asset version `20261127e`; detectors
+  `.mnemonic-controls` card padding. Asset version `20261127f`; detectors
   `card-padding-scale`, `stat-geometry` and ledger entries added.
 - Batch 4 evidence:
   - Full default route set: **PASS, 192 page runs across 32 routes, 0

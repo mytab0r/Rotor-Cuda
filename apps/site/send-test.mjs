@@ -12,6 +12,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -91,7 +92,30 @@ function encodeWif(version, keyBytes, compressed) {
 const TESTNET_WIF = encodeWif(0xef, KEY_BYTES, true);
 const MAINNET_WIF = encodeWif(0x80, KEY_BYTES, true);
 const UNCOMPRESSED_TESTNET_WIF = encodeWif(0xef, KEY_BYTES, false);
+const UNCOMPRESSED_MAINNET_WIF = encodeWif(0x80, KEY_BYTES, false);
 const LITECOIN_WIF = encodeWif(0xb0, KEY_BYTES, true);
+
+/* Published WIF vectors for private key 1, plus the addresses the WASM core
+ * must derive from them. The same 32 bytes must produce the same EVM/TRON
+ * address whether they arrived as hex or as any of the four WIF shapes. */
+const KEY1_HEX = "0".repeat(63) + "1";
+const KEY1_BYTES = Buffer.from(KEY1_HEX, "hex");
+const KEY1_MAINNET_WIF = "KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn";
+const KEY1_MAINNET_WIF_UNCOMPRESSED = "5HpHagT65TZzG1PH3CSu63k8DbpvD8s5ip4nEB3kEsreAnchuDf";
+const KEY1_TESTNET_WIF = "cMahea7zqjxrtgAbB7LSGbcQUr1uX1ojuat9jZodMN87JcbXMTcA";
+const KEY1_TESTNET_WIF_UNCOMPRESSED = "91avARGdfge8E4tZfYLoxeJ5sGBdNJQH4kvjJoQFacbgwmaKkrx";
+const KEY1_EVM_ADDRESS = "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf";
+const KEY1_TRON_ADDRESS = "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC";
+
+const WASM_PATH = new URL("./rotor_wasm.wasm", import.meta.url);
+let wasmPromise = null;
+function loadWasm() {
+  if (!wasmPromise) {
+    wasmPromise = WebAssembly.instantiate(readFileSync(WASM_PATH), {})
+      .then((module) => module.instance.exports);
+  }
+  return wasmPromise;
+}
 
 let passed = 0;
 let failed = 0;
@@ -221,19 +245,98 @@ add("parseSecret rejects non-testnet WIF versions", async () => {
   );
 });
 
-add("parseSecret accepts a 0x EVM key only on the Sepolia chain", async () => {
+add("parseSecret accepts a 0x EVM key or a Bitcoin WIF on every EVM route", async () => {
   const parsed = await send.parseSecret("0x" + KEY_HEX, send.EVM_CHAIN);
   assert.equal(parsed.chain, send.EVM_CHAIN);
   assert.equal(parsed.keyHex, KEY_HEX);
+  for (const chain of [send.EVM_CHAIN, send.BNB_CHAIN, send.USDT_CHAIN]) {
+    for (const wif of [MAINNET_WIF, UNCOMPRESSED_MAINNET_WIF, TESTNET_WIF, UNCOMPRESSED_TESTNET_WIF]) {
+      const fromWif = await send.parseSecret(wif, chain);
+      assert.equal(fromWif.chain, chain);
+      assert.equal(fromWif.keyHex, KEY_HEX);
+      assert.equal(Buffer.from(fromWif.keyBytes).toString("hex"), KEY_HEX);
+    }
+  }
   await rejects(
     () => send.parseSecret(String(KEY_HEX).slice(2), send.EVM_CHAIN),
     /32-byte private key/i,
     "short EVM key",
   );
   await rejects(
-    () => send.parseSecret(TESTNET_WIF, send.EVM_CHAIN),
-    /32-byte private key/i,
-    "WIF on the EVM chain",
+    () => send.parseSecret(LITECOIN_WIF, send.EVM_CHAIN),
+    /mainnet \(0x80\) or testnet \(0xef\)/,
+    "a foreign-coin WIF",
+  );
+});
+
+add("WIF decode vectors: mainnet/testnet, compressed/uncompressed, checksum", async () => {
+  const vectors = [
+    [KEY1_MAINNET_WIF, true],
+    [KEY1_MAINNET_WIF_UNCOMPRESSED, false],
+    [KEY1_TESTNET_WIF, true],
+    [KEY1_TESTNET_WIF_UNCOMPRESSED, false],
+  ];
+  for (const [wif, compressed] of vectors) {
+    const decoded = await send.decodeWif(wif);
+    assert.equal(decoded.compressed, compressed, wif);
+    assert.equal(Buffer.from(decoded.key).toString("hex"), KEY1_HEX, wif);
+  }
+  // The same four vectors decode through parseSecret on EVM/TRON.
+  for (const chain of [send.EVM_CHAIN, send.TRON_CHAIN]) {
+    for (const [wif] of vectors) {
+      const parsed = await send.parseSecret(wif, chain);
+      assert.equal(parsed.keyHex, KEY1_HEX, wif + " on " + chain);
+    }
+  }
+  // A corrupted checksum is rejected before any key is returned.
+  const badChecksum = KEY1_MAINNET_WIF.slice(0, -1) +
+    (KEY1_MAINNET_WIF.endsWith("1") ? "2" : "1");
+  await rejects(() => send.decodeWif(badChecksum), /checksum/i, "bad WIF checksum");
+  await rejects(
+    () => send.parseSecret(badChecksum, send.EVM_CHAIN),
+    /checksum/i,
+    "bad WIF checksum on EVM",
+  );
+});
+
+add("EVM and TRON derive the same address from hex, mainnet WIF and testnet WIF", async () => {
+  const wasm = await loadWasm();
+  const evmHex = await send.parseSecret("0x" + KEY1_HEX, send.EVM_CHAIN);
+  const evmMainnet = await send.parseSecret(KEY1_MAINNET_WIF, send.EVM_CHAIN);
+  const evmTestnet = await send.parseSecret(KEY1_TESTNET_WIF, send.EVM_CHAIN);
+  assert.deepEqual(evmHex.keyBytes, evmMainnet.keyBytes);
+  assert.deepEqual(evmHex.keyBytes, evmTestnet.keyBytes);
+  assert.equal(send.deriveAddress(wasm, evmHex.keyBytes, send.EVM_CHAIN), KEY1_EVM_ADDRESS);
+  assert.equal(send.deriveAddress(wasm, evmMainnet.keyBytes, send.EVM_CHAIN), KEY1_EVM_ADDRESS);
+  assert.equal(send.deriveAddress(wasm, evmTestnet.keyBytes, send.EVM_CHAIN), KEY1_EVM_ADDRESS);
+
+  const tronHex = await send.parseSecret(KEY1_HEX, send.TRON_CHAIN);
+  const tronMainnet = await send.parseSecret(KEY1_MAINNET_WIF, send.TRON_CHAIN);
+  const tronTestnet = await send.parseSecret(KEY1_TESTNET_WIF_UNCOMPRESSED, send.TRON_CHAIN);
+  assert.deepEqual(tronHex.keyBytes, tronMainnet.keyBytes);
+  assert.deepEqual(tronHex.keyBytes, tronTestnet.keyBytes);
+  assert.equal(send.deriveAddress(wasm, tronHex.keyBytes, send.TRON_CHAIN), KEY1_TRON_ADDRESS);
+  assert.equal(send.deriveAddress(wasm, tronMainnet.keyBytes, send.TRON_CHAIN), KEY1_TRON_ADDRESS);
+  assert.equal(send.deriveAddress(wasm, tronTestnet.keyBytes, send.TRON_CHAIN), KEY1_TRON_ADDRESS);
+});
+
+add("the Bitcoin route keeps its testnet-only WIF rule", async () => {
+  const parsed = await send.parseSecret(KEY1_TESTNET_WIF, send.BTC_CHAIN);
+  assert.equal(parsed.keyHex, KEY1_HEX);
+  await rejects(
+    () => send.parseSecret(KEY1_MAINNET_WIF, send.BTC_CHAIN),
+    /mainnet/i,
+    "mainnet compressed WIF",
+  );
+  await rejects(
+    () => send.parseSecret(KEY1_MAINNET_WIF_UNCOMPRESSED, send.BTC_CHAIN),
+    /mainnet/i,
+    "mainnet uncompressed WIF",
+  );
+  await rejects(
+    () => send.parseSecret(KEY1_TESTNET_WIF_UNCOMPRESSED, send.BTC_CHAIN),
+    /compressed/i,
+    "testnet uncompressed WIF",
   );
 });
 
@@ -243,12 +346,15 @@ add("keyLooksComplete only accepts complete secrets", () => {
   assert.equal(send.keyLooksComplete("0x" + KEY_HEX, send.EVM_CHAIN), true);
   assert.equal(send.keyLooksComplete(KEY_HEX, send.TRON_CHAIN), true);
   assert.equal(send.keyLooksComplete("0x" + KEY_HEX, send.TRON_CHAIN), true);
-  assert.equal(send.keyLooksComplete(TESTNET_WIF, send.TRON_CHAIN), false);
+  assert.equal(send.keyLooksComplete(TESTNET_WIF, send.TRON_CHAIN), true);
+  assert.equal(send.keyLooksComplete(MAINNET_WIF, send.EVM_CHAIN), true);
+  assert.equal(send.keyLooksComplete(TESTNET_WIF, send.BNB_CHAIN), true);
+  assert.equal(send.keyLooksComplete(TESTNET_WIF, send.USDT_CHAIN), true);
   assert.equal(send.keyLooksComplete(KEY_HEX.slice(0, 60), send.EVM_CHAIN), false);
   assert.equal(send.keyLooksComplete("not-a-key", send.BTC_CHAIN), false);
 });
 
-add("parseSecret accepts only a 64-hex TRON key", async () => {
+add("parseSecret accepts a TRON hex or WIF key", async () => {
   const bare = await send.parseSecret(KEY_HEX, send.TRON_CHAIN);
   assert.equal(bare.chain, send.TRON_CHAIN);
   assert.equal(bare.keyHex, KEY_HEX);
@@ -257,10 +363,15 @@ add("parseSecret accepts only a 64-hex TRON key", async () => {
   const prefixed = await send.parseSecret("0x" + KEY_HEX.toUpperCase(), send.TRON_CHAIN);
   assert.equal(prefixed.keyHex, KEY_HEX);
 
+  const fromWif = await send.parseSecret(TESTNET_WIF, send.TRON_CHAIN);
+  assert.equal(fromWif.chain, send.TRON_CHAIN);
+  assert.equal(fromWif.keyHex, KEY_HEX);
+  assert.equal(Buffer.from(fromWif.keyBytes).toString("hex"), KEY_HEX);
+
   await rejects(
-    () => send.parseSecret(TESTNET_WIF, send.TRON_CHAIN),
-    /64 hex characters/i,
-    "WIF on the TRON chain",
+    () => send.parseSecret(LITECOIN_WIF, send.TRON_CHAIN),
+    /mainnet \(0x80\) or testnet \(0xef\)/,
+    "a foreign-coin WIF",
   );
   await rejects(
     () => send.parseSecret(KEY_HEX.slice(0, 60), send.TRON_CHAIN),
@@ -507,10 +618,12 @@ add("TRON sign + broadcast never puts the key in a request and posts only to Nil
   });
 
   let signingRequest = null;
+  const tronKey = await send.parseSecret(MAINNET_WIF, send.TRON_CHAIN);
+  assert.equal(tronKey.keyHex, KEY_HEX);
   const signed = await send.signTronTransfer({
     tron,
     review,
-    keyHex: KEY_HEX,
+    keyHex: tronKey.keyHex,
     sign: (request) => {
       signingRequest = { ...request };
       return {
