@@ -21,6 +21,7 @@ use rotor::monitor::store::MonitorStore;
 use rotor::scalar::Scalar;
 use rotor::secp;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 
 const TOKEN: &str = "test-token";
 
@@ -142,6 +143,97 @@ fn response_header(head: &str, name: &str) -> Option<String> {
         .filter_map(|line| line.split_once(':'))
         .find(|(field, _)| field.eq_ignore_ascii_case(name))
         .map(|(_, value)| value.trim().to_string())
+}
+
+/// Every value of a repeated response header (`Set-Cookie` in particular).
+fn response_headers(head: &str, name: &str) -> Vec<String> {
+    head.lines()
+        .filter_map(|line| line.split_once(':'))
+        .filter(|(field, _)| field.eq_ignore_ascii_case(name))
+        .map(|(_, value)| value.trim().to_string())
+        .collect()
+}
+
+fn cookie_pair<'a>(cookies: &'a [String], name: &str) -> Option<&'a str> {
+    cookies.iter().find_map(|cookie| {
+        let (pair, _) = cookie.split_once(';').unwrap_or((cookie, ""));
+        let (candidate, value) = pair.split_once('=')?;
+        (candidate == name).then_some(value)
+    })
+}
+
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
+}
+
+/// Mint a cookie exactly as the documented wire format says, so the test owns
+/// the contract instead of calling a helper that could drift with the server.
+fn test_admin_cookie(token: &str, expires_at: u64, nonce: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"rotor-admin-cookie-v1\0");
+    hasher.update(token.as_bytes());
+    let key: [u8; 32] = hasher.finalize().into();
+    let payload = format!("v1.{expires_at}.{nonce}");
+    let mac = test_hmac_sha256(&key, payload.as_bytes());
+    let mut hex = String::with_capacity(64);
+    for byte in mac {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    format!("{payload}.{hex}")
+}
+
+fn test_hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
+    const BLOCK: usize = 64;
+    let mut block = [0u8; BLOCK];
+    if key.len() > BLOCK {
+        block[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        block[..key.len()].copy_from_slice(key);
+    }
+    let mut inner_pad = [0x36u8; BLOCK];
+    let mut outer_pad = [0x5cu8; BLOCK];
+    for ((inner, outer), byte) in inner_pad
+        .iter_mut()
+        .zip(outer_pad.iter_mut())
+        .zip(block.iter())
+    {
+        *inner ^= byte;
+        *outer ^= byte;
+    }
+    let mut inner = Sha256::new();
+    inner.update(inner_pad);
+    inner.update(data);
+    let inner = inner.finalize();
+    let mut outer = Sha256::new();
+    outer.update(outer_pad);
+    outer.update(inner);
+    outer.finalize().into()
+}
+
+/// Every admin response must carry the same no-store / noindex header set.
+fn assert_admin_headers(head: &str) {
+    let admin_headers = [
+        ("cache-control", "no-store, private"),
+        ("vary", "cookie"),
+        ("x-robots-tag", "noindex, nofollow, noarchive"),
+        ("referrer-policy", "no-referrer"),
+        ("x-content-type-options", "nosniff"),
+    ];
+    for (name, expected) in admin_headers {
+        let value =
+            response_header(head, name).unwrap_or_else(|| panic!("missing {name} in {head}"));
+        assert!(
+            value.to_ascii_lowercase().contains(expected),
+            "{name} must contain {expected}, got {value}"
+        );
+    }
+    let csp = response_header(head, "content-security-policy").expect("CSP header");
+    assert!(csp.contains("default-src 'self'"), "{csp}");
+    assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+    assert!(csp.contains("script-src 'self'"), "{csp}");
 }
 
 /// Build id the coordinator stamped into the served document. Tests do not
@@ -1418,7 +1510,6 @@ fn every_public_content_route_renders_exactly_one_footer() {
         "/tx",
         "/tx/bitcoin",
         "/tx/ethereum",
-        "/design",
         "/keys/tron/0000000000000000000000000000000000000000000000000000000000000001-0000000000000000000000000000000000000000000000000000000000000004",
     ];
     for path in content_routes {
@@ -2250,6 +2341,355 @@ fn orders_are_public_but_need_configuration_and_an_active_list() {
     );
     assert_eq!(status, 200, "{body}");
     assert!(body.contains("revoked"), "{body}");
+
+    handle.shutdown();
+}
+
+// ---------------------------------------------------------------- admin auth
+
+fn admin_login(addr: SocketAddr) -> (String, String, String) {
+    let body = json!({"token": TOKEN}).to_string();
+    let (status, head, response) = raw(addr, "POST", "/cabinet/admin/login", None, Some(&body));
+    assert_eq!(status, 200, "{response}");
+    let cookies = response_headers(&head, "set-cookie");
+    let session = cookie_pair(&cookies, "rotor_admin")
+        .expect("session cookie")
+        .to_string();
+    let csrf = cookie_pair(&cookies, "rotor_admin_csrf")
+        .expect("csrf cookie")
+        .to_string();
+    (session, csrf, response)
+}
+
+#[test]
+fn admin_login_sets_signed_cookie_and_csrf() {
+    let temp = TempState::new("admin-login");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let (status, head, body) = raw(
+        handle.addr,
+        "POST",
+        "/cabinet/admin/login",
+        None,
+        Some(&json!({"token": TOKEN}).to_string()),
+    );
+    assert_eq!(status, 200, "{body}");
+    assert!(
+        !body.contains(TOKEN),
+        "login response must not echo the token"
+    );
+    let parsed: serde_json::Value = serde_json::from_str(&body).expect("login JSON");
+    let csrf_json = parsed["csrf_token"].as_str().expect("csrf_token");
+    assert_eq!(csrf_json.len(), 32);
+    let expires_at = parsed["expires_at"].as_u64().expect("expires_at");
+
+    let cookies = response_headers(&head, "set-cookie");
+    let session = cookie_pair(&cookies, "rotor_admin").expect("session cookie");
+    let session_header = cookies
+        .iter()
+        .find(|cookie| cookie.starts_with("rotor_admin="))
+        .expect("session Set-Cookie");
+    for flag in [
+        "HttpOnly",
+        "SameSite=Strict",
+        "Path=/cabinet/admin",
+        "Max-Age=43200",
+        "Secure",
+    ] {
+        assert!(
+            session_header.contains(flag),
+            "cookie misses {flag}: {session_header}"
+        );
+    }
+
+    let csrf_cookie = cookie_pair(&cookies, "rotor_admin_csrf").expect("csrf cookie");
+    assert_eq!(csrf_cookie, csrf_json);
+    let csrf_header = cookies
+        .iter()
+        .find(|cookie| cookie.starts_with("rotor_admin_csrf="))
+        .expect("csrf Set-Cookie");
+    assert!(
+        !csrf_header.contains("HttpOnly"),
+        "the CSRF cookie must be readable by admin.js: {csrf_header}"
+    );
+    assert!(csrf_header.contains("Path=/cabinet/admin"));
+
+    let parts: Vec<&str> = session.split('.').collect();
+    assert_eq!(parts.len(), 4, "{session}");
+    assert_eq!(parts[0], "v1");
+    assert_eq!(parts[1].parse::<u64>().expect("exp"), expires_at);
+    assert_eq!(parts[2].len(), 32);
+    assert_eq!(parts[3].len(), 64);
+    let now = now_secs();
+    assert!(expires_at > now);
+    assert!(expires_at <= now + 12 * 60 * 60 + 5, "{expires_at}");
+
+    handle.shutdown();
+}
+
+#[test]
+fn admin_rejects_tampered_expired_and_rotated_cookies() {
+    let temp = TempState::new("admin-cookie");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+    let nonce = "000102030405060708090a0b0c0d0e0f";
+    let now = now_secs();
+
+    let valid = test_admin_cookie(TOKEN, now + 3600, nonce);
+    let cookie_header = format!("rotor_admin={valid}");
+    let (status, _, body) = raw_with_headers(
+        addr,
+        "GET",
+        "/cabinet/admin",
+        None,
+        None,
+        &[("Cookie", cookie_header.as_str())],
+    );
+    assert_eq!(status, 200, "minted cookie must validate: {body}");
+
+    let mut tampered = valid.clone();
+    tampered.pop();
+    tampered.push(if tampered.ends_with('0') { '1' } else { '0' });
+    let expired = test_admin_cookie(TOKEN, now.saturating_sub(1), nonce);
+    let rotated = test_admin_cookie("different-admin-token", now + 3600, nonce);
+
+    for (label, cookie) in [
+        ("tampered MAC", tampered),
+        ("expired exp", expired),
+        ("different token", rotated),
+    ] {
+        let header = format!("rotor_admin={cookie}");
+        let (status, head, _) = raw_with_headers(
+            addr,
+            "GET",
+            "/cabinet/admin",
+            None,
+            None,
+            &[("Cookie", header.as_str())],
+        );
+        assert_eq!(status, 302, "{label} must not open the dashboard");
+        assert_eq!(
+            response_header(&head, "location").as_deref(),
+            Some("/cabinet/admin/login"),
+            "{label}"
+        );
+        assert_admin_headers(&head);
+    }
+
+    handle.shutdown();
+}
+
+#[test]
+fn admin_login_locks_out_after_five_failures() {
+    let temp = TempState::new("admin-lockout");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+    let bad = json!({"token": "wrong-token"}).to_string();
+
+    for attempt in 1..=5 {
+        let (status, head, body) = raw(addr, "POST", "/cabinet/admin/login", None, Some(&bad));
+        if attempt < 5 {
+            assert_eq!(status, 401, "attempt {attempt}: {body}");
+        } else {
+            assert_eq!(status, 429, "the fifth failure must lock: {body}");
+            let retry = response_header(&head, "retry-after").expect("Retry-After");
+            assert!(retry.parse::<u64>().expect("numeric Retry-After") > 0);
+            assert_admin_headers(&head);
+        }
+    }
+
+    // The correct token stays locked for the rest of the window.
+    let good = json!({"token": TOKEN}).to_string();
+    let (status, _, body) = raw(addr, "POST", "/cabinet/admin/login", None, Some(&good));
+    assert_eq!(
+        status, 429,
+        "lockout must not be bypassed by a good token: {body}"
+    );
+    assert!(!body.contains(TOKEN));
+
+    handle.shutdown();
+}
+
+#[test]
+fn admin_logout_needs_csrf_and_origin_and_clears_cookies() {
+    let temp = TempState::new("admin-logout");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+    let (session, csrf, _) = admin_login(addr);
+    let cookie = format!("rotor_admin={session}; rotor_admin_csrf={csrf}");
+
+    let (status, _, _) = raw_with_headers(
+        addr,
+        "POST",
+        "/cabinet/admin/logout",
+        None,
+        None,
+        &[("Cookie", cookie.as_str())],
+    );
+    assert_eq!(status, 403, "logout without the CSRF header must fail");
+
+    let wrong_csrf = "0".repeat(32);
+    let (status, _, _) = raw_with_headers(
+        addr,
+        "POST",
+        "/cabinet/admin/logout",
+        None,
+        None,
+        &[
+            ("Cookie", cookie.as_str()),
+            ("X-CSRF-Token", wrong_csrf.as_str()),
+        ],
+    );
+    assert_eq!(status, 403, "a wrong CSRF token must fail");
+
+    let evil_origin = "https://evil.example";
+    let (status, _, _) = raw_with_headers(
+        addr,
+        "POST",
+        "/cabinet/admin/logout",
+        None,
+        None,
+        &[
+            ("Cookie", cookie.as_str()),
+            ("X-CSRF-Token", csrf.as_str()),
+            ("Origin", evil_origin),
+        ],
+    );
+    assert_eq!(status, 403, "a cross-origin logout must fail");
+
+    let origin = format!("http://{addr}");
+    let (status, head, body) = raw_with_headers(
+        addr,
+        "POST",
+        "/cabinet/admin/logout",
+        None,
+        None,
+        &[
+            ("Cookie", cookie.as_str()),
+            ("X-CSRF-Token", csrf.as_str()),
+            ("Origin", origin.as_str()),
+        ],
+    );
+    assert_eq!(status, 200, "{body}");
+    assert!(!body.contains(TOKEN));
+    assert_admin_headers(&head);
+    let cleared = response_headers(&head, "set-cookie");
+    assert_eq!(cleared.len(), 2, "{cleared:?}");
+    let session_clear = cleared
+        .iter()
+        .find(|cookie| cookie.starts_with("rotor_admin="))
+        .expect("session clear");
+    let csrf_clear = cleared
+        .iter()
+        .find(|cookie| cookie.starts_with("rotor_admin_csrf="))
+        .expect("csrf clear");
+    for header in [session_clear, csrf_clear] {
+        assert!(header.contains("Max-Age=0"), "{header}");
+        assert!(header.contains("Path=/cabinet/admin"), "{header}");
+    }
+
+    handle.shutdown();
+}
+
+#[test]
+fn admin_gate_headers_and_moved_design_gallery() {
+    let temp = TempState::new("admin-gate");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    // No session: HTML redirects, API answers 401, and `/design` is gone.
+    for path in ["/cabinet/admin", "/cabinet/admin/design"] {
+        let (status, head, _) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 302, "{path}");
+        assert_eq!(
+            response_header(&head, "location").as_deref(),
+            Some("/cabinet/admin/login"),
+            "{path}"
+        );
+        assert_admin_headers(&head);
+    }
+    let (status, head, body) = raw(addr, "GET", "/cabinet/admin/api/overview", None, None);
+    assert_eq!(status, 401, "{body}");
+    assert_admin_headers(&head);
+    let (status, _, _) = raw(addr, "GET", "/design", None, None);
+    assert_eq!(status, 404, "/design must be removed");
+
+    let (session, _, _) = admin_login(addr);
+    let cookie = format!("rotor_admin={session}");
+
+    // Dashboard with the cookie, and the admin header set on every response.
+    let (status, head, body) = raw_with_headers(
+        addr,
+        "GET",
+        "/cabinet/admin",
+        None,
+        None,
+        &[("Cookie", cookie.as_str())],
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_admin_headers(&head);
+    assert!(
+        !body.contains(TOKEN),
+        "dashboard must not contain the token"
+    );
+    assert!(!body.contains("<style"), "admin page must not inline CSS");
+    assert!(
+        !body.contains("<script>"),
+        "admin page must not inline JavaScript"
+    );
+
+    // The API works with the cookie and, without it, with the bearer token.
+    let (status, head, body) = raw_with_headers(
+        addr,
+        "GET",
+        "/cabinet/admin/api/overview",
+        None,
+        None,
+        &[("Cookie", cookie.as_str())],
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_admin_headers(&head);
+    assert!(!body.contains(TOKEN), "overview must not contain the token");
+    let overview: serde_json::Value = serde_json::from_str(&body).expect("overview JSON");
+    assert!(overview["build_id"].is_string());
+    assert!(overview["uptime_secs"].is_u64());
+    assert!(overview["jobs"]["total"].is_u64());
+    assert!(overview["leases"]["active"].is_u64());
+    assert!(overview["clients"]["registered"].is_u64());
+
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/overview",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "bearer must work for admin API calls: {body}");
+    assert!(!body.contains(TOKEN));
+
+    // Bearer is for API calls only: HTML still needs the cookie.
+    let (status, _, _) = raw(addr, "GET", "/cabinet/admin", Some(TOKEN), None);
+    assert_eq!(status, 302, "bearer alone must not open admin HTML");
+
+    // The gallery moved behind the cookie and no longer ships inline CSS.
+    let (status, head, body) = raw_with_headers(
+        addr,
+        "GET",
+        "/cabinet/admin/design",
+        None,
+        None,
+        &[("Cookie", cookie.as_str())],
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_admin_headers(&head);
+    assert!(!body.contains(TOKEN));
+    assert!(!body.contains("<style"), "gallery must not inline CSS");
+
+    // Admin assets carry the same headers even though they need no session.
+    let (status, head, _) = raw(addr, "GET", "/admin.js", None, None);
+    assert_eq!(status, 200);
+    assert_admin_headers(&head);
+    let (status, _, _) = raw(addr, "GET", "/admin.css", None, None);
+    assert_eq!(status, 200);
 
     handle.shutdown();
 }

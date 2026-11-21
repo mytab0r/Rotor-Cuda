@@ -499,13 +499,13 @@
   });
 
   oursRoute({
-    path: '/design',
+    path: '/cabinet/admin/design',
     title: 'Design gallery',
     area: 'site',
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'Internal noindex component gallery generated from design/components/*.json. It is reachable only by direct URL and is not linked from the navigation.'
+    note: 'Internal noindex component gallery generated from design/components/*.json. It requires the operator cookie, is reachable only by direct URL and is not linked from the public navigation.'
   });
 
   /* ------------------------------------------------------------ donor routes */
