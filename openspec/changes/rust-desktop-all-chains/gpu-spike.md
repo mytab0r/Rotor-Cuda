@@ -325,6 +325,14 @@ Reasons, in order of the owner's rule:
    wrapper and a matched MinGW runtime, so it is not yet a CI-reproducible
    path.
 
+Maintenance comparison: the WGSL path is a hand-written 16-bit-limb field
+arithmetic plus hashing implementation, with no `u64` and no subgroup
+operations; it is a large, error-prone kernel to own. rust-gpu keeps Rust
+source but adds a pinned nightly, `rustc-dev`, a codegen-backend build and a
+host linker/runtime prerequisite. CUDA keeps one toolchain that already builds
+in CI and is the fastest measured path. None of the candidates is a strictly
+smaller maintenance surface than the status quo today.
+
 What would unblock a future change:
 
 - A fixture parity harness (CPU vs GPU, 18 chains) on the published fixtures,
