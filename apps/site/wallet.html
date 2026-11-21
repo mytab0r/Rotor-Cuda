@@ -14,7 +14,7 @@
 .wallet-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .wallet-row:last-child { border-bottom: 0; padding-bottom: 0; }
 .wallet-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.wallet-row-head .wallet-label-input { flex: 1 1 160px; min-width: 0; padding: 7px 9px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }
+.wallet-row-head .wallet-label-input { flex: 1 1 160px; min-width: 0; }
 .wallet-address-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .wallet-address-line code { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
 .wallet-address-line a, .wallet-address-line button { flex: 0 0 auto; }
@@ -22,7 +22,7 @@
 .wallet-balance { min-height: 18px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .wallet-balance.ok { color: var(--ok); }
 .wallet-balance.err { color: var(--danger, #e05353); }
-.wallet-status { margin: 8px 0 0; font-size: 13px; }
+.wallet-status { margin: 8px 0 0; }
 .wallet-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 @media (max-width: 760px) { .wallet-split { grid-template-columns: minmax(0, 1fr); } }
 .wallet-backup-text { width: 100%; min-height: 84px; }
@@ -30,9 +30,9 @@
 .wallet-review dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
 .wallet-review dd { margin: 0; overflow-wrap: anywhere; }
 .wallet-review dd code { overflow-wrap: anywhere; }
-.wallet-hex { display: block; margin: 6px 0 12px; padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); overflow-wrap: anywhere; }
-.wallet-field-error { margin: -4px 0 8px; }
-.wallet-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--danger, #e05353); font-size: 13px; }
+.wallet-hex { display: block; margin: 6px 0 12px; padding: 10px; border: 1px solid var(--line-subtle); border-radius: var(--radius-control); background: var(--surface-2); overflow-wrap: anywhere; }
+.wallet-field-error { margin: 0 0 8px; }
+.wallet-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--state-err); font-size: 13px; }
 #wallet-send select { width: 100%; max-width: 100%; }
 #wallet-send-from, #wallet-send-provider-note, #wallet-send-hash,
 #wallet-btc-from, #wallet-btc-provider-note, #wallet-btc-txid { overflow-wrap: anywhere; }
@@ -112,7 +112,7 @@
       <button type="button" id="wallet-export">Export encrypted backup</button>
       <span id="wallet-state" class="muted" role="status">unlocked</span>
     </div>
-    <p class="wallet-status muted" id="wallet-export-status"></p>
+    <p class="wallet-status muted status-line" id="wallet-export-status"></p>
 
     <h2>Import a key</h2>
     <form id="wallet-import-form" class="key-form" autocomplete="off">
@@ -214,7 +214,7 @@
         <button type="submit" class="primary" id="wallet-send-prepare">Fetch fees and review</button>
       </div>
     </form>
-    <p class="muted" id="wallet-send-status" role="status"></p>
+    <p class="muted status-line" id="wallet-send-status" role="status"></p>
     <p id="wallet-send-error" class="error" role="alert" hidden></p>
 
     <div id="wallet-send-review" hidden>

@@ -85,6 +85,27 @@
       "symptom": "Four icon-button grammars shipped 44x44 boxes with 14/15/16/18px icons and radii 7/9/10/11, so the same action read as four different products.",
       "detector": "icon-button-scale",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "off-scale-control-heights",
+      "reported": "2026-11-21",
+      "symptom": "Form controls shipped at 38/46/52/58px high because page-local padding, hero sizes and search wrappers each invented their own height.",
+      "detector": "control-height-scale",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "field-geometry-drift",
+      "reported": "2026-11-21",
+      "symptom": "Inputs and selects used radii 6/7/8/10/14/16, labels ranged from 10.5 to 14px, and composite search fields removed the focus ring.",
+      "detector": "field-geometry",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "segmented-grammar-drift",
+      "reported": "2026-11-21",
+      "symptom": "Curve and puzzle filters used two track paddings, radii 10/12, item radii 8/9 and a second compact size inside the key input card.",
+      "detector": "segmented-geometry",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

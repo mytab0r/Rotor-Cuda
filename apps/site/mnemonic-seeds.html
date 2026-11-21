@@ -25,24 +25,8 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
 .mnemonic-control { display: grid; gap: 7px; min-width: 0; }
 .mnemonic-control-path { flex: 1 1 330px; }
 .mnemonic-control label, .mnemonic-control .panel-label { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.mnemonic-control select { min-height: 44px; min-width: 220px; font-family: var(--mono); font-size: 13px; }
+.mnemonic-control select { min-width: 220px; font-family: var(--mono); font-size: 13px; }
 .mnemonic-presets { display: flex; flex-wrap: wrap; gap: 7px; }
-.preset-btn {
-  min-height: 44px;
-  padding: 0 13px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--panel-2);
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 650;
-}
-.preset-btn:hover { border-color: var(--border-strong); color: var(--text); }
-.preset-btn.active {
-  border-color: color-mix(in srgb, var(--chain, var(--accent)) 62%, var(--border));
-  background: color-mix(in srgb, var(--chain, var(--accent)) 14%, var(--panel));
-  color: var(--text);
-}
 .mnemonic-help { margin: 0; font-size: 12px; }
 .mnemonic-path-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .mnemonic-path-row input { flex: 1 1 220px; min-width: 0; font-family: var(--mono); font-size: 13px; }
@@ -101,7 +85,6 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
   .mnemonic-control select { width: 100%; }
 }
 @media (max-width: 520px) {
-  .preset-btn { flex: 1 1 auto; justify-content: center; }
   .mnemonic-path-row input { flex-basis: 100%; }
   .mnemonic-path-row button { width: 100%; }
 }
@@ -132,24 +115,24 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
   <h1 class="visually-hidden"><span data-chain-title>Mnemonic seeds</span></h1>
 
   <div class="chain-tabs" id="mnemonic-chain-tabs" role="navigation" aria-label="Chains">
-    <a class="chain-tab" href="/mnemonic-seeds/bitcoin" style="--chain:#f7931a"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
-    <a class="chain-tab" href="/mnemonic-seeds/ethereum" style="--chain:#8a9cf5"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a>
-    <a class="chain-tab" href="/mnemonic-seeds/bnb" style="--chain:#f3ba2f"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB Chain</a>
-    <a class="chain-tab" href="/mnemonic-seeds/arbitrum" style="--chain:#28a0f0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-arbitrum"></use></svg>Arbitrum</a>
-    <a class="chain-tab" href="/mnemonic-seeds/optimism" style="--chain:#ff0420"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-optimism"></use></svg>Optimism</a>
-    <a class="chain-tab" href="/mnemonic-seeds/base" style="--chain:#0052ff"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-base"></use></svg>Base</a>
-    <a class="chain-tab" href="/mnemonic-seeds/polygon" style="--chain:#a06ee8"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-polygon"></use></svg>Polygon</a>
-    <a class="chain-tab" href="/mnemonic-seeds/avalanche" style="--chain:#e84142"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-avalanche"></use></svg>Avalanche</a>
-    <a class="chain-tab" href="/mnemonic-seeds/zksync" style="--chain:#8c8dfc"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zksync"></use></svg>zkSync Era</a>
-    <a class="chain-tab" href="/mnemonic-seeds/solana" style="--chain:#14f195"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a>
-    <a class="chain-tab" href="/mnemonic-seeds/tron" style="--chain:#ff4d4d"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a>
-    <a class="chain-tab" href="/mnemonic-seeds/xrp" style="--chain:#7fa8d9"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a>
-    <a class="chain-tab" href="/mnemonic-seeds/litecoin" style="--chain:#b8c2d6"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-litecoin"></use></svg>Litecoin</a>
-    <a class="chain-tab" href="/mnemonic-seeds/bitcoin-cash" style="--chain:#8dc351"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>Bitcoin Cash</a>
-    <a class="chain-tab" href="/mnemonic-seeds/dogecoin" style="--chain:#c2a633"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-dogecoin"></use></svg>Dogecoin</a>
-    <a class="chain-tab" href="/mnemonic-seeds/zcash" style="--chain:#ecb244"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zcash"></use></svg>Zcash</a>
-    <a class="chain-tab" href="/mnemonic-seeds/sui" style="--chain:#6fbcf0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-sui"></use></svg>Sui</a>
-    <a class="chain-tab" href="/mnemonic-seeds/ton" style="--chain:#0098ea"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/bitcoin" style="--chain:#f7931a"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/ethereum" style="--chain:#8a9cf5"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/bnb" style="--chain:#f3ba2f"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB Chain</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/arbitrum" style="--chain:#28a0f0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-arbitrum"></use></svg>Arbitrum</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/optimism" style="--chain:#ff0420"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-optimism"></use></svg>Optimism</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/base" style="--chain:#0052ff"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-base"></use></svg>Base</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/polygon" style="--chain:#a06ee8"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-polygon"></use></svg>Polygon</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/avalanche" style="--chain:#e84142"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-avalanche"></use></svg>Avalanche</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/zksync" style="--chain:#8c8dfc"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zksync"></use></svg>zkSync Era</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/solana" style="--chain:#14f195"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-solana"></use></svg>Solana</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/tron" style="--chain:#ff4d4d"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/xrp" style="--chain:#7fa8d9"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-xrp"></use></svg>XRP</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/litecoin" style="--chain:#b8c2d6"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-litecoin"></use></svg>Litecoin</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/bitcoin-cash" style="--chain:#8dc351"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin-cash"></use></svg>Bitcoin Cash</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/dogecoin" style="--chain:#c2a633"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-dogecoin"></use></svg>Dogecoin</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/zcash" style="--chain:#ecb244"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-zcash"></use></svg>Zcash</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/sui" style="--chain:#6fbcf0"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-sui"></use></svg>Sui</a>
+    <a class="chain-tab chip" href="/mnemonic-seeds/ton" style="--chain:#0098ea"><svg class="chain-tab-icon" aria-hidden="true"><use href="/icons.svg#chain-ton"></use></svg>TON</a>
   </div>
 
   <section class="mnemonic-directory-only mnemonic-directory-card card">

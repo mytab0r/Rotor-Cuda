@@ -598,7 +598,7 @@
     presets.forEach(function (preset) {
       var button = document.createElement('button');
       button.type = 'button';
-      button.className = 'preset-btn' + (activePreset === preset ? ' active' : '');
+      button.className = 'preset-btn chip';
       button.title = preset.desc ? preset.desc + ' · ' + preset.path : preset.path;
       button.textContent = preset.label;
       button.setAttribute('aria-pressed', activePreset === preset ? 'true' : 'false');
