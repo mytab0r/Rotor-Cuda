@@ -3,10 +3,39 @@
 (function () {
   'use strict';
 
+  /* Published Ethereum "Web3 Secret Storage Definition" V3 test vector
+   * (PBKDF2/HMAC-SHA256, 262144 iterations). The wasm core was used to
+   * decrypt it with password "testpassword" and the derived EVM address
+   * matched the declared one; it is a public test key with no funds. */
+  var KEYSTORE_EXAMPLES = [{
+    id: 'web3-secret-storage-pbkdf2',
+    label: 'Web3 secret-storage V3 test vector (PBKDF2)',
+    password: 'testpassword',
+    address: '0x008aeeda4d805471df9b2a5b0f38a0c3bcba786b',
+    json: JSON.stringify({
+      address: '008aeeda4d805471df9b2a5b0f38a0c3bcba786b',
+      crypto: {
+        cipher: 'aes-128-ctr',
+        cipherparams: { iv: '6087dab2f9fdbbfaddc31a909735c1e6' },
+        ciphertext: '5318b4d5bcd28de64ee5559e671353e16f075ecae9f99c7a79a38af5f869aa46',
+        kdf: 'pbkdf2',
+        kdfparams: {
+          c: 262144,
+          dklen: 32,
+          prf: 'hmac-sha256',
+          salt: 'ae3cd4e7013836a3df6bd7241b12db061dbe2c6785853cce422d148a624ce0bd'
+        },
+        mac: '517ead924a9d0dc3124507e3393d175ce3ff7c1e96529c6c555ce9e51205e9b2'
+      },
+      id: '3198bc9c-6672-5ab3-d995-4942343ae5b6',
+      version: 3
+    }, null, 2)
+  }];
+
   // The JSON parser is also required from a Node test; the page code below
   // needs a DOM, so stop after exporting when there is none.
   if (typeof module === 'object' && module.exports) {
-    module.exports = { parseKeystore: parseKeystore };
+    module.exports = { parseKeystore: parseKeystore, KEYSTORE_EXAMPLES: KEYSTORE_EXAMPLES };
   }
   if (typeof document === 'undefined') return;
 
@@ -21,11 +50,59 @@
   var facts = byId('keystore-facts');
   var statusLine = byId('keystore-status');
   var submit = byId('keystore-submit');
+  var dropzone = byId('keystore-dropzone');
+  var fileInput = byId('keystore-file');
+  var fileName = byId('keystore-file-name');
+  var exampleButton = byId('keystore-example');
+  var dragDepth = 0;
   var state = { busy: false };
+
+  /* Keystores are tiny JSON documents; cap the read so a stray large file
+   * cannot lock the tab up during JSON.parse. */
+  var MAX_FILE_BYTES = 64 * 1024;
 
   function fail(message) {
     errorBox.textContent = message || '';
     errorBox.hidden = !message;
+  }
+
+  function showFileNote(text) {
+    fileName.textContent = text || '';
+    fileName.hidden = !text;
+  }
+
+  function clearFile() {
+    showFileNote('');
+    if (fileInput) fileInput.value = '';
+  }
+
+  function readKeystoreFile(file) {
+    if (!file) {
+      fail('No file was dropped. Choose a JSON/UTC keystore file or paste it above.');
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      fail('The file "' + file.name + '" is ' + Math.ceil(file.size / 1024) +
+        ' KiB; this page accepts at most 64 KiB.');
+      clearFile();
+      return;
+    }
+    file.text().then(function (text) {
+      if (!text.trim()) {
+        fail('The file "' + file.name + '" is empty.');
+        return;
+      }
+      fail('');
+      jsonInput.value = text;
+      showFileNote('Loaded file: ' + file.name);
+    }, function () {
+      fail('The file "' + file.name + '" could not be read.');
+    });
+  }
+
+  function hasFiles(event) {
+    var types = event.dataTransfer && event.dataTransfer.types;
+    return !!types && Array.prototype.indexOf.call(types, 'Files') !== -1;
   }
 
   function copyText(text, button) {
@@ -163,6 +240,9 @@
       throw new Error('Unsupported KDF "' + (kdf || 'missing') + '". This page supports scrypt and pbkdf2 (HMAC-SHA256).');
     }
     request.declaredAddress = String(json.address || '').replace(/^0x/i, '').toLowerCase();
+    request.version = 3;
+    request.id = String(json.id == null ? '' : json.id).trim();
+    request.cipher = String(crypto.cipher || '').trim();
     return request;
   }
 
@@ -247,9 +327,14 @@
       facts.appendChild(factRow('KDF', request.kdfName === 'scrypt'
         ? 'scrypt n=' + request.n + ' r=' + request.r + ' p=' + request.p
         : 'pbkdf2 c=' + request.c));
+      facts.appendChild(factRow('Keystore id', request.id || 'Not declared'));
+      facts.appendChild(factRow('Keystore version', String(request.version)));
+      facts.appendChild(factRow('Cipher', request.cipher));
+      facts.appendChild(factRow('Declared address',
+        request.declaredAddress ? '0x' + request.declaredAddress : 'Not declared'));
       var matches = '';
       if (request.declaredAddress) {
-        matches = evm.toLowerCase().replace(/^0x/, '') === request.declaredAddress
+        matches = evm && evm.toLowerCase().replace(/^0x/, '') === request.declaredAddress
           ? ' The address matches the keystore "address" field.'
           : ' Warning: the derived address does not match the keystore "address" field.';
       } else {
@@ -273,12 +358,66 @@
     run();
   });
 
+  if (dropzone) {
+    dropzone.addEventListener('dragenter', function (event) {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragDepth += 1;
+      dropzone.classList.add('is-dragover');
+    });
+    dropzone.addEventListener('dragover', function (event) {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    dropzone.addEventListener('dragleave', function (event) {
+      if (!hasFiles(event)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) dropzone.classList.remove('is-dragover');
+    });
+    dropzone.addEventListener('drop', function (event) {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragDepth = 0;
+      dropzone.classList.remove('is-dragover');
+      var files = event.dataTransfer.files;
+      if (!files || files.length === 0) {
+        fail('No file was dropped. Choose a JSON/UTC keystore file or paste it above.');
+        return;
+      }
+      if (files.length > 1) {
+        fail('Drop one keystore file at a time.');
+        return;
+      }
+      readKeystoreFile(files[0]);
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files && fileInput.files[0]) readKeystoreFile(fileInput.files[0]);
+    });
+  }
+
+  if (exampleButton) {
+    exampleButton.addEventListener('click', function () {
+      var example = KEYSTORE_EXAMPLES[0];
+      jsonInput.value = example.json;
+      passwordInput.value = example.password;
+      fail('');
+      showFileNote('Example loaded: ' + example.label + ' (public test key, password "' +
+        example.password + '")');
+      jsonInput.focus();
+    });
+  }
+
   byId('keystore-clear').addEventListener('click', function () {
     jsonInput.value = '';
     passwordInput.value = '';
     facts.textContent = '';
     result.hidden = true;
     fail('');
+    clearFile();
     jsonInput.focus();
   });
 
@@ -287,5 +426,6 @@
     passwordInput.value = '';
     facts.textContent = '';
     result.hidden = true;
+    clearFile();
   });
 })();
