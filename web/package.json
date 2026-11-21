@@ -1,0 +1,26 @@
+{
+  "name": "rotor-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Astro frontend for the Rotor site. Phase 0-1 pilot: /mnemonic-converter.",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check && tsc --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js",
+    "verify:cdp": "node scripts/cdp-parity.mjs"
+  },
+  "dependencies": {
+    "astro": "7.4.13"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
+  }
+}
