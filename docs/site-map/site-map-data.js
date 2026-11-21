@@ -877,11 +877,11 @@
     area: 'directory',
     capability: 'Address-type tabs per chain',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'BTC exposes legacy/segwit/script/taproot and LTC the same four types (ltc_p2tr). BCH, TON, DOGE and ZEC expose one type, while the donor also offers CashAddr+Legacy, v4R2+w5 and compressed+uncompressed forms.'
+    note: 'BTC and LTC expose legacy/segwit/script/taproot; BCH legacy + CashAddr; TON v4R2 + W5; DOGE and ZEC compressed + uncompressed (`key.js` ID_LABELS, `crates/rotor-wasm/src/derive.rs`, `address-codecs.js`). The page derives the selected curve (secp256k1/ed25519) instead of printing both curves at once.'
   });
 
   feature({
@@ -1061,7 +1061,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Crypto supports six networks, parallel workers (1-4) and local prefix/suffix generation; keys are never saved.'
+    note: 'Six networks, parallel workers (1-4), difficulty, ETA, recent matches and an address-only QR are shipped (`apps/site/qr.js`, `vanity.js` `paintQr`). Saving keys is intentionally absent: keys never leave the page or enter storage.'
   });
 
   feature({
@@ -1093,11 +1093,11 @@
     area: 'tools',
     capability: 'Public-key arithmetic (add, subtract, multiply)',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Crypto implements P + Q only.'
+    note: 'P + Q, P − Q and k · P are all shipped: the operation select in `pubkey-add.html` maps to `pubkey_subtract_report`/`pubkey_mul_report` in `crates/rotor-wasm/src/derive.rs`, with pinned vectors in `key-tools-test.mjs`.'
   });
 
   feature({
