@@ -110,6 +110,15 @@ three were code-only and shipped together in PR #143.
   (BCH spec translation vectors; DOGE/ZEC addresses independently reproduced
   with Python), UI audit on `/key` and `/key/<key1>` at 375/768/1280 in both
   themes.
+  LTC Taproot card: `crates/rotor-wasm/src/derive.rs:466,580` (`ltc_p2tr` row,
+  bech32m) and `lib.rs:1761` (vector); `src/coordinator/mod.rs` `LTC_TYPES`
+  gains the fourth `taproot`/`ltc_p2tr` entry (feeds both the `/private-keys`
+  cards and the `?type=` switch); `apps/site/browse.js` `TYPE_FIELDS.litecoin`,
+  `apps/site/brainwallet-engine.js` `LTC_TYPES` and `apps/site/key.js`
+  `ID_LABELS.ltc_p2tr` map it to `'Litecoin taproot'`;
+  `litecoin_directory_exposes_taproot_card_and_field` asserts the card and
+  `data-field="ltc_p2tr"`, and the brainwallet LTC assertion now expects four
+  types. Balance lookup already covers bech32m.
 - [x] TON v5/W5 address type (PR #105). Evidence:
   `crates/rotor-wasm/src/ton.rs` (official `wallet_v5` code cell, pinned
   upstream commit), `crates/rotor-wasm/src/derive.rs:657-677` (`ton_w5` row
