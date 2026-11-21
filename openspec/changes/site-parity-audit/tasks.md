@@ -124,10 +124,12 @@ follow-ups were code-only.
   is 44px and `--lg` uses it. Page-local leftovers: `#key-info-btn` moved from
   `key-info-btn` to `icon-button icon-button--quiet` and the local CSS block was
   deleted; detector `icon-only-shared-component` fails any icon-only control
-  without the class, defect `key-info-page-local-button` (PR #177). Known
-  follow-up: the global `button:not(.primary):hover` rule still adds a hover
-  border to quiet buttons, contrary to DESIGN-SYSTEM §3.2; belongs in the
-  shared rule, not a page.
+  without the class, defect `key-info-page-local-button` (PR #177). The generic
+  `button:not(.primary):hover` rule now excludes `.icon-button`, so the quiet and
+  outline variants own their hover borders (quiet stays transparent per
+  DESIGN-SYSTEM §3.2); detector `quiet-icon-hover-border` and defect entry
+  `quiet-icon-hover-border` are in place, mutation-proven (FAIL before the rule
+  change, PASS after).
 - [x] Shared skeleton/empty/error primitives. Evidence: `.empty-state`
   (dashed `--line-subtle`, radius `--radius-l`, padding `--space-5`) replaced
   `.key-empty` (both rules), `.range-empty` and `.monitor-empty` in `site.css`,

@@ -239,6 +239,13 @@
       "symptom": "The /key info control shipped a page-local button.key-info-btn (44px box, radius 8, 16px glyph) instead of the shared .icon-button component, so icon-only actions had a second control size.",
       "detector": "icon-only-shared-component",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "quiet-icon-hover-border",
+      "reported": "2026-11-21",
+      "symptom": "Quiet icon buttons gained a 1px hover border from the generic button:hover rule, contradicting DESIGN-SYSTEM §3.2; outline buttons also lost their line-strong border on hover.",
+      "detector": "quiet-icon-hover-border",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

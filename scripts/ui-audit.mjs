@@ -1998,6 +1998,104 @@ async function auditKeyTooltips(cdp) {
   );
 }
 
+// DESIGN-SYSTEM §3.2: a quiet icon button is transparent with no border. The
+// generic `button:not(.primary):hover` rule out-ranks the variant, so hover used
+// to paint a 1px border. Synthetic PointerEvents never set CSS :hover, so force
+// the pseudo-state through CDP and read the real computed style. Transitions are
+// suppressed for the measurement so the hover value is read immediately instead
+// of racing the --duration-fast animation.
+async function auditQuietIconHover(cdp) {
+  const buttons = await evaluate(
+    cdp,
+    `(() => Array.from(document.querySelectorAll('button.icon-button--quiet')).map((el, index) => {
+      const rect = el.getBoundingClientRect();
+      const disabled = el.disabled || el.getAttribute('aria-disabled') === 'true';
+      const visible = !disabled && el.checkVisibility({ visibilityProperty: true }) && rect.width > 0 && rect.height > 0;
+      const label = el.getAttribute('aria-label') || el.getAttribute('data-tooltip') || (el.textContent || '').trim().slice(0, 40);
+      return { index, disabled, visible, label };
+    }))()`,
+    10000,
+  );
+  const evidence = { checked: 0, buttons };
+  const violations = [];
+  const targets = buttons.filter((button) => button.visible);
+  if (!targets.length) return { ok: true, violations, evidence };
+
+  const { root } = await cdp.send("DOM.getDocument", { depth: 0, pierce: false });
+  const { nodeIds } = await cdp.send("DOM.querySelectorAll", {
+    nodeId: root.nodeId,
+    selector: "button.icon-button--quiet",
+  });
+  const forced = [];
+  await evaluate(
+    cdp,
+    `(() => {
+      const style = document.createElement('style');
+      style.setAttribute('data-quiet-hover-audit', '');
+      style.textContent = '*, *::before, *::after { transition: none !important; }';
+      document.head.appendChild(style);
+    })()`,
+    10000,
+  );
+  try {
+    for (const target of targets) {
+      const nodeId = nodeIds[target.index];
+      if (nodeId === undefined) continue;
+      await cdp.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: ["hover"] });
+      forced.push({ target, nodeId });
+    }
+    const measured = await evaluate(
+      cdp,
+      `(() => {
+        const alpha = (value) => {
+          const match = /rgba?\\(([^)]+)\\)/.exec(value || '');
+          if (!match) return 0;
+          const parts = match[1].split(',').map((part) => parseFloat(part));
+          return parts.length >= 4 ? parts[3] : 1;
+        };
+        const all = document.querySelectorAll('button.icon-button--quiet');
+        return ${JSON.stringify(forced.map((entry) => entry.target.index))}.map((index) => {
+          const el = all[index];
+          if (!el) return { index, missing: true };
+          const style = getComputedStyle(el);
+          const sides = ['Top', 'Right', 'Bottom', 'Left'].map((side) => {
+            const width = parseFloat(style['border' + side + 'Width']) || 0;
+            const color = style['border' + side + 'Color'];
+            return { side: side.toLowerCase(), width: Number(width.toFixed(2)), color, alpha: alpha(color) };
+          });
+          const visibleBorder = sides.filter((side) => side.width > 0.05 && side.alpha > 0.05);
+          return { index, sides, visibleBorder };
+        });
+      })()`,
+      10000,
+    );
+    for (const entry of measured) {
+      const target = forced.find((item) => item.target.index === entry.index);
+      const label = target ? target.target.label : `#${entry.index}`;
+      evidence.checked += 1;
+      evidence.buttons[entry.index] = { ...evidence.buttons[entry.index], hover: entry.sides, visibleBorder: entry.visibleBorder };
+      const sides = entry.visibleBorder.map((side) => `${side.side} ${side.width}px ${side.color}`);
+      if (sides.length) {
+        violations.push({
+          id: "quiet-icon-hover-border",
+          message: `quiet icon button ${label ? `"${label}"` : `#${entry.index}`} gains a hover border (${sides.join(", ")}); DESIGN-SYSTEM §3.2 requires transparent with no border`,
+          detail: { button: label, sides: entry.visibleBorder },
+        });
+      }
+    }
+  } finally {
+    for (const entry of forced) {
+      await cdp.send("CSS.forcePseudoState", { nodeId: entry.nodeId, forcedPseudoClasses: [] }).catch(() => {});
+    }
+    await evaluate(
+      cdp,
+      `(() => { const style = document.querySelector('style[data-quiet-hover-audit]'); if (style) style.remove(); })()`,
+      10000,
+    ).catch(() => {});
+  }
+  return { ok: violations.length === 0, violations, evidence };
+}
+
 function viewportFor(width) {
   const height = VIEWPORT_HEIGHTS[width] || 900;
   return { width, height };
@@ -2137,6 +2235,10 @@ async function main() {
     await cdp.send("Runtime.enable");
     await cdp.send("Log.enable").catch(() => {});
     await cdp.send("Network.enable").catch(() => {});
+    // Forced pseudo-states for the quiet-icon hover check need the DOM/CSS
+    // agents; enabling them once keeps the per-run measurement short.
+    await cdp.send("DOM.enable").catch(() => {});
+    await cdp.send("CSS.enable").catch(() => {});
 
     let consoleErrors = [];
     let networkErrors = [];
@@ -2306,6 +2408,9 @@ async function main() {
               run.metrics.tooltipBehaviour = tooltips.evidence;
               if (!tooltips.ok) run.violations.push(...tooltips.violations);
             }
+            const quietHover = await auditQuietIconHover(cdp);
+            run.metrics.quietIconHover = quietHover.evidence;
+            if (!quietHover.ok) run.violations.push(...quietHover.violations);
           } catch (error) {
             run.status = "error";
             run.violations.push({
