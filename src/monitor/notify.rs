@@ -253,8 +253,8 @@ pub fn spawn(store: Arc<MonitorStore>, config: TelegramConfig) -> Option<JoinHan
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::monitor::mock_http;
     use std::fs;
-    use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -311,14 +311,11 @@ mod tests {
                 while !stopping.load(Ordering::SeqCst) {
                     match listener.accept() {
                         Ok((mut stream, _)) => {
-                            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                            let body = read_http_body(&mut stream);
-                            recorded.lock().expect("bodies").push(body);
-                            let response = "HTTP/1.1 200 OK\r\n\
-                                Content-Type: application/json\r\n\
-                                Content-Length: 11\r\n\
-                                Connection: close\r\n\r\n{\"ok\":true}";
-                            let _ = stream.write_all(response.as_bytes());
+                            mock_http::prepare(&mut stream);
+                            if let Some(body) = mock_http::read_http_body(&mut stream) {
+                                recorded.lock().expect("bodies").push(body);
+                            }
+                            mock_http::respond_ok(&mut stream);
                         }
                         Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
                             thread::sleep(Duration::from_millis(5));
@@ -347,44 +344,6 @@ mod tests {
                 let _ = handle.join();
             }
         }
-    }
-
-    fn read_http_body(stream: &mut std::net::TcpStream) -> String {
-        let mut buffer = Vec::new();
-        let mut chunk = [0u8; 1024];
-        loop {
-            let read = stream.read(&mut chunk).unwrap_or(0);
-            if read == 0 {
-                break;
-            }
-            buffer.extend_from_slice(&chunk[..read]);
-            if let Some((head, body_start)) = split_headers(&buffer) {
-                let length = String::from_utf8_lossy(head)
-                    .lines()
-                    .find_map(|line| {
-                        let (name, value) = line.split_once(':')?;
-                        name.eq_ignore_ascii_case("content-length")
-                            .then(|| value.trim().parse::<usize>().ok())
-                            .flatten()
-                    })
-                    .unwrap_or(0);
-                if buffer.len() >= body_start + length {
-                    return String::from_utf8_lossy(&buffer[body_start..body_start + length])
-                        .into_owned();
-                }
-            }
-            if buffer.len() > 64 * 1024 {
-                break;
-            }
-        }
-        String::new()
-    }
-
-    fn split_headers(buffer: &[u8]) -> Option<(&[u8], usize)> {
-        buffer
-            .windows(4)
-            .position(|window| window == b"\r\n\r\n")
-            .map(|position| (&buffer[..position], position + 4))
     }
 
     fn config(base: &str) -> TelegramConfig {
