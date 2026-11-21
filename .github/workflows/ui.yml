@@ -25,6 +25,8 @@ jobs:
         run: cargo build --release --bin rotor-coord
       - name: Check the defect ledger
         run: node scripts/check-defect-ledger.mjs
+      - name: Check the generated design tokens
+        run: node scripts/build-tokens.mjs --check
       # ui-audit.mjs also enforces the component grammar in
       # docs/design-system/DESIGN-SYSTEM.md (status-pill-geometry today;
       # icon/field/table/nav checks as their batches land).

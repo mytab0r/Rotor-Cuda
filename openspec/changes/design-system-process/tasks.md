@@ -2,19 +2,25 @@
 
 ## 0. Freeze
 
-- [ ] Write `design/tokens/tokens.contract.json` with the 95 current custom
-      property names from `apps/site/site.css:683-795`.
-- [ ] Add a CI check that fails when a contract name disappears without a
-      changelog line in `docs/design-system/DESIGN-SYSTEM.md` §9.
+- [x] Write `design/tokens/tokens.contract.json` with the 95 current custom
+      property names from the `:root` block of `apps/site/site.css` (plus the
+      27 names the light block overrides).
+- [x] Add a CI check that fails when a contract name disappears without a
+      changelog line in `docs/design-system/DESIGN-SYSTEM.md` §9. Implemented
+      as contract/JSON drift in `scripts/build-tokens.mjs --check`; the
+      changelog-line condition is not machine-checked yet.
 
 ## 1. Tokens as data
 
-- [ ] Create `design/tokens/tokens.json` (W3C DTCG) mirroring the current
+- [x] Create `design/tokens/tokens.json` (W3C DTCG) mirroring the current
       primitive, semantic and component tiers, including the light-theme block.
-- [ ] Implement `scripts/build-tokens.mjs` writing the marked region in
+- [x] Implement `scripts/build-tokens.mjs` writing the marked region in
       `site.css` and `design/generated/tokens.ts`; support `--check`.
-- [ ] Prove equivalence: compare computed styles of `/`, `/key`, `/cabinet/wallet`
+- [x] Prove equivalence: compare computed styles of `/`, `/key`, `/cabinet/wallet`
       before and after generation.
+- [x] Wire `node scripts/build-tokens.mjs --check` into `.github/workflows/ui.yml`
+      before the audit; document the gate in `AGENTS.md` and
+      `docs/process/self-checking.md`.
 
 ## 2. Token detectors
 
