@@ -863,6 +863,132 @@ function auditPage(args) {
     add("stat-geometry", `${statIssues.length} stat block(s) outside the shared geometry`, statIssues.slice(0, 8));
   }
 
+  // 4i. Tables share one grammar: every visible table uses `.data-table`
+  //     inside `.table-scroll`, header cells are 12px/600 sentence case with
+  //     no tracking, and every cell has 8/12 padding.
+  const tableGrammarIssues = [];
+  const tableHeaderIssues = [];
+  const tableSummary = { tables: 0, cells: 0, headerHeights: [], paddings: [] };
+  for (const table of document.querySelectorAll("table")) {
+    if (!visible(table)) continue;
+    tableSummary.tables += 1;
+    const tableIssues = [];
+    if (!table.classList.contains("data-table")) tableIssues.push("missing .data-table");
+    if (!table.parentElement || !table.parentElement.classList.contains("table-scroll")) {
+      tableIssues.push("not inside .table-scroll");
+    }
+    const headers = [...table.querySelectorAll("thead th")].filter(visible);
+    const cells = [...table.querySelectorAll("tbody td")].filter(visible);
+    const pad8 = (value) => Math.abs(Number.parseFloat(value) - 8) <= 0.5;
+    const pad12 = (value) => Math.abs(Number.parseFloat(value) - 12) <= 0.5;
+    for (const cell of [...headers, ...cells]) {
+      const style = getComputedStyle(cell);
+      tableSummary.cells += 1;
+      tableSummary.paddings.push(`${style.paddingTop}/${style.paddingRight}/${style.paddingBottom}/${style.paddingLeft}`);
+      if (!pad8(style.paddingTop) || !pad8(style.paddingBottom)) {
+        tableIssues.push(`${selectorOf(cell)} vertical padding ${style.paddingTop}/${style.paddingBottom}`);
+      }
+      if (!pad12(style.paddingLeft) || !pad12(style.paddingRight)) {
+        tableIssues.push(`${selectorOf(cell)} horizontal padding ${style.paddingLeft}/${style.paddingRight}`);
+      }
+    }
+    const headerHeights = headers.map((cell) => Math.round(cell.getBoundingClientRect().height));
+    tableSummary.headerHeights.push(...headerHeights);
+    if (headerHeights.length && Math.max(...headerHeights) - Math.min(...headerHeights) > 1) {
+      tableIssues.push(`header heights ${[...new Set(headerHeights)].join("/")}`);
+    }
+    if (tableIssues.length) {
+      tableGrammarIssues.push({ selector: selectorOf(table), issues: tableIssues.slice(0, 6) });
+    }
+    for (const cell of headers) {
+      const style = getComputedStyle(cell);
+      const issues = [];
+      const size = Number.parseFloat(style.fontSize);
+      const weight = Number.parseInt(style.fontWeight, 10);
+      if (!(Math.abs(size - 12) <= 0.5)) issues.push(`font ${size}px`);
+      if (Number.isFinite(weight) && weight > 600) issues.push(`weight ${weight}`);
+      if (style.textTransform !== "none") issues.push(`transform ${style.textTransform}`);
+      if (Number.parseFloat(style.letterSpacing) > 0.5) issues.push(`tracking ${style.letterSpacing}`);
+      if (issues.length) tableHeaderIssues.push({ selector: selectorOf(cell), issues });
+    }
+  }
+  metrics.tableGrammar = tableGrammarIssues;
+  metrics.tableHeaders = tableHeaderIssues;
+  for (const header of document.querySelectorAll(".keys-header, .bw-rows-header")) {
+    if (!visible(header)) continue;
+    const style = getComputedStyle(header);
+    const issues = [];
+    if (Math.abs(Number.parseFloat(style.fontSize) - 12) > 0.5) issues.push(`font ${style.fontSize}`);
+    const weight = Number.parseInt(style.fontWeight, 10);
+    if (Number.isFinite(weight) && weight > 600) issues.push(`weight ${weight}`);
+    if (style.textTransform !== "none") issues.push(`transform ${style.textTransform}`);
+    if (Number.parseFloat(style.letterSpacing) > 0.5) issues.push(`tracking ${style.letterSpacing}`);
+    if (issues.length) tableHeaderIssues.push({ selector: selectorOf(header), issues });
+  }
+  if (tableGrammarIssues.length) {
+    add("table-grammar", `${tableGrammarIssues.length} table(s) outside the shared shell`, tableGrammarIssues.slice(0, 8));
+  }
+  if (tableHeaderIssues.length) {
+    add("table-header-style", `${tableHeaderIssues.length} table header cell(s) outside the shared style`, tableHeaderIssues.slice(0, 8));
+  }
+
+  // 4j. Row height: a table row is >=44 high, or it contains a >=44 action.
+  //     Div-based directory/seed rows follow the same floor.
+  const rowHeightIssues = [];
+  const rowHeights = [];
+  const checkRow = (row, kind) => {
+    const box = boxOf(row);
+    rowHeights.push(Math.round(box.height));
+    if (box.height >= 43.5) return;
+    const action = [...row.querySelectorAll("a, button, [role='button']")]
+      .filter(visible)
+      .some((control) => boxOf(control).height >= 43.5);
+    if (!action) rowHeightIssues.push({ selector: selectorOf(row), kind, height: Math.round(box.height) });
+  };
+  for (const row of document.querySelectorAll("table.data-table tbody tr")) {
+    if (visible(row)) checkRow(row, "table");
+  }
+  for (const row of document.querySelectorAll(".key-row:not(tr), .bw-row, .seed-row")) {
+    if (visible(row)) checkRow(row, "row");
+  }
+  // `.bw-row` may be matched twice via `.key-row`? It is not a key-row.
+  metrics.tableRows = rowHeightIssues;
+  metrics.tableSummary = {
+    tables: tableSummary.tables,
+    cells: tableSummary.cells,
+    headerHeights: [...new Set(tableSummary.headerHeights)].sort((a, b) => a - b),
+    paddings: [...new Set(tableSummary.paddings)],
+    rowHeightMin: rowHeights.length ? Math.min(...rowHeights) : null,
+    rowHeightMax: rowHeights.length ? Math.max(...rowHeights) : null,
+  };
+  if (rowHeightIssues.length) {
+    add("table-row-height", `${rowHeightIssues.length} row(s) below 44px without a 44px action`, rowHeightIssues.slice(0, 8));
+  }
+
+  // 4k. Row actions use the icon-button grammar (44 box, radius 10, labelled).
+  const rowActionIssues = [];
+  for (const action of document.querySelectorAll(
+    "table.data-table .icon-button, .key-row .icon-button, .bw-row .icon-button",
+  )) {
+    if (!visible(action)) continue;
+    const box = boxOf(action);
+    const style = getComputedStyle(action);
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    const issues = [];
+    if (box.width < 43.5 || box.height < 43.5) {
+      issues.push(`box ${Math.round(box.width)}x${Math.round(box.height)}px`);
+    }
+    if (Math.abs(radius - 10) > 0.5) issues.push(`radius ${radius}px`);
+    if (!(action.getAttribute("aria-label") || action.getAttribute("aria-labelledby") || textOf(action))) {
+      issues.push("no accessible name");
+    }
+    if (issues.length) rowActionIssues.push({ selector: selectorOf(action), issues });
+  }
+  metrics.rowActions = rowActionIssues;
+  if (rowActionIssues.length) {
+    add("row-action-geometry", `${rowActionIssues.length} row action(s) outside the icon-button grammar`, rowActionIssues.slice(0, 8));
+  }
+
   // 4b. Status pills share one geometry. Regression guard for
   //     docs/design-system/DESIGN-SYSTEM.md §3.5: >=12px text, pill radius,
   //     8px inline padding, 18-32px height.
@@ -964,6 +1090,37 @@ function auditPage(args) {
           add("key-meta-row", `#key-info-btn is ${offset.toFixed(1)}px off the meta row centre`);
         }
       }
+    }
+
+    // The private-key field shows the key as ordinary text (no password mask).
+    const priv = document.getElementById("priv");
+    if (priv && priv.type === "password") {
+      add("key-input-type", "#priv is type=password; the key field must show plain text");
+    }
+
+    // The row text and its title come from one formatter: same amount/decimals
+    // and the same tx count. Only settled rows are checked.
+    const balanceIssues = [];
+    for (const badge of document.querySelectorAll(".key-balance")) {
+      const row = badge.closest("tr, .key-row");
+      if (!row || !visible(badge) || row.dataset.balanceState !== "ok") continue;
+      const title = (badge.getAttribute("title") || "").trim();
+      const text = textOf(badge);
+      const amount = /^([\d,]+(?:\.\d+)?)\s+[A-Z]+/.exec(title);
+      if (!amount) continue;
+      const issues = [];
+      if (!text.includes(amount[1])) {
+        issues.push(`text "${text}" does not carry the title amount ${amount[1]}`);
+      }
+      const txs = /·\s*(\d+)\s+tx/.exec(title);
+      if (txs && !text.includes(txs[1] + " tx")) {
+        issues.push(`text "${text}" does not carry the title tx count ${txs[1]}`);
+      }
+      if (issues.length) balanceIssues.push({ selector: selectorOf(badge), title, issues });
+    }
+    metrics.balanceRows = balanceIssues;
+    if (balanceIssues.length) {
+      add("balance-consistency", `${balanceIssues.length} balance row(s) disagree with their title`, balanceIssues.slice(0, 8));
     }
   }
 
