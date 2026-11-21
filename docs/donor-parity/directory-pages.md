@@ -64,7 +64,17 @@ Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdow
 
 1. **Add `?key=` deep link.** Donor jumps to the directory page containing the key and puzzle "Browse Keys in Range" uses it. `apps/site/browse.js` currently redirects search to `/key/…` (~line 1030): parse `key`, compute `(BigInt(key)-1n)/60n+1n`, clamp, render that page, label it "key page". Point the puzzle action (`apps/site/puzzle-browser.js` / `src/coordinator/mod.rs`) at `?key=<start>`.
 2. **Both WIFs in the key cell.** Donor shows `(c)`/`(u)` anchors to `/key/<WIF>` beside the hex; `apps/site/browse.js` `fillAddressCell` (~257) adds one Bitcoin-only "WIF" action. Render two labelled `.key-wif` rows for BTC/LTC/DOGE; style in `apps/site/site.css`.
-3. **Per-chain stats.** Donor uses Balance/Received/TX for UTXO but Balance/Active for ETH/TRON. `apps/site/browse.js` `setSummary` always writes three values; emit two cards with `Active` for account chains.
+3. **Per-chain stats.** Done (2026-11-21): UTXO chains render Balance/Received/TX,
+   account-model chains (EVM/Tron/Solana/Sui/XRP/Ton) render Balance/Active.
+   Evidence: `src/coordinator/mod.rs:1272` (`AddressKind::is_utxo`), `:3336-3349`
+   and `:3382-3384` (`summary_cards` in the `/private-keys/<chain>` body),
+   `apps/site/site.css:1517-1519`
+   (`.balance-summary--account`, two columns, collapsed by the mobile rule at
+   `:1819`), `apps/site/browse.js:156,411-416,578-602,906-945`
+   (`totalActive`, `setSummary` 4th arg, active counting in `renderSummary`,
+   best-effort `eth_getTransactionCount` batch in `evmProvider`),
+   `tests/coordinator_api.rs:1218`
+   (`private_key_pages_shape_summary_cards_by_chain_model`).
 4. **Search controls.** Replace the `#global-search-mode` `<select>` (`apps/site/site.js` ~220) with six chips; keep auto-detect default. Show the BIP39 passphrase + 1/3/5/10 select only for mnemonics — today counts are always visible; no passphrase.
 5. **Search results as cards.** Donor renders 18 `.ws-chain-card`s with name/symbol/balance/`Active` and per-address rows; ours is one table (`renderResults`, `site.js:517`). Switch to cards (table as accessible fallback) and use `N active chains • M active addresses`.
 6. **Split Copy All from CSV.** Donor Copy All = `=== Chain ===` + `address<TAB>key`; CSV is separate. In `apps/site/site.js` both call `toCsv` (~698): add `toText` in `apps/site/search.js`; keep private keys out of CSV (it already exports chain/address/type/explorer, `search.js:388`).

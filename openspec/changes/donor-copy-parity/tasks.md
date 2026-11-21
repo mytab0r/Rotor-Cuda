@@ -111,6 +111,18 @@ a worktree; one writer per area.
       `src/coordinator/mod.rs` (`redirect_target` 301 aliases exact-path only,
       `prefixed_hex_key` left-pads 1..=64 hex digits and rejects all-zero);
       arbitrary non-key text stays a real 404.
+- [x] Per-chain summary cards: Balance/Received/TX on UTXO chains,
+      Balance/Active on account-model chains (donor: `directory-pages.md`
+      §1 "Chain differences").
+      Evidence (2026-11-21): `src/coordinator/mod.rs:1272`
+      (`AddressKind::is_utxo`), `:3336-3349` and `:3382-3384` (card markup),
+      `apps/site/site.css:1517-1519` (`.balance-summary--account`; the mobile
+      rule at `:1819` still collapses it), `apps/site/browse.js:156,411-416,
+      578-602,906-945` (`totalActive`, 4-argument `setSummary`, active counting,
+      best-effort `eth_getTransactionCount` batch), `tests/coordinator_api.rs:1218`
+      (`private_key_pages_shape_summary_cards_by_chain_model`).
+      Limitation: Solana/Sui/Ton have no per-address tx count, so they count an
+      address as active only when it is funded.
 
 ## 3. ref-site-b ideas
 - [x] Lists/pricing pages, filters and density reviewed; adopted items listed
