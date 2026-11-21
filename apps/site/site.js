@@ -196,6 +196,7 @@
     if (path === '/private-keys' || path.indexOf('/private-keys/') === 0 || path.indexOf('/keys/') === 0) section = 'directory';
     else if (path.indexOf('/bitcoin-puzzle') === 0) section = 'puzzle';
     else if (path.indexOf('/vanity') === 0) section = 'vanity';
+    else if (path.indexOf('/milk-sad') === 0) section = 'milk-sad';
     else if (path.indexOf('/tools') === 0 || path.indexOf('/brainwallet') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0) section = 'tools';
     else if (path.indexOf('/docs') === 0) section = 'docs';
     else if (path.indexOf('/key') === 0) section = 'search';
@@ -492,10 +493,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127j'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127j'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127j'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127j'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261127k'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261127k'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261127k'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261127k'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
