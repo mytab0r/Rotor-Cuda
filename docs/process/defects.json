@@ -78,6 +78,13 @@
       "symptom": "Status pills shipped with 10.5-12px text, 7-10px inline padding, four uppercase tracking values and heights from 18 to 28px for the same concept.",
       "detector": "status-pill-geometry",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "icon-button-grammar-drift",
+      "reported": "2026-11-21",
+      "symptom": "Four icon-button grammars shipped 44x44 boxes with 14/15/16/18px icons and radii 7/9/10/11, so the same action read as four different products.",
+      "detector": "icon-button-scale",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

@@ -6,8 +6,8 @@
 <title>Mnemonic seeds directory — browse BIP39 phrases by chain | Crypto</title>
 <meta name="description" content="Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.">
 <link rel="canonical" href="https://rotor.pxbt.app/mnemonic-seeds">
-<link rel="stylesheet" href="/site.css?v=20261127a">
-<script src="/theme.js?v=20261127a"></script>
+<link rel="stylesheet" href="/site.css?v=20261127b">
+<script src="/theme.js?v=20261127b"></script>
 <style>
 .mnemonic-directory-only { display: none; }
 body.mnemonic-directory-mode .mnemonic-directory-only { display: block; }
@@ -79,30 +79,6 @@ body.mnemonic-unsupported .mnemonic-derive { display: none; }
   font-family: var(--mono);
   font-size: 12px;
 }
-.mnemonic-copy { position: relative; width: 44px; height: 44px; min-height: 44px; padding: 0; flex: none; }
-.mnemonic-copy::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-}
-.icon-btn.copied { color: var(--ok); }
-.mnemonic-balance-retry {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--accent-2);
-  background: var(--panel-2);
-}
-.mnemonic-balance-retry::before { content: ""; position: absolute; inset: 0; border-radius: 10px; }
-.mnemonic-balance-retry .icon { width: 15px; height: 15px; }
 .mnemonic-derive { padding: 12px 18px 16px; display: grid; gap: 8px; }
 .mnemonic-derive-text { color: var(--muted); font-size: 12.5px; }
 .mnemonic-directory-card { display: grid; gap: 12px; }
@@ -270,9 +246,9 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
   <p class="browse-footnote mnemonic-chain-only">These are deterministic BIP39 phrases enumerated from public entropy, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; phrases and private keys never leave this page, are not stored, and are cleared when you leave.</p>
 </main>
 
-<script src="/seed.js?v=20261127a"></script>
-<script src="/balance-cache.js?v=20261127a"></script>
-<script src="/mnemonic-seeds.js?v=20261127a"></script>
-<script src="/site.js?v=20261127a"></script>
+<script src="/seed.js?v=20261127b"></script>
+<script src="/balance-cache.js?v=20261127b"></script>
+<script src="/mnemonic-seeds.js?v=20261127b"></script>
+<script src="/site.js?v=20261127b"></script>
 </body>
 </html>

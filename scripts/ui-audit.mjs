@@ -662,6 +662,49 @@ function auditPage(args) {
     add("unlabeled-icon-control", `${unlabeledIcons.length} icon-only control(s) without aria-label/title`, unlabeledIcons.slice(0, 8));
   }
 
+  // 4a. Icon buttons share one geometry and one name pair. Regression guard
+  //     for docs/design-system/DESIGN-SYSTEM.md §3.2: box 28/36/44, icon
+  //     14/16/18, aria-label plus the shared data-tooltip primitive (no
+  //     native title next to it). Sm (28) is reserved for dense table rows.
+  const iconButtonSizes = [28, 36, 44];
+  const iconSizes = [14, 16, 18];
+  const iconButtonIssues = [];
+  for (const el of document.querySelectorAll(".icon-button")) {
+    if (!visible(el)) continue;
+    const box = boxOf(el);
+    const svg = el.querySelector("svg");
+    if (!svg) {
+      iconButtonIssues.push({ selector: selectorOf(el), issues: ["no icon"] });
+      continue;
+    }
+    const iconStyle = getComputedStyle(svg);
+    const width = Math.round(box.width);
+    const height = Math.round(box.height);
+    const iconWidth = Math.round(Number.parseFloat(iconStyle.width));
+    const iconHeight = Math.round(Number.parseFloat(iconStyle.height));
+    const issues = [];
+    if (!iconButtonSizes.includes(height)) issues.push(`height ${height}px`);
+    if (!iconButtonSizes.includes(width)) issues.push(`width ${width}px`);
+    if (!iconSizes.includes(iconWidth) || iconWidth !== iconHeight) {
+      issues.push(`icon ${iconWidth}x${iconHeight}px`);
+    }
+    if (!(el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || textOf(el))) {
+      issues.push("no accessible name");
+    }
+    if (!el.getAttribute("data-tooltip") || !el.getAttribute("data-tooltip").trim()) {
+      issues.push("no data-tooltip");
+    }
+    if (el.hasAttribute("title")) issues.push("native title alongside data-tooltip");
+    if (el.classList.contains("icon-button--sm") && !el.closest("tr, .key-row")) {
+      issues.push("sm outside a dense table row");
+    }
+    if (issues.length) iconButtonIssues.push({ selector: selectorOf(el), issues });
+  }
+  metrics.iconButtons = iconButtonIssues;
+  if (iconButtonIssues.length) {
+    add("icon-button-scale", `${iconButtonIssues.length} icon button(s) outside the shared scale`, iconButtonIssues.slice(0, 8));
+  }
+
   // 4b. Status pills share one geometry. Regression guard for
   //     docs/design-system/DESIGN-SYSTEM.md §3.5: >=12px text, pill radius,
   //     8px inline padding, 18-32px height.

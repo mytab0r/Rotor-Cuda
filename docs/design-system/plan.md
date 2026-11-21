@@ -49,7 +49,7 @@ Definition of done for a batch:
 |---|---|---|---|---|---|
 | 0 | Foundation docs (this run) | design-system lead | `critic` | — | — |
 | 1 | Tokens + status/badges + status lines (this run) | design-system lead | `critic` | tooltip PR not touched | `status-pill-geometry` |
-| 2 | Icon buttons + tooltip primitive | `developer` | `critic` | tooltip PR merged; `#key-info-btn` area excluded | `icon-button-geometry`, `adjacent-icon-gap`, `tooltip-naming` |
+| 2 | Icon buttons + tooltip primitive | `developer` | `critic` | tooltip PR merged; `#key-info-btn` area excluded | `icon-button-scale`, `adjacent-icon-gap`, `tooltip-naming` |
 | 3 | Forms, fields, segmented controls, chips | `developer` | `critic` | batch 1 tokens | `control-height-scale`, `field-geometry`, `segmented-geometry` |
 | 4 | Cards and stat blocks | `developer` | `critic` | batch 1 tokens | `stat-geometry`, `card-padding-scale` |
 | 5 | Tables and rows | `developer` | `critic` | batch 1 tokens | `table-header-style`, `table-row-height`, `row-action-geometry` |
@@ -121,14 +121,19 @@ Files: `apps/site/site.css` (icon-button + tooltip/popover sections),
 
 Work: collapse `.icon-btn`, `.key-icon-btn`, `.global-search-icon-btn`,
 `.pz-icon`, `.key-copy-icon`, `.browse-balance-retry` into
-`.icon-btn--quiet`/`.icon-btn--solid` at 44×44, radius 10, icon 16. Adopt the
-tooltip primitive from the in-flight PR; do not edit `#key-info-btn` or its
-popover. Replace page-local copied states with `.is-copied`.
+`.icon-button--quiet`/`--outline`/`--solid` at 44×44 (`--lg`), radius
+`--radius-control`, icon 18. The same component also ships `--sm` (28, dense
+table rows only) and `--md` (36, compact desktop toolbars). Adopt the tooltip
+primitive from the in-flight PR; do not edit `#key-info-btn` or its popover.
+Replace page-local copied states with `.is-copied`.
 
 Detectors:
 
-- `icon-button-geometry`: every icon-only control is 44×44 (or 44 wide for a
-  text-reporting box), radius in {10}, icon 16, has `aria-label` + `title`.
+- `icon-button-scale`: every `.icon-button` is 28/36/44 square, radius
+  `--radius-control`, icon 14/16/18 matching the box, and carries both
+  `aria-label` and `data-tooltip` (no native `title`). 28 is allowed only for a
+  dense table row whose row is the target; all standalone and 375px actions use
+  44.
 - `adjacent-icon-gap`: adjacent visible icon-only controls have ≥8px gap and
   distinct labels.
 - `tooltip-naming`: an element with a tooltip has an accessible name that does
@@ -286,10 +291,10 @@ On Git Bash, omit the leading slash in `--routes` (MSYS path rewriting), or pass
 | ID | Rule | Batch | Checkable |
 |---|---|---|---|
 | `status-pill-geometry` | pills: height 18–32, padding-inline 8, pill radius, font ≥12 | 1 | yes |
-| `icon-button-geometry` | 44×44, radius 10, icon 16, named | 2 | yes |
+| `icon-button-scale` | box 28/36/44, icon 14/16/18, `aria-label` + `data-tooltip` | 2 | yes |
 | `adjacent-icon-gap` | ≥8px between adjacent icon-only controls, distinct labels | 2 | yes |
 | `tooltip-naming` | accessible name independent of the tooltip; `aria-describedby` resolves | 2 | yes |
-| `control-height-scale` | heights in {40, 44, 56} ±1 | 3 | yes |
+| `control-height-scale` | heights in {28, 36, 44, 56} ±1 (28 dense rows only) | 3 | yes |
 | `field-geometry` | control radius/size/label/focus ring | 3 | yes |
 | `segmented-geometry` | one track grammar, one selected item | 3 | yes |
 | `stat-geometry` | label ≥12 sentence case; value in {20,24,28} | 4 | yes |
@@ -345,4 +350,24 @@ entry in the same PR.
   `include_str!`, so the debug binary must be rebuilt after every CSS change
   before running `ui-audit` against it. A stale binary silently audits the old
   stylesheet.
-- Batches 2–7: not started; owners/reviewers assigned above.
+- Batch 2: one `.icon-button` component (variants `--quiet`/`--outline`/
+  `--solid`; sizes `--sm` 28 / `--md` 36 / `--lg` 44 with icons 14/16/18;
+  radius `--radius-control`) replaced `.icon-btn`, `.key-icon-btn`,
+  `.global-search-icon-btn`, `.pz-icon`, `.key-copy-icon` and
+  `.browse-balance-retry` in `site.css`, the static pages, the runtime JS and
+  the coordinator templates. Icon-only actions carry `aria-label` +
+  `data-tooltip` and copied states use `.is-copied`. Control-height tokens are
+  now 28/36/44 plus a 56 hero step; asset version `20261127b`.
+  `icon-button-scale` detector and ledger entry added.
+- Batch 2 evidence:
+  - `node scripts/ui-audit.mjs --serve`: **PASS, 192 page runs across 32
+    routes, 0 violations**; every `.icon-button` in 28/36/44 with a 14/16/18
+    icon, every tooltip target valid, no small targets.
+  - `/key`, `/key/<hex>`, `/private-keys/bitcoin`, `/cabinet/wallet`, `/tools`
+    and `/bitcoin-puzzle` at 375/768/1280 dark/light: metrics show 0 overflow,
+    0 small targets, 0 unlabeled icons, 0 icon-button issues. Screenshots:
+    `%TEMP%/rotor-ui-audit-5JN4mf/screenshots`.
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+    area tests and `cargo test --test coordinator_api --test coordinator_client`
+    pass.
+- Batches 3–7: not started; owners/reviewers assigned above.
