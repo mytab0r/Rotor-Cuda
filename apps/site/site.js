@@ -493,10 +493,10 @@
       return loaders[globalName];
     }
 
-    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261128a'); }
-    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261128a'); }
-    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261128a'); }
-    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261128a'); }
+    function ensureKeyTools() { return ensureScript('RotorKeyTools', '/key-tools.js?v=20261129a'); }
+    function ensureSearch() { return ensureScript('RotorSearch', '/search.js?v=20261129a'); }
+    function ensureBalanceCache() { return ensureScript('RotorBalanceCache', '/balance-cache.js?v=20261129a'); }
+    function ensureAddressCodecs() { return ensureScript('RotorAddressCodecs', '/address-codecs.js?v=20261129a'); }
 
     function loadWasm() {
       if (wasmState.wasm) return Promise.resolve(wasmState.wasm);
