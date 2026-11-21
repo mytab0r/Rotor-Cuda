@@ -793,6 +793,77 @@ function auditPage(args) {
     add("segmented-geometry", `${segmentedIssues.length} segmented control(s) outside the shared grammar`, segmentedIssues.slice(0, 8));
   }
 
+  // 4g. Card surfaces share one padding/radius scale. `.card--flat` and the
+  //     boxless `.stat-card` strip cell are documented exceptions.
+  const cardSelector = [
+    ".card",
+    ".chain-card",
+    ".tool-card",
+    ".tool-family",
+    ".address-db-card",
+    ".tool-index-card",
+    ".pz-picker-card",
+    ".stat",
+    ".stat-card",
+    ".key-stat",
+    ".pz-stat",
+  ].join(", ");
+  const cardPadScale = [16, 20, 24];
+  const cardRadiusScale = [12, 16];
+  const cardIssues = [];
+  for (const el of document.querySelectorAll(cardSelector)) {
+    if (!visible(el)) continue;
+    if (el.classList.contains("card--flat")) continue;
+    const style = getComputedStyle(el);
+    const pad = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
+      .map((value) => Number.parseFloat(value));
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    const boxless = el.classList.contains("stat-card") || el.classList.contains("card--stat");
+    const issues = [];
+    if (pad.some((value) => !cardPadScale.some((step) => Math.abs(step - value) <= 0.5))) {
+      issues.push(`padding ${pad.join("/")}px`);
+    }
+    if (!cardRadiusScale.some((step) => Math.abs(step - radius) <= 0.5) &&
+        !(boxless && radius <= 0.5)) {
+      issues.push(`radius ${radius}px`);
+    }
+    if (issues.length) cardIssues.push({ selector: selectorOf(el), issues });
+  }
+  metrics.cards = cardIssues;
+  if (cardIssues.length) {
+    add("card-padding-scale", `${cardIssues.length} card(s) outside the shared padding/radius scale`, cardIssues.slice(0, 8));
+  }
+
+  // 4h. Stat blocks: 12px sentence-case label, 20/24/28 value with tabular
+  //     digits. No fixed empty height (the mostly-empty-block check covers it).
+  const statIssues = [];
+  for (const el of document.querySelectorAll(".stat, .stat-card, .key-stat, .pz-stat")) {
+    if (!visible(el)) continue;
+    const label = el.querySelector(".stat-label, .stat__label, .key-stat-label, .pz-stat-label");
+    const value = el.querySelector(".stat-value, .stat__value, .key-stat-value, .pz-stat-value");
+    if (!label && !value) continue;
+    const issues = [];
+    if (label) {
+      const labelStyle = getComputedStyle(label);
+      if (Number.parseFloat(labelStyle.fontSize) < 12) issues.push(`label ${labelStyle.fontSize}`);
+      if (labelStyle.textTransform !== "none") issues.push(`label text-transform ${labelStyle.textTransform}`);
+      if (Number.parseFloat(labelStyle.letterSpacing) > 0.5) issues.push(`label tracking ${labelStyle.letterSpacing}`);
+    }
+    if (value) {
+      const valueStyle = getComputedStyle(value);
+      const size = Math.round(Number.parseFloat(valueStyle.fontSize));
+      if (![20, 24, 28].includes(size)) issues.push(`value ${size}px`);
+      if (!String(valueStyle.fontVariantNumeric).includes("tabular-nums")) {
+        issues.push(`value font-variant-numeric ${valueStyle.fontVariantNumeric}`);
+      }
+    }
+    if (issues.length) statIssues.push({ selector: selectorOf(el), issues });
+  }
+  metrics.stats = statIssues;
+  if (statIssues.length) {
+    add("stat-geometry", `${statIssues.length} stat block(s) outside the shared geometry`, statIssues.slice(0, 8));
+  }
+
   // 4b. Status pills share one geometry. Regression guard for
   //     docs/design-system/DESIGN-SYSTEM.md §3.5: >=12px text, pill radius,
   //     8px inline padding, 18-32px height.
