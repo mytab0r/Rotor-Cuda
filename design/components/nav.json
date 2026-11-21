@@ -1,0 +1,59 @@
+{
+  "name": "nav",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "header",
+  "variants": [
+    {
+      "id": "site",
+      "label": "Site navigation shell",
+      "classes": ["site-nav"],
+      "external": "page-header"
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (min-height 70)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [],
+  "forbidden": [
+    "A page-local nav pill or one-off icon wrapper.",
+    "More than three utility controls (search icon-button, theme icon-button, cabinet chip).",
+    "A nav link below 44px with an icon other than 18px.",
+    "A second navigation toolbar for the same destinations."
+  ],
+  "slots": [],
+  "tokens": [
+    "--z-nav",
+    "--space-1",
+    "--space-2",
+    "--space-3",
+    "--space-4",
+    "--space-5",
+    "--maxw",
+    "--control-h",
+    "--radius-pill",
+    "--nav-bg",
+    "--nav-border",
+    "--ink-1",
+    "--ink-2",
+    "--text-md",
+    "--text-xl",
+    "--weight-semibold",
+    "--icon-size-lg",
+    "--signal",
+    "--signal-soft",
+    "--hover"
+  ],
+  "detectors": ["nav-link-height", "nav-destination", "small-touch-target", "icon-button-scale"],
+  "docs": "docs/design-system/components/nav.md"
+}

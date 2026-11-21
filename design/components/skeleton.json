@@ -1,0 +1,53 @@
+{
+  "name": "skeleton",
+  "version": "0.1.0",
+  "status": "stable",
+  "element": "span",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Shimmer block",
+      "classes": ["skeleton"]
+    },
+    {
+      "id": "cell",
+      "label": "Text placeholder",
+      "classes": ["cell-skeleton"],
+      "overrides": [{ "slot": "placeholder", "text": "0.00000000" }]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (12px high)",
+      "classes": []
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "name": "aria-hidden",
+      "value": "true"
+    }
+  ],
+  "forbidden": [
+    "A skeleton that carries meaning without a text alternative; it is aria-hidden and the async surface owns the status text.",
+    "A second shimmer implementation or a page-local keyframe.",
+    "A shimmer that keeps animating under prefers-reduced-motion."
+  ],
+  "slots": [
+    {
+      "name": "placeholder",
+      "tag": "span",
+      "text": ""
+    }
+  ],
+  "tokens": ["--radius-xs", "--surface-2", "--surface-3"],
+  "detectors": [],
+  "docs": "docs/design-system/components/skeleton.md"
+}

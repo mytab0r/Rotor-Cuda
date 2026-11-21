@@ -1,0 +1,134 @@
+{
+  "name": "field",
+  "version": "0.1.1",
+  "status": "stable",
+  "element": "label",
+  "variants": [
+    {
+      "id": "default",
+      "label": "Field with label and hint",
+      "classes": ["field"]
+    }
+  ],
+  "sizes": [
+    {
+      "id": "default",
+      "label": "Default (44px)",
+      "classes": []
+    },
+    {
+      "id": "hero",
+      "label": "Hero (56px)",
+      "classes": ["field--hero"]
+    }
+  ],
+  "states": [
+    {
+      "id": "default",
+      "label": "Default"
+    },
+    {
+      "id": "focus-visible",
+      "label": "Focus-visible (live, tab)"
+    },
+    {
+      "id": "invalid",
+      "label": "Invalid",
+      "overrides": [
+        {
+          "slot": "control",
+          "attrs": {
+            "aria-invalid": "true",
+            "aria-describedby": "gallery-field-hint gallery-field-error"
+          }
+        },
+        {
+          "slot": "error",
+          "attrs": { "hidden": null }
+        }
+      ]
+    },
+    {
+      "id": "disabled",
+      "label": "Disabled",
+      "overrides": [
+        {
+          "slot": "control",
+          "attrs": { "disabled": "" }
+        }
+      ]
+    }
+  ],
+  "requiredAttrs": [
+    {
+      "target": "control",
+      "name": "aria-describedby",
+      "value": "gallery-field-hint"
+    }
+  ],
+  "forbidden": [
+    "An input without a visible label or a wired aria-label/aria-labelledby.",
+    "A page-local control height or radius: the control is 44px (56 hero) with radius 10 (16 hero).",
+    "Removing the focus ring; the focus style is border --signal plus a 3px --signal-soft ring.",
+    "A select with a fixed arrow position that does not follow the control height."
+  ],
+  "slots": [
+    {
+      "name": "label",
+      "tag": "span",
+      "classes": ["field__label"],
+      "text": "Private key"
+    },
+    {
+      "name": "control",
+      "tag": "input",
+      "classes": ["field__control"],
+      "attrs": {
+        "id": "gallery-field",
+        "type": "text",
+        "placeholder": "64 hex or WIF",
+        "aria-describedby": "gallery-field-hint",
+        "aria-invalid": "false"
+      }
+    },
+    {
+      "name": "hint",
+      "tag": "span",
+      "classes": ["field__hint"],
+      "attrs": { "id": "gallery-field-hint" },
+      "text": "Hex, WIF or brainwallet text."
+    },
+    {
+      "name": "error",
+      "tag": "span",
+      "classes": ["field__error"],
+      "attrs": { "id": "gallery-field-error", "role": "alert", "hidden": "" },
+      "text": "Enter a valid private key."
+    }
+  ],
+  "tokens": [
+    "--space-1",
+    "--space-2",
+    "--space-3",
+    "--space-4",
+    "--control-h",
+    "--control-h-xl",
+    "--radius-control",
+    "--radius-xl",
+    "--line-strong",
+    "--surface-0",
+    "--ink-1",
+    "--ink-3",
+    "--text-md",
+    "--text-xs",
+    "--weight-regular",
+    "--weight-semibold",
+    "--signal",
+    "--signal-soft",
+    "--state-err",
+    "--duration-fast",
+    "--ease-standard"
+  ],
+  "detectors": ["control-height-scale", "field-geometry", "field-hero-height", "clipped-control"],
+  "docs": "docs/design-system/components/field.md"
+}

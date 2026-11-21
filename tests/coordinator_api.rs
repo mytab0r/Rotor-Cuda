@@ -1418,6 +1418,7 @@ fn every_public_content_route_renders_exactly_one_footer() {
         "/tx",
         "/tx/bitcoin",
         "/tx/ethereum",
+        "/design",
         "/keys/tron/0000000000000000000000000000000000000000000000000000000000000001-0000000000000000000000000000000000000000000000000000000000000004",
     ];
     for path in content_routes {
