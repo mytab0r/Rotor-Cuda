@@ -23,6 +23,12 @@ evidence (a screenshot or the DOM check below).
       28/36/44/56; radii are 4/8/10/12/16/20/pill. No new literal values.
 - [ ] Status/badges use one grammar: 20px high, 12px text, `2px 8px` padding,
       pill radius (`status-pill-geometry` in the audit).
+- [ ] Fields use one grammar: 44px control (56 hero), radius 10 (16 hero), 12px
+      label, visible focus ring and `aria-invalid` error state
+      (`control-height-scale`, `field-geometry`).
+- [ ] Segmented controls use `.segmented` with 4px track padding, radius 12,
+      44px items and exactly one `aria-pressed="true"`; filters, presets and
+      directory tabs use `.chip` (`segmented-geometry`).
 - [ ] No page-local `<style>` rule re-implements a shared component; move it
       to `site.css` in the batch that owns the family.
 - [ ] Every icon-only action uses `.icon-button` (quiet/outline/solid,

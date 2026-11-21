@@ -54,6 +54,9 @@ directory and printed at the end.
 | `small-touch-target` | control below 44x44 (inline prose links exempt) | Fix the shared icon-button/nav/pager primitive so every page inherits the size. |
 | `unlabeled-icon-control` | icon-only button/link without `aria-label` | Add the label to the shared component or icon helper. |
 | `icon-button-scale` | `.icon-button` box not 28/36/44 or icon not 14/16/18, or missing `aria-label`/`data-tooltip` | Fix the shared `.icon-button` sizes/variants; never restyle one page's copy button. |
+| `control-height-scale` | input/select/chip/segmented height outside 28/36/44/56 | Fix the shared `.field`/`.segmented`/`.chip` geometry, not the page. |
+| `field-geometry` | field radius not 10/16, label below 12px, or no focus ring | Fix the shared field grammar in `site.css`. |
+| `segmented-geometry` | track padding/radius wrong, item under 44, or not exactly one selected | Fix the shared `.segmented` component; one control per purpose. |
 | `status-pill-geometry` | a status/badge pill outside the shared box: text <12px, height outside 18–32px, non-pill radius, or inline padding outside 6/8/10/12 | Fix the shared `.status`/`.badge` geometry in `site.css`; never restyle one page's pill. |
 | `duplicate-address-type-implementation` | `.key-types`/`.key-btc-panel` and `.address-type-panel` both used | Unify on one address-type component and delete the other markup/CSS family. |
 | `address-type-width-spread` | cards in one row differ by >15% | Fix the grid (`repeat(auto-fit, minmax(...))` or equal `1fr`) in the shared component. |

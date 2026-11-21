@@ -705,6 +705,93 @@ function auditPage(args) {
     add("icon-button-scale", `${iconButtonIssues.length} icon button(s) outside the shared scale`, iconButtonIssues.slice(0, 8));
   }
 
+  // 4d. Form controls share the control scale. Inputs and selects are
+  //     28/36/44/56 high; textareas keep the 44 floor but may grow. Chips and
+  //     segmented items are 44-high controls too. Regression guard for
+  //     docs/design-system/DESIGN-SYSTEM.md §3.3/§3.4/§3.7.
+  const controlHeightScale = [28, 36, 44, 56];
+  const fieldSelector = 'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea';
+  const controlScaleIssues = [];
+  const scaleControl = (el, kind) => {
+    if (!visible(el) || el.disabled) return;
+    const box = boxOf(el);
+    const height = Math.round(box.height);
+    if (kind === "textarea" ? height < 43.5 : !controlHeightScale.includes(height)) {
+      controlScaleIssues.push({ selector: selectorOf(el), kind, issue: `height ${height}px` });
+    }
+  };
+  for (const el of document.querySelectorAll(fieldSelector)) scaleControl(el, el.tagName.toLowerCase());
+  for (const el of document.querySelectorAll(".chip, .segmented__item")) scaleControl(el, "chip");
+  metrics.controlHeights = controlScaleIssues;
+  if (controlScaleIssues.length) {
+    add("control-height-scale", `${controlScaleIssues.length} control(s) outside the 28/36/44/56 scale`, controlScaleIssues.slice(0, 8));
+  }
+
+  // 4e. Field geometry: radius 10 (16 for the named hero size), a visible
+  //     label at >=12px, and a focus ring on focus. The label may be a real
+  //     <label>, a visually-hidden one wired with `for`, or aria-label.
+  const fieldIssues = [];
+  for (const el of document.querySelectorAll(fieldSelector)) {
+    if (!visible(el) || el.disabled) continue;
+    const style = getComputedStyle(el);
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    const issues = [];
+    if (![10, 16].some((value) => Math.abs(value - radius) <= 0.5)) {
+      issues.push(`radius ${radius}px`);
+    }
+    const labels = el.labels ? [...el.labels] : [];
+    const label = labels.find((node) => textOf(node)) || null;
+    if (!label && !el.getAttribute("aria-label") && !el.getAttribute("aria-labelledby")) {
+      issues.push("no label");
+    } else if (label && Number.parseFloat(getComputedStyle(label).fontSize) < 12) {
+      issues.push(`label ${getComputedStyle(label).fontSize}`);
+    }
+    el.focus({ preventScroll: true });
+    const focused = getComputedStyle(el);
+    const ring = (focused.boxShadow && focused.boxShadow !== "none") ||
+      (focused.outlineStyle !== "none" && Number.parseFloat(focused.outlineWidth) > 0);
+    el.blur();
+    if (!ring) issues.push("no focus ring");
+    if (issues.length) fieldIssues.push({ selector: selectorOf(el), issues });
+  }
+  metrics.fieldGeometry = fieldIssues;
+  if (fieldIssues.length) {
+    add("field-geometry", `${fieldIssues.length} field(s) outside the shared geometry`, fieldIssues.slice(0, 8));
+  }
+
+  // 4f. Segmented controls: one track grammar and exactly one selected item.
+  const segmentedIssues = [];
+  for (const track of document.querySelectorAll(".segmented")) {
+    if (!visible(track)) continue;
+    const style = getComputedStyle(track);
+    const pad = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
+      .map((value) => Number.parseFloat(value));
+    const radius = Number.parseFloat(style.borderTopLeftRadius);
+    const items = [...track.querySelectorAll(".segmented__item")].filter(visible);
+    const selected = items.filter((item) =>
+      item.getAttribute("aria-pressed") === "true" ||
+      item.classList.contains("is-selected") ||
+      item.classList.contains("active"));
+    const issues = [];
+    if (pad.some((value) => !(Math.abs(value - 4) <= 0.5))) issues.push(`track padding ${pad.join("/")}px`);
+    if (Math.abs(radius - 12) > 0.5) issues.push(`track radius ${radius}px`);
+    if (items.length < 2) issues.push(`${items.length} item(s)`);
+    if (selected.length !== 1) issues.push(`${selected.length} selected item(s)`);
+    for (const item of items) {
+      const itemBox = boxOf(item);
+      const itemRadius = Number.parseFloat(getComputedStyle(item).borderTopLeftRadius);
+      if (itemBox.height < 43.5) issues.push(`${selectorOf(item)} height ${Math.round(itemBox.height)}px`);
+      if (!(itemRadius >= 7.5 && itemRadius <= 10.5)) {
+        issues.push(`${selectorOf(item)} radius ${itemRadius}px`);
+      }
+    }
+    if (issues.length) segmentedIssues.push({ selector: selectorOf(track), issues });
+  }
+  metrics.segmented = segmentedIssues;
+  if (segmentedIssues.length) {
+    add("segmented-geometry", `${segmentedIssues.length} segmented control(s) outside the shared grammar`, segmentedIssues.slice(0, 8));
+  }
+
   // 4b. Status pills share one geometry. Regression guard for
   //     docs/design-system/DESIGN-SYSTEM.md §3.5: >=12px text, pill radius,
   //     8px inline padding, 18-32px height.
@@ -1321,7 +1408,9 @@ async function main() {
           "--monitor-state",
           path.join(stateDir, "monitor.json"),
           "--monitor-interval",
-          "300",
+          // The audit does not need the monitor; a short interval makes it poll
+          // the unreachable test RPC mid-run and exit before the last routes.
+          "3600",
           "--monitor-rpc",
           "http://127.0.0.1:1",
           "--monitor-btc-rpc",
