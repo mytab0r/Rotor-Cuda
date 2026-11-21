@@ -1,3 +1,4 @@
+pub mod address;
 pub mod base58;
 pub mod benchmark;
 pub mod bsgs;

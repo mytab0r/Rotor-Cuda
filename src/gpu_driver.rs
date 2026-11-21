@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::thread;
 
+use crate::chain::ChainDescriptor;
 use crate::checkpoint::{self, Checkpoint};
-use crate::cli::Coin;
 use crate::engine::{self, Split};
 use crate::point::Affine;
 use crate::scalar::Scalar;
@@ -49,7 +49,7 @@ impl OutputSink {
         key: &Scalar,
         point: &Affine,
         compressed: bool,
-        coin: Coin,
+        coin: &'static ChainDescriptor,
     ) -> Result<(), String> {
         let mut file = self.file.lock().map_err(|_| LOCK_ERROR.to_owned())?;
         engine::emit_hit(&mut file, key, point, compressed, coin)
@@ -442,8 +442,13 @@ mod tests {
                 for block in 0..BLOCKS {
                     let key = Scalar::from_u64(0x1000 + (thread_index * BLOCKS + block) as u64);
                     let point = crate::secp::mul_g(&key);
-                    sink.write_block(&key, &point, true, Coin::Btc)
-                        .expect("block write");
+                    sink.write_block(
+                        &key,
+                        &point,
+                        true,
+                        crate::chain::by_id("bitcoin").expect("bitcoin descriptor"),
+                    )
+                    .expect("block write");
                 }
             }));
         }

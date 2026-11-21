@@ -18,7 +18,8 @@ use bip39::Mnemonic;
 use sha2::{Digest, Sha512};
 
 use crate::base58;
-use crate::cli::{Coin, Config, SearchMode};
+use crate::chain;
+use crate::cli::{Config, SearchMode};
 use crate::filter::TargetSet;
 use crate::hashes;
 use crate::scalar::Scalar;
@@ -376,6 +377,11 @@ pub fn run_audit(config: &Config) -> Result<(), String> {
     Ok(())
 }
 
+/// Mnemonic targets are always Bitcoin P2PKH, as validated by the CLI.
+fn bitcoin() -> &'static chain::ChainDescriptor {
+    chain::by_id("bitcoin").expect("bitcoin descriptor")
+}
+
 fn audit_targets(config: &Config, x_targets: bool) -> Result<TargetSet, String> {
     let mode = if x_targets {
         SearchMode::XPoints
@@ -386,11 +392,11 @@ fn audit_targets(config: &Config, x_targets: bool) -> Result<TargetSet, String> 
     if let Some(source) = config.targets_text.as_deref() {
         if source == "-" {
             let stdin = io::stdin();
-            return targets_text::load(stdin.lock(), Coin::Btc, mode);
+            return targets_text::load(stdin.lock(), bitcoin(), mode);
         }
         let file =
             std::fs::File::open(source).map_err(|err| format!("failed to read {source}: {err}"))?;
-        return targets_text::load(BufReader::new(file), Coin::Btc, mode);
+        return targets_text::load(BufReader::new(file), bitcoin(), mode);
     }
     let path = config.input_file.as_deref().ok_or_else(|| {
         "--mnemonic-audit requires a target list (--targets-text FILE or -i FILE)".to_owned()
