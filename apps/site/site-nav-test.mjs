@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Tests for the pure narrow-header nav helpers. No browser, no network. */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runInThisContext } from "node:vm";
 
@@ -96,6 +96,23 @@ test("only the last breadcrumb is current", () => {
 test("empty and missing breadcrumb lists render nothing", () => {
   assert.deepEqual(crumbs.trail([]), []);
   assert.deepEqual(crumbs.trail(null), []);
+});
+
+/* Every static page carries its own copy of the header, while generated pages
+ * use site_header() in src/coordinator/mod.rs. A nav edit applied to one copy
+ * only silently loses the link on the other pages, so pin the full order. */
+test("every static page ships the same main-nav link set", () => {
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  const expected = ["home", "directory", "seeds", "puzzle", "vanity", "milk-sad", "tools", "docs"];
+  let checked = 0;
+  for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".html"))) {
+    const block = readFileSync(dir + name, "utf8").match(/<nav aria-label="Main">([\s\S]*?)<\/nav>/);
+    if (!block) continue;
+    const found = [...block[1].matchAll(/data-nav="([a-z-]+)"/g)].map((match) => match[1]);
+    assert.deepEqual(found, expected, `${name} main nav links`);
+    checked += 1;
+  }
+  assert.ok(checked >= 20, `expected at least 20 static pages, checked ${checked}`);
 });
 
 if (failed) {

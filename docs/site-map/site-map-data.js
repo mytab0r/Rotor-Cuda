@@ -1297,11 +1297,11 @@
     area: 'site',
     capability: 'Consistent breadcrumbs, one filter bar, skeleton/empty/error states',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
+    rotor: 'present',
+    status: 'parity',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Breadcrumbs are now consistent on every public page, with one current crumb per trail. Pages can still show three control panels, and skeleton/empty/error components are not shared.'
+    note: 'Breadcrumbs are consistent on every public page, with one current crumb per trail. `.empty-state`, `.skeleton` and `.error` are shared primitives (`apps/site/site.css`, PR #170) and the page-local empty classes are gone. Directory pages keep separate search, type-selector and pager panels because the donor splits them the same way (`docs/donor-parity/directory-pages.md` §1); `/key` renders one filter bar and a separate pager.'
   });
 
   feature({
