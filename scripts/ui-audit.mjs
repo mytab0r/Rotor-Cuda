@@ -15,7 +15,7 @@
 // Exit codes: 0 = no violations, 1 = violations found, 2 = harness/environment error.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -39,10 +39,24 @@ const DEFAULT_ROUTES = [
   "/tools",
   "/vanity",
   "/send",
+  "/send/bitcoin",
+  "/send/ethereum",
   "/send/bnb",
   "/send/usdt",
   "/send/tron",
   "/cabinet/wallet",
+  "/mnemonic-converter",
+  "/mnemonic-seeds",
+  "/milk-sad",
+  "/hex-dec-bin",
+  "/public-key",
+  "/pubkey-add",
+  "/keystore-parser",
+  "/reconstruction",
+  "/tx",
+  "/tx/bitcoin",
+  "/tx/ethereum",
+  "/docs",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
 const DEFAULT_SETTLE_MS = 700;
@@ -126,6 +140,28 @@ function parseArgs(argv) {
   if (options.themes.length === 0) throw new Error("--themes must contain dark and/or light");
   if (!options.base) options.base = options.serve ? "http://127.0.0.1:7899" : "http://127.0.0.1:7879";
   return options;
+}
+
+// route-coverage: every public text/html route in the coordinator's static_asset
+// map must be inspected by the default audit. Internal/auth pages are exempt.
+function missingPublicRoutes(routes) {
+  const file = path.join(REPO_ROOT, "src", "coordinator", "mod.rs");
+  const source = readFileSync(file, "utf8");
+  const start = source.indexOf("fn static_asset(");
+  const end = source.indexOf("_ => None", start);
+  const excluded = new Set(["/cabinet", "/cabinet/wallet", "/app", "/run", "/me"]);
+  const publicPages = new Set();
+  let pending = [];
+  for (const line of source.slice(start, end).split("\n")) {
+    if (/^\s{8}"/.test(line)) pending = [];
+    for (const match of line.matchAll(/"(\/[^"]*)"/g)) pending.push(match[1]);
+    if (!line.includes('"text/html')) continue;
+    for (const route of pending) {
+      if (!excluded.has(route) && !route.includes("/api/")) publicPages.add(route);
+    }
+    pending = [];
+  }
+  return [...publicPages].filter((route) => !routes.includes(route));
 }
 
 function log(message) {
@@ -924,6 +960,12 @@ function viewportFor(width) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  const uncovered = missingPublicRoutes(DEFAULT_ROUTES);
+  if (uncovered.length) {
+    throw new Error(
+      `[route-coverage] public page route(s) missing from DEFAULT_ROUTES: ${uncovered.join(", ")}`,
+    );
+  }
   if (options.help) {
     log(HELP);
     return 0;
