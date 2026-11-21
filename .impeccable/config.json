@@ -65,6 +65,15 @@
         ],
         "createdAt": "2026-11-21T06:00:45.081Z",
         "reason": "Agent: the inset is on the table cells (.data-table th/td padding 8/12px); .table-scroll is the design-system-mandated wrapper with padding 0 (DESIGN-SYSTEM.md table grammar), so the wrapper heuristic cannot see child padding. Same class as the range.html scoping."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/app.html"
+        ],
+        "createdAt": "2026-11-21T06:15:02.584Z",
+        "reason": "Agent: the 8/12px inset is on .data-table th/td; .table-scroll is the DESIGN-SYSTEM-mandated scroll wrapper with padding 0, so the wrapper heuristic cannot see child padding. Same class as range.html, key.html, docs/site-map and me.html."
       }
     ]
   }
