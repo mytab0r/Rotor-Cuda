@@ -267,6 +267,13 @@
       "symptom": "A Network.loadingFailed event whose request id was not in the request map was treated as same-origin because the URL parse fell back to the base origin, so a browser-injected external request surfaced as a false http-error violation and stalled the route.",
       "detector": "http-error",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "stale-assets-after-deploy",
+      "reported": "2026-11-21",
+      "symptom": "After the manual ?v= tokens were removed, assets relied on origin no-cache; Cloudflare's zone Browser Cache TTL overrode it (max-age=14400, cf-cache-status: REVALIDATED), so a returning browser kept old JS/CSS for up to 4 hours after a deploy. HTML must reference build-prefixed /a/<build>/ URLs instead of bare assets.",
+      "detector": "asset-fingerprint",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

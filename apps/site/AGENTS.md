@@ -28,10 +28,13 @@ Violation IDs, thresholds and the "fix the class, not the page" rule are in
   `include_str!`/`include_bytes!` in `src/coordinator/mod.rs:31-41`. Renaming or
   removing a file breaks `cargo build --bin rotor-coord`.
 - Never add a `?v=` cache token to a page or script: HTML is served with
-  `no-store` and assets revalidate by `ETag`; `check-projects.mjs` rejects a
-  returning token.
-- `key.js` and `rotor-worker.js` load `/rotor_wasm.wasm`. Do not hand-edit the
-  wasm file; rebuild it from `crates/rotor-wasm` with `sh scripts/build-wasm.sh`.
+  `no-store` and references assets as `/a/<build>/<path>` (immutable); bare
+  asset paths revalidate by `ETag`. `check-projects.mjs` rejects a returning
+  token and `ui-audit.mjs` rejects a bare asset reference.
+- `key.js` and `rotor-worker.js` load the wasm artifact through the build
+  prefix (`window.RotorAssets.url('/rotor_wasm.wasm')`; a worker derives it
+  from its own `/a/<build>/` URL). Do not hand-edit the wasm file; rebuild it
+  from `crates/rotor-wasm` with `sh scripts/build-wasm.sh`.
 - Served routes are fixed in `src/coordinator/mod.rs`; adding a page is also a
   coordinator change.
 - No secrets or account data in static assets.

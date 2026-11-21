@@ -19,7 +19,14 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
+  /* The worker is started from `/a/<build>/vanity-worker.js`; derive the build
+   * from its own URL so the wasm fetch stays immutable too. */
+  function assetUrl(path) {
+    var match = self.location && /^\/a\/([^/]+)\//.exec(self.location.pathname);
+    return match ? '/a/' + match[1] + path : path;
+  }
+
+  var WASM_URL = assetUrl('/rotor_wasm.wasm');
   var BATCH = 200;
   var PROGRESS_MS = 250;
   var DECODER = new TextDecoder('utf-8');

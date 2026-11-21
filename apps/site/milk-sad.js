@@ -24,7 +24,9 @@
   function loadWasm() {
     if (state.promise) return state.promise;
     state.promise = (async function () {
-      var response = await fetch('/rotor_wasm.wasm');
+      var response = await fetch(window.RotorAssets
+        ? window.RotorAssets.url('/rotor_wasm.wasm')
+        : '/rotor_wasm.wasm');
       if (!response.ok) throw new Error('Cannot load the derivation core.');
       var module;
       try {

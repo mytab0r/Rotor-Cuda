@@ -1879,6 +1879,27 @@ function auditPage(args) {
     add("footer-presence", `${footerIssues.length} footer problem(s)`, footerIssues.slice(0, 8));
   }
 
+  // 11. Asset fingerprint: every first-party asset reference in the served
+  //     HTML carries the /a/<build>/ prefix. A bare link is what lets an edge
+  //     Browser Cache TTL keep a returning browser on stale CSS or JS.
+  const assetLinks = [];
+  for (const el of document.querySelectorAll("script[src], link[href]")) {
+    const ref = el.getAttribute("src") || el.getAttribute("href") || "";
+    if (!ref.startsWith("/")) continue;
+    const path = ref.split(/[?#]/)[0];
+    if (!/\.(?:css|js|wasm|svg|woff2|png|ico)$/.test(path)) continue;
+    assetLinks.push({ ref, selector: selectorOf(el) });
+  }
+  const bareAssets = assetLinks.filter(({ ref }) => !ref.startsWith("/a/"));
+  metrics.assetFingerprint = { assets: assetLinks.length, bare: bareAssets.length };
+  if (bareAssets.length) {
+    add(
+      "asset-fingerprint",
+      `${bareAssets.length} asset reference(s) lack the build prefix`,
+      bareAssets.slice(0, 8).map(({ ref, selector }) => `${selector} -> ${ref}`),
+    );
+  }
+
   return { violations, metrics };
 }
 
