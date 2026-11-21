@@ -25,6 +25,9 @@ jobs:
         run: cargo build --release --bin rotor-coord
       - name: Check the defect ledger
         run: node scripts/check-defect-ledger.mjs
+      # ui-audit.mjs also enforces the component grammar in
+      # docs/design-system/DESIGN-SYSTEM.md (status-pill-geometry today;
+      # icon/field/table/nav checks as their batches land).
       - name: Run the UI audit
         run: node scripts/ui-audit.mjs --serve
       - name: Upload screenshots and report
