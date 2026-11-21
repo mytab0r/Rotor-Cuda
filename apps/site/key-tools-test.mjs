@@ -530,6 +530,20 @@ const uncompressed = await tools.wifDecode(
 assert(uncompressed.network === "bitcoin", "uncompressed BTC WIF network");
 assert(uncompressed.compressed === false, "uncompressed BTC WIF flag");
 assert(Buffer.from(uncompressed.bytes).toString("hex") === KEY_ONE, "uncompressed BTC WIF key");
+
+// The 37-byte (uncompressed) form has no 0x01 marker; LTC/DOGE versions must
+// round-trip through wifEncode/wifDecode with compressed=false.
+for (const [network, prefixes] of [
+  ["litecoin", ["6", "T"]],
+  ["dogecoin", ["6", "Q"]],
+]) {
+  const wif = await tools.wifEncode(hexToBytes(KEY_ONE), network, sha256Double, false);
+  assert(prefixes.includes(wif[0]), `${network} uncompressed WIF ${wif} prefix`);
+  const decoded = await tools.wifDecode(wif, sha256Double);
+  assert(decoded.network === network, `${network} uncompressed WIF keeps its network`);
+  assert(decoded.compressed === false, `${network} uncompressed WIF flag`);
+  assert(Buffer.from(decoded.bytes).toString("hex") === KEY_ONE, `${network} uncompressed WIF key`);
+}
 let wifRejected = false;
 try {
   await tools.wifDecode("T33ydQRKp4FCW5LCLLUB7deioUMoveiwekdwUwyfRDeGZm76aUjW", sha256Double);
@@ -570,6 +584,23 @@ assert((await resolved("1")).hex === KEY_ONE, "decimal 1 resolves to key 1");
 const wifResolved = await resolved(WIF_VECTORS[0][2]);
 assert(wifResolved.hex === KEY_ONE && wifResolved.format === "wif", "WIF resolves to key 1");
 assert(wifResolved.network === "bitcoin", "WIF keeps its network for the input status");
+
+// Litecoin (version 0xb0) and Dogecoin (0x9e) WIFs start with T/6 and Q/6.
+// The same key must round-trip through wifEncode and resolveKeyInput, so a
+// directory WIF link and the key page accept what the other one emits.
+for (const [network, prefixes] of [
+  ["litecoin", ["T", "6"]],
+  ["dogecoin", ["Q", "6"]],
+]) {
+  const wif = await tools.wifEncode(hexToBytes(KEY_ONE), network, sha256Double);
+  assert(
+    prefixes.includes(wif[0]),
+    `${network} WIF ${wif} must start with ${prefixes.join(" or ")}`,
+  );
+  const roundTrip = await resolved(wif);
+  assert(roundTrip.hex === KEY_ONE && roundTrip.format === "wif", `${network} WIF resolves to key 1`);
+  assert(roundTrip.network === network, `${network} WIF keeps its network`);
+}
 const keypairInput = JSON.stringify(Array.from({ length: 32 }, (_, index) => index));
 const keypairResolved = await resolved(keypairInput);
 assert(keypairResolved.format === "keypair", "keypair JSON keeps its format");
@@ -611,6 +642,16 @@ assert(route("1", "hex").href === "/key/" + KEY_ONE, "forced HEX treats 1 as key
 
 assert(route(WIF_VECTORS[0][2]).kind === "wif", "WIF routes to /key/<wif>");
 assert(route(WIF_VECTORS[0][2]).href === "/key/" + WIF_VECTORS[0][2], "WIF link keeps the value");
+for (const [network, prefixes] of [
+  ["litecoin", ["T", "6"]],
+  ["dogecoin", ["Q", "6"]],
+]) {
+  const wif = await tools.wifEncode(hexToBytes(KEY_ONE), network, sha256Double);
+  assert(prefixes.includes(wif[0]), `${network} WIF ${wif} has the donor prefix`);
+  const wifRoute = route(wif);
+  assert(wifRoute.kind === "wif", `${network} WIF routes to /key/<wif>`);
+  assert(wifRoute.href === "/key/" + wif, `${network} WIF link keeps the value`);
+}
 assert(route(pSecret).kind === "xrp", "p-prefixed XRP secret routes to /key/<secret>");
 assert(route(pSecret).href === "/key/" + pSecret, "XRP secret link keeps the value");
 assert(route(familySeed).kind === "xrp", "s-prefixed XRP family seed routes to /key/<secret>");

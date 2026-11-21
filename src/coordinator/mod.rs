@@ -2966,7 +2966,7 @@ fn render_brainwallet_index(base: &str) -> String {
          <section class=\"card brainwallet-index-note\">\
            <h2>How the directory works</h2>\
            <p>Each chain page enumerates the same deterministic corpus: two words from a fixed 138-word list, sliced to 18,890 unique phrases and split into 315 pages of 60 rows. The page hashes each phrase with SHA-256 in your browser, derives the chain address with the shared WebAssembly core, and can check public balances.</p>\
-           <p>The passphrase, SHA-256 key and derived private keys never leave the page. They are not stored, not put in the URL, and are cleared when you leave. Balance lookups send only the public address, and only when the visible toggle is on. Use the <a href=\"/brainwallet-generator\">generator</a> for a single passphrase of your own.</p>\
+           <p>The passphrase, SHA-256 key and derived private keys are never stored and are cleared when you leave the page; this directory keeps them out of its own URL. Opening a row's HEX or WIF link goes to <code>/key/&lt;key&gt;</code>, which does put that key in the browser URL bar and history. Balance lookups send only the public address, and only when the visible toggle is on. Use the <a href=\"/brainwallet-generator\">generator</a> for a single passphrase of your own.</p>\
          </section>\
          <aside class=\"edu-note\"><strong>Educational purpose.</strong> Finding a funded brainwallet by enumeration is infeasible. These pages are a derivation reference, not a wallet and not a recovery service.</aside>\
          </main>",
@@ -3094,8 +3094,9 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
            </div>\
          </section>\
          {pager_bottom}\
-         <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
+         <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave. Opening a row's HEX or WIF link goes to <code>/key/&lt;key&gt;</code>, which puts that key in the browser URL bar and history; everything else stays on this page.</p>\
          </main>\
+         <script src=\"/key-tools.js\" defer></script>\
          <script src=\"/brainwallet-engine.js\" defer></script>\
          <script src=\"/brainwallet-directory.js\" defer></script>",
         site_header(),

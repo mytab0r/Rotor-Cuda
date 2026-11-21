@@ -272,10 +272,11 @@
     WIF_NETWORKS[WIF_VERSIONS[name]] = name;
   });
 
-  /* Compressed mainnet WIF: version || 32-byte key || 0x01 || first four bytes
-   * of double-SHA256. doubleSha256 is injected so the same code runs in the
-   * browser (crypto.subtle) and under Node tests (node:crypto). */
-  async function wifEncode(keyBytes, network, doubleSha256) {
+  /* Mainnet WIF: version || 32-byte key || (0x01 when compressed) || first
+   * four bytes of double-SHA256. `compressed` defaults to true; pass false for
+   * the 37-byte legacy form. doubleSha256 is injected so the same code runs in
+   * the browser (crypto.subtle) and under Node tests (node:crypto). */
+  async function wifEncode(keyBytes, network, doubleSha256, compressed) {
     var version = WIF_VERSIONS[network];
     if (version === undefined) {
       throw new Error('Unknown WIF network "' + network + '". Use bitcoin, litecoin or dogecoin.');
@@ -286,17 +287,19 @@
     if (typeof doubleSha256 !== 'function') {
       throw new Error('The WIF checksum needs SHA-256 support in this browser.');
     }
-    var payload = new Uint8Array(34);
+    var isCompressed = compressed !== false;
+    var bodyLength = isCompressed ? 34 : 33;
+    var payload = new Uint8Array(bodyLength);
     payload[0] = version;
     payload.set(keyBytes, 1);
-    payload[33] = 0x01;
+    if (isCompressed) payload[33] = 0x01;
     var digest = await doubleSha256(payload);
     if (!digest || typeof digest.length !== 'number' || digest.length < 4) {
       throw new Error('The checksum function returned no digest.');
     }
-    var data = new Uint8Array(38);
+    var data = new Uint8Array(bodyLength + 4);
     data.set(payload, 0);
-    data.set(digest.slice(0, 4), 34);
+    data.set(digest.slice(0, 4), bodyLength);
     return base58Encode(data);
   }
 
@@ -376,7 +379,9 @@
    * and any other text is a brainwallet. Kept pure so Node tests can pin the
    * vectors and so the modal and the key page agree on what an input means. */
 
-  var SEARCH_WIF_SHAPE = /^[5KL][1-9A-HJ-NP-Za-km-z]{50,51}$/;
+  /* The donor WIF shape, shared with the key page and the global search:
+   * 5/K/L (Bitcoin), T/6 (Litecoin) or Q/6 (Dogecoin). */
+  var SEARCH_WIF_SHAPE = /^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$/;
   var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
 
   function isMnemonicPhrase(text) {
@@ -454,7 +459,7 @@
 
     function wifRoute() {
       if (!SEARCH_WIF_SHAPE.test(value)) {
-        throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K or L.');
+        throw new Error('Not a WIF: expected a 51- or 52-character base58 key starting with 5, K, L, T, 6 or Q.');
       }
       return routeResult('wif', '/key/' + value);
     }
@@ -618,7 +623,7 @@
       return { bytes: integerBytesValue, hex: bytesToHex(integerBytesValue), format: 'decimal' };
     }
 
-    if (/^[5KLQT][1-9A-HJ-NP-Za-km-z]{50,51}$/.test(value)) {
+    if (SEARCH_WIF_SHAPE.test(value)) {
       if (typeof hashes.doubleSha256 !== 'function') {
         throw new Error('The WIF checksum needs SHA-256 support in this browser.');
       }
