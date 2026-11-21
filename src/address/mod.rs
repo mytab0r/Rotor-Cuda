@@ -229,13 +229,35 @@ pub fn solana_base58(public: &[u8; 32]) -> String {
     bs58::encode(public).into_string()
 }
 
-/// Sui's account is `0x` + BLAKE2b-256(0x00 || ed25519 public key).
-pub fn sui_hex(public: &[u8; 32]) -> String {
+/// Sui's account digest: BLAKE2b-256(0x00 || ed25519 public key).
+pub fn sui_account(public: &[u8; 32]) -> [u8; 32] {
     let mut input = [0u8; 33];
     input[1..].copy_from_slice(public);
     let mut hasher = Blake2b::<U32>::new();
     hasher.update(input);
-    format!("0x{}", hex_lower(&hasher.finalize()))
+    hasher.finalize().into()
+}
+
+/// Sui's account is `0x` + [`sui_account`].
+pub fn sui_hex(public: &[u8; 32]) -> String {
+    format!("0x{}", hex_lower(&sui_account(public)))
+}
+
+/// Raw 32-byte account the search compares for an ed25519-family target:
+/// the public key itself on Solana, its BLAKE2b-256 digest on Sui.
+///
+/// This is the same value the chain's address encodes, so an address target
+/// and a `.bin` record compare the same bytes.
+pub fn ed25519_account(descriptor: &ChainDescriptor, seed: &[u8; 32]) -> Result<[u8; 32], String> {
+    let public = SigningKey::from_bytes(seed).verifying_key().to_bytes();
+    match descriptor.encoding {
+        AddressEncoding::SolanaBase58 => Ok(public),
+        AddressEncoding::SuiHex => Ok(sui_account(&public)),
+        other => Err(format!(
+            "{} does not support {other:?} in the ed25519 family",
+            descriptor.name
+        )),
+    }
 }
 
 /// Representation hash of the standard wallet v4R2 code cell.

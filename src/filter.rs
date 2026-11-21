@@ -5,7 +5,8 @@
 //! libbloom parameters. The exact binary search remains the source of truth.
 //!
 //! The `.bin` target format is headerless: raw fixed-size records (20 bytes for
-//! hash160/ETH addresses, 32 bytes for xpoints). The C++ binary requires the
+//! hash160/ETH addresses, 32 bytes for xpoints and ed25519 accounts). The C++
+//! binary requires the
 //! file to be pre-sorted and its binary search loses record 0; this port sorts
 //! the records itself and searches them correctly.
 //!

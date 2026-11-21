@@ -196,7 +196,8 @@ pub fn single_target_words(target: &crate::engine::Target) -> Option<Vec<u32>> {
     match target {
         Target::Hash(hash) => Some(words(hash)),
         Target::X(x) => Some(words(x)),
-        Target::Hashes(_) | Target::Xs(_) => None,
+        // Ed25519 has no GPU kernel yet; the seed engine is CPU-only.
+        Target::Hashes(_) | Target::Xs(_) | Target::Seeds(_) | Target::Seed(_) => None,
     }
 }
 
