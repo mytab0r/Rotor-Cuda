@@ -70,12 +70,33 @@
     };
   }
 
+  /* The page that contains a key: 60 keys per page. Accepts 1..=64 hex
+   * digits with an optional 0x prefix (the same forms `search.js` resolves);
+   * a short numeric string is hex here, not decimal. Returns a BigInt page
+   * clamped to `1..=pages`, or null when the value is not a positive key. */
+  function pageForHexKey(hex, pages) {
+    var digits = String(hex || '').replace(/^0[xX]/, '');
+    if (!/^[0-9a-fA-F]{1,64}$/.test(digits)) return null;
+    var value;
+    var last;
+    try {
+      value = BigInt('0x' + digits);
+      last = BigInt(String(pages));
+    } catch (err) {
+      return null;
+    }
+    if (value <= 0n || last < 1n) return null;
+    var page = (value - 1n) / 60n + 1n;
+    return page > last ? last : page;
+  }
+
   if (typeof window !== 'undefined') {
     window.RotorBrowse = {
       addressEntriesFor: addressEntriesFor,
       keyModel: keyModel,
       metricFlags: metricFlags,
-      tronValue: tronValue
+      tronValue: tronValue,
+      pageForHexKey: pageForHexKey
     };
   }
 
@@ -89,7 +110,8 @@
     type: root.getAttribute('data-type') || 'legacy',
     field: root.getAttribute('data-field') || '',
     curve: Number(root.getAttribute('data-curve') || '0'),
-    pages: root.getAttribute('data-pages') || '1'
+    pages: root.getAttribute('data-pages') || '1',
+    page: root.getAttribute('data-page') || '1'
   };
 
   var state = {
@@ -1077,31 +1099,60 @@
 
   /* --------------------------------------------------------------- search */
 
-  /* `?key=` pre-fills the input and highlights a matching row on this page;
-   * it never submits the form. The donor normalises hex/WIF client-side, so
-   * the same resolution runs here before the row lookup. */
+  /* `?key=` pre-fills the input and highlights a matching row; when the key
+   * lives on another page it navigates to the page that contains it, as the
+   * donor does. The donor normalises hex/WIF client-side, so the same
+   * resolution runs here before the row lookup. */
   function highlightRow(hex) {
     var wanted = String(hex || '').toLowerCase();
-    if (!wanted) return;
+    if (!wanted) return false;
+    var found = false;
     rows.forEach(function (row) {
       if (String(row.getAttribute('data-key')).toLowerCase() !== wanted) return;
+      found = true;
       row.classList.add('highlighted');
       if (row.scrollIntoView) {
         try { row.scrollIntoView({ block: 'center' }); } catch (err) { /* ignore */ }
       }
     });
+    return found;
+  }
+
+  /* Navigate to the page holding `hex`, keeping the query so the destination
+   * highlights the matching row. `replace` keeps the transient page-1 URL out
+   * of history (Back does not bounce into the jump again); navigating only
+   * when the target differs from the current page keeps the jump loop-free. */
+  function jumpToKeyPage(hex) {
+    if (!config.chain) return;
+    var page = pageForHexKey(hex, config.pages);
+    if (page === null) return;
+    var current;
+    try { current = BigInt(String(config.page)); } catch (err) { current = 1n; }
+    if (page === current) return;
+    var params = new URLSearchParams(window.location.search);
+    if ((params.get('type') || 'legacy') === 'legacy') params.delete('type');
+    var query = params.toString();
+    var path = '/private-keys/' + encodeURIComponent(config.chain);
+    if (page !== 1n) path += '/' + page.toString();
+    window.location.replace(path + (query ? '?' + query : ''));
   }
 
   function prefillSearch() {
     var raw = new URLSearchParams(window.location.search).get('key');
     if (!raw || !searchInput) return;
     searchInput.value = raw;
-    var direct = function () { highlightRow(raw); };
+    var direct = function () {
+      if (highlightRow(raw)) return;
+      jumpToKeyPage(raw);
+    };
     if (!window.RotorSearch) {
       direct();
       return;
     }
-    window.RotorSearch.resolve(raw, 'auto').then(highlightRow, direct);
+    window.RotorSearch.resolve(raw, 'auto').then(function (hex) {
+      if (highlightRow(hex)) return;
+      jumpToKeyPage(hex);
+    }, direct);
   }
 
   if (searchForm) {
