@@ -568,6 +568,22 @@ async function goto(cdp, url) {
   ).catch(() => {});
 }
 
+// A cold first navigation in CI can miss the parse deadline once (fresh
+// profile, large wasm fetch). Retry the navigation layer once: a genuinely
+// broken page fails both attempts and still reports the violation.
+async function gotoWithRetry(cdp, url, attempts = 2) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await goto(cdp, url);
+      return;
+    } catch (error) {
+      if (!/^navigation/.test(error.message) || attempt >= attempts) throw error;
+      log(`retry ${attempt}/${attempts - 1}: ${error.message}`);
+      await sleep(500);
+    }
+  }
+}
+
 function slugify(route) {
   const slug = route.replace(/^\/+|\/+$/g, "").replace(/[^a-z0-9]+/gi, "-");
   return slug || "home";
@@ -2202,7 +2218,7 @@ async function main() {
               features: [{ name: "prefers-color-scheme", value: theme }],
             });
 
-            await goto(cdp, url);
+            await gotoWithRetry(cdp, url);
 
             // Route-aware readiness: generated rows must exist before counting.
             if (route.startsWith("/brainwallet/")) {
