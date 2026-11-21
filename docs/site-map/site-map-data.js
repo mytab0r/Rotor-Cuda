@@ -99,7 +99,7 @@
       status: 'partial',
       priority: 'P1',
       donorIds: ['pkf:/private-keys/' + item[0]],
-      note: 'Missing CSV export and balance sorting; fewer address types on BCH/TON/DOGE/ZEC. The donor also has BTC 4 and LTC 3 types.'
+      note: 'Missing CSV export and balance sorting. BTC and LTC directories expose legacy/segwit/script/taproot; BCH/TON/DOGE/ZEC directories expose one type tab per chain, while /key derives every shipped type for them.'
     });
   });
 
@@ -318,7 +318,7 @@
     status: 'partial',
     priority: 'P1',
     donorIds: ['pkf:/pubkey-add', 'ss:/PubkeyAdd'],
-    note: 'P + Q only. The donor also offers subtraction and multiplication.'
+    note: 'P + Q, P − Q and k · P are shipped; the donor offers the same three operations.'
   });
 
   oursRoute({
