@@ -1241,7 +1241,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'The compact derivation block with an editable path shipped. The wallet preset is still duplicated between the toolbar select and the preset chips.'
+    note: 'The compact derivation block with an editable path and the curve segmented control shipped. The duplicate wallet-preset select was removed; the preset chips are the only wallet control, and the audit `duplicate-preset-control` detector rejects a second copy (`key.html:166-183`).'
   });
 
   feature({
@@ -1277,19 +1277,19 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Copy feedback exists. Address copy targets are 34–40 px and addresses use end-ellipsis rather than a middle-ellipsis.'
+    note: 'Address copy, explorer and details actions use the shared 44 px `.icon-button--lg` with `aria-label` + `data-tooltip` and an `.is-copied` state (`key.js`, `site.css`). Addresses still truncate with a CSS end ellipsis; a middle ellipsis is not implemented, and the donor audit does not record which one privatekeyfinder uses.'
   });
 
   feature({
     id: 'seed-row-ui',
     area: 'seeds',
-    capability: 'Seed row collapsed phrase, address primary, icon actions',
+    capability: 'Seed row mnemonic cell (full phrase in title), address primary, icon actions',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
-    priority: 'P1',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
     sources: ['ref-site-a'],
-    note: 'Key/WIF copy and 44 px row icon buttons shipped. The phrase still renders in full instead of a collapsed/reveal row.'
+    note: 'The donor also prints the whole phrase, truncated with an ellipsis and carried in `title` plus a copy action (`docs/donor-parity/directories.md` §3, items 11 and 12); Crypto matches that cell (`mnemonic-seeds.js:675-704`). There is no collapsed/reveal row on either site.'
   });
 
   feature({
