@@ -395,6 +395,33 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 - Below 860px the primary links collapse into one menu button; nothing is
   hidden without a reachable equivalent. The brand mark is the only gradient.
 
+### 3.16 Dropzone
+
+```html
+<div class="dropzone">
+  <label class="dropzone__file-label">Choose a file
+    <input class="visually-hidden" type="file" accept=".json,application/json,text/plain">
+  </label>
+  <p class="dropzone__hint">…or drop a file here. Max 64 KiB.</p>
+  <p class="dropzone__name" role="status">Loaded file: name.json</p>
+</div>
+```
+
+- Container: dashed 1px `--line-strong`, `--radius-l`, padding `--space-3`,
+  background `--surface-0`, gap `--space-2`. It is a drop target and a layout
+  wrapper, not a button.
+- File control: `.dropzone__file-label` is a label wrapping a visually hidden
+  but focusable native `<input type="file">`; min-height `--control-h`, padding
+  `0 --space-4`, `--radius-m`, `--surface-2`, font `--text-md`/`--weight-bold`.
+  Click and keyboard both open the picker; the label shows the focus ring
+  through `:focus-within` (2px `--signal`, offset 2).
+- States: default, hover `--surface-3`, drag-over `.is-dragover` (`--signal`
+  border + `--signal-soft` surface), focus-visible ring; size/parse errors use
+  the inline error message (§3.6), never colour alone.
+- `.dropzone__hint` is `--text-xs`/`--ink-3`; `.dropzone__name` reports the
+  loaded file at `--text-sm`/`--ink-2` with `role="status"`. Reduced motion
+  removes the border/background transition.
+
 ## 4. State matrix
 
 | Component | Default | Hover | Focus-visible | Active/Selected | Disabled | Loading |
