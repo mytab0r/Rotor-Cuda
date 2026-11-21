@@ -1945,9 +1945,9 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
-         <link rel=\"stylesheet\" href=\"/site.css?v=20261127c\">\n\
-         <script src=\"/theme.js?v=20261127c\"></script>\n\
-         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261127c\"></script>\n<script src=\"/site.js?v=20261127c\"></script>\n</body>\n</html>\n",
+         <link rel=\"stylesheet\" href=\"/site.css?v=20261127d\">\n\
+         <script src=\"/theme.js?v=20261127d\"></script>\n\
+         {head_extra}</head>\n<body>\n{body}\n<script src=\"/search.js?v=20261127d\"></script>\n<script src=\"/site.js?v=20261127d\"></script>\n</body>\n</html>\n",
         escape_attr(title)
     )
 }
@@ -2548,7 +2548,7 @@ fn brainwallet_chain_tabs(active: Option<&str>) -> String {
     for chain in &CHAINS {
         let is_active = active == Some(chain.slug);
         out.push_str(&format!(
-            "<a class=\"chain-tab{}\" href=\"/brainwallet/{}\" style=\"--chain:{}\"{}>{}{}</a>",
+            "<a class=\"chain-tab chip{}\" href=\"/brainwallet/{}\" style=\"--chain:{}\"{}>{}{}</a>",
             if is_active { " active" } else { "" },
             chain.slug,
             chain.color,
@@ -2662,7 +2662,7 @@ fn render_brainwallet_index(base: &str) -> String {
         BRAINWALLET_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127c\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127d\">\n");
     let crumbs = "<nav class=\"breadcrumbs\" aria-label=\"Breadcrumb\">\
          <a href=\"/\">Home</a> / <a href=\"/tools\">Tools</a> / \
          <span aria-current=\"page\">Brainwallet</span></nav>";
@@ -2772,7 +2772,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <meta property=\"og:title\" content=\"{}\">\n\
          <meta property=\"og:description\" content=\"{}\">\n\
          <meta property=\"og:url\" content=\"{}\">\n\
-         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127c\">\n\
+         <link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127d\">\n\
          {}{}",
         escape_attr(&description),
         escape_attr(&self_url),
@@ -2832,8 +2832,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          {pager_bottom}\
          <p class=\"browse-footnote\">These are deterministic test passphrases, not a wallet. Nothing is signed or swept. Balance checks send only the derived public addresses to a public provider; passphrases and private keys never leave this page, are not stored and are cleared when you leave.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261127c\" defer></script>\
-         <script src=\"/brainwallet-directory.js?v=20261127c\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261127d\" defer></script>\
+         <script src=\"/brainwallet-directory.js?v=20261127d\" defer></script>",
         site_header(),
         escape_attr(chain.slug),
         escape_attr(chain.symbol),
@@ -2871,7 +2871,7 @@ fn render_brainwallet_generator(base: &str) -> String {
         BRAINWALLET_GENERATOR_DESCRIPTION,
         &[ld_crumbs],
     );
-    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127c\">\n");
+    head.push_str("<link rel=\"stylesheet\" href=\"/brainwallet.css?v=20261127d\">\n");
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Brainwallet", Some("/brainwallet")),
@@ -2922,8 +2922,8 @@ fn render_brainwallet_generator(base: &str) -> String {
          </section>\
          <p class=\"browse-footnote\">Browse the full corpus in the <a href=\"/brainwallet\">brainwallet directory</a>, inspect one key in the <a href=\"/key\">key calculator</a>, or convert a seed in the <a href=\"/seed\">seed tool</a>.</p>\
          </main>\
-         <script src=\"/brainwallet-engine.js?v=20261127c\" defer></script>\
-         <script src=\"/brainwallet.js?v=20261127c\" defer></script>",
+         <script src=\"/brainwallet-engine.js?v=20261127d\" defer></script>\
+         <script src=\"/brainwallet.js?v=20261127d\" defer></script>",
         site_header(),
         warning = brainwallet_warning(),
     );
@@ -3120,7 +3120,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
             _ => format!("/private-keys/{}", other.slug),
         };
         tabs.push_str(&format!(
-            "<a class=\"chain-tab{active}\" href=\"{href}\" style=\"--chain:{}\">{}<span>{}</span></a>",
+            "<a class=\"chain-tab chip{active}\" href=\"{href}\" style=\"--chain:{}\">{}<span>{}</span></a>",
             other.color,
             chain_icon(other, "chain-tab-icon"),
             other.name,
@@ -3278,7 +3278,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js?v=20261127c\"></script>\n         <script src=\"/browse.js?v=20261127c\"></script>",
+         </main>\n         <script src=\"/balance-cache.js?v=20261127d\"></script>\n         <script src=\"/browse.js?v=20261127d\"></script>",
         site_header(),
         "",
         chain.color,
@@ -3571,10 +3571,10 @@ fn puzzle_table(only_unsolved: bool) -> String {
 fn puzzle_filter_bar(total: usize, solved: usize, unsolved: usize) -> String {
     format!(
         "<div class=\"pz-toolbar\">\
-         <div class=\"pz-seg\" role=\"group\" aria-label=\"Filter puzzles\">\
-         <button type=\"button\" class=\"pz-seg-btn active\" data-puzzle-filter=\"all\" aria-pressed=\"true\">All <span>{total}</span></button>\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-filter=\"solved\" aria-pressed=\"false\">Solved <span>{solved}</span></button>\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-filter=\"unsolved\" aria-pressed=\"false\">Unsolved <span>{unsolved}</span></button>\
+         <div class=\"segmented\" role=\"group\" aria-label=\"Filter puzzles\">\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"all\" aria-pressed=\"true\">All <span>{total}</span></button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"solved\" aria-pressed=\"false\">Solved <span>{solved}</span></button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-filter=\"unsolved\" aria-pressed=\"false\">Unsolved <span>{unsolved}</span></button>\
          </div>\
          <label class=\"pz-search\">{icon}<span class=\"pz-visually-hidden\">Search puzzles</span>\
          <input type=\"search\" data-puzzle-search placeholder=\"Search #, address or status\" autocomplete=\"off\" spellcheck=\"false\"></label>\
@@ -4134,13 +4134,13 @@ fn render_puzzle_random(
         ));
     }
     let presets = "<div class=\"pz-presets\" role=\"group\" aria-label=\"Range presets\">\
-         <button type=\"button\" class=\"active\" data-range-preset=\"full\">Full</button>\
-         <button type=\"button\" data-range-preset=\"first\">1st half</button>\
-         <button type=\"button\" data-range-preset=\"second\">2nd half</button>\
-         <button type=\"button\" data-range-preset=\"q1\">Q1</button>\
-         <button type=\"button\" data-range-preset=\"q2\">Q2</button>\
-         <button type=\"button\" data-range-preset=\"q3\">Q3</button>\
-         <button type=\"button\" data-range-preset=\"q4\">Q4</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"full\" aria-pressed=\"true\">Full</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"first\" aria-pressed=\"false\">1st half</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"second\" aria-pressed=\"false\">2nd half</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q1\" aria-pressed=\"false\">Q1</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q2\" aria-pressed=\"false\">Q2</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q3\" aria-pressed=\"false\">Q3</button>\
+         <button type=\"button\" class=\"chip\" data-range-preset=\"q4\" aria-pressed=\"false\">Q4</button>\
          </div>";
     format!(
         "<section class=\"card puzzle-app\" data-puzzle-app data-puzzle-number=\"{number}\" data-puzzle-target=\"{target}\" data-puzzle-start=\"{start_hex}\" data-puzzle-end=\"{end_hex}\" data-puzzle-solved=\"{solved}\">\
@@ -4163,10 +4163,10 @@ fn render_puzzle_random(
          <button type=\"button\" data-puzzle-check>Check balance</button>\
          </div>\
          <div class=\"pz-control-row pz-run-row\">\
-         <div class=\"pz-seg\" role=\"group\" aria-label=\"Scan mode\">\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-mode data-mode-value=\"team\" aria-pressed=\"false\">Team</button>\
-         <button type=\"button\" class=\"pz-seg-btn active\" data-puzzle-mode data-mode-value=\"random\" aria-pressed=\"true\">Solo Random</button>\
-         <button type=\"button\" class=\"pz-seg-btn\" data-puzzle-mode data-mode-value=\"seq\" aria-pressed=\"false\">Solo Seq</button>\
+         <div class=\"segmented\" role=\"group\" aria-label=\"Scan mode\">\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-mode data-mode-value=\"team\" aria-pressed=\"false\">Team</button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-mode data-mode-value=\"random\" aria-pressed=\"true\">Solo Random</button>\
+         <button type=\"button\" class=\"segmented__item\" data-puzzle-mode data-mode-value=\"seq\" aria-pressed=\"false\">Solo Seq</button>\
          </div>\
          <label class=\"pz-inline\">Workers <select data-puzzle-workers>{worker_options}</select></label>\
          <button type=\"button\" class=\"primary\" data-puzzle-start-btn>Start</button>\
@@ -5471,7 +5471,7 @@ mod tests {
                 assert!(page.contains(asset), "{path} does not load {asset}");
             }
             assert!(
-                page.contains("/theme.js?v=20261127c"),
+                page.contains("/theme.js?v=20261127d"),
                 "{path} does not load the theme script"
             );
         }
@@ -5513,8 +5513,8 @@ mod tests {
     #[test]
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
-        assert!(page.contains("<script src=\"/theme.js?v=20261127c\"></script>"));
-        assert!(page.contains("/site.css?v=20261127c"));
+        assert!(page.contains("<script src=\"/theme.js?v=20261127d\"></script>"));
+        assert!(page.contains("/site.css?v=20261127d"));
     }
 
     #[test]
@@ -5839,7 +5839,7 @@ mod tests {
         assert!(body.contains("18,890"));
         assert!(body.contains("315 pages"));
         assert!(body.contains("href=\"/brainwallet-generator\""));
-        assert!(body.contains("brainwallet.css?v=20261127c"));
+        assert!(body.contains("brainwallet.css?v=20261127d"));
         assert!(body.contains("<span>Tools</span>"));
         for chain in &CHAINS {
             assert!(
@@ -5859,7 +5859,7 @@ mod tests {
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("\"@type\":\"BreadcrumbList\""));
         assert!(body.contains(BRAINWALLET_WARNING));
-        assert!(body.contains("brainwallet.css?v=20261127c"));
+        assert!(body.contains("brainwallet.css?v=20261127d"));
     }
 
     #[test]
@@ -5888,12 +5888,12 @@ mod tests {
                 "{path}"
             );
             assert!(body.contains("Brainwallets are unsafe"), "{path}");
-            assert!(body.contains("brainwallet-engine.js?v=20261127c"), "{path}");
+            assert!(body.contains("brainwallet-engine.js?v=20261127d"), "{path}");
             assert!(
-                body.contains("brainwallet-directory.js?v=20261127c"),
+                body.contains("brainwallet-directory.js?v=20261127d"),
                 "{path}"
             );
-            assert!(body.contains("brainwallet.css?v=20261127c"), "{path}");
+            assert!(body.contains("brainwallet.css?v=20261127d"), "{path}");
             // The directory has no Derive button.
             assert!(!body.contains("id=\"brainwallet-derive\""), "{path}");
         }
@@ -5957,9 +5957,9 @@ mod tests {
         assert!(body.contains("id=\"brainwallet-copy-all\""));
         assert!(body.contains("id=\"brainwallet-csv\""));
         assert!(body.contains("type=\"password\""));
-        assert!(body.contains("brainwallet-engine.js?v=20261127c"));
-        assert!(body.contains("brainwallet.js?v=20261127c"));
-        assert!(body.contains("brainwallet.css?v=20261127c"));
+        assert!(body.contains("brainwallet-engine.js?v=20261127d"));
+        assert!(body.contains("brainwallet.js?v=20261127d"));
+        assert!(body.contains("brainwallet.css?v=20261127d"));
         // Trailing slash resolves to the same canonical page.
         assert!(seo_asset(base, "/brainwallet-generator/", "").is_some());
 
@@ -6373,11 +6373,11 @@ mod tests {
         assert!(html.contains("id=\"wallet-panel\""));
         assert!(html.contains("id=\"wallet-import-form\""));
         assert!(html.contains("id=\"wallet-unlock-form\""));
-        assert!(html.contains("<script src=\"/theme.js?v=20261127c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261127c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261127c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261127c\"></script>"));
-        assert!(html.contains("<script src=\"/wallet.js?v=20261127c\"></script>"));
+        assert!(html.contains("<script src=\"/theme.js?v=20261127d\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-vault.js?v=20261127d\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-evm.js?v=20261127d\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-btc.js?v=20261127d\"></script>"));
+        assert!(html.contains("<script src=\"/wallet.js?v=20261127d\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
 

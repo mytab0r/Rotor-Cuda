@@ -214,23 +214,36 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 </div>
 ```
 
-- Track: padding `--space-1`, radius `--radius-l`, background `--surface-0`,
-  border `--line-subtle`, gap `--space-1`.
-- Item: min-height 44, padding `0 --space-4`, radius `--radius-s`, font
-  `--text-sm`/`--weight-bold`.
-- Selected: signal fill + signal-ink. Hover: `--surface-2`. Focus-visible:
-  2px signal outline offset 2px.
+- Track: padding `--space-1` (4), radius `--radius-l` (12), background
+  `--surface-0`, border `--line-subtle`, gap `--space-1`.
+- Item: min-height `--control-h` (44), padding `0 --space-4`, radius
+  `--radius-s` (8), font `--text-sm`/`--weight-bold`.
+- Selected: `aria-pressed="true"` (or `.is-selected`) uses signal fill +
+  signal-ink. Hover: `--surface-2`. Focus-visible: 2px signal outline offset 2px.
+  Disabled: opacity .42.
 - Use for 2–4 mutually exclusive modes. For filters that can combine, use chips;
   for navigation, use links. One control per purpose — never a segmented control
   plus an equivalent select.
+- Enforced by `scripts/ui-audit.mjs` `segmented-geometry`: one track padding and
+  radius, 44-high items, exactly one selected item per group.
 
 ### 3.4 Chip
 
-- `.chip`: min-height 44, padding `0 --space-3`, radius `--radius-pill`, border
-  `--line-subtle`, background `--surface-2`, font `--text-xs`/600.
-- `aria-pressed="true"` uses `--signal-soft` + signal text.
-- Chips filter a result set; they do not navigate and do not submit. A row of
-  chips must not duplicate a select or a second toolbar.
+```html
+<button type="button" class="chip" aria-pressed="true">Bitcoin</button>
+<a class="chip" href="/private-keys/btc" aria-current="page">Bitcoin</a>
+```
+
+- `.chip`: min-height `--control-h` (44), padding `0 --space-3`, radius
+  `--radius-pill`, border `--line-subtle`, background `--surface-2`, font
+  `--text-xs`/600, gap `--space-1` for an icon.
+- Selected: `aria-pressed="true"`, `aria-current="page"` or `.is-selected` uses
+  `--signal-soft` + signal border/text. Hover: `--surface-3`. Focus-visible:
+  2px signal outline offset 2px. Disabled: opacity .42.
+- Chips filter a result set, choose a preset or navigate a directory. They do
+  not submit. A row of chips must not duplicate a select or a second toolbar.
+- The chain dot stays a small colour swatch (`--chain`); the chip surface itself
+  uses the signal role, not a per-chain fill.
 
 ### 3.5 Badge / status pill
 
@@ -279,15 +292,22 @@ are stable: `default`, `hover`, `focus-visible`, `active` (pressed/selected),
 </label>
 ```
 
-- Control: min-height 44, padding `--space-2 --space-3`, radius `--radius-m`,
-  border `--line-strong`, background `--surface-0`, font `--text-md`.
-- Focus: border signal + 3px signal ring at 15% opacity. Invalid: error border
-  + error ring; never remove the focus ring.
-- Label 12/600, hint 12/400 `--ink-3`, error 12/600 `--state-err`.
-- Selects keep the custom arrow but the arrow position comes from the control
-  height, not a fixed 18px.
+- Control: min-height `--control-h` (44), padding `--space-2 --space-3`, radius
+  `--radius-control` (10), border `--line-strong`, background `--surface-0`,
+  font `--text-md`.
+- Focus: `:focus` border signal + 3px `--signal-soft` ring. Invalid:
+  `[aria-invalid="true"]` error border + error ring; never remove the focus
+  ring. Disabled: opacity .55, not-allowed cursor.
+- Label 12/600 (`--text-xs`/`--weight-semibold`), hint 12/400 `--ink-3`, error
+  12/600 `--state-err`.
+- Selects keep the custom arrow but the arrow position is centred, so it follows
+  the control height instead of a fixed 18px.
 - Hero input exception: `--control-h-xl` height, radius `--radius-xl`, font
   `--text-md`; this is a named size (`.field--hero`), not a page override.
+- The bare `input, select, textarea` and `label` selectors are the migration
+  alias until every page has the classes. Enforced by `scripts/ui-audit.mjs`
+  `control-height-scale` (28/36/44/56; textareas keep the 44 floor) and
+  `field-geometry` (radius 10/16, label >=12, focus ring).
 
 ### 3.8 Card
 
@@ -478,8 +498,9 @@ It already checks overflow, small text/targets, unlabeled icon controls,
 duplicate address-type components, half-empty blocks, manual balance controls,
 route row counts and HTTP errors. Batch 1 adds `status-pill-geometry`; batch 2
 adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
-`data-tooltip`); later batches add the detectors listed in `plan.md` §3. The
-human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
+`data-tooltip`); batch 3 adds `control-height-scale`, `field-geometry` and
+`segmented-geometry`; later batches add the detectors listed in `plan.md` §3.
+The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
 ## 9. Versioning

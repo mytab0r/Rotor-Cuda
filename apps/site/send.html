@@ -6,36 +6,11 @@
 <title>Send testnet coins — Bitcoin, Ethereum, BNB, TRON | Crypto</title>
 <meta name="description" content="Send Bitcoin testnet, Ethereum Sepolia, BNB Smart Chain testnet, TRON Nile or a generic ERC-20 transfer from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
 <link rel="canonical" href="https://rotor.pxbt.app/send">
-<link rel="stylesheet" href="/site.css?v=20261127c">
-<script src="/theme.js?v=20261127c"></script>
+<link rel="stylesheet" href="/site.css?v=20261127d">
+<script src="/theme.js?v=20261127d"></script>
 <style>
 /* Send page: one form, review and signed steps. All sizes follow the shared
  * 44px touch target and 12px minimum text rules. */
-.send-page .key-chain[aria-current="page"] {
-  color: var(--text);
-  border-color: var(--accent);
-  background: var(--panel-2);
-}
-.send-page .key-chain[data-send-chain="bitcoin-testnet"][aria-current="page"] {
-  border-color: var(--key-btc);
-  background: rgba(247, 147, 26, .14);
-}
-.send-page .key-chain[data-send-chain="ethereum-sepolia"][aria-current="page"] {
-  border-color: #8f9eff;
-  background: rgba(143, 158, 255, .14);
-}
-.send-page .key-chain[data-send-chain="bnb-testnet"][aria-current="page"] {
-  border-color: #f3ba2f;
-  background: rgba(243, 186, 47, .14);
-}
-.send-page .key-chain[data-send-chain="usdt-sepolia"][aria-current="page"] {
-  border-color: #26a17b;
-  background: rgba(38, 161, 123, .14);
-}
-.send-page .key-chain[data-send-chain="tron-nile"][aria-current="page"] {
-  border-color: #ff4d4d;
-  background: rgba(255, 77, 77, .14);
-}
 .send-testnet-banner {
   margin: 0 0 18px;
   padding: 12px 14px;
@@ -104,7 +79,7 @@
 .send-warnings h3 { margin: 0 0 6px; font-size: 13px; }
 .send-warnings ul { margin: 0; padding-left: 18px; }
 .send-warnings li { margin: 4px 0; line-height: 1.5; }
-.send-status { min-height: 20px; margin: 12px 0 0; font-size: 12.5px; color: var(--muted); }
+.send-status { min-height: 20px; margin: 12px 0 0; }
 .send-result-hash { overflow-wrap: anywhere; }
 @media (max-width: 520px) {
   .send-key-row { flex-wrap: wrap; }
@@ -146,11 +121,11 @@
   <p class="send-testnet-banner" role="note">TESTNET ONLY. Bitcoin testnet (tBTC), Ethereum Sepolia, BNB Smart Chain testnet (chapel), TRON Nile testnet and a generic ERC-20 builder on Sepolia are the only networks here. Mainnet keys, mainnet RPC endpoints and mainnet broadcasts are rejected in code; nothing on this page can sign a mainnet transaction.</p>
 
   <nav class="key-chains" aria-label="Testnet chain">
-    <a class="key-chain" href="/send/bitcoin" data-send-chain="bitcoin-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin testnet</a>
-    <a class="key-chain" href="/send/ethereum" data-send-chain="ethereum-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum Sepolia</a>
-    <a class="key-chain" href="/send/bnb" data-send-chain="bnb-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB testnet</a>
-    <a class="key-chain" href="/send/usdt" data-send-chain="usdt-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>ERC-20 on Sepolia</a>
-    <a class="key-chain" href="/send/tron" data-send-chain="tron-nile"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON Nile</a>
+    <a class="key-chain chip" href="/send/bitcoin" data-send-chain="bitcoin-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bitcoin"></use></svg>Bitcoin testnet</a>
+    <a class="key-chain chip" href="/send/ethereum" data-send-chain="ethereum-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-ethereum"></use></svg>Ethereum Sepolia</a>
+    <a class="key-chain chip" href="/send/bnb" data-send-chain="bnb-testnet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-bnb"></use></svg>BNB testnet</a>
+    <a class="key-chain chip" href="/send/usdt" data-send-chain="usdt-sepolia"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-blockchain"></use></svg>ERC-20 on Sepolia</a>
+    <a class="key-chain chip" href="/send/tron" data-send-chain="tron-nile"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chain-tron"></use></svg>TRON Nile</a>
   </nav>
 
   <p id="send-unavailable" class="notice" role="alert" hidden></p>
@@ -229,7 +204,7 @@
       </div>
     </form>
     <p id="send-error" class="error key-error" role="alert" hidden></p>
-    <p id="send-status" class="send-status" role="status" aria-live="polite"></p>
+    <p id="send-status" class="send-status status-line" role="status" aria-live="polite"></p>
   </section>
 
   <section class="card" id="send-review" hidden>
@@ -276,8 +251,8 @@
 
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-evm.js"></script>
-<script src="/tron-tx.js?v=20261127c"></script>
+<script src="/tron-tx.js?v=20261127d"></script>
 <script src="/send.js"></script>
-<script src="/site.js?v=20261127c"></script>
+<script src="/site.js?v=20261127d"></script>
 </body>
 </html>

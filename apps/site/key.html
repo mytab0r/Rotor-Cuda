@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Crypto - private key explorer</title>
-<link rel="stylesheet" href="/site.css?v=20261127c">
-<script src="/theme.js?v=20261127c"></script>
+<link rel="stylesheet" href="/site.css?v=20261127d">
+<script src="/theme.js?v=20261127d"></script>
 </head>
 <body>
 <header class="site-nav">
@@ -33,16 +33,16 @@
   </section>
 
   <section class="card key-input-card">
-    <form id="key-form" class="key-form" autocomplete="off" novalidate>
+    <form id="key-form" class="key-form field--hero" autocomplete="off" novalidate>
       <label class="visually-hidden" for="priv">Private key</label>
       <input id="priv" type="password" class="mono" placeholder="64 hex, decimal, or BTC WIF"
              autocomplete="new-password" spellcheck="false" autocapitalize="off"
              data-lpignore="true" data-1p-ignore="true" aria-describedby="key-status key-url-notice key-format">
       <div class="key-curve-field">
         <span class="key-field-label visually-hidden">Curve</span>
-        <div class="key-segmented" role="group" aria-label="Curve">
-          <button type="button" class="active" data-curve-choice="0" aria-pressed="true">secp256k1</button>
-          <button type="button" data-curve-choice="1" aria-pressed="false">ed25519</button>
+        <div class="segmented" role="group" aria-label="Curve">
+          <button type="button" class="segmented__item" data-curve-choice="0" aria-pressed="true">secp256k1</button>
+          <button type="button" class="segmented__item" data-curve-choice="1" aria-pressed="false">ed25519</button>
         </div>
         <select id="curve" class="visually-hidden" tabindex="-1" aria-hidden="true">
           <option value="0">secp256k1</option>
@@ -53,9 +53,8 @@
         <button type="button" id="random-btn" class="icon-button icon-button--outline icon-button--lg" aria-label="Generate random key" data-tooltip="Generate random key">
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg>
         </button>
- HEAD
         <button type="button" id="clear-btn" class="icon-button icon-button--outline icon-button--lg" aria-label="Clear key and results" data-tooltip="Clear key and results">
-          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127c#ui-close"></use></svg>
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg?v=20261127d#ui-close"></use></svg>
         </button>
         <div class="key-step-group" id="step-group" role="group" aria-label="Adjust the key by one" hidden>
           <span class="key-step-label" aria-hidden="true">±1</span>
@@ -129,18 +128,18 @@
     <h2>Addresses</h2>
     <div class="key-filter-bar" role="group" aria-label="Address filters">
       <div class="key-chains" role="group" aria-label="Chains">
-        <button type="button" class="key-chain" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
-        <button type="button" class="key-chain" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
-        <button type="button" class="key-chain" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>EVM</button>
-        <button type="button" class="key-chain" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
-        <button type="button" class="key-chain" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
-        <button type="button" class="key-chain" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="doge" aria-pressed="false"><span class="key-dot key-dot-doge"></span>Dogecoin<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="bch" aria-pressed="false"><span class="key-dot key-dot-bch"></span>Bitcoin Cash<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="xrp" aria-pressed="false"><span class="key-dot key-dot-xrp"></span>XRP<span class="key-soon" hidden>soon</span></button>
-        <button type="button" class="key-chain" data-chain="zcash" aria-pressed="false"><span class="key-dot key-dot-zcash"></span>Zcash</button>
-        <button type="button" class="key-chain" data-chain="sui" aria-pressed="false"><span class="key-dot key-dot-sui"></span>Sui</button>
-        <button type="button" class="key-chain" data-chain="ton" aria-pressed="false"><span class="key-dot key-dot-ton"></span>TON</button>
+        <button type="button" class="key-chain chip" data-chain="all" aria-pressed="true"><span class="key-dot"></span>All</button>
+        <button type="button" class="key-chain chip" data-chain="btc" aria-pressed="false"><span class="key-dot key-dot-btc"></span>Bitcoin</button>
+        <button type="button" class="key-chain chip" data-chain="evm" aria-pressed="false"><span class="key-dot key-dot-evm"></span>EVM</button>
+        <button type="button" class="key-chain chip" data-chain="tron" aria-pressed="false"><span class="key-dot key-dot-tron"></span>TRON</button>
+        <button type="button" class="key-chain chip" data-chain="solana" aria-pressed="false"><span class="key-dot key-dot-solana"></span>Solana</button>
+        <button type="button" class="key-chain chip" data-chain="ltc" aria-pressed="false"><span class="key-dot key-dot-ltc"></span>Litecoin<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain chip" data-chain="doge" aria-pressed="false"><span class="key-dot key-dot-doge"></span>Dogecoin<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain chip" data-chain="bch" aria-pressed="false"><span class="key-dot key-dot-bch"></span>Bitcoin Cash<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain chip" data-chain="xrp" aria-pressed="false"><span class="key-dot key-dot-xrp"></span>XRP<span class="key-soon" hidden>soon</span></button>
+        <button type="button" class="key-chain chip" data-chain="zcash" aria-pressed="false"><span class="key-dot key-dot-zcash"></span>Zcash</button>
+        <button type="button" class="key-chain chip" data-chain="sui" aria-pressed="false"><span class="key-dot key-dot-sui"></span>Sui</button>
+        <button type="button" class="key-chain chip" data-chain="ton" aria-pressed="false"><span class="key-dot key-dot-ton"></span>TON</button>
       </div>
       <div id="btc-panel" hidden>
         <div class="address-type-panel key-address-panel" role="group" aria-label="Bitcoin address type">
@@ -165,22 +164,22 @@
       </label>
       <p class="muted key-path-hint" id="derivation-path-hint" aria-live="polite">Informational: this page derives addresses from the final key, not from this path.</p>
       <div class="key-preset-chips" role="group" aria-label="Wallet presets">
-        <button type="button" data-preset="all" aria-pressed="true"
+        <button type="button" class="chip" data-preset="all" aria-pressed="true"
                 title="Every address row for the selected curve."
                 aria-description="Every address row for the selected curve.">All</button>
-        <button type="button" data-preset="ledger" aria-pressed="false"
+        <button type="button" class="chip" data-preset="ledger" aria-pressed="false"
                 title="Ledger / Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0."
                 aria-description="Ledger / Trezor BTC paths: m/44'/0'/0'/0/0, m/49'/0'/0'/0/0, m/84'/0'/0'/0/0, m/86'/0'/0'/0/0.">Ledger / Trezor</button>
-        <button type="button" data-preset="metamask" aria-pressed="false"
+        <button type="button" class="chip" data-preset="metamask" aria-pressed="false"
                 title="MetaMask EVM path: m/44'/60'/0'/0/0."
                 aria-description="MetaMask EVM path: m/44'/60'/0'/0/0.">MetaMask</button>
-        <button type="button" data-preset="safepal" aria-pressed="false"
+        <button type="button" class="chip" data-preset="safepal" aria-pressed="false"
                 title="SafePal secp256k1 rows: BTC m/44'/0'/0'/0/0, EVM m/44'/60'/0'/0/0, TRON m/44'/195'/0'/0/0."
                 aria-description="SafePal secp256k1 rows: BTC m/44'/0'/0'/0/0, EVM m/44'/60'/0'/0/0, TRON m/44'/195'/0'/0/0.">SafePal</button>
-        <button type="button" data-preset="tronlink" aria-pressed="false"
+        <button type="button" class="chip" data-preset="tronlink" aria-pressed="false"
                 title="TronLink TRON path: m/44'/195'/0'/0/0."
                 aria-description="TronLink TRON path: m/44'/195'/0'/0/0.">TronLink</button>
-        <button type="button" data-preset="phantom" aria-pressed="false"
+        <button type="button" class="chip" data-preset="phantom" aria-pressed="false"
                 title="Phantom Solana ed25519 seed; path m/501'/0'/0'/0'."
                 aria-description="Phantom Solana ed25519 seed; path m/501'/0'/0'/0'.">Phantom</button>
       </div>
@@ -221,10 +220,10 @@
   </section>
 </main>
 
-<script src="/key-tools.js?v=20261127c"></script>
-<script src="/balance-cache.js?v=20261127c"></script>
-<script src="/address-codecs.js?v=20261127c"></script>
-<script src="/key.js?v=20261127c"></script>
-<script src="/site.js?v=20261127c"></script>
+<script src="/key-tools.js?v=20261127d"></script>
+<script src="/balance-cache.js?v=20261127d"></script>
+<script src="/address-codecs.js?v=20261127d"></script>
+<script src="/key.js?v=20261127d"></script>
+<script src="/site.js?v=20261127d"></script>
 </body>
 </html>

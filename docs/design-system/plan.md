@@ -169,7 +169,8 @@ Detectors:
   selected item per group.
 
 Acceptance routes: `/key`, `/seed`, `/mnemonic-seeds/bitcoin`,
-`/cabinet/wallet`, `/send`, `/range`, `/vanity`, `/pubkey-add`, `/public-key`,
+`/cabinet/wallet`, `/send`, `/keys/<chain>/<start>-<end>` (the range page;
+`/range` is not a served route), `/vanity`, `/pubkey-add`, `/public-key`,
 `/reconstruction`, `/keystore-parser`, `/hex-dec-bin`.
 Review: `critic` fills every form from the keyboard, checks empty/error states,
 and measures the 375px layout.
@@ -370,4 +371,28 @@ entry in the same PR.
   - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
     area tests and `cargo test --test coordinator_api --test coordinator_client`
     pass.
-- Batches 3–7: not started; owners/reviewers assigned above.
+- Batch 3: one `.field` grammar (44x44 control, radius 10; `.field--hero`
+  56x56/radius 16; 12px label; focus ring; error/disabled), one `.segmented`
+  (4px track, radius 12, 44px items, radius 8, one selected) and one `.chip`
+  (44px pill, `aria-pressed`/`aria-current`). Migrated the key curve and
+  filters/presets, send chain tabs and fields, mnemonic chain tabs/presets,
+  puzzle filters/modes/presets, tx chain tabs, tools links, private-keys and
+  brainwallet chain tabs, wallet label inputs and the send/wallet status lines.
+  Deleted the legacy control block and the page-local control overrides.
+  Asset version `20261127d`; detectors `control-height-scale`,
+  `field-geometry`, `segmented-geometry` and ledger entries added.
+- Batch 3 evidence:
+  - `node scripts/ui-audit.mjs --serve`: **PASS, 192 page runs across 32
+    routes, 0 violations**.
+  - Batch-3 route set (13 routes, including the real range route
+    `/keys/tron/<start>-<end>`) at 375/768/1280 dark/light: **PASS, 78 page
+    runs, 0 violations**; 0 overflow, 0 off-scale controls, 0 field issues,
+    0 segmented issues.
+  - Screenshots: `%TEMP%/rotor-ui-audit-qgvMTp/screenshots`.
+  - `check-projects`, `check-asset-version`, `check-defect-ledger`, all site
+    area tests and `cargo test --test coordinator_api --test coordinator_client`
+    pass.
+  - The audit harness now starts its temporary coordinator with a 3600s monitor
+    interval; the old 300s interval made it poll the unreachable test RPC and
+    exit before the last routes of a full 192-run pass.
+- Batches 4–7: not started; owners/reviewers assigned above.
