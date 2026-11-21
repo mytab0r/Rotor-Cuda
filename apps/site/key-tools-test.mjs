@@ -777,8 +777,9 @@ const allVisible = tools.groupAddressRows([
 assert(allVisible[0].span === 5 && allVisible.slice(1).every((entry) => entry.span === 0), "BTC span is 5");
 
 // Counters: Has balance counts chain groups (not addresses); Active also
-// counts a zero-balance row with an activity signal; Checked needs every
-// visible checkable row of a chain group to settle; the denominator is 18.
+// counts a zero-balance row with an activity signal; Checked counts a chain
+// group once every visible row is done. Rows without a provider are done
+// immediately, so a key page can reach 18/18; the denominator is 18.
 const counters = tools.balanceCounters([
   { chain: "btc", state: "ok", amount: 5n, active: true, checkable: true, visible: true },
   { chain: "btc", state: "ok", amount: 0n, active: false, checkable: true, visible: true },
@@ -790,7 +791,30 @@ const counters = tools.balanceCounters([
 ], 18);
 assert(counters.withBalance === 2, `two funded chain groups, got ${counters.withBalance}`);
 assert(counters.activeChains === 2, `two active chain groups, got ${counters.activeChains}`);
-assert(counters.checked === 4 && counters.total === 18, `4/18 settled chain groups, got ${counters.checked}/${counters.total}`);
+assert(counters.checked === 5 && counters.total === 18, `5/18 settled chain groups, got ${counters.checked}/${counters.total}`);
+
+// Every chain group done: checkable rows at ok/err and provider-less rows
+// count as done, which is the 18/18 donor state.
+const allDone = [];
+for (let index = 0; index < 18; index += 1) {
+  allDone.push({ chain: `chain_${index}`, state: index % 2 ? "err" : "ok", checkable: true, visible: true });
+}
+assert(tools.balanceCounters(allDone, 18).checked === 18, "eighteen settled groups reach 18/18");
+const allNoProvider = [];
+for (let index = 0; index < 18; index += 1) {
+  allNoProvider.push({ chain: `chain_${index}`, state: "off", checkable: false, visible: true });
+}
+assert(
+  tools.balanceCounters(allNoProvider, 18).checked === 18,
+  "provider-less rows count as done immediately"
+);
+const partiallyDone = tools.balanceCounters([
+  { chain: "ltc", state: "off", checkable: false, visible: true },
+  { chain: "ltc", state: "off", checkable: false, visible: true },
+  { chain: "solana", state: "ok", checkable: true, visible: true },
+  { chain: "sui", state: "loading", checkable: true, visible: true },
+], 18);
+assert(partiallyDone.checked === 2, `two of three groups done, got ${partiallyDone.checked}`);
 
 const activeEmpty = tools.balanceCounters([
   { chain: "tron", state: "ok", amount: 0n, active: true, checkable: true, visible: true },

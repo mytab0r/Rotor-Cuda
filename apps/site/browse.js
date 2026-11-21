@@ -31,12 +31,15 @@
     avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
     zksync: 'https://mainnet.era.zksync.io'
   };
-  var BLOCKCHAIR = {
-    litecoin: 'litecoin',
-    dogecoin: 'dogecoin',
-    'bitcoin-cash': 'bitcoin-cash',
-    zcash: 'zcash'
-  };
+  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
+   * when the official host rejects the browser (it answers 403 to some
+   * origins). */
+  var SOLANA_RPC_URLS = [
+    'https://api.mainnet-beta.solana.com',
+    'https://solana-rpc.publicnode.com'
+  ];
+  var SUI_GRAPHQL = 'https://graphql.mainnet.sui.io/graphql';
+  var PAGE_SIZE = 60n;
 
   /* ------------------------------------------------------- pure helpers */
   /* Row shaping is pure so it can be tested under Node without a DOM. */
@@ -405,12 +408,13 @@
     if (config.chain === 'bitcoin') return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
     if (RPC[config.chain]) return { provider: 'evm', chain: config.chain, decimals: 18, symbol: config.symbol };
     if (config.chain === 'solana') return { provider: 'solana', chain: 'solana', decimals: 9, symbol: 'SOL' };
-    if (config.chain === 'litecoin') return { provider: 'litecoinspace', chain: 'litecoin', decimals: 8, symbol: 'LTC' };
-    if (config.chain === 'bitcoin-cash') return { provider: 'haskoin', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
-    if (BLOCKCHAIR[config.chain]) return { provider: 'blockchair', chain: config.chain, decimals: 8, symbol: config.symbol };
+    if (config.chain === 'sui') return { provider: 'sui', chain: 'sui', decimals: 9, symbol: 'SUI' };
     if (config.chain === 'tron') return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: config.symbol || 'TRX' };
     if (config.chain === 'xrp') return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
     if (config.chain === 'ton') return { provider: 'toncenter', chain: 'ton', decimals: 9, symbol: 'TON' };
+    /* LTC, DOGE, BCH and ZEC stay without a balance provider: Blockchair now
+     * answers 430 without a key and litecoinspace 525, so the cells show "—"
+     * (and each address keeps its explorer link) instead of a fake zero. */
     return null;
   }
 
@@ -573,92 +577,47 @@
       method: 'getMultipleAccounts',
       params: [unique, { encoding: 'base64', commitment: 'confirmed' }]
     };
-    var data = await requestJson('https://solana-rpc.publicnode.com', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!data.result || !Array.isArray(data.result.value)) throw new Error('bad response');
+    var amounts = null;
+    var lastError = null;
+    for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
+      try {
+        var data = await requestJson(SOLANA_RPC_URLS[i], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        amounts = cacheApi && typeof cacheApi.parseSolanaAccounts === 'function'
+          ? cacheApi.parseSolanaAccounts(data)
+          : null;
+        if (amounts) break;
+        lastError = new Error('bad response');
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!amounts) throw lastError || new Error('bad response');
     unique.forEach(function (address, index) {
-      var item = data.result.value[index];
-      values[address] = { balance: item ? BigInt(item.lamports || 0).toString() : '0' };
+      values[address] = { balance: amounts[index] || '0' };
     });
     return { values: values, errors: {} };
   }
 
-  async function blockchairProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var network = BLOCKCHAIR[config.chain];
-    if (!network) throw new Error('No provider for this chain');
-    var unique = uniqueAddresses(addresses);
-    if (!unique.length) return { values: values, errors: errors };
-    var url = 'https://api.blockchair.com/' + network + '/dashboards/addresses/' +
-      unique.map(encodeURIComponent).join(',');
-    var data = await requestJson(url);
-    unique.forEach(function (address) {
-      var entry = data.data && data.data[address] ? data.data[address].address : null;
-      if (!entry) {
-        errors[address] = 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = {
-        balance: String(entry.balance || 0),
-        received: String(entry.received || 0),
-        tx: Number(entry.transaction_count || 0)
-      };
+  async function suiBalance(address) {
+    /* Sui's public JSON-RPC fullnodes are deprecated; GraphQL serves the same
+     * MIST total with CORS enabled. */
+    var data = await fetchJson(SUI_GRAPHQL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: 'query($a: SuiAddress!){address(address:$a){balance(coinType:"0x2::sui::SUI"){totalBalance}}}',
+        variables: { a: address }
+      })
     });
-    return { values: values, errors: errors };
-  }
-
-  async function litecoinProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = uniqueAddresses(addresses);
-    var limit = cacheApi ? cacheApi.createLimiter(BALANCE_LIMIT) : function (task) { return task(); };
-    await Promise.all(unique.map(function (address) {
-      return limit(async function () {
-        try {
-          var info = await requestJson('https://litecoinspace.org/api/address/' + encodeURIComponent(address));
-          var chain = info.chain_stats || {};
-          var mempool = info.mempool_stats || {};
-          var balance = (Number(chain.funded_txo_sum || 0) - Number(chain.spent_txo_sum || 0)) +
-            (Number(mempool.funded_txo_sum || 0) - Number(mempool.spent_txo_sum || 0));
-          var funded = Number(chain.funded_txo_sum || 0) + Number(mempool.funded_txo_sum || 0);
-          var count = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
-          values[address] = { balance: String(balance), received: String(funded), tx: count };
-        } catch (err) {
-          errors[address] = errorMessage(err);
-        }
-      });
-    }));
-    return { values: values, errors: errors };
-  }
-
-  async function bchProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = uniqueAddresses(addresses);
-    if (!unique.length) return { values: values, errors: errors };
-    var url = 'https://api.haskoin.com/bch/address/balances?addresses=' + unique.map(encodeURIComponent).join(',');
-    var data = await requestJson(url);
-    var byAddress = {};
-    (Array.isArray(data) ? data : []).forEach(function (entry, index) {
-      if (entry && unique[index]) byAddress[unique[index]] = entry;
-    });
-    unique.forEach(function (address) {
-      var info = byAddress[address];
-      if (!info) {
-        errors[address] = 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = {
-        balance: String(Number(info.confirmed || 0) + Number(info.unconfirmed || 0)),
-        received: String(info.received || 0),
-        tx: Number(info.txs || 0)
-      };
-    });
-    return { values: values, errors: errors };
+    var parsed = cacheApi && typeof cacheApi.parseSuiBalance === 'function'
+      ? cacheApi.parseSuiBalance(data)
+      : null;
+    if (!parsed) throw new Error('unexpected response');
+    return { balance: parsed.amount };
   }
 
   async function accountJson(url) {
@@ -699,7 +658,13 @@
 
   function tonCenterBalance(address) {
     return fetchJson('https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address))
-      .then(function (data) { return Number(data.result || 0); });
+      .then(function (data) {
+        var parsed = cacheApi && typeof cacheApi.parseTonBalance === 'function'
+          ? cacheApi.parseTonBalance(data)
+          : null;
+        if (!parsed) throw new Error('unexpected response');
+        return parsed.amount;
+      });
   }
 
   function tronBalanceDirect(address) {
@@ -798,16 +763,21 @@
 
   function xrpBalance(address) {
     return accountJson('https://api.xrpscan.com/api/v1/account/' + encodeURIComponent(address))
-      .then(function (data) { return Number(data.Balance || 0); });
+      .then(function (data) {
+        /* 404 (unactivated account) comes back as {}: a real zero balance. */
+        if (!data || typeof data !== 'object' || !Object.keys(data).length) return '0';
+        var parsed = cacheApi && typeof cacheApi.parseXrpAccount === 'function'
+          ? cacheApi.parseXrpAccount(data)
+          : null;
+        if (!parsed) throw new Error('unexpected response');
+        return { balance: parsed.amount, tx: parsed.tx === null ? undefined : parsed.tx };
+      });
   }
 
   function fetchProvider(meta, addresses) {
     if (meta.provider === 'blockchain.info') return btcProvider(addresses);
     if (meta.provider === 'evm') return evmProvider(addresses);
     if (meta.provider === 'solana') return solanaProvider(addresses);
-    if (meta.provider === 'litecoinspace') return litecoinProvider(addresses);
-    if (meta.provider === 'haskoin') return bchProvider(addresses);
-    if (meta.provider === 'blockchair') return blockchairProvider(addresses);
     if (meta.provider === 'tronscan') {
       if (addresses.length > TRON_BATCH_THRESHOLD) {
         return tronBatchProvider(addresses).then(function (batch) {
@@ -817,6 +787,7 @@
       return perAddressProvider(addresses, tronBalance);
     }
     if (meta.provider === 'xrpscan') return perAddressProvider(addresses, xrpBalance);
+    if (meta.provider === 'sui') return perAddressProvider(addresses, suiBalance);
     if (meta.provider === 'toncenter') return perAddressProvider(addresses, tonCenterBalance);
     return Promise.resolve({ values: {}, errors: {} });
   }
@@ -1137,6 +1108,32 @@
     window.location.replace(path + (query ? '?' + query : ''));
   }
 
+  function currentPageNumber() {
+    try { return BigInt(config.page || '1'); } catch (err) { return 1n; }
+  }
+
+  function jumpToKey(hex, raw) {
+    var normalized = normalizeKeyHex(hex);
+    if (!normalized) {
+      highlightRow(hex);
+      return;
+    }
+    var target = jumpPageFor(BigInt('0x' + normalized), config.pages);
+    if (target === null) return;
+    if (target === currentPageNumber()) {
+      highlightRow(normalized);
+      return;
+    }
+    var params = new URLSearchParams(window.location.search);
+    params.set('key', raw);
+    if (config.type && config.type !== 'legacy') params.set('type', config.type);
+    else params.delete('type');
+    var base = '/private-keys/' + config.chain;
+    window.location.assign(
+      (target === 1n ? base : base + '/' + target.toString()) + '?' + params.toString()
+    );
+  }
+
   function prefillSearch() {
     var raw = new URLSearchParams(window.location.search).get('key');
     if (!raw || !searchInput) return;
@@ -1146,7 +1143,7 @@
       jumpToKeyPage(raw);
     };
     if (!window.RotorSearch) {
-      direct();
+      jumpToKey(raw, raw);
       return;
     }
     window.RotorSearch.resolve(raw, 'auto').then(function (hex) {

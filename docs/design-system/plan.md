@@ -328,7 +328,7 @@ entry in the same PR.
 - Batch 0: docs written.
 - Batch 1: tokens and status/badge grammar implemented; `status-pill-geometry`
   detector and ledger entry added; `AGENTS.md`, `apps/site/UI-CHECKLIST.md` and
-  the `ui-self-review` skill updated; asset version bumped to `20261127a` in
+  the `ui-self-review` skill updated; asset version bumped to `20261127b` in
   all 24 site HTML files, `site.js`, `src/coordinator/mod.rs` and
   `tests/coordinator_api.rs`.
 - Evidence:
