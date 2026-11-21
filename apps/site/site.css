@@ -679,6 +679,7 @@ p { text-wrap: pretty; }
   src: url("/fonts/manrope-latin.woff2") format("woff2");
 }
 
+/* tokens:start */
 :root {
   --bg: #07090e;
   --bg-soft: #0a0e15;
@@ -794,6 +795,7 @@ p { text-wrap: pretty; }
   --state-warn: var(--warn);
   --state-err: var(--err);
 }
+/* tokens:end */
 
 html { color-scheme: dark; scroll-behavior: smooth; }
 
@@ -3175,6 +3177,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
  * prefers-color-scheme) before first paint; this block only overrides the
  * shared custom properties plus a few hard-coded overlays that cannot follow
  * a variable. */
+/* tokens:start */
 html[data-theme="light"] {
   color-scheme: light;
   --bg: #f5f7fa;
@@ -3205,6 +3208,7 @@ html[data-theme="light"] {
   --scroll-thumb: #c3cedd;
   --scroll-thumb-hover: #a9b7ca;
 }
+/* tokens:end */
 html[data-theme="light"] body {
   background:
     radial-gradient(1100px 540px at 8% -12%, rgba(168, 104, 0, .08), transparent 62%),
