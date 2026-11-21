@@ -178,6 +178,7 @@
         "node scripts/check-projects.mjs"
       ],
       "test": [
+        "node --test deploy/cloudflare/test/worker.test.mjs",
         "node docs/site-map/site-map-test.mjs",
         "node scripts/check-projects.mjs"
       ],
