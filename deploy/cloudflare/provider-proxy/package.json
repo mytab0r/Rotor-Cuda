@@ -1,0 +1,11 @@
+{
+  "name": "rotor-provider-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker: allowlisted outbound provider proxy for Rotor",
+  "scripts": {
+    "test": "node --test test/provider-proxy.test.mjs",
+    "check": "node --check src/worker.mjs && node --check src/upstreams.mjs && node --check test/provider-proxy.test.mjs"
+  }
+}

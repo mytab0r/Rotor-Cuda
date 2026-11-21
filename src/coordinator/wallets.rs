@@ -15,7 +15,7 @@ use tiny_http::{Request, Response, StatusCode};
 
 use super::{
     App, breadcrumb_ld, breadcrumb_nav, client_ip, escape_attr, header, html_document, hub_head,
-    respond_json, respond_rate_limited, site_header,
+    respond_hidden, respond_json, respond_rate_limited, site_header,
 };
 
 /// Public upstream project. No URL is exposed in customer-facing HTML.
@@ -264,7 +264,7 @@ fn download(app: &App, request: Request, dataset: &Dataset) {
         ),
     ];
     let response = Response::new(StatusCode(200), headers, body, data_length, None);
-    let _ = request.respond(response);
+    respond_hidden(request, response);
 }
 
 fn dataset_card(dataset: &Dataset) -> String {
