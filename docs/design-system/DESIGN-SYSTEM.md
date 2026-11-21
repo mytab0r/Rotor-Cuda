@@ -603,8 +603,17 @@ adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `segmented-geometry`; batch 4 adds `card-padding-scale` and `stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
 `row-action-geometry`; batch 7 adds `legacy-token` (one `:root` token block,
-light theme overrides only through `html[data-theme]`). Later batches add the
-detectors listed in `plan.md` §3.
+light theme overrides only through `html[data-theme]`). Phase 2 adds the static
+token detectors in `scripts/check-token-usage.mjs`:
+`token-contract` (tokens.json, the generated region and the frozen contract
+agree; every first-party `var()` resolves), `orphan-token` (a declared token
+without a consumer, unless it is `reserved`), `theme-parity` (every colour
+token has a light declaration), `radius-scale` (no literal `border-radius`),
+`raw-hex-outside-root` (no raw colour outside the generated regions) and
+`legacy-selector` (no page-scoped override of a shared family). Known debt that
+needs a design decision is listed in `design/tokens/token-usage-baseline.json`;
+the baseline is shrink-only and every entry carries an exact file:line and a
+reason. Later batches add the detectors listed in `plan.md` §3.
 The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
 `.claude/skills/ui-self-review/SKILL.md`.
 
@@ -624,6 +633,14 @@ The human checklist is `apps/site/UI-CHECKLIST.md` and the project skill
   `design/tokens/tokens.contract.json`; `design/tokens/tokens.json` is the
   source and `scripts/build-tokens.mjs` generates the marked `site.css` regions
   and `design/generated/tokens.ts`. No token value changed.
+- Phase 2 (2026-11-21): added `scripts/check-token-usage.mjs` with the
+  `token-contract`, `orphan-token`, `theme-parity`, `radius-scale`,
+  `raw-hex-outside-root` and `legacy-selector` detectors. Replaced 64 in-scale
+  `border-radius` literals with `var(--radius-*)` and three raw colours that had
+  an exact token; marked the 14 unused tokens `reserved`; declared the 15
+  semantic colour roles explicitly in the light block. Off-scale radii (21),
+  raw colours without an exact token (106) and page-scoped shared-family
+  overrides (6) are listed in `design/tokens/token-usage-baseline.json`.
 
 ## 10. Page-scoped CSS exceptions
 

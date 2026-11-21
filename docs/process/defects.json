@@ -281,6 +281,48 @@
       "symptom": "HEAD /rotor_wasm.wasm and every public asset/page answered 404 while GET returned 200, because only GET entered the public branch; monitors, CDNs and link checkers saw the whole site as missing.",
       "detector": "head_mirrors_get_for_public_resources",
       "where": "tests/coordinator_api.rs"
+    },
+    {
+      "id": "token-contract-drift",
+      "reported": "2026-11-21",
+      "symptom": "tokens.json, the generated :root region and the frozen 95-name contract could disagree, and a var(--x) could reference a name no first-party file declares.",
+      "detector": "token-contract",
+      "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "orphan-token",
+      "reported": "2026-11-21",
+      "symptom": "14 declared tokens had no first-party consumer, so dead scale steps accumulated silently between batches.",
+      "detector": "orphan-token",
+      "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "theme-parity-drift",
+      "reported": "2026-11-21",
+      "symptom": "A colour role could be declared in :root without a light value, leaving light mode on the dark fallback or an implicit alias.",
+      "detector": "theme-parity",
+      "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "off-scale-radius-literal",
+      "reported": "2026-11-21",
+      "symptom": "site.css shipped 100 literal border-radius declarations (8/12/999px and off-scale 6/7/9/11/13/14/18px) instead of the --radius-* scale.",
+      "detector": "radius-scale",
+      "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "raw-hex-outside-root",
+      "reported": "2026-11-21",
+      "symptom": "75 raw colours in first-party CSS and 34 chain brand colours in inline styles bypassed the token layer outside the generated :root and light regions.",
+      "detector": "raw-hex-outside-root",
+      "where": "scripts/check-token-usage.mjs"
+    },
+    {
+      "id": "legacy-selector-override",
+      "reported": "2026-11-21",
+      "symptom": "Page-scoped rules still overrode shared families (.key-page .notice, .puzzle-cta .btn, .seed-count-row .chip), the .key-page > .card pattern the batch-7 cleanup removed.",
+      "detector": "legacy-selector",
+      "where": "scripts/check-token-usage.mjs"
     }
   ]
 }
