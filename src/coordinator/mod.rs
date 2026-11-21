@@ -6747,7 +6747,7 @@ mod tests {
         assert!(body.contains("\"name\":\"Bitcoin Puzzle\""));
         assert!(body.contains("data-puzzle-picker"));
         assert!(body.contains("id=\"puzzles\""));
-        assert!(body.contains("class=\"pz-table\""));
+        assert!(body.contains("class=\"pz-table data-table\""));
         assert_eq!(body.matches("data-puzzle-row data-solved").count(), 160);
         assert!(body.contains("data-puzzle-filter=\"all\""));
         assert!(body.contains("data-puzzle-filter=\"solved\""));
