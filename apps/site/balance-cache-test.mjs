@@ -158,6 +158,50 @@ const tests = [
     assert.equal(cache.hasAddress("   "), false);
     assert.equal(cache.hasAddress("bc1qexample"), true);
   }),
+
+  test("free-provider bodies decode to atomic amounts", () => {
+    // XRPScan: drops in account_data.Balance, transaction count alongside.
+    assert.deepEqual(
+      cache.parseXrpAccount({ account_data: { Balance: "12345678", TransactionCount: 7 } }),
+      { amount: "12345678", tx: 7 },
+    );
+    assert.equal(cache.parseXrpAccount({ balance_drops: "42" }).amount, "42");
+    assert.equal(cache.parseXrpAccount({}), null);
+
+    // Solana getBalance / getMultipleAccounts.
+    assert.equal(
+      cache.parseSolanaBalance({ result: { context: { slot: 1 }, value: 2039280 } }).amount,
+      "2039280",
+    );
+    assert.deepEqual(
+      cache.parseSolanaAccounts({ result: { value: [{ lamports: 5 }, null, {}] } }),
+      ["5", "0", "0"],
+    );
+    assert.equal(cache.parseSolanaAccounts({ result: {} }), null);
+
+    // Sui: GraphQL (live public shape) and the legacy JSON-RPC result.
+    assert.equal(
+      cache.parseSuiBalance({
+        data: { address: { balance: { totalBalance: "1000000000" } } },
+      }).amount,
+      "1000000000",
+    );
+    assert.equal(
+      cache.parseSuiBalance({ result: { coinType: "0x2::sui::SUI", totalBalance: "42" } })
+        .amount,
+      "42",
+    );
+    assert.equal(cache.parseSuiBalance({ data: { address: { balance: {} } } }), null);
+
+    // TON Center: nanotons string, and an explicit failure body.
+    assert.equal(cache.parseTonBalance({ ok: true, result: "250000000" }).amount, "250000000");
+    assert.equal(cache.parseTonBalance({ ok: false, error: "invalid address" }), null);
+
+    // Numeric shapes stay strings; negative/float values are not amounts.
+    assert.equal(cache.atomicAmount(123), "123");
+    assert.equal(cache.atomicAmount(-1), null);
+    assert.equal(cache.atomicAmount(1.5), null);
+  }),
 ];
 
 await Promise.all(tests);

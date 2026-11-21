@@ -2104,13 +2104,140 @@
     };
   }
 
+  /* Free public providers. They take the derived public address only and
+   * answer CORS-friendly JSON, so the four chains below need no API key. */
+  async function parseProviderJson(response, parserName) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    var data = await response.json();
+    if (data && data.error && data.error.message) throw new Error(data.error.message);
+    var parser = cacheApi && typeof cacheApi[parserName] === 'function' ? cacheApi[parserName] : null;
+    var parsed = parser ? parser(data) : null;
+    if (!parsed) throw new Error('unexpected response');
+    return parsed;
+  }
+
+  async function fetchXrp(address, signal) {
+    var response = await fetchWithTimeout(
+      'https://api.xrpscan.com/api/v1/account/' + encodeURIComponent(address),
+      null,
+      signal
+    );
+    if (response.status === 404) {
+      return {
+        text: '0 drops · account not activated',
+        summary: { amount: 0n, chain: 'xrp', symbol: 'XRP', decimals: 6, active: false }
+      };
+    }
+    var parsed = await parseProviderJson(response, 'parseXrpAccount');
+    var drops = BigInt(parsed.amount);
+    var txs = parsed.tx;
+    return {
+      text: drops.toLocaleString('en-US') + ' drops' + (txs === null ? '' : ' · ' + txs + ' tx'),
+      summary: {
+        amount: drops,
+        chain: 'xrp',
+        symbol: 'XRP',
+        decimals: 6,
+        active: txs === null ? drops > 0n : txs > 0
+      }
+    };
+  }
+
+  async function rpcJson(url, method, params, signal) {
+    var response = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: params })
+    }, signal);
+    return response;
+  }
+
+  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
+   * when the official host rejects the browser (it answers 403 to some
+   * origins). */
+  var SOLANA_RPC_URLS = [
+    'https://api.mainnet-beta.solana.com',
+    'https://solana-rpc.publicnode.com'
+  ];
+
+  async function fetchSolana(address, signal) {
+    var lastError = null;
+    for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
+      try {
+        var response = await rpcJson(SOLANA_RPC_URLS[i], 'getBalance', [address], signal);
+        var parsed = await parseProviderJson(response, 'parseSolanaBalance');
+        var lamports = BigInt(parsed.amount);
+        return {
+          text: lamports.toLocaleString('en-US') + ' lamports',
+          summary: {
+            amount: lamports,
+            chain: 'solana',
+            symbol: 'SOL',
+            decimals: 9,
+            active: lamports > 0n
+          }
+        };
+      } catch (err) {
+        if (signal && signal.aborted) throw err;
+        lastError = err;
+      }
+    }
+    throw lastError || new Error('unexpected response');
+  }
+
+  async function fetchSui(address, signal) {
+    /* The public Sui JSON-RPC fullnodes are deprecated (-32601); the GraphQL
+     * gateway returns the same MIST balance and allows browser CORS. */
+    var response = await fetchWithTimeout('https://graphql.mainnet.sui.io/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: 'query($a: SuiAddress!){address(address:$a){balance(coinType:"0x2::sui::SUI"){totalBalance}}}',
+        variables: { a: address }
+      })
+    }, signal);
+    var parsed = await parseProviderJson(response, 'parseSuiBalance');
+    var mist = BigInt(parsed.amount);
+    return {
+      text: mist.toLocaleString('en-US') + ' MIST',
+      summary: {
+        amount: mist,
+        chain: 'sui',
+        symbol: 'SUI',
+        decimals: 9,
+        active: mist > 0n
+      }
+    };
+  }
+
+  async function fetchTon(address, signal) {
+    var response = await fetchWithTimeout(
+      'https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address),
+      null,
+      signal
+    );
+    var parsed = await parseProviderJson(response, 'parseTonBalance');
+    var nanotons = BigInt(parsed.amount);
+    return {
+      text: nanotons.toLocaleString('en-US') + ' nanotons',
+      summary: {
+        amount: nanotons,
+        chain: 'ton',
+        symbol: 'TON',
+        decimals: 9,
+        active: nanotons > 0n
+      }
+    };
+  }
+
   /* Rows whose identifiers have a working public provider. Kept in one place
    * so the counters and the checks agree on what "N" means. */
   function rowHasProvider(id) {
     if (!id) return false;
-    if (id === 'solana' || id === 'sui' || id === 'ton') return false;
+    if (id === 'solana' || id === 'sui' || id === 'ton' || id === 'ton_w5') return true;
+    if (id.indexOf('xrp_') === 0) return true;
     if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0 ||
-        id.indexOf('bch_') === 0 || id.indexOf('xrp_') === 0) return false;
+        id.indexOf('bch_') === 0 || id.indexOf('zcash_') === 0) return false;
     return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
   }
 
@@ -2296,6 +2423,18 @@
     } else if (id === 'tron') {
       provider = 'tronscan';
       chain = 'tron';
+    } else if (id.indexOf('xrp_') === 0) {
+      provider = 'xrpscan';
+      chain = 'xrp';
+    } else if (id === 'solana') {
+      provider = 'solana';
+      chain = 'solana';
+    } else if (id === 'sui') {
+      provider = 'sui';
+      chain = 'sui';
+    } else if (id === 'ton' || id === 'ton_w5') {
+      provider = 'toncenter';
+      chain = 'ton';
     } else {
       return null;
     }
@@ -2440,6 +2579,10 @@
       if (id.indexOf('btc_') === 0) return fetchBtc(address, signal);
       if (EVM_CHAINS[id]) return fetchEvm(address, signal, id);
       if (id === 'tron') return fetchTron(address, signal);
+      if (id.indexOf('xrp_') === 0) return fetchXrp(address, signal);
+      if (id === 'solana') return fetchSolana(address, signal);
+      if (id === 'sui') return fetchSui(address, signal);
+      if (id === 'ton' || id === 'ton_w5') return fetchTon(address, signal);
       throw new Error('no provider in v1');
     };
     try {
@@ -2718,8 +2861,16 @@
     }
     if (!raw || raw.indexOf('/') >= 0) return;
     var detected = detectFormat(raw);
-    if (detected.kind === 'empty' || detected.kind === 'decimal' ||
-        detected.kind === 'brainwallet') return;
+    if (detected.kind === 'empty') return;
+    /* Arbitrary text is not silently hashed as a brainwallet: the donor
+     * serves these URLs with a client-side invalid state, so the page keeps
+     * the value in the field and says why it cannot derive a key. */
+    if (detected.kind === 'decimal' || detected.kind === 'brainwallet') {
+      input.value = raw;
+      if (urlNotice) urlNotice.hidden = false;
+      showError('text is not a private key; use a 64-hex key, WIF, keypair or XRP secret');
+      return;
+    }
     state.urlKey = detected.kind === 'hex' ? raw.toLowerCase() : raw;
     input.value = state.urlKey;
     var params = new URLSearchParams(window.location.search);

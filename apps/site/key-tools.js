@@ -930,18 +930,17 @@
    * - Has balance: unique chain groups with amount > 0 (not addresses).
    * - Active: unique chain groups with amount > 0 or a provider activity
    *   signal; chains without one count a balance only.
-   * - Checked: chain groups whose checkable visible rows all settled (ok or
-   *   err) out of the fixed 18. */
+   * - Checked: chain groups whose visible rows are all done, out of the fixed
+   *   18. A checkable row is done at ok/err; a row without a provider (LTC/
+   *   DOGE/BCH/ZEC) is done immediately, so the counter can reach 18/18. */
   function balanceCounters(rows, totalChains) {
     var groups = {};
     (Array.isArray(rows) ? rows : []).forEach(function (row) {
       if (!row || !row.chain || !row.visible) return;
       var key = String(row.chain);
-      var group = groups[key] || (groups[key] = { funded: false, active: false, checkable: 0, settled: 0 });
-      if (row.checkable) {
-        group.checkable += 1;
-        if (row.state === 'ok' || row.state === 'err') group.settled += 1;
-      }
+      var group = groups[key] || (groups[key] = { funded: false, active: false, total: 0, done: 0 });
+      group.total += 1;
+      if (!row.checkable || row.state === 'ok' || row.state === 'err') group.done += 1;
       if (row.state !== 'ok' || row.amount === null || row.amount === undefined) return;
       var amount;
       try {
@@ -963,7 +962,7 @@
       var group = groups[key];
       if (group.funded) withBalance += 1;
       if (group.active) activeChains += 1;
-      if (group.checkable > 0 && group.settled === group.checkable) checked += 1;
+      if (group.total > 0 && group.done === group.total) checked += 1;
     });
     return {
       withBalance: withBalance,
