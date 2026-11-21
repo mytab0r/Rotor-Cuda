@@ -178,6 +178,24 @@
       words.every(function (word) { return /^[a-z]+$/.test(word); });
   }
 
+  /* Live counter under the search input: two or more whitespace-separated
+   * tokens read as words, anything else as characters. */
+  function countLabel(text) {
+    var value = String(text == null ? '' : text).trim();
+    if (!value) return { value: 0, unit: 'chars' };
+    var words = value.split(/\s+/);
+    if (words.length >= 2) return { value: words.length, unit: 'words' };
+    return { value: value.length, unit: 'chars' };
+  }
+
+  /* Mnemonic sub-type label for an Electrum seed-version result. Ordinary
+   * BIP39 phrases (and anything else) stay a plain mnemonic. */
+  function mnemonicSubtype(electrumType) {
+    if (electrumType === 'segwit') return 'Electrum SegWit';
+    if (electrumType === 'standard') return 'Electrum Legacy';
+    return 'Mnemonic';
+  }
+
   function parseHexInput(value) {
     var hex = value;
     if (/^0x/i.test(hex)) hex = hex.slice(2);
@@ -573,6 +591,8 @@
     csvEscape: csvEscape,
     familyOf: familyOf,
     chainLabel: chainLabel,
+    countLabel: countLabel,
+    mnemonicSubtype: mnemonicSubtype,
     CHAINS: CHAINS,
     INTERPRET: INTERPRET,
     COUNTS: COUNTS

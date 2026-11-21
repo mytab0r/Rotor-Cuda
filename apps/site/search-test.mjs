@@ -72,6 +72,23 @@ await assert.rejects(
   /Not an XRP family secret/,
 );
 
+/* ------------------------------------------------------ input counter */
+
+assert.deepEqual(search.countLabel(""), { value: 0, unit: "chars" });
+assert.deepEqual(search.countLabel("   "), { value: 0, unit: "chars" });
+assert.deepEqual(search.countLabel("KwDiBf89Qg"), { value: 10, unit: "chars" });
+assert.deepEqual(search.countLabel("  KwDiBf89Qg  "), { value: 10, unit: "chars" });
+assert.deepEqual(search.countLabel("hello,world"), { value: 11, unit: "chars" });
+assert.deepEqual(search.countLabel("abc def"), { value: 2, unit: "words" });
+assert.deepEqual(search.countLabel("  a  b   c "), { value: 3, unit: "words" });
+
+assert.equal(search.mnemonicSubtype("segwit"), "Electrum SegWit");
+assert.equal(search.mnemonicSubtype("standard"), "Electrum Legacy");
+assert.equal(search.mnemonicSubtype(""), "Mnemonic");
+assert.equal(search.mnemonicSubtype(undefined), "Mnemonic");
+assert.equal(search.mnemonicSubtype("2fa"), "Mnemonic");
+assert.equal(search.mnemonicSubtype("anything"), "Mnemonic");
+
 const seedJson = JSON.stringify(Array(32).fill(0));
 const keypair = await search.detect(seedJson, "keypair");
 assert.equal(keypair.kind, "keypair");
