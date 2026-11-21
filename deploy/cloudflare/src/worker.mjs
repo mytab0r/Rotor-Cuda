@@ -143,7 +143,8 @@ export async function handleBalances(url, env = {}, ctx = {}) {
 }
 
 async function batchBalance(chain, target, env, ctx) {
-  if (!target.valid) return { address: target.address, error: "bad_address" };
+  // Never echo an invalid input: it could be key-shaped and is not public.
+  if (!target.valid) return { error: "bad_address" };
 
   const { address } = target;
   const key = buildCacheKey(chain, address);

@@ -631,7 +631,7 @@ test("GET /v1/balances reports one bad address without failing the others", asyn
   ).json();
   assert.equal(calls, 2);
   assert.deepEqual(body.balances[0].value, 3_000);
-  assert.deepEqual(body.balances[1], { address: "not-an-address", error: "bad_address" });
+  assert.deepEqual(body.balances[1], { error: "bad_address" });
   assert.equal(body.balances[2].address, BTC_BECH32);
   assert.equal(body.balances[2].value, 3_000);
 });
