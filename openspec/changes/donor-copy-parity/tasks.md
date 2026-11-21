@@ -92,9 +92,10 @@ a worktree; one writer per area.
       is still to verify.
       Evidence (2026-11-20): `src/coordinator/mod.rs` (18-chain donor order,
       TON/BCH `?type=legacy` tabs, hidden H1, page-info/progress, three stat
-      cards, 60-row grid headers), `apps/site/browse.js` (hex + WIF (c)/(u)
-      links, `(c)/(u)` address lines, per-address balance/TX/received,
-      `?key=` prefill/highlight), `apps/site/mnemonic-seeds.js` +
+      cards, 60-row grid headers), `apps/site/browse.js` (hex + real 44px key
+      copy, one `(c)` address line with the `(u)` form behind a 44px
+      disclosure, per-address balance/TX/received with the extra balance line
+      disclosed too, `?key=` prefill/highlight), `apps/site/mnemonic-seeds.js` +
       `mnemonic-seeds.html` (three headers + full-width mnemonic sub-row,
       bits/preset/path/type query scheme, word-count reset to page 1,
       preset pills). Deliberate deviations: the H1 is kept but
@@ -206,10 +207,29 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
       report. Evidence: the script, the procedure in
       `.claude/skills/donor-reverse/SKILL.md`, and the first measured run in
       `docs/donor-parity/density-tron.md` + `density-tron.json`.
-- [ ] Apply the ranked change list from `docs/donor-parity/density-tron.md`
+- [x] Apply the ranked change list from `docs/donor-parity/density-tron.md`
       (browse-row WIF lines, stats compaction, jump-form width, chip strip,
-      search/page-header/gap micro-compaction) in a separate UI PR with
-      before/after measurements. Not implemented here.
+      search/page-header/gap micro-compaction). Evidence: PR #218; measured
+      again in `docs/donor-parity/density-bitcoin.md` (after: chrome 746,
+      rows 56-61 at 1440x900).
+- [x] Bitcoin listing row: one visible address line, the second
+      (uncompressed) address and its balance line kept in the DOM behind a
+      44px `aria-expanded` disclosure; expanding grows only that row. Evidence:
+      `apps/site/browse.js` (`addressCellModel`, `addr-extra-toggle`,
+      `balance-extra`), `apps/site/site.css`, `apps/site/search-test.mjs`
+      (both entries survive the split), `tests/coordinator_api.rs`, and the
+      ui-audit `browse-row-address-disclosure` / `browse-row-balance-split`
+      checks at 1440/1280/375.
+- [x] Issue #220: the row key copy is a real 44px `.icon-button` with
+      `aria-label`, `data-tooltip` and the copied state; the donor key cell has
+      the same action (28px, revealed on row hover). Detector:
+      `browse-row-key-copy`; served-row assertion in
+      `tests/coordinator_api.rs`.
+- [x] Browse stat cards end level: the 20px value step and a 200px note keep
+      `Received` on one line, so the three cards are 55px with a 0px bottom
+      spread at 1440 and 1280. Detector: `browse-stat-level`.
+- [x] Record the follow-up measurement before/after in
+      `docs/donor-parity/density-bitcoin.md` with the raw JSON.
 
 ## Gates
 - `node scripts/ui-audit.mjs --serve` — 0 violations at 375/768/1280, light/dark.

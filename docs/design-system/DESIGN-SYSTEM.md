@@ -384,10 +384,13 @@ Component pages: [button](components/button.md),
 - `.balance-summary--browse` (the private-key listing strip) lays each
   `.stat-card` out as one label/value line and keeps the refresh control and
   the balance note on that same row. Padding, label and value sizes are the
-  shared ones; only the layout is inline. Other summaries keep the stacked
-  cards.
+  shared ones; the three-card (UTXO) browse strip uses the `--text-xl` (20px)
+  value step so three cards end level on one line at 1440 and 1280, and the
+  note is 200px so a long balance never breaks mid-value. Only the layout is
+  inline. Other summaries keep the stacked cards.
 - Enforced by `scripts/ui-audit.mjs` `stat-geometry`: label >=12 and no
-  `text-transform`, value in {20,24,28} with tabular digits.
+  `text-transform`, value in {20,24,28} with tabular digits; `browse-stat-level`
+  requires the three browse cards to end within 2px.
 
 ### 3.10 Data table
 
@@ -416,6 +419,14 @@ Component pages: [button](components/button.md),
   tokens.
 - Actions: one icon-button grammar at the trailing edge (44×44, radius
   `--radius-control`, labelled).
+- Listing rows (`.key-row`) show one 44px address line. A further address form
+  stays in the DOM in `.addr-extra` behind the 44px `.addr-extra-toggle`
+  (`aria-expanded` + `aria-controls`, chevron flips), and its balance line moves
+  to `.balance-extra`; expanding grows only that row. The key-cell copy is a
+  real 44px `.icon-button` with `aria-label`/`data-tooltip`, never a
+  `display:none` button. Enforced by `browse-row-address-disclosure`,
+  `browse-row-balance-split`, `browse-row-key-copy` and `browse-row-height`
+  (75px desktop ceiling).
 - Mobile: tables keep the horizontal scroll wrapper and all columns; they do
   not turn into cards. Directory/seed row lists may stack, but keep their
   labels. Enforced by `scripts/ui-audit.mjs` `table-grammar`,
@@ -640,7 +651,10 @@ adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `.field--hero` control is ≥56px); batch 4 adds `card-padding-scale` and
 `stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
-`row-action-geometry`; batch 7 adds `legacy-token` (one `:root` token block,
+`row-action-geometry`; phase 4 adds the browse listing guards
+`browse-row-address-disclosure`, `browse-row-balance-split`,
+`browse-row-key-copy`, `browse-row-height` and `browse-stat-level`; batch 7
+adds `legacy-token` (one `:root` token block,
 light theme overrides only through `html[data-theme]`). Phase 2 adds the static
 token detectors in `scripts/check-token-usage.mjs`:
 `token-contract` (tokens.json, the generated region and the frozen contract
