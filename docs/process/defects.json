@@ -57,6 +57,20 @@
       "symptom": "A public page route could be served without appearing in the UI audit route list (found: /milk-sad had 2 sub-12px exponents).",
       "detector": "route-coverage",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "lookalike-info-button",
+      "reported": "2026-11-21",
+      "symptom": "The /key info control rendered as a full bordered 44px button beside random/clear, so two identical-looking blocks read as a duplicated control.",
+      "detector": "look-alike-icon-button",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "native-title-tooltips",
+      "reported": "2026-11-21",
+      "symptom": "Icon-only key actions relied on the slow native title tooltip instead of a visible hover/focus affordance.",
+      "detector": "tooltip-behaviour",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
