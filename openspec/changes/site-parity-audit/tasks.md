@@ -149,8 +149,13 @@ and not deployed**.
       5 s timeout, per-provider token bucket, concurrency 4, one retry with
       backoff + jitter, secret-shaped body rejection:
       `deploy/cloudflare/src/providers.mjs`, `src/security.mjs`.
-- [ ] Batch endpoint `GET /v1/balances?chain=&addresses=<csv>` (cap 60). The
-      worker serves one address at a time today.
+- [x] Batch endpoint `GET /v1/balances?chain=&addresses=<csv>` (cap 60).
+      Evidence: `deploy/cloudflare/src/worker.mjs:112` (handler: chain/CSV
+      validation, normalize + dedupe, per-item fresh/stale/miss handling),
+      `:145` (`batchBalance`), `deploy/cloudflare/test/worker.test.mjs:540`
+      (fresh order), `:578` (dedupe), `:598` (empty/61/bad chain), `:618`
+      (one invalid item), `:639` (bucket: 8 resolve, 9th `rate_limited`),
+      `:661` (stale + `waitUntil`); 41 worker tests pass.
 - [ ] Per-IP rate limiting. The current bucket is per provider per isolate, not
       a global or per-client quota.
 - [ ] Client wiring + deploy. **Blocked: no valid Cloudflare credential**
