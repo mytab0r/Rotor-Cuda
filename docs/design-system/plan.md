@@ -496,8 +496,11 @@ entry in the same PR.
   build found the footer present on every content route, including
   `/private-keys/<chain>`, `/bitcoin-puzzle`, `/bitcoin-puzzle/<n>`,
   `/bitcoin-puzzle/<n>/random` and `/keys/<chain>/<start>-<end>`. The two
-  routes reported missing in production were served from an edge copy that
-  predates the footer, so HTML responses now send `Cache-Control: no-store`
+  routes reported missing in production were a measurement error: curl ran
+  without `--compressed`, so Cloudflare's Brotli stream was stored as a
+  truncated body. With `--compressed` the public body is byte-identical to the
+  origin (241 856 bytes, one `.site-footer`). HTML responses still send
+  `Cache-Control: no-store` as hardening
   (non-HTML assets keep `no-cache`) and
   `tests/coordinator_api.rs::every_public_content_route_renders_exactly_one_footer`
   now requests 44 public content routes (exactly one footer) plus the five
