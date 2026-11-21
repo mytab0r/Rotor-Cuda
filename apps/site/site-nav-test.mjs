@@ -110,6 +110,10 @@ test("every static page ships the same main-nav link set", () => {
     if (!block) continue;
     const found = [...block[1].matchAll(/data-nav="([a-z-]+)"/g)].map((match) => match[1]);
     assert.deepEqual(found, expected, `${name} main nav links`);
+    /* The Seeds item is a directory destination. Pointing it at the studio
+     * (/seed) sent visitors expecting a browsable list to a converter. */
+    const seeds = [...block[1].matchAll(/<a href="([^"]+)" data-nav="seeds"/g)].map((match) => match[1]);
+    assert.deepEqual(seeds, ["/mnemonic-seeds"], `${name} Seeds nav destination`);
     checked += 1;
   }
   assert.ok(checked >= 20, `expected at least 20 static pages, checked ${checked}`);

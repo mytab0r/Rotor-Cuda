@@ -1951,7 +1951,7 @@ fn site_header() -> String {
          <nav aria-label=\"Main\">\
          <a href=\"/\" data-nav=\"home\">{grid}<span>Home</span></a>\
          <a href=\"/private-keys\" data-nav=\"directory\">{key2}<span>Directory</span></a>\
-         <a href=\"/seed\" data-nav=\"seeds\">{seed}<span>Seeds</span></a>\
+         <a href=\"/mnemonic-seeds\" data-nav=\"seeds\">{seed}<span>Seeds</span></a>\
          <a href=\"/bitcoin-puzzle\" data-nav=\"puzzle\">{puzzle}<span>Puzzle</span></a>\
          <a href=\"/vanity\" data-nav=\"vanity\">{vanity}<span>Vanity</span></a>\
          <a href=\"/milk-sad\" data-nav=\"milk-sad\">{shield}<span>Milk Sad</span></a>\
@@ -3705,7 +3705,7 @@ const MNEMONIC_SEEDS_DEFAULT_TITLE: &str =
 const MNEMONIC_SEEDS_DEFAULT_DESCRIPTION: &str = "Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.";
 const MNEMONIC_SEEDS_DEFAULT_CANONICAL: &str = "https://rotor.pxbt.app/mnemonic-seeds";
 const MNEMONIC_SEEDS_DEFAULT_MAIN: &str = "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"\" data-symbol=\"\" data-explorer=\"\" data-curve=\"0\" data-page=\"1\" style=\"--chain:#f7931a\">";
-const MNEMONIC_SEEDS_DEFAULT_INTRO: &str = "<span data-chain-intro>Browse deterministic English BIP39 phrases across the entropy space, 60 seeds per page, and derive the matching addresses locally.</span>";
+const MNEMONIC_SEEDS_DEFAULT_INTRO: &str = "<span data-chain-intro>Browse deterministic seed phrases: enumerate English BIP39 phrases across the entropy space, 60 per page, and derive the matching addresses locally.</span>";
 
 /// One `/mnemonic-seeds/<chain>[/<page>]` page. The shell is static; the
 /// chain, page and SEO head are filled in here.
@@ -3736,7 +3736,7 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
         chain.name, page_text
     );
     let intro = format!(
-        "Enumerate deterministic {} mnemonic seeds from the entropy space, 60 per page, and derive the matching addresses locally. Choose the word count, BIP32 path and address type; balance checks are optional.",
+        "Browse deterministic {} seed phrases: enumerate 60 BIP39 phrases per page, choose 12, 18 or 24 words, a BIP32 path and an address type, then derive the matching addresses locally.",
         chain.name
     );
     let robots = if page == BigUint::from(1u8) {
@@ -6813,20 +6813,31 @@ mod tests {
         let end = format!("{:064x}", 64);
         let range = format!("/keys/bitcoin/{key}-{end}");
         let key_path = format!("/key/{key}");
+        let render = |path: &str| -> String {
+            if let Some((body, _, status)) = seo_asset(base, path, "") {
+                assert_eq!(status, 200, "{path}");
+                return body;
+            }
+            // Static pages are served from the embedded shell after seo_asset.
+            let (bytes, _) = static_asset(path).unwrap_or_else(|| panic!("{path} is not served"));
+            String::from_utf8_lossy(bytes).into_owned()
+        };
         for path in [
             "/private-keys",
             "/private-keys/bitcoin",
             "/bitcoin-puzzle",
+            "/mnemonic-seeds",
+            "/mnemonic-seeds/bitcoin",
+            "/seed",
             key_path.as_str(),
             range.as_str(),
         ] {
-            let (body, _, status) = seo_asset(base, path, "").expect(path);
-            assert_eq!(status, 200, "{path}");
+            let body = render(path);
             for link in [
                 "href=\"/\"",
                 "href=\"/private-keys\"",
                 "href=\"/bitcoin-puzzle\"",
-                "href=\"/seed\"",
+                "href=\"/mnemonic-seeds\"",
                 "href=\"/vanity\"",
                 "href=\"/milk-sad\"",
                 "href=\"/tools\"",
@@ -6835,6 +6846,25 @@ mod tests {
             ] {
                 assert!(body.contains(link), "{path} misses {link}");
             }
+            /* The Seeds item belongs to the browsable directory; the studio
+             * (/seed) is a tool page and must never be the nav destination. */
+            let nav_start = body
+                .find("<nav aria-label=\"Main\">")
+                .unwrap_or_else(|| panic!("{path} has no main nav"));
+            let nav_end = nav_start
+                + body[nav_start..]
+                    .find("</nav>")
+                    .unwrap_or_else(|| panic!("{path} has no nav close"))
+                + "</nav>".len();
+            let nav = &body[nav_start..nav_end];
+            assert!(
+                nav.contains("href=\"/mnemonic-seeds\" data-nav=\"seeds\""),
+                "{path} Seeds nav must point at /mnemonic-seeds"
+            );
+            assert!(
+                !nav.contains("href=\"/seed\""),
+                "{path} Seeds nav must not point at the /seed studio"
+            );
         }
     }
 

@@ -206,6 +206,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "seeds-nav-points-at-studio",
+      "reported": "2026-11-21",
+      "symptom": "The primary \"Seeds\" nav item linked to /seed, a single-phrase converter, while visitors expected the browsable /mnemonic-seeds directory.",
+      "detector": "nav-destination",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "missing-site-footer",
       "reported": "2026-11-21",
       "symptom": "No served page carried the donor-parity footer (FAQ, Disclaimer, Donate, Docs, GitHub, copyright, build version), so the shell ended without legal or contact links.",
