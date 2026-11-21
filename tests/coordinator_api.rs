@@ -1049,8 +1049,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
-                "/wallet-vault.js?v=20261127k",
-                "/theme.js?v=20261127k",
+                "/wallet-vault.js?v=20261127l",
+                "/theme.js?v=20261127l",
             ],
         ),
         (
@@ -1205,6 +1205,64 @@ fn every_public_content_route_renders_exactly_one_footer() {
             body.matches("class=\"site-footer\"").count(),
             0,
             "{path} is an app/cabinet shell and must not render the marketing footer"
+        );
+    }
+
+    handle.shutdown();
+}
+
+/// UTXO chains keep the donor's Balance / Received / TX row; account-model
+/// chains show Balance / Active. The summary markup is chain-shaped, so this
+/// guards both variants against a regression to one shared three-card row.
+#[test]
+fn private_key_pages_shape_summary_cards_by_chain_model() {
+    let temp = TempState::new("summary-cards");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    for path in [
+        "/private-keys/ethereum",
+        "/private-keys/tron",
+        "/private-keys/solana",
+    ] {
+        let (status, _, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        assert!(
+            body.contains("id=\"total-active\""),
+            "{path} misses the Active card"
+        );
+        assert!(
+            !body.contains("id=\"total-received\""),
+            "{path} must not render the Received card"
+        );
+        assert!(
+            !body.contains(">Received<"),
+            "{path} must not render the Received label"
+        );
+        assert!(
+            body.contains("balance-summary balance-summary--account"),
+            "{path} misses the account summary class"
+        );
+    }
+
+    for path in [
+        "/private-keys/bitcoin",
+        "/private-keys/litecoin",
+        "/private-keys/zcash",
+    ] {
+        let (status, _, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 200, "{path}");
+        assert!(
+            body.contains("id=\"total-received\""),
+            "{path} misses the Received card"
+        );
+        assert!(
+            body.contains("id=\"total-tx\""),
+            "{path} misses the TX card"
+        );
+        assert!(
+            !body.contains("id=\"total-active\""),
+            "{path} must not render the Active card"
         );
     }
 

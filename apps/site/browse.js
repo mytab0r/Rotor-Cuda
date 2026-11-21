@@ -153,6 +153,7 @@
   var totalBalance = document.getElementById('total-balance');
   var totalReceived = document.getElementById('total-received');
   var totalTx = document.getElementById('total-tx');
+  var totalActive = document.getElementById('total-active');
   var refreshButton = document.getElementById('balance-refresh');
   var refreshCount = document.getElementById('balance-refresh-count');
   var refreshStatus = document.getElementById('balance-refresh-status');
@@ -407,10 +408,11 @@
       : '';
   }
 
-  function setSummary(balance, received, tx) {
+  function setSummary(balance, received, tx, active) {
     if (totalBalance) totalBalance.textContent = balance;
     if (totalReceived) totalReceived.textContent = received;
     if (totalTx) totalTx.textContent = tx;
+    if (totalActive) totalActive.textContent = active;
   }
 
   function providerMeta() {
@@ -573,6 +575,32 @@
       }
       values[address] = { balance: BigInt(item.result).toString() };
     });
+    /* Optional second batch: one eth_getTransactionCount per unique address.
+     * It only feeds the "Active" summary counter, so any failure (network,
+     * shape, non-string result) is ignored and never fails the balance load.
+     * The nonce is not stored as `tx`: the donor does not render per-row tx
+     * counts on EVM chains. */
+    try {
+      var noncePayload = unique.map(function (address, index) {
+        return { jsonrpc: '2.0', id: index + 1, method: 'eth_getTransactionCount', params: [address, 'latest'] };
+      });
+      var nonceList = await requestJson(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(noncePayload)
+      });
+      var nonceById = {};
+      (Array.isArray(nonceList) ? nonceList : [nonceList]).forEach(function (item) {
+        if (item && item.id !== undefined) nonceById[item.id] = item;
+      });
+      unique.forEach(function (address, index) {
+        var item = nonceById[index + 1];
+        if (!item || typeof item.result !== 'string' || !values[address]) return;
+        if (parseInt(item.result, 16) > 0) values[address].active = true;
+      });
+    } catch (err) {
+      /* best effort: the Active counter simply stays without these marks */
+    }
     return { values: values, errors: errors };
   }
 
@@ -883,6 +911,7 @@
     var sumNum = 0;
     var received = 0;
     var tx = 0;
+    var active = 0;
     var any = false;
     var hasReceived = false;
     var hasTx = false;
@@ -901,15 +930,18 @@
         tx += Number(value.tx);
         hasTx = true;
       }
+      /* The donor's "Active" counts addresses with any on-chain footprint. */
+      active += (Number(value.balance) > 0 || value.active === true || Number(value.tx) > 0) ? 1 : 0;
     });
     if (!any) {
-      setSummary('—', '—', '—');
+      setSummary('—', '—', '—', '—');
       return;
     }
     setSummary(
       coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
       hasReceived ? coin(received, meta.decimals) + ' ' + meta.symbol : '—',
-      hasTx ? String(tx) : '—'
+      hasTx ? String(tx) : '—',
+      String(active)
     );
   }
 
@@ -1005,13 +1037,13 @@
     var run = ++state.balanceRun;
     var model = balanceModel();
     if (!model.meta) {
-      setSummary('—', '—', '—');
+      setSummary('—', '—', '—', '—');
       setNote('Live balance lookup is not available for ' + config.chain + ' on this page; each address links to its explorer.');
       updateRefreshButton(model);
       return;
     }
     if (!model.records.length) {
-      setSummary('—', '—', '—');
+      setSummary('—', '—', '—', '—');
       setNote('No derived public address to send; nothing was sent.');
       updateRefreshButton(model);
       return;
