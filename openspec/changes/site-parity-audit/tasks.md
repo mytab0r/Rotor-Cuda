@@ -173,7 +173,7 @@ and not deployed**.
   Evidence: send rows now point at `/send/bitcoin` and `/send/ethereum`
   (partial, testnet-only), the six key rows and `key-page-flow` describe the
   shipped counters/Copy All/CSV instead of claiming they are absent;
-  `site-map-test.mjs` passes (89 ours, 117 donors, 41 features).
+  `site-map-test.mjs` passes (92 ours, 117 donors, 41 features).
 - [x] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
   Evidence: `node scripts/ui-audit.mjs --serve` PASS 192/192 page runs across 32
   routes after PR #139 added every public `text/html` route (tools, tx, docs,
