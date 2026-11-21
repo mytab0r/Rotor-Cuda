@@ -70,7 +70,7 @@
 ## Live donor audit follow-ups (2026-11-21)
 
 Source: `docs/donor-parity/parity-live.md` (live route/DOM comparison). These
-three were code-only and shipped together in PR #143.
+follow-ups were code-only.
 
 - [x] Directory `?key=` jumps to the page that contains the key (60 keys per
   page, clamped to `data-pages`, `location.replace`, only when the computed
@@ -86,6 +86,15 @@ three were code-only and shipped together in PR #143.
 - [x] `/vanity-generator` -> `/vanity` and `/downloads` -> `/wallets`
   permanent aliases, exact paths only. Evidence: `redirect_target`,
   `donor_route_aliases_redirect_to_canonical_paths`.
+- [x] Key-page balances: XRP (XRPScan), SOL, SUI (GraphQL) and TON (TON Center)
+  are wired in `apps/site/key.js` / `key-tools.js`, with response codecs in
+  `apps/site/balance-cache.js` and tests in `apps/site/balance-cache-test.mjs`.
+  LTC/DOGE/BCH/ZEC stay provider-less (Blockchair answers 430 without a key,
+  litecoinspace 525), so those rows show — instead of a fake zero.
+- [x] One `?key=` implementation on directory pages: a parallel change added a
+  second path that called undefined `normalizeKeyHex`/`jumpPageFor` and threw
+  on pages without `search.js`; removed, so `pageForHexKey`/`jumpToKeyPage` is
+  the only path (PR #147).
 
 ## P1 — shell and templates
 
@@ -110,6 +119,15 @@ three were code-only and shipped together in PR #143.
   (BCH spec translation vectors; DOGE/ZEC addresses independently reproduced
   with Python), UI audit on `/key` and `/key/<key1>` at 375/768/1280 in both
   themes.
+  LTC Taproot card: `crates/rotor-wasm/src/derive.rs:466,580` (`ltc_p2tr` row,
+  bech32m) and `lib.rs:1761` (vector); `src/coordinator/mod.rs` `LTC_TYPES`
+  gains the fourth `taproot`/`ltc_p2tr` entry (feeds both the `/private-keys`
+  cards and the `?type=` switch); `apps/site/browse.js` `TYPE_FIELDS.litecoin`,
+  `apps/site/brainwallet-engine.js` `LTC_TYPES` and `apps/site/key.js`
+  `ID_LABELS.ltc_p2tr` map it to `'Litecoin taproot'`;
+  `litecoin_directory_exposes_taproot_card_and_field` asserts the card and
+  `data-field="ltc_p2tr"`, and the brainwallet LTC assertion now expects four
+  types. Balance lookup already covers bech32m.
 - [x] TON v5/W5 address type (PR #105). Evidence:
   `crates/rotor-wasm/src/ton.rs` (official `wallet_v5` code cell, pinned
   upstream commit), `crates/rotor-wasm/src/derive.rs:657-677` (`ton_w5` row
