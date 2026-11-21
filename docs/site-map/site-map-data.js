@@ -540,7 +540,7 @@
     area: 'key',
     status: 'partial',
     ours: '/key',
-    note: 'Auto-derive is present; aggregates, CSV and eight EVM chain rows are not.'
+    note: 'Auto-derive, aggregates, CSV and eight EVM chain rows are present. Short and 0x-prefixed hex plus WIF resolve; arbitrary text stays a real 404 (not the donor soft-404).'
   });
 
   donorRoute({
@@ -857,7 +857,7 @@
     status: 'parity',
     priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: '60 rows per page with First/Previous/Random/Next/Last and a page jump.'
+    note: '60 rows per page with First/Previous/Random/Next/Last and a page jump; `?key=` jumps to the page that contains the key.'
   });
 
   feature({
@@ -865,11 +865,11 @@
     area: 'directory',
     capability: 'Per-row automatic balance checks',
     donor: 'present',
-    rotor: 'present',
-    status: 'parity',
-    priority: '-',
+    rotor: 'partial',
+    status: 'partial',
+    priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Opt-in per row; only derived public addresses are queried.'
+    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows and TRON check today; XRP/SOL/TON/SUI/LTC/BCH/DOGE/ZEC show — because key.js has no provider for them yet.'
   });
 
   feature({

@@ -67,6 +67,26 @@
   and the mainnet `tron` route are rejected, and no live broadcast was
   executed (no funded Nile key).
 
+## Live donor audit follow-ups (2026-11-21)
+
+Source: `docs/donor-parity/parity-live.md` (live route/DOM comparison). These
+three were code-only and shipped together in PR #143.
+
+- [x] Directory `?key=` jumps to the page that contains the key (60 keys per
+  page, clamped to `data-pages`, `location.replace`, only when the computed
+  page differs from `data-page`; keeps `key` and `type`). Evidence:
+  `apps/site/browse.js` (`pageForHexKey`, `jumpToKeyPage`, `data-page` config),
+  `apps/site/search-test.mjs` (`0xdeadbeef` -> page 62,265,476; clamping;
+  non-hex/zero rejection).
+- [x] `/key/<value>` accepts a `0x`/`0X` prefix and 1–64 hex digits,
+  left-padded to 64; the WIF path and existing key-value forms stay; all-zero
+  and arbitrary text are real 404s (deliberately not the donor's soft-404).
+  Evidence: `src/coordinator/mod.rs` (`prefixed_hex_key`),
+  `seo_key_page_accepts_short_and_prefixed_hex`.
+- [x] `/vanity-generator` -> `/vanity` and `/downloads` -> `/wallets`
+  permanent aliases, exact paths only. Evidence: `redirect_target`,
+  `donor_route_aliases_redirect_to_canonical_paths`.
+
 ## P1 — shell and templates
 
 - [ ] One filter bar (search + type + chain chips + reset), pager separate,
