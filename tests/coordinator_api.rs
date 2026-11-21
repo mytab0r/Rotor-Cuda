@@ -1522,6 +1522,37 @@ fn browse_listing_rows_carry_no_wif() {
     handle.shutdown();
 }
 
+/// `/key/<WIF>` decodes a WIF to the same padded hex key. Uncompressed
+/// Litecoin and Dogecoin WIFs start with `6`, so the first-byte prefilter must
+/// admit them; a 51-character `6…` value that is not a valid WIF still 404s.
+#[test]
+fn key_url_accepts_uncompressed_litecoin_and_dogecoin_wifs() {
+    let temp = TempState::new("key-wif-uncompressed");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let key_hex = "0000000000000000000000000000000000000000000000000000000000000001";
+    for wif in [
+        "6u823ozcyt2rjPH8Z2ErsSXJB5PPQwK7VVTwwN4mxLBFrao69XQ", // Litecoin 0xb0, uncompressed
+        "6J8csdv3eDrnJcpSEb4shfjMh2JTiG9MKzC1Yfge4Y4GyUsjdM6", // Dogecoin 0x9e, uncompressed
+    ] {
+        let (status, _, body) = raw(addr, "GET", &format!("/key/{wif}"), None, None);
+        assert_eq!(status, 200, "{wif}");
+        assert!(
+            body.contains(&format!("window.__ROTOR_KEY__=\"{key_hex}\"")),
+            "{wif} must decode to the padded hex key"
+        );
+    }
+
+    // Same length and leading `6`, but a broken checksum: neither a WIF nor
+    // hex, so the route stays a 404.
+    let bad = "6u823ozcyt2rjPH8Z2ErsSXJB5PPQwK7VVTwwN4mxLBFrao69XR";
+    let (status, _, _) = raw(addr, "GET", &format!("/key/{bad}"), None, None);
+    assert_eq!(status, 404, "{bad}");
+
+    handle.shutdown();
+}
+
 /// #220 and the BTC row model: the served listing row ships a real 44px key
 /// copy action (aria-label + the shared data-tooltip, no inline `display:none`),
 /// and the shipped script keeps the second address in a disclosed block instead
