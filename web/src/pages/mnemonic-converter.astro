@@ -1,0 +1,146 @@
+---
+// Pilot migration of /mnemonic-converter. Markup and copy are the same as
+// apps/site/mnemonic-converter.html; only the script wiring changed: the
+// current glue (seed-page.js) is ported to src/scripts/mnemonic-converter.ts
+// and the crypto scripts are vendored byte copies under /vendor/.
+import { execFileSync } from 'node:child_process';
+
+// The coordinator appends this footer at serve time from ROTOR_BUILD_ID.
+// Reproduce it here so the migrated page has the same document shape.
+let buildId = process.env.ROTOR_BUILD_ID || '';
+if (!buildId) {
+  try {
+    buildId = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch {
+    buildId = 'astro';
+  }
+}
+const repositoryUrl = 'https://github.com/mytab0r/Rotor-Cuda';
+---
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mnemonic converter: BIP39 and Electrum phrases | Crypto</title>
+<meta name="description" content="Convert BIP39, Electrum BIP39 and legacy Electrum mnemonic phrases into standard wallet paths and addresses locally in your browser. No upload, no storage.">
+<link rel="canonical" href="https://rotor.pxbt.app/mnemonic-converter">
+<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/seed-studio.css">
+<script is:inline src="/theme.js"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page seed-page">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <a href="/tools">Tools</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span aria-current="page">Mnemonic converter</span></nav>
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg></span>
+      <div>
+        <h1>Mnemonic converter</h1>
+        <p class="key-tagline">One standalone page for BIP39, Electrum BIP39 and legacy Electrum phrases. Pick a chain and path, then derive up to twenty addresses without leaving this tab.</p>
+        <div class="key-badges"><span>BIP39 / Electrum</span><span>Runs locally</span><span>No upload</span></div>
+      </div>
+    </div>
+    <p class="notice key-warning" role="note">A seed phrase controls every address derived from it. Use this page offline for real funds, and never paste a live phrase into a site you do not control.</p>
+  </section>
+
+  <section class="card">
+    <h2>Convert a mnemonic</h2>
+    <form id="seed-form" class="seed-form seed-studio-form" autocomplete="off">
+      <div class="seed-controls">
+        <label>Mnemonic type
+          <select id="seed-scheme">
+            <option value="bip39" selected>BIP39</option>
+            <option value="electrum-bip39">Electrum BIP39</option>
+            <option value="electrum-old">Electrum old (1626)</option>
+          </select>
+        </label>
+        <label>Word count
+          <select id="seed-words">
+            <option value="12" selected>12 words (128 bits)</option>
+            <option value="15">15 words (160 bits)</option>
+            <option value="18">18 words (192 bits)</option>
+            <option value="21">21 words (224 bits)</option>
+            <option value="24">24 words (256 bits)</option>
+          </select>
+        </label>
+        <label>Chain
+          <select id="seed-chain"></select>
+        </label>
+        <label>Path preset
+          <select id="seed-path" class="mono"></select>
+        </label>
+        <label class="seed-check"><input type="checkbox" id="seed-all-paths"> All standard paths for the selected chain</label>
+      </div>
+      <label class="seed-phrase-label">Mnemonic
+        <textarea id="seed-phrase" class="mono" rows="4" spellcheck="false" autocapitalize="off" placeholder="word1 word2 word3 …"></textarea>
+      </label>
+      <p id="seed-word-count" class="muted key-help" aria-live="polite">0 words</p>
+      <div class="seed-secondary">
+        <label class="seed-passphrase">Passphrase (optional)
+          <input id="seed-passphrase" type="password" class="mono" autocomplete="new-password" placeholder="leave empty if none">
+        </label>
+        <div class="seed-count-row" role="group" aria-label="Address count">
+          <span class="seed-count-label">Addresses</span>
+          <button type="button" class="chip seed-count-btn" aria-pressed="true" data-count="1">1</button>
+          <button type="button" class="chip seed-count-btn" data-count="3" aria-pressed="false">3</button>
+          <button type="button" class="chip seed-count-btn" data-count="5" aria-pressed="false">5</button>
+          <button type="button" class="chip seed-count-btn" data-count="10" aria-pressed="false">10</button>
+          <button type="button" class="chip seed-count-btn" data-count="20" aria-pressed="false">20</button>
+        </div>
+        <div class="key-buttons">
+          <button type="submit" class="primary" id="seed-derive">Convert &amp; derive</button>
+          <button type="button" id="seed-generate">Generate phrase</button>
+          <button type="button" id="seed-clear">Clear</button>
+          <button type="button" id="seed-csv" hidden>Download CSV</button>
+        </div>
+      </div>
+    </form>
+    <p id="seed-status" class="muted key-help" role="status" aria-live="polite"></p>
+    <p id="seed-scheme-help" class="muted key-help"></p>
+    <p class="muted key-help">This page uses the same engine as the <a href="/seed">seed studio</a>; browse more calculators on <a href="/tools">Tools</a>. A phrase is never stored, logged or sent, and it clears when you leave. Balance lookups start automatically after deriving: only the derived public addresses go to public providers (blockchain.info and a public Ethereum JSON-RPC endpoint).</p>
+    <p id="seed-error" class="error key-error" role="alert" hidden></p>
+  </section>
+
+  <section class="card" id="seed-result" hidden>
+    <div class="seed-result-head"><h2>Derived addresses</h2><span class="seed-count" id="seed-count"></span></div>
+    <div class="seed-rows" id="seed-rows"></div>
+    <div class="key-buttons">
+      <button type="button" id="seed-copy-all" hidden>Copy All</button>
+      <button type="button" id="seed-load-more" hidden>Load next 5</button>
+    </div>
+    <p id="seed-aggregate" class="muted key-help" aria-live="polite" hidden></p>
+  </section>
+</main>
+
+<script is:inline src="/vendor/seed.js"></script>
+<script is:inline src="/vendor/seed-crypto.js"></script>
+<script is:inline src="/site.js"></script>
+<script>
+  import '../scripts/mnemonic-converter.ts';
+</script>
+<footer class="site-footer">
+<nav aria-label="Footer"><a href="/faq">FAQ</a><a href="/disclaimer">Disclaimer</a><a href="/donate">Donate</a><a href="/docs">Docs</a><a href={repositoryUrl} rel="noopener noreferrer">GitHub</a></nav>
+<div class="site-footer__meta"><span>© 2026 Crypto</span><span>build {buildId}</span></div>
+</footer>
+</body>
+</html>
