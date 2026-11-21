@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (Total Value stays blank without a price source, Has Balance, Active Chains, Checked), eight EVM chain rows and public-row Copy All/CSV are in place. The interactive curve editor and signing entry remain.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked), eight EVM chain rows and public-row Copy All/CSV are in place. The interactive curve editor and signing entry remain.'
   });
 
   oursRoute({
@@ -1219,7 +1219,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['ref-site-a'],
-    note: 'Auto-derive, counters, Copy All/CSV, WIF(u), XRP secret and public-key formats shipped; the donor\'s eight separate EVM chain rows are still missing, and Total value stays "—" because no price source is connected.'
+    note: 'Auto-derive, counters, Copy All/CSV, WIF(u), XRP secret and public-key formats shipped; eight separate EVM chain rows and a USD Total value from a six-hour cached public ticker (rows without a price are excluded and counted) are in place.'
   });
 
   feature({
