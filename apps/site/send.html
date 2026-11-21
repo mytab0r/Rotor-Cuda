@@ -6,8 +6,8 @@
 <title>Send testnet coins — Bitcoin, Ethereum, BNB, TRON | Crypto</title>
 <meta name="description" content="Send Bitcoin testnet, Ethereum Sepolia, BNB Smart Chain testnet, TRON Nile or a generic ERC-20 transfer from a pasted key in your browser. TESTNET only; mainnet keys and endpoints are rejected. Review, local signing and an optional broadcast.">
 <link rel="canonical" href="https://rotor.pxbt.app/send">
-<link rel="stylesheet" href="/site.css?v=20261127b">
-<script src="/theme.js?v=20261127b"></script>
+<link rel="stylesheet" href="/site.css?v=20261127c">
+<script src="/theme.js?v=20261127c"></script>
 <style>
 /* Send page: one form, review and signed steps. All sizes follow the shared
  * 44px touch target and 12px minimum text rules. */
@@ -81,7 +81,6 @@
   overflow-wrap: anywhere;
   font-size: 13px;
 }
-.send-address-row .icon-btn { flex: none; }
 .send-hex {
   max-height: 220px;
   overflow: auto;
@@ -172,7 +171,7 @@
         <span class="key-field-label">Derived sending address</span>
         <div class="send-address-row">
           <code id="send-address" class="mono">—</code>
-          <button type="button" class="icon-btn" id="send-address-copy" aria-label="Copy derived address" title="Copy derived address" disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+          <button type="button" class="icon-button icon-button--quiet icon-button--lg" id="send-address-copy" aria-label="Copy derived address" data-tooltip="Copy derived address" disabled><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
         </div>
       </div>
 
@@ -236,7 +235,7 @@
   <section class="card" id="send-review" hidden>
     <div class="key-row-head">
       <h2 class="key-row-title" id="send-review-title" tabindex="-1">2. Review — nothing signed yet</h2>
-      <button type="button" class="icon-btn" id="send-review-copy" aria-label="Copy unsigned transaction" title="Copy unsigned transaction"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+      <button type="button" class="icon-button icon-button--quiet icon-button--lg" id="send-review-copy" aria-label="Copy unsigned transaction" data-tooltip="Copy unsigned transaction"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
     </div>
     <dl class="key-form-list" id="send-review-list"></dl>
     <div id="send-review-warnings" class="send-warnings" hidden></div>
@@ -251,7 +250,7 @@
   <section class="card" id="send-signed" hidden>
     <div class="key-row-head">
       <h2 class="key-row-title" tabindex="-1">3. Signed transaction</h2>
-      <button type="button" class="icon-btn" id="send-signed-copy" aria-label="Copy signed transaction" title="Copy signed transaction"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
+      <button type="button" class="icon-button icon-button--quiet icon-button--lg" id="send-signed-copy" aria-label="Copy signed transaction" data-tooltip="Copy signed transaction"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg></button>
     </div>
     <p class="muted key-help">The key was cleared after signing. Copy the signed hex to keep it, or broadcast it to the public testnet endpoint below.</p>
     <div id="send-signed-hex" class="send-hex mono"></div>
@@ -277,8 +276,8 @@
 
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-evm.js"></script>
-<script src="/tron-tx.js?v=20261127b"></script>
+<script src="/tron-tx.js?v=20261127c"></script>
 <script src="/send.js"></script>
-<script src="/site.js?v=20261127b"></script>
+<script src="/site.js?v=20261127c"></script>
 </body>
 </html>

@@ -113,10 +113,6 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
   overflow-wrap: anywhere;
   word-break: break-all;
 }
-.bw-address-line .bw-copy {
-  flex: none;
-}
-
 .bw-explorer {
   display: inline-grid;
   place-items: center;
@@ -130,9 +126,6 @@ html[data-theme="light"] .bw-row:hover { background: rgba(15, 23, 42, .025); }
 }
 .bw-explorer:hover { color: var(--text); border-color: var(--border-strong); }
 .bw-explorer .icon { width: 15px; height: 15px; }
-
-.bw-copy.copied { color: var(--ok); border-color: var(--ok); }
-.bw-copy { width: 44px; min-height: 44px; flex: none; }
 
 .bw-balance {
   display: flex;
@@ -300,13 +293,11 @@ html[data-theme="light"] .brainwallet-addr { color: #1f5f9e; }
 }
 
 @media (pointer: coarse) {
-  .bw-copy,
   .bw-explorer { width: 44px; min-height: 44px; }
 }
 
 @media (max-width: 520px) {
   .bw-type-btn { flex: 1 1 auto; justify-content: center; }
   .bw-explorer { width: 44px; min-height: 44px; }
-  .bw-copy { width: 44px; min-height: 44px; }
   .bw-address-line { flex-wrap: wrap; }
 }

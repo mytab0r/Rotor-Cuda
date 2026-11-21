@@ -179,9 +179,9 @@
 
   function copyText(text, button) {
     function flash() {
-      button.classList.add('copied');
+      button.classList.add('is-copied');
       button.setAttribute('aria-live', 'polite');
-      window.setTimeout(function () { button.classList.remove('copied'); }, 1200);
+      window.setTimeout(function () { button.classList.remove('is-copied'); }, 1200);
     }
     function fallback() {
       var area = document.createElement('textarea');
@@ -209,8 +209,8 @@
   function copyButton(value, label) {
     var button = document.createElement('button');
     button.type = 'button';
-    button.className = 'key-copy key-copy-icon bw-copy';
-    button.title = 'Copy ' + label;
+    button.className = 'icon-button icon-button--quiet icon-button--lg bw-copy';
+    button.setAttribute('data-tooltip', 'Copy ' + label);
     button.setAttribute('aria-label', 'Copy ' + label);
     button.dataset.copy = value || '';
     button.appendChild(icon('ui-copy'));
@@ -295,7 +295,7 @@
 
   function fillKey(entry) {
     entry.keyCode.textContent = entry.keyHex;
-    entry.keyButton.title = 'Copy SHA-256 private key';
+    entry.keyButton.setAttribute('data-tooltip', 'Copy SHA-256 private key');
     entry.keyButton.setAttribute('aria-label', 'Copy SHA-256 private key');
     entry.keyButton.dataset.copy = entry.keyHex;
   }

@@ -52,7 +52,8 @@ directory and printed at the end.
 | `horizontal-overflow` | `scrollWidth > clientWidth` | Fix the shared container/grid/`min-width` in `site.css`; never hide overflow with `overflow-x:hidden` as the fix. |
 | `small-text` | visible text below 12px | Raise the shared type token/class (`.stat-label`, `.type-desc`, etc.), not one page's rule. |
 | `small-touch-target` | control below 44x44 (inline prose links exempt) | Fix the shared icon-button/nav/pager primitive so every page inherits the size. |
-| `unlabeled-icon-control` | icon-only button/link without `aria-label`/`title` | Add the label to the shared component or icon helper. |
+| `unlabeled-icon-control` | icon-only button/link without `aria-label` | Add the label to the shared component or icon helper. |
+| `icon-button-scale` | `.icon-button` box not 28/36/44 or icon not 14/16/18, or missing `aria-label`/`data-tooltip` | Fix the shared `.icon-button` sizes/variants; never restyle one page's copy button. |
 | `status-pill-geometry` | a status/badge pill outside the shared box: text <12px, height outside 18–32px, non-pill radius, or inline padding outside 6/8/10/12 | Fix the shared `.status`/`.badge` geometry in `site.css`; never restyle one page's pill. |
 | `duplicate-address-type-implementation` | `.key-types`/`.key-btc-panel` and `.address-type-panel` both used | Unify on one address-type component and delete the other markup/CSS family. |
 | `address-type-width-spread` | cards in one row differ by >15% | Fix the grid (`repeat(auto-fit, minmax(...))` or equal `1fr`) in the shared component. |
