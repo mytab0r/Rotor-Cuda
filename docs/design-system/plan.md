@@ -22,8 +22,8 @@ shown, or which routes exist.
    (`scrollWidth`/`clientWidth`), column spreads, and remaining violation IDs.
    The author never approves their own UI PR.
 5. **Area checks.** Run the `site` build/test commands from `projects.json`,
-   then `node scripts/check-projects.mjs`. Never add a `?v=` cache token: assets
-   revalidate by `ETag`.
+   then `node scripts/check-projects.mjs`. Never add a `?v=` cache token: HTML
+   references assets as `/a/<build>/<path>` (immutable).
 6. **Commit/PR.** One family per PR. The PR body names the family, the files,
    the detector, the audit command and the reviewer's geometry. No attribution
    trailers.

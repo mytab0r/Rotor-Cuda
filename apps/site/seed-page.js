@@ -6,7 +6,9 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
+  var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/rotor_wasm.wasm')
+    : '/rotor_wasm.wasm';
   var DECODER = new TextDecoder('utf-8');
   var BALANCE_TIMEOUT_MS = 12000;
 

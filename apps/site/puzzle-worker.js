@@ -28,7 +28,14 @@
 (function () {
   'use strict';
 
-  var WASM_URL = '/rotor_wasm.wasm';
+  /* The worker is started from `/a/<build>/puzzle-worker.js`; derive the build
+   * from its own URL so the wasm fetch stays immutable too. */
+  function assetUrl(path) {
+    var match = self.location && /^\/a\/([^/]+)\//.exec(self.location.pathname);
+    return match ? '/a/' + match[1] + path : path;
+  }
+
+  var WASM_URL = assetUrl('/rotor_wasm.wasm');
   var SLICE_START_KEYS = 32768;
   var SLICE_MIN_KEYS = 8192;
   var SLICE_MAX_KEYS = 262144;

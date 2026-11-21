@@ -693,7 +693,9 @@
       var window = mode === 'seq' ? sequentialWindow(range, count, index) : range;
       var worker;
       try {
-        worker = new Worker('/puzzle-worker.js');
+        worker = new Worker(globalThis.RotorAssets
+          ? globalThis.RotorAssets.url('/puzzle-worker.js')
+          : '/puzzle-worker.js');
       } catch (err) {
         halt('Could not start the WASM worker: ' + (err && err.message ? err.message : String(err)));
         return null;

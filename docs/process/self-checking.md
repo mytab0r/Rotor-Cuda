@@ -55,8 +55,9 @@ Windows font rendering will make every run red.
   (needs Jest/Vitest/Mocha) [17]; `mutmut` (WSL on Windows) [18]. High signal
   for coordinator logic, near-zero for layout. Quarterly, not per-PR.
 - **Contract tests.** Pact fits service-to-service APIs [19]; we have none.
-  Our real contracts are fixed routes and ETag revalidation — already covered
-  by `check-projects.mjs` and the coordinator tests.
+  Our real contracts are fixed routes and build-prefixed immutable asset URLs
+  — already covered by `check-projects.mjs`, `ui-audit.mjs` and the coordinator
+  tests.
 - **LLM reviewers.** Claude Code `/code-review` and the Code Review product;
   CodeRabbit and Greptile as paid PR bots [20][21]. They catch semantic bugs
   but cannot see a rendered page unless handed screenshots. Useful as a second

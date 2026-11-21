@@ -7,7 +7,9 @@
   'use strict';
 
   var engine = window.RotorBrainwallet;
-  var WASM_URL = '/rotor_wasm.wasm';
+  var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
+    ? window.RotorAssets.url('/rotor_wasm.wasm')
+    : '/rotor_wasm.wasm';
   var root = document.querySelector('.brainwallet-directory');
   if (!root || !engine) return;
 
@@ -94,7 +96,7 @@
     if (state.tonPromise) return state.tonPromise;
     state.tonPromise = new Promise(function (resolve, reject) {
       var script = document.createElement('script');
-      script.src = '/ton.js';
+      script.src = window.RotorAssets.url('/ton.js');
       script.async = true;
       script.onload = function () {
         if (window.RotorTon) resolve(window.RotorTon);

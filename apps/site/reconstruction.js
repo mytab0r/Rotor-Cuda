@@ -111,7 +111,7 @@
       (complete.fragments === 1 ? '' : 's') + '.';
 
     try {
-      var wasm = await window.RotorKeyTools.loadWasm('/rotor_wasm.wasm');
+      var wasm = await window.RotorKeyTools.loadWasm(window.RotorAssets.url('/rotor_wasm.wasm'));
       if (typeof wasm.derive_report !== 'function') return;
       var upload = window.RotorKeyTools.upload(wasm, complete.bytes);
       var code;
