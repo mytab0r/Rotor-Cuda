@@ -95,11 +95,31 @@
   still claimed "the interactive curve editor and signing entry remain". The
   donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
   and ours ships the curve selector plus the `/send` signing entry (previous
-  bullet). The notes now name the real remainder: BCH and ZEC balances have no
-  keyless provider (Blockchair 430 without a key; WhatsOnChain 403; btc.com and
-  zcha.in unreachable, probed 2026-11-21), so those rows show `—` and the route
-  status stays `partial`. Evidence: `docs/site-map/site-map-data.js` (seven
-  donor rows).
+  bullet). The notes now name the real remainder: ZEC balances have no keyless
+  provider (Blockchair 430 without a key; zcha.in unreachable, probed
+  2026-11-21), while BCH was later wired through Haskoin (bullet below), so only
+  the ZEC row shows `—` and the route status stays `partial`. Evidence:
+  `docs/site-map/site-map-data.js` (seven donor rows).
+- [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
+  `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
+  200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
+  longer show `—`. `fetchHaskoinBch` + the pure `parseHaskoinBch`, `bch_`
+  allowed in `rowHasProvider`/`rowCacheInfo`, and the `checkRow` dispatch; ZEC
+  stays excluded. Evidence: `apps/site/key.js`, `apps/site/balance-cache.js`,
+  `apps/site/balance-cache-test.mjs`, PR #228.
+- [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
+  both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
+  the first-byte prefilter although the decoder already handled them. Evidence:
+  `src/coordinator/mod.rs` (`normalized_key_hex`), test
+  `key_url_accepts_uncompressed_litecoin_and_dogecoin_wifs` in
+  `tests/coordinator_api.rs`, PR #227.
+- [x] Ledger honesty pass (2026-11-22, docs-only): ten stale `file:line`
+  citations corrected; the `/private-keys` rows no longer claim per-row WIF
+  links (PR #218 made them key-level); the mnemonic row no longer claims WIF
+  copy (the donor row has none); puzzle detail is `partial` for the missing
+  Discussion link (its target is not recorded) and the blocked Solution field;
+  the wrong `parity` cells for the brainwallet generator and pubkey-add are
+  fixed.
 
 ## Live donor audit follow-ups (2026-11-21)
 
