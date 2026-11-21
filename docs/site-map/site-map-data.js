@@ -208,8 +208,8 @@
   });
 
   oursRoute({
-    path: '/bitcoin-puzzle/<n>/detail',
-    href: '/bitcoin-puzzle/71/detail',
+    path: '/bitcoin-puzzle/<n>',
+    href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
     status: 'parity',
@@ -585,11 +585,11 @@
   donorRoute({
     source: 'pkf',
     path: '/bitcoin-puzzle/<n>/detail',
-    href: '/bitcoin-puzzle/71/detail',
+    href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
     status: 'parity',
-    ours: '/bitcoin-puzzle/<n>/detail'
+    ours: '/bitcoin-puzzle/<n>'
   });
 
   donorRoute({
