@@ -29,6 +29,9 @@ evidence (a screenshot or the DOM check below).
 - [ ] Segmented controls use `.segmented` with 4px track padding, radius 12,
       44px items and exactly one `aria-pressed="true"`; filters, presets and
       directory tabs use `.chip` (`segmented-geometry`).
+- [ ] Cards use padding 16/20/24 and radius 12/16 with no translateY hover;
+      stat labels are 12px sentence case and values are 20/24/28 with tabular
+      digits (`card-padding-scale`, `stat-geometry`).
 - [ ] No page-local `<style>` rule re-implements a shared component; move it
       to `site.css` in the batch that owns the family.
 - [ ] Every icon-only action uses `.icon-button` (quiet/outline/solid,
