@@ -214,7 +214,7 @@
     area: 'puzzle',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/bitcoin-puzzle/<n>/detail'],
+    donorIds: ['pkf:/bitcoin-puzzle/<n>'],
     note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
   });
 
@@ -584,7 +584,7 @@
 
   donorRoute({
     source: 'pkf',
-    path: '/bitcoin-puzzle/<n>/detail',
+    path: '/bitcoin-puzzle/<n>',
     href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
