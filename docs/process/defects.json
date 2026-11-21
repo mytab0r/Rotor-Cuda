@@ -213,6 +213,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "manual-cache-token",
+      "reported": "2026-11-21",
+      "symptom": "Cache busting relied on hand-bumped ?v= tokens in 24 pages, coordinator templates and tests, so one forgotten bump served stale CSS or JS after a deploy.",
+      "detector": "cache-token",
+      "where": "scripts/check-projects.mjs"
+    },
+    {
       "id": "missing-site-footer",
       "reported": "2026-11-21",
       "symptom": "No served page carried the donor-parity footer (FAQ, Disclaimer, Donate, Docs, GitHub, copyright, build version), so the shell ended without legal or contact links.",
