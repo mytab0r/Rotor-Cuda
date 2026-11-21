@@ -1158,6 +1158,12 @@ const LTC_TYPES: &[AddressType] = &[
         desc: "P2SH · M…",
         field: "ltc_p2sh_p2wpkh",
     },
+    AddressType {
+        value: "taproot",
+        label: "Taproot",
+        desc: "P2TR · ltc1p…",
+        field: "ltc_p2tr",
+    },
 ];
 const EVM_TYPES: &[AddressType] = &[AddressType {
     value: "legacy",
@@ -5625,6 +5631,21 @@ mod tests {
     }
 
     #[test]
+    fn litecoin_directory_exposes_taproot_card_and_field() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, status) =
+            seo_asset(base, "/private-keys/litecoin", "").expect("/private-keys/litecoin");
+        assert_eq!(status, 200);
+        assert!(body.contains("data-type=\"taproot\""));
+
+        let (taproot, _, status) =
+            seo_asset(base, "/private-keys/litecoin", "type=taproot").expect("taproot");
+        assert_eq!(status, 200);
+        assert!(taproot.contains("data-type=\"taproot\""));
+        assert!(taproot.contains("data-field=\"ltc_p2tr\""));
+    }
+
+    #[test]
     fn legacy_keys_hubs_redirect_to_private_keys() {
         assert_eq!(redirect_target("/keys"), Some("/private-keys".to_string()));
         assert_eq!(
@@ -5924,7 +5945,7 @@ mod tests {
             assert!(btc.contains(&format!("data-type=\"{kind}\"")), "{kind}");
         }
         let (ltc, _, _) = seo_asset(base, "/brainwallet/litecoin", "").expect("ltc");
-        for kind in ["legacy", "segwit", "script"] {
+        for kind in ["legacy", "segwit", "script", "taproot"] {
             assert!(ltc.contains(&format!("data-type=\"{kind}\"")), "{kind}");
         }
         let (eth, _, _) = seo_asset(base, "/brainwallet/ethereum", "").expect("eth");

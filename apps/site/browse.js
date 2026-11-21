@@ -18,7 +18,8 @@
     litecoin: {
       legacy: 'ltc_p2pkh',
       segwit: 'ltc_p2wpkh',
-      script: 'ltc_p2sh_p2wpkh'
+      script: 'ltc_p2sh_p2wpkh',
+      taproot: 'ltc_p2tr'
     }
   };
   var RPC = {
@@ -1116,32 +1117,6 @@
     window.location.replace(path + (query ? '?' + query : ''));
   }
 
-  function currentPageNumber() {
-    try { return BigInt(config.page || '1'); } catch (err) { return 1n; }
-  }
-
-  function jumpToKey(hex, raw) {
-    var normalized = normalizeKeyHex(hex);
-    if (!normalized) {
-      highlightRow(hex);
-      return;
-    }
-    var target = jumpPageFor(BigInt('0x' + normalized), config.pages);
-    if (target === null) return;
-    if (target === currentPageNumber()) {
-      highlightRow(normalized);
-      return;
-    }
-    var params = new URLSearchParams(window.location.search);
-    params.set('key', raw);
-    if (config.type && config.type !== 'legacy') params.set('type', config.type);
-    else params.delete('type');
-    var base = '/private-keys/' + config.chain;
-    window.location.assign(
-      (target === 1n ? base : base + '/' + target.toString()) + '?' + params.toString()
-    );
-  }
-
   function prefillSearch() {
     var raw = new URLSearchParams(window.location.search).get('key');
     if (!raw || !searchInput) return;
@@ -1151,7 +1126,7 @@
       jumpToKeyPage(raw);
     };
     if (!window.RotorSearch) {
-      jumpToKey(raw, raw);
+      direct();
       return;
     }
     window.RotorSearch.resolve(raw, 'auto').then(function (hex) {
