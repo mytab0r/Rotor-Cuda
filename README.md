@@ -521,6 +521,11 @@ bytes (SOL/SUI/TON) instead of being truncated.
 
 
 ---
+
+> **Warning:** `Found.txt` contains the recovered private keys in cleartext;
+> it is the product output of this tool, not a diagnostic log. The operator is
+> responsible for it: keep the file encrypted and offline, and never share it.
+
 ### Range Scan Sequentially :
 ```
 $./Rotor -g --gpui 0 --gpux 256,256 -m address --chain bitcoin --range 1000000000:1fffffffff 14iXhn8bGajVWegZHJ18vJLHhntcpL4dex
