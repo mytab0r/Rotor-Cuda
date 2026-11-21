@@ -43,6 +43,29 @@ providers are used.
 - WHEN balances are checked
 - THEN the EVM row shows an error and the BTC/TRON rows still render
 
+### Requirement: USD total value
+The stats row MUST show a USD total for the balances already loaded on the page,
+without fetching balances again. Prices MUST come from a public ticker request
+that carries only ticker symbols (never a key, address or balance), cached for
+six hours. Atomic amounts MUST be converted with each chain's decimals and
+summed exactly (BigInt); the card shows two decimals and its title carries the
+exact amount and the price timestamp. While any balance is loading the card MUST
+show a pending marker rather than a partial total. A row without a price or a
+balance MUST be excluded and its count exposed in the title/`aria-label`; it
+MUST NOT be counted as zero. On a 429/network failure the previous cache is kept
+and marked stale; when no price source is reachable and no cache exists, the card
+shows `—` with an explicit title and MUST NOT invent a number.
+
+#### Scenario: missing price
+- GIVEN a loaded balance whose ticker is absent from the price response
+- WHEN the total renders
+- THEN that row is excluded and the title names how many rows were excluded
+
+#### Scenario: offline
+- GIVEN no price request succeeds and no cache exists
+- WHEN the key page renders
+- THEN the total shows `—` with a "No price source reachable" title
+
 ### Requirement: curve selector and presets
 The page MUST let the visitor choose secp256k1 or ed25519, show an honest
 illustrative curve plot with a movable point, and offer wallet presets that

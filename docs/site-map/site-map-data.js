@@ -1219,7 +1219,7 @@
     status: 'partial',
     priority: 'P0',
     sources: ['ref-site-a'],
-    note: 'Auto-derive, counters, Copy All/CSV, WIF(u), XRP secret and public-key formats shipped; the donor\'s eight separate EVM chain rows are still missing, and Total value stays "—" because no price source is connected.'
+    note: 'Auto-derive, counters, Copy All/CSV, WIF(u), XRP secret and public-key formats shipped; eight separate EVM chain rows and a USD Total value from a six-hour cached public ticker (rows without a price are excluded and counted) are in place.'
   });
 
   feature({
