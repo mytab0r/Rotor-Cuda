@@ -24,12 +24,12 @@
 
 ## 2. Token detectors
 
-- [ ] `token-contract`: JSON token has a CSS declaration; every first-party
+- [x] `token-contract`: JSON token has a CSS declaration; every first-party
       `var(--x)` resolves; semantic and component tokens have consumers.
-- [ ] `orphan-token` with 30-day grace or `"reserved": true`.
-- [ ] `theme-parity`: each colour role has a light value.
-- [ ] `radius-scale`, `raw-hex-outside-root`, `legacy-selector`.
-- [ ] Ledger entries for each detector in `docs/process/defects.json`.
+- [x] `orphan-token` with 30-day grace or `"reserved": true`.
+- [x] `theme-parity`: each colour role has a light value.
+- [x] `radius-scale`, `raw-hex-outside-root`, `legacy-selector`.
+- [x] Ledger entries for each detector in `docs/process/defects.json`.
 
 ## 3. Component contracts and gallery
 
