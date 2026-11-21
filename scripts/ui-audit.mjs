@@ -1602,6 +1602,58 @@ function auditPage(args) {
     }
   }
 
+  if (route === "/cabinet/wallet") {
+    // The seed block lives in the unlocked vault panel; auditWalletSeed()
+    // creates/unlocks the vault before this runs. The page must say how strong
+    // the phrase is, offer a hover/focus estimate through the shared tooltip
+    // primitive and keep both actions on the 44px target scale.
+    const strength = document.getElementById("wallet-seed-strength");
+    const info = document.getElementById("wallet-seed-info");
+    const generate = document.getElementById("wallet-seed-generate");
+    const addButton = document.getElementById("wallet-seed-add");
+    const issues = [];
+    metrics.routeChecks.walletSeed = {};
+    if (!strength || !visible(strength)) {
+      issues.push("#wallet-seed-strength is missing or hidden");
+    } else {
+      const text = (textOf(strength) || "").trim();
+      metrics.routeChecks.walletSeed.strength = text;
+      if (!/\d+\s+words?/i.test(text)) issues.push(`strength text has no word count: "${text}"`);
+      if (!/entropy/i.test(text)) issues.push(`strength text has no entropy figure: "${text}"`);
+    }
+    if (!info) {
+      issues.push("#wallet-seed-info is missing");
+    } else {
+      const label = (info.getAttribute("aria-label") || "").trim();
+      const tooltip = (info.getAttribute("data-tooltip") || "").trim();
+      metrics.routeChecks.walletSeed.info = { classes: info.className, label, tooltip };
+      if (!info.classList.contains("icon-button")) {
+        issues.push("#wallet-seed-info is not the shared .icon-button");
+      }
+      if (!label) issues.push("#wallet-seed-info has no aria-label");
+      if (!tooltip) issues.push("#wallet-seed-info has no data-tooltip");
+    }
+    for (const [name, button] of [["generate", generate], ["add", addButton]]) {
+      if (!button) {
+        issues.push(`#wallet-seed-${name} is missing`);
+        continue;
+      }
+      const box = boxOf(button);
+      metrics.routeChecks.walletSeed[name] = {
+        width: Math.round(box.width),
+        height: Math.round(box.height),
+      };
+      if (box.width < 43.5 || box.height < 43.5) {
+        issues.push(
+          `#wallet-seed-${name} is ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=44x44)`,
+        );
+      }
+    }
+    if (issues.length) {
+      add("wallet-seed-strength", `wallet seed controls are incomplete: ${issues.join("; ")}`, issues);
+    }
+  }
+
   if (route.startsWith("/brainwallet/") && route !== "/brainwallet/") {
     const rows = document.querySelectorAll(".bw-row").length;
     metrics.routeChecks.brainwalletRows = rows;
@@ -1828,6 +1880,108 @@ function auditPage(args) {
   }
 
   return { violations, metrics };
+}
+
+/* /cabinet/wallet ships its seed controls inside the unlocked vault panel.
+ * Create or unlock the audit vault, then prove the strength line follows the
+ * phrase: 12 words -> 128 bits, a bad checksum disables Add, 24 words -> 256.
+ * Leaves a valid 24-word phrase so the resting auditPage check sees a filled
+ * strength line. */
+async function auditWalletSeed(cdp) {
+  const passphrase = "ui-audit-passphrase";
+  const unlocked = await evaluate(
+    cdp,
+    `(async () => {
+      const shown = (el) => Boolean(el) && !el.hidden && el.getClientRects().length > 0;
+      const setup = document.getElementById('wallet-setup');
+      const unlock = document.getElementById('wallet-unlock');
+      const panel = document.getElementById('wallet-panel');
+      if (shown(setup)) {
+        document.getElementById('wallet-create-pass').value = ${JSON.stringify(passphrase)};
+        document.getElementById('wallet-create-pass2').value = ${JSON.stringify(passphrase)};
+        document.getElementById('wallet-create-form').requestSubmit();
+      } else if (shown(unlock)) {
+        document.getElementById('wallet-unlock-pass').value = ${JSON.stringify(passphrase)};
+        document.getElementById('wallet-unlock-form').requestSubmit();
+      }
+      const started = Date.now();
+      while (Date.now() - started < 12000) {
+        if (panel && !panel.hidden) return true;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return false;
+    })()`,
+    20000,
+  );
+  if (!unlocked) return { ok: false, reason: "the audit vault did not unlock", problems: ["vault did not unlock"] };
+
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const strength = document.getElementById('wallet-seed-strength');
+      const info = document.getElementById('wallet-seed-info');
+      const generate = document.getElementById('wallet-seed-generate');
+      const add = document.getElementById('wallet-seed-add');
+      const phrase = document.getElementById('wallet-seed-phrase');
+      if (!strength || !info || !generate || !add || !phrase) {
+        return { evidence: {}, problems: ['seed controls are missing'] };
+      }
+      const problems = [];
+      const boxOf = (el) => {
+        const box = el.getBoundingClientRect();
+        return Math.round(box.width) + 'x' + Math.round(box.height);
+      };
+      const evidence = {
+        initial: strength.textContent.trim(),
+        boxes: { generate: boxOf(generate), add: boxOf(add), info: boxOf(info) },
+      };
+      if (!/12 words/.test(evidence.initial) || !/entropy/i.test(evidence.initial)) {
+        problems.push('initial strength line: ' + evidence.initial);
+      }
+
+      // A 12-word phrase with a broken checksum must name the problem and
+      // disable Add.
+      phrase.value = 'abandon '.repeat(12).trim();
+      phrase.dispatchEvent(new Event('input', { bubbles: true }));
+      await waitFor(() => /checksum does not match/i.test(strength.textContent), 5000);
+      evidence.invalid = strength.textContent.trim();
+      evidence.invalidAddDisabled = add.disabled;
+      if (!/checksum does not match/i.test(evidence.invalid) || !add.disabled) {
+        problems.push('invalid checksum did not disable Add: ' + evidence.invalid);
+      }
+
+      phrase.value = '';
+      phrase.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('[data-seed-words="12"]').click();
+      generate.click();
+      await waitFor(() => /12 words/.test(strength.textContent) && /BIP39 checksum ok/.test(strength.textContent), 8000);
+      evidence.words12 = strength.textContent.trim();
+      if (!/12 words/.test(evidence.words12) || !/128-bit/.test(evidence.words12)) {
+        problems.push('12-word strength line: ' + evidence.words12);
+      }
+
+      document.querySelector('[data-seed-words="24"]').click();
+      generate.click();
+      await waitFor(() => /24 words/.test(strength.textContent) && /256-bit/.test(strength.textContent), 8000);
+      evidence.words24 = strength.textContent.trim();
+      if (!/24 words/.test(evidence.words24) || !/256-bit/.test(evidence.words24)) {
+        problems.push('24-word strength line: ' + evidence.words24);
+      }
+      evidence.tooltip = info.getAttribute('data-tooltip');
+      return { evidence, problems };
+    })()`,
+    40000,
+  );
+  return { ok: result.problems.length === 0, ...result };
 }
 
 async function auditKeyAutoDerive(cdp) {
@@ -2278,6 +2432,18 @@ async function main() {
                   id: "key-auto-derive",
                   message: `/key did not derive from the input: ${derive.reason}`,
                   detail: derive,
+                });
+              }
+            }
+
+            if (route === "/cabinet/wallet") {
+              const seed = await auditWalletSeed(cdp);
+              run.metrics.walletSeed = seed.evidence;
+              if (!seed.ok) {
+                run.violations.push({
+                  id: "wallet-seed-strength",
+                  message: `/cabinet/wallet seed flow failed: ${seed.reason || (seed.problems || []).join("; ")}`,
+                  detail: seed,
                 });
               }
             }
