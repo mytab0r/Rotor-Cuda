@@ -327,19 +327,19 @@
   }
 
   /* Key-cell links for the brainwallet directory, following the donor: the hex
-   * key opens /key/<hex>, and a secp256k1 UTXO report (Bitcoin/BCH/LTC/DOGE)
-   * adds WIF(c) and WIF(u) links to /key/<wif>. Non-UTXO chains pass no report,
-   * so only the hex link remains. Returns [] when there is no key yet, which
-   * also clears stale links in the error state. */
-  function keyLinksFor(hex, report) {
+   * key opens /key/<hex>, and explicit WIF values add the WIF(c)/WIF(u) links
+   * to /key/<wif>. The caller owns the network encoding (BTC/BCH 0x80, LTC
+   * 0xb0, DOGE 0x9e). Returns [] when there is no key yet, which also clears
+   * stale links in the error state. */
+  function keyLinksFor(hex, wifs) {
     var value = String(hex == null ? '' : hex).trim();
     if (!value) return [];
     var links = [{ label: value, href: '/key/' + encodeURIComponent(value) }];
-    if (report && report.wif_compressed) {
-      links.push({ label: 'WIF(c)', href: '/key/' + encodeURIComponent(report.wif_compressed) });
+    if (wifs && wifs.compressed) {
+      links.push({ label: 'WIF(c)', href: '/key/' + encodeURIComponent(wifs.compressed) });
     }
-    if (report && report.wif_uncompressed) {
-      links.push({ label: 'WIF(u)', href: '/key/' + encodeURIComponent(report.wif_uncompressed) });
+    if (wifs && wifs.uncompressed) {
+      links.push({ label: 'WIF(u)', href: '/key/' + encodeURIComponent(wifs.uncompressed) });
     }
     return links;
   }

@@ -157,14 +157,25 @@ follow-ups were code-only.
 - [x] Brainwallet directory key links (2026-11-22, code-only): the hex key is an
   `<a href="/key/<hex>">`, and BTC/BCH/LTC/DOGE rows append `WIF(c)` and `WIF(u)`
   links; the error/— state calls `clearKeyLinks` so no stale target remains.
-  Evidence: `apps/site/brainwallet-engine.js:334` (`keyLinksFor`),
-  `apps/site/brainwallet-directory.js:241-249` (key link + WIF line),
-  `:305-330` (`fillKey`/`clearKeyLinks`), `apps/site/brainwallet.css:90-104`
+  Evidence: `apps/site/brainwallet-engine.js` (`keyLinksFor`, explicit WIF
+  values), `apps/site/brainwallet-directory.js` (key link + WIF line,
+  `fillKey`/`wifsFor`/`clearKeyLinks`), `apps/site/brainwallet.css`
   (`.bw-key-link`, `.bw-key-wif`), `docs/donor-parity/directory-pages.md:57`.
   The index copy now states that a HEX/WIF click puts the key in the browser URL
   (`src/coordinator/mod.rs:2969`). Test: `apps/site/brainwallet-test.mjs`
-  "BTC key cell links hex + both WIFs" / "an ETH-shaped report has no WIF
-  links" / "no key means no links".
+  ("BTC key cell links hex + both WIFs", "BCH shares the 0x80 WIFs", LTC/DOGE
+  network-prefix blocks, "ETH/TON keep only the hex link").
+- [x] Per-chain WIF encoding (2026-11-22, code-only): `derive_report` always
+  emits the Bitcoin version (0x80), so the key directory and the brainwallet
+  directory now re-encode LTC (0xb0) and DOGE (0x9e) while BTC/BCH keep the
+  report value; non-UTXO chains show no WIF. Evidence:
+  `apps/site/key-tools.js` (`wifEncode` optional `compressed` argument, 37-byte
+  form), `apps/site/browse.js` (`WIF_CHAINS`, `wifModel`, async
+  `renderKeyCell`/`renderAddresses`), `apps/site/brainwallet-directory.js`
+  (`WIF_NETWORKS`, `wifsFor`), templates load `/key-tools.js` before
+  `browse.js` and `brainwallet-directory.js` (`src/coordinator/mod.rs`).
+  Tests: `apps/site/key-tools-test.mjs` uncompressed LTC/DOGE round-trip,
+  `apps/site/brainwallet-test.mjs` LTC/DOGE WIF prefixes.
 
 ## P1 — shell and templates
 

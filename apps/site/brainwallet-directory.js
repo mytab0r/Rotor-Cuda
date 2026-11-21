@@ -300,12 +300,47 @@
     entry.balanceBadge.textContent = label;
   }
 
+  /* The derivation report encodes every WIF with the Bitcoin version (0x80),
+   * correct for BTC/BCH. Litecoin (0xb0) and Dogecoin (0x9e) need their own
+   * encoding, so the page re-encodes the same 32-byte key via key-tools.js. */
+  var WIF_NETWORKS = { litecoin: 'litecoin', dogecoin: 'dogecoin' };
+
+  async function doubleSha256(bytes) {
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle) throw new Error('The WIF checksum needs a secure context (https or localhost).');
+    var first = new Uint8Array(await subtle.digest('SHA-256', bytes));
+    return new Uint8Array(await subtle.digest('SHA-256', first));
+  }
+
+  async function wifsFor(report) {
+    if (!chain.wif || !report) return null;
+    var network = WIF_NETWORKS[slug];
+    if (!network) {
+      return {
+        compressed: report.wif_compressed || '',
+        uncompressed: report.wif_uncompressed || ''
+      };
+    }
+    var tools = window.RotorKeyTools;
+    if (!tools || typeof tools.wifEncode !== 'function' || typeof tools.hexToBytes !== 'function') {
+      return null;
+    }
+    try {
+      var keyBytes = tools.hexToBytes(report.priv_hex);
+      return {
+        compressed: await tools.wifEncode(keyBytes, network, doubleSha256, true),
+        uncompressed: await tools.wifEncode(keyBytes, network, doubleSha256, false)
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
   /* The chain page never stores keys, but the donor's key cell links the hex
-   * key and (on UTXO chains) both WIFs to /key/<key>, so a click does put the
-   * key in the browser URL bar and history. `chain.wif` gates the WIF links:
-   * a secp report carries them on every curve-0 chain, including EVM. */
-  function fillKey(entry) {
-    var links = engine.keyLinksFor(entry.keyHex, chain.wif ? entry.report : null);
+   * key and (on UTXO chains) both network-correct WIFs to /key/<key>, so a
+   * click does put the key in the browser URL bar and history. */
+  async function fillKey(entry) {
+    var links = engine.keyLinksFor(entry.keyHex, await wifsFor(entry.report));
     entry.keyLink.textContent = entry.keyHex;
     entry.keyLink.href = links[0].href;
     entry.keyWifLine.textContent = '';
@@ -544,11 +579,11 @@
   /* ------------------------------------------------------------- deriving */
 
   function deriveEntry(entry, wasm, ton) {
-    return engine.phraseKey(entry.phrase, window.crypto && window.crypto.subtle).then(function (key) {
+    return engine.phraseKey(entry.phrase, window.crypto && window.crypto.subtle).then(async function (key) {
       entry.keyHex = engine.bytesToHex(key);
       var report = engine.deriveReport(wasm, key, chain.curve);
       entry.report = report;
-      fillKey(entry);
+      await fillKey(entry);
       if (chain.ton) {
         return ton.address(report.ed_pubkey).then(function (address) {
           entry.address = address || '';

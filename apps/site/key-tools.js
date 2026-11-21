@@ -272,10 +272,11 @@
     WIF_NETWORKS[WIF_VERSIONS[name]] = name;
   });
 
-  /* Compressed mainnet WIF: version || 32-byte key || 0x01 || first four bytes
-   * of double-SHA256. doubleSha256 is injected so the same code runs in the
-   * browser (crypto.subtle) and under Node tests (node:crypto). */
-  async function wifEncode(keyBytes, network, doubleSha256) {
+  /* Mainnet WIF: version || 32-byte key || (0x01 when compressed) || first
+   * four bytes of double-SHA256. `compressed` defaults to true; pass false for
+   * the 37-byte legacy form. doubleSha256 is injected so the same code runs in
+   * the browser (crypto.subtle) and under Node tests (node:crypto). */
+  async function wifEncode(keyBytes, network, doubleSha256, compressed) {
     var version = WIF_VERSIONS[network];
     if (version === undefined) {
       throw new Error('Unknown WIF network "' + network + '". Use bitcoin, litecoin or dogecoin.');
@@ -286,17 +287,19 @@
     if (typeof doubleSha256 !== 'function') {
       throw new Error('The WIF checksum needs SHA-256 support in this browser.');
     }
-    var payload = new Uint8Array(34);
+    var isCompressed = compressed !== false;
+    var bodyLength = isCompressed ? 34 : 33;
+    var payload = new Uint8Array(bodyLength);
     payload[0] = version;
     payload.set(keyBytes, 1);
-    payload[33] = 0x01;
+    if (isCompressed) payload[33] = 0x01;
     var digest = await doubleSha256(payload);
     if (!digest || typeof digest.length !== 'number' || digest.length < 4) {
       throw new Error('The checksum function returned no digest.');
     }
-    var data = new Uint8Array(38);
+    var data = new Uint8Array(bodyLength + 4);
     data.set(payload, 0);
-    data.set(digest.slice(0, 4), 34);
+    data.set(digest.slice(0, 4), bodyLength);
     return base58Encode(data);
   }
 
