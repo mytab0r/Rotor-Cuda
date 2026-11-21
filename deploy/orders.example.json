@@ -11,7 +11,9 @@
       "address": "REPLACE_WITH_BTC_DEPOSIT_ADDRESS",
       "file_path": "/var/lib/rotor/packages/btc-pack.zip",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "active": false
+      "active": false,
+      "licence": "MIT",
+      "provenance": "Curated from the mirrored Rich-Address-Wallet release files."
     },
     {
       "slug": "ltc-pack",
@@ -24,7 +26,9 @@
       "address": "REPLACE_WITH_LTC_DEPOSIT_ADDRESS",
       "file_path": "/var/lib/rotor/packages/ltc-pack.zip",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "active": false
+      "active": false,
+      "licence": "MIT",
+      "provenance": "Curated from the mirrored Rich-Address-Wallet release files."
     },
     {
       "slug": "usdt-trc20-pack",
@@ -38,7 +42,8 @@
       "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
       "file_path": "/var/lib/rotor/packages/usdt-trc20-pack.zip",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "active": false
+      "active": false,
+      "licence": "MIT"
     }
   ],
   "confirmations": {
