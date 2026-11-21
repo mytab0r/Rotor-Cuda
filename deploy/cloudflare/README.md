@@ -56,8 +56,9 @@ entries after trimming:
 - Addresses are normalized and deduped first-seen, so mixed-case duplicates
   cost one provider call; `balances` follows the deduped request order.
 - Each successful item is shaped exactly like the single endpoint's body. A
-  bad address or a failed lookup becomes `{address, error}` for that item and
-  never fails the whole request (`rate_limited` also carries
+  bad address becomes `{error:"bad_address"}` for that item (the raw input is
+  never echoed), and a failed lookup becomes `{address, error}` for that item;
+  neither fails the whole request (`rate_limited` also carries
   `retryAfterMs: 250`).
 - Empty `addresses`: `400 {error:"bad_addresses"}`. More than 60 entries:
   `400 {error:"too_many_addresses", max:60}`. Unknown chain:
