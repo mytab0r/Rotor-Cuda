@@ -330,6 +330,8 @@ test("mnemonic-tron-xrp-sui-balances: the shared dispatcher covers every browse 
   emitted.forEach((provider) => {
     assert(providers.supportsProvider(provider), `browse.js emits "${provider}" but the dispatcher lacks it`);
   });
+  assert(source.includes("config.chain === 'bitcoin-cash'"), "browse.js must wire Bitcoin Cash balances");
+  assert(source.includes("provider: 'haskoin-bch'"), "browse.js must use the batched Haskoin provider for BCH");
   assertEqual(await providers.fetchProvider({ provider: "not-a-provider" }, ["a"]).then((r) => Object.keys(r.values).length), 0, "an unknown provider resolves empty");
 });
 

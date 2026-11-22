@@ -33,6 +33,10 @@ const DEFAULT_ROUTES = [
   // The account-chain variant renders two summary cards (Balance / Active)
   // instead of the UTXO three-card row.
   "/private-keys/ethereum",
+  // BCH directory balances come from one batched Haskoin GET per page (60
+  // addresses, keyless, CORS-enabled); a provider error is the honest
+  // retryable state, not a violation.
+  "/private-keys/bitcoin-cash",
   "/seed",
   "/mnemonic-seeds/bitcoin",
   // BCH renders through one batched Haskoin GET per page (60 addresses, keyless, CORS-enabled); a provider error is the honest retryable state, not a violation.

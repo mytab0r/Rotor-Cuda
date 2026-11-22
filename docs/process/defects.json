@@ -484,6 +484,13 @@
       "symptom": "scripts/density-parity.mjs reported total rows 0 when the row selector matched nothing, indistinguishable from an empty page; the silent zero was read as a measurement.",
       "detector": "selector_matched_nothing",
       "where": "scripts/density-parity.mjs"
+    },
+    {
+      "id": "bch-directory-balances",
+      "reported": "2026-11-22",
+      "symptom": "The 60-row /private-keys/bitcoin-cash directory rendered — for every balance although the shared batched Haskoin provider already existed and the mnemonic directory used it.",
+      "detector": "browse.js must use the batched Haskoin provider for BCH",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
     }
   ]
 }
