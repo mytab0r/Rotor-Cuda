@@ -1,7 +1,7 @@
 # Stat
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/stat.json` · Gallery: `/design` (family
+Source of truth: `design/components/stat.json` · Gallery: `/cabinet/admin/design` (family
 `stat`).
 
 ## Purpose
@@ -29,7 +29,7 @@ besides `.stat`; `.stat-card` is the boxless cell inside a summary strip.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | `--surface-2`, `--line-subtle`, radius `--radius-l`, padding 16 | yes (all three variants) |
 | Hover/focus/active | none; the stat is not a control | n/a |

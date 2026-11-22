@@ -29,7 +29,8 @@ use super::state;
 use super::tron_cache;
 use super::{
     App, TRONSCAN_API_BASE, bearer, client_ip, constant_time_eq, header, query_param, read_body,
-    respond_body_error, respond_json, respond_rate_limited, tron_error_reason, tronscan_get,
+    respond_body_error, respond_hidden, respond_json, respond_rate_limited, tron_error_reason,
+    tronscan_get,
 };
 
 /// Persisted data version; a different version is rejected instead of guessed.
@@ -1374,7 +1375,7 @@ fn download(orders: &Orders, request: Request, id: &str, token: &str) {
             ];
             let length = usize::try_from(ready.length).ok();
             let response = Response::new(StatusCode(200), headers, ready.file, length, None);
-            let _ = request.respond(response);
+            respond_hidden(request, response);
         }
         Err(410) => respond_json(
             request,
@@ -1408,7 +1409,7 @@ fn licence(orders: &Orders, request: Request, id: &str, token: &str) {
                 Some(length),
                 None,
             );
-            let _ = request.respond(response);
+            respond_hidden(request, response);
         }
         Err(status) => respond_json(request, status, &json!({ "error": "not found" })),
     }
@@ -1568,14 +1569,14 @@ fn fetch_tron(
         let url = format!(
             "{TRONSCAN_API_BASE}/api/token_trc20/transfers?limit=50&start=0&contract_address={contract}&relatedAddress={address}"
         );
-        let value = tronscan_get(agent, key, &url, tron_limiter)
+        let value = tronscan_get(agent, &[("TRON-PRO-API-KEY", key)], &url, tron_limiter)
             .map_err(|error| tron_error_reason(error).to_string())?;
         Ok(parse_trc20_transfers(&value, address, required))
     } else {
         let url = format!(
             "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit=50&start=0&address={address}"
         );
-        let value = tronscan_get(agent, key, &url, tron_limiter)
+        let value = tronscan_get(agent, &[("TRON-PRO-API-KEY", key)], &url, tron_limiter)
             .map_err(|error| tron_error_reason(error).to_string())?;
         Ok(parse_tron_transfers(&value, address, required))
     }

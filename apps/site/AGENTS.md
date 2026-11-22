@@ -37,4 +37,8 @@ Violation IDs, thresholds and the "fix the class, not the page" rule are in
   from `crates/rotor-wasm` with `sh scripts/build-wasm.sh`.
 - Served routes are fixed in `src/coordinator/mod.rs`; adding a page is also a
   coordinator change.
+- `admin.html`, `admin.js` and `admin.css` belong to the operator cabinet and
+  are served with `no-store`/CSP admin headers. They may not contain inline
+  script or style, a secret, or a raw token; the login flow keeps the token only
+  in the request body and reads the CSRF cookie afterwards.
 - No secrets or account data in static assets.

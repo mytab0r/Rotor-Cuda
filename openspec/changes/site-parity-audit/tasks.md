@@ -52,6 +52,13 @@
   `Detected: Electrum SegWit|Legacy|Mnemonic` label from the lazily loaded
   `seed-crypto.js` `electrumSeedType`), and their assertions in
   `apps/site/search-test.mjs`.
+  Directory-search detector parity: `apps/site/site.js:344` (`bindKeySearches`
+  uses `RotorSearch.keyHref`, shared with the landing handler) and
+  `apps/site/search.js:319` (`keyHref`) over `apps/site/search.js:27`
+  (`looksLikeXrpSecret`; only 64 hex is a key; the landing address guard
+  defers to it for base58 secrets). Nav highlight:
+  `apps/site/site.js:33` (`sectionForPath`, `/keystore-parser` -> Tools),
+  covered by `apps/site/site-nav-test.mjs`.
 - [x] BNB Smart Chain testnet builder (`/send/bnb`, PR #97). Evidence:
   `apps/site/send.js:72` (chain table, chapel chain id 97), `:55` and `:163`
   (BSC-testnet provider allowlist), `apps/site/send-test.mjs:671` (chain-id
