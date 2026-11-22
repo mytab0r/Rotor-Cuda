@@ -169,6 +169,12 @@ explorer URL or chain identity into a page script.
   (`node scripts/gen-detector-docs.mjs`) and run
   `node scripts/check-defect-ledger.mjs`. A fix whose detector is missing is not
   done.
+- UI evidence is a CI artifact, never a committed file. The `ui.yml` run
+  uploads the screenshots and JSON report as `ui-audit-report-<run id>`; the PR
+  links that artifact. Do not add screenshots or test evidence to `docs/`
+  (`docs/**/screenshots/`, `docs/**/evidence/**`): `node
+  scripts/check-screenshots.mjs` fails on any tracked png/jpg/jpeg/webp/gif
+  under `docs/`, and `.gitignore` keeps local copies out.
 - Any behaviour change updates the specs/docs in the same PR: the
   `docs/site-map` ledger and, for non-trivial changes, the matching
   `openspec/` change. Stale docs are a review blocker.

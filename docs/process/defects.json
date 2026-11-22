@@ -3,6 +3,13 @@
   "rules": "Every defect the owner reports gets one entry here in the same PR as its detector. The detector id must exist in data/detectors.json, resolve to an implemented entry, and be present in the implementation file named by `where`; check-defect-ledger.mjs and check-ssot.mjs fail otherwise.",
   "defects": [
     {
+      "id": "screenshots-in-repo",
+      "reported": "2026-11-22",
+      "symptom": "31 UI evidence screenshots (15 donor-parity captures and 16 process-evidence captures) were committed under docs/, so evidence lived in git history and every checkout paid for it.",
+      "detector": "screenshots-in-repo",
+      "where": "scripts/check-screenshots.mjs"
+    },
+    {
       "id": "duplicate-preset-controls",
       "reported": "2026-11-20",
       "symptom": "The key page rendered wallet-preset chips and an equivalent preset <select> side by side.",
@@ -553,6 +560,13 @@
       "reported": "2026-11-22",
       "symptom": "The allowance grant form was not exercised by any detector: the approvals scenario stopped at the table, so nothing checked its labelled 44px fields, its own visible Unlimited warning line, the zero-amount error state or the rendered unlimited review.",
       "detector": "wallet-approvals-surface",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-history-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "The wallet had no transaction history. An EVM address without an indexer would have shown an empty list pretending there was no history, and a new table could have shipped without a detector for its shared shell, 44px action, truncated counterparty title, status pills, loading/empty/error states or the honest EVM-unavailable message.",
+      "detector": "wallet-history-surface",
       "where": "scripts/ui-audit.mjs"
     },
     {

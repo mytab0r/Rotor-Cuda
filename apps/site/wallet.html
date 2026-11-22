@@ -151,8 +151,8 @@
     <p class="muted" id="wallet-seed-help">The phrase is generated and shown in this tab only; it is never stored, sent or logged. The vault stores only the derived key for one chain, with the default BIP44 path of the selected chain. Zcash, Solana, Sui and TON have no BIP44 preset here: import a WIF or hex key for those chains instead.</p>
 
     <h2>Addresses</h2>
-    <label class="wallet-check"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
-    <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent.</p>
+    <label class="wallet-check"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance and history lookups</label>
+    <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance or History sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent. Bitcoin history is read from mempool.space; TRON history goes through this site's coordinator to TronScan; EVM history is unavailable without an indexer or API key, so no provider is called for it.</p>
     <section class="wallet-summary" id="wallet-summary" aria-labelledby="wallet-summary-title" hidden>
       <div class="wallet-summary-head">
         <div>
@@ -184,6 +184,25 @@
     </section>
     <div class="wallet-groups" id="wallet-entries"></div>
     <p class="muted" id="wallet-empty">No keys in this vault yet. Import a WIF or a hex key above.</p>
+
+    <section class="wallet-history" id="wallet-history" hidden aria-labelledby="wallet-history-title">
+      <div class="wallet-row-actions wallet-history-head">
+        <h3 id="wallet-history-title">Transaction history</h3>
+        <button type="button" class="icon-button icon-button--quiet" id="wallet-history-close" aria-label="Close transaction history" data-tooltip="Close history"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-close"></use></svg></button>
+      </div>
+      <p class="muted" id="wallet-history-subject"></p>
+      <p class="muted status-line" id="wallet-history-status" role="status"></p>
+      <p id="wallet-history-error" class="error" role="alert" hidden></p>
+      <p class="muted" id="wallet-history-empty" hidden>No transactions found for this address.</p>
+      <p class="notice" id="wallet-history-unavailable" hidden></p>
+      <div class="table-scroll" id="wallet-history-table-wrap" hidden>
+        <table class="data-table">
+          <thead><tr><th>Time</th><th>Direction</th><th>Amount</th><th>Counterparty</th><th>Status</th></tr></thead>
+          <tbody id="wallet-history-rows"></tbody>
+        </table>
+      </div>
+      <p class="muted" id="wallet-history-help">Shows the latest 50 transactions. Bitcoin is read from mempool.space directly; TRON is read through this site's coordinator (TronScan). EVM chains need an indexer or an API key, which this build does not ship, so no provider is called for them. Amounts are in each chain's native unit; a token transfer that moves no native value shows 0. Bitcoin rows are an observer view of one address: a transaction that mixes inputs from several owners shows the full value sent to other outputs, which can be more than this address contributed.</p>
+    </section>
   </section>
 
   <section class="card" id="wallet-send" hidden>
@@ -436,6 +455,7 @@
 <script src="/wallet-vault.js"></script>
 <script src="/wallet-evm.js"></script>
 <script src="/wallet-btc.js"></script>
+<script src="/wallet-history.js"></script>
 <script src="/wallet.js"></script>
 <script src="/site.js"></script>
 </body>

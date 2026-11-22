@@ -499,6 +499,14 @@
       "status": "implemented"
     },
     {
+      "id": "wallet-history-surface",
+      "rule": "The wallet history panel uses the shared table shell and a 44px labelled action, renders time/direction/amount/counterparty/status with a truncated counterparty title, and shows loading, empty, error and the honest EVM-unavailable state without overflow or a provider call.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "wallet-portfolio-summary",
       "rule": "The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar.",
       "batch": "phase 4",
@@ -832,6 +840,14 @@
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "screenshots-in-repo",
+      "rule": "No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR.",
+      "batch": "4a",
+      "implemented_in": "scripts/check-screenshots.mjs",
+      "doc_anchor": "docs/process/self-checking.md#7-no-screenshots-or-test-evidence-in-the-repo",
       "status": "implemented"
     }
   ]

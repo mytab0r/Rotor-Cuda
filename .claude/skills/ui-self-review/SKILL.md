@@ -116,6 +116,7 @@ page-local override.
 | `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
 | `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
 | `wallet-approvals-surface` | The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow; the grant form has labelled 44px fields, its own unlimited warning line, a visible zero-amount error state and a rendered unlimited review. | phase 4 | implemented |
+| `wallet-history-surface` | The wallet history panel uses the shared table shell and a 44px labelled action, renders time/direction/amount/counterparty/status with a truncated counterparty title, and shows loading, empty, error and the honest EVM-unavailable state without overflow or a provider call. | phase 4 | implemented |
 | `wallet-portfolio-summary` | The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar. | phase 4 | implemented |
 | `mnemonic-ltc-sochain-fallback` | A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only. | phase 4 | implemented |
 | `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
@@ -140,6 +141,7 @@ page-local override.
 | `detector-registry` | Every ui-audit id and every defect-ledger detector resolves to one implemented registry entry. | 4a | implemented |
 | `detector-docs-fresh` | The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json. | 4a | implemented |
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
+| `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a
@@ -191,8 +193,10 @@ expected to be fixed once in the header/typography token, not page by page.
    and `node scripts/check-projects.mjs`.
 3. In the PR description include: the command you ran, the routes/viewports/
    themes covered, `ui-audit PASS` (or the exact remaining violation IDs and why
-   they are outside the change), and the screenshot directory or attached
-   before/after images. Do not paste the whole JSON report.
+   they are outside the change), and the link to the `ui-audit-report-<run id>`
+   CI artifact (screenshots + JSON). Never commit screenshots; the repo guard
+   `node scripts/check-screenshots.mjs` rejects tracked images under `docs/`.
+   Do not paste the whole JSON report.
 
 The audit is the gate. A visual check in the browser pane is additional
 evidence, not a replacement.
