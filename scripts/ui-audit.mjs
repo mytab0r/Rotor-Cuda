@@ -1414,15 +1414,15 @@ function auditPage(args) {
     // LTC/DOGE/ZEC must read `sochain`; the BlockCypher fallback is never the
     // rendered provider. Detector ids: key-zec-provider, key-utxo-provider.
     const providerRows = [
-      { id: "zcash_p2pkh", detector: "key-zec-provider" },
-      { id: "ltc_p2pkh", detector: "key-utxo-provider" },
-      { id: "doge_p2pkh", detector: "key-utxo-provider" },
+      { rowId: "zcash_p2pkh", detector: "key-zec-provider" },
+      { rowId: "ltc_p2pkh", detector: "key-utxo-provider" },
+      { rowId: "doge_p2pkh", detector: "key-utxo-provider" },
     ];
     metrics.keyBalanceProviders = {};
     for (const entry of providerRows) {
-      const row = document.querySelector(`.key-row[data-id="${entry.id}"]`);
+      const row = document.querySelector(`.key-row[data-id="${entry.rowId}"]`);
       const provider = row ? row.dataset.balanceProvider || "" : "absent";
-      metrics.keyBalanceProviders[entry.id] = provider;
+      metrics.keyBalanceProviders[entry.rowId] = provider;
       if (row && provider !== "sochain") {
         add(entry.detector, `${selectorOf(row)} has balance provider ${provider || "missing"} (expected sochain)`);
       }
