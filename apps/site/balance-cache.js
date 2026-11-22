@@ -135,6 +135,39 @@
     };
   }
 
+  /* SoChain v3 `/balance/<ticker>/<address>` returns decimal coin strings, not
+   * atomic units. Convert to atomic units (satoshis) without floats: pad or
+   * truncate the fractional part to 8 digits and reject anything that is not
+   * unsigned decimal. This is the one implementation for LTC/DOGE/ZEC; the
+   * /key page, both directories and key-tools.js delegate here. */
+  function sochainAtomic(value) {
+    if (typeof value === 'number' && isFinite(value)) value = String(value);
+    if (typeof value !== 'string') return null;
+    var text = value.trim();
+    if (!/^\d+(\.\d+)?$/.test(text)) return null;
+    var parts = text.split('.');
+    var fraction = (parts[1] || '').slice(0, 8);
+    while (fraction.length < 8) fraction += '0';
+    try {
+      return BigInt(parts[0] + fraction);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function parseSochainBalance(data) {
+    if (!data || typeof data !== 'object' || data.status !== 'success') return null;
+    var info = data.data;
+    if (!info || typeof info !== 'object' || Array.isArray(info)) return null;
+    var confirmed = sochainAtomic(info.confirmed);
+    if (confirmed === null) return null;
+    var unconfirmed = sochainAtomic(info.unconfirmed);
+    return {
+      confirmed: confirmed,
+      unconfirmed: unconfirmed === null ? 0n : unconfirmed
+    };
+  }
+
   /* Like atomicAmount but tolerates the signed `unconfirmed` delta. */
   function signedAmount(value) {
     if (typeof value === 'string' && /^-?\d+$/.test(value)) return value;
@@ -415,6 +448,7 @@
     parseSuiBalance: parseSuiBalance,
     parseTonBalance: parseTonBalance,
     parseBlockcypherBalance: parseBlockcypherBalance,
+    parseSochainBalance: parseSochainBalance,
     parseHaskoinBch: parseHaskoinBch,
     parseHaskoinBchBatch: parseHaskoinBchBatch,
     hasAddress: hasAddress,

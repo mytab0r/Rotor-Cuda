@@ -397,12 +397,12 @@
     if (config.chain === 'xrp') return Object.assign({ provider: 'xrpscan', chain: 'xrp' }, unitFor('xrp'));
     if (config.chain === 'ton') return Object.assign({ provider: 'tonapi', chain: 'ton' }, unitFor('ton'));
     if (config.chain === 'bitcoin-cash') return Object.assign({ provider: 'haskoin-bch', chain: 'bitcoin-cash' }, unitFor('bitcoin-cash'));
-    /* LTC and DOGE do have a keyless provider (BlockCypher) on the single-key
-     * page. This 60-row directory does not use it: 60 lookups would exceed the
-     * keyless rate limit, so those cells stay "—" (each address keeps its
-     * explorer link) instead of a fake zero. ZEC's SoChain provider is
-     * per-address, so it stays "—" here too. BCH uses one batched Haskoin
-     * request per page, the same provider the mnemonic directory uses. */
+    /* LTC, DOGE and ZEC read SoChain per address (2500 requests/hour keyless,
+     * CORS), so a 60-row page uses ~2.4% of the budget. BCH uses one batched
+     * Haskoin request per page, the same provider the mnemonic directory uses. */
+    if (config.chain === 'litecoin' || config.chain === 'dogecoin' || config.chain === 'zcash') {
+      return Object.assign({ provider: 'sochain', chain: config.chain }, unitFor(config.chain));
+    }
     return null;
   }
 

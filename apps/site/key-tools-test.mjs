@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
 require("./amount.js");
+require("./balance-cache.js");
 const tools = require("./key-tools.js");
 const wasmPath = process.argv[2] ?? fileURLToPath(new URL("./rotor_wasm.wasm", import.meta.url));
 
@@ -1091,10 +1092,12 @@ assert(
   "price timestamp is UTC",
 );
 
-// ZEC: SoChain v3 returns decimal coin strings, not satoshis. The parser must
-// convert without floats and reject anything that is not unsigned decimal.
-// The route-level detector for the wired row is `key-zec-provider` in
-// scripts/ui-audit.mjs; these assertions pin the amount conversion.
+// ZEC/LTC/DOGE: SoChain v3 returns decimal coin strings, not satoshis. The
+// parser lives once in balance-cache.js (this suite loads it and key-tools
+// delegates); it must convert without floats and reject anything that is not
+// unsigned decimal. The route-level detectors for the wired rows are
+// `key-zec-provider` and `key-utxo-provider` in scripts/ui-audit.mjs; these
+// assertions pin the amount conversion.
 const zecZero = tools.parseSochainBalance({
   status: "success",
   data: { confirmed: "0.00000000", unconfirmed: "0.00000000" },
