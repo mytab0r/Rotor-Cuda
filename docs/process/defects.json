@@ -589,6 +589,13 @@
       "symptom": "The transaction decoder tables built by buildTable in apps/site/tx-page.js also lacked .data-table inside .table-scroll; the rendered audit never sees them because the tables appear only after a decode input, so a static scan now enforces the class in JS builders, HTML and the Rust-embedded markup.",
       "detector": "table-grammar",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "puzzle-detail-discussion-link",
+      "reported": "2026-11-22",
+      "symptom": "The puzzle detail action row omitted the donor Discussion link; the donor target was never recorded.",
+      "detector": "puzzle-detail-discussion-link",
+      "where": "src/coordinator/mod.rs"
     }
   ]
 }
