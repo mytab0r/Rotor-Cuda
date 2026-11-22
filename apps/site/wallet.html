@@ -425,7 +425,7 @@
         <button type="button" class="primary" id="wallet-approvals-confirm">Sign and broadcast</button>
         <button type="button" id="wallet-approvals-cancel">Back to the list</button>
       </div>
-      <p class="muted" id="wallet-approvals-review-note">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls <code class="mono">approve(spender, 0)</code>; the calldata is built locally and the signature covers the reviewed spender. No key leaves this tab.</p>
+      <p class="muted" id="wallet-approvals-review-note">Confirm signs these exact reviewed values in the same local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls <code class="mono">approve(spender, 0)</code>; the calldata is built locally and the signature covers the reviewed spender.</p>
       <p class="error" id="wallet-approvals-confirm-error" role="alert" hidden></p>
     </div>
 
@@ -480,7 +480,7 @@
         <button type="button" class="primary" id="wallet-btc-confirm">Sign and broadcast</button>
         <button type="button" id="wallet-btc-cancel">Back to edit</button>
       </div>
-      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to mempool.space testnet. No key leaves this tab.</p>
+      <p class="muted">Confirm signs these exact reviewed values in the same local WASM core and sends only the signed raw transaction to mempool.space testnet.</p>
       <p class="error" id="wallet-btc-confirm-error" role="alert" hidden></p>
     </div>
 
