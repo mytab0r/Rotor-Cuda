@@ -250,6 +250,10 @@ test("eth_getLogs errors are classified into range and archive recoveries", () =
     { kind: "range", limit: 50 },
   );
   assert.deepEqual(
+    evm.classifyLogRangeError("query returned more than 10000 results"),
+    { kind: "range", limit: null },
+  );
+  assert.deepEqual(
     evm.classifyLogRangeError("Archive requests require a personal token. Get one at: https://example.invalid"),
     { kind: "archive", limit: null },
   );
@@ -261,7 +265,7 @@ test("eth_getLogs errors are classified into range and archive recoveries", () =
 /* ----------------------------------------------------------- log parsing */
 
 test("Approval logs from the contract and owner are deduped, newest wins", () => {
-  const map = evm.mergeApprovalLogs(new Map(), [
+  const merged = evm.mergeApprovalLogs(new Map(), [
     approvalLog(SPENDER, 100, 100, 1),
     approvalLog(SPENDER, 200, 101, 0),
     approvalLog(OTHER, 300, 99, 5),
@@ -274,6 +278,8 @@ test("Approval logs from the contract and owner are deduped, newest wins", () =>
     approvalLog(SPENDER, 999, 102, 2, { removed: true }),
   ], TOKEN, OWNER);
 
+  assert.equal(merged.malformed, 0);
+  const map = merged.entries;
   assert.equal(map.size, 2);
   assert.equal(map.get(SPENDER).value, 200n);
   assert.equal(map.get(SPENDER).blockNumber, 101);
@@ -282,11 +288,14 @@ test("Approval logs from the contract and owner are deduped, newest wins", () =>
   assert.equal(map.get(OTHER).logIndex, 9);
 });
 
-test("a malformed matching Approval log fails loud", () => {
+test("malformed matching Approval logs are skipped and counted", () => {
   const badData = approvalLog(SPENDER, 1, 10, 0, { data: "0x12" });
-  assert.throws(() => evm.mergeApprovalLogs(new Map(), [badData], TOKEN, OWNER), /single uint256 word/);
-  const badTopic = approvalLog(SPENDER, 1, 10, 0, { topics: [evm.APPROVAL_TOPIC, "0x" + word(OWNER), "0x12"] });
-  assert.throws(() => evm.mergeApprovalLogs(new Map(), [badTopic], TOKEN, OWNER), /32-byte word/);
+  const badTopic = approvalLog(OTHER, 1, 11, 0, { topics: [evm.APPROVAL_TOPIC, "0x" + word(OWNER), "0x12"] });
+  const valid = approvalLog(SPENDER, 5, 12, 0);
+  const merged = evm.mergeApprovalLogs(new Map(), [badData, badTopic, valid], TOKEN, OWNER);
+  assert.equal(merged.malformed, 2);
+  assert.equal(merged.entries.size, 1);
+  assert.equal(merged.entries.get(SPENDER).value, 5n);
 });
 
 /* ------------------------------------------------------------- calldata */
@@ -467,6 +476,31 @@ test("a connection reset before any block is scanned fails loud", async () => {
     () => evm.scanApprovals(scanOptions({ fetchJson: mock.fetchJson, windowBlocks: "10000" })),
     /Scanning Approval logs failed on .*fetch failed/,
   );
+});
+
+test("a malformed matching log is skipped, counted and surfaced in the warnings", async () => {
+  const malformed = approvalLog(SPENDER, 1, 995, 0, { data: "0x12" });
+  const mock = rpcMock({
+    latest: 1000,
+    logs: [approvalLog(SPENDER, 5, 996, 0), malformed],
+    allowances: { [OWNER + ":" + SPENDER]: 5n },
+  });
+  const scan = await evm.scanApprovals(scanOptions({ fetchJson: mock.fetchJson }));
+  assert.equal(scan.spenders.length, 1);
+  assert.equal(scan.spenders[0].allowance, 5n);
+  assert.ok(scan.warnings.some((warning) => /1 malformed log\(s\) skipped/.test(warning)));
+});
+
+test("a scan refused before any block reports an empty coverage range", async () => {
+  const mock = rpcMock({ latest: 20000, archiveHorizon: 30000, logs: [] });
+  const scan = await evm.scanApprovals(scanOptions({
+    fetchJson: mock.fetchJson,
+    windowBlocks: "10000",
+  }));
+  assert.equal(scan.truncated, true);
+  assert.equal(scan.spenders.length, 0);
+  assert.ok(scan.scannedFromBlock > scan.scannedToBlock);
+  assert.ok(scan.warnings.some((warning) => /archive/.test(warning)));
 });
 
 test("scan caps the list at 50 spenders and says so", async () => {

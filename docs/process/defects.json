@@ -491,6 +491,13 @@
       "symptom": "The 60-row /private-keys/bitcoin-cash directory rendered — for every balance although the shared batched Haskoin provider already existed and the mnemonic directory used it.",
       "detector": "browse.js must use the batched Haskoin provider for BCH",
       "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "wallet-approvals-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "The new ERC-20 approvals table was not exercised by any detector: ui-audit ran with the vault locked, so 240/240 PASS said nothing about the shared table shell, 44px row actions, Unlimited/Contract/EOA labels or the archive-truncated warning.",
+      "detector": "wallet-approvals-surface",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
