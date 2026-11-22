@@ -786,6 +786,49 @@
     return rowFamily(text);
   }
 
+  /* Chain identity for an address-row id. Symbol, icon and decimals come from
+   * data/chains.json; the maps only translate the wasm row ids to slugs. */
+  var ROW_CHAIN_SLUGS = {
+    btc: 'bitcoin',
+    evm: 'ethereum',
+    evm_bnb: 'bnb',
+    evm_arbitrum: 'arbitrum',
+    evm_optimism: 'optimism',
+    evm_base: 'base',
+    evm_polygon: 'polygon',
+    evm_avalanche: 'avalanche',
+    evm_zksync: 'zksync',
+    tron: 'tron',
+    solana: 'solana',
+    ltc: 'litecoin',
+    doge: 'dogecoin',
+    bch: 'bitcoin-cash',
+    xrp: 'xrp',
+    zcash: 'zcash',
+    sui: 'sui',
+    ton: 'ton'
+  };
+
+  function chainSlug(id) {
+    var text = String(id == null ? '' : id);
+    if (ROW_CHAIN_SLUGS[text]) return ROW_CHAIN_SLUGS[text];
+    return ROW_CHAIN_SLUGS[text.split('_')[0]] || '';
+  }
+
+  function chainUnit(slug) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return { symbol: meta.symbol, decimals: meta.decimals };
+  }
+
+  function chainMeta(id) {
+    var slug = chainSlug(id);
+    var meta = slug ? SSOT_CHAINS.bySlug[slug] : null;
+    if (!meta) {
+      return { ticker: String(id == null ? '' : id).toUpperCase(), icon: 'ui-blockchain', decimals: 0 };
+    }
+    return { ticker: meta.symbol, icon: meta.icon, decimals: meta.decimals };
+  }
+
   function orderAddressRows(rows) {
     var list = Array.isArray(rows) ? rows.slice() : [];
     return list.map(function (row, index) {
@@ -1340,6 +1383,9 @@
     buildKeyFacts: buildKeyFacts,
     rowFamily: rowFamily,
     rowGroup: rowGroup,
+    chainSlug: chainSlug,
+    chainUnit: chainUnit,
+    chainMeta: chainMeta,
     orderAddressRows: orderAddressRows,
     mergeCurveAddresses: mergeCurveAddresses,
     expandEvmAddresses: expandEvmAddresses,

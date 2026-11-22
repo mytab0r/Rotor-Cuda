@@ -49,6 +49,7 @@
         "node --check scripts/build-gallery.mjs",
         "node --check scripts/check-components.mjs",
         "node --check scripts/gen-ssot.mjs",
+        "node --check scripts/generated-regions.mjs",
         "node --check scripts/check-ssot.mjs",
         "node scripts/gen-ssot.mjs --check",
         "node scripts/check-ssot.mjs",
@@ -81,7 +82,8 @@
         "node apps/site/search-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/vanity-test.mjs",
         "node apps/site/qr-test.mjs",
-        "node apps/site/site-nav-test.mjs"
+        "node apps/site/site-nav-test.mjs",
+        "node apps/site/chains-test.mjs"
       ],
       "consumes": [
         "wasm-core"

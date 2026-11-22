@@ -16,14 +16,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { TOKENS_REGION } from "./generated-regions.mjs";
+
 export const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const TOKENS_PATH = "design/tokens/tokens.json";
 const CONTRACT_PATH = "design/tokens/tokens.contract.json";
 const CSS_PATH = "apps/site/site.css";
 const TS_PATH = "design/generated/tokens.ts";
-const START_MARKER = "/* tokens:start */";
-const END_MARKER = "/* tokens:end */";
+const START_MARKER = TOKENS_REGION.start;
+const END_MARKER = TOKENS_REGION.end;
 const CSS_COMMENT_NS = "org.rotor.css";
 
 const DARK_SELECTOR = ":root";

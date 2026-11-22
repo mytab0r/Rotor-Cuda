@@ -1787,6 +1787,42 @@ function auditPage(args) {
     );
   }
 
+  // 8d. Canonical chain colors. Every server-rendered tab carries a
+  //     `--chain` inline value; it must resolve to data/chains.json, not to a
+  //     page-local table. At least six tabs on the audited route must resolve.
+  const chainTabs = [...document.querySelectorAll(".chain-tabs .chain-tab")];
+  if (chainTabs.length) {
+    const registry = window.RotorChains && window.RotorChains.bySlug ? window.RotorChains.bySlug : {};
+    const colorIssues = [];
+    let resolved = 0;
+    for (const tab of chainTabs) {
+      const href = tab.getAttribute("href") || "";
+      const match = href.match(/^\/(?:private-keys|brainwallet|mnemonic-seeds)\/([a-z0-9-]+)/);
+      if (!match) continue;
+      const slug = match[1];
+      const expected = registry[slug] && registry[slug].color;
+      if (!expected) {
+        colorIssues.push(`${slug}: no canonical color`);
+        continue;
+      }
+      const actual = getComputedStyle(tab).getPropertyValue("--chain").trim().toLowerCase();
+      if (actual !== expected.toLowerCase()) {
+        colorIssues.push(`${slug}: ${actual || "(unset)"} != ${expected}`);
+      } else {
+        resolved += 1;
+      }
+    }
+    metrics.chainColors = { tabs: chainTabs.length, resolved };
+    if (resolved < 6) colorIssues.push(`only ${resolved} chain tab(s) resolved a canonical color`);
+    if (colorIssues.length) {
+      add(
+        "chain-tab-color",
+        `${colorIssues.length} chain tab(s) do not use data/chains.json`,
+        colorIssues.slice(0, 8),
+      );
+    }
+  }
+
   // 9. Route-specific parity checks.
   metrics.routeChecks = {};
   if (route === "/key") {

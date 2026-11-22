@@ -101,16 +101,26 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
 
 ## Slice 3 - chain identity
 
-- [ ] Move colors, order, symbols and labels into `data/chains.json`; resolve
-      the `zkSync` vs `zkSync Era` disagreement in one review.
-- [ ] Wire `src/generated/chains.rs` into `ChainHub` and `crate::chain` so the
+- [x] Move colors, order, symbols and labels into `data/chains.json`; resolve
+      the `zkSync` vs `zkSync Era` disagreement in one review. Canonical name is
+      `zkSync Era`; the four L2s report the native `ETH` symbol.
+- [x] Wire `src/generated/chains.rs` into `ChainHub` and `crate::chain` so the
       coordinator stops keeping a second table (`src/coordinator/mod.rs`) and
-      `crate::chain` is the only Rust descriptor table.
-- [ ] Migrate the JS chain catalogs (`search.js`, `wallet.js`,
+      `crate::chain` is the only Rust descriptor table. The Rust
+      `chain_hub_and_descriptor_agree_on_identity` test checks wiring only
+      (both sides read the generated table); data drift is caught by
+      `gen-ssot.mjs --check` when the generated output is stale and by the
+      pinned order/symbol expectations in `apps/site/chains-test.mjs` and
+      `apps/site/search-test.mjs`.
+- [x] Migrate the JS chain catalogs (`search.js`, `wallet.js`,
       `brainwallet-engine.js`, `mnemonic-seeds.js`, `seed-page.js`,
-      `brainwallet.js`) to the generated identity.
-- [ ] Extend `check-ssot` to fail on duplicated chain names, symbols and
-      explorer templates outside the generated files.
+      `brainwallet.js`, `key.js`, `browse.js`, `wallet-evm.js`, `site.js`) to
+      the generated identity; colors, symbols and order no longer have local
+      literals.
+- [x] Extend `check-ssot` to fail on chain color literals and local
+      chain-order arrays outside the generated outputs, and validate
+      `RotorChains.bySlug` / `RotorChains.order` references. Explorer template
+      hosts were already covered by the provider-host gate.
 
 ## Slice 4 - vendor hashes, detector manifest and SEO
 
