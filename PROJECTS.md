@@ -96,7 +96,8 @@ node scripts/affected-areas.mjs                  # diff origin/main + working tr
 node scripts/affected-areas.mjs path/to/file ... # explicit paths
 node scripts/ui-audit.mjs --serve                # headless UI self-review (site)
 node scripts/density-parity.mjs --donor URL --ours URL [--json PATH]  # donor-vs-ours density
-node scripts/sync-board.mjs [--dry-run]          # mirror changes + PRs to the Rotor board
+node scripts/sync-board.mjs [--dry-run]          # epics, sub-issues, blockers, PR links
+node scripts/check-task-links.mjs --pr 123       # PR task key + closing reference gate
 ```
 
 `scripts/ui-audit.mjs` is the shared UI gate: headless Chrome/Edge over CDP
@@ -116,11 +117,23 @@ donor is reported with the raw reason while our side is still measured. The
 procedure lives in `.claude/skills/donor-reverse/SKILL.md`; the first measured
 run is `docs/donor-parity/density-tron.md` with its raw JSON beside it.
 
-`scripts/sync-board.mjs` mirrors every OpenSpec change and open pull request
-into the Rotor Project (owner `mytab0r`, number 3) with `Area`, `Progress` and
-`Status` fields. It runs locally with the owner's `gh` login (`repo` and
-`project` scopes) and requires Issues to be enabled; see
-`docs/process/board.md`.
+`scripts/sync-board.mjs` maintains the task-tracking issues: one epic per
+OpenSpec change, one sub-issue per `tasks.md` section (title `ROT-<n> — <task>`,
+marker `<!-- openspec-task: <change>/<slug> -->`), `Blocked by: ROT-<n>` edges
+from the section's `blocked by:` line, native sub-issue links over GraphQL, and
+`Closes #<n>` in open PRs that name a key and follow the branch convention. It
+mirrors every change and open pull request into the Rotor Project (owner
+`mytab0r`, number 3) with `Area`, `Progress` and `Status` fields. It runs
+locally with the owner's `gh` login (`repo` and `project` scopes), requires
+Issues to be enabled, creates `change:<id>` labels on demand, and never closes
+an issue. `--dry-run` prints the plan without a single mutation. The full
+convention is `docs/process/task-tracking.md`.
+
+`scripts/check-task-links.mjs` is the `pull_request` gate
+(`.github/workflows/task-links.yml`): it fails when the PR body lacks
+`Task: ROT-<n>`, when the issue does not exist, or when the closing reference
+to that issue is missing. A docs/process-only PR may use
+`Task: none — <reason>`.
 
 Reading order: `AGENTS.md` -> this file -> the area `AGENTS.md` -> the
 `openspec/` change or spec.
