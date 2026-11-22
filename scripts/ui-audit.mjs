@@ -2898,6 +2898,11 @@ async function auditWalletPortfolio(cdp) {
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
       evidence.overflow = overflow;
       if (overflow > 1) problems.push('page overflows by ' + overflow + 'px');
+      // Leave a neutral scroll position: the grant/revoke scenarios focus a
+      // confirm button further down, and the taller summary would otherwise
+      // push the seed controls above the viewport for the page-wide check.
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      await sleep(50);
       return { evidence, problems };
     })()`,
     60000,
