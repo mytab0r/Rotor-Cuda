@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const evm = require("./wallet-evm.js");
 
 const TO = "0x3535353535353535353535353535353535353535";

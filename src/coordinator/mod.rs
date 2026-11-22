@@ -106,6 +106,7 @@ const SEND_JS: &str = include_str!("../../apps/site/send.js");
 const TRON_TX_JS: &str = include_str!("../../apps/site/tron-tx.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
+const CHAINS_GENERATED_JS: &str = include_str!("../../apps/site/chains.generated.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
 const MANROPE_WOFF2: &[u8] = include_bytes!("../../apps/site/fonts/manrope-latin.woff2");
 const FAVICON_ICO: &[u8] = include_bytes!("../../apps/site/favicon.ico");
@@ -1080,6 +1081,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             "application/javascript; charset=utf-8",
         )),
         "/theme.js" => Some((THEME_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/chains.generated.js" => Some((
+            CHAINS_GENERATED_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/icons.svg" => Some((ICONS_SVG, "image/svg+xml")),
         "/wallets/LICENSE.txt" => Some((
             wallets::LICENSE_TEXT.as_bytes(),
@@ -2106,7 +2111,27 @@ fn with_site_footer(path: &str, html: String) -> String {
 /// generated SEO surface) go through here, so a page can never ship a bare
 /// asset link.
 fn prepare_html_document(path: &str, html: String) -> String {
-    fingerprint_assets(with_site_footer(path, html), BUILD_ID)
+    fingerprint_assets(with_shared_data(with_site_footer(path, html)), BUILD_ID)
+}
+
+/// Every served document loads the generated chain/provider globals before any
+/// page script. The file is embedded and fingerprinted like every other asset,
+/// so pages never carry a bare asset reference.
+fn with_shared_data(html: String) -> String {
+    const TAG: &str = "<script src=\"/chains.generated.js\"></script>";
+    if html.contains(TAG) {
+        return html;
+    }
+    let Some(index) = html.find("<head>") else {
+        return html;
+    };
+    let insert_at = index + "<head>".len();
+    let mut out = String::with_capacity(html.len() + TAG.len() + 1);
+    out.push_str(&html[..insert_at]);
+    out.push('\n');
+    out.push_str(TAG);
+    out.push_str(&html[insert_at..]);
+    out
 }
 
 /// First-party asset types that may be referenced with the build prefix.
@@ -5712,9 +5737,16 @@ mod tests {
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         let script = std::str::from_utf8(body).expect("tron-tx.js is UTF-8");
         // The Nile-only host gate ships in the served asset, not just in tests.
-        assert!(script.contains("api.nileex.io"));
+        assert!(script.contains("RotorProviders"));
         assert!(script.contains("RotorTronSend"));
         assert!(script.contains("/wallet/broadcasttransaction"));
+        let generated = std::str::from_utf8(
+            static_asset("/chains.generated.js")
+                .expect("/chains.generated.js is embedded")
+                .0,
+        )
+        .expect("chains.generated.js is UTF-8");
+        assert!(generated.contains("https://api.nileex.io"));
     }
 
     #[test]
@@ -6887,8 +6919,15 @@ mod tests {
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         let btc = std::str::from_utf8(btc).expect("wallet-btc.js is utf-8");
         assert!(btc.contains("RotorBtcSend"));
-        assert!(btc.contains("mempool.space/testnet/api"));
+        assert!(btc.contains("RotorProviders"));
         assert!(btc.contains("btc_sign_tx"));
+        let generated = std::str::from_utf8(
+            static_asset("/chains.generated.js")
+                .expect("/chains.generated.js is embedded")
+                .0,
+        )
+        .expect("chains.generated.js is UTF-8");
+        assert!(generated.contains("mempool.space/testnet/api"));
 
         let sitemap = render_sitemap("https://rotor.pxbt.app");
         assert!(sitemap.contains("<loc>https://rotor.pxbt.app/cabinet/wallet</loc>"));

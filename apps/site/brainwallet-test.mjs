@@ -12,6 +12,7 @@ import { createHash, webcrypto } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
+import "./chains.generated.js";
 import engine from "./brainwallet-engine.js";
 
 const require = createRequire(import.meta.url);

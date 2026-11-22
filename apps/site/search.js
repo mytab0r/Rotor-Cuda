@@ -12,6 +12,15 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  /* Chain explorers come from data/chains.json through the generated globals
+   * in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+
+  function explorerPrefix(slug) {
+    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
+  }
+
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var MNEMONIC_WORD_COUNTS = [12, 15, 18, 21, 24];
   /* The donor WIF shape, shared with the key page and the key tools: 5/K/L
@@ -39,24 +48,24 @@
    * chain to the address rows the derivation core reports; `symbol` and
    * `icon` drive the per-chain result cards. */
   var CHAINS = [
-    { slug: 'bitcoin', label: 'Bitcoin', symbol: 'BTC', icon: 'chain-bitcoin', family: 'btc', explorer: 'https://mempool.space/address/' },
-    { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', icon: 'chain-ethereum', family: 'evm', explorer: 'https://etherscan.io/address/' },
-    { slug: 'bnb', label: 'BNB', symbol: 'BNB', icon: 'chain-bnb', family: 'evm', explorer: 'https://bscscan.com/address/' },
-    { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ARB', icon: 'chain-arbitrum', family: 'evm', explorer: 'https://arbiscan.io/address/' },
-    { slug: 'optimism', label: 'Optimism', symbol: 'OP', icon: 'chain-optimism', family: 'evm', explorer: 'https://optimistic.etherscan.io/address/' },
-    { slug: 'base', label: 'Base', symbol: 'BASE', icon: 'chain-base', family: 'evm', explorer: 'https://basescan.org/address/' },
-    { slug: 'polygon', label: 'Polygon', symbol: 'POL', icon: 'chain-polygon', family: 'evm', explorer: 'https://polygonscan.com/address/' },
-    { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', icon: 'chain-avalanche', family: 'evm', explorer: 'https://snowtrace.io/address/' },
-    { slug: 'zksync', label: 'zkSync', symbol: 'zkSync', icon: 'chain-zksync', family: 'evm', explorer: 'https://explorer.zksync.io/address/' },
-    { slug: 'solana', label: 'Solana', symbol: 'SOL', icon: 'chain-solana', family: 'solana', explorer: 'https://solscan.io/account/' },
-    { slug: 'tron', label: 'TRON', symbol: 'TRX', icon: 'chain-tron', family: 'tron', explorer: 'https://tronscan.org/#/address/' },
-    { slug: 'xrp', label: 'XRP', symbol: 'XRP', icon: 'chain-xrp', family: 'xrp', explorer: 'https://xrpscan.com/account/' },
-    { slug: 'litecoin', label: 'Litecoin', symbol: 'LTC', icon: 'chain-litecoin', family: 'ltc', explorer: 'https://blockchair.com/litecoin/address/' },
-    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', symbol: 'BCH', icon: 'chain-bitcoin-cash', family: 'bch', explorer: 'https://blockchair.com/bitcoin-cash/address/' },
-    { slug: 'dogecoin', label: 'Dogecoin', symbol: 'DOGE', icon: 'chain-dogecoin', family: 'doge', explorer: 'https://blockchair.com/dogecoin/address/' },
-    { slug: 'zcash', label: 'Zcash', symbol: 'ZEC', icon: 'chain-zcash', family: 'zcash', explorer: 'https://blockchair.com/zcash/address/' },
-    { slug: 'sui', label: 'Sui', symbol: 'SUI', icon: 'chain-sui', family: 'sui', explorer: 'https://suiscan.xyz/mainnet/account/' },
-    { slug: 'ton', label: 'TON', symbol: 'TON', icon: 'chain-ton', family: 'ton', explorer: 'https://tonviewer.com/' }
+    { slug: 'bitcoin', label: 'Bitcoin', symbol: 'BTC', icon: 'chain-bitcoin', family: 'btc', explorer: explorerPrefix('bitcoin') },
+    { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', icon: 'chain-ethereum', family: 'evm', explorer: explorerPrefix('ethereum') },
+    { slug: 'bnb', label: 'BNB', symbol: 'BNB', icon: 'chain-bnb', family: 'evm', explorer: explorerPrefix('bnb') },
+    { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ARB', icon: 'chain-arbitrum', family: 'evm', explorer: explorerPrefix('arbitrum') },
+    { slug: 'optimism', label: 'Optimism', symbol: 'OP', icon: 'chain-optimism', family: 'evm', explorer: explorerPrefix('optimism') },
+    { slug: 'base', label: 'Base', symbol: 'BASE', icon: 'chain-base', family: 'evm', explorer: explorerPrefix('base') },
+    { slug: 'polygon', label: 'Polygon', symbol: 'POL', icon: 'chain-polygon', family: 'evm', explorer: explorerPrefix('polygon') },
+    { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', icon: 'chain-avalanche', family: 'evm', explorer: explorerPrefix('avalanche') },
+    { slug: 'zksync', label: 'zkSync', symbol: 'zkSync', icon: 'chain-zksync', family: 'evm', explorer: explorerPrefix('zksync') },
+    { slug: 'solana', label: 'Solana', symbol: 'SOL', icon: 'chain-solana', family: 'solana', explorer: explorerPrefix('solana') },
+    { slug: 'tron', label: 'TRON', symbol: 'TRX', icon: 'chain-tron', family: 'tron', explorer: explorerPrefix('tron') },
+    { slug: 'xrp', label: 'XRP', symbol: 'XRP', icon: 'chain-xrp', family: 'xrp', explorer: explorerPrefix('xrp') },
+    { slug: 'litecoin', label: 'Litecoin', symbol: 'LTC', icon: 'chain-litecoin', family: 'ltc', explorer: explorerPrefix('litecoin') },
+    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', symbol: 'BCH', icon: 'chain-bitcoin-cash', family: 'bch', explorer: explorerPrefix('bitcoin-cash') },
+    { slug: 'dogecoin', label: 'Dogecoin', symbol: 'DOGE', icon: 'chain-dogecoin', family: 'doge', explorer: explorerPrefix('dogecoin') },
+    { slug: 'zcash', label: 'Zcash', symbol: 'ZEC', icon: 'chain-zcash', family: 'zcash', explorer: explorerPrefix('zcash') },
+    { slug: 'sui', label: 'Sui', symbol: 'SUI', icon: 'chain-sui', family: 'sui', explorer: explorerPrefix('sui') },
+    { slug: 'ton', label: 'TON', symbol: 'TON', icon: 'chain-ton', family: 'ton', explorer: explorerPrefix('ton') }
   ];
 
   var CHAIN_BY_SLUG = {};

@@ -3,6 +3,11 @@
 (function () {
   'use strict';
 
+  /* Chain explorers come from data/chains.json through the generated globals
+   * in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+
   var byId = function (id) { return document.getElementById(id); };
   var form = byId('pubkey-form');
   if (!form) return;
@@ -16,13 +21,13 @@
   var state = { wasm: null, promise: null, busy: false };
 
   var EXPLORERS = {
-    btc_p2pkh: 'https://mempool.space/address/',
-    btc_p2pkh_uncompressed: 'https://mempool.space/address/',
-    btc_p2sh_p2wpkh: 'https://mempool.space/address/',
-    btc_p2wpkh: 'https://mempool.space/address/',
-    btc_p2tr: 'https://mempool.space/address/',
-    evm: 'https://etherscan.io/address/',
-    tron: 'https://tronscan.org/#/address/'
+    btc_p2pkh: SSOT_CHAINS.bySlug.bitcoin.explorerPrefix,
+    btc_p2pkh_uncompressed: SSOT_CHAINS.bySlug.bitcoin.explorerPrefix,
+    btc_p2sh_p2wpkh: SSOT_CHAINS.bySlug.bitcoin.explorerPrefix,
+    btc_p2wpkh: SSOT_CHAINS.bySlug.bitcoin.explorerPrefix,
+    btc_p2tr: SSOT_CHAINS.bySlug.bitcoin.explorerPrefix,
+    evm: SSOT_CHAINS.bySlug.ethereum.explorerPrefix,
+    tron: SSOT_CHAINS.bySlug.tron.explorerPrefix
   };
 
   function fail(message) {

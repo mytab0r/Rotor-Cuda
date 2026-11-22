@@ -21,7 +21,8 @@
  *   3. every HTTP wrapper allowlists the public testnet endpoints, so a
  *      mainnet RPC or mempool.space mainnet URL cannot be reached, and the
  *      EVM kernel refuses any chain id outside this table (BNB mainnet 56 is
- *      not present). tron-tx.js pins every TRON call to https://api.nileex.io.
+ *      not present). tron-tx.js pins every TRON call to the canonical Nile
+ *      endpoint from data/providers.json.
  *
  * The validated send flow itself is the cabinet wallet kernel
  * (RotorBtcSend / RotorEvmSend, loaded before this file). This script only
@@ -36,6 +37,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (root) {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_CHAINS = root.RotorChains;
+  var SSOT_PROVIDERS = root.RotorProviders;
+
   var BTC_CHAIN = 'bitcoin-testnet';
   var EVM_CHAIN = 'ethereum-sepolia';
   var BNB_CHAIN = 'bnb-testnet';
@@ -46,7 +52,7 @@
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
-  var BTC_API = 'https://mempool.space/testnet/api';
+  var BTC_API = SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url;
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var WIF_MIN = 50;
   var WIF_MAX = 53;
@@ -58,10 +64,9 @@
   /* Public BNB Smart Chain testnet (chapel) RPCs. Verified 2026-11-20: both
    * answer eth_chainId 0x61 and send Access-Control-Allow-Origin: *. No
    * mainnet BSC endpoint appears here. */
-  var BNB_TESTNET_PROVIDERS = [
-    'https://data-seed-prebsc-1-s1.bnbchain.org:8545',
-    'https://bsc-testnet-rpc.publicnode.com'
-  ];
+  var BNB_TESTNET_PROVIDERS = (SSOT_PROVIDERS.byChain['bnb-testnet'] || []).map(function (provider) {
+    return provider.url;
+  });
 
   /* One table drives routing, labels, chain ids, explorers and the guards. */
   var CHAINS = {};
@@ -73,25 +78,25 @@
     slug: EVM_CHAIN, kind: 'evm', label: 'Ethereum Sepolia',
     title: 'Send Ethereum Sepolia', keyLabel: 'Testnet WIF or 64-hex key',
     chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
-    explorerTx: 'https://sepolia.etherscan.io/tx/'
+    explorerTx: SSOT_CHAINS.bySlug.sepolia.explorerTxPrefix
   };
   CHAINS[BNB_CHAIN] = {
     slug: BNB_CHAIN, kind: 'evm', label: 'BNB Smart Chain testnet',
     title: 'Send BNB Smart Chain testnet', keyLabel: 'Testnet WIF or 64-hex key',
     chainId: BNB_CHAIN_ID, nativeSymbol: 'tBNB',
-    explorerTx: 'https://testnet.bscscan.com/tx/'
+    explorerTx: SSOT_CHAINS.bySlug['bnb-testnet'].explorerTxPrefix
   };
   CHAINS[USDT_CHAIN] = {
     slug: USDT_CHAIN, kind: 'evm', token: true, label: 'Ethereum Sepolia (ERC-20)',
     title: 'Send ERC-20 on Ethereum Sepolia', keyLabel: 'Testnet WIF or 64-hex key',
     chainId: SEPOLIA_CHAIN_ID, nativeSymbol: 'ETH',
-    explorerTx: 'https://sepolia.etherscan.io/tx/'
+    explorerTx: SSOT_CHAINS.bySlug.sepolia.explorerTxPrefix
   };
   CHAINS[TRON_CHAIN] = {
     slug: TRON_CHAIN, kind: 'tron', label: 'TRON Nile testnet',
     title: 'Send TRON Nile testnet', keyLabel: 'Testnet WIF or 64-hex key',
     nativeSymbol: 'TRX',
-    explorerTx: 'https://nile.tronscan.org/#/transaction/'
+    explorerTx: SSOT_CHAINS.bySlug['tron-nile'].explorerTxPrefix
   };
 
   var SEND_PATHS = {

@@ -11,6 +11,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const { parseKeystore, KEYSTORE_EXAMPLES } = require("./keystore-parser.js");
 
 const EXAMPLE = KEYSTORE_EXAMPLES[0];
