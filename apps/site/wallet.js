@@ -3862,8 +3862,8 @@
     }
     if (approvalsReviewNote) {
       approvalsReviewNote.textContent = isGrant
-        ? 'Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls approve(spender, amount); the calldata is built locally and the signature covers the reviewed spender and allowance. No key leaves this tab.'
-        : 'Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls approve(spender, 0); the calldata is built locally and the signature covers the reviewed spender. No key leaves this tab.';
+        ? 'Confirm signs these exact reviewed values in the same local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls approve(spender, amount); the calldata is built locally and the signature covers the reviewed spender and allowance.'
+        : 'Confirm signs these exact reviewed values in the same local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls approve(spender, 0); the calldata is built locally and the signature covers the reviewed spender.';
     }
     approvalsReviewList.textContent = '';
     addApprovalsReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +
