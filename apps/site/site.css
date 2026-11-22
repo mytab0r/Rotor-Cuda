@@ -189,8 +189,7 @@ p { text-wrap: pretty; }
 .key-path-chip[aria-pressed="true"] .mono { color: var(--key-btc); }
 
 .key-row { padding: 14px 12px; border-bottom: 1px solid var(--border); }
-.key-row:first-child { padding-top: 4px; }
-.key-row:last-child { border-bottom: 0; padding-bottom: 4px; }
+.key-row:last-child { border-bottom: 0; }
 
 .key-balance { margin-left: auto; min-height: 18px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 
@@ -1463,8 +1462,9 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .chain-tab-icon { width: 19px; height: 19px; color: var(--chain); }
 
 .page-info { padding: 10px 14px; display: grid; gap: 6px; }
-.page-info-text { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13.5px; }
+.page-info-text { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--muted); font-size: 13.5px; }
 .page-info-text strong { color: var(--text); font-weight: 750; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.page-address-count { color: var(--text-2); font-variant-numeric: tabular-nums; }
 .page-info-icon { width: 22px; height: 22px; color: var(--accent); flex: none; }
 .progress-track { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--track); }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d3922d, var(--accent)); }
@@ -2548,15 +2548,17 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .milk-result .key-form-row { grid-template-columns: 150px minmax(0, 1fr); }
 @media (max-width: 560px) { .milk-form { grid-template-columns: 1fr; } .milk-result .key-form-row { grid-template-columns: 1fr; } }
 
-/* Compact chain rows: one address, one balance, icon actions. The donor's
- * balance column is minmax(200px, auto) with nowrap, so its packed line fits;
- * our 132px column broke it into three wrapped lines and set the row height. */
+/* Compact chain rows: explicit columns with one gap and a packed balance cell.
+ * Key = 2.2fr, address = 1.9fr (wide enough for a 34-char base58 address plus
+ * its label and 44px copy action), balance = minmax(240px, auto) like the
+ * donor's minmax(180px, auto) once the balance and two pills are measured. Both
+ * address forms of a legacy BTC key are visible, so the row is two 44px lines. */
 .keys-header,
-.key-row { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) 200px; }
+.key-row { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.9fr) minmax(240px, auto); gap: 16px; }
 .key-row { min-height: 54px; padding-top: 6px; padding-bottom: 6px; }
-.col-address { display: block; min-width: 0; }
+.col-address { display: grid; gap: 4px; align-content: center; min-width: 0; }
 
-.col-balance { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+.col-balance { display: grid; gap: 2px; justify-items: end; }
 @media (max-width: 860px) {
   .key-row { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 12px; }
   .key-row .col-key { grid-column: 1 / -1; }
@@ -2595,16 +2597,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   font-size: 13px;
   line-height: 1.5;
 }
-/* The row key carries a real 44px copy action (the donor has one in the same
- * cell). A second address form is one click away: the address cell shows the
- * primary line and the disclosure expands the rest, so a BTC row stays one
- * 44px address line instead of two. */
-.addr-extra-toggle .icon { transition: transform var(--duration-fast) var(--ease-standard); }
-.addr-extra-toggle[aria-expanded="true"] .icon { transform: rotate(180deg); }
-.addr-extra,
-.balance-extra { display: none; }
-.addr-expanded .addr-extra { display: block; }
-.addr-expanded .balance-extra { display: grid; gap: 2px; }
+/* Every address form of a key is visible at once, as on the donor. A BTC
+ * legacy row is two `.addr-line`s, each with its `(c)`/`(u)` label, explorer
+ * link and 44px copy action; there is no disclosure and no hidden copy. */
 .col-balance small { color: var(--text-2); font-size: 12px; }
 @media (max-width: 860px) {
 
@@ -2613,24 +2608,38 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 /* Donor key directory rows pair the server-rendered hex with `(c)/(u)`
  * address lines and a packed balance / TX / received cell. WIF stays on
  * /key/<hex>; a listing row never carries it. */
-.addr-label { flex: none; color: var(--muted); font-family: var(--mono); font-size: 12px; }
-.col-address .addr-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.addr-label { flex: none; min-width: 26px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.col-address .addr-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .col-address .addr-line .address-link { flex: 1 1 auto; min-width: 0; }
-.col-balance { display: grid; gap: 2px; justify-items: end; }
+.col-balance { display: grid; gap: 2px; justify-items: end; font-variant-numeric: tabular-nums; }
 .balance-info {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 2px 8px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
 }
-.balance-info .bal { color: var(--text); }
+.balance-info .bal { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.balance-info .bal.has-balance { color: var(--ok); }
+/* Plain (non-badge) metric text stays readable in the mnemonic directory,
+ * which uses the same `.balance-info` line without the badge grammar. */
 .balance-info .tx,
-.balance-info .recv,
-.balance-info .age { color: var(--muted); }
+.balance-info .recv { color: var(--muted); }
 .balance-info .tx.has-tx,
 .balance-info .recv.has-recv { color: var(--text-2); }
+.balance-info .badge { font-variant-numeric: tabular-nums; }
+.balance-info .badge.has-tx {
+  color: var(--text);
+  background: var(--signal-soft);
+  border-color: color-mix(in srgb, var(--signal) 30%, transparent);
+}
+.balance-info .badge.has-recv {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+}
 .balance-info.err { align-items: center; color: #ffb3b3; }
 .key-row.highlighted { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 560px) {

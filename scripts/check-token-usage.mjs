@@ -27,6 +27,12 @@
 //                         the listing bloats the row and puts the secret next
 //                         to the address. Guards apps/site/browse.js and the
 //                         .key-wif rules in apps/site/site.css.
+//   browse-row-address-count
+//                         both address forms of a legacy Bitcoin key are
+//                         visible immediately (the donor has no disclosure).
+//                         Guards the removed `.addr-extra` disclosure hooks in
+//                         browse.js and site.css; the rendered count is
+//                         checked by the same id in scripts/ui-audit.mjs.
 //
 // Pre-existing debt that needs a design decision is listed in
 // design/tokens/token-usage-baseline.json with an exact file:line, the matched
@@ -633,6 +639,34 @@ export function checkBrowseRowWif({ jsFiles, cssFiles }) {
   return violations;
 }
 
+// 8. browse-row-address-count ----------------------------------------------
+// The donor renders every address form of a legacy Bitcoin key at once; the
+// disclosure (`addr-extra`, `addr-extra-toggle`, `addr-expanded`,
+// `balance-extra`) was removed so both lines are visible on first paint. The
+// rendered count/total contract is checked by scripts/ui-audit.mjs under the
+// same detector id; this static guard keeps the removed hooks from returning.
+const BROWSE_ADDRESS_PATTERNS = [
+  ["apps/site/browse.js", /addr-extra|addr-expanded|addressCellModel/g, "browse.js restores the removed address disclosure model"],
+  ["apps/site/browse.js", /balance-extra/g, "browse.js restores the removed hidden balance line"],
+  ["apps/site/site.css", /\.(?:addr-extra|addr-expanded|balance-extra)\b/g, "site.css restores the removed address disclosure rules"],
+];
+
+export function checkBrowseRowAddressCount({ jsFiles, cssFiles }) {
+  const violations = [];
+  const sources = new Map(
+    [...jsFiles, ...cssFiles].map((file) => [file.relative, file.text]),
+  );
+  for (const [relative, pattern, detail] of BROWSE_ADDRESS_PATTERNS) {
+    const text = sources.get(relative);
+    if (!text) continue;
+    const starts = lineStarts(text);
+    for (const match of text.matchAll(pattern)) {
+      addViolation(violations, "browse-row-address-count", relative, lineAt(starts, match.index), detail, match[0]);
+    }
+  }
+  return violations;
+}
+
 // Baseline ------------------------------------------------------------------
 // An entry records the exact file:line where the debt was accepted, but the
 // match is by file + matched text, not by line, so an unrelated edit above the
@@ -684,6 +718,7 @@ export function collectChecks(root = REPO_ROOT) {
     { id: "raw-hex-outside-root", violations: checkRawHex({ cssFiles, htmlFiles, regions }) },
     { id: "legacy-selector", violations: checkLegacySelectors({ cssFiles, regions }) },
     { id: "browse-row-wif", violations: checkBrowseRowWif({ jsFiles, cssFiles }) },
+    { id: "browse-row-address-count", violations: checkBrowseRowAddressCount({ jsFiles, cssFiles }) },
   ];
 }
 
@@ -736,7 +771,7 @@ export function run({ root = REPO_ROOT } = {}) {
   }
 
   if (failed) messages.push(`token-usage: FAILED (${total} new violation(s))`);
-  else messages.push("token-usage: OK (all seven token detectors clean)");
+  else messages.push("token-usage: OK (all eight token detectors clean)");
   return { ok: !failed, messages, total };
 }
 
