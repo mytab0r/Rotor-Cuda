@@ -216,6 +216,33 @@ fn auth_is_required_for_the_api_but_not_the_dashboard() {
 }
 
 #[test]
+fn public_responses_do_not_advertise_the_server() {
+    let temp = TempState::new("server-header");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    for path in ["/", "/api/v1/summary", "/api/v1/chain/tron/address"] {
+        let (status, head, _) = raw(addr, "GET", path, None, None);
+        assert!(
+            matches!(status, 200 | 400 | 501),
+            "{path} returned {status}"
+        );
+        if let Some(server) = response_header(&head, "server") {
+            assert!(
+                server.trim().is_empty(),
+                "Server identity leaked on {path}: {head}"
+            );
+        }
+        assert!(
+            response_header(&head, "x-powered-by").is_none(),
+            "X-Powered-By leaked on {path}: {head}"
+        );
+    }
+
+    handle.shutdown();
+}
+
+#[test]
 fn site_assets_revalidate_by_etag() {
     let temp = TempState::new("etag");
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
@@ -1840,6 +1867,8 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
             monitor_domain: "127.0.0.1".to_string(),
             wallets_upstream: Some(upstream.base.clone()),
             tronscan_api_key: None,
+            edge_proxy_url: None,
+            edge_proxy_secret: None,
             orders: None,
         },
         Arc::clone(&store),
@@ -1960,6 +1989,8 @@ fn tron_lookup_refuses_without_a_provider_key() {
         Clients::default(),
         ServerOptions {
             tronscan_api_key: None,
+            edge_proxy_url: None,
+            edge_proxy_secret: None,
             ..ServerOptions::default()
         },
         Arc::clone(&store),
@@ -2015,6 +2046,8 @@ fn tron_batch_validates_and_requires_a_provider_key() {
         Clients::default(),
         ServerOptions {
             tronscan_api_key: None,
+            edge_proxy_url: None,
+            edge_proxy_secret: None,
             ..ServerOptions::default()
         },
         Arc::clone(&store),

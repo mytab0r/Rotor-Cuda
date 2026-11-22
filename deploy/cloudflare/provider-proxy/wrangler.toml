@@ -1,0 +1,28 @@
+name = "rotor-provider-proxy"
+main = "src/worker.mjs"
+compatibility_date = "2026-11-01"
+
+# Keep the worker off the public workers.dev host; mount it on the site zone
+# with a route instead so the browser can call it same-origin as `/edge/*`.
+workers_dev = false
+
+# Public origin allowed to call the worker from a browser. Override per
+# environment with `[env.<name>.vars]`; never use `*`.
+[vars]
+SITE_ORIGIN = "https://rotor.pxbt.app"
+
+# No secrets in this file. Configure by name only:
+#
+#   npx wrangler secret put TRONSCAN_API_KEY     # TronScan Pro key
+#   npx wrangler secret put TRONGRID_API_KEY     # TronGrid key
+#   npx wrangler secret put TRONSTACK_API_KEY    # optional
+#   npx wrangler secret put SUNIO_API_KEY        # optional
+#   npx wrangler secret put EDGE_PROXY_SECRET    # shared with rotor-coord
+#   npx wrangler secret put RPC_ENDPOINTS        # {"eth":"https://..."}
+#   npx wrangler secret put SUNIO_QUOTE_PATH     # e.g. the current /vN/quote
+#
+# Uncomment and set the zone after the owner confirms the public host:
+#
+# [[routes]]
+# pattern = "rotor.pxbt.app/edge/*"
+# zone_name = "pxbt.app"
