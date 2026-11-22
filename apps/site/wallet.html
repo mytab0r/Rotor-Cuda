@@ -180,7 +180,7 @@
 
     <h2>Addresses</h2>
     <label class="wallet-check"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance and history lookups</label>
-    <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance or History sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent. Bitcoin history is read from mempool.space; TRON history goes through this site's coordinator to TronScan; EVM history is unavailable without an indexer or API key, so no provider is called for it.</p>
+    <p class="muted" id="wallet-lookup-note">Lookups are off by default, and enabling them makes the Balance and History buttons send only the public address of that row to a public provider, never a key, WIF or passphrase. Bitcoin history is read from mempool.space; TRON history goes through this site's coordinator to TronScan; EVM history is unavailable without an indexer or API key, so no provider is called for it.</p>
     <section class="wallet-summary" id="wallet-summary" aria-labelledby="wallet-summary-title" hidden>
       <div class="wallet-summary-head">
         <div>
