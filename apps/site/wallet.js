@@ -141,12 +141,15 @@
     btcSending: false,
     btcReview: null,
     btcReviewEntryId: null,
+    historyEntryId: null,
+    historySeq: 0,
     seedWordCount: 12
   };
 
   var vault = window.RotorWalletVault;
   var evmSend = window.RotorEvmSend;
   var btcSend = window.RotorBtcSend;
+  var historyApi = window.RotorWalletHistory;
   var byId = function (id) { return document.getElementById(id); };
   var createForm = byId('wallet-create-form');
   var unlockForm = byId('wallet-unlock-form');
@@ -246,6 +249,18 @@
   var approvalsExplorerLink = byId('wallet-approvals-explorer');
   var approvalsRereadEl = byId('wallet-approvals-reread');
   var approvalsSignedEl = byId('wallet-approvals-signed');
+
+  /* Transaction history panel. One panel serves the entry the user opened;
+   * lock and any entry change reset it. */
+  var historyPanel = byId('wallet-history');
+  var historyClose = byId('wallet-history-close');
+  var historySubject = byId('wallet-history-subject');
+  var historyStatus = byId('wallet-history-status');
+  var historyError = byId('wallet-history-error');
+  var historyEmpty = byId('wallet-history-empty');
+  var historyUnavailable = byId('wallet-history-unavailable');
+  var historyTableWrap = byId('wallet-history-table-wrap');
+  var historyRows = byId('wallet-history-rows');
 
   /* Bitcoin testnet send form. Nothing in this block holds a private key. */
   var btcCard = byId('wallet-btc-send');
@@ -966,6 +981,7 @@
     state.priceStatus = 'idle';
     state.pricePromise = null;
     state.generation += 1;
+    resetHistory();
     if (entriesEl) entriesEl.textContent = '';
     if (summaryBlock) summaryBlock.hidden = true;
     if (panel) panel.hidden = true;
@@ -1264,6 +1280,7 @@
     var row = document.createElement('div');
     row.className = 'wallet-row';
     row.setAttribute('data-entry-id', entry.id);
+    row.setAttribute('data-chain', entry.chain);
 
     var head = document.createElement('div');
     head.className = 'wallet-row-head';
@@ -1335,6 +1352,17 @@
     balance.addEventListener('click', function () { checkBalance(entry, badge); });
     actions.appendChild(balance);
     actions.appendChild(badge);
+
+    var historyButton = document.createElement('button');
+    historyButton.type = 'button';
+    historyButton.className = 'icon-button icon-button--quiet wallet-history-button';
+    historyButton.setAttribute('aria-label', 'Transaction history for this ' + chainLabel(entry.chain) + ' address');
+    historyButton.setAttribute('data-tooltip', 'Transaction history');
+    historyButton.setAttribute('data-history-button', '');
+    historyButton.disabled = !state.lookup;
+    historyButton.appendChild(iconUse('ui-history'));
+    historyButton.addEventListener('click', function () { openHistory(entry); });
+    actions.appendChild(historyButton);
     row.appendChild(actions);
 
     row._refs = {
@@ -1383,6 +1411,7 @@
 
   function renderEntries() {
     if (!entriesEl) return;
+    resetHistory();
     entriesEl.textContent = '';
     state.rows = {};
     var generation = state.generation;
@@ -1850,11 +1879,165 @@
     Array.prototype.forEach.call(entriesEl.querySelectorAll('.wallet-balance-button'), function (button) {
       button.disabled = !state.lookup;
     });
+    Array.prototype.forEach.call(entriesEl.querySelectorAll('.wallet-history-button'), function (button) {
+      button.disabled = !state.lookup;
+    });
     renderSummary();
   });
 
   if (summaryRefresh) {
     summaryRefresh.addEventListener('click', function () { refreshPortfolio(); });
+  }
+
+  /* --------------------------------------------------------------- history */
+
+  function resetHistory() {
+    state.historyEntryId = null;
+    state.historySeq += 1;
+    if (historyPanel) historyPanel.hidden = true;
+    if (historyRows) historyRows.textContent = '';
+    if (historySubject) historySubject.textContent = '';
+    if (historyStatus) historyStatus.textContent = '';
+    if (historyError) {
+      historyError.textContent = '';
+      historyError.hidden = true;
+    }
+    if (historyEmpty) historyEmpty.hidden = true;
+    if (historyUnavailable) {
+      historyUnavailable.textContent = '';
+      historyUnavailable.hidden = true;
+    }
+    if (historyTableWrap) {
+      historyTableWrap.hidden = true;
+      historyTableWrap.removeAttribute('aria-busy');
+    }
+  }
+
+  if (historyClose) {
+    historyClose.addEventListener('click', resetHistory);
+  }
+
+  function historyCell(text) {
+    var cell = document.createElement('td');
+    cell.textContent = text;
+    return cell;
+  }
+
+  function renderHistoryRows(slug, rows) {
+    historyRows.textContent = '';
+    historyStatus.textContent = '';
+    if (!rows.length) {
+      historyEmpty.hidden = false;
+      historyTableWrap.hidden = true;
+      return;
+    }
+    rows.forEach(function (tx) {
+      var row = document.createElement('tr');
+      row.appendChild(historyCell(historyApi.formatTime(tx.timestamp)));
+      row.appendChild(historyCell(historyApi.directionLabel(tx.direction)));
+      var amount = document.createElement('td');
+      amount.textContent = historyApi.formatNative(tx.amountAtomic, slug);
+      if (tx.feeAtomic) {
+        var fee = document.createElement('span');
+        fee.className = 'muted wallet-history-fee';
+        fee.textContent = 'fee ' + historyApi.formatNative(tx.feeAtomic, slug);
+        amount.appendChild(fee);
+      }
+      row.appendChild(amount);
+      var counterparty = document.createElement('td');
+      var code = document.createElement('code');
+      code.className = 'mono';
+      code.textContent = historyApi.truncateMiddle(tx.counterparty, 10, 8) || '—';
+      if (tx.counterparty) code.title = tx.counterparty;
+      counterparty.appendChild(code);
+      row.appendChild(counterparty);
+      var status = document.createElement('td');
+      var pill = document.createElement('span');
+      pill.className = 'status';
+      pill.textContent = historyApi.statusLabel(tx.confirmed);
+      status.appendChild(pill);
+      row.appendChild(status);
+      historyRows.appendChild(row);
+    });
+    historyEmpty.hidden = true;
+    historyTableWrap.hidden = false;
+  }
+
+  function showHistoryUnavailable(info) {
+    historyUnavailable.textContent = info.message + ' ';
+    var link = document.createElement('a');
+    link.href = info.docsHref;
+    link.textContent = 'Read the wallet documentation';
+    historyUnavailable.appendChild(link);
+    historyUnavailable.hidden = false;
+  }
+
+  async function openHistory(entry) {
+    if (!state.lookup) return;
+    if (!state.unlocked || !historyPanel) return;
+    var info = historyApi.support(entry.chain);
+    state.historyEntryId = entry.id;
+    state.historySeq += 1;
+    var seq = state.historySeq;
+    historyRows.textContent = '';
+    historyError.hidden = true;
+    historyError.textContent = '';
+    historyEmpty.hidden = true;
+    historyUnavailable.hidden = true;
+    historyUnavailable.textContent = '';
+    historyTableWrap.hidden = true;
+    historyTableWrap.removeAttribute('aria-busy');
+    historyStatus.textContent = '';
+    historyPanel.hidden = false;
+    historySubject.textContent = chainLabel(entry.chain) + ' · ' + (entry.label || 'no label');
+
+    var derived = state.derived[entry.id];
+    if (!derived || derived.error || !derived.address) {
+      historyError.textContent = derived && derived.error
+        ? 'The address is unavailable: ' + derived.error
+        : 'The address is still deriving; try again in a moment.';
+      historyError.hidden = false;
+      return;
+    }
+    if (info.kind === 'evm' || info.kind === 'other') {
+      showHistoryUnavailable(info);
+      return;
+    }
+
+    var address = derived.address;
+    historyStatus.textContent = 'Loading transactions…';
+    historyPanel.setAttribute('aria-busy', 'true');
+    try {
+      var rows;
+      if (info.kind === 'btc') {
+        var response = await fetchWithTimeout(historyApi.btcTxsUrl(entry.chain, address));
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        rows = historyApi.parseBtcTxs(address, data);
+      } else {
+        var tronResponse = await fetchWithTimeout(
+          '/api/v1/chain/tron/transactions?address=' + encodeURIComponent(address)
+        );
+        if (!tronResponse.ok) {
+          var body = null;
+          try { body = await tronResponse.json(); } catch (err) { body = null; }
+          var reason = body && body.error ? body.error : 'HTTP ' + tronResponse.status;
+          if (reason === 'no_provider') reason = 'the coordinator has no TronScan provider configured';
+          throw new Error(reason);
+        }
+        rows = historyApi.parseTronPayload(address, await tronResponse.json());
+      }
+      if (seq !== state.historySeq || state.historyEntryId !== entry.id || !state.unlocked) return;
+      renderHistoryRows(entry.chain, rows);
+    } catch (err) {
+      if (seq !== state.historySeq || state.historyEntryId !== entry.id || !state.unlocked) return;
+      historyStatus.textContent = '';
+      historyTableWrap.hidden = true;
+      historyError.textContent = 'Cannot load transactions: ' + errorText(err);
+      historyError.hidden = false;
+    } finally {
+      if (seq === state.historySeq) historyPanel.removeAttribute('aria-busy');
+    }
   }
 
   /* ------------------------------------------------------------- EVM send */
