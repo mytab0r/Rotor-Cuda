@@ -337,6 +337,20 @@ label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); fo
 .sitemap-stat[data-tone="err"] b { color: var(--err); }
 .sitemap-stat[data-tone="accent"] b { color: var(--accent); }
 
+/* Deferral callout: route facts live in data/routes.json. */
+.sitemap-callout {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.sitemap-callout h2 { margin: 0; font-size: 18px; }
+.sitemap-callout p { margin: 0; color: var(--text-2); line-height: 1.55; }
+.sitemap-callout a { color: var(--accent); }
+
 /* ----------------------------------------------------------------- controls */
 
 .sitemap-controls {

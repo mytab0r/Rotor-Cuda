@@ -4,6 +4,8 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
+import { patternToRegExp } from '../../scripts/lib/site-routes.mjs';
+
 const file = new URL('./site-map-data.js', import.meta.url);
 const code = fs.readFileSync(file, 'utf8');
 const sandbox = {};
@@ -15,6 +17,24 @@ assert.ok(Array.isArray(data.ours), 'ours must be an array');
 assert.ok(Array.isArray(data.donors), 'donors must be an array');
 assert.ok(Array.isArray(data.features), 'features must be an array');
 assert.equal(data.chains.length, 18, '18 chain routes are expected');
+
+// Route facts defer to data/routes.json. The donor-parity list may reference a
+// route path, but every one must still exist in the single routing map; drift
+// fails here instead of silently diverging.
+assert.equal(data.routesSource, '../../data/routes.json', 'routesSource must point at the routing map');
+assert.match(data.routesPage, /\/cabinet\/admin\/site-map$/, 'routesPage must be the cabinet map');
+const routesJson = JSON.parse(
+  fs.readFileSync(new URL('../../data/routes.json', import.meta.url), 'utf8'),
+);
+assert.ok(Array.isArray(routesJson.routes), 'data/routes.json must have a routes array');
+const routeMatchers = routesJson.routes.map((route) => patternToRegExp(route.pattern));
+const concrete = (path) => path.replace(/<[^>]+>/g, 'x');
+for (const route of data.ours) {
+  assert.ok(
+    routeMatchers.some((matcher) => matcher.test(concrete(route.path))),
+    `${route.path} is not covered by any pattern in data/routes.json`,
+  );
+}
 
 const allowed = new Set(['parity', 'partial', 'missing', 'ours-only']);
 const presence = new Set(['present', 'partial', 'missing']);

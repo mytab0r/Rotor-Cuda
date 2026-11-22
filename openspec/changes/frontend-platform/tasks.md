@@ -19,6 +19,11 @@ ship two renderers for the same route.
 
 ## 2. Presentation and hubs
 
+- [ ] Prerequisite: `data/routes.json` is the routing map (pattern, template,
+      renderer, data sources, auth, status) and `scripts/check-ssot.mjs` fails
+      when the coordinator serves a route missing from it or names a missing
+      template. The operator view is `/cabinet/admin/site-map`. No phase-2 page
+      moves before the map covers every coordinator route family.
 - [ ] Landing, docs, faq, disclaimer, donate, tools, converters, tx, vanity,
       milk-sad (~27 pages) prerendered.
 - [ ] Search, theme toggle and shared nav behave as today.
@@ -42,11 +47,15 @@ ship two renderers for the same route.
 
 ## 6. Cutover
 
+- [ ] Cutover gate: every rewritten pattern in `data/routes.json` is served by
+      its target renderer and no `live` row still points at the coordinator for
+      a migrated route family.
 - [ ] Origin switch: Pages/Functions serve HTML, Rust serves `/api/v1/*` only.
 - [ ] Rust HTML routes return 410; `include_str!` HTML removed.
 
 ## 7. Cleanup
 
 - [ ] Delete migrated ES5 scripts and their asset entries.
-- [ ] Update `docs/site-map`, design-system docs and audit routes.
+- [ ] Update `docs/site-map` (it defers route facts to `data/routes.json`),
+      design-system docs and audit routes.
 - [ ] `check-ssot`: forbid new HTML renderers in the coordinator.

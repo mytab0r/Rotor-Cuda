@@ -72,7 +72,11 @@ owned by exactly one area; the most-specific glob wins.
   (`/cabinet/admin/{clients,monitor,jobs,orders,providers,integrations,audit}`)
   read `/cabinet/admin/api/*` with bounded pagination. The design gallery moved
   to `/cabinet/admin/design` and the old `/design` route answers 404. The
-  cabinet assets are `/admin.js` and `/admin.css`. The seed studio is served
+  routing map is `/cabinet/admin/site-map`, a matrix of every route family from
+  `data/routes.json` with its template, renderer, data sources, auth and status;
+  `node scripts/check-ssot.mjs` fails when the coordinator serves a route that
+  is missing from the map or when a mapped template file does not exist. The
+  cabinet assets are `/admin.js`, `/admin.css` and `/site-map-admin.js`. The seed studio is served
   on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
   `seed-page.js` and `seed-studio.css`; the directory remains on
   `/mnemonic-seeds`. Brainwallet pages share `brainwallet-engine.js`
@@ -87,8 +91,11 @@ owned by exactly one area; the most-specific glob wins.
   `/bitcoin-puzzle/<n>/random` and `/bitcoin-puzzle/unsolved` for n in 1..=160.
   The route/feature parity map is internal documentation, not a public route:
   it lives in `docs/site-map/index.html` with `site-map.css`, `site-map.js` and
-  the single data file `site-map-data.js`. Update the data when a route or
-  feature status changes; the coordinator neither embeds nor serves it.
+  the single data file `site-map-data.js`. It covers donor parity only and
+  defers route facts to `data/routes.json`; `site-map-test.mjs` requires every
+  route it lists to exist in that map. The coordinator embeds neither file.
+  `data/routes.json` is the routing SSOT: one entry per route family (pattern,
+  template, renderer, data sources, auth, status), gated by `check-ssot`.
 - **Desktop -> infra.** `build.rs` compiles the CUDA sources under
   `Rotor-Cuda/`; moving them requires `build.rs`, `Cargo.toml` and
   `gpu-bsgs-compile.yml` in the same change.

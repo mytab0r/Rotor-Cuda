@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Crypto - route map</title>
+<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/admin.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
+  <nav aria-label="Admin">
+    <a href="/cabinet/admin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Admin</span></a>
+    <a href="/cabinet/admin/design"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Design</span></a>
+    <a href="/cabinet/admin/site-map" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Site map</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="chip" href="/cabinet/admin">Cabinet</a>
+  </div>
+</header>
+
+<main class="admin-main">
+  <section class="card admin-panel" aria-labelledby="site-map-title">
+    <div>
+      <h1 id="site-map-title">Route map</h1>
+      <p class="muted">
+        One row per route family from <code>data/routes.json</code>: what serves it,
+        which template or component it uses, where its data comes from, whether it
+        is public or authenticated, and whether it stays, moves or redirects.
+        The map is the single source; <code>scripts/check-ssot.mjs</code> fails when
+        the coordinator serves a route that is missing here or when a template file
+        does not exist.
+      </p>
+      <p class="muted" id="map-summary" role="status" aria-live="polite">Loading route map...</p>
+    </div>
+
+    <div class="admin-filters" role="group" aria-label="Filter routes">
+      <label class="field" for="map-query">
+        <span class="field__label">Search</span>
+        <input class="field__control" id="map-query" type="search" placeholder="pattern, template, data source..." autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field" for="map-family">
+        <span class="field__label">Family</span>
+        <select class="field__control" id="map-family">
+          <option value="">All families</option>
+        </select>
+      </label>
+      <label class="field" for="map-renderer">
+        <span class="field__label">Renderer</span>
+        <select class="field__control" id="map-renderer">
+          <option value="">All renderers</option>
+          <option value="coordinator">coordinator</option>
+          <option value="client-only">client-only</option>
+          <option value="api">api</option>
+          <option value="astro-static">astro-static</option>
+          <option value="worker-inject">worker-inject</option>
+        </select>
+      </label>
+      <label class="field" for="map-auth">
+        <span class="field__label">Auth</span>
+        <select class="field__control" id="map-auth">
+          <option value="">All</option>
+          <option value="public">public</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <label class="field" for="map-status">
+        <span class="field__label">Status</span>
+        <select class="field__control" id="map-status">
+          <option value="">All statuses</option>
+          <option value="live">live</option>
+          <option value="planned">planned</option>
+          <option value="legacy">legacy</option>
+        </select>
+      </label>
+    </div>
+
+    <p class="error" id="map-error" role="alert" hidden></p>
+    <p class="empty-state" id="map-empty" hidden><span class="empty-state__title">No route matches</span>Clear the search or the filters to see the map.</p>
+
+    <div class="table-scroll" id="map-table-wrap" tabindex="0" aria-label="Route map table" hidden>
+      <table class="data-table admin-map-table">
+        <caption class="visually-hidden">Route families, templates, renderers, data sources, auth and status</caption>
+        <thead>
+          <tr>
+            <th scope="col">Pattern</th>
+            <th scope="col">Template</th>
+            <th scope="col">Renderer</th>
+            <th scope="col">Data sources</th>
+            <th scope="col">Auth</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="map-rows"></tbody>
+      </table>
+    </div>
+    <noscript><p class="empty-state">This page needs JavaScript to render <code>data/routes.json</code>.</p></noscript>
+  </section>
+</main>
+
+<script src="/site-map-admin.js"></script>
+</body>
+</html>
