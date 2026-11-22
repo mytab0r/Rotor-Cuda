@@ -533,6 +533,13 @@
       "symptom": "The new ERC-20 approvals table was not exercised by any detector: ui-audit ran with the vault locked, so 240/240 PASS said nothing about the shared table shell, 44px row actions, Unlimited/Contract/EOA labels or the archive-truncated warning.",
       "detector": "wallet-approvals-surface",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-portfolio-zero-lie",
+      "reported": "2026-11-22",
+      "symptom": "A portfolio total could treat a balance that was still loading, failed or never requested as zero, and price a testnet coin at its mainnet ticker, so $0.00 or an inflated USD value looked like a real total.",
+      "detector": "wallet-portfolio-summary",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

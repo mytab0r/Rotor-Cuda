@@ -31,9 +31,11 @@
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
   var BALANCE_LIMIT = 4;
-  /* One public ticker request per six hours; the entry lives in localStorage. */
-  var PRICE_CACHE_KEY = 'rotor.prices.v1';
-  var PRICE_TTL_MS = 6 * 60 * 60 * 1000;
+  /* One public ticker request per six hours; the entry lives in localStorage.
+   * The key and TTL come from key-tools.js so the wallet portfolio shares the
+   * same cache instead of repeating the pair. */
+  var PRICE_CACHE_KEY = (SSOT_ROOT.RotorKeyTools && SSOT_ROOT.RotorKeyTools.PRICE_CACHE_KEY) || 'rotor.prices.v1';
+  var PRICE_TTL_MS = (SSOT_ROOT.RotorKeyTools && SSOT_ROOT.RotorKeyTools.PRICE_TTL_MS) || 6 * 60 * 60 * 1000;
 
   /* One EVM account, eight networks. Every row carries the same address; the
    * balance is read from each network's public RPC, never assumed. Label,
