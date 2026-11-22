@@ -161,6 +161,7 @@
   var sendArmedCheckbox = byId('wallet-send-armed');
   var sendFromLine = byId('wallet-send-from');
   var sendToInput = byId('wallet-send-to');
+  var sendTokenInput = byId('wallet-send-token');
   var sendValueInput = byId('wallet-send-value');
   var sendDataInput = byId('wallet-send-data');
   var sendGasInput = byId('wallet-send-gas');
@@ -1462,11 +1463,22 @@
 
   var SEND_ERROR_IDS = {
     to: 'wallet-send-to-error',
+    token: 'wallet-send-token-error',
     value: 'wallet-send-value-error',
     data: 'wallet-send-data-error',
     gasLimit: 'wallet-send-gas-error',
     maxFee: 'wallet-send-max-fee-error',
     priorityFee: 'wallet-send-priority-error'
+  };
+
+  var SEND_INPUTS = {
+    to: sendToInput,
+    token: sendTokenInput,
+    value: sendValueInput,
+    data: sendDataInput,
+    gasLimit: sendGasInput,
+    maxFee: sendMaxFeeInput,
+    priorityFee: sendPriorityInput
   };
 
   function entryById(id) {
@@ -1491,6 +1503,8 @@
   function showSendFieldErrors(errors) {
     Object.keys(SEND_ERROR_IDS).forEach(function (key) {
       setError(SEND_ERROR_IDS[key], errors[key] || '');
+      var input = SEND_INPUTS[key];
+      if (input) input.setAttribute('aria-invalid', errors[key] ? 'true' : 'false');
     });
   }
 
@@ -1512,6 +1526,27 @@
     if (!sendArmedRow) return;
     var network = selectedNetwork();
     sendArmedRow.hidden = !network || network.testnet;
+  }
+
+  var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
+
+  /* A token send builds its own calldata, so the free-form data field is
+   * disabled while a token contract is set. The typed data is kept: entering
+   * a token does not destroy it, and the error says why it must be cleared
+   * before review. */
+  function updateSendTokenState() {
+    if (!sendTokenInput || !sendDataInput) return;
+    var hasToken = sendTokenInput.value.trim() !== '';
+    sendDataInput.disabled = hasToken;
+    var box = byId('wallet-send-data-error');
+    var showingTokenDataError = !!(box && !box.hidden && box.textContent === TOKEN_DATA_ERROR);
+    if (hasToken && sendDataInput.value.trim() && TOKEN_DATA_ERROR) {
+      setError('wallet-send-data-error', TOKEN_DATA_ERROR);
+      sendDataInput.setAttribute('aria-invalid', 'true');
+    } else if (!hasToken && showingTokenDataError) {
+      setError('wallet-send-data-error', '');
+      sendDataInput.setAttribute('aria-invalid', 'false');
+    }
   }
 
   function renderSendNetworks() {
@@ -1590,6 +1625,7 @@
       return;
     }
     sendCard.hidden = false;
+    updateSendTokenState();
     renderSendNetworks();
     var previous = sendEntrySelect.value;
     sendEntrySelect.textContent = '';
@@ -1624,6 +1660,7 @@
   function readSendForm() {
     return {
       to: sendToInput.value,
+      token: sendTokenInput.value,
       value: sendValueInput.value,
       data: sendDataInput.value,
       gasLimit: sendGasInput.value,
@@ -1650,7 +1687,9 @@
 
   function fillSendDefaults(review) {
     if (!sendValueInput.value.trim()) {
-      sendValueInput.value = AMOUNT.formatUnits(review.valueWei, 18);
+      sendValueInput.value = review.isToken
+        ? AMOUNT.formatUnits(review.tokenAmountWei, review.tokenDecimals)
+        : AMOUNT.formatUnits(review.valueWei, 18);
     }
     if (!sendGasInput.value.trim()) sendGasInput.value = review.gasLimit.toString();
     if (!sendPriorityInput.value.trim()) {
@@ -1684,10 +1723,23 @@
     addReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +
       (review.testnet ? ' · testnet' : ' · MAINNET'));
     addReviewRow('From', review.from, true);
-    addReviewRow('To', review.to, true);
-    addReviewRow('Amount', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol +
-      ' (' + review.valueWei + ' wei)');
-    addReviewRow('Data', review.dataHex, true);
+    if (review.isToken) {
+      addReviewRow('Token contract', review.tokenContract, true);
+      addReviewRow('Token symbol', review.tokenSymbol);
+      addReviewRow('Token decimals', String(review.tokenDecimals));
+      addReviewRow('Token balance', AMOUNT.formatUnits(review.tokenBalanceWei, review.tokenDecimals) +
+        ' ' + review.tokenSymbol);
+      addReviewRow('To (recipient)', review.to, true);
+      addReviewRow('Amount', AMOUNT.formatUnits(review.tokenAmountWei, review.tokenDecimals) + ' ' +
+        review.tokenSymbol + ' (' + review.tokenAmountWei + ' raw units)');
+      addReviewRow('Native value', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol);
+      addReviewRow('Data (built locally)', review.dataHex, true);
+    } else {
+      addReviewRow('To', review.to, true);
+      addReviewRow('Amount', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol +
+        ' (' + review.valueWei + ' wei)');
+      addReviewRow('Data', review.dataHex, true);
+    }
     addReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
       ? (review.gasEstimate === null || review.gasEstimate === undefined
         ? ' (manual; node estimate unavailable)'
@@ -1749,6 +1801,7 @@
     if (sendArmedCheckbox) sendArmedCheckbox.checked = false;
     if (sendArmedRow) sendArmedRow.hidden = true;
     if (sendForm) sendForm.reset();
+    updateSendTokenState();
     clearSendFieldErrors();
     setError('wallet-send-error', '');
     setError('wallet-send-confirm-error', '');
@@ -1818,7 +1871,9 @@
 
     state.preparing = true;
     var generation = state.generation;
-    setSendBusy(true, 'Reading the chain id, nonce, balance, fees and gas estimate…');
+    setSendBusy(true, sendTokenInput.value.trim()
+      ? 'Reading the chain id, token decimals, symbol and balance, nonce, fees and gas estimate…'
+      : 'Reading the chain id, nonce, balance, fees and gas estimate…');
     try {
       var from = await ensureDerivedAddress(entry);
       var review = await evmSend.prepareTransaction({
@@ -1853,6 +1908,12 @@
   });
 
   sendForm.addEventListener('input', invalidateSendReview);
+  if (sendTokenInput) {
+    sendTokenInput.addEventListener('input', updateSendTokenState);
+  }
+  if (sendDataInput) {
+    sendDataInput.addEventListener('input', updateSendTokenState);
+  }
   sendEntrySelect.addEventListener('change', function () {
     updateSendFrom();
     invalidateSendReview();
@@ -1907,6 +1968,7 @@
         review: review,
         fetchJson: rpcFetchJson,
         mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTx,
         sign: function (fields) { return signTxWithEntry(entry, fields); }
       });
       if (generation !== state.generation || !state.unlocked) return;

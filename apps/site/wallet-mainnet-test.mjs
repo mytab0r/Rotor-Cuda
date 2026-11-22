@@ -142,7 +142,10 @@ test("EIP-55 checksums the known key-1 address and rejects a wrong mixed case", 
   assert.equal(evm.checksumAddress(FROM), FROM_CHECKSUM);
   assert.equal(evm.normalizeAddress(FROM_CHECKSUM), FROM);
   assert.equal(evm.normalizeAddress(TO), TO);
-  assert.equal(evm.normalizeAddress("0x" + "35".repeat(20).toUpperCase().replace("0X", "0x")), TO);
+  assert.throws(
+    () => evm.normalizeAddress(FROM.toUpperCase().replace("0X", "0x")),
+    /EIP-55 checksum/
+  );
 
   const badChecksum = FROM_CHECKSUM.slice(0, -1) +
     (FROM_CHECKSUM.endsWith("f") ? "F" : "f");
@@ -233,6 +236,7 @@ test("confirm re-reads the chain id and refuses a switch after review", async ()
       review,
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: () => UNSIGNED,
       sign() {
         signCalls += 1;
         return VECTOR_RAW;
@@ -288,6 +292,7 @@ test("a prepared mainnet review cannot be confirmed after the arm is removed", a
       review,
       fetchJson: sendMock.fetchJson,
       mainnetArmed: false,
+      unsigned: () => UNSIGNED,
       sign() {
         signCalls += 1;
         return VECTOR_RAW;
@@ -315,6 +320,7 @@ test("a mutated mainnet review cannot sign calldata or a zero-value transfer", a
       review: { ...review, dataHex: "0xabcd" },
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: () => UNSIGNED,
       sign
     }),
     /the reviewed transaction has calldata/
@@ -324,6 +330,7 @@ test("a mutated mainnet review cannot sign calldata or a zero-value transfer", a
       review: { ...review, valueWei: 0n },
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: () => UNSIGNED,
       sign
     }),
     /the reviewed amount is not greater than zero/
@@ -444,6 +451,7 @@ test("a mainnet review and confirm stay local and broadcast exactly once", async
     review,
     fetchJson: sendMock.fetchJson,
     mainnetArmed: true,
+    unsigned: () => UNSIGNED,
     sign(value) {
       signCalls.push(value);
       return VECTOR_RAW;
@@ -480,6 +488,7 @@ test("a broadcast error is returned verbatim and not retried", async () => {
       review,
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: () => UNSIGNED,
       sign: () => VECTOR_RAW
     }),
     /Broadcasting to publicnode\.com failed: nonce too low/

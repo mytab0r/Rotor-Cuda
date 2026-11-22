@@ -2,19 +2,21 @@
 
 ## Summary
 
-Enable native-token EVM transfers on mainnets from the cabinet wallet vault.
-Sepolia stays the default. A mainnet network becomes signable only after the
-user arms mainnet for the session; the arm resets on lock, unlock and reload.
+Enable native-token and ERC-20 EVM transfers on mainnets from the cabinet
+wallet vault. Sepolia stays the default. A mainnet network becomes signable
+only after the user arms mainnet for the session; the arm resets on lock,
+unlock and reload.
 
-This is deliberately the smallest mainnet slice. ERC-20 transfers, approvals,
-Bitcoin mainnet and TRON mainnet are next slices and remain disabled here.
+ERC-20 support is limited to `transfer(address,uint256)` with a fixed,
+locally built ABI payload. Approvals, other token methods, Bitcoin mainnet and
+TRON mainnet are next slices and remain disabled here.
 
 ## Why
 
 The vault already holds mainnet EVM keys and shows their addresses, but could
-only sign on Sepolia. A user who wants to move native value still had to export
-the key to another site. This slice closes that gap without adding token
-approvals or non-EVM mainnet custody.
+only sign on Sepolia. A user who wants to move native value or an ERC-20 token
+still had to export the key to another site. This slice closes that gap
+without adding token approvals or non-EVM mainnet custody.
 
 ## Scope
 
@@ -23,14 +25,18 @@ In scope:
 - EVM native-token transfers on `ethereum` (1), `bnb` (56), `arbitrum` (42161),
   `optimism` (10), `base` (8453), `polygon` (137), `avalanche` (43114) and
   `zksync` (324), plus the existing Sepolia (11155111) testnet flow.
+- ERC-20 `transfer(address,uint256)` on the same chains. An optional token
+  contract field reads `decimals()`, `symbol()` and `balanceOf(owner)` through
+  `eth_call`, requires contract code at the address, and builds the calldata
+  locally; the reviewed native value stays 0.
 - Build from the form, fetch nonce/balance/gas/fees from the selected chain's
   RPC, review the decoded fields, sign locally in the WASM core, broadcast the
   signed raw transaction once.
 
 Out of scope (next slices):
 
-- ERC-20 transfers and token balances.
 - Allowance approvals: list, revoke, grant.
+- Other token methods (transferFrom, permit, arbitrary calldata).
 - Bitcoin mainnet.
 - TRON mainnet (needs a provider key; the public Nile host is testnet-only).
 - Sweeps, batched sends, scheduled sends, server-side signing.
@@ -40,10 +46,14 @@ Out of scope (next slices):
 1. **Chain id allowlist.** `eth_chainId` is read before review and again before
    signing. A mismatch, or an id absent from `NETWORKS` in
    `apps/site/wallet-evm.js`, refuses the send.
-2. **EIP-55 recipient.** Mixed-case addresses must match the EIP-55 checksum;
-   the zero address is always refused.
-3. **Balance.** On mainnet, `amount + gasLimit × maxFeePerGas` must not exceed
-   the on-chain balance read from the node.
+2. **EIP-55 recipient.** All-lowercase addresses are accepted without a
+   checksum; any uppercase letter makes the address checksummed, so mixed case
+   and all-uppercase must match the EIP-55 checksum exactly. The zero address
+   is always refused.
+3. **Balance.** On mainnet a native send's amount plus `gasLimit ×
+   maxFeePerGas` must not exceed the native balance. A token send's amount must
+   not exceed `balanceOf(owner)`, and its fee alone must fit the native
+   balance.
 4. **Nonce.** Read with `eth_getTransactionCount(..., "pending")`.
 5. **Fee cap.** One table (`NETWORKS[].feeCapWei`) caps the total network fee
    per transaction. A send above the cap is refused before signing with the
@@ -58,11 +68,18 @@ Out of scope (next slices):
 8. **Fees.** Base fee from `eth_feeHistory` with `eth_gasPrice` fallback;
    priority fee from `eth_maxPriorityFeePerGas` with `eth_gasPrice` fallback;
    `maxFee = 2 × base + priority` when not entered manually.
-9. **Native transfers only.** On mainnet the data field must stay empty and
-   the amount must be greater than zero, so this slice cannot be used to call a
-   token contract or create an approval.
+9. **Two transfer shapes, no arbitrary calls.** A native send must have empty
+   data and a non-zero amount. A token send must carry exactly the
+   `transfer(address,uint256)` calldata rebuilt at confirm time from the
+   reviewed recipient and raw amount, with native value 0; the token address
+   must return contract code and report 0–24 decimals and a printable symbol
+   of at most 32 characters. Any other calldata, including an approval, is
+   refused. Both shapes keep the arm, chain re-read, fee cap and balance gates.
 10. **One broadcast.** The signed raw transaction is sent exactly once; a
-    provider error is shown verbatim and not retried automatically. No key,
+    provider error is shown verbatim and not retried automatically. Before
+    signing, the unsigned transaction is rebuilt from the reviewed fields
+    (chain id, nonce, fees, gas limit, to, value, data) and compared
+    byte-for-byte with the reviewed unsigned hex; a mismatch refuses. No key,
     signature seed or signed transaction is logged or stored.
 
 ## Fee caps
