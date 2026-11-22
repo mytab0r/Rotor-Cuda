@@ -14,7 +14,7 @@
   "sizes": [
     {
       "id": "default",
-      "label": "Default (min-height 70)",
+      "label": "Default (min-height 60)",
       "classes": []
     }
   ],
@@ -27,8 +27,9 @@
   "requiredAttrs": [],
   "forbidden": [
     "A page-local nav pill or one-off icon wrapper.",
-    "More than three utility controls (search icon-button, theme icon-button, cabinet chip).",
+    "More than three persistent utility controls (search icon-button, theme icon-button, cabinet chip); the runtime More disclosure is allowed.",
     "A nav link below 44px with an icon other than 18px.",
+    "A second row of primary links: move the overflow into the More drawer.",
     "A second navigation toolbar for the same destinations."
   ],
   "slots": [],
@@ -54,6 +55,6 @@
     "--signal-soft",
     "--hover"
   ],
-  "detectors": ["nav-link-height", "nav-destination", "small-touch-target", "icon-button-scale"],
+  "detectors": ["nav-link-height", "nav-destination", "header-icon-unique", "header-row-parity", "mobile-header-budget", "small-touch-target", "icon-button-scale"],
   "docs": "docs/design-system/components/nav.md"
 }

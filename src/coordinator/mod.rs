@@ -2680,19 +2680,19 @@ fn site_header() -> String {
          </nav>\
          <div class=\"nav-tools\">\
          <a class=\"icon-button icon-button--quiet icon-button--lg\" href=\"/key\" data-nav=\"search\" aria-label=\"Search wallet\" data-tooltip=\"Search wallet\">{search}</a>\
-         <a class=\"chip chip--primary\" href=\"/cabinet\" data-nav=\"cabinet\" aria-label=\"Cabinet\">{wallet}<span>Cabinet</span></a>\
+         <a class=\"chip chip--primary\" href=\"/cabinet\" data-nav=\"cabinet\" aria-label=\"Cabinet\">{vault}<span>Cabinet</span></a>\
          </div></header>",
         key = ui_icon("ui-rotor", "icon"),
         grid = ui_icon("ui-grid", "icon"),
         key2 = ui_icon("ui-key", "icon"),
-        seed = ui_icon("ui-key", "icon"),
+        seed = ui_icon("ui-seed", "icon"),
         puzzle = ui_icon("ui-puzzle", "icon"),
-        vanity = ui_icon("ui-tools", "icon"),
+        vanity = ui_icon("ui-random", "icon"),
         shield = ui_icon("ui-shield", "icon"),
         tools = ui_icon("ui-tools", "icon"),
         book = ui_icon("ui-book", "icon"),
         search = ui_icon("ui-search", "icon"),
-        wallet = ui_icon("ui-wallet", "icon"),
+        vault = ui_icon("ui-vault", "icon"),
     )
 }
 

@@ -9,11 +9,14 @@
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
   var AMOUNT = SSOT_ROOT.RotorAmount;
 
-  /* Narrow-header split: four primary links stay inline and the rest move into
-   * a "More" disclosure. These helpers are pure and exported before the DOM
-   * guard so the node test can exercise them without a browser. */
+  /* Narrow-header split: at ≤1200px the tail links move into a "More"
+   * disclosure; at ≤860px every primary link moves there so the bar keeps one
+   * row with brand, search, theme, cabinet and More. These helpers are pure
+   * and exported before the DOM guard so the node test can exercise them
+   * without a browser. */
   var NAV_INLINE_COUNT = 4;
-  var NAV_BREAKPOINT = 860;
+  var NAV_DRAWER_BREAKPOINT = 860;
+  var NAV_SPLIT_BREAKPOINT = 1200;
 
   function splitLinks(links, keep) {
     var list = links || [];
@@ -47,7 +50,6 @@
     else if (path.indexOf('/tools') === 0 || path.indexOf('/brainwallet') === 0 || path.indexOf('/keystore-parser') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0 || path === '/seed' || path === '/mnemonic-converter') section = 'tools';
     else if (path.indexOf('/docs') === 0) section = 'docs';
     else if (path === '/key' || path.indexOf('/key/') === 0) section = 'search';
-    else if (path.indexOf('/cabinet/wallet') === 0) section = 'wallet';
     else if (path.indexOf('/cabinet') === 0 || path.indexOf('/monitor') === 0 || path.indexOf('/me') === 0) section = 'cabinet';
     return section;
   }
@@ -238,11 +240,11 @@
     });
   }
 
-  /* Below 860px keep the first four primary links inline and disclose the rest
-   * behind a More button. Rebuilds idempotently on `matchMedia` changes: every
-   * original link is put back in order before splitting again, so no link or
-   * panel is ever duplicated. Without JS nothing is split and every link stays
-   * visible. */
+  /* At ≤1200px disclose the tail links behind a More button; at ≤860px move
+   * every primary link there so the header stays one row. Rebuilds
+   * idempotently on `matchMedia` changes: every original link is put back in
+   * order before splitting again, so no link or panel is ever duplicated.
+   * Without JS nothing is split and every link stays visible. */
   function setupNav() {
     var header = document.querySelector('.site-nav');
     if (!header) return;
@@ -262,12 +264,17 @@
       if (!link.getAttribute('aria-label')) link.setAttribute('aria-label', label);
     });
 
-    var media = window.matchMedia ? window.matchMedia('(max-width: ' + NAV_BREAKPOINT + 'px)') : null;
+    var splitMedia = window.matchMedia ? window.matchMedia('(max-width: ' + NAV_SPLIT_BREAKPOINT + 'px)') : null;
+    var drawerMedia = window.matchMedia ? window.matchMedia('(max-width: ' + NAV_DRAWER_BREAKPOINT + 'px)') : null;
     var moreBtn = null;
     var drawer = null;
 
-    function narrow() {
-      return media ? media.matches : window.innerWidth <= NAV_BREAKPOINT;
+    function splitMode() {
+      return splitMedia ? splitMedia.matches : window.innerWidth <= NAV_SPLIT_BREAKPOINT;
+    }
+
+    function drawerOnly() {
+      return drawerMedia ? drawerMedia.matches : window.innerWidth <= NAV_DRAWER_BREAKPOINT;
     }
 
     function isActiveLink(link) {
@@ -294,9 +301,9 @@
     function rebuild() {
       teardown();
       for (var index = 0; index < links.length; index += 1) nav.appendChild(links[index]);
-      if (!narrow()) return;
+      if (!splitMode()) return;
 
-      var parts = splitLinks(links, NAV_INLINE_COUNT);
+      var parts = splitLinks(links, drawerOnly() ? 0 : NAV_INLINE_COUNT);
       if (!parts.tail.length) return;
 
       drawer = document.createElement('div');
@@ -322,8 +329,8 @@
         setOpen(drawer.hidden);
       });
 
-      nav.parentNode.insertBefore(moreBtn, nav.nextSibling);
-      header.insertBefore(drawer, moreBtn.nextSibling);
+      header.appendChild(moreBtn);
+      header.insertBefore(drawer, moreBtn);
       header.classList.add('nav-split');
     }
 
@@ -339,9 +346,13 @@
       moreBtn.focus();
     });
 
-    if (media) {
-      if (media.addEventListener) media.addEventListener('change', rebuild);
-      else if (media.addListener) media.addListener(rebuild);
+    if (splitMedia) {
+      if (splitMedia.addEventListener) splitMedia.addEventListener('change', rebuild);
+      else if (splitMedia.addListener) splitMedia.addListener(rebuild);
+    }
+    if (drawerMedia) {
+      if (drawerMedia.addEventListener) drawerMedia.addEventListener('change', rebuild);
+      else if (drawerMedia.addListener) drawerMedia.addListener(rebuild);
     }
 
     rebuild();

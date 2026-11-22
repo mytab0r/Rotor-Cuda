@@ -2131,7 +2131,7 @@ function auditPage(args) {
 
   // 7b. The Seeds nav item is a destination, not a label: it must resolve to
   //     the browsable directory, never the /seed converter studio.
-  const seedsNav = document.querySelector('.site-nav nav a[data-nav="seeds"]');
+  const seedsNav = document.querySelector('.site-nav [data-nav="seeds"]');
   if (seedsNav) {
     const rawHref = seedsNav.getAttribute("href") || "";
     let destination = rawHref;
@@ -2149,6 +2149,121 @@ function auditPage(args) {
       add("nav-destination", `Seeds nav is not marked active on ${location.pathname}`, {
         href: rawHref,
       });
+    }
+  }
+
+  // 7c. Header control identity: every destination gets its own sprite icon,
+  //     and no two header controls share an accessible name. Every static page
+  //     carries its own header copy, so a duplicate can land on one route and
+  //     stay invisible on the others; mobile shows the utility cluster at once,
+  //     which is where two identical-looking controls become ambiguous.
+  const destinationIcons = new Map();
+  for (const link of document.querySelectorAll(".site-nav a[data-nav]")) {
+    const destination = link.getAttribute("data-nav") || "";
+    if (!destination) continue;
+    const use = link.querySelector("use");
+    const ref = use ? use.getAttribute("href") || use.getAttribute("xlink:href") || "" : "";
+    const hash = ref.lastIndexOf("#");
+    const icon = hash >= 0 ? ref.slice(hash + 1) : "";
+    if (!icon) continue;
+    if (!destinationIcons.has(icon)) destinationIcons.set(icon, []);
+    destinationIcons.get(icon).push({ destination, selector: selectorOf(link) });
+  }
+  const iconCollisions = [];
+  for (const [icon, uses] of destinationIcons) {
+    const destinations = [...new Set(uses.map((use) => use.destination))];
+    if (destinations.length < 2) continue;
+    iconCollisions.push({ icon, destinations, selectors: uses.map((use) => use.selector).slice(0, 8) });
+  }
+  const namedControls = new Map();
+  for (const control of document.querySelectorAll(".site-nav a[data-nav], .site-nav button")) {
+    const name = (
+      control.getAttribute("aria-label") ||
+      textOf(control) ||
+      control.getAttribute("data-tooltip") ||
+      ""
+    ).trim();
+    if (!name) continue;
+    if (!namedControls.has(name)) namedControls.set(name, []);
+    namedControls.get(name).push(selectorOf(control));
+  }
+  const nameCollisions = [];
+  for (const [name, selectors] of namedControls) {
+    if (selectors.length < 2) continue;
+    nameCollisions.push({ name, selectors: selectors.slice(0, 8) });
+  }
+  metrics.navIdentity = {
+    destinations: [...new Set([...destinationIcons.values()].flat().map((use) => use.destination))].length,
+    icons: destinationIcons.size,
+    iconCollisions,
+    nameCollisions,
+  };
+  if (iconCollisions.length) {
+    add(
+      "header-icon-unique",
+      `${iconCollisions.length} header icon(s) shared by different destinations`,
+      iconCollisions.slice(0, 8),
+    );
+  }
+  if (nameCollisions.length) {
+    add(
+      "header-icon-unique",
+      `${nameCollisions.length} accessible name(s) used by more than one header control`,
+      nameCollisions.slice(0, 8),
+    );
+  }
+
+  // 7d. Header structure: one row and a 60px bar from 1024px up, and a single
+  //     56-60px bar with at most six controls at 375px. The narrow header used
+  //     to wrap the primary nav onto a second row (97px) and expose 9-10
+  //     controls on a phone.
+  const header = document.querySelector(".site-nav");
+  if (header) {
+    const headerControls = [
+      ...header.querySelectorAll(
+        ".brand, nav a[data-nav], .nav-tools a, .nav-tools button, .nav-more-btn",
+      ),
+    ].filter(visible);
+    const headerBox = boxOf(header);
+    const tops = headerControls.map((control) => boxOf(control).top);
+    const rowSpread = tops.length ? Math.max(...tops) - Math.min(...tops) : 0;
+    metrics.headerStructure = {
+      width: window.innerWidth,
+      height: Math.round(headerBox.height),
+      controls: headerControls.length,
+      rowSpread: Math.round(rowSpread),
+    };
+    if (window.innerWidth >= 1024) {
+      if (headerBox.height > 60.5) {
+        add(
+          "header-row-parity",
+          `header is ${Math.round(headerBox.height)}px high at ${window.innerWidth}px (expected <=60)`,
+          metrics.headerStructure,
+        );
+      }
+      if (rowSpread > 2) {
+        add(
+          "header-row-parity",
+          `header controls span ${Math.round(rowSpread)}px vertically at ${window.innerWidth}px (expected one row)`,
+          metrics.headerStructure,
+        );
+      }
+    }
+    if (window.innerWidth <= 520) {
+      if (headerBox.height > 96) {
+        add(
+          "mobile-header-budget",
+          `mobile header is ${Math.round(headerBox.height)}px high at ${window.innerWidth}px (expected <=96)`,
+          metrics.headerStructure,
+        );
+      }
+      if (headerControls.length > 6) {
+        add(
+          "mobile-header-budget",
+          `${headerControls.length} header controls visible at ${window.innerWidth}px (expected <=6)`,
+          metrics.headerStructure,
+        );
+      }
     }
   }
 
