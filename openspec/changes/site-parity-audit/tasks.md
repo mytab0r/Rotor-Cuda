@@ -178,6 +178,16 @@
   Discussion link (its target is not recorded) and the blocked Solution field;
   the wrong `parity` cells for the brainwallet generator and pubkey-add are
   fixed.
+- [x] Ledger honesty pass for ZEC (2026-11-22, docs-only): the seven secretscan
+  `/PrivateKey*`/`/Bech32` donor rows, the `/key` route entry and the three
+  `/key/<format>` aliases still said ZEC had no keyless provider and stayed
+  `partial`. PR #237 wired SoChain (`apps/site/key.js:2336`, dispatch `:2733`)
+  and the matrix row is already `parity`, so those rows are now `parity` with
+  the correct provider list; the `key-balances` note distinguishes the
+  single-key ZEC provider from the 60-row private-key directory (BCH has a
+  batched Haskoin provider used by the mnemonic directory but not wired here;
+  ZEC is per-address). Evidence: `docs/site-map/site-map-data.js`,
+  `node docs/site-map/site-map-test.mjs`.
 
 ## Live donor audit follow-ups (2026-11-21)
 
