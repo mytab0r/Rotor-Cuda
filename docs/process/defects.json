@@ -680,6 +680,13 @@
       "symptom": "The vault accepted a WIF and a 64-hex key but the only entry was a form inside the unlocked panel, so a user arriving with a single key had no first-class path next to the seed phrase. Nothing proved the WIF and hex submissions were reachable from the onboarding screen.",
       "detector": "wallet-onboarding-key-entry",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-signin-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "Linking the local vault to the monitor account could sign in silently, render or log the session token, keep a stale signed-in chip after the vault locked, or leave the token behind after Sign out. The account identity could also be read as proving ownership of Bitcoin, TRON or Solana addresses, which only the EVM signature does not do.",
+      "detector": "wallet-signin-surface",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

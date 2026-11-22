@@ -148,6 +148,7 @@ page-local override.
 | `detector-docs-fresh` | The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json. | 4a | implemented |
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 | `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
+| `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a

@@ -233,6 +233,24 @@
     </section>
   </section>
 
+  <section class="card" id="wallet-signin" hidden>
+    <h2>Sign in to the monitor account</h2>
+    <p class="muted" id="wallet-signin-help">Signing in proves that you control the EVM address derived from a key in this vault. The local WASM core signs the coordinator's one-time challenge in this tab and only the EVM address, the challenge and its signature leave it: the key never does. The account identity is that EVM address. Bitcoin, TRON and Solana addresses in this vault stay wallet-derived addresses; this sign-in does not prove control of them. Keys stored only on ed25519 (Solana, Sui, TON) have no EVM derivation and are not listed here.</p>
+    <label>Key to sign in with
+      <select id="wallet-signin-entry"></select>
+    </label>
+    <p class="muted wallet-signin-account" id="wallet-signin-account">No EVM-capable key in this vault yet.</p>
+    <label class="wallet-check"><input type="checkbox" id="wallet-signin-auto"> Sign me in after creating this wallet (applies when you add a key)</label>
+    <div class="wallet-row-actions">
+      <button type="button" class="primary" id="wallet-signin-start" disabled>Sign in with this wallet</button>
+      <button type="button" id="wallet-signin-out" hidden>Sign out</button>
+      <a href="/cabinet" id="wallet-signin-settings" hidden>Account settings</a>
+      <span class="status" id="wallet-signin-chip" hidden></span>
+    </div>
+    <p class="muted status-line" id="wallet-signin-status" role="status"></p>
+    <p id="wallet-signin-error" class="error" role="alert" hidden></p>
+  </section>
+
   <section class="card" id="wallet-send" hidden>
     <h2>Send an EVM transaction</h2>
     <p class="muted">The transaction is built from this form, reviewed field by field, signed in this tab by the local WASM core and then broadcast as a signed raw transaction. Public reads and the broadcast go directly from this browser to the chosen public RPC with the browser's real <code class="mono">Origin</code>; the server never sees a key and does not proxy these requests.</p>
@@ -484,6 +502,7 @@
 <script src="/wallet-summary.js"></script>
 <script src="/wallet-assets.js"></script>
 <script src="/wallet-vault.js"></script>
+<script src="/wallet-sign.js"></script>
 <script src="/wallet-evm.js"></script>
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-history.js"></script>

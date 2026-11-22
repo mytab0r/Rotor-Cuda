@@ -921,6 +921,14 @@
       "implemented_in": "src/coordinator/mod.rs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
       "status": "implemented"
+    },
+    {
+      "id": "wallet-signin-surface",
+      "rule": "The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out.",
+      "batch": "wallet-account-link",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
     }
   ]
 }
