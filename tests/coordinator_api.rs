@@ -2313,6 +2313,79 @@ fn tron_batch_validates_and_requires_a_provider_key() {
     handle.shutdown();
 }
 
+#[test]
+fn tron_transactions_validates_and_requires_a_provider_key() {
+    let coordinator_state = TempState::new("tron-tx");
+    let monitor_state = TempState::new("tron-tx-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            tronscan_api_key: None,
+            edge_proxy_url: None,
+            edge_proxy_secret: None,
+            ..ServerOptions::default()
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+    let address = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+
+    // A valid address without a provider answers 501 and never caches the
+    // address-specific body in a shared cache.
+    let (status, headers, body) = raw(
+        addr,
+        "GET",
+        &format!("/api/v1/chain/tron/transactions?address={address}"),
+        None,
+        None,
+    );
+    assert_eq!(status, 501, "{body}");
+    assert!(
+        headers.to_ascii_lowercase().contains("application/json"),
+        "{headers}"
+    );
+    assert_eq!(
+        response_header(&headers, "Cache-Control").as_deref(),
+        Some("no-store")
+    );
+    assert!(body.contains("no_provider"), "{body}");
+
+    // Malformed addresses and a missing query never reach the provider.
+    let (status, headers, body) = raw(
+        addr,
+        "GET",
+        "/api/v1/chain/tron/transactions?address=0R7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        None,
+        None,
+    );
+    assert_eq!(status, 400, "{body}");
+    assert_eq!(
+        response_header(&headers, "Cache-Control").as_deref(),
+        Some("no-store")
+    );
+    assert!(body.contains("invalid tron address"), "{body}");
+    let (status, _, body) = raw(addr, "GET", "/api/v1/chain/tron/transactions", None, None);
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("missing address"), "{body}");
+
+    // The route is GET-only and public.
+    let (status, _, _) = raw(
+        addr,
+        "POST",
+        "/api/v1/chain/tron/transactions",
+        None,
+        Some("{}"),
+    );
+    assert_eq!(status, 405);
+
+    handle.shutdown();
+}
+
 fn orders_config(active: bool) -> String {
     format!(
         r#"{{

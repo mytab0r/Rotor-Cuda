@@ -4042,6 +4042,11 @@ details > summary { min-height: 44px; }
 .wallet-balance { min-height: 18px; font-size: var(--text-xs); color: var(--ink-3); overflow-wrap: anywhere; }
 .wallet-balance.ok { color: var(--state-ok); }
 .wallet-balance.err { color: var(--state-err); }
+.wallet-history { margin-top: var(--space-4); }
+.wallet-history-head { justify-content: space-between; margin-top: 0; }
+.wallet-history-head h3 { margin: 0; }
+.wallet-history code { overflow-wrap: anywhere; }
+.wallet-history-fee { display: block; font-size: var(--text-xs); }
 .wallet-status { margin: var(--space-2) 0 0; }
 .wallet-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 @media (max-width: 760px) { .wallet-split { grid-template-columns: minmax(0, 1fr); } }
