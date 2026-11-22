@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 require("./balance-cache.js");
 require("./balance-providers.js");
 const providers = globalThis.RotorBalanceProviders;

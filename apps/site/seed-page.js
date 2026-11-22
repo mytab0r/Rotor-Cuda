@@ -11,6 +11,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   function explorerPrefix(slug) {
     return SSOT_CHAINS.bySlug[slug].explorerPrefix;
@@ -914,14 +915,6 @@
 
   /* ------------------------------------------------------------- balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   function iconUse(name) {
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'icon');
@@ -1018,7 +1011,7 @@
         }
         entry.balanceValue = BigInt(info.final_balance || 0);
         entry.balanceUnit = 'BTC';
-        setBalance(entry, coin(info.final_balance, 8) + ' BTC · ' + Number(info.n_tx || 0) + ' tx');
+        setBalance(entry, AMOUNT.coin(info.final_balance, 8) + ' BTC · ' + Number(info.n_tx || 0) + ' tx');
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
@@ -1059,7 +1052,7 @@
         }
         entry.balanceValue = value;
         entry.balanceUnit = 'ETH';
-        setBalance(entry, coin(value, 18) + ' ETH');
+        setBalance(entry, AMOUNT.coin(value, 18) + ' ETH');
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
@@ -1101,7 +1094,7 @@
       state.results.every(function (entry) { return entry.balanceUnit === unit; });
     if (sameAsset) {
       var sum = known.reduce(function (acc, entry) { return acc + entry.balanceValue; }, 0n);
-      text += ' · Sum: ' + coin(sum, unit === 'BTC' ? 8 : 18) + ' ' + unit;
+      text += ' · Sum: ' + AMOUNT.coin(sum, unit === 'BTC' ? 8 : 18) + ' ' + unit;
     }
     aggregateEl.textContent = text;
     aggregateEl.hidden = false;

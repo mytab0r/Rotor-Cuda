@@ -435,6 +435,13 @@
       "symptom": "the TRON, XRP and SUI mnemonic directories rendered — for every row although the pages already fetched those chains in the private-key directory",
       "detector": "mnemonic-tron-xrp-sui-balances",
       "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "lossy-amount-formatter",
+      "reported": "2026-11-22",
+      "symptom": "Eleven amount formatters and three parsers in ten files reimplemented decimal conversion; five coin() copies converted 18-decimal wei through Number and lost precision above 2^53 (e.g. 2^256-1 wei displayed as a rounded ~1e59).",
+      "detector": "lossy-amount-formatter",
+      "where": "scripts/check-ssot.mjs"
     }
   ]
 }

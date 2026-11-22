@@ -26,6 +26,7 @@
    * generated globals in chains.generated.js (loaded before this script). */
   var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var NILE_BASE = SSOT_PROVIDERS.find('tron-nile', 'nileex').url;
   var NILE_HOST = NILE_BASE.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -250,23 +251,18 @@
   function sunToTron(sun) {
     var value = toBigInt(sun, 'sun amount');
     if (value < 0n) throw new Error('sun amount must not be negative.');
-    var whole = value / SUN_PER_TRX;
-    var fraction = (value % SUN_PER_TRX).toString().padStart(SUNDECIMALS, '0');
-    fraction = fraction.replace(/0+$/, '');
-    return fraction ? whole.toString() + '.' + fraction : whole.toString();
+    return AMOUNT.formatUnits(value, SUNDECIMALS);
   }
 
   function tronToSun(text) {
     if (typeof text !== 'string') {
       throw new Error('TRX amount must be a decimal string.');
     }
-    var value = text.trim();
-    var match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value);
-    if (!match) {
+    try {
+      return AMOUNT.parseUnits(text, SUNDECIMALS);
+    } catch (err) {
       throw new Error('TRX amount must be a plain positive decimal with at most 6 decimals.');
     }
-    var fraction = (match[2] || '').padEnd(SUNDECIMALS, '0');
-    return BigInt(match[1]) * SUN_PER_TRX + BigInt(fraction || '0');
   }
 
   function amountSun(value) {
