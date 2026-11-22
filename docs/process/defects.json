@@ -570,6 +570,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "tx-decoder-table-grammar",
+      "reported": "2026-11-22",
+      "symptom": "The /tx/bitcoin and /tx/ethereum decoded-result tables render only after a form submit, so the audit never exercised them; they shipped without .data-table and therefore without the shared cell padding, 12px/600 header style and row height.",
+      "detector": "table-grammar",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "wallet-history-unchecked",
       "reported": "2026-11-22",
       "symptom": "The wallet had no transaction history. An EVM address without an indexer would have shown an empty list pretending there was no history, and a new table could have shipped without a detector for its shared shell, 44px action, truncated counterparty title, status pills, loading/empty/error states or the honest EVM-unavailable message.",

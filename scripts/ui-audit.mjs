@@ -1151,7 +1151,7 @@ function auditPage(args) {
   //     no tracking, and every cell has 8/12 padding.
   const tableGrammarIssues = [];
   const tableHeaderIssues = [];
-  const tableSummary = { tables: 0, cells: 0, headerHeights: [], paddings: [] };
+  const tableSummary = { tables: 0, cells: 0, headerHeights: [], paddings: [], headerFontSizes: [], headerFontWeights: [] };
   for (const table of document.querySelectorAll("table")) {
     if (!visible(table)) continue;
     tableSummary.tables += 1;
@@ -1188,6 +1188,8 @@ function auditPage(args) {
       const issues = [];
       const size = Number.parseFloat(style.fontSize);
       const weight = Number.parseInt(style.fontWeight, 10);
+      tableSummary.headerFontSizes.push(size);
+      tableSummary.headerFontWeights.push(weight);
       if (!(Math.abs(size - 12) <= 0.5)) issues.push(`font ${size}px`);
       if (Number.isFinite(weight) && weight > 600) issues.push(`weight ${weight}`);
       if (style.textTransform !== "none") issues.push(`transform ${style.textTransform}`);
@@ -1241,6 +1243,8 @@ function auditPage(args) {
     cells: tableSummary.cells,
     headerHeights: [...new Set(tableSummary.headerHeights)].sort((a, b) => a - b),
     paddings: [...new Set(tableSummary.paddings)],
+    headerFontSizes: [...new Set(tableSummary.headerFontSizes)].sort((a, b) => a - b),
+    headerFontWeights: [...new Set(tableSummary.headerFontWeights)].sort((a, b) => a - b),
     rowHeightMin: rowHeights.length ? Math.min(...rowHeights) : null,
     rowHeightMax: rowHeights.length ? Math.max(...rowHeights) : null,
   };
@@ -3363,6 +3367,74 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
   return { ok: problems.length === 0, evidence, problems };
 }
 
+// /tx/bitcoin and /tx/ethereum build their decoded-result tables only after a
+// form submit, so a page-load audit never measured their table grammar. Fill
+// the vectors from apps/site/tx-test.mjs, submit the form and wait until the
+// result tables are visible; otherwise the caller throws and the run records
+// navigation-or-evaluation-failed instead of silently measuring nothing.
+async function auditTxDecode(cdp) {
+  return evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const btc = document.getElementById('btc-form');
+      const evm = document.getElementById('evm-form');
+      const form = btc || evm;
+      if (!form) return { ok: false, reason: 'no decode form on the page' };
+      const input = document.getElementById(btc ? 'btc-hex' : 'evm-hex');
+      if (!input) return { ok: false, reason: 'missing hex input' };
+      // tx-test.mjs vectors: BTC_LEGACY (block 170) and the canonical EIP-2930
+      // type-1 fixture. The legacy and type-2 vectors carry an empty access
+      // list, which renders no table at all.
+      const fixture = btc
+        ? '0100000001c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd3704' +
+          '000000004847304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41' +
+          '0220181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d0901ffffffff' +
+          '0200ca9a3b00000000434104ae1a62fe09c5f51b13905f07f06b99a2f7159b2225f374cd378d71302fa28414e7aab37397f554a7df5f142c21c1b7303b8a0626f1baded5c72a704f7e6cd84cac' +
+          '00286bee0000000043410411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3ac' +
+          '00000000'
+        : '01f85e0102038252089435353535353535353535353535353535353535350784deadbeef' +
+          'f838f7943535353535353535353535353535353535353535e1a0' +
+          '0000000000000000000000000000000000000000000000000000000000000001' +
+          '010102';
+      const expected = btc
+        ? ['#btc-inputs table', '#btc-outputs table']
+        : ['#evm-access table'];
+      const visible = (selector) => {
+        const el = document.querySelector(selector);
+        if (!el || !el.getClientRects().length) return false;
+        const style = getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const prevouts = document.getElementById('btc-prevouts');
+      if (prevouts) prevouts.value = '';
+      input.value = fixture;
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      const started = Date.now();
+      while (Date.now() - started < 6000) {
+        if (expected.every(visible)) {
+          const error = document.getElementById(btc ? 'btc-error' : 'evm-error');
+          return {
+            ok: true,
+            tables: expected.map((selector) => document.querySelectorAll(selector).length),
+            error: error ? error.textContent : '',
+          };
+        }
+        await sleep(100);
+      }
+      const error = document.getElementById(btc ? 'btc-error' : 'evm-error');
+      return {
+        ok: false,
+        reason: 'no visible result tables within 6s',
+        expected,
+        rendered: document.querySelectorAll('table').length,
+        error: error ? error.textContent : '',
+      };
+    })()`,
+    10000,
+  );
+}
+
 async function auditKeyAutoDerive(cdp) {
   return evaluate(
     cdp,
@@ -4099,6 +4171,21 @@ async function main() {
               // rows (balances settle later and are not needed for layout).
               if (route !== "/key") {
                 await waitForSelector(cdp, "#addr-rows .key-row", SELECTOR_TIMEOUT_MS);
+              }
+            } else if (route === "/tx/bitcoin") {
+              // The decoded-result tables only exist after a form submit, so
+              // without this interaction the shared table grammar was never
+              // measured on this route (issue #261 class).
+              const decode = await auditTxDecode(cdp);
+              run.metrics.txDecode = decode;
+              if (!decode.ok) {
+                throw new Error(`/tx/bitcoin rendered no decoded tables: ${decode.reason}`);
+              }
+            } else if (route === "/tx/ethereum") {
+              const decode = await auditTxDecode(cdp);
+              run.metrics.txDecode = decode;
+              if (!decode.ok) {
+                throw new Error(`/tx/ethereum rendered no decoded table: ${decode.reason}`);
               }
             }
 
