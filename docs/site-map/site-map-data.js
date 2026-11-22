@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Rows, pager, word counts, phrase/key copy, path and address types are present for every chain; TON derives v4R2/W5 at the donor path m/44\'/607\'/0\'. Balance checks run for BTC, the eight EVM chains, Solana (one batched getMultipleAccounts POST per page), BCH, SUI, TRON, XRP, TON (one batched TonAPI /accounts/_bulk POST per page, 60/60 rows) and LTC/DOGE/ZEC (shared per-address SoChain provider, 2.4% of the hourly budget per page). The audit route set covers bitcoin, solana, bitcoin-cash and ton; the other chain pages stay out because their providers fan out one request per address.'
+    note: 'Rows, pager, word counts, phrase/key copy, path and address types are present for every chain; TON derives v4R2/W5 at the donor path m/44\'/607\'/0\'. Balance checks run for BTC, the eight EVM chains, Solana (one batched getMultipleAccounts POST per page), BCH, SUI, TRON, XRP, TON (one batched TonAPI /accounts/_bulk POST per page, 60/60 rows) and LTC/DOGE/ZEC (shared per-address SoChain provider, 2.4% of the daily budget per page). The audit route set covers bitcoin, solana, bitcoin-cash and ton; the other chain pages stay out because their providers fan out one request per address.'
   });
 
   feature({
