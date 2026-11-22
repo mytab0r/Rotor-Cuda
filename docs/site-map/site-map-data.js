@@ -1363,6 +1363,8 @@
     chains: CHAINS,
     ours: ours,
     donors: donors,
-    features: features
+    features: features,
+    routesSource: '../../data/routes.json',
+    routesPage: 'https://rotor.pxbt.app/cabinet/admin/site-map'
   };
 })();

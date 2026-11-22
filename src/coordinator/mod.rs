@@ -49,6 +49,11 @@ const DESIGN_PAGE: &str = include_str!("../../apps/site/design.html");
 const ADMIN_PAGE: &str = include_str!("../../apps/site/admin.html");
 const ADMIN_JS: &str = include_str!("../../apps/site/admin.js");
 const ADMIN_CSS: &str = include_str!("../../apps/site/admin.css");
+const SITE_MAP_PAGE: &str = include_str!("../../apps/site/site-map-admin.html");
+const SITE_MAP_JS: &str = include_str!("../../apps/site/site-map-admin.js");
+/// The routing map is data, not markup: `scripts/check-ssot.mjs` keeps it in
+/// sync with this file's route table and the admin page renders it as-is.
+const ROUTES_JSON: &str = include_str!("../../data/routes.json");
 const SITE_CSS: &str = include_str!("../../apps/site/site.css");
 const SITE_JS: &str = include_str!("../../apps/site/site.js");
 const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
@@ -1021,6 +1026,10 @@ fn admin_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
     match path {
         "/admin.js" => Some((ADMIN_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/admin.css" => Some((ADMIN_CSS.as_bytes(), "text/css; charset=utf-8")),
+        "/site-map-admin.js" => Some((
+            SITE_MAP_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         _ => None,
     }
 }
@@ -1165,6 +1174,11 @@ fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str, q
                 admin_integrations(app, request)
             }
             (Method::Get | Method::Head, "/cabinet/admin/api/audit") => admin_audit(request, query),
+            (Method::Get | Method::Head, "/cabinet/admin/api/site-map") => respond_admin_asset(
+                request,
+                ROUTES_JSON.as_bytes(),
+                "application/json; charset=utf-8",
+            ),
             (Method::Get | Method::Head, _)
                 if path.starts_with("/cabinet/admin/api/monitor/users/") =>
             {
@@ -1191,6 +1205,9 @@ fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str, q
         }
         (Method::Get | Method::Head, "/cabinet/admin/design") => {
             respond_admin_page(request, "/cabinet/admin/design", DESIGN_PAGE);
+        }
+        (Method::Get | Method::Head, "/cabinet/admin/site-map") => {
+            respond_admin_page(request, "/cabinet/admin/site-map", SITE_MAP_PAGE);
         }
         (Method::Get | Method::Head, panel) if ADMIN_PANEL_ROUTES.contains(&panel) => {
             respond_admin_page(request, panel, ADMIN_PAGE);
@@ -2771,6 +2788,7 @@ fn is_app_shell(path: &str) -> bool {
             | "/cabinet/admin"
             | "/cabinet/admin/"
             | "/cabinet/admin/login"
+            | "/cabinet/admin/site-map"
     ) || ADMIN_PANEL_ROUTES.contains(&path)
 }
 

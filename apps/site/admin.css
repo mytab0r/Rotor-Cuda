@@ -65,3 +65,31 @@
 .design-gallery__stage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .design-gallery__stage--block { display: block; }
 .design-gallery__note { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+
+/* Route map: auto-fit filter columns and wrapped technical cells. 375 keeps
+   one column, wider viewports spread the controls without clipping. */
+.admin-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.admin-filters .field {
+  min-width: 0;
+}
+
+.admin-map-table td {
+  vertical-align: top;
+}
+
+.admin-map-table td.mono {
+  overflow-wrap: anywhere;
+}
+
+.admin-map-table td .muted {
+  display: block;
+  margin-top: var(--space-1);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

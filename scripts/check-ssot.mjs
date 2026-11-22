@@ -46,6 +46,7 @@ import { REPO_ROOT, run, sha256Vendored } from "./gen-ssot.mjs";
 import { validateAuditCoverage, validateDefectCoverage, validateRegistry } from "./lib/detectors.mjs";
 import { checkDetectorDocs } from "./gen-detector-docs.mjs";
 import { findGeneratedRegions } from "./generated-regions.mjs";
+import { validateSiteRoutes } from "./lib/site-routes.mjs";
 
 const SITE_DIR = "apps/site";
 const GENERATED_JS = "chains.generated.js";
@@ -565,6 +566,11 @@ export function check(root = REPO_ROOT) {
   errors.push(...vendor.errors);
   const detectors = validateDetectors(root);
   errors.push(...detectors.errors);
+  // The coordinator route table and data/routes.json must agree. This is the
+  // site-route-map detector: a served route missing from the map, a missing
+  // template file or a live row the coordinator does not dispatch fails.
+  const siteRoutes = validateSiteRoutes(root);
+  errors.push(...siteRoutes.errors);
 
   let checked = 0;
   let allowlisted = 0;
@@ -656,6 +662,8 @@ export function check(root = REPO_ROOT) {
     vendorEntries: vendor.entries,
     vendorNonCopies: vendor.nonCopies,
     detectors: detectors.entries,
+    routeFamilies: siteRoutes.routeCount,
+    coordinatorRoutes: siteRoutes.coordinatorCount,
   };
 }
 
@@ -673,7 +681,8 @@ export function main() {
         `${result.amountFormatters} amount-checked script(s), ${result.vendorEntries} vendor lock entries ` +
         `(${result.vendorNonCopies} intentional non-copies), ${result.detectors} detectors, ` +
         `${result.colorOccurrences} chain color literal(s) outside the generated output, ` +
-        `${result.orderArrays} local order array(s))`,
+        `${result.orderArrays} local order array(s), ${result.routeFamilies} route families ` +
+        `covering ${result.coordinatorRoutes} coordinator route literals)`,
     );
     return 0;
   } catch (error) {

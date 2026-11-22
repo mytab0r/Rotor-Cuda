@@ -14,6 +14,7 @@
   <a class="brand" href="https://rotor.pxbt.app/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
   <span class="docs-tag">Internal docs · parity audit</span>
   <nav aria-label="Main">
+    <a href="https://rotor.pxbt.app/cabinet/admin/site-map">Route map</a>
     <a href="https://rotor.pxbt.app/">Live site</a>
     <button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch theme"><svg class="icon" aria-hidden="true"><use href="icons.svg#ui-moon"></use></svg></button>
   </nav>
@@ -29,6 +30,11 @@
         <div class="key-badges"><span>Internal docs</span><span>2 donor sites</span><span>Updated 2026-11-19</span></div>
       </div>
     </div>
+  </section>
+
+  <section class="sitemap-callout" aria-labelledby="route-facts-heading">
+    <h2 id="route-facts-heading">Route facts live in the routing map</h2>
+    <p>Patterns, templates, renderers, data sources, auth and status have one source: <a href="../../data/routes.json"><code>data/routes.json</code></a>. The interactive view is the <a href="https://rotor.pxbt.app/cabinet/admin/site-map">route map in the operator cabinet</a> (operator sign-in required). This page defers to that map for route facts and only compares donor coverage; the route list below is checked against <code>data/routes.json</code> by <code>site-map-test.mjs</code>.</p>
   </section>
 
   <section class="sitemap-summary" id="sitemap-summary" aria-label="Coverage summary"></section>
@@ -65,7 +71,7 @@
 
   <section class="sitemap-view" id="view-ours" aria-labelledby="heading-ours">
     <h2 id="heading-ours">Our routes</h2>
-    <p class="muted sitemap-help">Crypto pages and route patterns. A status compares the route with the closest donor equivalent, not with the whole donor site.</p>
+    <p class="muted sitemap-help">Crypto pages and route patterns. A status compares the route with the closest donor equivalent, not with the whole donor site. Templates, renderers and data sources are not repeated here: see <code>data/routes.json</code> and the cabinet route map.</p>
     <div class="sitemap-list" id="ours-grid" role="list" aria-label="Crypto routes"></div>
     <p class="sitemap-empty" id="ours-empty" hidden>No Crypto route matches these filters.</p>
   </section>
@@ -97,7 +103,7 @@
     <p class="sitemap-empty" id="features-empty" hidden>No capability matches these filters.</p>
   </section>
 
-  <p class="muted key-help">This docs page renders one data file, <span class="mono">docs/site-map/site-map-data.js</span>. Update it when a route or capability lands; no donor page copy is copied verbatim.</p>
+  <p class="muted key-help">This docs page renders one data file, <span class="mono">docs/site-map/site-map-data.js</span>, for donor parity only. Route facts (pattern, template, renderer, data sources, auth, status) defer to <span class="mono">data/routes.json</span> and the cabinet route map; the test cross-checks the route list against that file, so drift fails. Update the parity data when a capability lands; no donor page copy is copied verbatim.</p>
   <noscript><p class="sitemap-empty">This page needs JavaScript to build the map from site-map-data.js.</p></noscript>
 </main>
 

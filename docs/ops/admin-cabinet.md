@@ -117,6 +117,11 @@ chooser and deep-link navigation, the expired state, and the abort path.
 
 ## Routes and the site map
 
-The admin API endpoints are not content routes and are intentionally absent
-from `docs/site-map`; that ledger covers the public site. The only admin route
-in it is `/cabinet/admin/design`, the design-system gallery.
+Every route family, admin included, lives in `data/routes.json`. The operator
+view is `/cabinet/admin/site-map`: it renders that file with family, renderer,
+auth and status filters plus a search box, and is served behind the same signed
+cookie and CSP as the design gallery. `node scripts/check-ssot.mjs` fails when
+the coordinator serves a route missing from the map or names a template file
+that does not exist. The donor-parity ledger in `docs/site-map` covers the
+public site only and defers route facts to the map; `/cabinet/admin/design` and
+`/cabinet/admin/site-map` are admin surfaces in `data/routes.json`.

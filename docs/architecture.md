@@ -77,10 +77,17 @@ server with a reverse proxy.
 
 ## Internal documentation artifacts
 
-The site parity audit (every Crypto route and feature compared with
+The routing map is `data/routes.json`: one entry per route family with its
+template, renderer, data sources, auth and status. `scripts/check-ssot.mjs`
+fails when the coordinator serves a route missing from it or names a missing
+template. The operator view is `/cabinet/admin/site-map` behind the admin
+session; the coordinator embeds the JSON and serves the page, not the docs copy.
+
+The donor-parity audit (every Crypto route and feature compared with
 ref-site-a and ref-site-b) is internal documentation, not a public
 route. It lives at `docs/site-map/index.html` and is opened directly or through
-a local static server; the coordinator does not embed or serve it.
+a local static server; it covers donor parity only and defers route facts to
+`data/routes.json`. The coordinator does not embed or serve the docs page.
 
 ## Current coupling and target boundary
 
