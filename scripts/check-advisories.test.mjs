@@ -15,6 +15,7 @@ import {
   coordinatorRoutes,
   loadChains,
   readJson,
+  renderSecurityPage,
   validateSecurityAdvisories,
 } from "./lib/security-advisories.mjs";
 
@@ -104,6 +105,17 @@ test("protection claims are rejected", () => {
   const result = validate((data) => { data.advisories[0].summary += " We protect you."; });
   assert.equal(result.ok, false);
   assert.match(result.errors.join("\n"), /banned protection claim/);
+});
+
+test("the renderer escapes every data string", () => {
+  const copy = JSON.parse(JSON.stringify(real));
+  copy.advisories[0].summary = "<script>alert(1)</script>";
+  copy.advisories[0].actions = ["<img src=x onerror=alert(2)>"];
+  const page = renderSecurityPage(copy);
+  assert.equal(page.includes("<script>alert(1)</script>"), false);
+  assert.equal(page.includes("<img src=x onerror=alert(2)>"), false);
+  assert.match(page, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(page, /&lt;img src=x onerror=alert\(2\)&gt;/);
 });
 
 test("the route is served, the generated page is fresh and carries the SEO shape", () => {
