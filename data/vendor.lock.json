@@ -10,7 +10,7 @@
     {
       "source": "apps/site/chains.generated.js",
       "target": "web/public/chains.generated.js",
-      "sha256": "31915c65593efe36877862236ff9f397c88eea3f55c9d2133e214a7d51d1d913"
+      "sha256": "85f0b81a584f8694af424ddebb57d9b3a25bc19b91f2539a5651e1217343f0a7"
     },
     {
       "source": "apps/site/favicon.ico",

@@ -214,6 +214,27 @@
   `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
   matrix row is now `parity` after the independent browser review and the PR #237
   merge.
+- [x] `/key` LTC/DOGE/ZEC through SoChain; directory providers (2026-11-22,
+  code-only): BlockCypher answered HTTP 429 `{"error":"Limits reached."}` for
+  LTC and DOGE, so those `/key` rows could not render a balance. Live probes
+  that day: `GET https://sochain.com/api/v3/balance/{LTC,DOGE,ZEC}/<addr>`
+  returned 200 with `access-control-allow-origin: *` and decimal coin strings
+  (`{"data":{"confirmed":"0.14201511","unconfirmed":"0.00000000"}}`), and
+  `GET https://litecoinspace.org/api/address/<ltc>` returned 200 with CORS `*`.
+  SoChain allows ~2500 requests/hour, so a 60-row page is 2.4% of budget (the
+  old "per-address provider budget" premise was false). `sochain` is now the
+  first provider for litecoin/dogecoin/zcash in `data/providers.json`;
+  `fetchSochain` (`apps/site/key.js:2345`) builds the URL from the SSOT entry,
+  LTC/DOGE fall back to `fetchBlockcypher` (`:2372`) and ZEC is SoChain-only;
+  the render-time `data-balance-provider` carries the provider id (`:1257`), and
+  `key-utxo-provider` (`scripts/ui-audit.mjs:1414`) fails if an LTC/DOGE/ZEC
+  row names anything but `sochain`. The one decimal-string parser lives in
+  `apps/site/balance-cache.js:158` (`key-tools.js` delegates);
+  `providerMetaFor` (`apps/site/mnemonic-seeds.js:835`) and `providerMeta`
+  (`apps/site/browse.js:391`) map all three chains to the shared
+  `sochain` fetcher (`apps/site/balance-providers.js:458`). Evidence:
+  `apps/site/balance-cache-test.mjs`, `apps/site/mnemonic-seeds-test.mjs`,
+  `apps/site/key-tools-test.mjs`, defect `key-utxo-blockcypher-429`.
 - [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
   60-row directory returned no provider meta for BCH and rendered `—` for every
   row, although the shared batched Haskoin provider already existed and the
@@ -226,8 +247,9 @@
   in `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (one batched request per run like
   the BCH seed page). Evidence:
   `apps/site/browse.js` (`providerMeta`), `apps/site/mnemonic-seeds-test.mjs`
-  (the source lock), defect `bch-directory-balances`. ZEC stays `—` here
-  (per-address SoChain), as does LTC/DOGE (BlockCypher rate limit).
+  (the source lock), defect `bch-directory-balances`. ZEC/LTC/DOGE were still
+  unwired on that page at that point; the SoChain P0 bullet above wires all
+  three.
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:

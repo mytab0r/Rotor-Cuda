@@ -452,6 +452,48 @@
     return { values: values, errors: errors };
   }
 
+  /* SoChain v3 `GET /balance/<ticker>/<address>`: one request per address,
+   * decimal coin strings converted by the shared `parseSochainBalance`. The
+   * endpoint comes from the chain's provider list, never from this file. */
+  function sochainProvider(meta, addresses) {
+    var list = (providers().byChain[meta.chain] || []).filter(function (provider) {
+      return provider.id === 'sochain';
+    });
+    if (!list.length) {
+      return Promise.resolve({
+        values: {},
+        errors: uniqueAddresses(addresses).reduce(function (errors, address) {
+          errors[address] = 'No SoChain provider for this chain.';
+          return errors;
+        }, {})
+      });
+    }
+    var base = list[0].url;
+    var ticker = meta.symbol;
+    if (!ticker) {
+      return Promise.resolve({
+        values: {},
+        errors: uniqueAddresses(addresses).reduce(function (errors, address) {
+          errors[address] = 'No SoChain ticker for this chain.';
+          return errors;
+        }, {})
+      });
+    }
+    return perAddressProvider(addresses, function (address) {
+      return requestJson(base + '/balance/' + encodeURIComponent(ticker) + '/' + encodeURIComponent(address))
+        .then(function (data) {
+          var api = cacheApi();
+          var parsed = api && typeof api.parseSochainBalance === 'function'
+            ? api.parseSochainBalance(data)
+            : null;
+          if (!parsed) throw new Error('unexpected response');
+          var amount = BigInt(parsed.confirmed) + BigInt(parsed.unconfirmed);
+          if (amount < 0n) amount = 0n;
+          return { balance: amount.toString() };
+        });
+    });
+  }
+
   var FETCHERS = {
     'blockchain.info': function (meta, addresses) { return btcProvider(addresses); },
     'evm': evmProvider,
@@ -468,7 +510,8 @@
     'xrpscan': function (meta, addresses) { return perAddressProvider(addresses, xrpBalance); },
     'toncenter': function (meta, addresses) { return perAddressProvider(addresses, tonCenterBalance); },
     'tonapi': function (meta, addresses) { return tonApiProvider(addresses); },
-    'haskoin-bch': function (meta, addresses) { return haskoinBchProvider(addresses); }
+    'haskoin-bch': function (meta, addresses) { return haskoinBchProvider(addresses); },
+    'sochain': function (meta, addresses) { return sochainProvider(meta, addresses); }
   };
 
   function supportsProvider(name) {
