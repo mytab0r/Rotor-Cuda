@@ -1,6 +1,7 @@
 // Task-tracking conventions: key parsing, blocked-by extraction (including
 // multi-blocker and range lines), and idempotent sub-issue creation through a
-// fake `gh`. No network, no repository state.
+// fake `gh`. No network; the archive-container case reads the local
+// `openspec/changes` tree.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -28,6 +29,7 @@ import {
   syncChangeTasks,
   taskKey,
 } from "./lib/task-tracking.mjs";
+import { readChanges } from "./sync-board.mjs";
 
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rotor-task-tracking-"));
@@ -785,4 +787,14 @@ test("archiveStalePullRequestItems --dry-run prints the plan without a mutation"
   });
   assert.equal(result.archived, 1);
   assert.match(lines[0], /\[dry-run\] archive project item for PR #1 \(MERGED\)/);
+});
+
+test("readChanges never reports the archive container as a change", () => {
+  const { allIds, skipped } = readChanges();
+  assert.equal(
+    allIds.includes("archive"),
+    false,
+    "openspec/changes/archive is a container, not a change",
+  );
+  assert.equal(skipped.includes("archive"), false);
 });
