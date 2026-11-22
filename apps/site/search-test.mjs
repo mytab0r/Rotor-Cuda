@@ -131,6 +131,28 @@ assert.equal(
 assert.equal(await search.keyHref(twelveWords), "/mnemonic-converter", "a mnemonic opens the converter");
 await assert.rejects(search.keyHref("", "auto"), /Paste a key/);
 
+/* A mnemonic also hands its phrase to the converter; a key must not write. */
+const stored = [];
+const priorSessionStorage = globalThis.sessionStorage;
+globalThis.sessionStorage = { setItem: (key, value) => stored.push([key, value]) };
+try {
+  await search.keyHref(twelveWords);
+  assert.deepEqual(stored, [["rotor-seed-phrase", twelveWords]], "the mnemonic phrase reaches session storage");
+  stored.length = 0;
+  await search.keyHref(KEY1_HEX);
+  assert.deepEqual(stored, [], "a hex key leaves session storage untouched");
+} finally {
+  if (priorSessionStorage === undefined) delete globalThis.sessionStorage;
+  else globalThis.sessionStorage = priorSessionStorage;
+}
+
+/* The landing address guard consults the exported XRP shape so a base58
+ * secret is routed instead of being shown the address hint. */
+assert.equal(typeof search.looksLikeXrpSecret, "function", "looksLikeXrpSecret is exported");
+assert.equal(search.looksLikeXrpSecret("snoPBrXtMeMyMHUVTgbuqAfg1SUTb"), true, "an s-secret is recognized");
+assert.equal(search.looksLikeXrpSecret(xrpSecrets[2]), true, "a p-secret is recognized");
+assert.equal(search.looksLikeXrpSecret("1BoatSLRHtKNngkdXEeobR76b53LETtpyT"), false, "a BTC address is not an XRP secret");
+
 /* ------------------------------------------------------ input counter */
 
 assert.deepEqual(search.countLabel(""), { value: 0, unit: "chars" });
