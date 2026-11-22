@@ -108,6 +108,7 @@ const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
+const WALLET_HISTORY_JS: &str = include_str!("../../apps/site/wallet-history.js");
 const SEND_PAGE: &str = include_str!("../../apps/site/send.html");
 const SEND_JS: &str = include_str!("../../apps/site/send.js");
 const TRON_TX_JS: &str = include_str!("../../apps/site/tron-tx.js");
@@ -141,6 +142,8 @@ const TRONSCAN_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 const TRONSCAN_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 /// Largest address list one batch lookup accepts.
 const TRON_BATCH_MAX: usize = 60;
+/// Most transactions one `/api/v1/chain/tron/transactions` answer carries.
+const TRON_TX_LIST_LIMIT: usize = 50;
 
 /// Optional Cloudflare Worker in front of provider APIs. When set, TRON
 /// lookups go through the worker instead of contacting TronScan directly, so
@@ -749,6 +752,7 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
         || path == "/api/v1/telegram/webhook"
         || path == "/api/v1/chain/tron/address"
         || path == "/api/v1/chain/tron/addresses"
+        || path == "/api/v1/chain/tron/transactions"
         || path == "/api/v1/orders"
         || path.starts_with("/api/v1/orders/")
         || path.starts_with("/api/v1/admin/orders/")
@@ -932,6 +936,12 @@ fn handle(app: Arc<App>, request: Request) {
     if path == "/api/v1/chain/tron/address" {
         if method == Method::Get {
             return tron_address(&app, request, query);
+        }
+        return respond_json(request, 405, &json!({ "error": "method not allowed" }));
+    }
+    if path == "/api/v1/chain/tron/transactions" {
+        if method == Method::Get {
+            return tron_transactions(&app, request, query);
         }
         return respond_json(request, 405, &json!({ "error": "method not allowed" }));
     }
@@ -1841,6 +1851,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-btc.js" => Some((
             WALLET_BTC_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-history.js" => Some((
+            WALLET_HISTORY_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/send" | "/send/bitcoin" | "/send/ethereum" | "/send/bnb" | "/send/usdt"
@@ -5427,6 +5441,32 @@ fn tron_address(app: &App, request: Request, query: &str) {
     }
 }
 
+/// `GET /api/v1/chain/tron/transactions?address=...`: the latest native-value
+/// transactions for a public TRON address, normalized server-side. The
+/// provider shape and the API key never reach the browser. Success and error
+/// answers share the account proxy's 60 s / 10 s cache, limiter and key
+/// handling; `no-store` keeps the address-specific list out of shared caches.
+fn tron_transactions(app: &App, request: Request, query: &str) {
+    let ip = client_ip(&request, app.trust_proxy);
+    if !app.rate.allow(&format!("public-tron:{ip}")) {
+        return respond_rate_limited(request);
+    }
+    let Some(address) = query_param(query, "address") else {
+        return respond_tron_json(request, 400, &json!({ "error": "missing address" }));
+    };
+    if !valid_tron_address(address) {
+        return respond_tron_json(request, 400, &json!({ "error": "invalid tron address" }));
+    }
+    if app.edge_proxy.is_none() && app.tronscan_api_key.is_none() {
+        return respond_tron_json(request, 501, &json!({ "error": "no_provider" }));
+    }
+    let key = app.tronscan_api_key.as_deref().unwrap_or("");
+    match tron_transactions_lookup(app, key, address) {
+        Ok(body) => respond_tron_json(request, 200, &body),
+        Err(error) => respond_tron_error(request, error),
+    }
+}
+
 #[derive(Deserialize)]
 struct TronBatchRequest {
     addresses: Vec<String>,
@@ -5628,15 +5668,68 @@ fn respond_tron_error(request: Request, error: TronLookupError) {
     let body = json!({ "error": error.reason }).to_string();
     let mut response = Response::from_string(body)
         .with_status_code(StatusCode(error.status))
-        .with_header(header("Content-Type", "application/json"));
+        .with_header(header("Content-Type", "application/json"))
+        .with_header(header("Cache-Control", "no-store"));
     if error.status == 503 {
         response = response.with_header(header("Retry-After", "2"));
     }
     respond_hidden(request, response);
 }
 
+/// A TRON public answer. The body is address-specific, so shared caches must
+/// never keep it: the 60 s / 10 s cache lives in the coordinator instead.
+fn respond_tron_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
+    let body = serde_json::to_string(value)
+        .unwrap_or_else(|_| "{\"error\":\"serialization failed\"}".to_string());
+    let response = Response::from_string(body)
+        .with_status_code(StatusCode(status))
+        .with_header(header("Content-Type", "application/json"))
+        .with_header(header("Cache-Control", "no-store"));
+    respond_hidden(request, response);
+}
+
 fn tron_lookup(app: &App, key: &str, address: &str) -> Result<serde_json::Value, TronLookupError> {
-    if let Some(hit) = app.tron_cache.get("tron", address) {
+    tron_cached_lookup(app, "tron", address, || {
+        tron_lookup_uncached(
+            app.edge_proxy.as_ref(),
+            &app.tronscan_agent,
+            key,
+            address,
+            &app.tron_limiter,
+        )
+    })
+}
+
+/// Recent transactions for `address`, normalized and capped.
+fn tron_transactions_lookup(
+    app: &App,
+    key: &str,
+    address: &str,
+) -> Result<serde_json::Value, TronLookupError> {
+    tron_cached_lookup(app, "tron-tx", address, || {
+        tron_transactions_uncached(
+            app.edge_proxy.as_ref(),
+            &app.tronscan_agent,
+            key,
+            address,
+            &app.tron_limiter,
+        )
+    })
+}
+
+/// One cache round-trip shared by every public TRON lookup. A successful
+/// answer lives 60 s and a provider error 10 s (the `tron_cache` defaults); a
+/// full local queue is not a provider answer and is never cached.
+fn tron_cached_lookup<F>(
+    app: &App,
+    cache_chain: &str,
+    address: &str,
+    fetch: F,
+) -> Result<serde_json::Value, TronLookupError>
+where
+    F: FnOnce() -> Result<serde_json::Value, TronFetchError>,
+{
+    if let Some(hit) = app.tron_cache.get(cache_chain, address) {
         return match hit {
             tron_cache::CacheHit::Success(value) => Ok(value),
             tron_cache::CacheHit::Error { status, reason } => {
@@ -5644,24 +5737,18 @@ fn tron_lookup(app: &App, key: &str, address: &str) -> Result<serde_json::Value,
             }
         };
     }
-    match tron_lookup_uncached(
-        app.edge_proxy.as_ref(),
-        &app.tronscan_agent,
-        key,
-        address,
-        &app.tron_limiter,
-    ) {
+    match fetch() {
         Ok(value) => {
-            app.tron_cache.put_success("tron", address, value.clone());
+            app.tron_cache
+                .put_success(cache_chain, address, value.clone());
             Ok(value)
         }
         Err(error) => {
             let status = tron_error_status(error);
             let reason = tron_error_reason(error).to_string();
-            // A full local queue is not a provider answer; caching it would
-            // keep rejecting after capacity frees up.
             if error != TronFetchError::Busy {
-                app.tron_cache.put_error("tron", address, status, &reason);
+                app.tron_cache
+                    .put_error(cache_chain, address, status, &reason);
             }
             Err(TronLookupError { status, reason })
         }
@@ -5703,6 +5790,216 @@ fn tron_lookup_uncached(
         Err(error) => return Err(error),
     };
     tron_response(address, &account, &transaction).map_err(|_| TronFetchError::Body)
+}
+
+/// Fetch the latest transactions for `address` and normalize them. TronScan's
+/// `/api/transaction` is the only upstream; the edge proxy exposes the same
+/// route with the same `address`/`limit`/`start` allowlist.
+fn tron_transactions_uncached(
+    edge: Option<&EdgeProxy>,
+    agent: &ureq::Agent,
+    key: &str,
+    address: &str,
+    limiter: &Arc<tron_cache::Limiter>,
+) -> Result<serde_json::Value, TronFetchError> {
+    let url = match edge {
+        Some(proxy) => format!(
+            "{}/v1/tron/transactions?address={address}&limit={TRON_TX_LIST_LIMIT}&start=0",
+            proxy.base
+        ),
+        None => format!(
+            "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit={TRON_TX_LIST_LIMIT}&start=0&address={address}"
+        ),
+    };
+    let headers = tron_auth_headers(edge, key);
+    let raw = match tronscan_get(agent, &headers, &url, limiter) {
+        Ok(value) => value,
+        // An address with no history is an empty list, not an upstream error.
+        Err(TronFetchError::NotFound) => serde_json::Value::Null,
+        Err(error) => return Err(error),
+    };
+    Ok(normalize_tron_transactions(address, &raw))
+}
+
+/// Normalize TronScan's transaction list to the public shape
+/// `{txid, timestamp, direction, amountSun, counterparty, confirmed, fee?}`.
+/// `amountSun` is the native TRX value only (TRC-10/TRC-20 transfers move no
+/// native value, so they report `0`); `timestamp` is epoch milliseconds.
+fn normalize_tron_transactions(address: &str, raw: &serde_json::Value) -> serde_json::Value {
+    let items = raw
+        .get("data")
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let transactions: Vec<serde_json::Value> = items
+        .iter()
+        .take(TRON_TX_LIST_LIMIT)
+        .filter_map(|item| normalize_tron_transaction(address, item))
+        .collect();
+    json!({
+        "chain": "tron",
+        "address": address,
+        "source": "tronscan",
+        "transactions": transactions,
+    })
+}
+
+fn normalize_tron_transaction(address: &str, item: &serde_json::Value) -> Option<serde_json::Value> {
+    let txid = item.get("hash")?.as_str()?;
+    if txid.is_empty() {
+        return None;
+    }
+    let owner = item
+        .get("ownerAddress")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    let to = item
+        .get("toAddress")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    let contract_type = item
+        .get("contractType")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let owner_is_self = !address.is_empty() && owner == address;
+    let recipient = tron_contract_recipient(item);
+    let recipient_is_self = recipient.as_deref() == Some(address) || to == address;
+    let direction = if owner_is_self {
+        "out"
+    } else if recipient_is_self {
+        "in"
+    } else {
+        // Freeze/unfreeze and contract calls that name neither side are still
+        // signed by the owner; treat them as outgoing rather than dropping.
+        "out"
+    };
+    // Only TransferContract carries a native amount in `amount`; a TRC-10
+    // `amount` is a token quantity, so it must not be shown as sun.
+    let amount_sun = if contract_type == 1 {
+        tron_amount_string(item.get("amount")).unwrap_or_else(|| "0".to_string())
+    } else {
+        "0".to_string()
+    };
+    let mut counterparty = if owner_is_self {
+        recipient
+            .clone()
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| to.to_string())
+    } else {
+        owner.to_string()
+    };
+    // A self-addressed operation (freeze/unfreeze) has no counterparty.
+    if counterparty == address {
+        counterparty.clear();
+    }
+    let confirmed = item
+        .get("confirmed")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+        && !item
+            .get("revert")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false);
+    let mut tx = json!({
+        "txid": txid,
+        "timestamp": tron_timestamp(item.get("timestamp")),
+        "direction": direction,
+        "amountSun": amount_sun,
+        "counterparty": counterparty,
+        "confirmed": confirmed,
+    });
+    if owner_is_self {
+        if let Some(fee) = tron_fee(item) {
+            if fee != "0" {
+                tx["fee"] = json!(fee);
+            }
+        }
+    }
+    Some(tx)
+}
+
+/// The base58 recipient/spender of a TRC-20 transfer(address,uint256) or
+/// approve(address,uint256) call, if the selector matches. Other contract
+/// methods name no human counterparty, so the caller falls back to the
+/// contract address.
+fn tron_contract_recipient(item: &serde_json::Value) -> Option<String> {
+    let data = item
+        .get("contractData")?
+        .get("data")?
+        .as_str()?;
+    let hex = data.strip_prefix("0x").unwrap_or(data);
+    if hex.len() < 8 + 64 {
+        return None;
+    }
+    let selector = &hex[..8];
+    if selector != "a9059cbb" && selector != "095ea7b3" {
+        return None;
+    }
+    let word = &hex[8..72];
+    if !word.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    tron_hex_address(&word[24..])
+}
+
+/// A 20-byte EVM-style address (as found in contract calldata) to its TRON
+/// base58check form: `0x41 || 20 bytes` plus the double-SHA256 checksum.
+fn tron_hex_address(hex: &str) -> Option<String> {
+    if hex.len() != 40 {
+        return None;
+    }
+    let mut payload = [0u8; 21];
+    payload[0] = 0x41;
+    for (index, chunk) in hex.as_bytes().chunks(2).enumerate() {
+        let high = hex_digit(chunk[0])?;
+        let low = hex_digit(*chunk.get(1)?)?;
+        payload[index + 1] = (high << 4) | low;
+    }
+    Some(crate::base58::encode_check(&payload))
+}
+
+fn tron_amount_string(value: Option<&serde_json::Value>) -> Option<String> {
+    let value = value?;
+    match value {
+        serde_json::Value::String(text) => {
+            let text = text.trim();
+            if !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit()) {
+                Some(text.to_string())
+            } else {
+                None
+            }
+        }
+        serde_json::Value::Number(number) => {
+            if let Some(value) = number.as_u64() {
+                Some(value.to_string())
+            } else if let Some(value) = number.as_i64() {
+                u64::try_from(value).ok().map(|value| value.to_string())
+            } else {
+                number
+                    .as_f64()
+                    .filter(|value| value.is_finite() && *value >= 0.0)
+                    .map(|value| format!("{value:.0}"))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn tron_timestamp(value: Option<&serde_json::Value>) -> serde_json::Value {
+    let millis = value.and_then(|value| {
+        value
+            .as_u64()
+            .or_else(|| value.as_i64().and_then(|stamp| u64::try_from(stamp).ok()))
+            .or_else(|| value.as_str()?.trim().parse::<u64>().ok())
+    });
+    match millis {
+        Some(millis) => json!(millis),
+        None => serde_json::Value::Null,
+    }
+}
+
+fn tron_fee(item: &serde_json::Value) -> Option<String> {
+    tron_amount_string(item.get("cost")?.get("fee"))
 }
 
 /// Direct mode authenticates with the TronScan key; edge mode authenticates to
@@ -7784,12 +8081,15 @@ mod tests {
         assert!(html.contains("<script src=\"/wallet-vault.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-evm.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-btc.js\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-history.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet.js\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
         assert!(html.contains("id=\"wallet-approvals\""));
         assert!(html.contains("id=\"wallet-approvals-token\""));
         assert!(html.contains("id=\"wallet-approvals-rows\""));
+        assert!(html.contains("id=\"wallet-history\""));
+        assert!(html.contains("id=\"wallet-history-rows\""));
 
         let (script, content_type) = static_asset("/wallet.js").expect("/wallet.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
@@ -7814,6 +8114,13 @@ mod tests {
         assert!(btc.contains("RotorBtcSend"));
         assert!(btc.contains("RotorProviders"));
         assert!(btc.contains("btc_sign_tx"));
+
+        let (history, content_type) =
+            static_asset("/wallet-history.js").expect("/wallet-history.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let history = std::str::from_utf8(history).expect("wallet-history.js is utf-8");
+        assert!(history.contains("RotorWalletHistory"));
+        assert!(history.contains("needs an indexer or an API key"));
         let generated = std::str::from_utf8(
             static_asset("/chains.generated.js")
                 .expect("/chains.generated.js is embedded")
@@ -8629,6 +8936,142 @@ mod tests {
         ] {
             assert!(!valid_tron_address(bad), "must reject {bad}");
         }
+    }
+
+    #[test]
+    fn tron_hex_address_matches_the_usdt_contract() {
+        assert_eq!(
+            tron_hex_address("a614f803b6fd780986a42c78ec9c7f77e6ded13c").as_deref(),
+            Some("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")
+        );
+        assert_eq!(tron_hex_address("a614"), None);
+        assert_eq!(
+            tron_hex_address("zz14f803b6fd780986a42c78ec9c7f77e6ded13c"),
+            None
+        );
+    }
+
+    #[test]
+    fn tron_transactions_normalize_direction_amount_and_fee() {
+        const ADDRESS: &str = "TGzrB1LxU6e3H8767tpDw8nFmj4UrnV4iB";
+        // Real TronScan `/api/transaction` shape (2026-11-22): timestamps are
+        // epoch milliseconds, `amount` is a decimal string in sun, `cost.fee`
+        // is the sender's fee, and a TRC-20 call carries the recipient in
+        // `contractData.data`.
+        let raw = json!({
+            "data": [
+                {
+                    "hash": "out-native",
+                    "timestamp": 1795341405000u64,
+                    "ownerAddress": ADDRESS,
+                    "toAddress": "TG2CMGxnTPgQ6V58kiKd7wbyN8ewtAmY76",
+                    "contractType": 1,
+                    "confirmed": true,
+                    "revert": false,
+                    "amount": "1859292432",
+                    "cost": { "fee": 1000000 }
+                },
+                {
+                    "hash": "in-native",
+                    "timestamp": 1795341336000u64,
+                    "ownerAddress": "TS2vvHWh1uQXyCoLUM8ekz1e4wtrPkH1j6",
+                    "toAddress": ADDRESS,
+                    "contractType": 1,
+                    "confirmed": true,
+                    "revert": false,
+                    "amount": "1",
+                    "cost": { "fee": 0 }
+                },
+                {
+                    "hash": "in-trc20-pending",
+                    "timestamp": 1795348446000u64,
+                    "ownerAddress": "TRKQpQFtKGkKi77qaZbot9Aew7ckJ4WW5P",
+                    "toAddress": "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
+                    "contractType": 31,
+                    "confirmed": false,
+                    "revert": false,
+                    "amount": "0",
+                    "contractData": {
+                        "data": "a9059cbb0000000000000000000000004d18535ec15b05d78b528bb729923d46778da4e400000000000000000000000000000000000000000000000000000000011e1a300"
+                    },
+                    "cost": { "fee": 345000 }
+                }
+            ]
+        });
+        let out = normalize_tron_transactions(ADDRESS, &raw);
+        assert_eq!(out["chain"], "tron");
+        assert_eq!(out["address"], ADDRESS);
+        assert_eq!(out["source"], "tronscan");
+        let txs = out["transactions"].as_array().expect("transactions");
+        assert_eq!(txs.len(), 3);
+
+        assert_eq!(txs[0]["txid"], "out-native");
+        assert_eq!(txs[0]["direction"], "out");
+        assert_eq!(txs[0]["amountSun"], "1859292432");
+        assert_eq!(
+            txs[0]["counterparty"],
+            "TG2CMGxnTPgQ6V58kiKd7wbyN8ewtAmY76"
+        );
+        assert_eq!(txs[0]["confirmed"], true);
+        assert_eq!(txs[0]["fee"], "1000000");
+        assert_eq!(txs[0]["timestamp"], 1795341405000u64);
+
+        assert_eq!(txs[1]["direction"], "in");
+        assert_eq!(txs[1]["amountSun"], "1");
+        assert_eq!(
+            txs[1]["counterparty"],
+            "TS2vvHWh1uQXyCoLUM8ekz1e4wtrPkH1j6"
+        );
+        assert!(txs[1].get("fee").is_none());
+
+        // A TRC-20 transfer to this address is incoming, with no native value.
+        assert_eq!(txs[2]["direction"], "in");
+        assert_eq!(txs[2]["amountSun"], "0");
+        assert_eq!(
+            txs[2]["counterparty"],
+            "TRKQpQFtKGkKi77qaZbot9Aew7ckJ4WW5P"
+        );
+        assert_eq!(txs[2]["confirmed"], false);
+        assert!(txs[2].get("fee").is_none());
+    }
+
+    #[test]
+    fn tron_transactions_are_capped_and_skip_malformed_rows() {
+        let data: Vec<Value> = (0..60)
+            .map(|index| {
+                json!({
+                    "hash": format!("tx{index}"),
+                    "timestamp": 1_700_000_000_000u64 + index,
+                    "ownerAddress": "TS2vvHWh1uQXyCoLUM8ekz1e4wtrPkH1j6",
+                    "toAddress": "TGzrB1LxU6e3H8767tpDw8nFmj4UrnV4iB",
+                    "contractType": 1,
+                    "confirmed": true,
+                    "amount": "1",
+                    "cost": { "fee": 0 }
+                })
+            })
+            .collect();
+        let out = normalize_tron_transactions(
+            "TGzrB1LxU6e3H8767tpDw8nFmj4UrnV4iB",
+            &json!({ "data": data }),
+        );
+        assert_eq!(
+            out["transactions"].as_array().unwrap().len(),
+            TRON_TX_LIST_LIMIT
+        );
+
+        let out = normalize_tron_transactions(
+            "z",
+            &json!({ "data": [
+                { "timestamp": 1, "ownerAddress": "x", "toAddress": "y", "contractType": 1 },
+                { "hash": "", "ownerAddress": "x", "toAddress": "y" },
+                { "hash": "ok", "ownerAddress": "x", "toAddress": "y", "contractType": 1, "amount": "5", "confirmed": true }
+            ] }),
+        );
+        let txs = out["transactions"].as_array().unwrap();
+        assert_eq!(txs.len(), 1);
+        assert_eq!(txs[0]["txid"], "ok");
+        assert_eq!(txs[0]["amountSun"], "5");
     }
 
     #[test]

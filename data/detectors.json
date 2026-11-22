@@ -499,6 +499,14 @@
       "status": "implemented"
     },
     {
+      "id": "wallet-history-surface",
+      "rule": "The wallet history panel uses the shared table shell and a 44px labelled action, renders time/direction/amount/counterparty/status with a truncated counterparty title, and shows loading, empty, error and the honest EVM-unavailable state without overflow or a provider call.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "search-xrp-secret-routing",
       "rule": "XRP family seeds and secrets route to /key instead of a brainwallet hash.",
       "batch": "phase 4",

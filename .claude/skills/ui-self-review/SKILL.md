@@ -116,6 +116,7 @@ page-local override.
 | `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
 | `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
 | `wallet-approvals-surface` | The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow; the grant form has labelled 44px fields, its own unlimited warning line, a visible zero-amount error state and a rendered unlimited review. | phase 4 | implemented |
+| `wallet-history-surface` | The wallet history panel uses the shared table shell and a 44px labelled action, renders time/direction/amount/counterparty/status with a truncated counterparty title, and shows loading, empty, error and the honest EVM-unavailable state without overflow or a provider call. | phase 4 | implemented |
 | `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
 | `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |
 | `raw-path-text` | A table cell renders a human label, never a raw path. | all | implemented |
