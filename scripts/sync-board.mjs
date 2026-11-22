@@ -157,7 +157,7 @@ function titleFor(id) {
   return `[${id}] ${heading}`;
 }
 
-function readChanges() {
+export function readChanges() {
   if (!fs.existsSync(CHANGES_DIR)) {
     throw new Error(`missing ${path.relative(REPO_ROOT, CHANGES_DIR)}`);
   }
@@ -168,6 +168,7 @@ function readChanges() {
     .readdirSync(CHANGES_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
+    .filter((name) => name !== "archive")
     .sort();
 
   for (const id of ids) {
@@ -839,9 +840,15 @@ function main() {
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`error: ${error.message}`);
-  process.exit(1);
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`error: ${error.message}`);
+    process.exit(1);
+  }
 }
