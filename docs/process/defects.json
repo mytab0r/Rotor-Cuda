@@ -437,6 +437,13 @@
       "where": "apps/site/mnemonic-seeds-test.mjs"
     },
     {
+      "id": "mnemonic-xrp-redirect",
+      "reported": "2026-11-22",
+      "symptom": "XRPScan answered 302 to data.xrpscan.com/tx.json for some accounts; the page followed the redirect into a bulk dataset with no CORS header, so 59 of 60 XRP rows ended in the retry state",
+      "detector": "mnemonic-xrp-redirect",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
       "id": "lossy-amount-formatter",
       "reported": "2026-11-22",
       "symptom": "Eleven amount formatters and three parsers in ten files reimplemented decimal conversion; five coin() copies converted 18-decimal wei through Number and lost precision above 2^53 (e.g. 2^256-1 wei displayed as a rounded ~1e59).",
