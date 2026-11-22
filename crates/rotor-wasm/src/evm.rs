@@ -129,6 +129,32 @@ fn sign_parsed(request: &Request) -> Result<Vec<u8>, String> {
     Ok(request.tx.signed(&signature))
 }
 
+/// EIP-191 `personal_sign` hash:
+/// `keccak256("\x19Ethereum Signed Message:\n" || decimal byte length || message)`.
+pub fn personal_message_hash(message: &[u8]) -> [u8; 32] {
+    let prefix = format!("\x19Ethereum Signed Message:\n{}", message.len());
+    let mut data = Vec::with_capacity(prefix.len() + message.len());
+    data.extend_from_slice(prefix.as_bytes());
+    data.extend_from_slice(message);
+    hashes::keccak256(&data)
+}
+
+/// Sign an arbitrary message as EIP-191 `personal_sign` does.
+///
+/// Returns the 65-byte `r || s || v` signature with `v = 27 + parity`, the
+/// convention ethers `signMessage` emits.
+pub fn sign_message(key: &[u8; 32], message: &[u8]) -> Result<[u8; 65], String> {
+    let hash = personal_message_hash(message);
+    let signature = sign::sign(&hash, key)?;
+    let mut out = [0u8; 65];
+    out[..32].copy_from_slice(&signature.r.to_bytes_be());
+    out[32..64].copy_from_slice(&signature.s.to_bytes_be());
+    // Only the parity bit is encoded; `x(R) >= n` (+2) is astronomically rare
+    // and no personal_sign consumer can express it.
+    out[64] = 27 + (signature.recovery & 1);
+    Ok(out)
+}
+
 impl Request {
     fn parse(text: &str) -> Result<Request, String> {
         let slots = parse_slots(text, &FIELD_NAMES)?;
@@ -553,6 +579,110 @@ mod tests {
         assert_eq!(
             crate::derive::hex(&crate::secp::eth_address(&crate::secp::mul_g(&key2))),
             "acc50517bd89088ebf93a9baacc72aa639aa6952"
+        );
+    }
+
+    /// EIP-191 `personal_sign` vectors reproduced independently with ethers
+    /// 6.13.4 (`new Wallet(key).signMessage(message)`) under Node 24 on
+    /// 2026-11-22. The trailing byte is the ethers `v` (27/28).
+    #[test]
+    fn personal_sign_vectors_match_ethers() {
+        let key1 = parse_bytes(
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            "key",
+        )
+        .unwrap()
+        .try_into()
+        .unwrap();
+        let key2 = parse_bytes(
+            "0x4c0b6c2b4f0a5d9e8f1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcd00",
+            "key",
+        )
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+        let siwe = "rotor.test wants you to sign in with your Ethereum account:\n\
+                    0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf\n\n\
+                    Rotor monitor login\n\n\
+                    URI: http://rotor.test";
+        let cases: [(&[u8; 32], &str, &str); 4] = [
+            (
+                &key1,
+                "Hello World",
+                "0x9020b81ff870c0fcdd0c0b1945770f2358c51ec57a0f4e6d9d82ce50d4988f483b767a68a5f051a9d6c25daf303583ea6e3e03875f735a9e2900d6e4099a03cb1b",
+            ),
+            (
+                &key1,
+                "",
+                "0x0ac02a3eb3039b7a3ebb6a35f1e0dd31a4ed51781205a2c193354752a25edad50593868baf38c519b78bdc61a23c3f55e058c29f8b83d79ae48cc47d931afaed1b",
+            ),
+            (
+                &key1,
+                siwe,
+                "0xd9c8dd3a9febe925b1130cc398c1e2abf8b91eff485c03e5b6401a97dbc98788337f1b82f282ef3bf61b8625c4085dbd9c7cf4a5b35e4a4b1299f3f80b838f331c",
+            ),
+            (
+                &key2,
+                "Hello World",
+                "0xf55347a46ef6bfdb2b278ac01c22eecc4ff115f52a823528d6c5f57757280bba221a66587c58fbec270762d9821d2c55b8eb21f92e2978e24acdea1098dcf8f61b",
+            ),
+        ];
+        for (key, message, expected) in cases {
+            let signature = sign_message(key, message.as_bytes()).unwrap();
+            assert_eq!(hex_prefixed(&signature), expected, "{message:?}");
+        }
+    }
+
+    /// A different key must not recover to the same address, and the empty
+    /// message is signed as the EIP-191 preimage of zero bytes (not skipped).
+    #[test]
+    fn personal_sign_rejects_wrong_keys() {
+        let key1 = Scalar::from_u64(1);
+        let key1_bytes = key1.to_bytes_be();
+        let key2 = Scalar::from_u64(2);
+        let key2_bytes = key2.to_bytes_be();
+
+        let signed = sign_message(&key1_bytes, b"Hello World").unwrap();
+        assert_ne!(
+            hex_prefixed(&signed),
+            hex_prefixed(&sign_message(&key2_bytes, b"Hello World").unwrap())
+        );
+
+        let hash = personal_message_hash(b"Hello World");
+        let r = Scalar::from_bytes_be(&signed[..32].try_into().unwrap()).unwrap();
+        let s = Scalar::from_bytes_be(&signed[32..64].try_into().unwrap()).unwrap();
+        let recovered = sign::recover(
+            &hash,
+            &Signature {
+                r,
+                s,
+                recovery: signed[64] - 27,
+            },
+        )
+        .expect("recover");
+        assert_eq!(
+            crate::derive::hex(&crate::secp::eth_address(&recovered)),
+            crate::derive::hex(&crate::secp::eth_address(&crate::secp::mul_g(&key1)))
+        );
+        assert_ne!(
+            crate::derive::hex(&crate::secp::eth_address(&recovered)),
+            crate::derive::hex(&crate::secp::eth_address(&crate::secp::mul_g(&key2)))
+        );
+
+        assert!(sign_message(&[0u8; 32], b"Hello World").is_err());
+        assert!(
+            sign_message(
+                &parse_bytes(
+                    "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+                    "key"
+                )
+                .unwrap()
+                .try_into()
+                .unwrap(),
+                b"Hello World"
+            )
+            .is_err()
         );
     }
 }

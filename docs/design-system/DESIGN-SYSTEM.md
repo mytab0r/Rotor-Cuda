@@ -779,6 +779,7 @@ standalone freshness gate.
 | `mnemonic-doge-blockcypher-batch` | Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index. | phase 4 | implemented |
 | `puzzle-detail-discussion-link` | The puzzle detail page renders the donor Discussion action with its recorded target. | phase 4 | implemented |
 | `puzzle-detail-tool-links` | The puzzle detail action row lists the donor's three solver tools (BitCrack, Keyhunt, VanitySearch) on unsolved puzzles only. | phase 4 | implemented |
+| `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in
