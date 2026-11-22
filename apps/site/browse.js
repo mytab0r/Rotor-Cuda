@@ -35,13 +35,6 @@
   SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
     RPC[slug] = SSOT_PROVIDERS.first(slug).url;
   });
-  /* The official RPC is primary; a public fallback serves the same mainnet
-   * JSON-RPC when the official host rejects the browser (it answers 403 to
-   * some origins). */
-  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
-    return provider.url;
-  });
-  var SUI_GRAPHQL = SSOT_PROVIDERS.find('sui', 'graphql').url;
   var PAGE_SIZE = 60n;
 
   /* ------------------------------------------------------- pure helpers */
@@ -99,7 +92,6 @@
       addressEntriesFor: addressEntriesFor,
       addressCellModel: addressCellModel,
       metricFlags: metricFlags,
-      tronValue: tronValue,
       pageForHexKey: pageForHexKey
     };
   }
@@ -135,12 +127,8 @@
 
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
-  var BALANCE_LIMIT = 5;
+  var balanceProviders = window.RotorBalanceProviders || null;
   var BALANCE_JITTER_MS = 400;
-  /* Above this many addresses the TRON provider uses one batch request
-   * instead of one request per address. The coordinator caps a batch at 60. */
-  var TRON_BATCH_THRESHOLD = 5;
-  var TRON_BATCH_MAX = 60;
 
   var rows = Array.prototype.slice.call(document.querySelectorAll('#keys-container .key-row'));
   var typeButtons = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
@@ -427,18 +415,9 @@
     /* LTC and DOGE do have a keyless provider (BlockCypher) on the single-key
      * page. This 60-row directory does not use it: 60 lookups would exceed the
      * keyless rate limit, so those cells stay "—" (each address keeps its
-     * explorer link) instead of a fake zero. BCH, ZEC and the other chains
-     * still have no free keyless provider of their own. */
+     * explorer link) instead of a fake zero. BCH has a keyless batched
+     * provider (Haskoin) that the mnemonic directory uses; ZEC has none. */
     return null;
-  }
-
-  function uniqueAddresses(addresses) {
-    var out = [];
-    addresses.forEach(function (address) {
-      if (!address) return;
-      if (out.indexOf(address) < 0) out.push(address);
-    });
-    return out;
   }
 
   function balanceModel() {
@@ -504,332 +483,15 @@
     return button;
   }
 
-  async function fetchJson(url, options) {
-    var response = await fetch(url, options);
-    if (!response.ok) {
-      var err = new Error('HTTP ' + response.status);
-      err.status = response.status;
-      throw err;
-    }
-    return response.json();
-  }
-
-  function retryOptions() {
-    return { attempts: 2, baseDelay: 500, maxDelay: 4000 };
-  }
-
-  function requestJson(url, options) {
-    if (!cacheApi) return fetchJson(url, options);
-    return cacheApi.withRetry(function () { return fetchJson(url, options); }, retryOptions());
-  }
-
   function errorMessage(err) {
     return err && err.message ? err.message : 'unavailable';
   }
 
-  async function btcProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = uniqueAddresses(addresses);
-    if (!unique.length) return { values: values, errors: errors };
-    var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url + unique.map(encodeURIComponent).join('|');
-    var data = await requestJson(url);
-    unique.forEach(function (address) {
-      var info = data[address];
-      if (!info) {
-        errors[address] = 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = {
-        balance: String(info.final_balance || 0),
-        received: String(info.total_received || 0),
-        tx: Number(info.n_tx || 0)
-      };
-    });
-    return { values: values, errors: errors };
-  }
-
-  async function evmProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var rpc = RPC[config.chain];
-    if (!rpc) throw new Error('No RPC for this chain');
-    var unique = uniqueAddresses(addresses);
-    if (!unique.length) return { values: values, errors: errors };
-    var payload = unique.map(function (address, index) {
-      return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
-    });
-    var list = await requestJson(rpc, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    var byId = {};
-    (Array.isArray(list) ? list : [list]).forEach(function (item) {
-      if (item && item.id !== undefined) byId[item.id] = item;
-    });
-    unique.forEach(function (address, index) {
-      var item = byId[index + 1];
-      if (!item || typeof item.result !== 'string') {
-        errors[address] = item && item.error && item.error.message
-          ? item.error.message
-          : 'unexpected response';
-        return;
-      }
-      values[address] = { balance: BigInt(item.result).toString() };
-    });
-    /* Optional second batch: one eth_getTransactionCount per unique address.
-     * It only feeds the "Active" summary counter, so any failure (network,
-     * shape, non-string result) is ignored and never fails the balance load.
-     * The nonce is not stored as `tx`: the donor does not render per-row tx
-     * counts on EVM chains. */
-    try {
-      var noncePayload = unique.map(function (address, index) {
-        return { jsonrpc: '2.0', id: index + 1, method: 'eth_getTransactionCount', params: [address, 'latest'] };
-      });
-      var nonceList = await requestJson(rpc, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(noncePayload)
-      });
-      var nonceById = {};
-      (Array.isArray(nonceList) ? nonceList : [nonceList]).forEach(function (item) {
-        if (item && item.id !== undefined) nonceById[item.id] = item;
-      });
-      unique.forEach(function (address, index) {
-        var item = nonceById[index + 1];
-        if (!item || typeof item.result !== 'string' || !values[address]) return;
-        if (parseInt(item.result, 16) > 0) values[address].active = true;
-      });
-    } catch (err) {
-      /* best effort: the Active counter simply stays without these marks */
-    }
-    return { values: values, errors: errors };
-  }
-
-  async function solanaProvider(addresses) {
-    var values = {};
-    var unique = uniqueAddresses(addresses);
-    if (!unique.length) return { values: values, errors: {} };
-    var body = {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getMultipleAccounts',
-      params: [unique, { encoding: 'base64', commitment: 'confirmed' }]
-    };
-    var amounts = null;
-    var lastError = null;
-    for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
-      try {
-        var data = await requestJson(SOLANA_RPC_URLS[i], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        amounts = cacheApi && typeof cacheApi.parseSolanaAccounts === 'function'
-          ? cacheApi.parseSolanaAccounts(data)
-          : null;
-        if (amounts) break;
-        lastError = new Error('bad response');
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    if (!amounts) throw lastError || new Error('bad response');
-    unique.forEach(function (address, index) {
-      values[address] = { balance: amounts[index] || '0' };
-    });
-    return { values: values, errors: {} };
-  }
-
-  async function suiBalance(address) {
-    /* Sui's public JSON-RPC fullnodes are deprecated; GraphQL serves the same
-     * MIST total with CORS enabled. */
-    var data = await fetchJson(SUI_GRAPHQL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: 'query($a: SuiAddress!){address(address:$a){balance(coinType:"0x2::sui::SUI"){totalBalance}}}',
-        variables: { a: address }
-      })
-    });
-    var parsed = cacheApi && typeof cacheApi.parseSuiBalance === 'function'
-      ? cacheApi.parseSuiBalance(data)
-      : null;
-    if (!parsed) throw new Error('unexpected response');
-    return { balance: parsed.amount };
-  }
-
-  async function accountJson(url) {
-    var response = await fetch(url);
-    if (response.status === 404) return {};
-    if (!response.ok) {
-      var err = new Error('HTTP ' + response.status);
-      err.status = response.status;
-      throw err;
-    }
-    var text = await response.text();
-    if (!text) return {};
-    return JSON.parse(text);
-  }
-
-  async function perAddressProvider(addresses, fetcher) {
-    var values = {};
-    var errors = {};
-    var unique = uniqueAddresses(addresses);
-    var limit = cacheApi ? cacheApi.createLimiter(BALANCE_LIMIT) : function (task) { return task(); };
-    await Promise.all(unique.map(function (address) {
-      return limit(async function () {
-        try {
-          var task = function () { return fetcher(address); };
-          var value = cacheApi ? await cacheApi.withRetry(task, retryOptions()) : await task();
-          /* TRON returns balance + tx metadata; the other per-address
-           * providers return a bare balance. */
-          values[address] = value && typeof value === 'object'
-            ? value
-            : { balance: String(value) };
-        } catch (err) {
-          errors[address] = errorMessage(err);
-        }
-      });
-    }));
-    return { values: values, errors: errors };
-  }
-
-  function tonCenterBalance(address) {
-    return fetchJson(SSOT_PROVIDERS.find('ton', 'toncenter').url + '/getAddressBalance?address=' + encodeURIComponent(address))
-      .then(function (data) {
-        var parsed = cacheApi && typeof cacheApi.parseTonBalance === 'function'
-          ? cacheApi.parseTonBalance(data)
-          : null;
-        if (!parsed) throw new Error('unexpected response');
-        return parsed.amount;
-      });
-  }
-
-  function tronBalanceDirect(address) {
-    return accountJson(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address))
-      .then(function (data) { return { balance: String(Number(data.balance || 0)) }; });
-  }
-
-  /* The coordinator's TRON response, mapped to the per-address value shape
-   * the cache and the balance cell already use. */
-  function tronValue(data) {
-    if (!data || typeof data !== 'object' || data.chain !== 'tron') return null;
-    var balance = data.balance_sun === null || data.balance_sun === undefined
-      ? null
-      : String(data.balance_sun);
-    return {
-      balance: balance,
-      tx: typeof data.tx_count === 'number' && isFinite(data.tx_count) ? data.tx_count : undefined,
-      lastTxAt: typeof data.last_tx_at === 'number' && isFinite(data.last_tx_at) ? data.last_tx_at : undefined
-    };
-  }
-
-  async function tronBalance(address) {
-    /* Same-origin first; only a static host (404) or a coordinator without
-     * the key (501) falls back to the previous direct TronScan request. */
-    var response = await fetch('/api/v1/chain/tron/address?address=' + encodeURIComponent(address));
-    if (response.status === 404 || response.status === 501) return tronBalanceDirect(address);
-    if (!response.ok) {
-      var err = new Error('HTTP ' + response.status);
-      err.status = response.status;
-      throw err;
-    }
-    var data = await response.json();
-    var value = tronValue(data);
-    if (!value) throw new Error('unexpected response');
-    return value;
-  }
-
-  function tronChunks(addresses) {
-    var chunks = [];
-    for (var i = 0; i < addresses.length; i += TRON_BATCH_MAX) {
-      chunks.push(addresses.slice(i, i + TRON_BATCH_MAX));
-    }
-    return chunks;
-  }
-
-  /* One batch request per 60 addresses. Returns null when the batch route is
-   * absent (static host 404 / coordinator without a key 501) so the caller
-   * can use the per-address path; per-address provider failures stay in the
-   * results map. */
-  async function tronBatchProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = uniqueAddresses(addresses);
-    if (!unique.length) return { values: values, errors: errors };
-    var chunks = tronChunks(unique);
-    for (var i = 0; i < chunks.length; i += 1) {
-      var chunk = chunks[i];
-      var response = await fetch('/api/v1/chain/tron/addresses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ addresses: chunk })
-      });
-      if (response.status === 404 || response.status === 501) return null;
-      if (!response.ok) {
-        var message = 'HTTP ' + response.status;
-        chunk.forEach(function (address) { errors[address] = message; });
-        continue;
-      }
-      var data = null;
-      try { data = await response.json(); } catch (err) { data = null; }
-      var results = data && data.results ? data.results : null;
-      if (!results) {
-        chunk.forEach(function (address) { errors[address] = 'unexpected response'; });
-        continue;
-      }
-      chunk.forEach(function (address) {
-        var item = results[address];
-        if (!item) {
-          errors[address] = 'Balance row missing from the provider.';
-          return;
-        }
-        if (item.error) {
-          errors[address] = String(item.error);
-          return;
-        }
-        var value = tronValue(item);
-        if (!value) {
-          errors[address] = 'unexpected response';
-          return;
-        }
-        values[address] = value;
-      });
-    }
-    return { values: values, errors: errors };
-  }
-
-  function xrpBalance(address) {
-    return accountJson(SSOT_PROVIDERS.find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address))
-      .then(function (data) {
-        /* 404 (unactivated account) comes back as {}: a real zero balance. */
-        if (!data || typeof data !== 'object' || !Object.keys(data).length) return '0';
-        var parsed = cacheApi && typeof cacheApi.parseXrpAccount === 'function'
-          ? cacheApi.parseXrpAccount(data)
-          : null;
-        if (!parsed) throw new Error('unexpected response');
-        return { balance: parsed.amount, tx: parsed.tx === null ? undefined : parsed.tx };
-      });
-  }
-
+  /* Provider calls live in the shared `balance-providers.js` module so the
+   * private-key and mnemonic directories cannot drift apart. */
   function fetchProvider(meta, addresses) {
-    if (meta.provider === 'blockchain.info') return btcProvider(addresses);
-    if (meta.provider === 'evm') return evmProvider(addresses);
-    if (meta.provider === 'solana') return solanaProvider(addresses);
-    if (meta.provider === 'tronscan') {
-      if (addresses.length > TRON_BATCH_THRESHOLD) {
-        return tronBatchProvider(addresses).then(function (batch) {
-          return batch || perAddressProvider(addresses, tronBalance);
-        });
-      }
-      return perAddressProvider(addresses, tronBalance);
-    }
-    if (meta.provider === 'xrpscan') return perAddressProvider(addresses, xrpBalance);
-    if (meta.provider === 'sui') return perAddressProvider(addresses, suiBalance);
-    if (meta.provider === 'toncenter') return perAddressProvider(addresses, tonCenterBalance);
-    return Promise.resolve({ values: {}, errors: {} });
+    if (!balanceProviders) return Promise.resolve({ values: {}, errors: {} });
+    return balanceProviders.fetchProvider(meta, addresses);
   }
 
   /* One `.balance-info` line per address, each with the balance, TX count and

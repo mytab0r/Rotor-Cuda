@@ -18,6 +18,7 @@
         "node --check apps/site/rotor-worker.js",
         "node --check apps/site/browse.js",
         "node --check apps/site/balance-cache.js",
+        "node --check apps/site/balance-providers.js",
         "node --check apps/site/search.js",
         "node --check apps/site/theme.js",
         "node --check apps/site/vanity.js",

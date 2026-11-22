@@ -69,6 +69,7 @@ const BRAINWALLET_DIRECTORY_JS: &str = include_str!("../../apps/site/brainwallet
 const BRAINWALLET_CSS: &str = include_str!("../../apps/site/brainwallet.css");
 const BROWSE_JS: &str = include_str!("../../apps/site/browse.js");
 const BALANCE_CACHE_JS: &str = include_str!("../../apps/site/balance-cache.js");
+const BALANCE_PROVIDERS_JS: &str = include_str!("../../apps/site/balance-providers.js");
 const VANITY_PAGE: &str = include_str!("../../apps/site/vanity.html");
 const VANITY_JS: &str = include_str!("../../apps/site/vanity.js");
 const QR_JS: &str = include_str!("../../apps/site/qr.js");
@@ -1398,6 +1399,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/balance-cache.js" => Some((
             BALANCE_CACHE_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/balance-providers.js" => Some((
+            BALANCE_PROVIDERS_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/vanity" => Some((VANITY_PAGE.as_bytes(), "text/html; charset=utf-8")),
@@ -4037,7 +4042,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
            <div id=\"keys-container\">{rows}</div>\
          </section>\
          <p class=\"browse-range-link\"><a href=\"/keys/{}/{curated_start}-{curated_end}\">Open the curated 1–64 key range</a></p>\n         <p class=\"browse-footnote\">These are deterministic example keys, not a wallet. Nothing is signed or swept. Balance checks send the derived public addresses to a public chain data provider; the private key never leaves this page. Only search keys and funds you are authorized to use.</p>\
-         </main>\n         <script src=\"/balance-cache.js\"></script>\n         <script src=\"/browse.js\"></script>",
+         </main>\n         <script src=\"/balance-cache.js\"></script>\n         <script src=\"/balance-providers.js\"></script>\n         <script src=\"/browse.js\"></script>",
         site_header(),
         "",
         chain.color,
@@ -6169,6 +6174,11 @@ mod tests {
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         assert!(!body.is_empty());
 
+        let (body, content_type) =
+            static_asset("/balance-providers.js").expect("/balance-providers.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        assert!(!body.is_empty());
+
         let (body, content_type) = static_asset("/puzzle.js").expect("/puzzle.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
         assert!(!body.is_empty());
@@ -7332,6 +7342,7 @@ mod tests {
         assert!(directory.contains("data-chain=\"\""));
         assert!(directory.contains("href=\"/mnemonic-seeds/bitcoin\""));
         assert!(directory.contains("href=\"/seed\""));
+        assert!(directory.contains("<script src=\"/balance-providers.js\"></script>"));
 
         let (script, content_type) = static_asset("/mnemonic-seeds.js").expect("script");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
