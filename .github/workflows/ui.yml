@@ -25,6 +25,8 @@ jobs:
         run: cargo build --release --bin rotor-coord
       - name: Check the defect ledger
         run: node scripts/check-defect-ledger.mjs
+      - name: Check no screenshots are committed under docs/
+        run: node scripts/check-screenshots.mjs
       - name: Check the detector registry and generated tables
         run: node scripts/gen-detector-docs.mjs --check
       - name: Check vendor-lock EOL normalization
@@ -47,13 +49,25 @@ jobs:
       # ui-audit.mjs also enforces the component grammar in
       # docs/design-system/DESIGN-SYSTEM.md and audits the /cabinet/admin/design
       # gallery; --serve logs in with the token it starts the coordinator with.
+      # TMPDIR keeps the screenshots and the JSON report in one artifact dir.
+      - name: Prepare the audit artifact directory
+        run: mkdir -p "${{ runner.temp }}/ui-audit"
       - name: Run the UI audit
-        run: node scripts/ui-audit.mjs --serve
+        env:
+          TMPDIR: ${{ runner.temp }}/ui-audit
+        run: node scripts/ui-audit.mjs --serve --json "${{ runner.temp }}/ui-audit/report.json"
+      # Evidence is a CI artifact, never a committed file. Upload on every run
+      # (a green run still carries the screenshots a reviewer opens), and keep
+      # the failing step's exit code as the gate.
       - name: Upload screenshots and report
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-audit-report
+          name: ui-audit-report-${{ github.run_id }}
+          # Only the report and the screenshots: the Chrome profile also lives
+          # under TMPDIR and must not bloat the artifact.
           path: |
-            /tmp/rotor-ui-audit-*
+            ${{ runner.temp }}/ui-audit/report.json
+            ${{ runner.temp }}/ui-audit/rotor-ui-audit-*/screenshots
+          retention-days: 14
           if-no-files-found: ignore
