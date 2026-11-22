@@ -103,6 +103,7 @@ Options:
   --viewports 375,768,1280   widths to test; heights are preset (default 375,768,1280)
   --themes dark,light   colour schemes to test (default dark,light)
   --serve               spawn target/release/rotor-coord on 127.0.0.1:7899 with temp state
+                        seeded with one public job so the jobs board is audited
   --admin-token TOKEN   coordinator token used to log in for /cabinet/admin routes
                         (with --serve the default is the harness token)
   --json PATH           write the machine-readable summary
@@ -229,6 +230,53 @@ function legacyTokenViolations() {
     id: "legacy-token",
     message: `${duplicates.length} custom property(ies) declared in more than one :root block`,
     detail: duplicates.slice(0, 12).map(([token, where]) => `${token} (${where.join(", ")})`),
+  }];
+}
+
+// table-class: every table builder must emit `.data-table` inside
+// `.table-scroll`. The rendered audit only sees tables that a decode input
+// populates (tx-page.js) or that the job store fills (puzzle.js), so this
+// static half enforces the class in JS builders, HTML pages and the
+// Rust-embedded markup. The id stays `table-grammar`: one rule, one detector.
+function tableClassViolations() {
+  const issues = [];
+  const hasClass = (classes) => /(^|\s)data-table(\s|$)/.test(classes.trim());
+  const scanMarkup = (text, name) => {
+    for (const match of text.matchAll(/<table\b[^>]*>/g)) {
+      const classMatch = match[0].match(/\bclass\s*=\s*\\?["']([^"'\\]*)\\?["']/);
+      if (classMatch && hasClass(classMatch[1])) continue;
+      const line = text.slice(0, match.index).split("\n").length;
+      issues.push(`${name}:${line} <table> without .data-table`);
+    }
+  };
+  const siteDir = path.join(REPO_ROOT, "apps", "site");
+  for (const name of readdirSync(siteDir).filter((file) => file.endsWith(".js"))) {
+    const text = readFileSync(path.join(siteDir, name), "utf8");
+    const lines = text.split("\n");
+    for (const match of text.matchAll(/createElement\(\s*['"]table['"]\s*\)/g)) {
+      const line = text.slice(0, match.index).split("\n").length;
+      const windowText = lines.slice(line, line + 5).join("\n");
+      if (/\.className\s*=\s*['"][^'"]*\bdata-table\b/.test(windowText)) continue;
+      issues.push(`${name}:${line} createElement('table') without a .data-table className`);
+    }
+    for (const match of text.matchAll(/child\(\s*['"]table['"]\s*,\s*['"]([^'"]*)['"]\s*\)/g)) {
+      if (hasClass(match[1])) continue;
+      const line = text.slice(0, match.index).split("\n").length;
+      issues.push(`${name}:${line} child('table', '${match[1]}') without .data-table`);
+    }
+  }
+  for (const name of readdirSync(siteDir).filter((file) => file.endsWith(".html"))) {
+    scanMarkup(readFileSync(path.join(siteDir, name), "utf8"), `apps/site/${name}`);
+  }
+  scanMarkup(
+    readFileSync(path.join(REPO_ROOT, "src", "coordinator", "mod.rs"), "utf8"),
+    "src/coordinator/mod.rs",
+  );
+  if (!issues.length) return [];
+  return [{
+    id: "table-grammar",
+    message: `${issues.length} table definition(s) without the shared .data-table class`,
+    detail: issues.slice(0, 12),
   }];
 }
 
@@ -4145,6 +4193,13 @@ async function main() {
       }
       const stateDir = path.join(tempRoot, "state");
       await mkdir(stateDir, { recursive: true });
+      // Seed one public job: the jobs table only renders with a non-empty job
+      // store, so an empty store hid its missing `.data-table` shell and the
+      // audit passed without ever exercising that state (issue #261).
+      await writeFile(
+        path.join(stateDir, "coordinator.json"),
+        await readFile(path.join(REPO_ROOT, "scripts", "fixtures", "audit-public-job-state.json")),
+      );
       server = spawn(
         exe,
         [
@@ -4286,6 +4341,7 @@ async function main() {
     globalViolations.push(...legacyTokenViolations());
     globalViolations.push(...litecoinFallbackViolations());
     globalViolations.push(...emptyStateViolations());
+    globalViolations.push(...tableClassViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({
         id: "site-map-still-served",
@@ -4339,6 +4395,17 @@ async function main() {
               await waitForSelector(cdp, ".bw-row", SELECTOR_TIMEOUT_MS);
             } else if (route === "/bitcoin-puzzle") {
               await waitForSelector(cdp, "[data-puzzle-row]", SELECTOR_TIMEOUT_MS);
+              // The jobs board renders from an async fetch; --serve seeds one
+              // public job, so its table must be present before measuring
+              // (issue #261). An external --base store may be empty.
+              if (options.serve) {
+                const rendered = await waitForSelector(cdp, ".puzzle-table", SELECTOR_TIMEOUT_MS);
+                if (!rendered) {
+                  throw new Error(
+                    "--serve seeded a public job, but /bitcoin-puzzle rendered no .puzzle-table",
+                  );
+                }
+              }
             } else if (route === "/private-keys/bitcoin") {
               // Derivation is local but chunked; the address model is only
               // complete when the last row has its links. Balances settle

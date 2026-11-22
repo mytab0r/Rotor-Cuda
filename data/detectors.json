@@ -857,6 +857,14 @@
       "implemented_in": "scripts/check-screenshots.mjs",
       "doc_anchor": "docs/process/self-checking.md#7-no-screenshots-or-test-evidence-in-the-repo",
       "status": "implemented"
+    },
+    {
+      "id": "puzzle-detail-discussion-link",
+      "rule": "The puzzle detail page renders the donor Discussion action with its recorded target.",
+      "batch": "phase 4",
+      "implemented_in": "src/coordinator/mod.rs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
     }
   ]
 }

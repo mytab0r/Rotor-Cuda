@@ -5089,6 +5089,7 @@ fn render_puzzle_detail(
          <div class=\"pz-actions-row\">\
          <a class=\"btn primary\" href=\"/bitcoin-puzzle/{number}/random\">Open Random Keys</a>\
          <a class=\"btn\" href=\"/private-keys/bitcoin?key={start_hex}\">Derive start key</a>\
+         <a class=\"btn\" href=\"https://bitcointalk.org/index.php?topic=1306983.0\" target=\"_blank\" rel=\"noopener noreferrer\">Discussion</a>\
          </div></section>\
          <section class=\"card\"><h2>How this range works</h2>\
          <p class=\"puzzle-note\">Puzzle n spans every private key from 2^(n−1) to 2^n−1, so puzzle #{number} covers {bits} bits. A valid match is the single key whose public key hashes to the target address; every other key in the range is discarded.</p>\
@@ -8555,6 +8556,10 @@ mod tests {
         assert!(detail.contains("1,180,591,620,717,411,303,424"));
         assert!(detail.contains(
             "/private-keys/bitcoin?key=0000000000000000000000000000000000000000000000400000000000000000"
+        ));
+        // detector: puzzle-detail-discussion-link
+        assert!(detail.contains(
+            "<a class=\"btn\" href=\"https://bitcointalk.org/index.php?topic=1306983.0\" target=\"_blank\" rel=\"noopener noreferrer\">Discussion</a>"
         ));
         assert!(!detail.contains("data-puzzle-app"));
 

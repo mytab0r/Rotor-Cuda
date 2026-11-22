@@ -419,6 +419,14 @@ follow-ups were code-only.
   `HEX or Brainwallet` on account-model chains. Evidence:
   `src/coordinator/mod.rs` (helpers + call sites). Test:
   `browse_search_placeholder_names_the_chain_wif_shape`.
+- [x] Puzzle detail Discussion link (2026-11-22, code-only, issue #380): the
+  donor action row prints `Discussion`; ours had no link and no recorded
+  target. `render_puzzle_detail` now renders
+  `Discussion` → https://bitcointalk.org/index.php?topic=1306983.0
+  (`target="_blank" rel="noopener noreferrer"`). Evidence:
+  `src/coordinator/mod.rs` (`render_puzzle_detail`); test
+  `coordinator::tests::bitcoin_puzzle_browser_routes_are_served`. The donor
+  `Solution` field (solved private key) stays out of scope by policy.
 
 ## P1 — shell and templates
 
@@ -628,6 +636,17 @@ and not deployed**.
   `cargo clippy --all-targets -D warnings` and `cargo fmt --check` clean.
   `node --test deploy/cloudflare/test/worker.test.mjs` 41/41, now wired into the
   `ops` test list and the `projects` CI job (PR #138).
+- [x] Table-class sweep (2026-11-22, code-only): the tx decoder tables built by
+      `apps/site/tx-page.js` `buildTable` only render after a decode input, so
+      the rendered audit never saw them; they now carry `.data-table` inside
+      `.table-scroll` (their cells already use the `.data-table .wrap` rule).
+      A static `table-grammar` scan in `scripts/ui-audit.mjs`
+      (`tableClassViolations`) enforces the class on every JS table builder,
+      every HTML page and the Rust-embedded markup, so the class cannot regress
+      in a state the rendered audit cannot reach. The puzzle jobs-board half of
+      the class is covered by the seeded `--serve` fixture (PR #277 writes
+      `scripts/fixtures/audit-public-job-state.json` and waits for the rendered
+      table). Defect `tx-page-table-grammar`.
 
 ## Relocation to internal docs (done)
 

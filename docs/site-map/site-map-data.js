@@ -985,7 +985,7 @@
     status: 'partial',
     priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. Missing the donor’s Discussion link (target not recorded) and its Solution field (blocked on puzzle data).'
+    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. The donor’s Discussion link now matches (`Discussion` → https://bitcointalk.org/index.php?topic=1306983.0); the remaining gap is the donor’s Solution field (solved private key), out of scope by policy.'
   });
 
   feature({
