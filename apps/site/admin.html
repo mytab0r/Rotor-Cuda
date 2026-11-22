@@ -36,17 +36,29 @@
     </form>
   </section>
 
-  <section id="dashboard" hidden>
-    <h1>Operator dashboard</h1>
-    <p class="muted" id="dashboard-updated" role="status"></p>
-    <div class="stat-grid">
-      <div class="stat"><span class="stat-label">Build</span><span class="stat-value" id="stat-build">-</span></div>
-      <div class="stat"><span class="stat-label">Uptime</span><span class="stat-value" id="stat-uptime">-</span></div>
-      <div class="stat"><span class="stat-label">Clients</span><span class="stat-value" id="stat-clients">-</span></div>
-      <div class="stat"><span class="stat-label">Live leases</span><span class="stat-value" id="stat-leases">-</span></div>
-    </div>
-    <section class="card">
-      <h2>Jobs by state</h2>
+  <div id="dashboard" hidden>
+    <h1>Operator cabinet</h1>
+    <nav class="admin-panels" aria-label="Cabinet sections">
+      <a class="chip" href="/cabinet/admin" data-panel-link="overview">Overview</a>
+      <a class="chip" href="/cabinet/admin/clients" data-panel-link="clients">Clients</a>
+      <a class="chip" href="/cabinet/admin/monitor" data-panel-link="monitor">Monitor</a>
+      <a class="chip" href="/cabinet/admin/jobs" data-panel-link="jobs">Jobs</a>
+      <a class="chip" href="/cabinet/admin/orders" data-panel-link="orders">Orders</a>
+      <a class="chip" href="/cabinet/admin/providers" data-panel-link="providers">Providers</a>
+      <a class="chip" href="/cabinet/admin/integrations" data-panel-link="integrations">Integrations</a>
+      <a class="chip" href="/cabinet/admin/audit" data-panel-link="audit">Audit</a>
+    </nav>
+
+    <section class="card admin-panel" data-panel="overview" hidden>
+      <h2>Overview</h2>
+      <p class="muted" id="dashboard-updated" role="status">Loading...</p>
+      <div class="stat-grid">
+        <div class="stat"><span class="stat-label">Build</span><span class="stat-value" id="stat-build">-</span></div>
+        <div class="stat"><span class="stat-label">Uptime</span><span class="stat-value" id="stat-uptime">-</span></div>
+        <div class="stat"><span class="stat-label">Clients</span><span class="stat-value" id="stat-clients">-</span></div>
+        <div class="stat"><span class="stat-label">Live leases</span><span class="stat-value" id="stat-leases">-</span></div>
+      </div>
+      <h3>Jobs by state</h3>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr><th>State</th><th>Jobs</th></tr></thead>
@@ -55,9 +67,127 @@
           </tbody>
         </table>
       </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
     </section>
-    <p class="error" id="dashboard-error" role="alert" hidden></p>
-  </section>
+
+    <section class="card admin-panel" data-panel="clients" hidden>
+      <h2>Clients</h2>
+      <p class="muted" data-role="loading" role="status">Loading clients...</p>
+      <p class="empty-state" data-role="empty" hidden><span class="empty-state__title">No clients yet</span>Registered contributor tokens appear here.</p>
+      <div class="table-scroll" data-role="table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Client</th><th>Name</th><th>Created</th><th>Last seen</th><th>Scanned</th><th>Rate</th><th>State</th></tr></thead>
+          <tbody id="clients-rows"></tbody>
+        </table>
+      </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card admin-panel" data-panel="monitor" hidden>
+      <h2>Monitor</h2>
+      <p class="muted" data-role="loading" role="status">Loading monitor accounts...</p>
+      <h3>Accounts</h3>
+      <p class="empty-state" id="monitor-users-empty" hidden><span class="empty-state__title">No monitor accounts yet</span>An account appears after its first signed-in visit.</p>
+      <div class="table-scroll" id="monitor-users-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Account</th><th>Address</th><th>Created</th><th>Watches</th><th>Sessions</th><th>Telegram</th><th>Last seen</th></tr></thead>
+          <tbody id="monitor-users-rows"></tbody>
+        </table>
+      </div>
+      <h3>Recent events</h3>
+      <p class="empty-state" id="monitor-events-empty" hidden><span class="empty-state__title">No monitor events yet</span>Events are recorded when a watched address changes.</p>
+      <div class="table-scroll" id="monitor-events-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Time</th><th>Account</th><th>Chain</th><th>Kind</th><th>Severity</th><th>Detail</th></tr></thead>
+          <tbody id="monitor-events-rows"></tbody>
+        </table>
+      </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card admin-panel" data-panel="jobs" hidden>
+      <h2>Jobs and workers</h2>
+      <p class="muted" data-role="loading" role="status">Loading jobs...</p>
+      <h3>Jobs</h3>
+      <p class="empty-state" id="jobs-empty" hidden><span class="empty-state__title">No jobs yet</span>Jobs created through the API appear here.</p>
+      <div class="table-scroll" id="jobs-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Job</th><th>Mode</th><th>Coin</th><th>Range</th><th>Progress</th><th>Scanned</th><th>State</th></tr></thead>
+          <tbody id="jobs-rows"></tbody>
+        </table>
+      </div>
+      <h3>Workers</h3>
+      <p class="empty-state" id="workers-empty" hidden><span class="empty-state__title">No workers yet</span>Enabled clients appear here with their live lease.</p>
+      <div class="table-scroll" id="workers-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Worker</th><th>Name</th><th>Scanned</th><th>Chunks</th><th>Found</th><th>Rate</th><th>Last seen</th><th>Lease</th></tr></thead>
+          <tbody id="workers-rows"></tbody>
+        </table>
+      </div>
+      <h3>Live leases</h3>
+      <p class="empty-state" id="leases-empty" hidden><span class="empty-state__title">No live leases</span>An active lease appears while a worker holds a chunk.</p>
+      <div class="table-scroll" id="leases-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Client</th><th>Job</th><th>Chunk</th><th>Scanned</th><th>Rate</th><th>Expires</th></tr></thead>
+          <tbody id="leases-rows"></tbody>
+        </table>
+      </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card admin-panel" data-panel="orders" hidden>
+      <h2>Orders and payments</h2>
+      <p class="muted" data-role="loading" role="status">Loading orders...</p>
+      <h3>Orders</h3>
+      <p class="empty-state" id="orders-empty" hidden><span class="empty-state__title">No orders yet</span>Paid-download orders appear here once the store is configured.</p>
+      <div class="table-scroll" id="orders-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Order</th><th>List</th><th>Chain</th><th>Amount</th><th>Status</th><th>Created</th><th>Expires</th></tr></thead>
+          <tbody id="orders-rows"></tbody>
+        </table>
+      </div>
+      <h3>Payments</h3>
+      <p class="empty-state" id="payments-empty" hidden><span class="empty-state__title">No payments yet</span>Confirmed and pending payments appear here.</p>
+      <div class="table-scroll" id="payments-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Order</th><th>Chain</th><th>Transaction</th><th>Amount</th><th>Confirmations</th><th>Seen</th></tr></thead>
+          <tbody id="payments-rows"></tbody>
+        </table>
+      </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card admin-panel" data-panel="providers" hidden>
+      <h2>Providers</h2>
+      <p class="muted" data-role="loading" role="status">Loading provider counters...</p>
+      <div class="table-scroll" id="providers-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Counter</th><th>Value</th></tr></thead>
+          <tbody id="providers-rows"></tbody>
+        </table>
+      </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card admin-panel" data-panel="integrations" hidden>
+      <h2>Integrations</h2>
+      <p class="muted" data-role="loading" role="status">Loading integrations...</p>
+      <div class="table-scroll" id="integrations-table" hidden>
+        <table class="data-table">
+          <thead><tr><th>Integration</th><th>Configured</th><th>Detail</th></tr></thead>
+          <tbody id="integrations-rows"></tbody>
+        </table>
+      </div>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+
+    <section class="card admin-panel" data-panel="audit" hidden>
+      <h2>Audit log</h2>
+      <p class="muted" data-role="loading" role="status">Loading audit log...</p>
+      <p class="empty-state" id="audit-empty" hidden><span class="empty-state__title">Audit log is not available yet</span><span id="audit-empty-note">No audit entries exist; the store ships with phase 3.</span></p>
+      <p class="error" data-role="error" role="alert" hidden></p>
+    </section>
+  </div>
 </main>
 
 <script src="/admin.js"></script>

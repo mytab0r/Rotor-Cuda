@@ -2872,3 +2872,400 @@ fn admin_gate_headers_and_moved_design_gallery() {
 
     handle.shutdown();
 }
+
+// ------------------------------------------------------- admin inventory
+
+const ADMIN_INVENTORY_ENDPOINTS: &[&str] = &[
+    "/cabinet/admin/api/clients",
+    "/cabinet/admin/api/monitor/users",
+    "/cabinet/admin/api/monitor/events",
+    "/cabinet/admin/api/jobs",
+    "/cabinet/admin/api/workers",
+    "/cabinet/admin/api/leases",
+    "/cabinet/admin/api/orders",
+    "/cabinet/admin/api/payments",
+];
+
+const ADMIN_SINGLE_ENDPOINTS: &[&str] = &[
+    "/cabinet/admin/api/providers",
+    "/cabinet/admin/api/integrations",
+    "/cabinet/admin/api/audit",
+];
+
+fn sha256_hex(text: &str) -> String {
+    let digest = Sha256::digest(text.as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[test]
+fn admin_inventory_endpoints_need_auth_and_paginate() {
+    let temp = TempState::new("admin-inventory");
+    let monitor_state = TempState::new("admin-inventory-monitor");
+    let monitor = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let user_a = monitor
+        .upsert_user("0x0000000000000000000000000000000000000001")
+        .expect("user a");
+    let user_b = monitor
+        .upsert_user("0x0000000000000000000000000000000000000002")
+        .expect("user b");
+    assert!(monitor.link_telegram(&user_a.id, 424242).expect("link"));
+    let session_token = monitor.create_session(&user_a.id).expect("session");
+    monitor
+        .record_event(
+            &user_a.id,
+            "evm",
+            "0x0000000000000000000000000000000000000001",
+            "incoming",
+            "info",
+            "balance changed",
+        )
+        .expect("event");
+
+    let orders_state = TempState::new("admin-inventory-orders");
+    let orders = Arc::new(
+        Orders::new(
+            OrdersConfig::parse(&orders_config(true)).expect("orders config"),
+            b"0123456789abcdef0123456789abcdef",
+            orders_state.path().to_path_buf(),
+        )
+        .expect("orders store"),
+    );
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        temp.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            orders: Some(Arc::clone(&orders)),
+            tronscan_api_key: Some("inventory-provider-key".to_string()),
+            ..ServerOptions::default()
+        },
+        Arc::clone(&monitor),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+
+    // Every endpoint is behind the cookie/bearer gate.
+    for path in ADMIN_INVENTORY_ENDPOINTS
+        .iter()
+        .chain(ADMIN_SINGLE_ENDPOINTS)
+    {
+        let (status, head, body) = raw(addr, "GET", path, None, None);
+        assert_eq!(status, 401, "{path}: {body}");
+        assert_admin_headers(&head);
+    }
+
+    // Bearer works and the standard page envelope is present.
+    for path in ADMIN_INVENTORY_ENDPOINTS {
+        let (status, head, body) = raw(addr, "GET", path, Some(TOKEN), None);
+        assert_eq!(status, 200, "{path}: {body}");
+        assert_admin_headers(&head);
+        assert!(!body.contains(TOKEN), "{path} leaked the admin token");
+        let value: serde_json::Value = serde_json::from_str(&body).expect("page JSON");
+        assert!(value["items"].is_array(), "{path}: {body}");
+        assert_eq!(value["page"], 1, "{path}");
+        assert_eq!(value["page_size"], 50, "{path}");
+        assert!(value["total"].is_u64(), "{path}: {body}");
+        assert!(value["has_more"].is_boolean(), "{path}: {body}");
+    }
+    for path in ADMIN_SINGLE_ENDPOINTS {
+        let (status, head, body) = raw(addr, "GET", path, Some(TOKEN), None);
+        assert_eq!(status, 200, "{path}: {body}");
+        assert_admin_headers(&head);
+        assert!(!body.contains(TOKEN), "{path} leaked the admin token");
+        let value: serde_json::Value = serde_json::from_str(&body).expect("JSON");
+        assert!(value.is_object(), "{path}: {body}");
+    }
+
+    // The page-size cap is enforced, never trusted from the query.
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/clients?page_size=5000",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    let value: serde_json::Value = serde_json::from_str(&body).expect("clients JSON");
+    assert_eq!(value["page_size"], 200, "page size must be capped: {body}");
+
+    // Clients paginate and the second page is distinct.
+    create_client_as(addr, TOKEN, "alpha");
+    create_client_as(addr, TOKEN, "beta");
+    let (_, _, first) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/clients?page=1&page_size=1",
+        Some(TOKEN),
+        None,
+    );
+    let (_, _, second) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/clients?page=2&page_size=1",
+        Some(TOKEN),
+        None,
+    );
+    let first: serde_json::Value = serde_json::from_str(&first).expect("first page");
+    let second: serde_json::Value = serde_json::from_str(&second).expect("second page");
+    assert_eq!(first["items"].as_array().map(Vec::len), Some(1));
+    assert_eq!(second["items"].as_array().map(Vec::len), Some(1));
+    assert_ne!(first["items"][0]["id"], second["items"][0]["id"]);
+    assert_eq!(first["total"], 2);
+    assert_eq!(first["has_more"], true);
+
+    // Monitor accounts paginate, and the detail never includes a session
+    // token or its hash.
+    let (_, _, body) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/monitor/users?page=1&page_size=1",
+        Some(TOKEN),
+        None,
+    );
+    let users: serde_json::Value = serde_json::from_str(&body).expect("users JSON");
+    assert_eq!(users["items"].as_array().map(Vec::len), Some(1));
+    assert_eq!(users["total"], 2, "two monitor accounts: {body}");
+    let detail_path = format!("/cabinet/admin/api/monitor/users/{}", user_a.id);
+    let (status, _, body) = raw(addr, "GET", &detail_path, Some(TOKEN), None);
+    assert_eq!(status, 200, "{body}");
+    assert!(
+        !body.contains(&session_token),
+        "detail leaked the session token"
+    );
+    assert!(
+        !body.contains(&sha256_hex(&session_token)),
+        "detail leaked the session hash"
+    );
+    assert!(
+        !body.contains("token_hash"),
+        "detail exposed a hash field: {body}"
+    );
+    let detail: serde_json::Value = serde_json::from_str(&body).expect("detail JSON");
+    assert_eq!(detail["telegram"]["linked"], true);
+    assert_eq!(detail["telegram"]["chat_id"], 424242);
+    assert_eq!(detail["sessions"], 1);
+    assert!(detail["settings"]["alerts_enabled"].is_boolean());
+    assert!(
+        detail["events"]
+            .as_array()
+            .is_some_and(|rows| !rows.is_empty())
+    );
+
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        &format!("/cabinet/admin/api/monitor/users/{}?page_size=1", user_a.id),
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    let detail: serde_json::Value = serde_json::from_str(&body).expect("detail JSON");
+    assert_eq!(detail["events"].as_array().map(Vec::len), Some(1));
+
+    // Orders paginate; two orders share a deposit address but not an amount.
+    for _ in 0..2 {
+        let (status, _, body) = raw(
+            addr,
+            "POST",
+            "/api/v1/orders",
+            None,
+            Some(r#"{"list":"btc-pack"}"#),
+        );
+        assert_eq!(status, 201, "{body}");
+    }
+    let (status, _, body) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/orders?page=1&page_size=1",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    let orders: serde_json::Value = serde_json::from_str(&body).expect("orders JSON");
+    assert_eq!(orders["items"].as_array().map(Vec::len), Some(1));
+    assert_eq!(orders["total"], 2, "{body}");
+    assert_eq!(orders["has_more"], true);
+
+    // The empty state is honest: the audit store ships later.
+    let (_, _, body) = raw(addr, "GET", "/cabinet/admin/api/audit", Some(TOKEN), None);
+    let audit: serde_json::Value = serde_json::from_str(&body).expect("audit JSON");
+    assert_eq!(audit["items"].as_array().map(Vec::len), Some(0));
+    assert_eq!(audit["available"], false);
+
+    // Two seeded accounts keep distinct ids.
+    assert_ne!(user_a.id, user_b.id);
+    handle.shutdown();
+}
+
+#[test]
+fn admin_inventory_payloads_never_contain_configured_secrets() {
+    const TRONSCAN_SECRET: &str = "tronscan-secret-admin-test";
+    const EDGE_SECRET: &str = "edge-secret-admin-test";
+    const ORDERS_HMAC: &str = "orders-hmac-secret-admin-test-0123456789";
+    const ORDERS_ADMIN: &str = "orders-admin-secret-admin-test";
+
+    let temp = TempState::new("admin-secrets");
+    let monitor_state = TempState::new("admin-secrets-monitor");
+    let monitor = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let user = monitor
+        .upsert_user("0x0000000000000000000000000000000000000003")
+        .expect("user");
+    let session_token = monitor.create_session(&user.id).expect("session");
+
+    // Inject the second orders credential into the existing fixture config.
+    let config_text = orders_config(true).replacen(
+        "\"lists\"",
+        &format!("\"admin_token\": \"{ORDERS_ADMIN}\", \"lists\""),
+        1,
+    );
+    let orders_state = TempState::new("admin-secrets-orders");
+    let orders = Arc::new(
+        Orders::new(
+            OrdersConfig::parse(&config_text).expect("orders config"),
+            ORDERS_HMAC.as_bytes(),
+            orders_state.path().to_path_buf(),
+        )
+        .expect("orders store"),
+    );
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        temp.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            orders: Some(Arc::clone(&orders)),
+            tronscan_api_key: Some(TRONSCAN_SECRET.to_string()),
+            edge_proxy_url: Some("https://proxy.example".to_string()),
+            edge_proxy_secret: Some(EDGE_SECRET.to_string()),
+            ..ServerOptions::default()
+        },
+        Arc::clone(&monitor),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+
+    // Create an order so the inventory serializes an order row; the public
+    // response carries the one-time token, the admin inventory must not.
+    let (status, _, created) = raw(
+        addr,
+        "POST",
+        "/api/v1/orders",
+        None,
+        Some(r#"{"list":"btc-pack"}"#),
+    );
+    assert_eq!(status, 201, "{created}");
+    let created: serde_json::Value = serde_json::from_str(&created).expect("created order");
+    let order_token = created["order_token"].as_str().expect("order token");
+
+    let mut payloads = String::new();
+    for path in ADMIN_INVENTORY_ENDPOINTS
+        .iter()
+        .chain(ADMIN_SINGLE_ENDPOINTS)
+        .copied()
+        .chain(std::iter::once("/cabinet/admin/api/overview"))
+    {
+        let (status, _, body) = raw(addr, "GET", path, Some(TOKEN), None);
+        assert_eq!(status, 200, "{path}: {body}");
+        payloads.push_str(&body);
+        payloads.push('\n');
+    }
+    let detail_path = format!("/cabinet/admin/api/monitor/users/{}", user.id);
+    let (status, _, body) = raw(addr, "GET", &detail_path, Some(TOKEN), None);
+    assert_eq!(status, 200, "{body}");
+    payloads.push_str(&body);
+
+    for (label, secret) in [
+        ("admin token", TOKEN),
+        ("TRONSCAN_API_KEY", TRONSCAN_SECRET),
+        ("EDGE_PROXY_SECRET", EDGE_SECRET),
+        ("ORDERS_HMAC_SECRET", ORDERS_HMAC),
+        ("orders admin token", ORDERS_ADMIN),
+        ("order token", order_token),
+        ("monitor session token", &session_token),
+        ("monitor session hash", &sha256_hex(&session_token)),
+    ] {
+        assert!(
+            !payloads.contains(secret),
+            "admin payloads leaked the {label}"
+        );
+    }
+    for field in [
+        "token_hash",
+        "order_token_hash",
+        "\"webhook_secret\":",
+        "telegram_webhook_secret",
+    ] {
+        assert!(
+            !payloads.contains(field),
+            "admin payloads exposed a {field} field"
+        );
+    }
+    // Integration names are allowed; values are not.
+    assert!(payloads.contains("ROTOR_TELEGRAM_BOT_TOKEN"));
+    assert!(payloads.contains("TRONSCAN_API_KEY"));
+
+    handle.shutdown();
+}
+
+#[test]
+fn admin_panels_render_with_states_and_no_inline_code() {
+    let temp = TempState::new("admin-panels");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+    let (session, _, _) = admin_login(addr);
+    let cookie = format!("rotor_admin={session}");
+    let panels = [
+        "/cabinet/admin",
+        "/cabinet/admin/clients",
+        "/cabinet/admin/monitor",
+        "/cabinet/admin/jobs",
+        "/cabinet/admin/orders",
+        "/cabinet/admin/providers",
+        "/cabinet/admin/integrations",
+        "/cabinet/admin/audit",
+    ];
+    for path in panels {
+        let (status, head, body) = raw_with_headers(
+            addr,
+            "GET",
+            path,
+            None,
+            None,
+            &[("Cookie", cookie.as_str())],
+        );
+        assert_eq!(status, 200, "{path}: {body}");
+        assert_admin_headers(&head);
+        assert!(!body.contains(TOKEN), "{path} embedded the admin token");
+        assert!(!body.contains("<style"), "{path} inlined CSS");
+        assert!(!body.contains("<script>"), "{path} inlined JavaScript");
+        for panel in [
+            "overview",
+            "clients",
+            "monitor",
+            "jobs",
+            "orders",
+            "providers",
+            "integrations",
+            "audit",
+        ] {
+            assert!(
+                body.contains(&format!("data-panel=\"{panel}\"")),
+                "{path} is missing the {panel} panel"
+            );
+        }
+        assert!(
+            body.matches("class=\"empty-state\"").count() >= 7,
+            "{path} must carry the real empty states"
+        );
+        assert!(
+            body.matches("data-role=\"error\"").count() >= 7,
+            "{path} must carry one error state per panel"
+        );
+        assert!(
+            body.matches("data-role=\"loading\"").count() >= 7,
+            "{path} must carry one loading state per panel"
+        );
+    }
+    handle.shutdown();
+}

@@ -71,10 +71,18 @@ const DEFAULT_ROUTES = [
   "/tx/bitcoin",
   "/tx/ethereum",
   "/docs",
-  // Operator cabinet: authenticated dashboard and the design-system gallery.
-  // The run logs in with the token the harness started the server with and
-  // installs the session cookie through CDP before these routes.
+  // Operator cabinet: authenticated dashboard, read-only inventory panels and
+  // the design-system gallery. The run logs in with the token the harness
+  // started the server with and installs the session cookie through CDP before
+  // these routes.
   "/cabinet/admin",
+  "/cabinet/admin/clients",
+  "/cabinet/admin/monitor",
+  "/cabinet/admin/jobs",
+  "/cabinet/admin/orders",
+  "/cabinet/admin/providers",
+  "/cabinet/admin/integrations",
+  "/cabinet/admin/audit",
   "/cabinet/admin/design",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
@@ -2036,6 +2044,15 @@ function auditPage(args) {
     "/cabinet/admin",
     "/cabinet/admin/",
     "/cabinet/admin/login",
+    // Read-only inventory panels share the cabinet shell: no breadcrumbs or
+    // marketing footer. The design gallery stays a content page.
+    "/cabinet/admin/clients",
+    "/cabinet/admin/monitor",
+    "/cabinet/admin/jobs",
+    "/cabinet/admin/orders",
+    "/cabinet/admin/providers",
+    "/cabinet/admin/integrations",
+    "/cabinet/admin/audit",
   ]);
   const shellPage = shellRoutes.has(route);
   const needsBreadcrumbs = route !== "/" && !shellPage;
