@@ -41,9 +41,9 @@ In scope:
 - `.github/workflows/board-sync.yml`: a daily off-peak sync with the owner
   token, plus `workflow_dispatch`, so the board cannot lag behind merged PRs.
 - Stale PR project items (merged/closed) are archived; only open PR cards
-  remain. Changes without `tasks.md` are reported loudly, and
-  `openspec/changes/frontend-platform/tasks.md` is added so that change is
-  tracked.
+  remain. Changes without `tasks.md` are reported loudly, and the
+  `frontend-platform` phases 0-7 `tasks.md` already on main is adopted so that
+  change is tracked.
 - Unit tests for parsing, blockers (including the real `key-leak-monitor` and
   `tx-sign-broadcast` edges), idempotent creation with a fake `gh`, stale-PR
   archiving and the gate's pass/fail cases.
@@ -80,7 +80,7 @@ Out of scope:
 5. The dry-run plan shows the blocker edges for the real
    `key-leak-monitor` and `tx-sign-broadcast` changes; a second non-dry run is
    idempotent. Merged/closed PR items are archived, changes without tasks are
-   reported, and `frontend-platform` has a tracked `tasks.md`.
+   reported, and the `frontend-platform` phases are tracked.
 6. `node scripts/check-projects.mjs`, `node scripts/check-defect-ledger.mjs`,
    `node scripts/check-ssot.mjs`, `node scripts/gen-detector-docs.mjs --check`
    and the new unit tests pass.
