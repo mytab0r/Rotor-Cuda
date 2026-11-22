@@ -141,6 +141,7 @@
       "name": "Bitcoin testnet",
       "symbol": "BTC",
       "family": "btc",
+      "testnet": true,
       "explorer": "https://mempool.space/testnet/address/{address}",
       "explorerTx": "https://mempool.space/testnet/tx/{tx}"
     },
@@ -149,6 +150,7 @@
       "name": "Ethereum Sepolia",
       "symbol": "ETH",
       "family": "evm",
+      "testnet": true,
       "explorer": "https://sepolia.etherscan.io/address/{address}",
       "explorerTx": "https://sepolia.etherscan.io/tx/{tx}"
     },
@@ -157,6 +159,7 @@
       "name": "BNB Smart Chain testnet",
       "symbol": "tBNB",
       "family": "evm",
+      "testnet": true,
       "explorer": "https://testnet.bscscan.com/address/{address}",
       "explorerTx": "https://testnet.bscscan.com/tx/{tx}"
     },
@@ -165,6 +168,7 @@
       "name": "TRON Nile testnet",
       "symbol": "TRX",
       "family": "tron",
+      "testnet": true,
       "explorer": "https://nile.tronscan.org/#/address/{address}",
       "explorerTx": "https://nile.tronscan.org/#/transaction/{tx}"
     }

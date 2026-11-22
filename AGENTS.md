@@ -42,7 +42,17 @@ explorer URL or chain identity into a page script.
   `apps/site/*.js` file contains a canonical provider/explorer host literal.
   Known textual exceptions live in `data/ssot-allow.json` (`file`, `match`,
   `reason`, `owner`, `expires`); the list is shrink-only and expired entries
-  fail.
+  fail. An allowlist entry never covers a host inside an `http(s)://` URL
+  literal.
+- The same gate validates every static `RotorProviders.find('chain', 'id')`,
+  `.first('chain')`, `.byChain` and `RotorChains.bySlug` reference against the
+  data, so renaming a provider id or chain slug fails until every consumer is
+  updated.
+- Testnet chains and every provider entry under them carry `testnet: true`.
+  `gen-ssot.mjs` rejects a mainnet provider host on a testnet chain unless the
+  URL path carries `nile`, `sepolia`, `prebsc` or `testnet` (the mempool.space
+  mainnet/testnet split), and rejects a testnet endpoint or marker on a mainnet
+  chain.
 - The coordinator embeds and fingerprints `/chains.generated.js` and injects it
   into every served document before the page scripts. Node tests that load a
   migrated consumer call `require("./chains.generated.js")` first.

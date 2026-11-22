@@ -93,6 +93,13 @@ Out of scope (later slices):
 ## Acceptance (slice 1)
 
 - `node scripts/gen-ssot.mjs --check` and `node scripts/check-ssot.mjs` pass.
+- Renaming a provider id or chain slug and regenerating still fails until every
+  static consumer reference is updated.
+- Testnet chains and their providers carry `testnet: true`; the generator
+  rejects a mainnet host on a testnet chain (without a `nile`/`sepolia`/
+  `prebsc`/`testnet` path marker) and a testnet endpoint or marker on a mainnet
+  chain.
+- An allowlisted hostname never forgives a literal inside an `http(s)://` URL.
 - `grep -nE 'publicnode|drpc|tronscan|mempool\.space|etherscan|blockchain\.info' apps/site/*.js`
   has hits only in `chains.generated.js`, the two vendored bundles and the
   reviewed `data/ssot-allow.json` textual exceptions.

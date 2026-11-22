@@ -45,6 +45,20 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
       exempt; stale or expired entries fail.
 - [x] Add `data/ssot-allow.json` for the reviewed textual/cache-name
       exceptions and the two vendored bundles (`ton.js`, `walletconnect.js`).
+      An allowlist entry covers plain text only; a canonical host inside an
+      `http(s)://` URL literal always fails.
+- [x] Validate provider-id and chain-slug references: every static
+      `RotorProviders.find('chain', 'id')`, `.first('chain')`, `.byChain` and
+      `RotorChains.bySlug` use must resolve in the data. Renaming an id and
+      regenerating still fails until every consumer is updated.
+- [x] Pin testnet endpoints: testnet chains and their provider entries carry
+      `testnet: true`; the generator rejects a shared mainnet host without a
+      `nile`/`sepolia`/`prebsc`/`testnet` path marker and rejects testnet
+      endpoints or markers on mainnet chains. Both directions are covered by
+      mutation tests.
+- [x] Prove the new gates by mutation: provider-id rename, testnet-to-mainnet
+      URL, mainnet-to-testnet URL and a URL literal inside an allowlisted file
+      each fail with file:line; restoring the data returns green.
 - [x] Wire the generator and gate into `.github/workflows/rust.yml`
       (`projects-map`) and `.github/workflows/ui.yml`; add `data/**` to the
       `site` area and the commands to `projects.json`.

@@ -10,6 +10,12 @@
 //   provider-literal no first-party apps/site/*.js file carries a provider or
 //                    explorer hostname that already lives in the canonical
 //                    data. Consumers must read the generated globals.
+//                    Allowlist entries cover plain text only: a canonical host
+//                    inside an http(s):// URL literal always fails.
+//   provider-id      every `SSOT_PROVIDERS.find('chain', 'id')`,
+//                    `.first('chain')` and static `.byChain` / `.bySlug`
+//                    reference names a chain and provider id that exist in
+//                    data/providers.json / data/chains.json.
 //
 // data/ssot-allow.json records the known exceptions. The list is shrink-only:
 // a new literal fails, an entry whose match no longer occurs fails as stale,
@@ -88,14 +94,131 @@ function listSiteFiles(root) {
     .map((name) => `${SITE_DIR}/${name}`);
 }
 
-function lineNumbers(text, needle) {
-  const lines = [];
-  let index = text.indexOf(needle);
+function lineAt(text, index) {
+  return text.slice(0, index).split("\n").length;
+}
+
+function occurrences(text, needle) {
+  const haystack = text.toLowerCase();
+  const target = needle.toLowerCase();
+  const hits = [];
+  let index = haystack.indexOf(target);
   while (index !== -1) {
-    lines.push(text.slice(0, index).split("\n").length);
-    index = text.indexOf(needle, index + needle.length);
+    hits.push({ index, line: lineAt(text, index) });
+    index = haystack.indexOf(target, index + target.length);
   }
-  return lines;
+  return hits;
+}
+
+function urlSpans(text) {
+  const spans = [];
+  for (const match of text.matchAll(/https?:\/\/[^\s"'`<>]+/gi)) {
+    spans.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return spans;
+}
+
+function insideUrl(spans, index) {
+  return spans.some((span) => index >= span.start && index < span.end);
+}
+
+const PROVIDER_CALLS = [
+  {
+    kind: "find",
+    re: /\b(?:SSOT_PROVIDERS|RotorProviders)\.find\(\s*(['"])([a-z0-9-]+)\1\s*,\s*(['"])([a-z0-9-]+)\3\s*\)/g,
+    chainGroup: 2,
+    idGroup: 4,
+  },
+  {
+    kind: "first",
+    re: /\b(?:SSOT_PROVIDERS|RotorProviders)\.first\(\s*(['"])([a-z0-9-]+)\1\s*\)/g,
+    chainGroup: 2,
+  },
+];
+
+const PROVIDER_ACCESS = [
+  {
+    kind: "byChain",
+    re: /\b(?:SSOT_PROVIDERS|RotorProviders)\.byChain\.([a-z0-9]+(?:-[a-z0-9]+)*)/g,
+    group: 1,
+  },
+  {
+    kind: "byChain",
+    re: /\b(?:SSOT_PROVIDERS|RotorProviders)\.byChain\[\s*(['"])([a-z0-9-]+)\1\s*\]/g,
+    group: 2,
+  },
+];
+
+const CHAIN_ACCESS = [
+  {
+    kind: "bySlug",
+    re: /\b(?:SSOT_CHAINS|RotorChains)\.bySlug\.([a-z0-9]+(?:-[a-z0-9]+)*)/g,
+    group: 1,
+  },
+  {
+    kind: "bySlug",
+    re: /\b(?:SSOT_CHAINS|RotorChains)\.bySlug\[\s*(['"])([a-z0-9-]+)\1\s*\]/g,
+    group: 2,
+  },
+];
+
+// The generated globals are the runtime contract. A typo in a chain slug or a
+// provider id is not caught by the literal or freshness checks, and it crashes
+// the page on `find(...).url`; validate every static reference here.
+export function validateReferences(root, files, data) {
+  const errors = [];
+  let references = 0;
+  for (const relative of files) {
+    const text = fs.readFileSync(path.join(root, relative), "utf8");
+    for (const call of PROVIDER_CALLS) {
+      for (const match of text.matchAll(call.re)) {
+        references += 1;
+        const chain = match[call.chainGroup];
+        const line = lineAt(text, match.index);
+        const list = data.providers.get(chain);
+        if (!list) {
+          errors.push(
+            `${relative}:${line} ${call.kind}('${chain}', ...) names a chain with no providers in data/providers.json`,
+          );
+          continue;
+        }
+        if (call.idGroup !== undefined) {
+          const id = match[call.idGroup];
+          if (!list.some((provider) => provider.id === id)) {
+            errors.push(
+              `${relative}:${line} ${call.kind}('${chain}', '${id}') names a provider id absent from data/providers.json ` +
+                `for ${chain}; available: ${list.map((provider) => provider.id).join(", ")}`,
+            );
+          }
+        }
+      }
+    }
+    for (const access of PROVIDER_ACCESS) {
+      for (const match of text.matchAll(access.re)) {
+        references += 1;
+        const chain = match[access.group];
+        const line = lineAt(text, match.index);
+        if (!data.providers.has(chain)) {
+          errors.push(
+            `${relative}:${line} ${access.kind}.${chain} names a chain absent from data/providers.json`,
+          );
+        }
+      }
+    }
+    for (const access of CHAIN_ACCESS) {
+      for (const match of text.matchAll(access.re)) {
+        references += 1;
+        const slug = match[access.group];
+        const line = lineAt(text, match.index);
+        if (!data.slugs.has(slug)) {
+          errors.push(
+            `${relative}:${line} ${access.kind}.${slug} names a chain absent from data/chains.json`,
+          );
+        }
+      }
+    }
+  }
+  return { errors, references };
 }
 
 function loadAllowlist(root) {
@@ -177,6 +300,9 @@ export function check(root = REPO_ROOT) {
   const wholeFile = new Set(allow.filter((entry) => entry.match === "*").map((entry) => entry.file));
 
   const files = listSiteFiles(root);
+  const references = validateReferences(root, files, data);
+  errors.push(...references.errors);
+
   let checked = 0;
   let allowlisted = 0;
   for (const relative of files) {
@@ -186,21 +312,37 @@ export function check(root = REPO_ROOT) {
       continue;
     }
     const text = fs.readFileSync(path.join(root, relative), "utf8");
+    const spans = urlSpans(text);
     for (const needle of needles) {
-      const lines = lineNumbers(text, needle);
-      if (lines.length === 0) continue;
-      if (allowEntries.has(`${relative}\0${needle}`)) {
-        allowlisted += 1;
-        continue;
+      const hits = occurrences(text, needle);
+      if (hits.length === 0) continue;
+      const allowed = allowEntries.has(`${relative}\0${needle}`);
+      for (const hit of hits) {
+        if (insideUrl(spans, hit.index)) {
+          errors.push(
+            `${relative}:${hit.line} contains the canonical provider host ${JSON.stringify(needle)} ` +
+              "inside an http(s) URL literal; allowlist entries cover plain text only",
+          );
+        } else if (!allowed) {
+          errors.push(
+            `${relative}:${hit.line} carries the canonical provider host ${JSON.stringify(needle)}; ` +
+              "read window.RotorProviders / window.RotorChains instead, or add a reviewed data/ssot-allow.json entry",
+          );
+        } else {
+          allowlisted += 1;
+        }
       }
-      errors.push(
-        `${relative}:${lines.join(",")} carries the canonical provider host ${JSON.stringify(needle)}; ` +
-          "read window.RotorProviders / window.RotorChains instead, or add a reviewed data/ssot-allow.json entry",
-      );
     }
   }
 
-  return { ok: errors.length === 0, errors, needles, checked, allowlisted };
+  return {
+    ok: errors.length === 0,
+    errors,
+    needles,
+    checked,
+    allowlisted,
+    references: references.references,
+  };
 }
 
 export function main() {
@@ -213,7 +355,7 @@ export function main() {
     }
     console.log(
       `ssot:check OK (${result.needles.length} canonical hosts, ${result.checked} site scripts, ` +
-        `${result.allowlisted} allowlisted occurrence(s))`,
+        `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider reference(s))`,
     );
     return 0;
   } catch (error) {

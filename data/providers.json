@@ -93,19 +93,19 @@
       { "id": "blockchair", "url": "https://api.blockchair.com", "label": "Blockchair" }
     ],
     "bitcoin-testnet": [
-      { "id": "mempool", "url": "https://mempool.space/testnet/api", "label": "mempool.space testnet" }
+      { "id": "mempool", "url": "https://mempool.space/testnet/api", "label": "mempool.space testnet", "testnet": true }
     ],
     "sepolia": [
-      { "id": "publicnode", "url": "https://ethereum-sepolia-rpc.publicnode.com", "label": "publicnode.com" },
-      { "id": "1rpc", "url": "https://1rpc.io/sepolia", "label": "1RPC" },
-      { "id": "tenderly", "url": "https://sepolia.gateway.tenderly.co", "label": "Tenderly gateway" }
+      { "id": "publicnode", "url": "https://ethereum-sepolia-rpc.publicnode.com", "label": "publicnode.com", "testnet": true },
+      { "id": "1rpc", "url": "https://1rpc.io/sepolia", "label": "1RPC", "testnet": true },
+      { "id": "tenderly", "url": "https://sepolia.gateway.tenderly.co", "label": "Tenderly gateway", "testnet": true }
     ],
     "bnb-testnet": [
-      { "id": "bnbchain", "url": "https://data-seed-prebsc-1-s1.bnbchain.org:8545", "label": "BNB Chain testnet" },
-      { "id": "publicnode", "url": "https://bsc-testnet-rpc.publicnode.com", "label": "publicnode.com" }
+      { "id": "bnbchain", "url": "https://data-seed-prebsc-1-s1.bnbchain.org:8545", "label": "BNB Chain testnet", "testnet": true },
+      { "id": "publicnode", "url": "https://bsc-testnet-rpc.publicnode.com", "label": "publicnode.com", "testnet": true }
     ],
     "tron-nile": [
-      { "id": "nileex", "url": "https://api.nileex.io", "label": "TRON Nile" }
+      { "id": "nileex", "url": "https://api.nileex.io", "label": "TRON Nile", "testnet": true }
     ]
   }
 }
