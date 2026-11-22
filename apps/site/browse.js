@@ -395,7 +395,7 @@
     if (config.chain === 'sui') return Object.assign({ provider: 'sui', chain: 'sui' }, unitFor('sui'));
     if (config.chain === 'tron') return Object.assign({ provider: 'tronscan', chain: 'tron' }, unitFor('tron'));
     if (config.chain === 'xrp') return Object.assign({ provider: 'xrpscan', chain: 'xrp' }, unitFor('xrp'));
-    if (config.chain === 'ton') return Object.assign({ provider: 'toncenter', chain: 'ton' }, unitFor('ton'));
+    if (config.chain === 'ton') return Object.assign({ provider: 'tonapi', chain: 'ton' }, unitFor('ton'));
     if (config.chain === 'bitcoin-cash') return Object.assign({ provider: 'haskoin-bch', chain: 'bitcoin-cash' }, unitFor('bitcoin-cash'));
     /* LTC and DOGE do have a keyless provider (BlockCypher) on the single-key
      * page. This 60-row directory does not use it: 60 lookups would exceed the

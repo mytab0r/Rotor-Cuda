@@ -250,9 +250,69 @@ test("mnemonic-tron-xrp-sui-balances: providerMetaFor maps TRON, XRP and SUI", (
   assertEqual(api.providerMetaFor("zcash"), null, "ZEC stays unsupported on this page");
   assertEqual(
     JSON.stringify(api.providerMetaFor("ton")),
-    JSON.stringify({ provider: "toncenter", chain: "ton", decimals: 9, symbol: "TON" }),
-    "TON uses the Toncenter per-address provider"
+    JSON.stringify({ provider: "tonapi", chain: "ton", decimals: 9, symbol: "TON" }),
+    "TON uses the batched TonAPI directory provider"
   );
+});
+
+test("mnemonic-ton-seeds: one bulk POST maps TonAPI accounts by index", async () => {
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url: String(url), options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        accounts: [
+          { address: "0:aaaa", balance: 100 },
+          { address: "0:bbbb", balance: 0 },
+          { address: "0:cccc", balance: "250" }
+        ]
+      })
+    };
+  };
+  try {
+    const result = await providers.fetchProvider(
+      api.providerMetaFor("ton"),
+      ["EQone", "EQtwo", "EQthree"]
+    );
+    assertEqual(requests.length, 1, "one request for the whole page");
+    assertEqual(requests[0].url, "https://tonapi.io/v2/accounts/_bulk", "bulk endpoint");
+    assertEqual(requests[0].options.method, "POST", "bulk uses POST");
+    assertEqual(
+      JSON.stringify(JSON.parse(requests[0].options.body)),
+      JSON.stringify({ account_ids: ["EQone", "EQtwo", "EQthree"] }),
+      "request carries the address list"
+    );
+    assertEqual(
+      JSON.stringify(result.values),
+      JSON.stringify({
+        EQone: { balance: "100" },
+        EQtwo: { balance: "0" },
+        EQthree: { balance: "250" }
+      }),
+      "accounts map by request index, not by the echoed raw address"
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-ton-seeds: a malformed TonAPI body throws instead of zero", () => {
+  function throws(fn, message) {
+    let threw = false;
+    try { fn(); } catch (err) { threw = true; }
+    assert(threw, message);
+  }
+  throws(() => providers.parseTonApiAccounts(["a", "b"], { accounts: [{ balance: 1 }] }),
+    "a short account list must throw");
+  throws(() => providers.parseTonApiAccounts(["a"], { accounts: null }),
+    "a missing accounts array must throw");
+  throws(() => providers.parseTonApiAccounts(["a"], { accounts: [{}] }),
+    "a missing balance must throw");
+  throws(() => providers.parseTonApiAccounts(["a"], { accounts: [{ balance: "1.5" }] }),
+    "a non-integer balance must throw");
 });
 
 test("mnemonic-ton-seeds: the config matches the donor path, types and presets", () => {
