@@ -233,6 +233,46 @@
     });
   }
 
+  /* BlockCypher `GET /addrs/<addr1>;<addr2>;.../balance`: one row per requested
+   * address in the SAME ORDER as the query. For two or more addresses the body
+   * is a JSON array; for exactly one it is a single object, wrapped here. The
+   * rows are mapped back to the request list by index: the page caps at 60 and
+   * dedupes before calling, and BlockCypher preserves duplicates, so the echoed
+   * address is never used as the key. Returns one `{amount, received, tx}` per
+   * input address, or null for the whole body when the shape or length does not
+   * match. A negative total clamps to zero like the Haskoin parser. */
+  function blockcypherDogeAtomic(value) {
+    if (value === undefined || value === null) return 0n;
+    if (typeof value === 'number') {
+      if (!isFinite(value) || Math.floor(value) !== value) return null;
+      return BigInt(value);
+    }
+    if (typeof value !== 'string' || !/^-?\d+$/.test(value.trim())) return null;
+    return BigInt(value.trim());
+  }
+
+  function parseBlockcypherDogeBatch(addresses, data) {
+    if (!Array.isArray(addresses)) return null;
+    if (addresses.length === 1 && data && typeof data === 'object' && !Array.isArray(data)) {
+      data = [data];
+    }
+    if (!Array.isArray(data) || data.length !== addresses.length) return null;
+    return data.map(function (item) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      var balance = blockcypherDogeAtomic(item.balance);
+      var received = blockcypherDogeAtomic(item.total_received);
+      var tx = blockcypherDogeAtomic(item.n_tx);
+      if (balance === null || received === null || tx === null) return null;
+      if (balance < 0n) balance = 0n;
+      if (received < 0n) received = 0n;
+      return {
+        amount: balance.toString(),
+        received: received.toString(),
+        tx: Number(tx)
+      };
+    });
+  }
+
   function hasAddress(address) {
     return typeof address === 'string' && address.trim().length > 0;
   }
@@ -469,6 +509,7 @@
     parseLitecoinSpaceAddress: parseLitecoinSpaceAddress,
     parseHaskoinBch: parseHaskoinBch,
     parseHaskoinBchBatch: parseHaskoinBchBatch,
+    parseBlockcypherDogeBatch: parseBlockcypherDogeBatch,
     hasAddress: hasAddress,
     isSuccess: isSuccess,
     isFresh: isFresh,

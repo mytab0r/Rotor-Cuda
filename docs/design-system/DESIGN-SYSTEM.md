@@ -735,7 +735,7 @@ standalone freshness gate.
 | `mnemonic-tron-xrp-sui-balances` | The TRON, XRP and SUI directories fetch balances for every row. | phase 4 | implemented |
 | `mnemonic-xrp-redirect` | XRPScan is called with redirect: error so a cross-origin hop fails loud. | phase 4 | implemented |
 | `mnemonic-sochain-quota-storm` | The first SoChain 429 stops the rest of a directory page instead of firing 60 retries. | phase 4 | implemented |
-| `mnemonic-ltc-sochain-fallback` | A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only. | phase 4 | implemented |
+| `mnemonic-ltc-sochain-fallback` | A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider and the whole Dogecoin page from one SSOT BlockCypher batch; ZEC stays SoChain-only with no fallback. | phase 4 | implemented |
 | `balance-state-attribute` | Every balance row sets data-balance-state and data-balance-at on the row. | phase 4 | implemented |
 | `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
 | `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |
@@ -766,6 +766,7 @@ standalone freshness gate.
 | `status-line-margin` | Text-only status lines use a top margin in {8,12}. | 1/3 | planned |
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 | `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
+| `mnemonic-doge-blockcypher-batch` | Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index. | phase 4 | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in

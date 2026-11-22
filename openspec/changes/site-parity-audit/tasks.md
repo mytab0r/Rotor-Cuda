@@ -419,6 +419,23 @@ follow-ups were code-only.
   `HEX or Brainwallet` on account-model chains. Evidence:
   `src/coordinator/mod.rs` (helpers + call sites). Test:
   `browse_search_placeholder_names_the_chain_wif_shape`.
+- [x] DOGE directory balance fallback (2026-11-22, code-only): both directories
+  keep SoChain as the primary DOGE provider, but when the first 429 exhausts
+  its daily quota the page is served through one SSOT BlockCypher batch request
+  (`<base>/addrs/<a;b;...>/balance`) instead of leaving every row in the retry
+  state. BlockCypher's small hourly quota counts each address in the batch, so
+  the fallback does not guarantee a filled page: live 2026-11-22 both
+  `/mnemonic-seeds/dogecoin` and `/private-keys/dogecoin` rendered 60/60
+  `data-balance-state="err"` because SoChain and BlockCypher both answered 429,
+  and the pages pass the UI audit with 0 violations at 375/768/1280 in both
+  themes. Evidence: `apps/site/balance-providers.js`
+  (`blockcypherDogeBatchUrl`, `blockcypherDogeProvider`, the
+  `meta.chain === 'dogecoin'` fallback in `sochainProvider`),
+  `apps/site/balance-cache.js` (`parseBlockcypherDogeBatch`), tests
+  `apps/site/mnemonic-seeds-test.mjs` (`mnemonic-doge-blockcypher-batch:`
+  one-request, short-body, single-object and source-lock cases) and
+  `apps/site/balance-cache-test.mjs` (parser vectors). Defect
+  `mnemonic-doge-blockcypher-batch`.
 
 ## P1 — shell and templates
 
