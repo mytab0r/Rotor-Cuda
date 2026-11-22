@@ -444,6 +444,17 @@ follow-ups were code-only.
   `src/coordinator/mod.rs` (`render_puzzle_detail`); test
   `coordinator::tests::bitcoin_puzzle_browser_routes_are_served`. The donor
   `Solution` field (solved private key) stays out of scope by policy.
+- [x] Puzzle detail solver tool links (2026-11-22, code-only, issue #396): the
+  live donor capture (`https://ref-site-a/bitcoin-puzzle/<n>`, puzzles
+  #71/#72) renders three external tool links in the action row only on unsolved
+  puzzles; solved #67–#70 and #80 do not. `render_puzzle_detail` now appends
+  `BitCrack` → https://github.com/brichard19/BitCrack,
+  `Keyhunt` → https://github.com/albertobsd/keyhunt and
+  `VanitySearch` → https://github.com/JeanLucPons/VanitySearch
+  (`target="_blank" rel="noopener noreferrer"`, shared `.btn`) behind
+  `!solved`. Evidence: `src/coordinator/mod.rs` (`render_puzzle_detail`); test
+  `coordinator::tests::bitcoin_puzzle_browser_routes_are_served`; detectors
+  `puzzle-detail-tool-links` (registry + defect ledger).
 
 ## P1 — shell and templates
 
