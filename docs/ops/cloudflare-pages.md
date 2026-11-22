@@ -64,6 +64,11 @@ change. Until they do:
 - It does not add Worker routes, `/api/*` forwarding, Pages Functions or any
   coordinator change. Deployments are reachable only on `*.pages.dev` until
   DNS/custom-domain work is approved.
+- It does not make the absolute `og:image` URL resolve from `*.pages.dev`: the
+  Astro build keeps the site contract `https://rotor.pxbt.app/a/<build>/...`,
+  and until the origin cutover that host is still the coordinator. The image
+  file itself is inside `web/dist` and is served on the Pages deployment at the
+  same path; only the absolute URL in the HTML needs the cutover.
 - It does not create the Pages project or the secrets. Those are the one-time
   owner actions above; the workflow only consumes them.
 
