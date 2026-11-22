@@ -133,7 +133,10 @@
   address instead of showing zero. The provider code moved out of `browse.js`
   into the shared `balance-providers.js` so the two directories cannot drift.
   LTC/DOGE/ZEC/TON stay `—` on this page (per-address provider budget); the
-  ledger row stays `partial`. Evidence: `apps/site/balance-providers.js:377`
+  ledger row stays `partial`. Audit coverage: `/mnemonic-seeds/bitcoin-cash` is
+  now in `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (one batched Haskoin request
+  per page, like Solana; TRON/XRP/SUI stay out because they fan out one request
+  per address). Evidence: `apps/site/balance-providers.js:377`
   (`haskoinBatchUrl`), `:383` (`haskoinBchProvider`), `:408` (`FETCHERS`),
   `:430` (`fetchProvider`); `apps/site/balance-cache.js:171`
   (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:795` (`providerMetaFor`),
