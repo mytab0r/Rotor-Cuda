@@ -4468,14 +4468,13 @@ a.button.primary,
   height: var(--icon-button-icon);
 }
 
-/* Touch and narrow windows: 44px for every icon size. A 28px visual is only
- * allowed where a pointer can hover a dense row. */
-@media (pointer: coarse), (max-width: 1023px) {
-  .icon-button--md,
-  .icon-button--sm {
-    --icon-button-size: var(--control-h-lg);
-    --icon-button-icon: var(--icon-size-lg);
-  }
+/* Default touch floor: md/sm icon buttons are 44 everywhere except a fine
+ * desktop pointer, where the media block below narrows them to 36/28. A wide
+ * headless or unknown pointer is neither coarse nor fine, so it keeps 44. */
+.icon-button--md,
+.icon-button--sm {
+  --icon-button-size: var(--control-h-lg);
+  --icon-button-icon: var(--icon-size-lg);
 }
 
 @media (min-width: 1024px) and (pointer: fine) {
