@@ -2471,7 +2471,7 @@ async function auditWalletApprovals(cdp) {
       const rpcResult = (value) => response({ jsonrpc: '2.0', id: 1, result: value });
       const rpcError = (message) => response({ jsonrpc: '2.0', id: 1, error: { code: 3, message } });
 
-      window.fetch = async (url, init) => {
+      const stubFetch = async (url, init) => {
         const body = JSON.parse(init.body);
         switch (body.method) {
           case 'eth_chainId':
@@ -2492,6 +2492,16 @@ async function auditWalletApprovals(cdp) {
           }
           case 'eth_blockNumber':
             return rpcResult('0x4e20');
+          case 'eth_getTransactionCount':
+            return rpcResult('0x0');
+          case 'eth_getBalance':
+            return rpcResult('0xde0b6b3a7640000');
+          case 'eth_estimateGas':
+            return rpcResult('0xc350');
+          case 'eth_feeHistory':
+            return rpcResult({ baseFeePerGas: ['0x3b9aca00', '0x77359400'] });
+          case 'eth_maxPriorityFeePerGas':
+            return rpcResult('0x3b9aca00');
           case 'eth_getLogs': {
             const from = Number.parseInt(body.params[0].fromBlock, 16);
             if (from < 15001) {
@@ -2503,6 +2513,7 @@ async function auditWalletApprovals(cdp) {
             return rpcError('method not mocked: ' + body.method);
         }
       };
+      window.fetch = stubFetch;
 
       const network = document.getElementById('wallet-send-network');
       const entry = document.getElementById('wallet-send-entry');
@@ -2591,6 +2602,128 @@ async function auditWalletApprovals(cdp) {
       evidence.warnings = warnings ? warnings.textContent.trim() : '';
       if (!warnings || warnings.hidden || !/archive|older approvals/.test(evidence.warnings)) {
         problems.push('the truncated warning is not visible');
+      }
+
+      /* Grant form: labelled 44px fields, its own Unlimited warning line, a
+       * visible error state for a zero amount, and a rendered unlimited review
+       * that names the spender type and the allowance. */
+      const grantForm = document.getElementById('wallet-approvals-grant-form');
+      const grantSpender = document.getElementById('wallet-approvals-grant-spender');
+      const grantAmount = document.getElementById('wallet-approvals-grant-amount');
+      const grantUnlimited = document.getElementById('wallet-approvals-grant-unlimited');
+      const grantWarning = document.getElementById('wallet-approvals-grant-unlimited-warning');
+      const grantPrepare = document.getElementById('wallet-approvals-grant-prepare');
+      evidence.grant = {};
+      if (!grantForm || !grantSpender || !grantAmount || !grantUnlimited || !grantWarning || !grantPrepare) {
+        problems.push('the grant form controls are missing');
+      } else {
+        for (const [name, input] of [['spender', grantSpender], ['amount', grantAmount]]) {
+          const label = input.closest('label');
+          const box = input.getBoundingClientRect();
+          evidence.grant[name] = {
+            height: Math.round(box.height),
+            label: label ? label.textContent.trim().slice(0, 70) : '',
+          };
+          if (!label) problems.push('grant ' + name + ' input has no label');
+          if (Math.round(box.height) !== 44) {
+            problems.push('grant ' + name + ' input is ' + Math.round(box.height) + 'px (expected 44)');
+          }
+        }
+        const unlimitedLabel = grantUnlimited.closest('label');
+        evidence.grant.unlimitedLabelHeight = unlimitedLabel
+          ? Math.round(unlimitedLabel.getBoundingClientRect().height)
+          : 0;
+        if (!unlimitedLabel) problems.push('the Unlimited checkbox has no label');
+        else if (evidence.grant.unlimitedLabelHeight < 44) {
+          problems.push('the Unlimited label is ' + evidence.grant.unlimitedLabelHeight + 'px (expected >=44)');
+        }
+        if (!grantWarning.hidden) problems.push('the unlimited warning is visible before Unlimited is checked');
+
+        grantSpender.value = eoaSpender;
+        grantSpender.dispatchEvent(new Event('input', { bubbles: true }));
+        grantAmount.value = '0';
+        grantAmount.dispatchEvent(new Event('input', { bubbles: true }));
+        grantForm.requestSubmit();
+        /* The border-colour transition must finish before the computed color
+         * is read, or the start value (the normal border) is returned. */
+        await sleep(250);
+        const amountError = document.getElementById('wallet-approvals-grant-amount-error');
+        evidence.grant.amountError = amountError ? amountError.textContent.trim() : '';
+        if (!amountError || amountError.hidden || !/greater than zero/.test(evidence.grant.amountError)) {
+          problems.push('the zero-amount error state is missing');
+        }
+        if (grantAmount.getAttribute('aria-invalid') !== 'true') {
+          problems.push('the zero-amount input is not aria-invalid');
+        }
+        {
+          const probe = document.createElement('span');
+          probe.setAttribute('aria-hidden', 'true');
+          probe.style.color = 'var(--state-err)';
+          document.body.appendChild(probe);
+          const semantic = getComputedStyle(probe).color;
+          probe.remove();
+          const invalidBorder = getComputedStyle(grantAmount).borderTopColor;
+          evidence.grant.invalidBorder = invalidBorder;
+          if (invalidBorder !== semantic) {
+            problems.push('the zero-amount field border is ' + invalidBorder +
+              ', not --state-err (' + semantic + ')');
+          }
+        }
+
+        grantUnlimited.checked = true;
+        grantUnlimited.dispatchEvent(new Event('change', { bubbles: true }));
+        await sleep(0);
+        evidence.grant.unlimitedWarning = grantWarning.hidden ? '' : grantWarning.textContent.trim();
+        if (grantWarning.hidden ||
+            !/every token of this contract until you revoke it/.test(evidence.grant.unlimitedWarning)) {
+          problems.push('the unlimited warning line is not visible');
+        }
+        if (!grantAmount.disabled) problems.push('the amount input stays enabled with Unlimited checked');
+
+        grantSpender.value = contractSpender;
+        grantSpender.dispatchEvent(new Event('input', { bubbles: true }));
+        /* The scan restored the real fetch; re-stub for the grant's RPC reads. */
+        window.fetch = stubFetch;
+        let reviewShown = false;
+        try {
+          grantForm.requestSubmit();
+          reviewShown = await waitFor(() => {
+            const box = document.getElementById('wallet-approvals-review');
+            return box && !box.hidden;
+          }, 20000);
+        } finally {
+          window.fetch = realFetch;
+        }
+        evidence.grant.reviewShown = reviewShown;
+        if (!reviewShown) {
+          problems.push('the grant review did not render: ' +
+            ((document.getElementById('wallet-approvals-error') || {}).textContent || '').trim());
+        } else {
+          const heading = document.getElementById('wallet-approvals-review-heading');
+          evidence.grant.reviewHeading = heading ? heading.textContent.trim() : '';
+          if (!/allowance grant/i.test(evidence.grant.reviewHeading)) {
+            problems.push('the grant review heading is missing');
+          }
+          const list = document.getElementById('wallet-approvals-review-list');
+          const rows = {};
+          for (let index = 0; list && index + 1 < list.children.length; index += 2) {
+            rows[list.children[index].textContent.trim()] = list.children[index + 1].textContent.trim();
+          }
+          evidence.grant.reviewRows = rows;
+          if (rows['Spender type'] !== 'Contract') {
+            problems.push('the grant review does not label the spender type: ' + rows['Spender type']);
+          }
+          if (rows['New allowance'] !== 'Unlimited') {
+            problems.push('the grant review does not show Unlimited: ' + rows['New allowance']);
+          }
+          const reviewWarnings = document.getElementById('wallet-approvals-review-warnings');
+          evidence.grant.reviewWarnings = reviewWarnings && !reviewWarnings.hidden
+            ? reviewWarnings.textContent.trim()
+            : '';
+          if (!/every USDT token of this contract until you revoke it/.test(evidence.grant.reviewWarnings)) {
+            problems.push('the grant review warning line is missing');
+          }
+        }
       }
 
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
@@ -2777,6 +2910,115 @@ async function auditKeyTooltips(cdp) {
 // the pseudo-state through CDP and read the real computed style. Transitions are
 // suppressed for the measurement so the hover value is read immediately instead
 // of racing the --duration-fast animation.
+/* Every visible error message must use the semantic --state-err colour and
+ * keep WCAG AA contrast (4.5:1) against its effective background. The class
+ * defect this guards: .error shipped a hardcoded #ffb3b3, which is about
+ * 1.7:1 on the light theme and was copied into four other error variants.
+ * The probe resolves the theme's --state-err (an alias of --err), so dark and
+ * light are checked with the value they actually render. */
+async function auditErrorMessages(cdp) {
+  return evaluate(
+    cdp,
+    `(() => {
+      const violations = [];
+      const evidence = {
+        checked: 0,
+        invalidFields: 0,
+        theme: document.documentElement.getAttribute('data-theme') || '',
+      };
+      const parse = (value) => {
+        const match = /rgba?\\(([^)]+)\\)/.exec(value || '');
+        if (!match) return null;
+        const parts = match[1].split(/[\\s,\\/]+/).filter(Boolean).map(Number);
+        return [parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : 1];
+      };
+      const over = (top, bottom) => {
+        const alpha = top[3];
+        return [
+          top[0] * alpha + bottom[0] * (1 - alpha),
+          top[1] * alpha + bottom[1] * (1 - alpha),
+          top[2] * alpha + bottom[2] * (1 - alpha),
+          1,
+        ];
+      };
+      const effectiveBackground = (element) => {
+        const layers = [];
+        for (let node = element; node; node = node.parentElement) {
+          layers.push(parse(getComputedStyle(node).backgroundColor));
+        }
+        let base = [255, 255, 255, 1];
+        for (let index = layers.length - 1; index >= 0; index -= 1) {
+          const layer = layers[index];
+          if (!layer || layer[3] === 0) continue;
+          base = layer[3] === 1 ? layer : over(layer, base);
+        }
+        return base;
+      };
+      const channel = (value) => {
+        const ratio = value / 255;
+        return ratio <= 0.04045 ? ratio / 12.92 : Math.pow((ratio + 0.055) / 1.055, 2.4);
+      };
+      const luminance = (color) =>
+        0.2126 * channel(color[0]) + 0.7152 * channel(color[1]) + 0.0722 * channel(color[2]);
+      const contrast = (a, b) => {
+        const first = luminance(a);
+        const second = luminance(b);
+        return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+      };
+      const probe = document.createElement('span');
+      probe.setAttribute('aria-hidden', 'true');
+      probe.style.color = 'var(--state-err)';
+      document.body.appendChild(probe);
+      const semantic = getComputedStyle(probe).color;
+      probe.remove();
+      evidence.semantic = semantic;
+
+      const selector = '.error, .key-error, .range-error, .monitor-status.err, ' +
+        '.wallet-warnings, .balance-note.err, .balance-info.err, .directory-hint.err, ' +
+        '.global-search-error';
+      const seen = new Set();
+      for (const node of document.querySelectorAll(selector)) {
+        if (seen.has(node)) continue;
+        seen.add(node);
+        if (!node.getClientRects().length || !node.textContent.trim()) continue;
+        const style = getComputedStyle(node);
+        evidence.checked += 1;
+        if (style.color !== semantic) {
+          violations.push({
+            id: 'error-message-contrast',
+            message: 'visible error text "' + node.textContent.trim().slice(0, 60) +
+              '" uses ' + style.color + ', not --state-err (' + semantic + ')',
+          });
+          continue;
+        }
+        const color = parse(style.color);
+        const ratio = color ? contrast(color, effectiveBackground(node)) : 0;
+        if (ratio < 4.5) {
+          violations.push({
+            id: 'error-message-contrast',
+            message: 'visible error text "' + node.textContent.trim().slice(0, 60) +
+              '" has ' + ratio.toFixed(2) + ':1 contrast (minimum 4.5:1)',
+            detail: { color: style.color, ratio: Number(ratio.toFixed(2)) },
+          });
+        }
+      }
+      for (const field of document.querySelectorAll('[aria-invalid="true"]')) {
+        if (!field.getClientRects().length) continue;
+        evidence.invalidFields += 1;
+        const border = getComputedStyle(field).borderTopColor;
+        if (border !== semantic) {
+          violations.push({
+            id: 'error-message-contrast',
+            message: 'invalid field border uses ' + border + ', not --state-err (' + semantic + ')',
+          });
+        }
+      }
+      return { ok: violations.length === 0, violations, evidence };
+    })()`,
+    20000,
+  );
+}
+
 async function auditQuietIconHover(cdp) {
   const buttons = await evaluate(
     cdp,
@@ -3283,6 +3525,9 @@ async function main() {
             const quietHover = await auditQuietIconHover(cdp);
             run.metrics.quietIconHover = quietHover.evidence;
             if (!quietHover.ok) run.violations.push(...quietHover.violations);
+            const errorMessages = await auditErrorMessages(cdp);
+            run.metrics.errorMessageContrast = errorMessages.evidence;
+            if (!errorMessages.ok) run.violations.push(...errorMessages.violations);
           } catch (error) {
             run.status = "error";
             run.violations.push({
