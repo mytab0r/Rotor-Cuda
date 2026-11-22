@@ -6,7 +6,8 @@
  *  - the chain table, the chain-id guard and the mainnet arm/balance/fee-cap
  *    gates;
  *  - ERC-20 token reads (decimals, symbol, balanceOf, allowance) and the fixed
- *    transfer(address,uint256) and approve(spender, 0) calldata built locally;
+ *    transfer(address,uint256) and approve(address,uint256) calldata built
+ *    locally for a revoke (amount 0) or a grant (an explicit allowance);
  *  - Approval log discovery (eth_getLogs, chunked and deduped) and the
  *    per-spender current-allowance/code reads over an injected public RPC;
  *  - review preparation over an injected public RPC and the explicit confirm
@@ -440,8 +441,8 @@
   }
 
   /* Canonical approve(address,uint256): selector 0x095ea7b3, then the spender
-   * and the raw allowance each left-padded to one 32-byte word. This slice
-   * only ever builds amount 0 (a revoke); a grant will get its own review. */
+   * and the raw allowance each left-padded to one 32-byte word. A revoke uses
+   * amount 0; the grant path refuses zero and pins Unlimited to 2^256-1. */
   function approveCalldata(spender, amountWei) {
     var who = normalizeAddress(spender, 'spender');
     if (typeof amountWei !== 'bigint' || amountWei < 0n || amountWei > U256_MAX) {
@@ -452,6 +453,16 @@
 
   function revokeCalldata(spender) {
     return approveCalldata(spender, 0n);
+  }
+
+  /* An allowance to the token contract itself is a no-op for a standard
+   * ERC-20 and is almost always the same address pasted into both fields.
+   * Refuse it so a copy-paste mistake cannot produce a confusing transaction. */
+  function assertGrantTarget(contract, spender) {
+    if (String(contract).toLowerCase() === String(spender).toLowerCase()) {
+      throw new Error('The spender must not be the token contract itself; an allowance to ' +
+        'the token has no effect and is usually a copy-paste mistake. Refusing to sign.');
+    }
   }
 
   /* Display helper: 2^256-1 is the conventional "unlimited" allowance. Every
@@ -882,6 +893,40 @@
       throw new Error('A revoke must not send native value; the reviewed value is not zero. ' +
         'Refusing to sign.');
     }
+    return contract;
+  }
+
+  /* A grant review is only signable when its calldata is still exactly
+   * approve(spender, amount) with a positive, in-range amount and no native
+   * value. A mutated spender, amount, calldata or token refuses. The same
+   * check runs on every chain, testnet included. */
+  function assertReviewedGrant(review) {
+    var contract;
+    try {
+      contract = normalizeAddress(review.tokenContract, 'token contract');
+    } catch (err) {
+      throw new Error('The reviewed token contract is invalid: ' + errorText(err) +
+        ' Refusing to sign.');
+    }
+    var expected;
+    try {
+      expected = approveCalldata(review.spender, review.approvalAmountWei);
+    } catch (err) {
+      throw new Error('The reviewed allowance grant is invalid: ' + errorText(err) +
+        ' Refusing to sign.');
+    }
+    if (review.approvalAmountWei <= 0n) {
+      throw new Error('The reviewed allowance amount is not greater than zero. Refusing to sign.');
+    }
+    if (review.dataHex !== expected) {
+      throw new Error('The reviewed grant calldata does not match the reviewed spender ' +
+        'and allowance. Refusing to sign.');
+    }
+    if (review.valueWei !== 0n) {
+      throw new Error('An allowance grant must not send native value; the reviewed value is ' +
+        'not zero. Refusing to sign.');
+    }
+    assertGrantTarget(contract, review.spender);
     return contract;
   }
 
@@ -1410,10 +1455,13 @@
     var expectedChainId = network.chainId;
     var action = settings.action || null;
     var isRevoke = false;
+    var isGrant = false;
     var spender = null;
+    var grantUnlimited = false;
+    var grantAmountText = null;
     var validated;
     if (action) {
-      if (action.kind !== 'revoke') {
+      if (action.kind !== 'revoke' && action.kind !== 'grant') {
         throw new Error('Unsupported token action.');
       }
       var actionContract;
@@ -1427,7 +1475,23 @@
       } catch (err) {
         throw new Error('The spender address is invalid: ' + errorText(err));
       }
-      isRevoke = true;
+      if (action.kind === 'grant') {
+        assertGrantTarget(actionContract, spender);
+        grantUnlimited = action.unlimited === true;
+        if (!grantUnlimited) {
+          grantAmountText = typeof action.amountText === 'string' ? action.amountText.trim() : '';
+          if (!grantAmountText) {
+            throw tokenFieldError('amount', 'Enter the allowance amount, or choose Unlimited.');
+          }
+          if (!/^\d+(?:\.\d+)?$/.test(grantAmountText)) {
+            throw tokenFieldError('amount',
+              'Use a plain decimal token amount like 1.5 (no exponent, sign or comma).');
+          }
+        }
+        isGrant = true;
+      } else {
+        isRevoke = true;
+      }
       validated = {
         errors: {},
         values: {
@@ -1477,10 +1541,10 @@
     var txTo = values.to;
     var nativeValue = values.value;
     var transferData = values.data;
-    if (isRevoke) {
+    if (isRevoke || isGrant) {
       txTo = values.token;
       nativeValue = 0n;
-      transferData = revokeCalldata(spender);
+      transferData = isRevoke ? revokeCalldata(spender) : '0x';
     } else if (values.token) {
       txTo = values.token;
       nativeValue = 0n;
@@ -1488,6 +1552,9 @@
     }
     var tokenMeta = null;
     var currentAllowanceWei = null;
+    var grantAmountWei = null;
+    var spenderIsContract = null;
+    var preWarnings = [];
     var providers = settings.providerUrl
       ? [settings.providerUrl]
       : (settings.providers || network.providers.map(function (provider) { return provider.url; }));
@@ -1530,6 +1597,64 @@
               }
             });
         }
+        if (isGrant) {
+          /* Re-read the header at review time, then parse the allowance with
+           * the token's own decimals and build approve(spender, amount) here.
+           * The current allowance and the spender type are informational: a
+           * failed read is a warning, not a reason to refuse a valid grant. */
+          return retryNetwork(function () {
+            return readTokenHeader(settings.fetchJson, chosen, network, values.token);
+          }).then(function (meta) {
+            tokenMeta = meta;
+            if (grantUnlimited) {
+              grantAmountWei = U256_MAX;
+            } else {
+              try {
+                grantAmountWei = AMOUNT.parseUnits(grantAmountText, meta.decimals);
+              } catch (err) {
+                throw tokenFieldError('amount', 'Enter the allowance in ' + meta.symbol +
+                  ' units as a plain decimal with at most ' + meta.decimals + ' decimal places.');
+              }
+              if (grantAmountWei <= 0n) {
+                throw tokenFieldError('amount', 'The allowance amount must be greater than ' +
+                  'zero; use revoke to set an allowance to zero.');
+              }
+              if (grantAmountWei > U256_MAX) {
+                throw tokenFieldError('amount', 'The allowance amount is larger than the ' +
+                  'maximum uint256 value (2^256-1).');
+              }
+            }
+            transferData = approveCalldata(spender, grantAmountWei);
+            /* A finite input can parse to exactly 2^256-1; the signed
+             * calldata is then identical to the Unlimited option, so the same
+             * warning must appear whichever way the value was entered. */
+            if (grantAmountWei === U256_MAX) {
+              preWarnings.push('Unlimited allowance: this lets the spender move every ' +
+                meta.symbol + ' token of this contract until you revoke it.');
+            }
+            return retryNetwork(function () {
+              return readAllowance(settings.fetchJson, chosen, values.token, from, spender);
+            }).then(function (allowance) {
+              currentAllowanceWei = allowance;
+            }, function (err) {
+              preWarnings.push('Could not read the current allowance for ' + spender + ': ' +
+                errorText(err));
+            }).then(function () {
+              return retryNetwork(function () {
+                return read(settings.fetchJson, chosen, 'eth_getCode', [spender, 'latest'],
+                  'the spender code');
+              }).then(function (code) {
+                if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) {
+                  throw new Error('eth_getCode returned a non-hex value.');
+                }
+                spenderIsContract = code.length > 2;
+              }, function (err) {
+                preWarnings.push('Could not read the spender code for ' + spender + ': ' +
+                  errorText(err));
+              });
+            });
+          });
+        }
         if (!values.token) return null;
         return readTokenMetadata(settings.fetchJson, chosen, network, values.token, from,
           values.to, values.amountText).then(function (meta) {
@@ -1565,7 +1690,9 @@
             if (values.gasLimit === null) {
               throw new Error(isRevoke
                 ? 'Cannot estimate gas for this revoke (' + estimateError + ').'
-                : 'Cannot estimate gas; enter a gas limit manually (' + estimateError + ').');
+                : (isGrant
+                  ? 'Cannot estimate gas for this allowance grant (' + estimateError + ').'
+                  : 'Cannot estimate gas; enter a gas limit manually (' + estimateError + ').'));
             }
           });
       })
@@ -1630,7 +1757,7 @@
         return Promise.resolve(settings.unsigned(fields)).then(function (unsignedHex) {
           assertType2Hex(unsignedHex, 'unsigned transaction');
 
-          var warnings = [];
+          var warnings = preWarnings.slice();
           if (estimateError !== null) {
             warnings.push('Node estimate failed: ' + estimateError +
               '; using the manual gas limit.');
@@ -1656,11 +1783,13 @@
             explorerAddress: network.explorerAddress,
             feeCapWei: network.feeCapWei,
             from: from,
-            to: isRevoke ? values.token : values.to,
-            isToken: !isRevoke && values.token !== null,
+            to: (isRevoke || isGrant) ? values.token : values.to,
+            isToken: !isRevoke && !isGrant && values.token !== null,
             isRevoke: isRevoke,
+            isGrant: isGrant,
             spender: spender,
-            approvalAmountWei: isRevoke ? 0n : null,
+            spenderIsContract: spenderIsContract,
+            approvalAmountWei: isGrant ? grantAmountWei : (isRevoke ? 0n : null),
             currentAllowanceWei: currentAllowanceWei,
             tokenContract: tokenMeta ? tokenMeta.contract : null,
             tokenSymbol: tokenMeta ? tokenMeta.symbol : null,
@@ -1701,6 +1830,26 @@
     return prepareTransaction(settings);
   }
 
+  /* Grant a new allowance: build approve(spender, amount) locally and run the
+   * same prepare pipeline (chain id, arm, nonce, fee cap, estimateGas, review).
+   * `unlimited: true` pins the allowance to 2^256-1; otherwise `amountText` is
+   * parsed exactly with the token's own decimals. Zero is refused because a
+   * revoke owns that case, and a value above uint256 is refused.
+   * options: { token, spender, amountText?, unlimited?, from, fetchJson,
+   *            providerUrl?, providers?, unsigned, expectedChainId?,
+   *            mainnetArmed?, chainName? } */
+  function prepareGrant(options) {
+    var settings = Object.assign({}, options || {});
+    settings.action = {
+      kind: 'grant',
+      token: settings.token,
+      spender: settings.spender,
+      amountText: settings.amountText,
+      unlimited: settings.unlimited === true
+    };
+    return prepareTransaction(settings);
+  }
+
   /* options: { review, fetchJson, sign(fields) -> signed hex,
    *            mainnetArmed? } */
   async function confirmTransaction(options) {
@@ -1723,6 +1872,8 @@
     var signTo = review.to;
     if (review.isRevoke) {
       signTo = assertReviewedRevoke(review);
+    } else if (review.isGrant) {
+      signTo = assertReviewedGrant(review);
     } else if (review.isToken) {
       signTo = assertReviewedTokenTransfer(review);
     } else if (!network.testnet) {
@@ -1730,7 +1881,7 @@
     }
     if (!network.testnet) {
       assertFeeCap(network, review.gasLimit, review.maxFeeWei);
-      if (review.isToken || review.isRevoke) {
+      if (review.isToken || review.isRevoke || review.isGrant) {
         assertFeeBalance(network, review.balanceWei, review.gasLimit * review.maxFeeWei);
       } else {
         assertSufficientBalance(network, review.balanceWei, review.totalMaxCostWei);
@@ -1813,6 +1964,7 @@
     normalizeAddress: normalizeAddress,
     normalizeData: normalizeData,
     transferCalldata: transferCalldata,
+    approveCalldata: approveCalldata,
     revokeCalldata: revokeCalldata,
     allowanceCalldata: allowanceCalldata,
     formatAllowance: formatAllowance,
@@ -1824,6 +1976,7 @@
     readAllowance: readAllowance,
     scanApprovals: scanApprovals,
     prepareRevoke: prepareRevoke,
+    prepareGrant: prepareGrant,
     decodeTokenSymbol: decodeTokenSymbol,
     TOKEN_DATA_ERROR: TOKEN_DATA_ERROR,
     APPROVAL_TOPIC: APPROVAL_TOPIC,

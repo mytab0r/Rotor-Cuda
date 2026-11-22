@@ -540,6 +540,20 @@
       "symptom": "A portfolio total could treat a balance that was still loading, failed or never requested as zero, and price a testnet coin at its mainnet ticker, so $0.00 or an inflated USD value looked like a real total.",
       "detector": "wallet-portfolio-summary",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-approvals-grant-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "The allowance grant form was not exercised by any detector: the approvals scenario stopped at the table, so nothing checked its labelled 44px fields, its own visible Unlimited warning line, the zero-amount error state or the rendered unlimited review.",
+      "detector": "wallet-approvals-surface",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "error-message-light-contrast",
+      "reported": "2026-11-22",
+      "symptom": "The .error component hardcoded #ffb3b3 for its text in both themes; on the light theme that is about 1.7:1, so every field error (now load-bearing for the allowance grant) was unreadable. The same literal was copied into .balance-note.err, .directory-hint.err, .global-search-error and .balance-info.err.",
+      "detector": "error-message-contrast",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

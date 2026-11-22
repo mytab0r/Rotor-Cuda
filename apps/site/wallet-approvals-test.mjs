@@ -1,14 +1,15 @@
-// ERC-20 approvals reader and revoke tests for the cabinet wallet
+// ERC-20 approvals reader, grant and revoke tests for the cabinet wallet
 // (apps/site/wallet-evm.js).
 //
 // Usage: node apps/site/wallet-approvals-test.mjs
 //
-// No network and no DOM: every RPC response is a stub. The revoke calldata is
-// checked against an independent encoding (selector derived from the canonical
-// signature with the module's own Keccak-256 plus a hand-written ABI word
-// layout). Every refusal path is pinned with its exact message.
+// No network and no DOM: every RPC response is a stub. The approve calldata is
+// checked against independent ethers 6.17.0 output, and an unlimited approve
+// is signed by the committed WASM core and pinned against the same ethers
+// vector. Every refusal path is pinned with its exact message.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -16,6 +17,7 @@ require("./chains.generated.js");
 require("./amount.js");
 const evm = require("./wallet-evm.js");
 
+const KEY1 = "0x" + "0".repeat(63) + "1";
 const OWNER = "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf";
 const TOKEN = "0x1111111111111111111111111111111111111111";
 const SPENDER = "0x3535353535353535353535353535353535353535";
@@ -24,10 +26,45 @@ const THIRD = "0x4444444444444444444444444444444444444444";
 const U256_MAX = (1n << 256n) - 1n;
 const TX_HASH = "0x" + "ab".repeat(32);
 
+/* ethers 6.17.0:
+ *   new ethers.Interface(["function approve(address spender, uint256 amount)"])
+ *     .encodeFunctionData("approve", [SPENDER, 1234500n])
+ *     .encodeFunctionData("approve", [SPENDER, 2^256-1]) */
+const FINITE_CALLDATA =
+  "0x095ea7b3" +
+  "000000000000000000000000" + SPENDER.slice(2) +
+  "000000000000000000000000000000000000000000000000000000000012d644";
+const UNLIMITED_CALLDATA =
+  "0x095ea7b3" +
+  "000000000000000000000000" + SPENDER.slice(2) +
+  "f".repeat(64);
+/* ethers 6.17.0 raw transaction for the unlimited approve below and its
+ * Keccak-256: type 2, chain 1, nonce 0, 1 gwei priority, 5 gwei max, gas
+ * 60000, to TOKEN, value 0, data UNLIMITED_CALLDATA, key KEY1. */
+const UNLIMITED_RAW =
+  "0x02f8b00180843b9aca0085012a05f20082ea6094111111111111111111111111111111111111111180b844095ea7b30000000000000000000000003535353535353535353535353535353535353535ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc080a0a62b85eb883a11f18a93517ba0ac115357910a278fd0f273b14d47d5a708e681a0723cf9c87734c97439b55ac0f49c2439ca13836dd7e68639c5caf35d16c6a7b2";
+const UNLIMITED_HASH =
+  "0xe4ca7a56f7999d6810cacbea5bd738c204a518cdfba3bcb91afd751ea4320fac";
+
 const DECIMALS_SELECTOR = "0x313ce567";
 const SYMBOL_SELECTOR = "0x95d89b41";
 const ALLOWANCE_SELECTOR = "0xdd62ed3e";
 const TRANSFER_SELECTOR = "0xa9059cbb";
+
+const WASM_PATH = new URL("./rotor_wasm.wasm", import.meta.url);
+let wasmPromise = null;
+function loadWasm() {
+  if (!wasmPromise) {
+    wasmPromise = WebAssembly.instantiate(readFileSync(WASM_PATH), {})
+      .then((module) => module.instance.exports);
+  }
+  return wasmPromise;
+}
+
+function bytesFromHex(hex) {
+  const body = hex.replace(/^0x/, "");
+  return Uint8Array.from(body.match(/../g).map((byte) => parseInt(byte, 16)));
+}
 
 function word(value) {
   return BigInt(value).toString(16).padStart(64, "0");
@@ -182,6 +219,20 @@ function revokeOptions(overrides = {}) {
   return {
     token: TOKEN,
     spender: SPENDER,
+    from: OWNER,
+    expectedChainId: 1,
+    mainnetArmed: true,
+    unsigned: fakeUnsigned,
+    ...overrides,
+  };
+}
+
+function grantOptions(overrides = {}) {
+  return {
+    token: TOKEN,
+    spender: SPENDER,
+    amountText: "1.2345",
+    unlimited: false,
     from: OWNER,
     expectedChainId: 1,
     mainnetArmed: true,
@@ -801,6 +852,315 @@ test("a revoke on Sepolia needs no arm and skips the mainnet buffer", async () =
   assert.equal(review.gasLimit, 50000n);
   assert.equal(fields.chain_id, "11155111");
   assert.equal(fields.data, evm.revokeCalldata(SPENDER));
+});
+
+/* ------------------------------------------------------- grant calldata */
+
+test("approve calldata for a finite amount and Unlimited matches ethers", () => {
+  assert.equal(evm.keccak256Hex("approve(address,uint256)").slice(0, 8), "095ea7b3");
+  assert.equal(evm.approveCalldata(SPENDER, 1234500n), FINITE_CALLDATA);
+  assert.equal(evm.approveCalldata(SPENDER, U256_MAX), UNLIMITED_CALLDATA);
+  assert.equal(FINITE_CALLDATA.length, 10 + 64 + 64);
+  assert.throws(() => evm.approveCalldata(SPENDER, U256_MAX + 1n), /uint256/);
+  assert.throws(() => evm.approveCalldata("0x" + "0".repeat(40), 1n), /zero address/);
+});
+
+test("the wasm core signs the pinned unlimited approve vector", async () => {
+  const wasm = await loadWasm();
+  const request = {
+    chain_id: "1",
+    nonce: "0",
+    max_priority_fee: "1000000000",
+    max_fee: "5000000000",
+    gas_limit: "60000",
+    to: TOKEN,
+    value: "0",
+    data: UNLIMITED_CALLDATA,
+    private_key: KEY1,
+  };
+  const raw = evm.callWasmString(wasm, "evm_sign_tx", JSON.stringify(request));
+  assert.equal(raw, UNLIMITED_RAW);
+  assert.equal("0x" + evm.keccak256Hex(bytesFromHex(raw)), UNLIMITED_HASH);
+});
+
+/* ----------------------------------------------------------- prepareGrant */
+
+test("prepareGrant parses a finite amount with token decimals and labels an EOA spender", async () => {
+  const mock = rpcMock({ allowances: { [OWNER + ":" + SPENDER]: 0n } });
+  let fields = null;
+  const review = await evm.prepareGrant(grantOptions({
+    fetchJson: mock.fetchJson,
+    unsigned(value) {
+      fields = value;
+      return "0x02f8";
+    },
+  }));
+
+  assert.equal(review.isGrant, true);
+  assert.equal(review.isRevoke, false);
+  assert.equal(review.isToken, false);
+  assert.equal(review.to, TOKEN);
+  assert.equal(review.spender, SPENDER);
+  assert.equal(review.spenderIsContract, false);
+  assert.equal(review.tokenContract, TOKEN);
+  assert.equal(review.tokenSymbol, "USDT");
+  assert.equal(review.tokenDecimals, 6);
+  assert.equal(review.approvalAmountWei, 1234500n);
+  assert.equal(review.currentAllowanceWei, 0n);
+  assert.equal(review.valueWei, 0n);
+  assert.equal(review.dataHex, FINITE_CALLDATA);
+  assert.deepEqual(review.warnings, []);
+  assert.deepEqual(fields, {
+    chain_id: "1",
+    nonce: "0",
+    max_priority_fee: "1000000000",
+    max_fee: "5000000000",
+    gas_limit: "60000",
+    to: TOKEN,
+    value: "0",
+    data: FINITE_CALLDATA,
+  });
+  for (const call of mock.calls) {
+    assert.ok(!call.body.includes("private_key"), "an RPC payload leaked a key");
+  }
+});
+
+test("prepareGrant for Unlimited pins 2^256-1 and carries the warning line", async () => {
+  const mock = rpcMock({ spenderCodes: { [SPENDER]: "0x6080" } });
+  let fields = null;
+  const review = await evm.prepareGrant(grantOptions({
+    unlimited: true,
+    amountText: "",
+    fetchJson: mock.fetchJson,
+    unsigned(value) {
+      fields = value;
+      return "0x02f8";
+    },
+  }));
+
+  assert.equal(review.isGrant, true);
+  assert.equal(review.spenderIsContract, true);
+  assert.equal(review.approvalAmountWei, U256_MAX);
+  assert.equal(review.dataHex, UNLIMITED_CALLDATA);
+  assert.equal(fields.data, UNLIMITED_CALLDATA);
+  assert.equal(evm.formatAllowance(review.approvalAmountWei, review.tokenDecimals), "Unlimited");
+  assert.ok(review.warnings.some((warning) =>
+    /Unlimited allowance: this lets the spender move every USDT token of this contract until you revoke it\./
+      .test(warning)));
+});
+
+test("a finite amount that parses to exactly 2^256-1 also carries the Unlimited warning", async () => {
+  const mock = rpcMock({ decimals: 0 });
+  const review = await evm.prepareGrant(grantOptions({
+    amountText: U256_MAX.toString(),
+    fetchJson: mock.fetchJson,
+  }));
+  assert.equal(review.approvalAmountWei, U256_MAX);
+  assert.equal(review.dataHex, UNLIMITED_CALLDATA);
+  assert.equal(evm.formatAllowance(review.approvalAmountWei, review.tokenDecimals), "Unlimited");
+  assert.ok(review.warnings.some((warning) =>
+    /Unlimited allowance: this lets the spender move every USDT token of this contract until you revoke it\./
+      .test(warning)));
+});
+
+test("prepareGrant refuses zero, an amount above uint256 and a missing amount", async () => {
+  const mock = rpcMock();
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ amountText: "0", fetchJson: mock.fetchJson })),
+    (err) => {
+      assert.deepEqual(err.fieldErrors, {
+        amount: "The allowance amount must be greater than zero; use revoke to set an allowance to zero.",
+      });
+      return true;
+    },
+  );
+  const noDecimals = rpcMock({ decimals: 0 });
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({
+      amountText: (U256_MAX + 1n).toString(),
+      fetchJson: noDecimals.fetchJson,
+    })),
+    (err) => {
+      assert.deepEqual(err.fieldErrors, {
+        amount: "The allowance amount is larger than the maximum uint256 value (2^256-1).",
+      });
+      return true;
+    },
+  );
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ amountText: "  ", fetchJson: mock.fetchJson })),
+    (err) => {
+      assert.deepEqual(err.fieldErrors, {
+        amount: "Enter the allowance amount, or choose Unlimited.",
+      });
+      return true;
+    },
+  );
+});
+
+test("prepareGrant refuses the zero address, the token itself and a token without code", async () => {
+  const mock = rpcMock();
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ spender: "0x" + "0".repeat(40), fetchJson: mock.fetchJson })),
+    /The spender address is invalid: The zero address cannot be a spender/,
+  );
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ spender: TOKEN, fetchJson: mock.fetchJson })),
+    /The spender must not be the token contract itself; an allowance to the token has no effect and is usually a copy-paste mistake\. Refusing to sign\./,
+  );
+  const noCode = rpcMock({ code: "0x" });
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ fetchJson: noCode.fetchJson })),
+    /has no contract code on Ethereum mainnet; it is an externally owned account or does not exist\. Refusing to sign\./,
+  );
+});
+
+test("prepareGrant refuses an unarmed mainnet before any RPC and reuses the fee cap", async () => {
+  const unarmed = rpcMock();
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ fetchJson: unarmed.fetchJson, mainnetArmed: false })),
+    /Mainnet signing is not armed/,
+  );
+  assert.equal(unarmed.calls.length, 0);
+
+  const cap = rpcMock({ gasEstimate: "0x1312d00" }); // 20M gas x 5 gwei = 0.12 ETH
+  await assert.rejects(
+    () => evm.prepareGrant(grantOptions({ fetchJson: cap.fetchJson })),
+    /The maximum network fee 0\.12 ETH exceeds the Ethereum mainnet cap of 0\.05 ETH; refusing to sign\./,
+  );
+});
+
+test("a grant on Sepolia needs no arm and skips the mainnet buffer", async () => {
+  const mock = rpcMock({ chainId: "0xaa36a7" });
+  let fields = null;
+  const review = await evm.prepareGrant(grantOptions({
+    expectedChainId: 11155111,
+    mainnetArmed: false,
+    fetchJson: mock.fetchJson,
+    unsigned(value) {
+      fields = value;
+      return "0x02f8";
+    },
+  }));
+  assert.equal(review.testnet, true);
+  assert.equal(review.gasEstimate, 50000n);
+  assert.equal(review.gasLimit, 50000n);
+  assert.equal(fields.chain_id, "11155111");
+  assert.equal(fields.data, FINITE_CALLDATA);
+});
+
+/* ------------------------------------------------------ confirm a grant */
+
+test("confirm signs the grant once and broadcasts once", async () => {
+  const prepareMock = rpcMock();
+  const review = await evm.prepareGrant(grantOptions({ fetchJson: prepareMock.fetchJson }));
+
+  const sendMock = rpcMock({ chainId: "0x1" });
+  const signCalls = [];
+  const result = await evm.confirmTransaction({
+    review,
+    fetchJson: sendMock.fetchJson,
+    mainnetArmed: true,
+    unsigned: fakeUnsigned,
+    sign(fields) {
+      signCalls.push(fields);
+      return "0x02f8";
+    },
+  });
+
+  assert.equal(signCalls.length, 1);
+  assert.equal(signCalls[0].to, TOKEN);
+  assert.equal(signCalls[0].value, "0");
+  assert.equal(signCalls[0].data, FINITE_CALLDATA);
+  assert.equal(result.txHash, TX_HASH);
+  assert.deepEqual(sendMock.calls.map((call) => call.method), [
+    "eth_chainId",
+    "eth_sendRawTransaction",
+  ]);
+  assert.equal(
+    sendMock.calls.filter((call) => call.method === "eth_sendRawTransaction").length,
+    1,
+    "the grant must be broadcast exactly once",
+  );
+});
+
+test("a grant review cannot change the spender, amount, calldata or value", async () => {
+  const prepareMock = rpcMock();
+  const review = await evm.prepareGrant(grantOptions({ unlimited: true, fetchJson: prepareMock.fetchJson }));
+  const sendMock = rpcMock({ chainId: "0x1" });
+  let signCalls = 0;
+  const sign = () => {
+    signCalls += 1;
+    return "0x02f8";
+  };
+  const confirm = (mutate) => evm.confirmTransaction({
+    review: mutate({ ...review }),
+    fetchJson: sendMock.fetchJson,
+    mainnetArmed: true,
+    unsigned: fakeUnsigned,
+    sign,
+  });
+
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, spender: OTHER })),
+    /The reviewed grant calldata does not match the reviewed spender and allowance\. Refusing to sign\./,
+  );
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, approvalAmountWei: 1234500n })),
+    /The reviewed grant calldata does not match the reviewed spender and allowance\. Refusing to sign\./,
+  );
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, approvalAmountWei: 0n })),
+    /The reviewed allowance amount is not greater than zero\. Refusing to sign\./,
+  );
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, dataHex: FINITE_CALLDATA })),
+    /The reviewed grant calldata does not match/,
+  );
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, valueWei: 1n })),
+    /An allowance grant must not send native value/,
+  );
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, nonce: next.nonce + 1n })),
+    /does not match the reviewed fields/,
+  );
+  await assert.rejects(
+    () => confirm((next) => ({ ...next, tokenContract: SPENDER, spender: SPENDER })),
+    /The spender must not be the token contract itself/,
+  );
+  assert.equal(signCalls, 0);
+  assert.equal(sendMock.calls.length, 0);
+});
+
+test("a prepared grant cannot be confirmed after the chain switch or arm removal", async () => {
+  const prepareMock = rpcMock();
+  const review = await evm.prepareGrant(grantOptions({ fetchJson: prepareMock.fetchJson }));
+
+  const switched = rpcMock({ chainId: "0xaa36a7" });
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review,
+      fetchJson: switched.fetchJson,
+      mainnetArmed: true,
+      unsigned: fakeUnsigned,
+      sign: () => "0x02f8",
+    }),
+    /Chain id mismatch/,
+  );
+
+  const unarmed = rpcMock({ chainId: "0x1" });
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review,
+      fetchJson: unarmed.fetchJson,
+      mainnetArmed: false,
+      unsigned: fakeUnsigned,
+      sign: () => "0x02f8",
+    }),
+    /Mainnet signing is not armed/,
+  );
+  assert.equal(unarmed.calls.length, 0);
 });
 
 /* ---------------------------------------------------------------- runner */

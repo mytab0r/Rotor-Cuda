@@ -135,6 +135,7 @@
     approvalsReview: null,
     approvalsReviewEntryId: null,
     approvalsReviewSpender: null,
+    approvalsReviewKind: null,
     approvalsSending: false,
     btcPreparing: false,
     btcSending: false,
@@ -225,8 +226,17 @@
   var approvalsTableWrap = byId('wallet-approvals-table-wrap');
   var approvalsRows = byId('wallet-approvals-rows');
   var approvalsEmpty = byId('wallet-approvals-empty');
+  var approvalsGrantForm = byId('wallet-approvals-grant-form');
+  var approvalsGrantSpender = byId('wallet-approvals-grant-spender');
+  var approvalsGrantAmount = byId('wallet-approvals-grant-amount');
+  var approvalsGrantUnlimited = byId('wallet-approvals-grant-unlimited');
+  var approvalsGrantWarning = byId('wallet-approvals-grant-unlimited-warning');
+  var approvalsGrantPrepareButton = byId('wallet-approvals-grant-prepare');
   var approvalsReviewBox = byId('wallet-approvals-review');
+  var approvalsReviewHeading = byId('wallet-approvals-review-heading');
   var approvalsReviewList = byId('wallet-approvals-review-list');
+  var approvalsReviewWarnings = byId('wallet-approvals-review-warnings');
+  var approvalsReviewNote = byId('wallet-approvals-review-note');
   var approvalsReviewUnsigned = byId('wallet-approvals-review-unsigned');
   var approvalsConfirmButton = byId('wallet-approvals-confirm');
   var approvalsCancelButton = byId('wallet-approvals-cancel');
@@ -2399,19 +2409,30 @@
   function showApprovalsFieldErrors(errors) {
     var tokenError = errors.token || '';
     var windowError = errors.window || '';
+    var spenderError = errors.spender || '';
+    var amountError = errors.amount || '';
     setError('wallet-approvals-token-error', tokenError);
     setError('wallet-approvals-window-error', windowError);
+    setError('wallet-approvals-grant-spender-error', spenderError);
+    setError('wallet-approvals-grant-amount-error', amountError);
     if (approvalsTokenInput) {
       approvalsTokenInput.setAttribute('aria-invalid', tokenError ? 'true' : 'false');
     }
     if (approvalsWindowInput) {
       approvalsWindowInput.setAttribute('aria-invalid', windowError ? 'true' : 'false');
     }
+    if (approvalsGrantSpender) {
+      approvalsGrantSpender.setAttribute('aria-invalid', spenderError ? 'true' : 'false');
+    }
+    if (approvalsGrantAmount) {
+      approvalsGrantAmount.setAttribute('aria-invalid', amountError ? 'true' : 'false');
+    }
   }
 
   function setApprovalsBusy(busy, message) {
     var blocked = !!busy || state.approvalsScanning || state.approvalsSending;
     if (approvalsScanButton) approvalsScanButton.disabled = blocked;
+    if (approvalsGrantPrepareButton) approvalsGrantPrepareButton.disabled = blocked;
     if (approvalsConfirmButton) approvalsConfirmButton.disabled = blocked;
     if (approvalsStatus && message !== undefined) approvalsStatus.textContent = message;
   }
@@ -2421,15 +2442,23 @@
     state.approvalsReview = null;
     state.approvalsReviewEntryId = null;
     state.approvalsReviewSpender = null;
+    state.approvalsReviewKind = null;
     if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+    if (approvalsReviewWarnings) {
+      approvalsReviewWarnings.textContent = '';
+      approvalsReviewWarnings.hidden = true;
+    }
     setError('wallet-approvals-confirm-error', '');
   }
 
   function invalidateApprovalsScan(message) {
+    /* Any scan-affecting change (key, network, provider, token, window) also
+     * invalidates whatever approval review is open, including a grant review
+     * that does not depend on a scan. */
+    invalidateApprovalsReview();
     if (!state.approvalsScan && !state.approvalsScanEntryId) return;
     state.approvalsScan = null;
     state.approvalsScanEntryId = null;
-    invalidateApprovalsReview();
     renderApprovalsTable();
     if (message && approvalsStatus) approvalsStatus.textContent = message;
   }
@@ -2572,9 +2601,40 @@
     approvalsReviewList.appendChild(detail);
   }
 
+  function reviewAllowanceText(value, decimals, symbol) {
+    var text = evmSend.formatAllowance(value, decimals);
+    return text === 'Unlimited' ? text : text + ' ' + symbol;
+  }
+
+  function renderApprovalsReviewWarnings(warnings) {
+    if (!approvalsReviewWarnings) return;
+    approvalsReviewWarnings.textContent = '';
+    if (!warnings || !warnings.length) {
+      approvalsReviewWarnings.hidden = true;
+      return;
+    }
+    warnings.forEach(function (warning) {
+      var item = document.createElement('li');
+      item.textContent = warning;
+      approvalsReviewWarnings.appendChild(item);
+    });
+    approvalsReviewWarnings.hidden = false;
+  }
+
   function renderApprovalsReview(review) {
+    var isGrant = review.isGrant === true;
     var nativeSymbol = review.symbol || SSOT_CHAINS.bySlug.ethereum.symbol;
     var feeWei = review.gasLimit * review.maxFeeWei;
+    if (approvalsReviewHeading) {
+      approvalsReviewHeading.textContent = isGrant
+        ? 'Review the allowance grant before signing'
+        : 'Review revoke before signing';
+    }
+    if (approvalsReviewNote) {
+      approvalsReviewNote.textContent = isGrant
+        ? 'Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls approve(spender, amount); the calldata is built locally and the signature covers the reviewed spender and allowance. No key leaves this tab.'
+        : 'Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls approve(spender, 0); the calldata is built locally and the signature covers the reviewed spender. No key leaves this tab.';
+    }
     approvalsReviewList.textContent = '';
     addApprovalsReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +
       (review.testnet ? ' · testnet' : ' · MAINNET'));
@@ -2583,12 +2643,16 @@
     addApprovalsReviewRow('Token symbol', review.tokenSymbol);
     addApprovalsReviewRow('Token decimals', String(review.tokenDecimals));
     addApprovalsReviewRow('Spender', review.spender, true);
+    if (isGrant) {
+      addApprovalsReviewRow('Spender type', spenderTypeText(review.spenderIsContract));
+    }
     addApprovalsReviewRow('Current allowance',
-      evmSend.formatAllowance(review.currentAllowanceWei, review.tokenDecimals) === 'Unlimited'
-        ? 'Unlimited'
-        : evmSend.formatAllowance(review.currentAllowanceWei, review.tokenDecimals) + ' ' +
-          review.tokenSymbol);
-    addApprovalsReviewRow('New allowance', '0 ' + review.tokenSymbol);
+      review.currentAllowanceWei === null || review.currentAllowanceWei === undefined
+        ? 'Unknown (read failed)'
+        : reviewAllowanceText(review.currentAllowanceWei, review.tokenDecimals, review.tokenSymbol));
+    addApprovalsReviewRow('New allowance', isGrant
+      ? reviewAllowanceText(review.approvalAmountWei, review.tokenDecimals, review.tokenSymbol)
+      : '0 ' + review.tokenSymbol);
     addApprovalsReviewRow('Data (built locally)', review.dataHex, true);
     addApprovalsReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
       ? ' (manual)'
@@ -2605,13 +2669,18 @@
     }
     addApprovalsReviewRow('RPC', review.providerLabel + ' · ' + review.providerUrl);
     addApprovalsReviewRow('Fee source', review.feesSource + ' / priority: ' + review.prioritySource);
+    renderApprovalsReviewWarnings(review.warnings);
     approvalsReviewUnsigned.textContent = review.unsignedHex;
     approvalsReviewBox.hidden = false;
-    if (approvalsStatus) approvalsStatus.textContent = 'Revoke review ready. Check every field, then sign.';
+    if (approvalsStatus) {
+      approvalsStatus.textContent = isGrant
+        ? 'Grant review ready. Check the spender, the allowance and the warning, then sign.'
+        : 'Revoke review ready. Check every field, then sign.';
+    }
     if (approvalsConfirmButton) approvalsConfirmButton.focus();
   }
 
-  function renderApprovalsResult(result) {
+  function renderApprovalsResult(result, kind) {
     approvalsProviderNote.textContent = 'Sent to ' + result.providerLabel + ' · ' +
       result.providerUrl + '. Crypto did not proxy or store the transaction.';
     approvalsHashEl.textContent = result.txHash;
@@ -2619,7 +2688,11 @@
     approvalsExplorerLink.textContent = 'Open on the ' + (result.chainName || 'chain') + ' explorer';
     approvalsSignedEl.textContent = result.signedHex;
     approvalsResultBox.hidden = false;
-    if (approvalsStatus) approvalsStatus.textContent = 'The RPC accepted the signed revoke.';
+    if (approvalsStatus) {
+      approvalsStatus.textContent = kind === 'grant'
+        ? 'The RPC accepted the signed allowance grant.'
+        : 'The RPC accepted the signed revoke.';
+    }
     approvalsExplorerLink.focus();
   }
 
@@ -2632,6 +2705,17 @@
     if (approvalsExplorerLink) approvalsExplorerLink.removeAttribute('href');
   }
 
+  /* The Unlimited checkbox owns the amount field: checking it disables the
+   * amount input (the codec pins 2^256-1) and reveals its own warning line. */
+  function updateGrantUnlimitedState() {
+    var unlimited = Boolean(approvalsGrantUnlimited && approvalsGrantUnlimited.checked);
+    if (approvalsGrantAmount) {
+      approvalsGrantAmount.disabled = unlimited;
+      if (unlimited) approvalsGrantAmount.value = '';
+    }
+    if (approvalsGrantWarning) approvalsGrantWarning.hidden = !unlimited;
+  }
+
   function resetApprovals() {
     state.approvalsScanning = false;
     state.approvalsSending = false;
@@ -2640,7 +2724,10 @@
     state.approvalsReview = null;
     state.approvalsReviewEntryId = null;
     state.approvalsReviewSpender = null;
+    state.approvalsReviewKind = null;
     if (approvalsForm) approvalsForm.reset();
+    if (approvalsGrantForm) approvalsGrantForm.reset();
+    updateGrantUnlimitedState();
     showApprovalsFieldErrors({});
     setError('wallet-approvals-error', '');
     setError('wallet-approvals-confirm-error', '');
@@ -2649,6 +2736,10 @@
     renderApprovalsTable();
     if (approvalsReviewBox) approvalsReviewBox.hidden = true;
     if (approvalsReviewList) approvalsReviewList.textContent = '';
+    if (approvalsReviewWarnings) {
+      approvalsReviewWarnings.textContent = '';
+      approvalsReviewWarnings.hidden = true;
+    }
     if (approvalsReviewUnsigned) approvalsReviewUnsigned.textContent = '';
     clearApprovalsResult();
     if (approvalsStatus) approvalsStatus.textContent = '';
@@ -2721,6 +2812,7 @@
       state.approvalsReview = review;
       state.approvalsReviewEntryId = entry.id;
       state.approvalsReviewSpender = spender;
+      state.approvalsReviewKind = 'revoke';
       renderApprovalsReview(review);
     } catch (err) {
       if (generation !== state.generation || !state.unlocked) return;
@@ -2737,29 +2829,46 @@
     }
   }
 
-  async function rereadApprovalsAllowance(scan, spender) {
-    if (!scan || !spender) return;
+  /* Re-read the allowance after a grant or revoke and show the result. `source`
+   * is the scan (with its spender rows) or a plain {contract, providerUrl,
+   * owner, symbol, decimals} built from a grant review. `expected` is the new
+   * allowance for a grant; omit it for a revoke limited to zero. The provider
+   * may still report the old value until the transaction is mined, so the
+   * message never claims the change already happened. */
+  async function rereadApprovalsAllowance(source, spender, expected) {
+    if (!source || !spender) return;
     if (approvalsRereadEl) approvalsRereadEl.textContent = 'Re-reading the current allowance…';
     try {
-      var value = await evmSend.readAllowance(rpcFetchJson, scan.providerUrl, scan.contract,
-        scan.owner, spender);
-      for (var i = 0; i < scan.spenders.length; i += 1) {
-        if (scan.spenders[i].address === spender) {
-          scan.spenders[i].allowance = value;
-          break;
+      var value = await evmSend.readAllowance(rpcFetchJson, source.providerUrl, source.contract,
+        source.owner, spender);
+      if (source.spenders) {
+        for (var i = 0; i < source.spenders.length; i += 1) {
+          if (source.spenders[i].address === spender) {
+            source.spenders[i].allowance = value;
+            break;
+          }
         }
+        renderApprovalsTable();
       }
-      renderApprovalsTable();
       if (approvalsRereadEl) {
-        approvalsRereadEl.textContent = value === 0n
-          ? 'The current allowance is now 0 ' + scan.symbol + '.'
-          : 'The revoke was broadcast, but the provider still reports ' +
-            evmSend.formatAllowance(value, scan.decimals) + ' ' + scan.symbol +
-            '; it may update after the transaction is mined.';
+        if (expected !== undefined && expected !== null) {
+          approvalsRereadEl.textContent = value === expected
+            ? 'The current allowance is now ' +
+              reviewAllowanceText(value, source.decimals, source.symbol) + '.'
+            : 'The grant was broadcast, but the provider still reports ' +
+              reviewAllowanceText(value, source.decimals, source.symbol) +
+              '; it may update after the transaction is mined.';
+        } else {
+          approvalsRereadEl.textContent = value === 0n
+            ? 'The current allowance is now 0 ' + source.symbol + '.'
+            : 'The revoke was broadcast, but the provider still reports ' +
+              reviewAllowanceText(value, source.decimals, source.symbol) +
+              '; it may update after the transaction is mined.';
+        }
       }
     } catch (err) {
       if (approvalsRereadEl) {
-        approvalsRereadEl.textContent = 'The revoke was broadcast, but re-reading the allowance failed: ' +
+        approvalsRereadEl.textContent = 'The transaction was broadcast, but re-reading the allowance failed: ' +
           errorText(err);
       }
     }
@@ -2852,6 +2961,123 @@
     invalidateApprovalsScan('The form changed; run "Find approvals" again.');
   });
 
+  /* Grant a new allowance. The token contract comes from the scan form above;
+   * the spender, the finite amount or the Unlimited option are the only new
+   * inputs. The codec rebuilds approve(spender, amount) locally and runs the
+   * same chain-id, arm, fee-cap, estimateGas, review and unsigned-pin gates. */
+  approvalsGrantForm.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    if (!state.unlocked) {
+      setError('wallet-approvals-error', 'Unlock the vault first.');
+      return;
+    }
+    if (!evmSend) {
+      setError('wallet-approvals-error', 'The EVM module did not load. Reload the page.');
+      return;
+    }
+    if (state.approvalsScanning || state.approvalsSending) return;
+    var entry = selectedSendEntry();
+    if (!entry) {
+      setError('wallet-approvals-error', 'Import an EVM key and select it first.');
+      return;
+    }
+    showApprovalsFieldErrors({});
+    setError('wallet-approvals-error', '');
+    setError('wallet-approvals-confirm-error', '');
+    invalidateApprovalsReview();
+    clearApprovalsResult();
+
+    var tokenText = approvalsTokenInput.value.trim();
+    var spenderText = approvalsGrantSpender.value.trim();
+    var unlimited = approvalsGrantUnlimited.checked;
+    var amountText = approvalsGrantAmount.value.trim();
+    var localErrors = {};
+    try {
+      evmSend.normalizeAddress(tokenText, 'token contract');
+    } catch (err) {
+      localErrors.token = errorText(err);
+    }
+    try {
+      evmSend.normalizeAddress(spenderText, 'spender');
+    } catch (err) {
+      localErrors.spender = errorText(err);
+    }
+    if (!unlimited) {
+      if (!amountText) {
+        localErrors.amount = 'Enter the allowance amount in token units, or choose Unlimited.';
+      } else if (!/^\d+(?:\.\d+)?$/.test(amountText)) {
+        localErrors.amount = 'Use a plain decimal token amount like 1.5 (no exponent, sign or comma).';
+      } else if (!/[1-9]/.test(amountText)) {
+        localErrors.amount = 'The allowance amount must be greater than zero; use revoke to set zero.';
+      }
+    }
+    if (Object.keys(localErrors).length) {
+      showApprovalsFieldErrors(localErrors);
+      setError('wallet-approvals-error', 'Fix the highlighted fields before review.');
+      return;
+    }
+
+    state.approvalsSending = true;
+    var generation = state.generation;
+    setApprovalsBusy(true, 'Checking the token contract and building the allowance grant…');
+    try {
+      var owner = await ensureDerivedAddress(entry);
+      var review = await evmSend.prepareGrant({
+        token: tokenText,
+        spender: spenderText,
+        amountText: unlimited ? undefined : amountText,
+        unlimited: unlimited,
+        from: owner,
+        fetchJson: rpcFetchJson,
+        providerUrl: sendProviderSelect.value || null,
+        expectedChainId: Number(sendNetworkSelect.value),
+        networkName: selectedNetwork().name,
+        mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTx
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      /* A selection, network, provider or field change while the RPC reads were
+       * in flight makes this review stale: never show it over the new input. */
+      var stillSelected = selectedSendEntry();
+      if (!stillSelected || stillSelected.id !== entry.id) return;
+      if (Number(sendNetworkSelect.value) !== Number(review.chainId)) return;
+      var chosenProvider = sendProviderSelect.value;
+      if (chosenProvider && chosenProvider !== review.providerUrl) return;
+      if (approvalsTokenInput.value.trim().toLowerCase() !== tokenText.toLowerCase()) return;
+      if (approvalsGrantSpender.value.trim().toLowerCase() !== spenderText.toLowerCase()) return;
+      if (approvalsGrantUnlimited.checked !== unlimited) return;
+      if (!unlimited && approvalsGrantAmount.value.trim() !== amountText) return;
+      state.approvalsReview = review;
+      state.approvalsReviewEntryId = entry.id;
+      state.approvalsReviewSpender = review.spender;
+      state.approvalsReviewKind = 'grant';
+      renderApprovalsReview(review);
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (err.fieldErrors) showApprovalsFieldErrors(err.fieldErrors);
+      setError('wallet-approvals-error', errorText(err));
+      if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+      if (approvalsStatus) approvalsStatus.textContent = '';
+    } finally {
+      state.approvalsSending = false;
+      setApprovalsBusy(false);
+      if (state.approvalsReview && approvalsConfirmButton && !approvalsConfirmButton.disabled) {
+        approvalsConfirmButton.focus();
+      }
+    }
+  });
+
+  approvalsGrantForm.addEventListener('input', function () {
+    invalidateApprovalsReview();
+  });
+
+  if (approvalsGrantUnlimited) {
+    approvalsGrantUnlimited.addEventListener('change', function () {
+      updateGrantUnlimitedState();
+      invalidateApprovalsReview();
+    });
+  }
+
   approvalsCancelButton.addEventListener('click', function () {
     invalidateApprovalsReview();
     if (approvalsReviewBox) approvalsReviewBox.hidden = true;
@@ -2865,23 +3091,26 @@
       return;
     }
     if (state.approvalsSending || state.approvalsScanning) {
-      setError('wallet-approvals-confirm-error', 'A revoke is already in flight.');
+      setError('wallet-approvals-confirm-error', 'An approval transaction is already in flight.');
       return;
     }
     var review = state.approvalsReview;
     var entry = entryById(state.approvalsReviewEntryId);
     if (!review || !entry) {
-      setError('wallet-approvals-confirm-error', 'Prepare a new revoke review first.');
+      setError('wallet-approvals-confirm-error', 'Prepare a new approval review first.');
       return;
     }
     var selected = selectedSendEntry();
     if (!selected || selected.id !== entry.id) {
-      setError('wallet-approvals-confirm-error', 'The selected key changed; prepare a new revoke review.');
+      setError('wallet-approvals-confirm-error', 'The selected key changed; prepare a new approval review.');
       return;
     }
+    var kind = state.approvalsReviewKind || (review.isGrant ? 'grant' : 'revoke');
     var scan = state.approvalsScan;
     var spender = state.approvalsReviewSpender;
-    if (!scan || state.approvalsScanEntryId !== entry.id) {
+    /* A revoke is always tied to a scan result; a grant is not, so it does not
+     * need a scan to confirm. */
+    if (kind !== 'grant' && (!scan || state.approvalsScanEntryId !== entry.id)) {
       setError('wallet-approvals-confirm-error', 'The scanned key changed; run "Find approvals" and prepare a new review.');
       return;
     }
@@ -2901,9 +3130,25 @@
       if (generation !== state.generation || !state.unlocked) return;
       state.approvalsReview = null;
       state.approvalsReviewEntryId = null;
+      state.approvalsReviewKind = null;
       if (approvalsReviewBox) approvalsReviewBox.hidden = true;
-      renderApprovalsResult(result);
-      await rereadApprovalsAllowance(scan, spender);
+      renderApprovalsResult(result, kind);
+      if (kind === 'grant') {
+        /* Update the matching table row when the scan covers the same token,
+         * otherwise show the re-read from the review's own RPC. */
+        var source = (scan && scan.contract === review.tokenContract && scan.owner === review.from)
+          ? scan
+          : {
+            contract: review.tokenContract,
+            providerUrl: review.providerUrl,
+            owner: review.from,
+            symbol: review.tokenSymbol,
+            decimals: review.tokenDecimals
+          };
+        await rereadApprovalsAllowance(source, review.spender, review.approvalAmountWei);
+      } else {
+        await rereadApprovalsAllowance(scan, spender);
+      }
     } catch (err) {
       if (generation === state.generation && state.unlocked) {
         setError('wallet-approvals-confirm-error', errorText(err));
