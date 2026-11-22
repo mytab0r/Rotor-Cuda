@@ -49,6 +49,7 @@
         "node --check scripts/build-gallery.mjs",
         "node --check scripts/check-components.mjs",
         "node --check scripts/gen-ssot.mjs",
+        "node --check scripts/generated-regions.mjs",
         "node --check scripts/check-ssot.mjs",
         "node --check scripts/lib/detectors.mjs",
         "node --check scripts/gen-detector-docs.mjs",
@@ -77,6 +78,7 @@
         "node apps/site/wallet-vault-test.mjs",
         "node apps/site/wallet-evm-test.mjs",
         "node apps/site/wallet-mainnet-test.mjs",
+        "node apps/site/wallet-erc20-test.mjs",
         "node apps/site/wallet-btc-test.mjs",
         "node apps/site/wallet-seed-test.mjs",
         "node apps/site/send-test.mjs",
@@ -84,7 +86,8 @@
         "node apps/site/search-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/vanity-test.mjs",
         "node apps/site/qr-test.mjs",
-        "node apps/site/site-nav-test.mjs"
+        "node apps/site/site-nav-test.mjs",
+        "node apps/site/chains-test.mjs"
       ],
       "consumes": [
         "wasm-core"

@@ -219,6 +219,14 @@
       "status": "implemented"
     },
     {
+      "id": "chain-tab-color",
+      "rule": "Directory chain tabs read --chain from data/chains.json, not a page-local colour table.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "breadcrumb-grammar",
       "rule": "One labelled breadcrumb trail with shared separators and a sensible depth.",
       "batch": "6",
@@ -501,6 +509,14 @@
     {
       "id": "mnemonic-bch-balances",
       "rule": "The BCH directory batches every address through the Haskoin endpoint.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "bch-directory-provider",
+      "rule": "The private-key BCH directory wires the batched Haskoin provider instead of per-row lookups.",
       "batch": "phase 4",
       "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",

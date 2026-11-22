@@ -690,6 +690,7 @@ standalone freshness gate.
 | `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
 | `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
 | `nav-keystore-highlight` | /keystore-parser highlights Tools, not Search. | 6 | implemented |
+| `chain-tab-color` | Directory chain tabs read --chain from data/chains.json, not a page-local colour table. | phase 4 | implemented |
 | `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
 | `breadcrumb-current` | Exactly one aria-current crumb and never a raw path label. | 6 | implemented |
 | `pager-grammar` | One labelled pager structure with the jump control and no legacy random modifier. | 6 | implemented |
@@ -726,6 +727,7 @@ standalone freshness gate.
 | `search-short-hex-padding` | 1-63 hex characters stay brainwallet text; exactly 64 hex is a key. | phase 4 | implemented |
 | `mnemonic-solana-balances` | The Solana directory fetches every row with one batched getMultipleAccounts call. | phase 4 | implemented |
 | `mnemonic-bch-balances` | The BCH directory batches every address through the Haskoin endpoint. | phase 4 | implemented |
+| `bch-directory-provider` | The private-key BCH directory wires the batched Haskoin provider instead of per-row lookups. | phase 4 | implemented |
 | `mnemonic-tron-xrp-sui-balances` | The TRON, XRP and SUI directories fetch balances for every row. | phase 4 | implemented |
 | `mnemonic-xrp-redirect` | XRPScan is called with redirect: error so a cross-origin hop fails loud. | phase 4 | implemented |
 | `balance-state-attribute` | Every balance row sets data-balance-state and data-balance-at on the row. | phase 4 | implemented |

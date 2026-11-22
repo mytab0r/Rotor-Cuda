@@ -82,6 +82,7 @@ page-local override.
 | `row-action-geometry` | Row actions are 44x44, radius 10, with an accessible name. | 5 | implemented |
 | `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
 | `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
+| `chain-tab-color` | Directory chain tabs read --chain from data/chains.json, not a page-local colour table. | phase 4 | implemented |
 | `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
 | `breadcrumb-current` | Exactly one aria-current crumb and never a raw path label. | 6 | implemented |
 | `pager-grammar` | One labelled pager structure with the jump control and no legacy random modifier. | 6 | implemented |

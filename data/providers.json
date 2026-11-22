@@ -68,7 +68,8 @@
       { "id": "tronscan", "url": "https://apilist.tronscanapi.com/api", "label": "Tronscan" }
     ],
     "ton": [
-      { "id": "toncenter", "url": "https://toncenter.com/api/v2", "label": "TON Center" }
+      { "id": "toncenter", "url": "https://toncenter.com/api/v2", "label": "TON Center" },
+      { "id": "tonapi", "url": "https://tonapi.io/v2", "label": "TonAPI" }
     ],
     "sui": [
       { "id": "graphql", "url": "https://graphql.mainnet.sui.io/graphql", "label": "Sui GraphQL" },

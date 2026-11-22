@@ -10,7 +10,7 @@
     {
       "source": "apps/site/chains.generated.js",
       "target": "web/public/chains.generated.js",
-      "sha256": "bf085db87584b5c950fcf8579c10729d1c6b8f2d2340620f9c3e2fa93c43dc8b"
+      "sha256": "88f6461b337b05afe4e5fdec2518a7fc8351c989378d14c19795aab240786fe8"
     },
     {
       "source": "apps/site/favicon.ico",
@@ -55,12 +55,12 @@
     {
       "source": "apps/site/site.css",
       "target": "web/public/site.css",
-      "sha256": "223e71c12a55d46603c3348e385a84ad90f0b1307e7ecce9c6eb5b8db2bd407e"
+      "sha256": "2c5f00cb8a86792a61b6d36b23e01da0231e3fbf99ee2163ab8b8d31e9b18a73"
     },
     {
       "source": "apps/site/site.js",
       "target": "web/public/site.js",
-      "sha256": "fa8d69cdd26e0158cd57d9641ef89e795437de5078b6fa8fd6e0478b56e530ee"
+      "sha256": "4a87a1fb10fdda3cdc377e554939560f29002548f968549f5320dd413ec356a9"
     },
     {
       "source": "apps/site/theme.js",
