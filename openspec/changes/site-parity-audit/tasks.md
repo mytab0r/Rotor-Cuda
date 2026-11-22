@@ -286,8 +286,14 @@
   mocked litecoinspace JSON with each request on the SSOT URL; DOGE/ZEC never
   call litecoinspace) and `apps/site/balance-cache-test.mjs` (the pinned
   70827261 vector plus malformed bodies). Defect `mnemonic-ltc-sochain-fallback`,
-  detector `mnemonic-ltc-sochain-fallback`. A full live 60/60 measurement of all
-  three chains is still missing.
+  detector `mnemonic-ltc-sochain-fallback`. Live measurement after merge
+  (`511e156`, coordinator rebuilt and served on :7973): SoChain still answered
+  429 to every request, and both `/mnemonic-seeds/litecoin` and
+  `/private-keys/litecoin` rendered 60/60 `data-balance-state="ok"` at
+  375/768/1280 in light and dark (12 page runs); each page sent ~10 SoChain
+  429s, then exactly 60 `litecoinspace.org` 200s, 0 failed requests. DOGE and
+  ZEC rendered 60/60 `err` (no fallback), so their live 60/60 remains
+  unmeasured.
 - [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
   60-row directory returned no provider meta for BCH and rendered `—` for every
   row, although the shared batched Haskoin provider already existed and the
