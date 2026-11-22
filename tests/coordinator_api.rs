@@ -1469,6 +1469,7 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
+                "/wallet-summary.js",
                 "/wallet-vault.js",
                 "/theme.js",
             ],
@@ -1502,6 +1503,7 @@ fn public_pages_and_assets_are_served() {
     // The wallet vault codec and page script are served as JavaScript.
     for (path, needle) in [
         ("/wallet.js", "rotor-wallet"),
+        ("/wallet-summary.js", "RotorWalletSummary"),
         ("/wallet-vault.js", "PBKDF2-SHA256"),
         ("/wallet-btc.js", "RotorBtcSend"),
         ("/vanity-worker.js", "derive_report"),

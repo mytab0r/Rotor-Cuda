@@ -105,6 +105,7 @@ const TX_DECODERS_JS: &str = include_str!("../../apps/site/tx-decoders.js");
 const TX_PAGE_JS: &str = include_str!("../../apps/site/tx-page.js");
 const CABINET_WALLET_PAGE: &str = include_str!("../../apps/site/wallet.html");
 const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
+const WALLET_SUMMARY_JS: &str = include_str!("../../apps/site/wallet-summary.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
@@ -1839,6 +1840,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/cabinet/wallet" => Some((CABINET_WALLET_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/wallet.js" => Some((
             WALLET_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-summary.js" => Some((
+            WALLET_SUMMARY_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/wallet-vault.js" => Some((
@@ -8082,6 +8087,7 @@ mod tests {
         assert!(html.contains("<script src=\"/wallet-evm.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-btc.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-history.js\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-summary.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet.js\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
@@ -8098,6 +8104,14 @@ mod tests {
         assert!(script.contains("derive_report"));
         assert!(script.contains("IDLE_MS = 10 * 60 * 1000"));
         assert!(script.contains("pagehide"));
+
+        let (summary, content_type) =
+            static_asset("/wallet-summary.js").expect("/wallet-summary.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let summary = std::str::from_utf8(summary).expect("wallet-summary.js is utf-8");
+        assert!(summary.contains("RotorWalletSummary"));
+        assert!(summary.contains("UNPRICED_CHAINS"));
+        assert!(summary.contains("aggregate"));
 
         let (codec, content_type) =
             static_asset("/wallet-vault.js").expect("/wallet-vault.js is embedded");

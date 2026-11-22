@@ -528,10 +528,24 @@
       "where": "apps/site/mnemonic-seeds-test.mjs"
     },
     {
+      "id": "mnemonic-ltc-sochain-fallback",
+      "reported": "2026-11-22",
+      "symptom": "SoChain answered 429 for every request (retry-after ~11.6 h), so all 60 LTC rows on /mnemonic-seeds/litecoin and /private-keys/litecoin kept the retry state although data/providers.json already declared the keyless litecoinspace Esplora endpoint under litecoin. The shared sochain fetcher stopped at the first 429 and had no fallback, so both directory entry points inherited the dead end.",
+      "detector": "mnemonic-ltc-sochain-fallback",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "wallet-approvals-unchecked",
       "reported": "2026-11-22",
       "symptom": "The new ERC-20 approvals table was not exercised by any detector: ui-audit ran with the vault locked, so 240/240 PASS said nothing about the shared table shell, 44px row actions, Unlimited/Contract/EOA labels or the archive-truncated warning.",
       "detector": "wallet-approvals-surface",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-portfolio-zero-lie",
+      "reported": "2026-11-22",
+      "symptom": "A portfolio total could treat a balance that was still loading, failed or never requested as zero, and price a testnet coin at its mainnet ticker, so $0.00 or an inflated USD value looked like a real total.",
+      "detector": "wallet-portfolio-summary",
       "where": "scripts/ui-audit.mjs"
     },
     {

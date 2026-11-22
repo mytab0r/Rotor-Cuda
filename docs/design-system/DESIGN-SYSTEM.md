@@ -726,6 +726,7 @@ standalone freshness gate.
 | `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
 | `wallet-approvals-surface` | The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow; the grant form has labelled 44px fields, its own unlimited warning line, a visible zero-amount error state and a rendered unlimited review. | phase 4 | implemented |
 | `wallet-history-surface` | The wallet history panel uses the shared table shell and a 44px labelled action, renders time/direction/amount/counterparty/status with a truncated counterparty title, and shows loading, empty, error and the honest EVM-unavailable state without overflow or a provider call. | phase 4 | implemented |
+| `wallet-portfolio-summary` | The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar. | phase 4 | implemented |
 | `search-xrp-secret-routing` | XRP family seeds and secrets route to /key instead of a brainwallet hash. | phase 4 | implemented |
 | `search-short-hex-padding` | 1-63 hex characters stay brainwallet text; exactly 64 hex is a key. | phase 4 | implemented |
 | `mnemonic-solana-balances` | The Solana directory fetches every row with one batched getMultipleAccounts call. | phase 4 | implemented |
@@ -734,6 +735,7 @@ standalone freshness gate.
 | `mnemonic-tron-xrp-sui-balances` | The TRON, XRP and SUI directories fetch balances for every row. | phase 4 | implemented |
 | `mnemonic-xrp-redirect` | XRPScan is called with redirect: error so a cross-origin hop fails loud. | phase 4 | implemented |
 | `mnemonic-sochain-quota-storm` | The first SoChain 429 stops the rest of a directory page instead of firing 60 retries. | phase 4 | implemented |
+| `mnemonic-ltc-sochain-fallback` | A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only. | phase 4 | implemented |
 | `balance-state-attribute` | Every balance row sets data-balance-state and data-balance-at on the row. | phase 4 | implemented |
 | `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
 | `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |

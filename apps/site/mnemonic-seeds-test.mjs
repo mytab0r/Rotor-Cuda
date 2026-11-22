@@ -312,13 +312,94 @@ test("mnemonic-sochain-quota-storm: the first 429 stops the rest of the page", a
     return { ok: false, status: 429, json: async () => ({}) };
   };
   try {
-    const addresses = Array.from({ length: 60 }, (_, index) => `ltc${index}`);
-    const result = await providers.fetchProvider(api.providerMetaFor("litecoin"), addresses);
+    /* DOGE has no fallback, so this is the SoChain-only path the guard was
+     * built for; Litecoin is covered by the fallback test below. */
+    const addresses = Array.from({ length: 60 }, (_, index) => `doge${index}`);
+    const result = await providers.fetchProvider(api.providerMetaFor("dogecoin"), addresses);
     assertEqual(Object.keys(result.values).length, 0, "a 429 never yields a balance");
     assertEqual(Object.keys(result.errors).length, 60, "every row keeps the retry state");
     assert(
       requests.length <= providers.BALANCE_LIMIT * 2,
       `the exhausted quota stops the fan-out, got ${requests.length} requests for 60 rows`
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-ltc-sochain-fallback: a 429 serves all 60 LTC rows from litecoinspace", async () => {
+  const sochainRequests = [];
+  const fallbackRequests = [];
+  const fallbackBase = globalThis.RotorProviders.find("litecoin", "litecoinspace").url;
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const text = String(url);
+    if (text.startsWith(fallbackBase + "/address/")) {
+      fallbackRequests.push(text);
+      const address = decodeURIComponent(text.slice((fallbackBase + "/address/").length));
+      const index = Number(address.replace("ltc", ""));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          address,
+          chain_stats: {
+            funded_txo_sum: 100000000 + index,
+            spent_txo_sum: 10000000,
+            tx_count: index
+          }
+        })
+      };
+    }
+    sochainRequests.push(text);
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    const addresses = Array.from({ length: 60 }, (_, index) => `ltc${index}`);
+    const result = await providers.fetchProvider(api.providerMetaFor("litecoin"), addresses);
+    assertEqual(Object.keys(result.values).length, 60, "all 60 rows resolve from the fallback");
+    assertEqual(Object.keys(result.errors).length, 0, "no row keeps the retry state");
+    addresses.forEach((address, index) => {
+      assertEqual(
+        result.values[address].balance,
+        String(90000000 + index),
+        "confirmed balance is funded - spent in satoshis"
+      );
+    });
+    assert(
+      sochainRequests.length <= providers.BALANCE_LIMIT * 2,
+      `the exhausted quota stops the SoChain fan-out, got ${sochainRequests.length} requests`
+    );
+    assertEqual(fallbackRequests.length, 60, "one litecoinspace request per address");
+    const expected = addresses.map(
+      (address) => fallbackBase + "/address/" + encodeURIComponent(address)
+    );
+    assert(
+      expected.every((url) => fallbackRequests.includes(url)),
+      "every litecoinspace URL is the SSOT provider URL plus the address"
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-ltc-sochain-fallback: DOGE and ZEC never call litecoinspace", async () => {
+  const requests = [];
+  const fallbackBase = globalThis.RotorProviders.find("litecoin", "litecoinspace").url;
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    for (const [chain, address] of [["dogecoin", "dogeAddr"], ["zcash", "zecAddr"]]) {
+      const result = await providers.fetchProvider(api.providerMetaFor(chain), [address]);
+      assertEqual(result.values[address], undefined, `${chain} has no fallback balance`);
+      assertEqual(typeof result.errors[address], "string", `${chain} keeps the retry state`);
+    }
+    assert(
+      requests.every((url) => !url.startsWith(fallbackBase)),
+      "DOGE/ZEC stay SoChain-only, no litecoinspace request"
     );
   } finally {
     globalThis.fetch = previousFetch;
