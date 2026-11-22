@@ -128,7 +128,7 @@
       ]
     },
     "raw-hex-outside-root": {
-      "count": 105,
+      "count": 43,
       "entries": [
         {
           "file": "apps/site/brainwallet.css",
@@ -153,210 +153,6 @@
           "line": 222,
           "match": "#1f5f9e",
           "reason": "Legacy light-theme brainwallet colour with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 60,
-          "match": "#f7931a",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 65,
-          "match": "#8a9cf5",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 70,
-          "match": "#f3ba2f",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 75,
-          "match": "#28a0f0",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 80,
-          "match": "#ff0420",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 85,
-          "match": "#0052ff",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 90,
-          "match": "#a06ee8",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 95,
-          "match": "#e84142",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 100,
-          "match": "#8c8dfc",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 105,
-          "match": "#14f195",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 110,
-          "match": "#ff4d4d",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 115,
-          "match": "#7fa8d9",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 120,
-          "match": "#b8c2d6",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 125,
-          "match": "#8dc351",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/landing.html",
-          "line": 130,
-          "match": "#c2a633",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 31,
-          "match": "#f7931a",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 39,
-          "match": "#f7931a",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 40,
-          "match": "#8a9cf5",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 41,
-          "match": "#f3ba2f",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 42,
-          "match": "#28a0f0",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 43,
-          "match": "#ff0420",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 44,
-          "match": "#0052ff",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 45,
-          "match": "#a06ee8",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 46,
-          "match": "#e84142",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 47,
-          "match": "#8c8dfc",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 48,
-          "match": "#14f195",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 49,
-          "match": "#ff4d4d",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 50,
-          "match": "#0098ea",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 51,
-          "match": "#6fbcf0",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 52,
-          "match": "#7fa8d9",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 53,
-          "match": "#b8c2d6",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 54,
-          "match": "#8dc351",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 55,
-          "match": "#c2a633",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
-        },
-        {
-          "file": "apps/site/mnemonic-seeds.html",
-          "line": 56,
-          "match": "#ecb244",
-          "reason": "Per-chain brand colour set inline; a chain-colour token family is a separate design change."
         },
         {
           "file": "apps/site/site.css",
@@ -408,12 +204,6 @@
         },
         {
           "file": "apps/site/site.css",
-          "line": 120,
-          "match": "#f7931a",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
           "line": 132,
           "match": "#e3b341",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
@@ -434,54 +224,6 @@
           "file": "apps/site/site.css",
           "line": 313,
           "match": "#c9d1d9",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 342,
-          "match": "#8f9eff",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 342,
-          "match": "#8f9eff",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 343,
-          "match": "#f7931a",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 343,
-          "match": "#f7931a",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 344,
-          "match": "#ff5c5c",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 344,
-          "match": "#ff5c5c",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 345,
-          "match": "#14f195",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 345,
-          "match": "#14f195",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
         },
         {
@@ -519,54 +261,6 @@
           "line": 515,
           "match": "#ffb3ad",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 630,
-          "match": "#f7931a",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 631,
-          "match": "#8f9eff",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 632,
-          "match": "#ff5c5c",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 633,
-          "match": "#14f195",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 634,
-          "match": "#b8b8b8",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 635,
-          "match": "#c2a633",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 636,
-          "match": "#8dc351",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 637,
-          "match": "#4a90e2",
-          "reason": "Component-local palette or chain brand colour; turning it into a token family is a separate change."
         },
         {
           "file": "apps/site/site.css",
@@ -672,74 +366,8 @@
         },
         {
           "file": "apps/site/site.css",
-          "line": 2134,
-          "match": "#f7931a",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2135,
-          "match": "#8a9cf5",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2136,
-          "match": "#ff5c5c",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2137,
-          "match": "#14f195",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2138,
-          "match": "#b8c2d6",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2139,
-          "match": "#c2a633",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2140,
-          "match": "#8dc351",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2141,
-          "match": "#7fa8d9",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
           "line": 2343,
           "match": "#ffb3b3",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2425,
-          "match": "#ecb244",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2426,
-          "match": "#6fbcf0",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2427,
-          "match": "#0098ea",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
         },
         {

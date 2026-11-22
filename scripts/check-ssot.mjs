@@ -36,14 +36,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { REPO_ROOT, run } from "./gen-ssot.mjs";
+import { findGeneratedRegions } from "./generated-regions.mjs";
 
 const SITE_DIR = "apps/site";
 const GENERATED_JS = "chains.generated.js";
 const AMOUNT_JS = "amount.js";
 const ALLOW_PATH = "data/ssot-allow.json";
 const EXEMPT_GENERATED = new Set([GENERATED_JS]);
-const CSS_START = "/* chains:start */";
-const CSS_END = "/* chains:end */";
 const OWNERS = new Set([
   "site-ui",
   "coordinator",
@@ -113,14 +112,17 @@ function listCssFiles(root) {
     .map((name) => `${SITE_DIR}/${name}`);
 }
 
-// The marked region is generated from data/chains.json; everything outside it
-// must read the generated custom properties instead of repeating a color.
+// Generated regions are the documented home of generated values. Strip every
+// region registered in scripts/generated-regions.mjs before a scanner looks for
+// copied facts; tokens and chains are the current registrations.
 function outsideGeneratedRegion(relative, text) {
   if (relative !== "apps/site/site.css") return text;
-  const start = text.indexOf(CSS_START);
-  const end = text.indexOf(CSS_END);
-  if (start === -1 || end === -1 || end < start) return text;
-  return text.slice(0, start) + text.slice(end + CSS_END.length);
+  let out = text;
+  const regions = findGeneratedRegions(text, { file: relative });
+  for (const region of regions.reverse()) {
+    out = out.slice(0, region.start) + out.slice(region.end + region.endMarker.length);
+  }
+  return out;
 }
 
 function lineAt(text, index) {

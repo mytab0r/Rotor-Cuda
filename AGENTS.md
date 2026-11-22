@@ -67,6 +67,10 @@ explorer URL or chain identity into a page script.
   chain-selector variable, fiat scaling) live in `data/ssot-allow.json` with
   `reason`, `owner` and `expires`.
 - Never hand-edit either generated file.
+- Generated CSS regions are registered once in
+  `scripts/generated-regions.mjs` (`tokens`, `chains`). Generators and every
+  CSS scanner import that registry; add a new region there, not as a second
+  marker string.
 
 ## Security alerts
 

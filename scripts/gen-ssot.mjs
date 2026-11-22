@@ -20,6 +20,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { CHAINS_REGION } from "./generated-regions.mjs";
+
 export const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const CHAINS_PATH = "data/chains.json";
@@ -27,8 +29,8 @@ const PROVIDERS_PATH = "data/providers.json";
 const JS_PATH = "apps/site/chains.generated.js";
 const RS_PATH = "src/generated/chains.rs";
 const CSS_PATH = "apps/site/site.css";
-const CSS_START = "/* chains:start */";
-const CSS_END = "/* chains:end */";
+const CSS_START = CHAINS_REGION.start;
+const CSS_END = CHAINS_REGION.end;
 const COLOR_RE = /^#[0-9a-f]{6}$/;
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
