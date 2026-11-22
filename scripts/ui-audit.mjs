@@ -65,6 +65,7 @@ const DEFAULT_ROUTES = [
   "/mnemonic-converter",
   "/mnemonic-seeds",
   "/milk-sad",
+  "/security",
   "/hex-dec-bin",
   "/public-key",
   "/pubkey-add",
@@ -204,6 +205,51 @@ function missingPublicRoutes(routes) {
     pending = [];
   }
   return [...publicPages].filter((route) => !routes.includes(route));
+}
+
+// wallet-security-severity-class: the Security status row must render the
+// severity through the shared .status pill, not as a bare text node. The card
+// is hidden while the vault is locked, so the rendered audit never sees it;
+// this static check guards the renderer itself.
+function walletSecuritySeverityClassIssues() {
+  const file = path.join(REPO_ROOT, "apps", "site", "wallet.js");
+  let source = "";
+  try {
+    source = readFileSync(file, "utf8");
+  } catch {
+    return ["cannot read apps/site/wallet.js"];
+  }
+  const start = source.indexOf("function securityRow(");
+  const end = start < 0 ? -1 : source.indexOf("function refreshSecurity(", start);
+  if (start < 0 || end < 0) return ["cannot locate the wallet securityRow renderer"];
+  const body = source.slice(start, end);
+  const issues = [];
+  if (!/severity\.className\s*=\s*['"]status status--['"]\s*\+/.test(body)) {
+    issues.push("the severity node has no .status tone class");
+  }
+  if (!/severity\.textContent\s*=\s*advisory\.severity/.test(body)) {
+    issues.push("the severity node does not carry the advisory severity");
+  }
+  let css = "";
+  try {
+    css = readFileSync(path.join(REPO_ROOT, "apps", "site", "site.css"), "utf8");
+  } catch {
+    issues.push("cannot read apps/site/site.css");
+  }
+  const pillStart = css.indexOf("/* One pill geometry");
+  const pillEnd = pillStart >= 0 ? css.indexOf("\n}", pillStart) : -1;
+  const pillBlock = pillStart >= 0 && pillEnd > pillStart ? css.slice(pillStart, pillEnd) : "";
+  if (!pillBlock) {
+    issues.push("cannot locate the shared pill block in apps/site/site.css");
+  } else if (!/^\.status,\s*$/m.test(pillBlock)) {
+    issues.push("site.css does not include .status in the shared pill block");
+  }
+  for (const tone of ["critical", "high"]) {
+    if (!new RegExp(`\\.status--${tone}\\s*\\{`).test(css)) {
+      issues.push(`site.css has no .status--${tone} tone`);
+    }
+  }
+  return issues;
 }
 
 function log(message) {
@@ -1346,6 +1392,7 @@ function auditPage(args) {
   //     8px inline padding, 20-32px height (the documented min-height is 20;
   //     the ceiling stops a pill from growing into a card).
   const statusPillSelectors = [
+    ".status",
     ".badge",
     ".key-badges span",
     ".puzzle-badge",
@@ -5043,6 +5090,10 @@ async function main() {
     throw new Error(
       `[route-coverage] public page route(s) missing from DEFAULT_ROUTES: ${uncovered.join(", ")}`,
     );
+  }
+  const severityIssues = walletSecuritySeverityClassIssues();
+  if (severityIssues.length) {
+    throw new Error(`[wallet-security-severity-class] ${severityIssues.join("; ")}`);
   }
   if (options.help) {
     log(HELP);

@@ -780,6 +780,8 @@ standalone freshness gate.
 | `puzzle-detail-discussion-link` | The puzzle detail page renders the donor Discussion action with its recorded target. | phase 4 | implemented |
 | `puzzle-detail-tool-links` | The puzzle detail action row lists the donor's three solver tools (BitCrack, Keyhunt, VanitySearch) on unsolved puzzles only. | phase 4 | implemented |
 | `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
+| `security-advisory-integrity` | Every advisory cites an https primary source, carries actions and review provenance, and its local checker names a live coordinator route and implementation; the generated /security page is current. | security | implemented |
+| `wallet-security-severity-class` | The wallet Security status severity is rendered with the shared .status pill class, not as a bare text node. | security | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in

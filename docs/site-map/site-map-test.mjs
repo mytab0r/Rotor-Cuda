@@ -55,7 +55,7 @@ const requiredOurs = [
   '/mnemonic-seeds', '/seed', '/mnemonic-converter',
   '/bitcoin-puzzle', '/bitcoin-puzzle/<n>', '/bitcoin-puzzle/<n>/random',
   '/brainwallet', '/brainwallet/bitcoin', '/brainwallet/ethereum', '/brainwallet-generator',
-  '/tools', '/vanity', '/milk-sad', '/hex-dec-bin', '/public-key', '/pubkey-add',
+  '/tools', '/vanity', '/milk-sad', '/security', '/hex-dec-bin', '/public-key', '/pubkey-add',
   '/reconstruction', '/keystore-parser', '/wallets', '/cabinet/wallet', '/cabinet',
   '/faq', '/disclaimer', '/donate', '/docs'
 ];

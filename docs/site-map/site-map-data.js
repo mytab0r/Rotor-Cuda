@@ -292,6 +292,16 @@
   });
 
   oursRoute({
+    path: '/security',
+    title: 'Security advisories',
+    area: 'site',
+    status: 'ours-only',
+    priority: '-',
+    donorIds: [],
+    note: 'Reviewed advisories and threat classes generated from data/security-advisories.json, with primary sources and local checker links. No donor equivalent and no vulnerable-key directory.'
+  });
+
+  oursRoute({
     path: '/hex-dec-bin',
     title: 'Hex / decimal / binary',
     area: 'tools',

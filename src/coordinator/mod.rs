@@ -87,6 +87,9 @@ const MNEMONIC_SEEDS_PAGE: &str = include_str!("../../apps/site/mnemonic-seeds.h
 const MNEMONIC_SEEDS_JS: &str = include_str!("../../apps/site/mnemonic-seeds.js");
 const MILK_PAGE: &str = include_str!("../../apps/site/milk-sad.html");
 const MILK_JS: &str = include_str!("../../apps/site/milk-sad.js");
+const MILK_SCAN_JS: &str = include_str!("../../apps/site/milk-sad-scan.js");
+const SECURITY_PAGE: &str = include_str!("../../apps/site/security.html");
+const SECURITY_ADVISORIES_JSON: &str = include_str!("../../data/security-advisories.json");
 const TOOLS_PAGE: &str = include_str!("../../apps/site/tools.html");
 const KEY_TOOLS_JS: &str = include_str!("../../apps/site/key-tools.js");
 const HEX_DEC_BIN_PAGE: &str = include_str!("../../apps/site/hex-dec-bin.html");
@@ -113,6 +116,7 @@ const WALLET_SIGN_JS: &str = include_str!("../../apps/site/wallet-sign.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
 const WALLET_HISTORY_JS: &str = include_str!("../../apps/site/wallet-history.js");
+const WALLET_SECURITY_JS: &str = include_str!("../../apps/site/wallet-security.js");
 const SEND_PAGE: &str = include_str!("../../apps/site/send.html");
 const SEND_JS: &str = include_str!("../../apps/site/send.js");
 const TRON_TX_JS: &str = include_str!("../../apps/site/tron-tx.js");
@@ -1778,6 +1782,15 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/milk-sad" => Some((MILK_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/milk-sad.js" => Some((MILK_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/milk-sad-scan.js" => Some((
+            MILK_SCAN_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/security" => Some((SECURITY_PAGE.as_bytes(), "text/html; charset=utf-8")),
+        "/security-advisories.json" => Some((
+            SECURITY_ADVISORIES_JSON.as_bytes(),
+            "application/json; charset=utf-8",
+        )),
         "/tools" => Some((TOOLS_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key-tools.js" => Some((
             KEY_TOOLS_JS.as_bytes(),
@@ -1876,6 +1889,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-history.js" => Some((
             WALLET_HISTORY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-security.js" => Some((
+            WALLET_SECURITY_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/send" | "/send/bitcoin" | "/send/ethereum" | "/send/bnb" | "/send/usdt"
@@ -5359,6 +5376,7 @@ fn render_sitemap(base: &str) -> String {
         "/mnemonic-converter",
         "/vanity",
         "/milk-sad",
+        "/security",
         "/tools",
         "/hex-dec-bin",
         "/public-key",
@@ -7233,6 +7251,7 @@ mod tests {
             ("/seed", "Seed phrase studio"),
             ("/mnemonic-converter", "Mnemonic converter"),
             ("/milk-sad", "Milk Sad"),
+            ("/security", "Security advisories"),
             ("/tools", "Tools"),
             ("/hex-dec-bin", "Hex, decimal and binary converter"),
             ("/public-key", "Public key to addresses"),
@@ -8035,6 +8054,44 @@ mod tests {
     }
 
     #[test]
+    fn security_advisory_page_and_json_are_served_and_indexed() {
+        let base = "https://rotor.pxbt.app";
+        let (page, content_type) = static_asset("/security").expect("/security is embedded");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        let page = std::str::from_utf8(page).expect("utf-8 security page");
+        let served = with_site_footer("/security", page.to_string());
+        assert_eq!(served.matches("<main").count(), 1, "one main");
+        assert_eq!(served.matches("<h1").count(), 1, "one h1");
+        assert_eq!(served.matches("<footer").count(), 1, "one shared footer");
+        assert!(
+            page.contains("directory-links"),
+            "related links stay in the page"
+        );
+        assert!(page.contains(&format!(
+            "<link rel=\"canonical\" href=\"{base}/security\">"
+        )));
+        assert!(!page.contains("noindex"), "content page stays indexable");
+        assert!(page.contains("application/ld+json"));
+        assert!(page.contains("Milk Sad"));
+        assert!(page.contains("Address poisoning"));
+        assert!(page.contains("href=\"/milk-sad#address-audit\""));
+        assert!(page.contains("https://nvd.nist.gov/vuln/detail/CVE-2023-39910"));
+
+        let (json, content_type) =
+            static_asset("/security-advisories.json").expect("advisory JSON is embedded");
+        assert_eq!(content_type, "application/json; charset=utf-8");
+        let data: serde_json::Value = serde_json::from_slice(json).expect("valid advisory JSON");
+        assert_eq!(data["version"], 1);
+        assert_eq!(data["advisories"][0]["id"], "milk-sad-2023");
+        assert_eq!(data["advisories"][0]["checker"], "milk-sad-seed-range");
+        assert_eq!(data["checkers"][0]["route"], "/milk-sad#address-audit");
+        assert!(data["advisories"][0]["review"]["reviewed_at"].is_string());
+
+        let sitemap = render_sitemap(base);
+        assert!(sitemap.contains(&format!("<loc>{base}/security</loc>")));
+    }
+
+    #[test]
     fn mnemonic_seed_directory_routes_and_assets_are_served() {
         let base = "https://rotor.pxbt.app";
 
@@ -8149,6 +8206,8 @@ mod tests {
         assert!(html.contains("<script src=\"/wallet-evm.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-btc.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-history.js\"></script>"));
+        assert!(html.contains("<script src=\"/milk-sad-scan.js\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-security.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-summary.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet.js\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
@@ -8200,6 +8259,13 @@ mod tests {
         let history = std::str::from_utf8(history).expect("wallet-history.js is utf-8");
         assert!(history.contains("RotorWalletHistory"));
         assert!(history.contains("needs an indexer or an API key"));
+
+        let (security, content_type) =
+            static_asset("/wallet-security.js").expect("/wallet-security.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let security = std::str::from_utf8(security).expect("wallet-security.js is utf-8");
+        assert!(security.contains("RotorWalletSecurity"));
+        assert!(security.contains("rotor-security-checks.v1"));
         let generated = std::str::from_utf8(
             static_asset("/chains.generated.js")
                 .expect("/chains.generated.js is embedded")
