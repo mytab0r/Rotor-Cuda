@@ -2455,8 +2455,12 @@ fn admin_rejects_tampered_expired_and_rotated_cookies() {
     assert_eq!(status, 200, "minted cookie must validate: {body}");
 
     let mut tampered = valid.clone();
-    tampered.pop();
-    tampered.push(if tampered.ends_with('0') { '1' } else { '0' });
+    // Change the last MAC nibble to a different digit. Comparing the pushed
+    // value with the popped one (not with the new last char) makes the tamper
+    // deterministic: the old version could reproduce the original cookie when
+    // the last two hex digits happened to be "01".
+    let last = tampered.pop().expect("MAC digit");
+    tampered.push(if last == '0' { '1' } else { '0' });
     let expired = test_admin_cookie(TOKEN, now.saturating_sub(1));
     let rotated = test_admin_cookie("different-admin-token", now + 3600);
     // A correctly signed cookie may not outlive the documented 12 h TTL.
