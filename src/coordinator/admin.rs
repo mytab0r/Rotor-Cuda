@@ -291,7 +291,9 @@ mod tests {
     #[test]
     fn expiry_outside_the_ttl_is_rejected_even_with_a_valid_mac() {
         let auth = AdminAuth::new("token", "https://example.test");
-        let nonce = "000102030405060708090a0b0c0d0e0f";
+        let mut nonce_bytes = [0u8; NONCE_BYTES];
+        getrandom::getrandom(&mut nonce_bytes).expect("OS random");
+        let nonce = hex(&nonce_bytes);
         let expires_at = now_secs().saturating_add(TTL_SECS + 120);
         let payload = format!("v1.{expires_at}.{nonce}");
         let mac = hex(&hmac_sha256(&auth.key, payload.as_bytes()));
