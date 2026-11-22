@@ -546,7 +546,7 @@
     href: '/key/0000000000000000000000000000000000000000000000000000000000000001',
     title: 'Key entity pages',
     area: 'key',
-    status: 'partial',
+    status: 'parity',
     ours: '/key',
     note: 'Auto-derive, aggregates, CSV and eight EVM chain rows are present. Short and 0x-prefixed hex plus WIF resolve; arbitrary text stays a real 404 (not the donor soft-404).'
   });
@@ -577,7 +577,7 @@
     path: '/mnemonic-converter',
     title: 'Mnemonic converter',
     area: 'seeds',
-    status: 'partial',
+    status: 'parity',
     ours: '/mnemonic-converter'
   });
 
@@ -877,7 +877,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, TRON, XRP, SOL, SUI and TON have directory providers. LTC/DOGE do have a keyless BlockCypher provider on the single-key page, but a 60-row directory lookup would exceed its keyless rate limit, so their cells stay —; BCH has a batched Haskoin provider that the mnemonic directory uses but this 60-row private-key directory does not wire, and ZEC’s SoChain provider is per-address, so it stays — here too, instead of a fake zero.'
+    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, BCH, TRON, XRP, SOL, SUI and TON have directory providers. BCH uses one batched Haskoin request per page, the same provider the mnemonic directory uses. LTC/DOGE do have a keyless BlockCypher provider on the single-key page, but a 60-row directory lookup would exceed its keyless rate limit, so their cells stay —; ZEC’s SoChain provider is per-address, so it stays — here too, instead of a fake zero.'
   });
 
   feature({

@@ -174,6 +174,18 @@
   `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
   matrix row is now `parity` after the independent browser review and the PR #237
   merge.
+- [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
+  60-row directory returned no provider meta for BCH and rendered `—` for every
+  row, although the shared batched Haskoin provider already existed and the
+  mnemonic directory used it. `providerMeta()` in `apps/site/browse.js` now
+  returns `haskoin-bch` for `bitcoin-cash`, so one `GET /bch/address/balances`
+  request fills all 60 rows (8 decimals, BCH). Rendered live: 60/60
+  `data-balance-state="ok"`, first row `0.00001 BCH 59 tx`, matching the
+  provider probe (`confirmed: 1000`, `txs: 59`); targeted audit 6/6 PASS with 0
+  warnings at 375/768/1280 in both themes. Evidence:
+  `apps/site/browse.js` (`providerMeta`), `apps/site/mnemonic-seeds-test.mjs`
+  (the source lock), defect `bch-directory-balances`. ZEC stays `—` here
+  (per-address SoChain), as does LTC/DOGE (BlockCypher rate limit).
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:

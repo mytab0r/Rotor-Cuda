@@ -388,11 +388,13 @@
     if (config.chain === 'tron') return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: config.symbol || 'TRX' };
     if (config.chain === 'xrp') return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
     if (config.chain === 'ton') return { provider: 'toncenter', chain: 'ton', decimals: 9, symbol: 'TON' };
+    if (config.chain === 'bitcoin-cash') return { provider: 'haskoin-bch', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
     /* LTC and DOGE do have a keyless provider (BlockCypher) on the single-key
      * page. This 60-row directory does not use it: 60 lookups would exceed the
      * keyless rate limit, so those cells stay "—" (each address keeps its
-     * explorer link) instead of a fake zero. BCH has a keyless batched
-     * provider (Haskoin) that the mnemonic directory uses; ZEC has none. */
+     * explorer link) instead of a fake zero. ZEC's SoChain provider is
+     * per-address, so it stays "—" here too. BCH uses one batched Haskoin
+     * request per page, the same provider the mnemonic directory uses. */
     return null;
   }
 
