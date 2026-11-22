@@ -124,6 +124,24 @@ hooks, licence and last commit.
    marked region in `apps/site/site.css` or `design/generated/tokens.ts` is
    stale.
 
+### After merging main
+
+A merge that touches `apps/site` invalidates the committed copies and hashes.
+Refresh the derived artifacts with the generators, never by hand:
+
+- `node scripts/build-tokens.mjs` — the token region and
+  `design/generated/tokens.ts`.
+- `node scripts/gen-ssot.mjs` — the chain/provider JS, Rust and the
+  `chains:start` CSS region.
+- `node scripts/gen-ssot.mjs --vendor-lock` — regenerates the above, then
+  copies every `data/vendor.lock.json` pair from `apps/site` to `web/public`
+  and rewrites the SHA-256 digests.
+
+Then re-run the gates. `check-ssot` failing with `vendor-lock-digest` means the
+lock lags a merge: run the command. The same applies to `gen-ssot --check`,
+`gen-detector-docs --check` and `build-tokens --check`. A stale generated
+artifact is never a reason to weaken the gate.
+
 **Later:** Lighthouse CI budgets on `/` and `/key`; `cargo mutants` quarterly;
 Playwright only if the CDP harness becomes the bottleneck.
 

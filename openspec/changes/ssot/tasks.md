@@ -135,6 +135,12 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
       fails on a drifted copy or a stale digest, and fails when `web/public`
       contains an unlocked file. Detector id `vendor-lock-digest`;
       mutation-proven by changing one byte in a copy.
+- [x] Add `node scripts/gen-ssot.mjs --vendor-lock`: regenerate the chain
+      outputs, copy every locked pair from `apps/site` to `web/public` and
+      rewrite the digests in one command. Document in
+      `docs/process/self-checking.md`, `AGENTS.md` and `web/README.md` that it
+      runs after every merge, like the token and generated checks, so a stale
+      lock is refreshed instead of the gate weakened.
 - [x] Regenerate the stale hashes in `web/README.md` and replace the duplicate
       table with the lock reference; the web-area contract in `projects.json`
       names the lock as the machine source.

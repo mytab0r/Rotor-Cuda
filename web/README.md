@@ -41,10 +41,11 @@ only deviation from the brief and is called out in the PR.
 `web/public/` holds byte-identical copies of the current `apps/site/` assets.
 `data/vendor.lock.json` is the machine source for every pair: it records the
 source path, target path and SHA-256 of each copied file. Do not edit a
-`web/public/` copy: edit `apps/site/` first, copy the file again, and update the
-digest in the lock (recompute it with `sha256sum` or `Get-FileHash`).
-`node scripts/check-ssot.mjs` fails when a copy drifts, when a locked digest is
-stale, or when `web/public/` contains a file the lock does not cover.
+`web/public/` copy: edit `apps/site/` first, then run
+`node scripts/gen-ssot.mjs --vendor-lock`. It regenerates the chain/provider
+outputs, copies every locked pair into `web/public/` and rewrites the digests in
+one step. `node scripts/check-ssot.mjs` fails when a copy drifts, when a locked
+digest is stale, or when `web/public/` contains a file the lock does not cover.
 
 | web/public file | Source |
 |---|---|
@@ -68,9 +69,10 @@ The vendored WalletConnect and TON bundles are deliberately not copied; the
 reason for each is in `data/vendor.lock.json` (`nonCopies`).
 
 `rotor_wasm.wasm` is a generated artifact: after `sh scripts/build-wasm.sh`
-rebuilds `apps/site/rotor_wasm.wasm`, copy it here again and update its digest in
-the lock (the pilot keeps two copies until phase 6 removes the embedded site).
-Do not hand-edit it.
+rebuilds `apps/site/rotor_wasm.wasm`, run
+`node scripts/gen-ssot.mjs --vendor-lock` to copy it and refresh the digest (the
+pilot keeps two copies until phase 6 removes the embedded site). Do not
+hand-edit it.
 
 ## Behaviour notes
 
