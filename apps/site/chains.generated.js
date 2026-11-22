@@ -521,6 +521,11 @@
     ],
     "litecoin": [
       {
+        "id": "sochain",
+        "url": "https://sochain.com/api/v3",
+        "label": "SoChain"
+      },
+      {
         "id": "litecoinspace",
         "url": "https://litecoinspace.org/api",
         "label": "Litecoin Space"
@@ -545,6 +550,11 @@
     ],
     "dogecoin": [
       {
+        "id": "sochain",
+        "url": "https://sochain.com/api/v3",
+        "label": "SoChain"
+      },
+      {
         "id": "blockcypher",
         "url": "https://api.blockcypher.com/v1/doge/main",
         "label": "BlockCypher"
@@ -556,6 +566,11 @@
       }
     ],
     "zcash": [
+      {
+        "id": "sochain",
+        "url": "https://sochain.com/api/v3",
+        "label": "SoChain"
+      },
       {
         "id": "blockchair",
         "url": "https://api.blockchair.com",

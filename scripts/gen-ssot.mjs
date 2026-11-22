@@ -14,8 +14,15 @@
 // `--check` regenerates all three in memory and exits 1 with a line diff
 // summary when a committed output is stale.
 //
+// `--vendor-lock` regenerates the outputs, then copies every pair in
+// data/vendor.lock.json from apps/site to web/public and rewrites the SHA-256
+// digests. Digests are over LF-normalized content, so CRLF and LF checkouts
+// agree. Run it after every merge (or any apps/site edit) so the lock cannot
+// stay stale; `scripts/check-ssot.mjs` still verifies the result.
+//
 // Node built-ins only; no dependencies, Windows-safe.
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -26,6 +33,7 @@ export const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url
 
 const CHAINS_PATH = "data/chains.json";
 const PROVIDERS_PATH = "data/providers.json";
+const VENDOR_LOCK_PATH = "data/vendor.lock.json";
 const JS_PATH = "apps/site/chains.generated.js";
 const RS_PATH = "src/generated/chains.rs";
 const CSS_PATH = "apps/site/site.css";
@@ -584,6 +592,75 @@ function writeIfChanged(root, relative, content) {
   return true;
 }
 
+// Vendored identity is content after EOL normalization, not raw bytes: a
+// Windows checkout writes CRLF while Linux CI sees the same committed LF blob.
+// Normalize at the byte level so binary files (the wasm copy) are not decoded
+// as UTF-8; only CR in a CRLF pair is dropped.
+export function normalizeEolBytes(buffer) {
+  const out = Buffer.allocUnsafe(buffer.length);
+  let length = 0;
+  for (let index = 0; index < buffer.length; index += 1) {
+    const value = buffer[index];
+    if (value === 0x0d && buffer[index + 1] === 0x0a) continue;
+    out[length] = value;
+    length += 1;
+  }
+  return out.subarray(0, length);
+}
+
+export function sha256Vendored(full) {
+  return createHash("sha256").update(normalizeEolBytes(fs.readFileSync(full))).digest("hex");
+}
+
+// A merge that touches apps/site changes every copy in web/public and makes
+// the lock digests stale. `--vendor-lock` copies each locked source to its
+// target and rewrites the digests, so refreshing after a merge is one command
+// instead of hand-editing hashes. Generated outputs are refreshed first.
+export function regenerateVendorLock(root = REPO_ROOT) {
+  const lock = readJson(root, VENDOR_LOCK_PATH);
+  if (!lock || lock.version !== 1 || !Array.isArray(lock.entries)) {
+    fail(`${VENDOR_LOCK_PATH} must be { version: 1, entries: [...] }`);
+  }
+  const copied = [];
+  const updated = [];
+  for (const [index, entry] of lock.entries.entries()) {
+    const where = `${VENDOR_LOCK_PATH}.entries[${index}]`;
+    if (!entry || typeof entry.source !== "string" || typeof entry.target !== "string") {
+      fail(`${where} needs string source and target`);
+    }
+    for (const field of ["source", "target"]) {
+      const relative = entry[field];
+      if (path.isAbsolute(relative) || relative.includes("\\") || relative.split("/").includes("..")) {
+        fail(`${where}.${field} must be a relative POSIX path: ${relative}`);
+      }
+    }
+    const source = path.join(root, entry.source);
+    const target = path.join(root, entry.target);
+    if (!fs.existsSync(source)) fail(`${where}.source does not exist: ${entry.source}`);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+    const digest = sha256Vendored(source);
+    if (entry.sha256 !== digest) {
+      entry.sha256 = digest;
+      updated.push(entry.target);
+    }
+    copied.push(entry.target);
+  }
+  for (const [index, entry] of (lock.nonCopies || []).entries()) {
+    if (!entry || typeof entry.source !== "string") {
+      fail(`${VENDOR_LOCK_PATH}.nonCopies[${index}].source must be a string`);
+    }
+    if (!fs.existsSync(path.join(root, entry.source))) {
+      fail(`${VENDOR_LOCK_PATH}.nonCopies[${index}].source does not exist: ${entry.source}`);
+    }
+  }
+  const full = path.join(root, VENDOR_LOCK_PATH);
+  const actual = fs.existsSync(full) ? fs.readFileSync(full, "utf8") : "";
+  const content = withEol(`${JSON.stringify(lock, null, 2)}\n`, detectEol(actual));
+  writeIfChanged(root, VENDOR_LOCK_PATH, content);
+  return { copied, updated, entries: lock.entries.length };
+}
+
 export function run({ root = REPO_ROOT, check = false } = {}) {
   const data = loadData(root);
   const jsActual = readIfExists(root, JS_PATH);
@@ -635,14 +712,27 @@ export function run({ root = REPO_ROOT, check = false } = {}) {
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const unknown = argv.filter((arg) => arg !== "--check");
-  if (unknown.length > 0) {
-    console.error(`error: unknown argument(s): ${unknown.join(", ")}`);
-    console.error("usage: node scripts/gen-ssot.mjs [--check]");
+  const check = argv.includes("--check");
+  const vendorLock = argv.includes("--vendor-lock");
+  const unknown = argv.filter((arg) => arg !== "--check" && arg !== "--vendor-lock");
+  if (unknown.length > 0 || (check && vendorLock)) {
+    if (unknown.length > 0) console.error(`error: unknown argument(s): ${unknown.join(", ")}`);
+    else console.error("error: --check and --vendor-lock are mutually exclusive");
+    console.error("usage: node scripts/gen-ssot.mjs [--check | --vendor-lock]");
     return 2;
   }
   try {
-    const result = run({ check: argv.includes("--check") });
+    if (vendorLock) {
+      const generated = run({});
+      for (const message of generated.messages) console.log(message);
+      const result = regenerateVendorLock();
+      console.log(
+        `vendor-lock: copied ${result.copied.length} file(s), ` +
+          `updated ${result.updated.length} digest(s) of ${result.entries}`,
+      );
+      return 0;
+    }
+    const result = run({ check });
     for (const message of result.messages) console.log(message);
     return result.ok ? 0 : 1;
   } catch (error) {
