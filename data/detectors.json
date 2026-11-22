@@ -839,7 +839,7 @@
       "rule": "No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR.",
       "batch": "4a",
       "implemented_in": "scripts/check-screenshots.mjs",
-      "doc_anchor": "docs/process/self-checking.md#no-screenshots-or-test-evidence-in-the-repo",
+      "doc_anchor": "docs/process/self-checking.md#7-no-screenshots-or-test-evidence-in-the-repo",
       "status": "implemented"
     }
   ]
