@@ -121,8 +121,9 @@
   bullet). The notes now name the real remainder: ZEC balances have no keyless
   provider (Blockchair 430 without a key; zcha.in unreachable, probed
   2026-11-21), while BCH was later wired through Haskoin (bullet below), so only
-  the ZEC row shows `—` and the route status stays `partial`. Evidence:
-  `docs/site-map/site-map-data.js` (seven donor rows).
+  the ZEC row shows `—` and the route status stays `partial` (superseded
+  2026-11-22: the ZEC provider landed in PR #237 and the row is now parity).
+  Evidence: `docs/site-map/site-map-data.js` (seven donor rows).
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
