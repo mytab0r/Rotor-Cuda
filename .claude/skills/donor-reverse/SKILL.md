@@ -67,6 +67,12 @@ script still reports our side. The one allowed retry is a normal desktop user
 agent, once, recorded in `attempts`. Do not add headers, cookies or a proxy to
 get around a block.
 
+A zero is never data by default. If the row selector matches nothing, the side
+status becomes `selector_matched_nothing`, a warning names the selector and the
+JSON row counts are `null` (not `0`), so an empty selector cannot be read as an
+empty page. Fix the selector; only a page that is legitimately empty opts in
+with `--allow-empty`, and then `0` is a measured zero.
+
 ## 3. Read the report as a hierarchy
 
 1. **Chrome height** decides whether anything useful is above the fold. Compare
@@ -82,7 +88,8 @@ get around a block.
    is not automatically better: a filter or action counts only if the page
    needs it.
 5. **Density ratio** (`ours / donor` rows per 1000px chrome) is the one-line
-   summary. `0.00` means no row reached the fold; it is a measured zero.
+   summary. `0.00` means no row reached the fold; it is a measured zero. `null`
+   means the selector or chrome height is missing: not a zero.
 
 ## 4. Produce the document
 
