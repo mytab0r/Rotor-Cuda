@@ -332,9 +332,9 @@ Component pages: [button](components/button.md),
 </label>
 ```
 
-- Control: min-height `--control-h` (44), padding `--space-2 --space-3`, radius
-  `--radius-control` (10), border `--line-strong`, background `--surface-0`,
-  font `--text-md`.
+- Control: min-height `--control-h` (44 touch; 36 on a >=1024px fine pointer),
+  padding `--space-2 --space-3`, radius `--radius-control` (10), border
+  `--line-strong`, background `--surface-0`, font `--text-md`.
 - Focus: `:focus` border signal + 3px `--signal-soft` ring. Invalid:
   `[aria-invalid="true"]` error border + error ring; never remove the focus
   ring. Disabled: opacity .55, not-allowed cursor.
@@ -351,8 +351,9 @@ Component pages: [button](components/button.md),
 
 ### 3.8 Card
 
-- `.card`: padding `--space-5`, radius `--radius-xl`, 1px `--line-subtle`,
-  background `--surface-1`, `--elev-1`.
+- `.card`: padding `--space-4` (data) or `--space-5` with `.card--form`
+  (form), radius `--radius-xl`, 1px `--line-subtle`, background `--surface-1`,
+  `--elev-1`.
 - `.card--flat`: no border/shadow, padding 0 (for a section inside a card).
 - `.card--stat`: padding `--space-4 --space-5`, radius 0, no border, used only
   inside a stat strip.
@@ -409,29 +410,33 @@ Component pages: [button](components/button.md),
   accessible name. Every table carries `.data-table`; a table never forces the
   page wider.
 - Header: `--text-xs`, 600, `--ink-3`, sentence case; no uppercase tracking;
-  header row height `--control-h` (44).
-- Cell padding `--space-2 --space-3`; body row min-height 44; long values wrap
+  header row height `--control-h` (36 desktop, 44 touch).
+- Cell padding `--space-2 --space-3`; body row 40-44 on a >=1024px fine pointer
+  and at least 44 on touch; long values wrap
   with `overflow-wrap:anywhere`; numeric columns use tabular-nums and align
-  right.
+  right. A card-owned table is full-bleed (`.card > .table-scroll`) so the first
+  cell shares the card's content inset.
 - Row states: hover `--row-hover`; `has-balance` tinted ok; `is-active` tinted
   signal; `key-row-focus` signal hairline + surface. States are independent and
   must be recognisable apart; the div-based directory/seed rows use the same
   tokens.
-- Actions: one icon-button grammar at the trailing edge (44×44, radius
-  `--radius-control`, labelled).
+- Actions: one icon-button grammar at the trailing edge. On a >=1024px fine
+  pointer the visual box is 28 with a 44px hit extension and the group is
+  hidden until row hover/focus-within; touch keeps a visible 44x44 box.
 - Listing rows (`.key-row`) show every address form of a key immediately: a
-  legacy Bitcoin key is two 44px `.addr-line`s (`(c)`/`(u)`), each with its
-  explorer link (title carries the full address) and 44px copy action; there is
-  no disclosure or hidden line. The balance cell has one `.balance-info` per
+  legacy Bitcoin key is two `.addr-line`s (`(c)`/`(u)`), each with its explorer
+  link (title carries the full address); the row copy action and a menu for the
+  remaining address targets are revealed on hover/focus. There is no disclosure
+  or hidden address line. The balance cell has one `.balance-info` per
   address: the balance plus separate `.badge` TX and received pills with
   accessible names; a zero received amount and relative-age labels are not
-  rendered. The key-cell copy is a real 44px `.icon-button` with
+  rendered. The key-cell copy is the shared `.icon-button` with
   `aria-label`/`data-tooltip`, never a `display:none` button. The page declares
   its total (`data-addresses-per-page`: 120 for legacy BTC, 60 for a
   single-address chain) and the visible counter must match it. Enforced by
   `browse-row-address-count`, `browse-row-balance-lines`,
-  `browse-row-key-copy` and `browse-row-height` (stable row height, <=120px
-  desktop).
+  `browse-row-key-copy` and `browse-row-height` (stable row height, <=96px
+  desktop, <=120px otherwise).
 - Mobile: tables keep the horizontal scroll wrapper and all columns; they do
   not turn into cards. Directory/seed row lists may stack, but keep their
   labels. Enforced by `scripts/ui-audit.mjs` `table-grammar`,
@@ -442,7 +447,8 @@ Component pages: [button](components/button.md),
 - One pager per table: `<nav class="pager" aria-label="Key pages">` with
   `.pager-btn` anchors for First/Previous/Next/Last and one optional
   `.pager-btn--random` action.
-- `.pager` flex, `gap --space-2`; `.pager-btn` min 44×44, padding
+- `.pager` flex, `gap --space-2`; `.pager-btn` min 36x36 on a >=1024px fine
+  pointer and 44x44 on touch, padding
   `0 --space-3`, radius `--radius-control` (10), font `--text-sm`/650, icon 16.
 - `aria-current="page"` for the current page; `aria-disabled="true"` for an
   unavailable direction (the anchor stays focusable, click is prevented). Do
@@ -458,7 +464,8 @@ Component pages: [button](components/button.md),
 - `<nav class="breadcrumbs" aria-label="Breadcrumb">` with one
   `<span class="breadcrumbs__sep" aria-hidden="true">/</span>` between items;
   never a bare text slash or a blank gap.
-- Each link is a 44px target; the current page is exactly one
+- Each link is a 36px target on a >=1024px fine pointer and 44px on touch; the
+  current page is exactly one
   `[aria-current="page"]` at `--ink-2`, and its visible label is human text,
   not a raw path. Long labels truncate via `title`/`aria-label`.
 - Every public content page renders one trail. The landing page and the
@@ -566,6 +573,29 @@ Component pages: [button](components/button.md),
 - Enforced by `scripts/ui-audit.mjs` `footer-presence` per route and by
   `tests/coordinator_api.rs::every_public_content_route_renders_exactly_one_footer`
   across the coordinator's public content route list.
+
+### 3.18 Desktop density
+
+The touch floor is 44px; a `pointer: fine` viewport at >=1024px uses a compact
+desktop tier so data pages read like a bank app rather than a phone layout.
+
+- Standard control 36 (`--control-h: var(--control-h-md)`); hero field 56;
+  primary CTA (`.primary`, `.chip--primary`, `.icon-button--solid`) 44.
+- Icon buttons: `--md`/`--lg` render 36, `--sm` renders 28 with an 8px
+  `::before` hit extension (44px hit). Touch and every viewport below 1024
+  render 44 for `--md`/`--sm`.
+- Dense row actions are 28 visual with a 44px hit area, 16px apart, hidden
+  until row hover or `:focus-within`. A row never reserves a permanently
+  visible toolbar.
+- Key-page table rows are 40-44 high (56 when a details row is open);
+  directory rows are 40-96. Touch keeps rows at the 44px floor.
+- Cards: 16 data / 20 form (`.card--form`), radius 12/16. Page hero, data
+  cards, stat strip, table and first row share one content inset (the card
+  content edge) within 1px.
+- The balance retry is an icon-only `.icon-button--sm` with a count badge,
+  shown only while a fetch has failed; there is no wide manual refresh button.
+- Enforced by `desktop-control-height`, `table-row-density`,
+  `row-action-reveal` and `page-inset-parity`.
 
 ## 4. State matrix
 
@@ -772,6 +802,10 @@ standalone freshness gate.
 | `mnemonic-doge-blockcypher-batch` | Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index. | phase 4 | implemented |
 | `puzzle-detail-discussion-link` | The puzzle detail page renders the donor Discussion action with its recorded target. | phase 4 | implemented |
 | `puzzle-detail-tool-links` | The puzzle detail action row lists the donor's three solver tools (BitCrack, Keyhunt, VanitySearch) on unsolved puzzles only. | phase 4 | implemented |
+| `desktop-control-height` | On /key and /private-keys at a >=1024px fine pointer the allowed control heights are 28/36/44 by role; another height, or a 44px secondary action where 36 suffices, fails. Touch keeps 44. | density | implemented |
+| `table-row-density` | On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor. | density | implemented |
+| `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
+| `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in

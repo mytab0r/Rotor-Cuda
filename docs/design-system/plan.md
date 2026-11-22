@@ -271,6 +271,35 @@ Acceptance: full `node scripts/ui-audit.mjs --serve` green; all area tests;
 `check-projects`; docs updated (`docs/site-map` if a route/feature status
 changed; no route changes here).
 
+### Batch 8 — desktop density
+
+Files: `apps/site/site.css`, `apps/site/key.js`, `apps/site/browse.js`,
+`apps/site/key.html`, `apps/site/mnemonic-seeds.html`,
+`apps/site/mnemonic-seeds.js`, `src/coordinator/mod.rs`.
+
+Work: one viewport-aware density tier. `--control-h` is 36 on a `pointer: fine`
+viewport at >=1024px and stays 44 on touch; primary CTAs stay 44. Dense row
+actions are 28 visual with a 44px `::before` hit area and are hidden until row
+hover/focus-within. Key rows drop from 61 to 40-44; directory rows from 110 to
+96. Cards use 16 data / 20 form padding. One page inset: hero, data cards, stat
+strip, table and first row share the card content edge. The wide manual balance
+refresh is replaced by an icon-only retry that appears only after a failed
+fetch. `/key` and the directory replace always-visible per-address copy buttons
+with one row copy action plus a menu for the remaining targets.
+
+Detectors:
+
+- `desktop-control-height`: 28/36/44 by role at desktop; no 44 secondary action.
+- `table-row-density`: key rows 40-44, directory rows <=96 at desktop.
+- `row-action-reveal`: row actions hidden at rest on a fine pointer.
+- `page-inset-parity`: hero/card/stat/table/row share one inset within 1px.
+
+Acceptance: full `node scripts/ui-audit.mjs` green at 375/768/1280 in both
+themes; `build-tokens --check`, `check-ssot`, `check-projects`,
+`check-defect-ledger`, `gen-detector-docs --check`, `check-token-usage`,
+`check-components`, `site-map-test`, `cargo test --release --test
+coordinator_api`.
+
 ## 2. Per-batch route matrix
 
 | Batch | Routes |
@@ -282,6 +311,7 @@ changed; no route changes here).
 | 5 | `/key`, `/range`, `/bitcoin-puzzle`, `/brainwallet/bitcoin`, `/cabinet`, `/mnemonic-seeds/bitcoin` + open global search |
 | 6 | all default routes at 375 (drawer), 768, 1280 |
 | 7 | all default routes |
+| 8 | `/key`, `/key/<key>`, `/private-keys/bitcoin` at 375 and 1280 |
 
 On Git Bash, omit the leading slash in `--routes` (MSYS path rewriting), or pass
 `--routes=key,seed`.
@@ -406,6 +436,10 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `mnemonic-doge-blockcypher-batch` | Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index. | phase 4 | implemented |
 | `puzzle-detail-discussion-link` | The puzzle detail page renders the donor Discussion action with its recorded target. | phase 4 | implemented |
 | `puzzle-detail-tool-links` | The puzzle detail action row lists the donor's three solver tools (BitCrack, Keyhunt, VanitySearch) on unsolved puzzles only. | phase 4 | implemented |
+| `desktop-control-height` | On /key and /private-keys at a >=1024px fine pointer the allowed control heights are 28/36/44 by role; another height, or a 44px secondary action where 36 suffices, fails. Touch keeps 44. | density | implemented |
+| `table-row-density` | On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor. | density | implemented |
+| `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
+| `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.

@@ -4138,7 +4138,9 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
             "<div class=\"key-row\" data-key=\"{hex}\">\
              <div class=\"col-key\">\
              <a class=\"private-key mono\" href=\"/key/{hex}{curve_suffix}\" title=\"{hex}\">{hex}</a>\
-             <button type=\"button\" class=\"icon-button icon-button--quiet icon-button--lg copy-btn\" data-copy=\"{hex}\" aria-label=\"Copy private key\" data-tooltip=\"Copy private key\">{copy}</button>\
+             <div class=\"row-actions\">\
+             <button type=\"button\" class=\"icon-button icon-button--sm icon-button--quiet row-action copy-btn\" data-copy=\"{hex}\" aria-label=\"Copy private key\" data-tooltip=\"Copy private key\">{copy}</button>\
+             </div>\
              </div>\
              <div class=\"col-address\"><span class=\"cell-skeleton\">Calculating…</span></div>\
              <div class=\"col-balance\"><span class=\"cell-skeleton\">—</span></div>\
@@ -4283,8 +4285,8 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
          <section class=\"{summary_class}\" aria-label=\"Balance summary\">\
            {summary_cards}\
            <p class=\"balance-note\" id=\"balance-note\">Balances are checked in your browser for the addresses on this page.</p>\
-           <div class=\"balance-refresh\">\
-             <button type=\"button\" class=\"balance-refresh-btn\" id=\"balance-refresh\" aria-label=\"Refresh 0 failed or stale balances\" disabled>{retry_icon}<span>Refresh failed / stale</span><span class=\"balance-refresh-count\" id=\"balance-refresh-count\" aria-hidden=\"true\">0</span></button>\
+           <div class=\"balance-refresh balance-retry\" id=\"balance-retry\" hidden>\
+             <button type=\"button\" class=\"icon-button icon-button--sm icon-button--quiet balance-refresh-btn\" id=\"balance-refresh\" aria-label=\"Retry failed balances\" data-tooltip=\"Retry failed balances\" disabled>{retry_icon}<span class=\"balance-refresh-count\" id=\"balance-refresh-count\" aria-hidden=\"true\">0</span></button>\
              <span class=\"visually-hidden\" id=\"balance-refresh-status\" role=\"status\" aria-atomic=\"true\"></span>\
            </div>\
          </section>\

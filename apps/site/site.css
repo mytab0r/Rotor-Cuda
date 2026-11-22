@@ -3815,6 +3815,7 @@ details > summary { min-height: 44px; }
  * (one primary icon action). Nothing else is allowed to invent a fourth. */
 .icon-button--quiet { border-color: transparent; background: transparent; }
 .icon-button--quiet:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: transparent;
   background: var(--surface-2);
   color: var(--ink-1);
 }
@@ -4372,3 +4373,160 @@ body.mnemonic-chain-mode .mnemonic-directory-only { display: none; }
 .monitor-chain-tron { border-color: var(--chain-tron); color: var(--chain-tron); }
 .monitor-chain-solana { border-color: var(--chain-solana); color: var(--chain-solana); }
 /* chains:end */
+
+/* ------------------------------------------------ desktop density (batch 9) */
+/* One viewport-aware density scale. The touch floor stays 44px; on a desktop
+ * pointer the standard control is 36, a dense row action is 28 visual with a
+ * 44px hit area, and the primary call to action stays 44. Table rows are
+ * single-line 40-44 (key page) and multi-line <=96 (directory). The audit
+ * checks the rendered result: desktop-control-height, table-row-density,
+ * row-action-reveal and page-inset-parity. */
+.icon-button { position: relative; }
+button,
+a.button,
+.btn { min-height: var(--control-h); }
+button.primary,
+a.button.primary,
+.btn.primary,
+.chip--primary { min-height: var(--control-h-lg); }
+.card { padding: var(--space-4); }
+.card--form { padding: var(--space-5); }
+.stat-card { padding: var(--space-4); }
+.page-info { padding: 10px var(--space-4); }
+.keys-header,
+.key-row { padding-left: var(--space-4); padding-right: var(--space-4); }
+.keys-header { min-height: var(--control-h); }
+.key-stats { margin-inline: calc(var(--space-4) * -1); }
+.key-stat { padding: var(--space-4); }
+/* A table inside a card is full-bleed: its first cell's 12px padding lands on
+ * the card content edge, so the hero, card, table and row share one inset. */
+.card > .table-scroll {
+  margin-inline: calc(var(--space-3) * -1);
+  border: 0;
+  border-radius: 0;
+}
+.key-copy,
+.key-copy-sm,
+.key-form-row .key-copy { min-height: var(--control-h); }
+.key-path-chip { min-height: var(--control-h); }
+.key-step-group button { min-width: var(--control-h); min-height: var(--control-h); }
+.private-key,
+.address-link { min-height: var(--control-h); padding-block: var(--space-2); }
+.row-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.row-menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: grid;
+  min-width: 210px;
+  padding: var(--space-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-l);
+  background: var(--surface-1);
+  box-shadow: var(--elev-3);
+}
+.row-menu[hidden] { display: none; }
+.row-menu button {
+  justify-content: flex-start;
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+.row-menu button:hover { background: var(--surface-2); color: var(--ink-1); }
+.row-menu button:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+.balance-retry { position: relative; }
+.balance-retry[hidden] { display: none; }
+.balance-retry .balance-refresh-count {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  pointer-events: none;
+}
+.balance-retry .icon-button > .icon {
+  width: var(--icon-button-icon);
+  height: var(--icon-button-icon);
+}
+
+/* Touch and narrow windows: 44px for every icon size. A 28px visual is only
+ * allowed where a pointer can hover a dense row. */
+@media (pointer: coarse), (max-width: 1023px) {
+  .icon-button--md,
+  .icon-button--sm {
+    --icon-button-size: var(--control-h-lg);
+    --icon-button-icon: var(--icon-size-lg);
+  }
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  :root { --control-h: var(--control-h-md); }
+  .icon-button { --icon-button-size: var(--control-h-md); --icon-button-icon: var(--icon-size-md); }
+  .icon-button--md { --icon-button-size: var(--control-h-md); --icon-button-icon: var(--icon-size-md); }
+  .icon-button--lg { --icon-button-size: var(--control-h-md); --icon-button-icon: var(--icon-size-md); }
+  .icon-button--sm { --icon-button-size: var(--control-h-sm); --icon-button-icon: var(--icon-size-sm); }
+  .icon-button--solid { --icon-button-size: var(--control-h-lg); --icon-button-icon: var(--icon-size-lg); }
+  /* Dense row actions keep a 28px visual box and grow the hit area to 44. */
+  .icon-button--sm::before {
+    content: "";
+    position: absolute;
+    inset: calc((var(--control-h-lg) - var(--control-h-sm)) / -2);
+  }
+  .row-actions { gap: var(--space-4); }
+  .row-actions,
+  .key-form-row .row-action {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-standard);
+  }
+  .key-row:hover .row-actions,
+  .key-row:focus-within .row-actions,
+  .data-table tbody tr:hover .row-actions,
+  .data-table tbody tr:focus-within .row-actions,
+  .row-actions:focus-within,
+  .key-form-row:hover .row-action,
+  .key-form-row:focus-within .row-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .data-table tbody td { height: calc(var(--control-h-lg) - var(--space-1)); }
+  /* Row actions float over the trailing edge on desktop: the 28px visual does
+   * not set the row height, so a single-line key row stays 40-44. */
+  .key-cell-act { position: relative; }
+  .key-cell-act .row-actions {
+    position: absolute;
+    top: 50%;
+    right: var(--space-3);
+    transform: translateY(-50%);
+  }
+  /* A 13-14px control with 8px block padding renders 39-41px even when its
+   * min-height is 36; tighten the block padding on the desktop scale. */
+  input:where(:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"])),
+  select { height: var(--control-h); padding-block: var(--space-1); }
+  .key-path-input { min-height: var(--control-h); padding-block: var(--space-1); }
+  /* The legacy `.key-buttons button` floor outranks the icon-button size on
+   * specificity; the desktop tier keeps the two compact icon controls at 36. */
+  #key-form .icon-button { height: var(--control-h); min-height: var(--control-h); }
+  .keys-panel .key-row {
+    min-height: calc(var(--control-h-lg) + var(--space-9));
+    padding-block: var(--space-1);
+  }
+  .key-page .key-summary-group .key-form-row {
+    height: var(--control-h);
+    min-height: var(--control-h);
+  }
+  .key-addr-tbl .key-cell-addr code.key-addr,
+  .key-addr-tbl .key-balance {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

@@ -123,10 +123,9 @@
     <div class="stat-card"><span class="stat-label">Balance</span><span class="stat-value" id="mnemonic-total-balance">—</span></div>
     <div class="stat-card"><span class="stat-label">Received</span><span class="stat-value" id="mnemonic-total-received">—</span></div>
     <div class="stat-card"><span class="stat-label">TX</span><span class="stat-value" id="mnemonic-total-tx">—</span></div>
-    <div class="balance-refresh">
-      <button type="button" class="balance-refresh-btn" id="mnemonic-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
+    <div class="balance-refresh balance-retry" id="mnemonic-balance-retry" hidden>
+      <button type="button" class="icon-button icon-button--sm icon-button--quiet balance-refresh-btn" id="mnemonic-balance-refresh" aria-label="Retry failed balances" data-tooltip="Retry failed balances" disabled>
         <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
-        <span>Refresh failed / stale</span>
         <span class="balance-refresh-count" id="mnemonic-balance-refresh-count" aria-hidden="true">0</span>
       </button>
       <span class="visually-hidden" id="mnemonic-balance-refresh-status" role="status" aria-atomic="true"></span>

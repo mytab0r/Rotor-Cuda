@@ -685,3 +685,31 @@ and not deployed**.
   from the coordinator routes, embedded assets and sitemap; route tests and
   `/docs`/`/tools` links no longer reference the public path.
 - [x] Run the data test from `docs/`: `node docs/site-map/site-map-test.mjs`.
+
+## Desktop density (2026-11-22)
+
+- [x] One viewport-aware density tier in `apps/site/site.css`: `--control-h`
+      36 on a `pointer: fine` viewport at >=1024px, 44 on touch; primary CTAs
+      44; icon `--sm` 28 visual with a 44px `::before` hit area.
+- [x] Key-page rows 61 -> 40-44; directory rows 110 -> 92 (<=96). Card padding
+      16 data / 20 form (`.card--form`). The hero, data cards, stat strip,
+      table and first row share one content inset within 1px.
+- [x] `/key` and `/private-keys/*` replace always-visible per-address copy
+      buttons (46 and 181) with a row copy action plus a menu for the remaining
+      address targets, revealed on hover/focus-within on desktop.
+- [x] The wide manual balance refresh is gone: a failed fetch shows an
+      icon-only retry with a count badge and a tooltip, hidden while fresh.
+- [x] New detectors `desktop-control-height`, `table-row-density`,
+      `row-action-reveal`, `page-inset-parity`; the existing
+      `table-row-height`, `row-action-geometry`, `small-touch-target`,
+      `segmented-geometry`, nav/breadcrumb/pager/footer checks are
+      viewport-aware with the same 36/28-vs-44 rule.
+- [x] Mutation evidence: a temporary desktop CSS probe (40px info button,
+      60px table cell, forced row-action opacity, 12px hero offset) raised all
+      four new ids; the probe was removed before the final run.
+- [x] Gates: `build-tokens --check`, `check-ssot`, `check-projects`,
+      `check-defect-ledger`, `gen-detector-docs --check`, `check-token-usage`,
+      `check-components`, `site-map-test`, full `ui-audit.mjs` (all default
+      routes, 375/768/1280, dark/light) and
+      `cargo test --release --test coordinator_api`. No route changed, so the
+      site-map ledger is unchanged.

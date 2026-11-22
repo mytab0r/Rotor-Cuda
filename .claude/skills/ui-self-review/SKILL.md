@@ -145,6 +145,10 @@ page-local override.
 | `detector-docs-fresh` | The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json. | 4a | implemented |
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 | `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
+| `desktop-control-height` | On /key and /private-keys at a >=1024px fine pointer the allowed control heights are 28/36/44 by role; another height, or a 44px secondary action where 36 suffices, fails. Touch keeps 44. | density | implemented |
+| `table-row-density` | On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor. | density | implemented |
+| `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
+| `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a
