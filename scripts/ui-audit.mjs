@@ -776,10 +776,18 @@ function slugify(route) {
 // serialized without closing over the Node scope.
 function auditPage(args) {
   const { route, theme } = args;
+  const viewportWidth = args.width || document.documentElement.clientWidth || window.innerWidth;
+  const pointerFine = Boolean(window.matchMedia && window.matchMedia("(pointer: fine)").matches);
+  // Desktop density applies to a mouse/trackpad at the desktop breakpoint.
+  // Touch and narrow windows keep the 44px floor.
+  const desktopDensity = viewportWidth >= 1024 && pointerFine;
+  // Standard interactive target floor: 36 on a desktop pointer, 44 on touch.
+  const targetFloor = desktopDensity ? 36 : 44;
   const violations = [];
   const metrics = {
     theme: document.documentElement.getAttribute("data-theme") || null,
     colorScheme: document.documentElement.style.colorScheme || null,
+    density: { width: viewportWidth, pointerFine, desktop: desktopDensity },
   };
   const add = (id, message, detail) => violations.push({ id, message, detail });
 
@@ -804,6 +812,25 @@ function auditPage(args) {
   function boxOf(el) {
     const box = el.getBoundingClientRect();
     return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+  }
+
+  // The visual box plus any absolutely-positioned ::before hit extension. A
+  // dense desktop action is 28px visual with a 44px hit area.
+  function hitBoxOf(el) {
+    const box = boxOf(el);
+    const before = getComputedStyle(el, "::before");
+    const hit = { width: box.width, height: box.height };
+    const hitTarget = el.classList.contains("icon-button--sm") ||
+      Boolean(el.closest(".row-actions, .balance-retry"));
+    if (before && before.position === "absolute" && hitTarget) {
+      const top = Math.abs(Number.parseFloat(before.top) || 0);
+      const right = Math.abs(Number.parseFloat(before.right) || 0);
+      const bottom = Math.abs(Number.parseFloat(before.bottom) || 0);
+      const left = Math.abs(Number.parseFloat(before.left) || 0);
+      hit.width += left + right;
+      hit.height += top + bottom;
+    }
+    return { box, hit };
   }
 
   function selectorOf(el) {
@@ -954,10 +981,13 @@ function auditPage(args) {
     // A checkbox/radio wrapped in a >=44px label is effectively a large target.
     if (el.matches("input[type='checkbox'], input[type='radio']") && el.labels) {
       const labels = [...el.labels].filter(visible);
-      if (labels.some((label) => boxOf(label).width >= 44 && boxOf(label).height >= 44)) continue;
+      const labelFloor = desktopDensity ? 36 : 44;
+      if (labels.some((label) => boxOf(label).width >= labelFloor && boxOf(label).height >= labelFloor)) continue;
     }
-    const box = boxOf(el);
-    if (box.width >= 44 && box.height >= 44) continue;
+    const floor = desktopDensity ? 36 : 44;
+    const { box, hit } = hitBoxOf(el);
+    if (desktopDensity && (hit.width >= 43.5 && hit.height >= 43.5 && box.height < floor)) continue;
+    if (box.width >= floor && box.height >= floor) continue;
     smallTargets.push({
       selector: selectorOf(el),
       text: textOf(el).slice(0, 40),
@@ -967,7 +997,7 @@ function auditPage(args) {
   }
   metrics.smallTargets = smallTargets;
   if (smallTargets.length) {
-    add("small-touch-target", `${smallTargets.length} visible control(s) below 44x44`, smallTargets.slice(0, 8));
+    add("small-touch-target", `${smallTargets.length} visible control(s) below ${targetFloor}x${targetFloor}`, smallTargets.slice(0, 8));
   }
 
   // 4. Icon-only controls without an accessible name.
@@ -1051,7 +1081,8 @@ function auditPage(args) {
       issues.push("no data-tooltip");
     }
     if (el.hasAttribute("title")) issues.push("native title alongside data-tooltip");
-    if (el.classList.contains("icon-button--sm") && !el.closest("tr, .key-row")) {
+    if (el.classList.contains("icon-button--sm") && !el.closest("tr, .key-row") &&
+        !el.closest(".balance-retry, .row-actions")) {
       issues.push("sm outside a dense table row");
     }
     if (issues.length) iconButtonIssues.push({ selector: selectorOf(el), issues });
@@ -1179,7 +1210,7 @@ function auditPage(args) {
     for (const item of items) {
       const itemBox = boxOf(item);
       const itemRadius = Number.parseFloat(getComputedStyle(item).borderTopLeftRadius);
-      if (itemBox.height < 43.5) issues.push(`${selectorOf(item)} height ${Math.round(itemBox.height)}px`);
+      if (itemBox.height < (desktopDensity ? 35.5 : 43.5)) issues.push(`${selectorOf(item)} height ${Math.round(itemBox.height)}px`);
       if (!(itemRadius >= 7.5 && itemRadius <= 10.5)) {
         issues.push(`${selectorOf(item)} radius ${itemRadius}px`);
       }
@@ -1331,17 +1362,19 @@ function auditPage(args) {
     add("table-header-style", `${tableHeaderIssues.length} table header cell(s) outside the shared style`, tableHeaderIssues.slice(0, 8));
   }
 
-  // 4j. Row height: a table row is >=44 high, or it contains a >=44 action.
-  //     Div-based directory/seed rows follow the same floor.
+  // 4j. Row height: the touch floor is 44; a desktop pointer may use a 40px
+  //     single-line row. Div-based directory/seed rows follow the same floor.
   const rowHeightIssues = [];
   const rowHeights = [];
+  const rowFloor = desktopDensity ? 39.5 : 43.5;
+  const rowActionFloor = desktopDensity ? 27.5 : 43.5;
   const checkRow = (row, kind) => {
     const box = boxOf(row);
     rowHeights.push(Math.round(box.height));
-    if (box.height >= 43.5) return;
+    if (box.height >= rowFloor) return;
     const action = [...row.querySelectorAll("a, button, [role='button']")]
       .filter(visible)
-      .some((control) => boxOf(control).height >= 43.5);
+      .some((control) => boxOf(control).height >= rowActionFloor);
     if (!action) rowHeightIssues.push({ selector: selectorOf(row), kind, height: Math.round(box.height) });
   };
   for (const row of document.querySelectorAll("table.data-table tbody tr")) {
@@ -1361,20 +1394,30 @@ function auditPage(args) {
     rowHeightMax: rowHeights.length ? Math.max(...rowHeights) : null,
   };
   if (rowHeightIssues.length) {
-    add("table-row-height", `${rowHeightIssues.length} row(s) below 44px without a 44px action`, rowHeightIssues.slice(0, 8));
+    add("table-row-height", `${rowHeightIssues.length} row(s) below ${desktopDensity ? 40 : 44}px without a ${desktopDensity ? 28 : 44}px action`, rowHeightIssues.slice(0, 8));
   }
 
-  // 4k. Row actions use the icon-button grammar (44 box, radius 10, labelled).
+  // 4k. Row actions use the icon-button grammar. On a desktop pointer a dense
+  //     action may be 28/36 visual when its ::before hit area reaches 44; the
+  //     touch path keeps the 44px box.
   const rowActionIssues = [];
   for (const action of document.querySelectorAll(
     "table.data-table .icon-button, .key-row .icon-button, .bw-row .icon-button",
   )) {
     if (!visible(action)) continue;
-    const box = boxOf(action);
+    const { box, hit } = hitBoxOf(action);
     const style = getComputedStyle(action);
     const radius = Number.parseFloat(style.borderTopLeftRadius);
     const issues = [];
-    if (box.width < 43.5 || box.height < 43.5) {
+    if (desktopDensity) {
+      const height = Math.round(box.height);
+      if (![28, 36, 44].includes(height)) issues.push(`box ${Math.round(box.width)}x${height}px`);
+      // 28 is a dense-row visual and needs the 44px hit extension; 36/44 are
+      // standard desktop / primary controls and are their own hit area.
+      if (height <= 28.5 && (hit.width < 43.5 || hit.height < 43.5)) {
+        issues.push(`hit area ${Math.round(hit.width)}x${Math.round(hit.height)}px`);
+      }
+    } else if (box.width < 43.5 || box.height < 43.5) {
       issues.push(`box ${Math.round(box.width)}x${Math.round(box.height)}px`);
     }
     if (Math.abs(radius - 10) > 0.5) issues.push(`radius ${radius}px`);
@@ -1505,8 +1548,8 @@ function auditPage(args) {
         .map((name) => style[name]);
       const visibleBorder = borderWidths.some((width, i) => width > 0.05 && colorAlpha(borderColors[i]) > 0.05);
       const issues = [];
-      if (box.width < 43.5 || box.height < 43.5) {
-        issues.push(`hit box ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=44x44)`);
+      if (box.width < targetFloor || box.height < targetFloor) {
+        issues.push(`hit box ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=${targetFloor}x${targetFloor})`);
       }
       if (visibleBorder) {
         issues.push(`visible border ${borderWidths.map((width) => `${width}px`).join("/")}`);
@@ -1735,22 +1778,11 @@ function auditPage(args) {
         } else if (!link.getAttribute("title")) {
           addressIssues.push(`${short}: address link has no title`);
         }
-        const copy = line.querySelector(".icon-button");
-        if (!copy) {
-          copyIssues.push(`${short}: address copy button missing`);
-          continue;
-        }
-        const box = boxOf(copy);
-        const issues = [];
-        if (!visible(copy)) issues.push("hidden");
-        if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
-          issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
-        }
-        if (!copy.getAttribute("aria-label")) issues.push("no aria-label");
-        if (!copy.getAttribute("data-tooltip")) issues.push("no data-tooltip");
-        if (issues.length) copyIssues.push(`${short}: ${issues.join(", ")}`);
+        // Address copy targets live in the row menu, not in an always-visible
+        // per-line button. The menu is functionally probed on the first row
+        // after this loop.
       }
-      if (row.querySelector(".addr-extra-toggle, .addr-extra, [aria-expanded]")) {
+      if (row.querySelector(".addr-extra-toggle, .addr-extra, [aria-expanded]:not(.row-menu-toggle)")) {
         addressIssues.push(`${short}: row still carries a disclosure`);
       }
       const balanceLines = [...row.querySelectorAll(".col-balance > .balance-info")];
@@ -1793,17 +1825,47 @@ function auditPage(args) {
       if (!copy) {
         copyIssues.push(`${short}: key copy button missing`);
       } else {
-        const box = boxOf(copy);
+        const { box, hit } = hitBoxOf(copy);
         const issues = [];
-        if (!visible(copy)) issues.push("hidden");
-        if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
+        if (!visible(copy)) issues.push("hidden at rest");
+        if (desktopDensity) {
+          if (Math.round(box.height) !== 28 && Math.round(box.height) !== 36) issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
+          if (hit.width < 43.5 || hit.height < 43.5) issues.push("hit area below 44");
+        } else if (box.width < 43.5 || box.height < 43.5) {
           issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
         }
         if (!copy.getAttribute("aria-label")) issues.push("no aria-label");
         if (!copy.getAttribute("data-tooltip")) issues.push("no data-tooltip");
         if (issues.length) copyIssues.push(`${short}: ${issues.join(", ")}`);
       }
+      const menuToggle = row.querySelector(".col-key .row-menu-toggle");
+      if (!menuToggle) copyIssues.push(`${short}: row copy menu is missing`);
+      else {
+        if (menuToggle.getAttribute("aria-haspopup") !== "menu") copyIssues.push(`${short}: row menu has no aria-haspopup`);
+        if (!menuToggle.getAttribute("aria-label")) copyIssues.push(`${short}: row menu has no aria-label`);
+      }
       heights.push(Math.round(boxOf(row).height));
+    }
+    // Probe the row copy menu once: it must expose every address target and
+    // an explorer target, and Escape must close it so the resting screenshot
+    // stays clean.
+    const firstToggle = browseRows[0] && browseRows[0].querySelector(".col-key .row-menu-toggle");
+    if (firstToggle) {
+      firstToggle.click();
+      const menu = document.querySelector(".row-menu");
+      const items = menu ? [...menu.querySelectorAll("[role='menuitem']")] : [];
+      const labels = items.map((item) => textOf(item));
+      if (!menu || menu.hidden) copyIssues.push("row copy menu did not open");
+      if (items.length < declaredPerKey) {
+        copyIssues.push(`row copy menu exposes ${items.length} target(s), expected at least ${declaredPerKey}`);
+      }
+      if (!labels.some((label) => /open in explorer/i.test(label))) {
+        copyIssues.push("row copy menu has no explorer target");
+      }
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      if (menu && !menu.hidden) copyIssues.push("row copy menu stays open after Escape");
+    } else if (browseRows.length) {
+      copyIssues.push("first row has no copy menu toggle");
     }
     const expectedTotal = browseRows.length * declaredPerKey;
     if (declaredTotal !== expectedTotal) {
@@ -2112,9 +2174,9 @@ function auditPage(args) {
         width: Math.round(box.width),
         height: Math.round(box.height),
       };
-      if (box.width < 43.5 || box.height < 43.5) {
+      if (box.width < targetFloor || box.height < targetFloor) {
         issues.push(
-          `#wallet-seed-${name} is ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=44x44)`,
+          `#wallet-seed-${name} is ${Math.round(box.width)}x${Math.round(box.height)}px (expected >=${targetFloor}x${targetFloor})`,
         );
       }
     }
@@ -2149,7 +2211,7 @@ function auditPage(args) {
     const box = boxOf(link);
     const icon = link.querySelector(".icon");
     const issues = [];
-    if (box.width < 43.5 || box.height < 43.5) {
+    if (box.width < targetFloor || box.height < targetFloor) {
       issues.push(`box ${Math.round(box.width)}x${Math.round(box.height)}px`);
     }
     if (icon) {
@@ -2164,7 +2226,7 @@ function auditPage(args) {
     if (!visible(control)) continue;
     navEvidence.tools += 1;
     const box = boxOf(control);
-    if (box.width < 43.5 || box.height < 43.5) {
+    if (box.width < targetFloor || box.height < targetFloor) {
       navIssues.push({
         selector: selectorOf(control),
         issues: [`box ${Math.round(box.width)}x${Math.round(box.height)}px`],
@@ -2355,7 +2417,7 @@ function auditPage(args) {
     }
     for (const link of [...nav.querySelectorAll("a")].filter(visible)) {
       const box = boxOf(link);
-      if (box.width < 43.5 || box.height < 43.5) {
+      if (box.width < targetFloor || box.height < targetFloor) {
         issues.push(`${selectorOf(link)} box ${Math.round(box.width)}x${Math.round(box.height)}px`);
       }
       if (/^\/[a-z0-9]/i.test(textOf(link))) {
@@ -2414,7 +2476,7 @@ function auditPage(args) {
       const geometry = [];
       const box = boxOf(button);
       const radius = Number.parseFloat(getComputedStyle(button).borderTopLeftRadius);
-      if (box.width < 43.5 || box.height < 43.5) {
+      if (box.width < targetFloor || box.height < targetFloor) {
         geometry.push(`box ${Math.round(box.width)}x${Math.round(box.height)}px`);
       }
       if (Math.abs(radius - 10) > 0.5) geometry.push(`radius ${radius}px`);
@@ -2437,7 +2499,7 @@ function auditPage(args) {
     for (const control of jump.querySelectorAll("input, button")) {
       if (!visible(control)) continue;
       const box = boxOf(control);
-      if (box.height < 43.5) issues.push(`${selectorOf(control)} height ${Math.round(box.height)}px`);
+      if (box.height < targetFloor) issues.push(`${selectorOf(control)} height ${Math.round(box.height)}px`);
     }
     if (issues.length) pagerIssues.push({ selector: selectorOf(jump), issues });
   }
@@ -2472,7 +2534,7 @@ function auditPage(args) {
     if (!/\bbuild (?:[0-9a-f]{7,12}|dev)\b/.test(text)) footerIssues.push("missing build id");
     for (const link of [...footer.querySelectorAll("a")].filter(visible)) {
       const box = boxOf(link);
-      if (box.width < 43.5 || box.height < 43.5) {
+      if (box.width < targetFloor || box.height < targetFloor) {
         footerIssues.push(`${selectorOf(link)} box ${Math.round(box.width)}x${Math.round(box.height)}px`);
       }
     }
@@ -2502,6 +2564,211 @@ function auditPage(args) {
       bareAssets.slice(0, 8).map(({ ref, selector }) => `${selector} -> ${ref}`),
     );
   }
+
+  // 12. Desktop density scale. The desktop pointer gets 36px standard controls,
+  //     28px dense row actions with a 44px hit area, and 40-44px single-line
+  //     rows (<=96px for the two-line directory). Touch keeps the 44px floor.
+  const controlSelector = [
+    "button",
+    "a.button",
+    ".chip",
+    ".segmented__item",
+    ".icon-button",
+    ".pager-btn",
+    ".key-copy",
+    ".balance-refresh-btn",
+    'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"])',
+    "select",
+    "textarea",
+  ].join(", ");
+  const contentLeft = (el) => {
+    if (!el) return null;
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    return Math.round((box.left + Number.parseFloat(style.borderLeftWidth || "0") + Number.parseFloat(style.paddingLeft || "0")) * 10) / 10;
+  };
+  const effectiveOpacity = (el) => {
+    let opacity = 1;
+    for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+      opacity *= Number.parseFloat(getComputedStyle(node).opacity || "1");
+    }
+    return opacity;
+  };
+
+  const densityRoute = route === "/key" || route.startsWith("/key/") || route.startsWith("/private-keys/");
+
+  if (desktopDensity && densityRoute) {
+    const scale = new Set([28, 36, 44, 56]);
+    const controlIssues = [];
+    const isPrimary = (el) => el.matches(".primary, .chip--primary, .icon-button--solid") ||
+      Boolean(el.closest(".field--hero"));
+    for (const el of document.querySelectorAll(controlSelector)) {
+      if (!visible(el) || el.disabled) continue;
+      if (el.tagName === "TEXTAREA") {
+        if (boxOf(el).height < 43.5) controlIssues.push({ selector: selectorOf(el), height: Math.round(boxOf(el).height), reason: "textarea below 44" });
+        continue;
+      }
+      if (el.tagName === "A" && !el.matches(".button, .chip, .pager-btn, .icon-button")) continue;
+      // Selection cards are two-line card surfaces, not standard controls.
+      if (el.matches(".address-type-card")) continue;
+      const height = Math.round(boxOf(el).height);
+      if (!scale.has(height)) {
+        controlIssues.push({ selector: selectorOf(el), height, reason: "outside 28/36/44/56" });
+        continue;
+      }
+      const inDenseRow = Boolean(el.closest("tr, .key-row, .key-form-row"));
+      if (height >= 43.5 && !isPrimary(el) && !el.classList.contains("icon-button") && !inDenseRow) {
+        controlIssues.push({ selector: selectorOf(el), height, reason: "44 on a secondary action where 36 suffices" });
+      }
+    }
+    metrics.desktopControlHeight = { scale: [...scale], issues: controlIssues };
+    if (controlIssues.length) {
+      add("desktop-control-height", `${controlIssues.length} control(s) outside the desktop density roles`, controlIssues.slice(0, 8));
+    }
+  }
+
+  if (desktopDensity) {
+    const rowIssues = [];
+    if (route === "/key" || route.startsWith("/key/")) {
+      for (const row of document.querySelectorAll(".key-addr-tbl tbody tr.key-row")) {
+        if (!visible(row)) continue;
+        const height = Math.round(boxOf(row).height);
+        const expanded = Boolean(row.querySelector(".key-details:not([hidden])"));
+        const ceiling = expanded ? 56 : 44;
+        if (height < 40 || height > ceiling) rowIssues.push({ selector: selectorOf(row), height, kind: "key", ceiling });
+      }
+    }
+    if (route === "/private-keys/bitcoin") {
+      for (const row of document.querySelectorAll("#keys-container .key-row")) {
+        if (!visible(row)) continue;
+        const height = Math.round(boxOf(row).height);
+        if (height < 40 || height > 96) rowIssues.push({ selector: selectorOf(row), height, kind: "directory", ceiling: 96 });
+      }
+    }
+    metrics.tableRowDensity = { issues: rowIssues };
+    if (rowIssues.length) {
+      add("table-row-density", `${rowIssues.length} row(s) outside the desktop density band`, rowIssues.slice(0, 8));
+    }
+  }
+
+  const rowActionSelector = [
+    ".data-table tbody .row-actions .icon-button",
+    ".data-table tbody .key-actions .icon-button",
+    ".keys-panel .row-actions .icon-button",
+    ".keys-panel .row-action",
+    ".col-key .row-action",
+    ".addr-line .row-action",
+    ".key-form-row .row-action",
+  ].join(", ");
+  const rowActionNodes = [...document.querySelectorAll(rowActionSelector)].filter((el) => el.isConnected);
+  const visibleActions = rowActionNodes.filter((el) => {
+    const style = getComputedStyle(el);
+    const box = boxOf(el);
+    return style.display !== "none" && style.visibility !== "hidden" &&
+      effectiveOpacity(el) >= 0.05 && box.width > 0 && box.height > 0;
+  });
+  metrics.rowActionReveal = {
+    total: rowActionNodes.length,
+    visibleAtRest: visibleActions.length,
+    desktop: desktopDensity,
+  };
+  if (desktopDensity && visibleActions.length) {
+    add(
+      "row-action-reveal",
+      `${visibleActions.length} row action(s) stay visible at rest on a desktop pointer`,
+      visibleActions.slice(0, 8).map((el) => selectorOf(el)),
+    );
+  }
+
+  // One page inset: the hero, data cards, stat strip, table and first row all
+  // start on the same content edge.
+  if (route === "/key" || route.startsWith("/key/") || route === "/private-keys/bitcoin") {
+    const selectors = route === "/private-keys/bitcoin"
+      ? [
+        [".page-info-text", "content"],
+        [".balance-summary .stat-label", "content"],
+        [".keys-header .col-key", "content"],
+        ["#keys-container .key-row .col-key", "content"],
+      ]
+      : [
+        [".key-hero h1", "content"],
+        ["#summary-card", "content"],
+        ["#addresses-card", "content"],
+        [".key-stats .key-stat-label", "content"],
+        ["#addr-table thead th", "content"],
+        ["#addr-rows .key-row td", "content"],
+      ];
+    const samples = [];
+    for (const [selector, kind] of selectors) {
+      const el = document.querySelector(selector);
+      if (!el || !visible(el)) continue;
+      samples.push({
+        selector,
+        left: kind === "content" ? contentLeft(el) : Math.round(boxOf(el).left * 10) / 10,
+      });
+    }
+    const lefts = samples.map((sample) => sample.left);
+    const spread = lefts.length ? Math.round((Math.max(...lefts) - Math.min(...lefts)) * 10) / 10 : 0;
+    metrics.pageInset = { samples, spread };
+    if (samples.length >= 2 && spread > 1) {
+      add("page-inset-parity", `page content insets drift ${spread}px`, samples);
+    }
+  }
+
+  // 13. Density probe. The desktop density scale and the page-inset parity
+  //     check need the rendered boxes, not the stylesheet. Keep the probe
+  //     read-only and route-scoped: it never changes the page.
+  const probe = (selector, edge = "border") => {
+    const el = document.querySelector(selector);
+    if (!el || !visible(el)) return null;
+    const box = boxOf(el);
+    return {
+      selector,
+      left: Math.round(box.left * 10) / 10,
+      contentLeft: contentLeft(el),
+      width: Math.round(box.width * 10) / 10,
+      height: Math.round(box.height * 10) / 10,
+      edge,
+    };
+  };
+  const probes = {};
+  if (route === "/key" || route.startsWith("/key/")) {
+    probes.hero = probe(".key-hero");
+    probes.heroTitle = probe(".key-hero h1", "content");
+    probes.card = probe(".key-input-card");
+    probes.cardTitle = probe(".key-input-card h2", "content");
+    probes.stats = probe(".key-stats");
+    probes.table = probe(".key-table-wrap");
+    probes.row = probe("#addr-rows .key-row");
+    probes.rowCell = probe("#addr-rows .key-row td");
+  } else if (route === "/private-keys/bitcoin") {
+    probes.hero = probe(".browse-hero");
+    probes.heroTitle = probe(".browse-hero h1", "content");
+    probes.pageInfo = probe(".page-info");
+    probes.stats = probe(".balance-summary");
+    probes.table = probe(".keys-panel");
+    probes.header = probe(".keys-header");
+    probes.row = probe("#keys-container .key-row");
+    probes.rowCell = probe("#keys-container .key-row .col-key");
+  }
+  metrics.density.probes = probes;
+  metrics.density.controls = [...document.querySelectorAll(controlSelector)]
+    .filter(visible)
+    .map((el) => {
+      const box = boxOf(el);
+      return {
+        selector: selectorOf(el),
+        tag: el.tagName.toLowerCase(),
+        classes: el.className && typeof el.className === "string" ? el.className : "",
+        height: Math.round(box.height * 10) / 10,
+        width: Math.round(box.width * 10) / 10,
+      };
+    });
+  metrics.density.rowActions = {
+    total: rowActionNodes.length,
+    visibleAtRest: visibleActions.length,
+    heights: [...new Set(rowActionNodes.map((el) => Math.round(boxOf(el).height)))],
+  };
 
   return { violations, metrics };
 }
@@ -2543,6 +2810,8 @@ async function auditWalletSeed(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -2617,6 +2886,8 @@ async function auditWalletOnboarding(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -2651,7 +2922,7 @@ async function auditWalletOnboarding(cdp) {
           box: Math.round(box.width) + 'x' + Math.round(box.height),
         };
         if (!button.classList.contains('chip')) problems.push(name + ' onboarding entry is not .chip');
-        if (Math.round(box.height) !== 44) problems.push(name + ' onboarding entry is ' + evidence[name].box);
+        if (Math.round(box.height) < floor) problems.push(name + ' onboarding entry is ' + evidence[name].box);
         if (button.getAttribute('aria-pressed') !== 'false') {
           problems.push(name + ' onboarding entry starts pressed');
         }
@@ -2739,6 +3010,8 @@ async function auditWalletMainnetArm(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -2795,8 +3068,8 @@ async function auditWalletMainnetArm(cdp) {
       if (!label) {
         problems.push('the arm checkbox has no label');
       } else {
-        if (box.width < 44 || box.height < 44) {
-          problems.push('the arm label is ' + evidence.armedBox + ' (expected >=44x44)');
+        if (box.width < floor || box.height < floor) {
+          problems.push('the arm label is ' + evidence.armedBox + ' (expected >=' + floor + 'x' + floor + ')');
         }
         if (!/real funds/i.test(evidence.label) || !/cannot be reversed/i.test(evidence.label)) {
           problems.push('the arm label does not state the mainnet risk: ' + evidence.label);
@@ -2823,6 +3096,8 @@ async function auditWalletApprovals(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -2975,7 +3250,7 @@ async function auditWalletApprovals(cdp) {
       if (icons.length !== 4) problems.push('icon action count ' + icons.length + ' (expected 4)');
       for (const icon of icons) {
         const box = icon.getBoundingClientRect();
-        if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
+        if (box.width < floor || box.height < floor) {
           problems.push('icon action is ' + Math.round(box.width) + 'x' + Math.round(box.height) + 'px');
         }
         if (!(icon.getAttribute('aria-label') || '').trim()) problems.push('icon action without aria-label');
@@ -3018,8 +3293,8 @@ async function auditWalletApprovals(cdp) {
             label: label ? label.textContent.trim().slice(0, 70) : '',
           };
           if (!label) problems.push('grant ' + name + ' input has no label');
-          if (Math.round(box.height) !== 44) {
-            problems.push('grant ' + name + ' input is ' + Math.round(box.height) + 'px (expected 44)');
+          if (Math.round(box.height) < floor) {
+            problems.push('grant ' + name + ' input is ' + Math.round(box.height) + 'px (expected ' + floor + ')');
           }
         }
         const unlimitedLabel = grantUnlimited.closest('label');
@@ -3027,8 +3302,8 @@ async function auditWalletApprovals(cdp) {
           ? Math.round(unlimitedLabel.getBoundingClientRect().height)
           : 0;
         if (!unlimitedLabel) problems.push('the Unlimited checkbox has no label');
-        else if (evidence.grant.unlimitedLabelHeight < 44) {
-          problems.push('the Unlimited label is ' + evidence.grant.unlimitedLabelHeight + 'px (expected >=44)');
+        else if (evidence.grant.unlimitedLabelHeight < floor) {
+          problems.push('the Unlimited label is ' + evidence.grant.unlimitedLabelHeight + 'px (expected >=' + floor + ')');
         }
         if (!grantWarning.hidden) problems.push('the unlimited warning is visible before Unlimited is checked');
 
@@ -3139,6 +3414,8 @@ async function auditWalletPortfolio(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3190,8 +3467,8 @@ async function auditWalletPortfolio(cdp) {
       if (!refresh.classList.contains('icon-button')) problems.push('refresh is not .icon-button');
       if (!evidence.refresh.label) problems.push('refresh has no aria-label');
       if (!evidence.refresh.tooltip) problems.push('refresh has no data-tooltip');
-      if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
-        problems.push('refresh is ' + evidence.refresh.box + ' (expected 44x44)');
+      if (box.width < floor || box.height < floor) {
+        problems.push('refresh is ' + evidence.refresh.box + ' (expected >=' + floor + 'x' + floor + ')');
       }
 
       // Stat token grammar: 12px sentence-case label, 24px tabular value.
@@ -3337,6 +3614,8 @@ async function auditWalletTopAssets(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3585,6 +3864,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3713,6 +3994,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3730,7 +4013,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       evidence.actionBox = Math.round(box.width) + 'x' + Math.round(box.height);
       evidence.ariaLabel = button.getAttribute('aria-label');
       evidence.tooltip = button.getAttribute('data-tooltip');
-      if (box.width < 44 || box.height < 44) problems.push('the history action is ' + evidence.actionBox + ' (expected >=44x44)');
+      if (box.width < floor || box.height < floor) problems.push('the history action is ' + evidence.actionBox + ' (expected >=' + floor + 'x' + floor + ')');
       if (!evidence.ariaLabel || !evidence.tooltip) problems.push('the history action is missing aria-label or tooltip');
       window.__historyMode = 'data';
       button.click();
@@ -3778,6 +4061,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3825,6 +4110,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3867,6 +4154,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3902,6 +4191,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -3938,6 +4229,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -4145,6 +4438,8 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -4337,7 +4632,7 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
               problems.push('the ' + id + ' deep link does not carry the encoded URI');
             }
             const height = link.getBoundingClientRect().height;
-            if (height < 43.5) problems.push('the ' + id + ' deep link is ' + height + 'px high');
+            if (height < floor) problems.push('the ' + id + ' deep link is ' + height + 'px high');
           }
           const generic = links.find((anchor) => anchor.getAttribute('href') === uri);
           evidence.genericLink = Boolean(generic);
@@ -4358,7 +4653,7 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
         if (!evidence.copy.ariaLabel || !evidence.copy.tooltip || evidence.copy.title) {
           problems.push('the copy action needs aria-label + data-tooltip and no title');
         }
-        if (copyRect.width < 43.5 || copyRect.height < 43.5) {
+        if (copyRect.width < floor || copyRect.height < floor) {
           problems.push('the copy action is ' + copyRect.width + 'x' + copyRect.height);
         }
 
@@ -4397,6 +4692,8 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -4453,7 +4750,7 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
           width: Math.round(regenRect.width),
           height: Math.round(regenRect.height)
         };
-        if (regenRect.height < 43.5) {
+        if (regenRect.height < floor) {
           problems.push('the regenerate action is ' + regenRect.height + 'px high');
         }
       }
@@ -4477,6 +4774,8 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -4544,6 +4843,8 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const panel = document.getElementById('monitor-wc-panel');
       const close = document.getElementById('monitor-wc-close');
       if (close) close.click();
@@ -4578,6 +4879,8 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const waitFor = async (test, timeout) => {
         const started = Date.now();
         while (Date.now() - started < timeout) {
@@ -4698,6 +5001,8 @@ async function auditKeyTooltips(cdp) {
     cdp,
     `(async () => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      /* Desktop pointer: 36px standard control; touch and narrow: 44px. */
+      const floor = window.matchMedia('(pointer: fine)').matches && window.innerWidth >= 1024 ? 36 : 44;
       const info = document.getElementById('key-info-btn');
       const random = document.getElementById('random-btn');
       const popover = document.getElementById('key-info-popover');
@@ -5525,7 +5830,7 @@ async function main() {
             // Audit after the interaction so /key results are inspected too.
             const result = await evaluate(
               cdp,
-              `(${auditPage.toString()})(${JSON.stringify({ route, theme })})`,
+              `(${auditPage.toString()})(${JSON.stringify({ route, theme, width: viewport.width })})`,
             );
             run.violations.push(...result.violations);
             run.metrics = { ...result.metrics, ...run.metrics };

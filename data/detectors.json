@@ -923,6 +923,38 @@
       "status": "implemented"
     },
     {
+      "id": "desktop-control-height",
+      "rule": "On /key and /private-keys at a >=1024px fine pointer the allowed control heights are 28/36/44 by role; another height, or a 44px secondary action where 36 suffices, fails. Touch keeps 44.",
+      "batch": "density",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "table-row-density",
+      "rule": "On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor.",
+      "batch": "density",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "row-action-reveal",
+      "rule": "On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px.",
+      "batch": "density",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "page-inset-parity",
+      "rule": "The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280.",
+      "batch": "density",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "wallet-signin-surface",
       "rule": "The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out.",
       "batch": "wallet-account-link",

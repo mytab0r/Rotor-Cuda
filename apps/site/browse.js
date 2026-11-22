@@ -142,6 +142,7 @@
   var totalTx = document.getElementById('total-tx');
   var totalActive = document.getElementById('total-active');
   var refreshButton = document.getElementById('balance-refresh');
+  var refreshRetry = document.getElementById('balance-retry');
   var refreshCount = document.getElementById('balance-refresh-count');
   var refreshStatus = document.getElementById('balance-refresh-status');
 
@@ -240,16 +241,108 @@
     return svg;
   }
 
-  function copyButton(text, label) {
-    var copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'icon-button icon-button--quiet icon-button--lg';
-    copy.setAttribute('data-tooltip', label);
-    copy.setAttribute('aria-label', label);
-    copy.appendChild(iconUse('ui-copy'));
-    copy.addEventListener('click', function () { copyText(text, copy); });
-    return copy;
+  /* One copy action per row (the private key) plus a menu for the address
+   * targets. The menu is fixed-positioned because the rows live inside a
+   * rounded, overflow-hidden panel. */
+  var rowMenu = null;
+  var rowMenuOwner = null;
+
+  function closeRowMenu(restoreFocus) {
+    if (!rowMenu || rowMenu.hidden) return;
+    rowMenu.hidden = true;
+    if (rowMenuOwner) {
+      rowMenuOwner.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) rowMenuOwner.focus();
+    }
+    rowMenuOwner = null;
   }
+
+  function buildRowMenu(row) {
+    var hex = row.getAttribute('data-key');
+    var entries = state.addressSets[hex] || [];
+    rowMenu.textContent = '';
+    entries.forEach(function (entry) {
+      var kind = entry.prefix === 'c' ? 'compressed ' : entry.prefix === 'u' ? 'uncompressed ' : '';
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.setAttribute('role', 'menuitem');
+      item.textContent = 'Copy ' + kind + 'address';
+      item.addEventListener('click', function () {
+        copyText(entry.address);
+        closeRowMenu(true);
+      });
+      rowMenu.appendChild(item);
+    });
+    var explorer = entries.length ? explorerUrl(entries[0].address) : '';
+    if (explorer) {
+      var open = document.createElement('button');
+      open.type = 'button';
+      open.setAttribute('role', 'menuitem');
+      open.textContent = 'Open in explorer';
+      open.addEventListener('click', function () {
+        window.open(explorer, '_blank', 'noopener');
+        closeRowMenu(true);
+      });
+      rowMenu.appendChild(open);
+    }
+  }
+
+  function openRowMenu(row, toggle) {
+    if (rowMenuOwner === toggle) {
+      closeRowMenu(false);
+      return;
+    }
+    if (!rowMenu) {
+      rowMenu = document.createElement('div');
+      rowMenu.className = 'row-menu';
+      rowMenu.setAttribute('role', 'menu');
+      rowMenu.hidden = true;
+      document.body.appendChild(rowMenu);
+    }
+    buildRowMenu(row);
+    rowMenu.hidden = false;
+    var rect = toggle.getBoundingClientRect();
+    var width = rowMenu.offsetWidth;
+    var height = rowMenu.offsetHeight;
+    rowMenu.style.left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)) + 'px';
+    rowMenu.style.top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - height - 8)) + 'px';
+    rowMenuOwner = toggle;
+    toggle.setAttribute('aria-expanded', 'true');
+    var first = rowMenu.querySelector('button');
+    if (first) first.focus();
+  }
+
+  function ensureRowActions(row) {
+    var wrap = row.querySelector('.row-actions');
+    if (!wrap) return;
+    var toggle = wrap.querySelector('.row-menu-toggle');
+    if (toggle) return;
+    toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'icon-button icon-button--sm icon-button--quiet row-action row-menu-toggle';
+    toggle.setAttribute('aria-label', 'More copy actions');
+    toggle.setAttribute('aria-haspopup', 'menu');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('data-tooltip', 'More copy actions');
+    toggle.appendChild(iconUse('ui-menu'));
+    toggle.addEventListener('click', function (event) {
+      event.stopPropagation();
+      openRowMenu(row, toggle);
+    });
+    wrap.appendChild(toggle);
+  }
+
+  document.addEventListener('click', function (event) {
+    if (rowMenu && !rowMenu.hidden && !rowMenu.contains(event.target) &&
+        !(rowMenuOwner && rowMenuOwner.contains(event.target))) {
+      closeRowMenu(false);
+    }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeRowMenu(true);
+  });
+  window.addEventListener('resize', function () { closeRowMenu(false); });
+  window.addEventListener('scroll', function () { closeRowMenu(false); }, true);
 
   function addressLine(entry) {
     var line = document.createElement('div');
@@ -269,8 +362,6 @@
     link.textContent = entry.address;
     link.title = entry.address;
     line.appendChild(link);
-    var kind = entry.prefix === 'c' ? 'compressed ' : entry.prefix === 'u' ? 'uncompressed ' : '';
-    line.appendChild(copyButton(entry.address, 'Copy ' + kind + 'address'));
     return line;
   }
 
@@ -327,6 +418,7 @@
       var entries = addressEntriesFor(config.chain, type, map, field);
       state.addressSets[hex] = entries;
       fillAddressCell(row, entries);
+      ensureRowActions(row);
     });
     updateAddressCount();
   }
@@ -616,12 +708,14 @@
 
   function updateRefreshButton(model) {
     var count = refreshPendingCount(model);
+    var hasFailures = count > 0;
     if (refreshCount) refreshCount.textContent = String(count);
+    if (refreshRetry) refreshRetry.hidden = !hasFailures;
     if (refreshButton) {
-      refreshButton.disabled = !model || !model.meta || count === 0 || state.balanceBusy;
+      refreshButton.disabled = !model || !model.meta || !hasFailures || state.balanceBusy;
       refreshButton.setAttribute(
         'aria-label',
-        'Refresh ' + count + ' failed or stale ' + (count === 1 ? 'balance' : 'balances')
+        'Retry ' + count + ' failed ' + (count === 1 ? 'balance' : 'balances')
       );
       refreshButton.classList.toggle('busy', Boolean(state.balanceBusy));
     }
