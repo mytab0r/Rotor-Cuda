@@ -1469,7 +1469,12 @@ fn public_pages_and_assets_are_served() {
             &[
                 "id=\"wallet-panel\"",
                 "id=\"wallet-unlock-form\"",
+                "id=\"wallet-onboard-key\"",
+                "id=\"wallet-onboard-seed\"",
+                "id=\"wallet-assets\"",
+                "/assets.generated.js",
                 "/wallet-summary.js",
+                "/wallet-assets.js",
                 "/wallet-vault.js",
                 "/theme.js",
             ],
@@ -1508,6 +1513,8 @@ fn public_pages_and_assets_are_served() {
     for (path, needle) in [
         ("/wallet.js", "rotor-wallet"),
         ("/wallet-summary.js", "RotorWalletSummary"),
+        ("/wallet-assets.js", "RotorWalletAssets"),
+        ("/assets.generated.js", "RotorAssetsData"),
         ("/wallet-vault.js", "PBKDF2-SHA256"),
         ("/wallet-btc.js", "RotorBtcSend"),
         ("/vanity-worker.js", "derive_report"),

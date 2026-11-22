@@ -523,6 +523,22 @@
       "status": "implemented"
     },
     {
+      "id": "wallet-top-assets-surface",
+      "rule": "The top-10 asset table uses .data-table inside .table-scroll, lists every asset network once in rank order, prices only rows whose balance loaded, prints — instead of $0.00 with nothing loaded, and names a failed row instead of counting it as zero.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "wallet-onboarding-key-entry",
+      "rule": "The onboarding screen offers a seed-phrase and a private-key/WIF entry as shared 44px chips next to each other; the key choice focuses the import form and both a WIF and a 64-hex key reach the vault from there.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "search-xrp-secret-routing",
       "rule": "XRP family seeds and secrets route to /key instead of a brainwallet hash.",
       "batch": "phase 4",

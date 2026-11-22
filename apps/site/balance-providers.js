@@ -618,6 +618,36 @@
     return Object.prototype.hasOwnProperty.call(FETCHERS, String(name));
   }
 
+  /* Resolve the one provider path a chain uses. The caller supplies the
+   * display unit; the chain family comes from data/chains.json. This is the
+   * shared mapping the wallet top-assets view uses, so a chain wired here
+   * cannot silently stay "not loaded" there. */
+  function metaFor(chainSlug, options) {
+    var chains = root.RotorChains;
+    var chain = chains && chains.bySlug ? chains.bySlug[chainSlug] : null;
+    if (!chain) return null;
+    var settings = options || {};
+    var base = {
+      chain: chainSlug,
+      symbol: settings.symbol || chain.symbol,
+      decimals: settings.decimals === undefined ? chain.decimals : settings.decimals
+    };
+    if (chain.family === 'evm') return Object.assign({ provider: 'evm' }, base);
+    if (chain.family === 'btc') {
+      return chain.testnet ? null : Object.assign({ provider: 'blockchain.info' }, base);
+    }
+    if (chain.family === 'solana') return Object.assign({ provider: 'solana' }, base);
+    if (chain.family === 'sui') return Object.assign({ provider: 'sui' }, base);
+    if (chain.family === 'tron') return Object.assign({ provider: 'tronscan' }, base);
+    if (chain.family === 'xrp') return Object.assign({ provider: 'xrpscan' }, base);
+    if (chain.family === 'ton') return Object.assign({ provider: 'tonapi' }, base);
+    if (chain.family === 'bch') return Object.assign({ provider: 'haskoin-bch' }, base);
+    if (chain.family === 'ltc' || chain.family === 'doge' || chain.family === 'zcash') {
+      return Object.assign({ provider: 'sochain' }, base);
+    }
+    return null;
+  }
+
   function fetchProvider(meta, addresses) {
     if (!meta || !supportsProvider(meta.provider)) {
       return Promise.resolve({ values: {}, errors: {} });
@@ -631,6 +661,7 @@
     TRON_BATCH_MAX: TRON_BATCH_MAX,
     providers: Object.keys(FETCHERS),
     supportsProvider: supportsProvider,
+    metaFor: metaFor,
     fetchProvider: fetchProvider,
     uniqueAddresses: uniqueAddresses,
     solanaBatchBody: solanaBatchBody,

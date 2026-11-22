@@ -143,7 +143,10 @@
     btcReviewEntryId: null,
     historyEntryId: null,
     historySeq: 0,
-    seedWordCount: 12
+    seedWordCount: 12,
+    onboardChoice: '',
+    assets: {},
+    assetsRefreshing: false
   };
 
   var vault = window.RotorWalletVault;
@@ -177,6 +180,25 @@
   var summaryStatus = byId('wallet-summary-status');
   var summaryRefreshed = byId('wallet-summary-refreshed');
   var summaryHelper = window.RotorWalletSummary;
+
+  /* Top-10 assets above the import form. The list is the generated SSOT from
+   * data/assets.json; wallet.js supplies only the per-network balance states
+   * and the shared ticker. */
+  var assetsData = window.RotorAssetsData;
+  var assetsHelper = window.RotorWalletAssets;
+  var assetsSection = byId('wallet-assets');
+  var assetsRows = byId('wallet-assets-rows');
+  var assetsTotal = byId('wallet-assets-total');
+  var assetsStatus = byId('wallet-assets-status');
+  var assetsError = byId('wallet-assets-error');
+  var assetsEmpty = byId('wallet-assets-empty');
+  var assetsTableWrap = byId('wallet-assets-table-wrap');
+
+  /* Onboarding choice: seed phrase or a single private key / WIF. The
+   * matching form lives in the unlocked vault panel. */
+  var onboardSeed = byId('wallet-onboard-seed');
+  var onboardKey = byId('wallet-onboard-key');
+  var onboardHint = byId('wallet-onboard-hint');
 
   /* Seed-phrase block: phrase generation and one-chain derivation. */
   var seedPhrase = byId('wallet-seed-phrase');
@@ -980,6 +1002,8 @@
     state.priceMeta = null;
     state.priceStatus = 'idle';
     state.pricePromise = null;
+    state.assets = {};
+    state.assetsRefreshing = false;
     state.generation += 1;
     resetHistory();
     if (entriesEl) entriesEl.textContent = '';
@@ -1005,6 +1029,8 @@
     if (unlockCard) unlockCard.hidden = true;
     if (panel) panel.hidden = false;
     renderSend();
+    renderAssets();
+    if (state.onboardChoice) applyOnboardChoice(state.onboardChoice);
     if (stateEl) stateEl.textContent = 'unlocked · auto-locks after 10 minutes idle';
     setError('wallet-unlock-error', '');
     refreshSeedStrength().catch(function () {});
@@ -1039,6 +1065,42 @@
   });
 
   byId('wallet-lock').addEventListener('click', function () { lock('Vault locked.'); });
+
+  /* ------------------------------------------------------------- onboarding */
+  /* Two first-class entries: a seed phrase and a single private key / WIF.
+   * Both point at an existing form in the unlocked panel; the choice only
+   * decides where the user lands. Key parsing stays in parseSecret. */
+  function reducedMotion() {
+    return typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function applyOnboardChoice(choice) {
+    if (onboardSeed) onboardSeed.setAttribute('aria-pressed', choice === 'seed' ? 'true' : 'false');
+    if (onboardKey) onboardKey.setAttribute('aria-pressed', choice === 'key' ? 'true' : 'false');
+    if (!onboardHint) return;
+    var what = choice === 'seed' ? 'a seed phrase' : 'a private key / WIF';
+    if (!state.unlocked) {
+      onboardHint.textContent = 'Create or unlock the vault to continue with ' + what + '.';
+      return;
+    }
+    var target = choice === 'seed' ? seedPhrase : importSecret;
+    if (target) {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+    }
+    onboardHint.textContent = choice === 'seed'
+      ? 'The seed phrase form is open below. The phrase stays in this tab and is never stored, sent or logged.'
+      : 'The private key / WIF form is open below. The key is encrypted in this browser vault and never sent to the server, logged or put in the URL.';
+  }
+
+  function chooseOnboard(choice) {
+    state.onboardChoice = choice;
+    applyOnboardChoice(choice);
+  }
+
+  if (onboardSeed) onboardSeed.addEventListener('click', function () { chooseOnboard('seed'); });
+  if (onboardKey) onboardKey.addEventListener('click', function () { chooseOnboard('key'); });
 
   /* ---------------------------------------------------------- create/unlock */
 
@@ -1779,7 +1841,15 @@
     summaryChains.hidden = totals.perChain.length === 0;
   }
 
+  function currentPriceState() {
+    if (state.priceStatus === 'fresh') return 'fresh';
+    if (state.priceStatus === 'stale') return 'stale';
+    if (state.priceStatus === 'loading' || state.priceStatus === 'idle') return 'loading';
+    return 'unavailable';
+  }
+
   function renderSummary() {
+    renderAssets();
     if (!summaryBlock) return;
     var visible = state.unlocked && state.entries.length > 0 && !!summaryHelper;
     summaryBlock.hidden = !visible;
@@ -1809,12 +1879,7 @@
     });
     var totals = summaryHelper.aggregate(rows);
     if (totals.loaded > 0 && state.priceStatus === 'idle') ensurePrices(false);
-    var priceState;
-    if (state.priceStatus === 'fresh') priceState = 'fresh';
-    else if (state.priceStatus === 'stale') priceState = 'stale';
-    else if (state.priceStatus === 'loading' || state.priceStatus === 'idle') priceState = 'loading';
-    else priceState = 'unavailable';
-    var fiat = summaryHelper.fiat(totals, state.prices, priceState);
+    var fiat = summaryHelper.fiat(totals, state.prices, currentPriceState());
 
     if (summaryTotal) {
       summaryTotal.textContent = summaryHelper.totalText(fiat);
@@ -1863,6 +1928,7 @@
       var row = state.rows[entry.id];
       jobs.push(loadBalance(entry, row && row._refs ? row._refs.badge : null, generation));
     });
+    jobs.push(refreshAssets());
     if (jobs.length) jobs.push(ensurePrices(true));
     try {
       await Promise.all(jobs);
@@ -1883,10 +1949,310 @@
       button.disabled = !state.lookup;
     });
     renderSummary();
+    renderAssets();
   });
 
   if (summaryRefresh) {
     summaryRefresh.addEventListener('click', function () { refreshPortfolio(); });
+  }
+
+  /* ------------------------------------------------------------ top assets */
+  /* One row per asset network from data/assets.json. Native rows reuse the
+   * shared RotorBalanceProviders path; a token row reads ERC-20 balanceOf
+   * through the chain's public RPC or a TRC-20 balance through TronScan. A
+   * row never becomes zero because a request failed or has not run. */
+
+  function assetBigInt(value) {
+    try {
+      return BigInt(value);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function evmAddresses() {
+    var seen = {};
+    var out = [];
+    state.entries.forEach(function (entry) {
+      var info = SSOT_CHAINS.bySlug[entry.chain];
+      var derived = state.derived[entry.id];
+      if (!info || info.family !== 'evm') return;
+      if (!derived || derived.error || !derived.address) return;
+      if (seen[derived.address]) return;
+      seen[derived.address] = true;
+      out.push(derived.address);
+    });
+    return out;
+  }
+
+  function addressesForAssetChain(chain) {
+    var info = SSOT_CHAINS.bySlug[chain];
+    if (info && info.family === 'evm') return evmAddresses();
+    var seen = {};
+    var out = [];
+    state.entries.forEach(function (entry) {
+      if (entry.chain !== chain) return;
+      var derived = state.derived[entry.id];
+      if (!derived || derived.error || !derived.address) return;
+      if (seen[derived.address]) return;
+      seen[derived.address] = true;
+      out.push(derived.address);
+    });
+    return out;
+  }
+
+  async function fetchNativeAsset(chain, addresses) {
+    var providerApi = window.RotorBalanceProviders;
+    if (!providerApi || typeof providerApi.metaFor !== 'function') {
+      throw new Error('balance providers are not loaded');
+    }
+    var meta = providerApi.metaFor(chain);
+    if (!meta) throw new Error('no public balance provider for ' + chainLabel(chain));
+    var result = await providerApi.fetchProvider(meta, addresses);
+    var total = 0n;
+    var loaded = 0;
+    var firstError = '';
+    addresses.forEach(function (address) {
+      var value = result.values[address];
+      var amount = value && value.balance !== undefined && value.balance !== null
+        ? assetBigInt(value.balance)
+        : null;
+      if (amount !== null && amount >= 0n) {
+        total += amount;
+        loaded += 1;
+        return;
+      }
+      if (!firstError) {
+        firstError = result.errors[address] || 'Balance row missing from the provider.';
+      }
+    });
+    if (!loaded) throw new Error(firstError || 'no balance returned');
+    if (loaded < addresses.length) {
+      throw new Error((addresses.length - loaded) + ' of ' + addresses.length +
+        ' addresses failed: ' + firstError);
+    }
+    return total;
+  }
+
+  async function fetchEvmToken(chain, contract, addresses) {
+    var provider = SSOT_PROVIDERS.first(chain);
+    if (!provider) throw new Error('no public RPC for ' + chainLabel(chain));
+    var total = 0n;
+    for (var index = 0; index < addresses.length; index += 1) {
+      var data = '0x70a08231' + addresses[index].slice(2).toLowerCase().padStart(64, '0');
+      var response = await fetchWithTimeout(provider.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_call',
+          params: [{ to: contract, data: data }, 'latest']
+        })
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var body = await response.json();
+      if (!body || body.error || typeof body.result !== 'string') {
+        throw new Error(body && body.error && body.error.message
+          ? body.error.message
+          : 'unexpected eth_call response');
+      }
+      var amount = assetsHelper.parseEvmBalance(body.result);
+      if (amount === null) throw new Error('balanceOf returned no amount');
+      total += amount;
+    }
+    return total;
+  }
+
+  async function fetchTronToken(contract, addresses) {
+    var provider = SSOT_PROVIDERS.find('tron', 'tronscan');
+    if (!provider) throw new Error('no TronScan provider');
+    var total = 0n;
+    for (var index = 0; index < addresses.length; index += 1) {
+      var response = await fetchWithTimeout(
+        provider.url + '/account?address=' + encodeURIComponent(addresses[index])
+      );
+      if (response.status === 404) continue;
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var data = await response.json();
+      var amount = assetsHelper.parseTronTokenBalance(data, contract);
+      if (amount === null) throw new Error('unexpected TronScan account response');
+      total += BigInt(amount);
+    }
+    return total;
+  }
+
+  async function fetchAssetBalance(asset, network, addresses) {
+    if (asset.balance === 'unavailable') {
+      var unavailable = new Error('no balance read path for this asset yet');
+      unavailable.unavailable = true;
+      throw unavailable;
+    }
+    if (!network.contract) return fetchNativeAsset(network.chain, addresses);
+    var info = SSOT_CHAINS.bySlug[network.chain];
+    if (info && info.family === 'evm') {
+      return fetchEvmToken(network.chain, network.contract, addresses);
+    }
+    if (info && info.family === 'tron') {
+      return fetchTronToken(network.contract, addresses);
+    }
+    throw new Error('no token balance read path for ' + chainLabel(network.chain));
+  }
+
+  async function loadAssetRow(asset, network, generation) {
+    var key = assetsHelper.balanceKey(asset, network);
+    if (asset.balance === 'unavailable') {
+      state.assets[key] = {
+        state: 'unavailable',
+        detail: 'No balance read path is wired for this asset yet.'
+      };
+      return;
+    }
+    if (!state.lookup) {
+      state.assets[key] = {
+        state: 'missing',
+        detail: 'Allow public balance lookups to load this balance.'
+      };
+      return;
+    }
+    var addresses = addressesForAssetChain(network.chain);
+    if (!addresses.length) {
+      state.assets[key] = {
+        state: 'missing',
+        detail: 'No ' + chainLabel(network.chain) + ' key in this vault.'
+      };
+      return;
+    }
+    state.assets[key] = { state: 'loading' };
+    renderAssets();
+    try {
+      var amount = await fetchAssetBalance(asset, network, addresses);
+      if (generation !== state.generation || !state.unlocked) return;
+      state.assets[key] = { state: 'ok', amount: amount };
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      state.assets[key] = {
+        state: err && err.unavailable ? 'unavailable' : 'error',
+        detail: errorText(err)
+      };
+    }
+    if (generation === state.generation) renderAssets();
+  }
+
+  function refreshAssets() {
+    if (!state.unlocked || !assetsData || !assetsHelper) return Promise.resolve();
+    if (state.assetsRefreshing) return Promise.resolve();
+    state.assetsRefreshing = true;
+    state.assets = {};
+    var generation = state.generation;
+    var cache = window.RotorBalanceCache;
+    var limit = cache && typeof cache.createLimiter === 'function'
+      ? cache.createLimiter(5)
+      : function (task) { return task(); };
+    var jobs = [];
+    assetsData.assets.forEach(function (asset) {
+      assetsHelper.networksFor(asset).forEach(function (network) {
+        jobs.push(limit(function () { return loadAssetRow(asset, network, generation); }));
+      });
+    });
+    renderAssets();
+    return Promise.all(jobs).then(function () {
+      if (generation === state.generation) {
+        state.assetsRefreshing = false;
+        renderAssets();
+      }
+    }, function () {
+      if (generation === state.generation) {
+        state.assetsRefreshing = false;
+        renderAssets();
+      }
+    });
+  }
+
+  function assetCell(text, className) {
+    var cell = document.createElement('td');
+    cell.textContent = text;
+    if (className) cell.className = className;
+    return cell;
+  }
+
+  function renderAssets() {
+    if (!assetsSection || !assetsHelper || !assetsData) return;
+    var model = assetsHelper.buildRows(
+      assetsData.assets,
+      state.assets,
+      state.prices,
+      currentPriceState()
+    );
+    if (assetsRows) {
+      assetsRows.textContent = '';
+      model.rows.forEach(function (row) {
+        var tr = document.createElement('tr');
+        tr.setAttribute('data-rank', String(row.rank));
+        tr.setAttribute('data-chain', row.chain);
+        tr.setAttribute('data-asset', row.symbol);
+        var asset = document.createElement('td');
+        var symbol = document.createElement('strong');
+        symbol.textContent = row.symbol;
+        var name = document.createElement('span');
+        name.className = 'muted';
+        name.textContent = ' ' + row.name;
+        asset.appendChild(symbol);
+        asset.appendChild(name);
+        tr.appendChild(asset);
+        tr.appendChild(assetCell(row.chainLabel));
+        var balance = assetCell(row.balanceText);
+        if (row.balanceTitle) balance.title = row.balanceTitle;
+        tr.appendChild(balance);
+        var usd = assetCell(row.usdText);
+        usd.className = 'wallet-asset-usd';
+        if (row.usdTitle) usd.title = row.usdTitle;
+        tr.appendChild(usd);
+        assetsRows.appendChild(tr);
+      });
+    }
+    if (assetsTotal) {
+      assetsTotal.textContent = model.totalText;
+      assetsTotal.title = model.totalCents === null
+        ? 'No loaded row could be priced; this is not a $0.00 total.'
+        : 'Exact total from ' + model.loaded + ' loaded row' +
+          (model.loaded === 1 ? '' : 's') + '.';
+    }
+    if (assetsStatus) {
+      if (!state.lookup) {
+        assetsStatus.textContent = 'Allow public balance lookups, then press Refresh to load these rows.';
+      } else if (state.assetsRefreshing || model.pending > 0) {
+        assetsStatus.textContent = 'Loading top-asset balances from public providers…';
+      } else if (model.loaded === 0 && model.failed === 0) {
+        assetsStatus.textContent = 'No top-asset balance loaded yet. Press Refresh to read the public addresses you allowed above.';
+      } else {
+        assetsStatus.textContent = 'Loaded ' + model.loaded + ' of ' + model.rows.length +
+          ' rows' + (model.failed ? '; ' + model.failed + ' failed' : '') + '.';
+      }
+    }
+    if (assetsError) {
+      if (model.failed > 0) {
+        assetsError.hidden = false;
+        assetsError.textContent = model.failed + ' of ' + model.rows.length +
+          ' top-asset rows could not be loaded; they are not counted in the total.';
+      } else {
+        assetsError.hidden = true;
+        assetsError.textContent = '';
+      }
+    }
+    if (assetsEmpty) {
+      var covered = 0;
+      assetsData.assets.forEach(function (asset) {
+        assetsHelper.networksFor(asset).forEach(function (network) {
+          if (addressesForAssetChain(network.chain).length) covered += 1;
+        });
+      });
+      assetsEmpty.hidden = covered > 0;
+    }
+    if (assetsTableWrap) {
+      assetsTableWrap.setAttribute('aria-busy',
+        state.assetsRefreshing || model.pending > 0 ? 'true' : 'false');
+    }
   }
 
   /* --------------------------------------------------------------- history */

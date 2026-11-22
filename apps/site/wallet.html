@@ -76,6 +76,16 @@
     <p class="muted">A wrong passphrase cannot decrypt anything. The vault locks itself after 10 minutes without activity and whenever this page is hidden.</p>
   </section>
 
+  <section class="card" id="wallet-onboarding">
+    <h2>Restore an existing wallet</h2>
+    <p class="muted" id="wallet-onboard-help">Choose what you already have. A seed phrase and a single private key are both first-class here: most wallets accept only a seed phrase, this vault accepts keys too. Either path derives locally in the WASM core and stores only the encrypted result in this browser. The key or phrase is never sent to the server, logged or put in the URL.</p>
+    <div class="wallet-row-actions wallet-onboard-choices" role="group" aria-labelledby="wallet-onboard-help">
+      <button type="button" class="chip" id="wallet-onboard-seed" aria-pressed="false">I have a seed phrase</button>
+      <button type="button" class="chip" id="wallet-onboard-key" aria-pressed="false">I have a private key / WIF</button>
+    </div>
+    <p class="muted" id="wallet-onboard-hint" role="status">Create or unlock the vault first; the choice opens the matching form.</p>
+  </section>
+
   <section class="card" id="wallet-panel" hidden>
     <h2>Vault</h2>
     <div class="wallet-row-actions">
@@ -84,6 +94,25 @@
       <span id="wallet-state" class="muted" role="status">unlocked</span>
     </div>
     <p class="wallet-status muted status-line" id="wallet-export-status"></p>
+
+    <section class="wallet-assets" id="wallet-assets" aria-labelledby="wallet-assets-title">
+      <div class="wallet-assets-head">
+        <div>
+          <h3 id="wallet-assets-title">Top assets</h3>
+          <p class="muted" id="wallet-assets-help">The ten largest assets with a balance path on the networks this wallet supports, by market-cap rank from <code class="mono">data/assets.json</code>. A value is read only for a network where this vault holds an address, and only after you allow public balance lookups. Prices come from the same public Binance ticker as the key explorer, cached for up to six hours; USDT uses its explicit $1.00 peg. A row that did not load says “not loaded” or “lookup failed” and is never counted as zero; an asset with no balance read path says “unavailable”.</p>
+        </div>
+      </div>
+      <p class="muted status-line" id="wallet-assets-status" role="status" aria-live="polite"></p>
+      <p id="wallet-assets-error" class="error" role="alert" hidden></p>
+      <p class="muted" id="wallet-assets-empty" hidden>No vault key matches a top-10 network yet. Import a key above to see its balance here.</p>
+      <div class="table-scroll" id="wallet-assets-table-wrap">
+        <table class="data-table" id="wallet-assets-table">
+          <thead><tr><th>Asset</th><th>Network</th><th>Balance</th><th>USD</th></tr></thead>
+          <tbody id="wallet-assets-rows"></tbody>
+          <tfoot><tr><th colspan="3">Total</th><td id="wallet-assets-total">—</td></tr></tfoot>
+        </table>
+      </div>
+    </section>
 
     <h2>Import a key</h2>
     <form id="wallet-import-form" class="key-form" autocomplete="off">
@@ -451,7 +480,10 @@
 </main>
 
 <script src="/key-tools.js"></script>
+<script src="/balance-cache.js"></script>
+<script src="/balance-providers.js"></script>
 <script src="/wallet-summary.js"></script>
+<script src="/wallet-assets.js"></script>
 <script src="/wallet-vault.js"></script>
 <script src="/wallet-evm.js"></script>
 <script src="/wallet-btc.js"></script>
