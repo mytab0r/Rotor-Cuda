@@ -1,0 +1,774 @@
+{
+  "version": 1,
+  "description": "Single detector registry. scripts/ui-audit.mjs is the source of truth for the audit ids; every id it emits must appear here. Defect-ledger detectors must name an implemented entry. scripts/gen-detector-docs.mjs renders the markdown tables from this file.",
+  "detectors": [
+    {
+      "id": "status-pill-geometry",
+      "rule": "Status/badge pill: text >=12px, height 20-32px, pill radius, inline padding 6/8/10/12.",
+      "batch": "1",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/status.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "icon-button-scale",
+      "rule": "Icon button box 28/36/44, icon 14/16/18, aria-label plus data-tooltip, no native title.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/icon-button.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "icon-only-shared-component",
+      "rule": "Icon-only action uses the shared .icon-button component, not a page-local button.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/icon-button.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "look-alike-icon-button",
+      "rule": "A quiet icon control must not render as a full bordered 44px button.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/icon-button.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "quiet-icon-hover-border",
+      "rule": "Quiet icon buttons gain no hover border; outline buttons keep their strong line.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/icon-button.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "tooltip-primitive",
+      "rule": "data-tooltip target: non-empty text <=40 chars, no native title, accessible name.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/icon-button.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "tooltip-behaviour",
+      "rule": "Tooltip appears within 300ms, hides on Escape, and the popover keeps row geometry.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/icon-button.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "key-meta-row",
+      "rule": "The /key input meta row is one 40px line with the info control centred.",
+      "batch": "2",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "control-height-scale",
+      "rule": "Input/select/chip/segmented height in {28,36,44,56}; 28 is reserved for dense table rows.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/field.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "field-geometry",
+      "rule": "Field radius 10/16, label >=12px, visible focus ring.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/field.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "segmented-geometry",
+      "rule": "One track grammar (4px padding, radius 12), 44px items, exactly one selected.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/segmented.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "key-input-type",
+      "rule": "The /key private-key field renders as plain text, not type=password.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/field.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "key-auto-derive",
+      "rule": "/key derives rows from the input without an explicit action.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "key-calculate-button",
+      "rule": "/key exposes no Calculate button; the form input is the only control.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "duplicate-preset-control",
+      "rule": "/key renders one preset control, not chips and an equivalent select.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "seed-form-narrow",
+      "rule": "The /seed form uses more than 80% of the card width.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "ragged-summary-columns",
+      "rule": "Multi-column summary lists end within 2px of each other.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "summary-grid-orphan",
+      "rule": "At <=560px the summary grid leaves no empty trailing cell.",
+      "batch": "3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "card-padding-scale",
+      "rule": "Card padding 16/20/24 and radius 12/16; no page-local card override.",
+      "batch": "4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "stat-geometry",
+      "rule": "Stat label >=12px sentence case; value 20/24/28 with tabular digits.",
+      "batch": "4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/stat.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "table-grammar",
+      "rule": "Every table is .data-table inside .table-scroll with 8/12 cell padding and even headers.",
+      "batch": "5",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "table-header-style",
+      "rule": "Table header is 12px/600 sentence case with no uppercase or tracking.",
+      "batch": "5",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "table-row-height",
+      "rule": "Every table row is at least 44px tall or carries a 44px action.",
+      "batch": "5",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "row-action-geometry",
+      "rule": "Row actions are 44x44, radius 10, with an accessible name.",
+      "batch": "5",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "nav-link-height",
+      "rule": "Nav links are at least 44x44 with 18px icons.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/nav.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "nav-destination",
+      "rule": "The Seeds nav points at /mnemonic-seeds and is active there.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/nav.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "nav-keystore-highlight",
+      "rule": "/keystore-parser highlights Tools, not Search.",
+      "batch": "6",
+      "implemented_in": "apps/site/site-nav-test.mjs",
+      "doc_anchor": "docs/design-system/components/nav.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "breadcrumb-grammar",
+      "rule": "One labelled breadcrumb trail with shared separators and a sensible depth.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/breadcrumb.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "breadcrumb-current",
+      "rule": "Exactly one aria-current crumb and never a raw path label.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/breadcrumb.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "pager-grammar",
+      "rule": "One labelled pager structure with the jump control and no legacy random modifier.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/pager.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "pager-geometry",
+      "rule": "Pager buttons are 44px, radius 10, aria-disabled and 16px icons.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/pager.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "footer-presence",
+      "rule": "Exactly one footer with the donor links, copyright and build id.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "legacy-token",
+      "rule": "One :root token block; light overrides only through html[data-theme].",
+      "batch": "7",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "radius-scale",
+      "rule": "border-radius uses var(--radius-*), never an off-scale literal.",
+      "batch": "7",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "raw-hex-outside-root",
+      "rule": "No raw colour outside the generated token regions (CSS or inline style).",
+      "batch": "7",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "legacy-selector",
+      "rule": "No page-scoped selector overrides a shared component family.",
+      "batch": "7",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "empty-state-grammar",
+      "rule": "Empty and error states share one grammar (dashed, radius 12, 20px padding).",
+      "batch": "7",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/empty.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "token-contract",
+      "rule": "tokens.json, the generated region and the frozen contract agree and every var() resolves.",
+      "batch": "phase 2",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "orphan-token",
+      "rule": "A declared token has a first-party consumer or is marked reserved.",
+      "batch": "phase 2",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "theme-parity",
+      "rule": "Every colour token declared in :root has a light-theme declaration.",
+      "batch": "phase 2",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "lossy-amount-formatter",
+      "rule": "No local amount formatter, Number amount math or 10n amount scale outside amount.js.",
+      "batch": "2",
+      "implemented_in": "scripts/check-ssot.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "aggregateText",
+      "rule": "The seed aggregate line includes the BTC lifetime received total.",
+      "batch": "2",
+      "implemented_in": "apps/site/seed-test.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "field-hero-height",
+      "rule": "Every rendered .field--hero control is at least 56px high.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/field.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "manifest-shape",
+      "rule": "Component manifests carry the contract fields, a semver version and unique ids.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/check-components.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "unknown-variant",
+      "rule": "Every manifest variant and size class has a rule in site.css.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/check-components.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "gallery-variant",
+      "rule": "Every manifest variant, size and state renders in the generated gallery.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/check-components.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "gallery-missing",
+      "rule": "The generated /cabinet/admin/design gallery exists and is current.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/check-components.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "required-attribute",
+      "rule": "Every gallery example carries its declared required attributes.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/check-components.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "page-local-family",
+      "rule": "A page <style> block does not restyle a shared component family.",
+      "batch": "phase 3",
+      "implemented_in": "scripts/check-components.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "browse-row-address-count",
+      "rule": "A BTC legacy listing row renders both address forms without a disclosure.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "browse-row-balance-lines",
+      "rule": "One balance line per address, received only when non-zero, and a named TX pill.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "browse-row-key-copy",
+      "rule": "Each listing row has one visible, labelled key copy action.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "browse-row-height",
+      "rule": "Listing rows keep one stable height under the two-address ceiling.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "browse-stat-level",
+      "rule": "Browse stat cards end within 2px of each other.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/stat.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "browse-row-wif",
+      "rule": "A listing row is HEX plus copy, address and balance; the WIF stays on /key.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/check-token-usage.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "balance-consistency",
+      "rule": "A balance row text agrees with its title amount and TX count.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "key-zec-provider",
+      "rule": "Every /key ZEC row has a balance provider.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "wallet-seed-strength",
+      "rule": "The wallet seed block shows computed strength and uses shared 44px controls.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "wallet-mainnet-arm",
+      "rule": "A mainnet send requires an explicit 44px risk arm with the full warning.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "search-xrp-secret-routing",
+      "rule": "XRP family seeds and secrets route to /key instead of a brainwallet hash.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/search-test.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "search-short-hex-padding",
+      "rule": "1-63 hex characters stay brainwallet text; exactly 64 hex is a key.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/search-test.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-solana-balances",
+      "rule": "The Solana directory fetches every row with one batched getMultipleAccounts call.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-bch-balances",
+      "rule": "The BCH directory batches every address through the Haskoin endpoint.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-tron-xrp-sui-balances",
+      "rule": "The TRON, XRP and SUI directories fetch balances for every row.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-xrp-redirect",
+      "rule": "XRPScan is called with redirect: error so a cross-origin hop fails loud.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "balance-state-attribute",
+      "rule": "Every balance row sets data-balance-state and data-balance-at on the row.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "horizontal-overflow",
+      "rule": "The page scrollWidth does not exceed clientWidth.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "clipped-control",
+      "rule": "A control does not spill outside its card padding box without a scrollable ancestor.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "raw-path-text",
+      "rule": "A table cell renders a human label, never a raw path.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "small-text",
+      "rule": "Visible text is at least 12px; hidden and aria-hidden text is exempt.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "small-touch-target",
+      "rule": "Visible controls are at least 44x44; inline prose links are exempt.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "unlabeled-icon-control",
+      "rule": "An icon-only button or link carries an accessible name.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "address-type-width-spread",
+      "rule": "Address-type cards in one visual row differ by at most 15%.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "duplicate-address-type-implementation",
+      "rule": "One address-type component family is used, not two competing ones.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "mostly-empty-block",
+      "rule": "A block taller than 220px is not more than 45% empty.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "manual-balance-control",
+      "rule": "No visible manual balance button or checkbox; balances load automatically.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "brainwallet-row-count",
+      "rule": "/brainwallet/<chain> renders 60 .bw-row entries.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "puzzle-row-count",
+      "rule": "/bitcoin-puzzle renders 160 data-puzzle rows.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "site-map-still-served",
+      "rule": "/site-map answers 404 after the docs move.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "http-error",
+      "rule": "A same-origin HTTP error response fails the route.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "asset-fingerprint",
+      "rule": "Every asset reference uses the /a/<build>/ prefix.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "route-coverage",
+      "rule": "Every public page route in the coordinator map is audited by DEFAULT_ROUTES.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "cache-token",
+      "rule": "No ?v= cache token; assets revalidate by content ETag.",
+      "batch": "all",
+      "implemented_in": "scripts/check-projects.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "cramped-padding",
+      "rule": "Impeccable ignores exist only with measured evidence, never to hide a real defect.",
+      "batch": "all",
+      "implemented_in": ".impeccable/config.json",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "selector_matched_nothing",
+      "rule": "A density-parity selector that matches nothing reports selector_matched_nothing, not a silent zero.",
+      "batch": "all",
+      "implemented_in": "scripts/density-parity.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "head_mirrors_get_for_public_resources",
+      "rule": "HEAD mirrors GET for every public page and asset.",
+      "batch": "coordinator",
+      "implemented_in": "tests/coordinator_api.rs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "vendor-lock-digest",
+      "rule": "Every data/vendor.lock.json entry matches both files byte for byte and every web/public file is locked.",
+      "batch": "4a",
+      "implemented_in": "scripts/check-ssot.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "detector-registry",
+      "rule": "Every ui-audit id and every defect-ledger detector resolves to one implemented registry entry.",
+      "batch": "4a",
+      "implemented_in": "scripts/lib/detectors.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "detector-docs-fresh",
+      "rule": "The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json.",
+      "batch": "4a",
+      "implemented_in": "scripts/gen-detector-docs.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "console-error",
+      "rule": "Console error recorded as a warning during the audit run.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "diagnostic"
+    },
+    {
+      "id": "theme-not-applied",
+      "rule": "The rendered data-theme does not match the requested audit theme.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "diagnostic"
+    },
+    {
+      "id": "navigation-or-evaluation-failed",
+      "rule": "The audit harness could not navigate or evaluate the route.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "diagnostic"
+    },
+    {
+      "id": "adjacent-icon-gap",
+      "rule": "Adjacent icon-only controls keep at least 8px between them and distinct labels.",
+      "batch": "2",
+      "implemented_in": null,
+      "doc_anchor": "docs/design-system/plan.md#3-detector-backlog",
+      "status": "planned"
+    },
+    {
+      "id": "tooltip-naming",
+      "rule": "The accessible name is independent of the tooltip and aria-describedby resolves.",
+      "batch": "2",
+      "implemented_in": null,
+      "doc_anchor": "docs/design-system/plan.md#3-detector-backlog",
+      "status": "planned"
+    },
+    {
+      "id": "tooltip-timing",
+      "rule": "Tooltip shows after a 400ms delay and Escape dismisses it.",
+      "batch": "2",
+      "implemented_in": null,
+      "doc_anchor": "docs/design-system/plan.md#3-detector-backlog",
+      "status": "planned"
+    },
+    {
+      "id": "status-line-margin",
+      "rule": "Text-only status lines use a top margin in {8,12}.",
+      "batch": "1/3",
+      "implemented_in": null,
+      "doc_anchor": "docs/design-system/plan.md#3-detector-backlog",
+      "status": "planned"
+    }
+  ]
+}

@@ -38,27 +38,39 @@ only deviation from the brief and is called out in the PR.
 
 ## Provenance of copied assets
 
-All files below are byte-identical copies from `apps/site/` taken at the
-migration commit. They are not edited in `web/`: the Rust coordinator still
-serves the originals, so a change must be made in `apps/site/` first and copied
-again (or the asset must move to a single shared source in a later phase).
+`web/public/` holds byte-identical copies of the current `apps/site/` assets.
+`data/vendor.lock.json` is the machine source for every pair: it records the
+source path, target path and SHA-256 of each copied file. Do not edit a
+`web/public/` copy: edit `apps/site/` first, copy the file again, and update the
+digest in the lock (recompute it with `sha256sum` or `Get-FileHash`).
+`node scripts/check-ssot.mjs` fails when a copy drifts, when a locked digest is
+stale, or when `web/public/` contains a file the lock does not cover.
 
-| web/public file | Source | SHA-256 |
-|---|---|---|
-| `vendor/seed.js` | `apps/site/seed.js` | `01ef1d3a72ef293815b8922977277f5df1275c3a01f26d9da08895ae64d5b83c` |
-| `vendor/seed-crypto.js` | `apps/site/seed-crypto.js` | `a1f569591af5b43fd16f4f86faccc7490d2f407cfbda648ba5f283831ee60d20` |
-| `site.css` | `apps/site/site.css` | `892be9a101f0b4dc68b2dc197a6ac39469214b3a8387a0c95acdb92a799bd030` |
-| `seed-studio.css` | `apps/site/seed-studio.css` | `f1417cb411fc90dbaba7f69a3cb2c01432e7f4c91eed190d27a1a20ab38f221f` |
-| `site.js` | `apps/site/site.js` | `d6da9a4394b6e1962c6b137eb69934e7e432a41fc711e9cef86d1c8ac9abbbfc` |
-| `theme.js` | `apps/site/theme.js` | `b7e582965c67d3102af9da1fba28536ec4ef9e9359a3d35704856c65263d92d5` |
-| `icons.svg` | `apps/site/icons.svg` | `68184590c2a787aa8d3107cbdfe7aeada2e4b770850b61806444da2bdb092f4f` |
-| `fonts/manrope-latin.woff2` | `apps/site/fonts/manrope-latin.woff2` | `8c2def024c1bf31aacf3624ae3c4d701269b4ec3dc765c04830839f0d36b2d9e` |
-| `rotor_wasm.wasm` | `apps/site/rotor_wasm.wasm` | `29ded2b585f4de53bff5298aff82d8c6560c20d6217532b47e5356ddf46dc779` |
-| `favicon.ico`, `favicon.png` | `apps/site/favicon.*` | (unchanged) |
+| web/public file | Source |
+|---|---|
+| `vendor/seed.js` | `apps/site/seed.js` |
+| `vendor/seed-crypto.js` | `apps/site/seed-crypto.js` |
+| `site.css` | `apps/site/site.css` |
+| `seed-studio.css` | `apps/site/seed-studio.css` |
+| `site.js` | `apps/site/site.js` |
+| `theme.js` | `apps/site/theme.js` |
+| `chains.generated.js` | `apps/site/chains.generated.js` |
+| `amount.js` | `apps/site/amount.js` |
+| `icons.svg` | `apps/site/icons.svg` |
+| `fonts/manrope-latin.woff2` | `apps/site/fonts/manrope-latin.woff2` |
+| `rotor_wasm.wasm` | `apps/site/rotor_wasm.wasm` |
+| `favicon.ico`, `favicon.png` | `apps/site/favicon.*` |
+
+The pilot page loads `/chains.generated.js` and `/amount.js` before `/site.js`,
+mirroring the coordinator's injection order: `site.js` reads the generated
+`window.RotorChains` / `window.RotorProviders` globals and `window.RotorAmount`.
+The vendored WalletConnect and TON bundles are deliberately not copied; the
+reason for each is in `data/vendor.lock.json` (`nonCopies`).
 
 `rotor_wasm.wasm` is a generated artifact: after `sh scripts/build-wasm.sh`
-rebuilds `apps/site/rotor_wasm.wasm`, copy it here again (the pilot keeps two
-copies until phase 6 removes the embedded site). Do not hand-edit it.
+rebuilds `apps/site/rotor_wasm.wasm`, copy it here again and update its digest in
+the lock (the pilot keeps two copies until phase 6 removes the embedded site).
+Do not hand-edit it.
 
 ## Behaviour notes
 

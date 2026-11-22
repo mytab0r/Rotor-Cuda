@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "description": "Files the Astro pilot serves from web/public/ as byte-identical copies of apps/site/. scripts/check-ssot.mjs verifies every digest against both files and fails when a forked copy drifts or a new file appears under web/public without a lock entry. Regenerate a copy from apps/site after editing the source; never edit the web/public copy.",
+  "entries": [
+    {
+      "source": "apps/site/amount.js",
+      "target": "web/public/amount.js",
+      "sha256": "992a59f556f43b9703adf3fe9ad2a1111399a2250911234cf3d9bbddbfb2c1ed"
+    },
+    {
+      "source": "apps/site/chains.generated.js",
+      "target": "web/public/chains.generated.js",
+      "sha256": "bf085db87584b5c950fcf8579c10729d1c6b8f2d2340620f9c3e2fa93c43dc8b"
+    },
+    {
+      "source": "apps/site/favicon.ico",
+      "target": "web/public/favicon.ico",
+      "sha256": "9cee74d34f0cc31a02f61d7648a8969756ca39d3484a6570fb51487e06a6001e"
+    },
+    {
+      "source": "apps/site/favicon.png",
+      "target": "web/public/favicon.png",
+      "sha256": "424d9eda8056d1c77e3081a400e97efbdec474bba1503b98565c7d655fc898dd"
+    },
+    {
+      "source": "apps/site/fonts/manrope-latin.woff2",
+      "target": "web/public/fonts/manrope-latin.woff2",
+      "sha256": "8c2def024c1bf31aacf3624ae3c4d701269b4ec3dc765c04830839f0d36b2d9e"
+    },
+    {
+      "source": "apps/site/icons.svg",
+      "target": "web/public/icons.svg",
+      "sha256": "68184590c2a787aa8d3107cbdfe7aeada2e4b770850b61806444da2bdb092f4f"
+    },
+    {
+      "source": "apps/site/rotor_wasm.wasm",
+      "target": "web/public/rotor_wasm.wasm",
+      "sha256": "29ded2b585f4de53bff5298aff82d8c6560c20d6217532b47e5356ddf46dc779"
+    },
+    {
+      "source": "apps/site/seed-crypto.js",
+      "target": "web/public/vendor/seed-crypto.js",
+      "sha256": "a1f569591af5b43fd16f4f86faccc7490d2f407cfbda648ba5f283831ee60d20"
+    },
+    {
+      "source": "apps/site/seed-studio.css",
+      "target": "web/public/seed-studio.css",
+      "sha256": "f1417cb411fc90dbaba7f69a3cb2c01432e7f4c91eed190d27a1a20ab38f221f"
+    },
+    {
+      "source": "apps/site/seed.js",
+      "target": "web/public/vendor/seed.js",
+      "sha256": "01ef1d3a72ef293815b8922977277f5df1275c3a01f26d9da08895ae64d5b83c"
+    },
+    {
+      "source": "apps/site/site.css",
+      "target": "web/public/site.css",
+      "sha256": "223e71c12a55d46603c3348e385a84ad90f0b1307e7ecce9c6eb5b8db2bd407e"
+    },
+    {
+      "source": "apps/site/site.js",
+      "target": "web/public/site.js",
+      "sha256": "fa8d69cdd26e0158cd57d9641ef89e795437de5078b6fa8fd6e0478b56e530ee"
+    },
+    {
+      "source": "apps/site/theme.js",
+      "target": "web/public/theme.js",
+      "sha256": "b853911fdf0dcc502d9b53ddd0ef06b340e28a883f3c10cc12a477bfe3145ace"
+    }
+  ],
+  "nonCopies": [
+    {
+      "source": "apps/site/ton.LICENSE.txt",
+      "reason": "License text that accompanies the vendored TON bundle; the pilot never serves it."
+    },
+    {
+      "source": "apps/site/ton.js",
+      "reason": "Vendored TON SDK used only by the TON send flow; the pilot serves /mnemonic-converter and never loads it."
+    },
+    {
+      "source": "apps/site/walletconnect.js",
+      "reason": "Vendored WalletConnect bundle used only by the cabinet wallet flow; the pilot never loads it."
+    }
+  ]
+}

@@ -50,8 +50,11 @@
         "node --check scripts/check-components.mjs",
         "node --check scripts/gen-ssot.mjs",
         "node --check scripts/check-ssot.mjs",
+        "node --check scripts/lib/detectors.mjs",
+        "node --check scripts/gen-detector-docs.mjs",
         "node scripts/gen-ssot.mjs --check",
         "node scripts/check-ssot.mjs",
+        "node scripts/gen-detector-docs.mjs --check",
         "node scripts/build-tokens.mjs --check",
         "node scripts/check-token-usage.mjs",
         "node scripts/build-gallery.mjs --check",
@@ -110,7 +113,7 @@
         "wasm-core"
       ],
       "contracts": [
-        "web-assets-are-byte-copies-of-apps/site-until-the-shared-source-moves",
+        "web-assets-are-locked-by-data/vendor.lock.json",
         "web-loads-vendored-seed.js-and-seed-crypto.js-unchanged",
         "web-output-is-a-static-astro-build-for-migrated-routes-only"
       ]

@@ -25,9 +25,11 @@ jobs:
         run: cargo build --release --bin rotor-coord
       - name: Check the defect ledger
         run: node scripts/check-defect-ledger.mjs
+      - name: Check the detector registry and generated tables
+        run: node scripts/gen-detector-docs.mjs --check
       - name: Check the generated design tokens
         run: node scripts/build-tokens.mjs --check
-      - name: Check the generated chain/provider data
+      - name: Check the generated chain/provider data and vendor lock
         run: |
           node scripts/gen-ssot.mjs --check
           node scripts/check-ssot.mjs
