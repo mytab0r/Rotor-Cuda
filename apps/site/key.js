@@ -1225,6 +1225,9 @@
     var row = document.createElement('tr');
     row.className = 'key-row';
     row.setAttribute('data-id', addr.id);
+    /* Provider wiring is known at render time; the audit reads this instead of
+     * the later balance-check state. */
+    row.setAttribute('data-balance-provider', rowHasProvider(addr.id) ? '1' : '0');
     row.setAttribute('data-address', addr.address);
     row.setAttribute('data-curve', addr.curve || '');
     row.setAttribute('data-group', rowGroup(addr.id));
