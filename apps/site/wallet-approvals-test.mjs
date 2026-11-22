@@ -82,6 +82,7 @@ function rpcMock(options = {}) {
   const logs = options.logs || [];
   const allowances = options.allowances || {};
   const spenderCodes = options.spenderCodes || {};
+  const allowanceFailures = { ...(options.allowanceFailures || {}) };
   const networkFailAt = options.networkFailAt || [];
   let logRequestCount = 0;
   const nativeBalance = options.nativeBalance === undefined ? "0xde0b6b3a7640000" : options.nativeBalance;
@@ -118,6 +119,10 @@ function rpcMock(options = {}) {
         if (call.data.startsWith(ALLOWANCE_SELECTOR) && call.data.length === ALLOWANCE_SELECTOR.length + 128) {
           const owner = "0x" + call.data.slice(10, 74).slice(-40);
           const spender = "0x" + call.data.slice(74, 138).slice(-40);
+          if (allowanceFailures[spender] > 0) {
+            allowanceFailures[spender] -= 1;
+            throw new Error("fetch failed");
+          }
           const value = allowances[allowanceKey(owner, spender)];
           return result("0x" + word(value === undefined ? 0n : value));
         }
@@ -345,6 +350,31 @@ test("scan reads the current allowance, not the log value, and labels EOA/contra
     call.method === "eth_call" && call.params[0].data.startsWith(ALLOWANCE_SELECTOR));
   assert.equal(allowanceCalls.length, 2);
   assert.ok(allowanceCalls.every((call) => !call.body.includes("private_key")));
+});
+
+test("a transient allowance read is retried once", async () => {
+  const mock = rpcMock({
+    latest: 1000,
+    logs: [approvalLog(SPENDER, 1, 990, 0)],
+    allowances: { [OWNER + ":" + SPENDER]: 500n },
+    allowanceFailures: { [SPENDER]: 1 },
+  });
+  const scan = await evm.scanApprovals(scanOptions({ fetchJson: mock.fetchJson }));
+  assert.equal(scan.spenders[0].allowance, 500n);
+  assert.equal(scan.warnings.length, 0);
+});
+
+test("a failed allowance read marks that row unknown instead of dropping the list", async () => {
+  const mock = rpcMock({
+    latest: 1000,
+    logs: [approvalLog(SPENDER, 1, 990, 0)],
+    allowances: { [OWNER + ":" + SPENDER]: 500n },
+    allowanceFailures: { [SPENDER]: 99 },
+  });
+  const scan = await evm.scanApprovals(scanOptions({ fetchJson: mock.fetchJson }));
+  assert.equal(scan.spenders.length, 1);
+  assert.equal(scan.spenders[0].allowance, null);
+  assert.ok(scan.warnings.some((warning) => /current allowance/.test(warning)));
 });
 
 test("a token without code, bad decimals or an unfamiliar symbol is refused", async () => {
