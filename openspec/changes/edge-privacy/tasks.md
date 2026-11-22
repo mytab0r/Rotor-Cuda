@@ -13,7 +13,9 @@
       per-isolate global token buckets, 15 s public GET cache.
 - [x] CORS only for `SITE_ORIGIN`; no wildcard. Optional `/edge` mount prefix.
 - [x] No `console` call, no persistence, no client IP in a cache key; the
-      per-client limiter uses a salted digest.
+  per-client limiter uses a salted digest. A public request without
+  `CF-Connecting-IP` is `400 missing_client_ip`; callers are never merged into
+  one shared bucket.
 - [x] Tests: allowlisted host passes (mocked fetch), non-allowlisted
       route/query rejected, key injected and absent from the response and
       errors, private IP rejected, oversized body rejected, 429 with
@@ -22,7 +24,8 @@
 ## 2. Coordinator (done)
 
 - [x] `ServerOptions.edge_proxy_url` / `edge_proxy_secret`, off by default,
-      read from `EDGE_PROXY_URL` / `EDGE_PROXY_SECRET`.
+      read from `EDGE_PROXY_URL` / `EDGE_PROXY_SECRET`. A URL without a
+      non-empty secret is a startup error.
 - [x] `EdgeProxy` requires HTTPS and redacts the secret in `Debug`.
 - [x] `tron_lookup` uses the Worker in edge mode; `tron_auth_headers` sends
       `X-Edge-Secret` and never the provider key.
@@ -69,3 +72,15 @@
       or a Durable Object; the current buckets are per isolate.
 - [ ] Verify the Sun.io quote path against the provider's current API before
       enabling `/v1/quote` (`SUNIO_QUOTE_PATH`).
+- [ ] Harden the SSRF guard for IPv4-embedded IPv6 without `::ffff:` and for
+      DNS names that resolve to a private address. Evidence: `safeUpstreamUrl`
+      accepts `https://[::c0a8:101]/` (192.168.1.1) because the guard only
+      matches `::ffff:`; `https://127.0.0.1.nip.io/` is a hostname the guard
+      cannot classify without resolving it. Operator-only through
+      `RPC_ENDPOINTS`, but a misconfigured endpoint becomes an internal probe.
+      Add tests for both.
+- [ ] Stream `readLimitedBody` and abort as soon as the body exceeds 16 KiB.
+      Evidence: `request.text()` buffers the whole body before the
+      `TextEncoder` length check, so a chunked POST without `Content-Length`
+      consumes memory up to the platform limit before it is rejected. Reject
+      on the declared length and on the running byte count while reading.

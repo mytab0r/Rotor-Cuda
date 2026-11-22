@@ -40,8 +40,11 @@ Evidence gathered 2026-11-22 from the current tree.
 4. **Read-only provider surface.** The JSON-RPC allowlist excludes
    `eth_sendRawTransaction`; a proxy compromise cannot move funds.
 5. **Keys in Worker secrets.** The coordinator sends only
-   `X-Edge-Secret` in edge mode. `TRONSCAN_API_KEY` stays supported in direct
-   mode until the Worker is configured and a canary matches.
+   `X-Edge-Secret` in edge mode. `EDGE_PROXY_URL` without
+   `EDGE_PROXY_SECRET` is a startup error, and the worker rejects a public
+   request without `CF-Connecting-IP` instead of merging callers into one
+   bucket. `TRONSCAN_API_KEY` stays supported in direct mode until the Worker
+   is configured and a canary matches.
 6. **No logging, no persistence.** The Worker has no `console` call, no KV/D1
    and no Logpush. The coordinator writes no access log; rate limits use
    in-memory keys.
@@ -73,7 +76,9 @@ Secrets: `TRONSCAN_API_KEY`, `TRONGRID_API_KEY`, `TRONSTACK_API_KEY`,
 
 - `ServerOptions.edge_proxy_url` / `edge_proxy_secret` (default: read
   `EDGE_PROXY_URL` / `EDGE_PROXY_SECRET`; both off).
-- `EdgeProxy::from_parts` requires HTTPS and keeps the secret out of `Debug`.
+- `EdgeProxy::from_parts` requires HTTPS and a non-empty shared secret, and
+  keeps the secret out of `Debug`. A URL without a secret refuses to start
+  instead of silently using the public bucket or the direct provider path.
 - `tron_lookup` uses `{base}/v1/tron/account` and
   `{base}/v1/tron/transactions` in edge mode. `tron_auth_headers` sends
   `X-Edge-Secret` and never the provider key.

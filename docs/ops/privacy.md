@@ -139,9 +139,13 @@ Worker: `deploy/cloudflare/provider-proxy/`.
   `X-Powered-By` and error bodies are discarded; only a fixed error code
   crosses.
 - Limits: 5 s timeout, 16 KiB request, 2 MiB response, per-client and per-
-  isolate global token buckets (both per isolate, not global).
+  isolate global token buckets (both per isolate, not global). A public request
+  without `CF-Connecting-IP` is `400 {error:"missing_client_ip"}`: callers are
+  never merged into one "unknown" bucket.
 - SSRF: HTTPS only, no credentials in the URL, port 443 only, no loopback,
   private, link-local, CGNAT or metadata host, and redirects are refused.
+  Known gap (follow-up): IPv4-embedded IPv6 without `::ffff:` and DNS names
+  that resolve to a private address are not resolved by the guard.
 - CORS: only `SITE_ORIGIN`, never `*`.
 - Cache: public GET responses for 15 s under a key built from the route and
   canonical query, never from a client header.
@@ -179,7 +183,10 @@ EDGE_PROXY_SECRET=<openssl rand -hex 32>
 - With `EDGE_PROXY_URL` set, `tron_lookup` calls
   `{EDGE_PROXY_URL}/v1/tron/account` and `/v1/tron/transactions` instead of
   TronScan. It sends `X-Edge-Secret`, never `TRON-PRO-API-KEY`.
-- With it unset, the current direct TronScan path is unchanged.
+- `EDGE_PROXY_SECRET` is required when `EDGE_PROXY_URL` is set. A missing or
+  blank secret is a startup error; the coordinator never falls back to an
+  unauthenticated edge call or to direct provider calls.
+- With `EDGE_PROXY_URL` unset, the current direct TronScan path is unchanged.
 - `TRONSCAN_API_KEY` stays supported until the Worker has the key and the
   coordinator is switched. After a canary comparison, remove the key from the
   coordinator environment so there is one copy.

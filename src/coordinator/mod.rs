@@ -144,9 +144,10 @@ struct EdgeProxy {
 }
 
 impl EdgeProxy {
-    /// `None` when `EDGE_PROXY_URL` is unset. A URL that is not HTTPS is a
-    /// startup error: silently falling back to direct provider calls would
-    /// undo the privacy guarantee the operator asked for.
+    /// `None` when `EDGE_PROXY_URL` is unset. A URL that is not HTTPS, or a
+    /// URL without a shared secret, is a startup error: silently falling back
+    /// to direct provider calls (or to an unauthenticated edge call) would undo
+    /// the privacy guarantee the operator asked for.
     fn from_parts(url: Option<String>, secret: Option<String>) -> Result<Option<Self>, String> {
         let Some(base) = url else {
             return Ok(None);
@@ -160,8 +161,12 @@ impl EdgeProxy {
         }
         let secret = secret
             .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-        Ok(Some(Self { base, secret }))
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "EDGE_PROXY_URL requires EDGE_PROXY_SECRET".to_string())?;
+        Ok(Some(Self {
+            base,
+            secret: Some(secret),
+        }))
     }
 }
 
@@ -7810,7 +7815,7 @@ mod tests {
     }
 
     #[test]
-    fn edge_proxy_requires_an_https_base_and_keeps_the_secret_out_of_debug() {
+    fn edge_proxy_requires_an_https_base_and_a_shared_secret() {
         assert!(EdgeProxy::from_parts(None, None).expect("off").is_none());
         assert!(
             EdgeProxy::from_parts(Some("  ".into()), None)
@@ -7818,6 +7823,12 @@ mod tests {
                 .is_none()
         );
         assert!(EdgeProxy::from_parts(Some("http://edge.example".into()), None).is_err());
+        // A URL without a secret would silently use the public bucket; refuse
+        // to start instead.
+        assert!(EdgeProxy::from_parts(Some("https://edge.example".into()), None).is_err());
+        assert!(
+            EdgeProxy::from_parts(Some("https://edge.example".into()), Some("   ".into())).is_err()
+        );
         let proxy = EdgeProxy::from_parts(
             Some("https://edge.example/".into()),
             Some(" super-secret-value ".into()),
