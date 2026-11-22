@@ -507,6 +507,14 @@
       "status": "implemented"
     },
     {
+      "id": "wallet-portfolio-summary",
+      "rule": "The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "search-xrp-secret-routing",
       "rule": "XRP family seeds and secrets route to /key instead of a brainwallet hash.",
       "batch": "phase 4",
@@ -567,6 +575,14 @@
       "rule": "The first SoChain 429 stops the rest of a directory page instead of firing 60 retries.",
       "batch": "phase 4",
       "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-ltc-sochain-fallback",
+      "rule": "A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
       "status": "implemented"
     },

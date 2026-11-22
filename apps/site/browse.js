@@ -398,9 +398,11 @@
     if (config.chain === 'ton') return Object.assign({ provider: 'tonapi', chain: 'ton' }, unitFor('ton'));
     if (config.chain === 'bitcoin-cash') return Object.assign({ provider: 'haskoin-bch', chain: 'bitcoin-cash' }, unitFor('bitcoin-cash'));
     /* LTC, DOGE and ZEC read SoChain per address (2500 lookups a day per IP,
-     * keyless, CORS), so a 60-row page uses ~2.4% of the daily budget. BCH
-     * uses one batched Haskoin request per page, the same provider the
-     * mnemonic directory uses. */
+     * keyless, CORS), so a 60-row page uses ~2.4% of the daily budget. When
+     * SoChain answers 429 the shared fetcher serves the whole Litecoin page
+     * from the keyless litecoinspace Esplora provider; DOGE and ZEC have no
+     * fallback and keep the retry state. BCH uses one batched Haskoin request
+     * per page, the same provider the mnemonic directory uses. */
     if (config.chain === 'litecoin' || config.chain === 'dogecoin' || config.chain === 'zcash') {
       return Object.assign({ provider: 'sochain', chain: config.chain }, unitFor(config.chain));
     }

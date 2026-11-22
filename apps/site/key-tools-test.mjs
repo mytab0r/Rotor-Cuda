@@ -1065,6 +1065,8 @@ assert(tools.formatUsd(0n) === "$0.00", "zero dollars");
 
 // Cache: fresh inside six hours, stale at the boundary, missing without prices.
 const TTL = 6 * 60 * 60 * 1000;
+assert(tools.PRICE_CACHE_KEY === "rotor.prices.v1", "one shared price cache key");
+assert(tools.PRICE_TTL_MS === TTL, "one shared price cache TTL");
 const NOW = 1700000000000;
 assert(tools.priceCacheState(null, NOW, TTL) === "missing", "no cache is missing");
 assert(
