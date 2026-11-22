@@ -3,6 +3,13 @@
   "rules": "Every defect the owner reports gets one entry here in the same PR as its detector. The detector id must exist in data/detectors.json, resolve to an implemented entry, and be present in the implementation file named by `where`; check-defect-ledger.mjs and check-ssot.mjs fail otherwise.",
   "defects": [
     {
+      "id": "soft-404",
+      "reported": "2026-11-23",
+      "symptom": "Cloudflare Pages answered HTTP 200 with the landing page for an unknown path (measured on https://rotor-site-b8c.pages.dev/definitely-not-a-page), so every unknown URL rendered as a duplicate landing page.",
+      "detector": "seo-not-found",
+      "where": "scripts/check-seo.mjs"
+    },
+    {
       "id": "screenshots-in-repo",
       "reported": "2026-11-22",
       "symptom": "31 UI evidence screenshots (15 donor-parity captures and 16 process-evidence captures) were committed under docs/, so evidence lived in git history and every checkout paid for it.",
