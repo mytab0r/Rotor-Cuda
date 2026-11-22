@@ -1,15 +1,16 @@
-# web/ — Astro frontend (phase 0-1 pilot)
+# web/ — Astro frontend (phase 0-2)
 
-Static Astro build for the public site. This pilot migrates exactly one route,
-`/mnemonic-converter`; the Rust coordinator keeps serving everything else until
-the later phases in `openspec/changes/frontend-platform/proposal.md`.
+Static Astro build for the public site. Phase 1 migrated `/mnemonic-converter`;
+phase 2 adds the shared `SiteLayout` and the landing page (`/`). The Rust
+coordinator keeps serving every route until the later phases in
+`openspec/changes/frontend-platform/proposal.md`.
 
 ## Commands
 
 ```sh
 npm ci
 npm run check     # astro check + tsc --noEmit
-npm run build     # static output in dist/
+npm run build     # static output in dist/, then /a/<build>/ asset prefixing
 npm run preview -- --port 4321
 npm test          # tsc -p tsconfig.test.json + node --test (no browser)
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
@@ -28,13 +29,24 @@ only deviation from the brief and is called out in the PR.
 
 | Path | Purpose |
 |---|---|
-| `src/pages/mnemonic-converter.astro` | The page: same markup and copy as `apps/site/mnemonic-converter.html`. |
+| `src/layouts/SiteLayout.astro` | Shared static shell: header/nav/footer, skip link, metadata, OG/Twitter, JSON-LD slot. Active nav is computed at build time. |
+| `src/scripts/theme-init.js` | Deferred pre-paint theme bootstrap; adds `.js` so the narrow-screen nav can collapse. |
+| `src/scripts/site-shell.ts` | The only hydrated islands: theme toggle and mobile nav disclosure. |
+| `src/styles/site-shell.css` | Shell additions and landing layout rules, all consuming the tokens generated into `/site.css`. |
+| `src/pages/index.astro` | Landing page; content-equivalent to the live `/`, with static chain/tool/database links and no live counters. |
+| `src/pages/mnemonic-converter.astro` | The pilot page: same markup and copy as `apps/site/mnemonic-converter.html`, now on `SiteLayout`. |
+| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/mnemonic-converter`). |
+| `src/components/JsonLd.astro` | The only JSON-LD writer. |
+| `src/lib/site.ts` | Site origin, nav order/icons and the build-time active-section mapping. |
+| `src/lib/build-id.ts` | Footer build id (`ROTOR_BUILD_ID`, else short git SHA). |
+| `src/assets/og-landing.png` | 1200×630 social card used by `og:image`/`twitter:image`. |
 | `src/scripts/mnemonic-converter.ts` | DOM glue ported from `apps/site/seed-page.js` (rendering, balances, CSV, generation). |
 | `src/lib/seed-core.ts` | DOM-free derivation/validation core, unit- and parity-tested under Node. |
 | `public/` | Byte copies of the current site assets, served at their current URLs. |
 | `public/vendor/` | Byte copies of the crypto engine loaded by the page. |
 | `tests/` | Node tests: fixed vectors from `apps/site/seed-test.mjs` and `apps/site/mnemonic-seeds-test.mjs`. |
 | `scripts/cdp-parity.mjs` | Headless-browser check: convert two fixed phrases at 375/768/1280 light/dark, compare addresses, save screenshots. |
+| `scripts/build-prefix.mjs` | Post-build step: copies the output under `a/<build>/` and rewrites every absolute asset reference, matching the coordinator's immutable asset URLs. |
 
 ## Provenance of copied assets
 
@@ -88,5 +100,17 @@ hand-edit it.
   `rotor-seed-phrase` and removes it immediately, exactly like the current page.
 - The page HTML uses `createElement`/`textContent`; there is no `innerHTML`
   with data. Source maps are disabled and not published.
-- UI copy, CSS and fonts are unchanged from the current page. This pilot does
-  not restyle anything.
+- The landing loads no WASM and no coordinator API: chain cards come from
+  `data/chains.json` at build time, and the dynamic totals/leaderboard link to
+  the operator console instead of rendering stale numbers. Its only scripts are
+  the deferred theme bootstrap (601 B gzip) and the shell island bundle (882 B
+  gzip).
+- The shared shell is the one header/footer source. The pilot no longer carries
+  its own copy, and it uses the layout's static theme toggle, skip link, active
+  nav state and narrow-screen disclosure instead of `theme.js` plus `site.js`
+  nav splitting.
+- `assetsInlineLimit: 0` keeps every script a same-origin file. The CSP plan
+  allows `script-src 'self'`; an inlined module or `data:` URL would violate it
+  even when it is smaller.
+- UI copy, CSS and fonts are unchanged from the current site; only the shell
+  behaviour above is new. This phase does not restyle the current design.

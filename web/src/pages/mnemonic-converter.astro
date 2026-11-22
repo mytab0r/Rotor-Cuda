@@ -3,53 +3,25 @@
 // apps/site/mnemonic-converter.html; only the script wiring changed: the
 // current glue (seed-page.js) is ported to src/scripts/mnemonic-converter.ts
 // and the crypto scripts are vendored byte copies under /vendor/.
-import { execFileSync } from 'node:child_process';
+//
+// Since phase 2 the document shell (header, footer, theme, mobile menu) comes
+// from the shared SiteLayout, so a page never carries its own copy of it.
+import SiteLayout from '../layouts/SiteLayout.astro';
 
-// The coordinator appends this footer at serve time from ROTOR_BUILD_ID.
-// Reproduce it here so the migrated page has the same document shape.
-let buildId = process.env.ROTOR_BUILD_ID || '';
-if (!buildId) {
-  try {
-    buildId = execFileSync('git', ['rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).trim();
-  } catch {
-    buildId = 'astro';
-  }
-}
-const repositoryUrl = 'https://github.com/mytab0r/Rotor-Cuda';
+const title = 'Mnemonic converter: BIP39 and Electrum phrases | Crypto';
+const description =
+  'Convert BIP39, Electrum BIP39 and legacy Electrum mnemonic phrases into standard wallet paths and addresses locally in your browser. No upload, no storage.';
 ---
 
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mnemonic converter: BIP39 and Electrum phrases | Crypto</title>
-<meta name="description" content="Convert BIP39, Electrum BIP39 and legacy Electrum mnemonic phrases into standard wallet paths and addresses locally in your browser. No upload, no storage.">
-<link rel="canonical" href="https://rotor.pxbt.app/mnemonic-converter">
-<link rel="stylesheet" href="/site.css">
-<link rel="stylesheet" href="/seed-studio.css">
-<script is:inline src="/theme.js"></script>
-</head>
-<body>
-<header class="site-nav">
-  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
-  <nav aria-label="Main">
-    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
-    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
-    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-seed"></use></svg><span>Seeds</span></a>
-    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
-    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg><span>Vanity</span></a>
-    <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
-    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
-    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
-  </nav>
-  <div class="nav-tools">
-    <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
-    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-vault"></use></svg><span>Cabinet</span></a>
-  </div>
-</header>
 
-<main class="key-page seed-page">
+<SiteLayout
+  title={title}
+  description={description}
+  canonical="https://rotor.pxbt.app/mnemonic-converter"
+  mainClass="key-page seed-page"
+>
+  <link slot="head" rel="stylesheet" href="/seed-studio.css">
+
   <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <a href="/tools">Tools</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span aria-current="page">Mnemonic converter</span></nav>
   <section class="hero key-hero">
     <div class="key-hero-head">
@@ -130,22 +102,18 @@ const repositoryUrl = 'https://github.com/mytab0r/Rotor-Cuda';
     </div>
     <p id="seed-aggregate" class="muted key-help" aria-live="polite" hidden></p>
   </section>
-</main>
 
-<!-- site.js reads the generated chain/provider globals and the shared amount
-     formatter; the coordinator injects the same two assets before its page
-     scripts. Keep this order (see data/vendor.lock.json). -->
-<script is:inline src="/chains.generated.js"></script>
-<script is:inline src="/amount.js"></script>
-<script is:inline src="/vendor/seed.js"></script>
-<script is:inline src="/vendor/seed-crypto.js"></script>
-<script is:inline src="/site.js"></script>
-<script>
-  import '../scripts/mnemonic-converter.ts';
-</script>
-<footer class="site-footer">
-<nav aria-label="Footer"><a href="/faq">FAQ</a><a href="/disclaimer">Disclaimer</a><a href="/donate">Donate</a><a href="/docs">Docs</a><a href={repositoryUrl} rel="noopener noreferrer">GitHub</a></nav>
-<div class="site-footer__meta"><span>© 2026 Crypto</span><span>build {buildId}</span></div>
-</footer>
-</body>
-</html>
+  <!-- site.js reads the generated chain/provider globals and the shared amount
+       formatter; the coordinator injects the same two assets before its page
+       scripts. Keep this order (see data/vendor.lock.json). -->
+  <Fragment slot="scripts">
+    <script is:inline src="/chains.generated.js"></script>
+    <script is:inline src="/amount.js"></script>
+    <script is:inline src="/vendor/seed.js"></script>
+    <script is:inline src="/vendor/seed-crypto.js"></script>
+    <script is:inline src="/site.js"></script>
+    <script>
+      import '../scripts/mnemonic-converter.ts';
+    </script>
+  </Fragment>
+</SiteLayout>
