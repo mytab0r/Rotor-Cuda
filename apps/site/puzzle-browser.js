@@ -34,7 +34,12 @@
 (function () {
   'use strict';
 
-  var MEMPOOL_ADDRESS = 'https://mempool.space/api/address/';
+  /* Public providers come from data/providers.json through the generated
+   * globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
+  var MEMPOOL_ADDRESS = SSOT_PROVIDERS.find('bitcoin', 'mempool').url + '/address/';
   var SUMMARY_ENDPOINT = '/api/v1/summary';
   var MAX_WORKERS = 8;
   var PROGRESS_REFRESH_MS = 200;

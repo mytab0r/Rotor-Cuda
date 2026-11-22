@@ -12,6 +12,12 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var WARNING_TEXT = 'Brainwallets are unsafe for real funds. A SHA-256 passphrase can be ' +
     'guessed or found in public wordlists, and anyone who knows the phrase controls the ' +
     'funds. Use only throwaway phrases you are authorized to test; never a phrase that ' +
@@ -57,16 +63,14 @@
     { value: 'taproot', label: 'Taproot', field: 'ltc_p2tr' }
   ];
 
-  var EVM_RPC = {
-    ethereum: 'https://ethereum-rpc.publicnode.com',
-    bnb: 'https://bsc-rpc.publicnode.com',
-    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
-    optimism: 'https://optimism-rpc.publicnode.com',
-    base: 'https://base-rpc.publicnode.com',
-    polygon: 'https://polygon-bor-rpc.publicnode.com',
-    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
-    zksync: 'https://mainnet.era.zksync.io'
-  };
+  var EVM_RPC = {};
+  SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
+    EVM_RPC[slug] = SSOT_PROVIDERS.first(slug).url;
+  });
+
+  function explorerPrefix(slug) {
+    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
+  }
 
   function evmChain(slug, name, symbol, color) {
     return {
@@ -85,28 +89,28 @@
 
   var EXPLORERS = {
     evmPrefix: {
-      ethereum: 'https://etherscan.io/address/',
-      bnb: 'https://bscscan.com/address/',
-      arbitrum: 'https://arbiscan.io/address/',
-      optimism: 'https://optimistic.etherscan.io/address/',
-      base: 'https://basescan.org/address/',
-      polygon: 'https://polygonscan.com/address/',
-      avalanche: 'https://snowtrace.io/address/',
-      zksync: 'https://explorer.zksync.io/address/'
+      ethereum: explorerPrefix('ethereum'),
+      bnb: explorerPrefix('bnb'),
+      arbitrum: explorerPrefix('arbitrum'),
+      optimism: explorerPrefix('optimism'),
+      base: explorerPrefix('base'),
+      polygon: explorerPrefix('polygon'),
+      avalanche: explorerPrefix('avalanche'),
+      zksync: explorerPrefix('zksync')
     },
-    btc_p2pkh: 'https://mempool.space/address/',
-    btc_p2pkh_uncompressed: 'https://mempool.space/address/',
-    btc_p2sh_p2wpkh: 'https://mempool.space/address/',
-    btc_p2wpkh: 'https://mempool.space/address/',
-    btc_p2tr: 'https://mempool.space/address/',
-    evm: 'https://etherscan.io/address/'
+    btc_p2pkh: explorerPrefix('bitcoin'),
+    btc_p2pkh_uncompressed: explorerPrefix('bitcoin'),
+    btc_p2sh_p2wpkh: explorerPrefix('bitcoin'),
+    btc_p2wpkh: explorerPrefix('bitcoin'),
+    btc_p2tr: explorerPrefix('bitcoin'),
+    evm: explorerPrefix('ethereum')
   };
 
   var CHAIN_LIST = [
     {
       slug: 'bitcoin', name: 'Bitcoin', symbol: 'BTC', color: '#f7931a', icon: 'chain-bitcoin',
       curve: 0, field: 'btc_p2pkh', types: BTC_TYPES, wif: true,
-      explorer: 'https://mempool.space/address/', balance: 'btc'
+      explorer: explorerPrefix('bitcoin'), balance: 'btc'
     },
     evmChain('ethereum', 'Ethereum', 'ETH', '#8a9cf5'),
     evmChain('bnb', 'BNB Chain', 'BNB', '#f3ba2f'),
@@ -118,43 +122,43 @@
     evmChain('zksync', 'zkSync Era', 'ETH', '#8c8dfc'),
     {
       slug: 'solana', name: 'Solana', symbol: 'SOL', color: '#14f195', icon: 'chain-solana',
-      curve: 1, field: 'solana', explorer: 'https://solscan.io/account/', balance: null
+      curve: 1, field: 'solana', explorer: explorerPrefix('solana'), balance: null
     },
     {
       slug: 'tron', name: 'TRON', symbol: 'TRX', color: '#ff4d4d', icon: 'chain-tron',
-      curve: 0, field: 'tron', explorer: 'https://tronscan.org/#/address/', balance: null
+      curve: 0, field: 'tron', explorer: explorerPrefix('tron'), balance: null
     },
     {
       slug: 'xrp', name: 'XRP', symbol: 'XRP', color: '#7fa8d9', icon: 'chain-xrp',
-      curve: 0, field: 'xrp_classic', explorer: 'https://xrpscan.com/account/', balance: null
+      curve: 0, field: 'xrp_classic', explorer: explorerPrefix('xrp'), balance: null
     },
     {
       slug: 'litecoin', name: 'Litecoin', symbol: 'LTC', color: '#b8c2d6', icon: 'chain-litecoin',
       curve: 0, field: 'ltc_p2pkh', types: LTC_TYPES, wif: true,
-      explorer: 'https://blockchair.com/litecoin/address/', balance: null
+      explorer: explorerPrefix('litecoin'), balance: null
     },
     {
       slug: 'bitcoin-cash', name: 'Bitcoin Cash', symbol: 'BCH', color: '#8dc351',
       icon: 'chain-bitcoin-cash', curve: 0, field: 'bch_legacy', wif: true,
-      explorer: 'https://blockchair.com/bitcoin-cash/address/', balance: null
+      explorer: explorerPrefix('bitcoin-cash'), balance: null
     },
     {
       slug: 'dogecoin', name: 'Dogecoin', symbol: 'DOGE', color: '#c2a633', icon: 'chain-dogecoin',
-      curve: 0, field: 'doge_p2pkh', wif: true, explorer: 'https://blockchair.com/dogecoin/address/',
+      curve: 0, field: 'doge_p2pkh', wif: true, explorer: explorerPrefix('dogecoin'),
       balance: null
     },
     {
       slug: 'zcash', name: 'Zcash', symbol: 'ZEC', color: '#ecb244', icon: 'chain-zcash',
-      curve: 0, field: 'zcash_p2pkh', explorer: 'https://blockchair.com/zcash/address/',
+      curve: 0, field: 'zcash_p2pkh', explorer: explorerPrefix('zcash'),
       balance: null
     },
     {
       slug: 'sui', name: 'Sui', symbol: 'SUI', color: '#6fbcf0', icon: 'chain-sui',
-      curve: 1, field: 'sui', explorer: 'https://suiscan.xyz/mainnet/account/', balance: null
+      curve: 1, field: 'sui', explorer: explorerPrefix('sui'), balance: null
     },
     {
       slug: 'ton', name: 'TON', symbol: 'TON', color: '#0098ea', icon: 'chain-ton',
-      curve: 1, field: 'ton', explorer: 'https://tonviewer.com/', balance: null, ton: true
+      curve: 1, field: 'ton', explorer: explorerPrefix('ton'), balance: null, ton: true
     }
   ];
 

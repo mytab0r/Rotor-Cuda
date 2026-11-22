@@ -3,6 +3,11 @@
 (function () {
   'use strict';
 
+  /* Chain explorers come from data/chains.json through the generated globals
+   * in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+
   /* Published Ethereum "Web3 Secret Storage Definition" V3 test vector
    * (PBKDF2/HMAC-SHA256, 262144 iterations). The wasm core was used to
    * decrypt it with password "testpassword" and the derived EVM address
@@ -317,12 +322,12 @@
       report.addresses.forEach(function (entry) { entries[entry.id] = entry.address; });
       var evm = entries.evm || '';
       facts.textContent = '';
-      facts.appendChild(factRow('Address', evm, evm ? 'https://etherscan.io/address/' + evm : ''));
+      facts.appendChild(factRow('Address', evm, evm ? SSOT_CHAINS.bySlug.ethereum.explorerPrefix + evm : ''));
       facts.appendChild(factRow('Private key (hex)', report.priv_hex));
       facts.appendChild(factRow('WIF (compressed)', report.wif_compressed));
       if (entries.btc_p2pkh) {
         facts.appendChild(factRow('Bitcoin P2PKH', entries.btc_p2pkh,
-          'https://mempool.space/address/' + entries.btc_p2pkh));
+          SSOT_CHAINS.bySlug.bitcoin.explorerPrefix + entries.btc_p2pkh));
       }
       facts.appendChild(factRow('KDF', request.kdfName === 'scrypt'
         ? 'scrypt n=' + request.n + ' r=' + request.r + ' p=' + request.p

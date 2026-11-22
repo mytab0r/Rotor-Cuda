@@ -6,6 +6,9 @@
   var LIMIT = 1n << 256n;
   var SECP_ORDER = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
 
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+
   function clean(text) {
     return String(text == null ? '' : text).trim().replace(/[\s_]+/g, '');
   }
@@ -971,38 +974,54 @@
     return parts.join(' · ');
   }
 
-  /* One EVM account, eight networks: each row keeps its own chain explorer. */
-  var EVM_EXPLORERS = {
-    evm: 'https://etherscan.io/address/',
-    evm_bnb: 'https://bscscan.com/address/',
-    evm_arbitrum: 'https://arbiscan.io/address/',
-    evm_optimism: 'https://optimistic.etherscan.io/address/',
-    evm_base: 'https://basescan.org/address/',
-    evm_polygon: 'https://polygonscan.com/address/',
-    evm_avalanche: 'https://snowtrace.io/address/',
-    evm_zksync: 'https://explorer.zksync.io/address/'
+  /* One EVM account, eight networks: each row keeps its own chain explorer.
+   * The prefixes come from data/chains.json (chains.generated.js), the same
+   * source the key page and the directory use. */
+  var EVM_EXPLORER_SLUGS = {
+    evm: 'ethereum',
+    evm_bnb: 'bnb',
+    evm_arbitrum: 'arbitrum',
+    evm_optimism: 'optimism',
+    evm_base: 'base',
+    evm_polygon: 'polygon',
+    evm_avalanche: 'avalanche',
+    evm_zksync: 'zksync'
   };
 
+  var ADDRESS_EXPLORER_SLUGS = {
+    tron: 'tron',
+    solana: 'solana',
+    sui: 'sui',
+    ton: 'ton',
+    ton_w5: 'ton'
+  };
+
+  var ADDRESS_PREFIXES = {
+    btc_: 'bitcoin',
+    ltc_: 'litecoin',
+    doge_: 'dogecoin',
+    bch_: 'bitcoin-cash',
+    zcash_: 'zcash',
+    xrp_: 'xrp'
+  };
+
+  function explorerPrefixFor(slug) {
+    var chain = SSOT_CHAINS.bySlug[slug];
+    return chain ? chain.explorerPrefix : '';
+  }
+
   /* Public explorer for one address row. The caller appends the encoded
-   * address, so every entry ends with "/address/" (or the chain's equivalent). */
+   * address, so every prefix ends with "/address/" (or the chain's
+   * equivalent). */
   function explorerFor(id) {
-    if (EVM_EXPLORERS[id]) return EVM_EXPLORERS[id];
+    if (EVM_EXPLORER_SLUGS[id]) return explorerPrefixFor(EVM_EXPLORER_SLUGS[id]);
+    if (ADDRESS_EXPLORER_SLUGS[id]) return explorerPrefixFor(ADDRESS_EXPLORER_SLUGS[id]);
     if (typeof id === 'string') {
-      if (id.indexOf('btc_') === 0) return 'https://mempool.space/address/';
-      if (id.indexOf('ltc_') === 0) return 'https://blockchair.com/litecoin/address/';
-      if (id.indexOf('doge_') === 0) return 'https://blockchair.com/dogecoin/address/';
-      if (id.indexOf('bch_') === 0) return 'https://blockchair.com/bitcoin-cash/address/';
-      if (id.indexOf('zcash_') === 0) return 'https://blockchair.com/zcash/address/';
-      if (id.indexOf('xrp_') === 0) return 'https://xrpscan.com/account/';
+      for (var prefix in ADDRESS_PREFIXES) {
+        if (id.indexOf(prefix) === 0) return explorerPrefixFor(ADDRESS_PREFIXES[prefix]);
+      }
     }
-    var map = {
-      tron: 'https://tronscan.org/#/address/',
-      solana: 'https://solscan.io/account/',
-      sui: 'https://suiscan.xyz/mainnet/account/',
-      ton: 'https://tonviewer.com/',
-      ton_w5: 'https://tonviewer.com/'
-    };
-    return map[id] || '';
+    return '';
   }
 
   /* SoChain v3 `/balance/<ticker>/<address>` returns decimal coin strings, not

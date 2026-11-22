@@ -18,6 +18,29 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
+  function explorerPrefix(slug) {
+    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
+  }
+
+  /* The canonical table holds every public endpoint. `providerId` keeps a
+   * chain on the single endpoint this page has always used (the rest of the
+   * list is the wallet send path); no id means the full ordered fallback. */
+  function rpcUrls(slug, providerId) {
+    if (providerId) {
+      var found = SSOT_PROVIDERS.find(slug, providerId);
+      return found ? [found.url] : [];
+    }
+    return (SSOT_PROVIDERS.byChain[slug] || []).map(function (provider) {
+      return provider.url;
+    });
+  }
+
   /* Build-prefixed URL for lazily loaded scripts and wasm. theme.js owns the
    * helper (it runs first); the local branch keeps a standalone page working. */
   function assetUrl(path) {
@@ -41,28 +64,28 @@
   var WIF_MIN_LENGTH = 50;
   var WIF_MAX_LENGTH = 53;
 
-  /* Address rows come from the wasm derive_report report; the explorer and
-   * provider URLs mirror apps/site/key.js. */
+  /* Address rows come from the wasm derive_report report; explorer and
+   * provider URLs come from data/chains.json and data/providers.json. */
   var CHAINS = [
-    { slug: 'bitcoin', label: 'Bitcoin', curve: 0, addressId: 'btc_p2wpkh', explorer: 'https://mempool.space/address/' },
-    { slug: 'bitcoin-testnet', label: 'Bitcoin testnet', curve: 0, addressId: 'btc_p2wpkh', explorer: 'https://mempool.space/testnet/address/', btcApi: 'https://mempool.space/testnet/api', network: 1 },
-    { slug: 'ethereum', label: 'Ethereum', curve: 0, addressId: 'evm', explorer: 'https://etherscan.io/address/', rpc: ['https://ethereum-rpc.publicnode.com', 'https://eth.drpc.org', 'https://1rpc.io/eth'], symbol: 'ETH' },
-    { slug: 'bnb', label: 'BNB Chain', curve: 0, addressId: 'evm', explorer: 'https://bscscan.com/address/', rpc: ['https://bsc-dataseed.binance.org'], symbol: 'BNB' },
-    { slug: 'arbitrum', label: 'Arbitrum', curve: 0, addressId: 'evm', explorer: 'https://arbiscan.io/address/', rpc: ['https://arb1.arbitrum.io/rpc'], symbol: 'ETH' },
-    { slug: 'optimism', label: 'Optimism', curve: 0, addressId: 'evm', explorer: 'https://optimistic.etherscan.io/address/', rpc: ['https://optimism-rpc.publicnode.com', 'https://optimism.drpc.org'], symbol: 'ETH' },
-    { slug: 'base', label: 'Base', curve: 0, addressId: 'evm', explorer: 'https://basescan.org/address/', rpc: ['https://mainnet.base.org'], symbol: 'ETH' },
-    { slug: 'polygon', label: 'Polygon', curve: 0, addressId: 'evm', explorer: 'https://polygonscan.com/address/', rpc: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.drpc.org'], symbol: 'POL' },
-    { slug: 'avalanche', label: 'Avalanche', curve: 0, addressId: 'evm', explorer: 'https://snowtrace.io/address/', rpc: ['https://api.avax.network/ext/bc/C/rpc'], symbol: 'AVAX' },
-    { slug: 'zksync', label: 'zkSync', curve: 0, addressId: 'evm', explorer: 'https://explorer.zksync.io/address/', rpc: ['https://mainnet.era.zksync.io'], symbol: 'ETH' },
-    { slug: 'litecoin', label: 'Litecoin', curve: 0, addressId: 'ltc_p2wpkh', explorer: 'https://blockchair.com/litecoin/address/' },
-    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', curve: 0, addressId: 'bch_legacy', explorer: 'https://blockchair.com/bitcoin-cash/address/' },
-    { slug: 'dogecoin', label: 'Dogecoin', curve: 0, addressId: 'doge_p2pkh', explorer: 'https://blockchair.com/dogecoin/address/' },
-    { slug: 'zcash', label: 'Zcash', curve: 0, addressId: 'zcash_p2pkh', explorer: 'https://blockchair.com/zcash/address/' },
-    { slug: 'xrp', label: 'XRP', curve: 0, addressId: 'xrp_classic', explorer: 'https://xrpscan.com/account/' },
-    { slug: 'tron', label: 'TRON', curve: 0, addressId: 'tron', explorer: 'https://tronscan.org/#/address/' },
-    { slug: 'solana', label: 'Solana', curve: 1, addressId: 'solana', explorer: 'https://solscan.io/account/' },
-    { slug: 'sui', label: 'Sui', curve: 1, addressId: 'sui', explorer: 'https://suiscan.xyz/mainnet/account/' },
-    { slug: 'ton', label: 'TON', curve: 1, addressId: 'ton', explorer: 'https://tonviewer.com/' }
+    { slug: 'bitcoin', label: 'Bitcoin', curve: 0, addressId: 'btc_p2wpkh', explorer: explorerPrefix('bitcoin') },
+    { slug: 'bitcoin-testnet', label: 'Bitcoin testnet', curve: 0, addressId: 'btc_p2wpkh', explorer: explorerPrefix('bitcoin-testnet'), btcApi: SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url, network: 1 },
+    { slug: 'ethereum', label: 'Ethereum', curve: 0, addressId: 'evm', explorer: explorerPrefix('ethereum'), rpc: rpcUrls('ethereum'), symbol: 'ETH' },
+    { slug: 'bnb', label: 'BNB Chain', curve: 0, addressId: 'evm', explorer: explorerPrefix('bnb'), rpc: rpcUrls('bnb', 'bsc-dataseed'), symbol: 'BNB' },
+    { slug: 'arbitrum', label: 'Arbitrum', curve: 0, addressId: 'evm', explorer: explorerPrefix('arbitrum'), rpc: rpcUrls('arbitrum', 'arbitrum'), symbol: 'ETH' },
+    { slug: 'optimism', label: 'Optimism', curve: 0, addressId: 'evm', explorer: explorerPrefix('optimism'), rpc: rpcUrls('optimism'), symbol: 'ETH' },
+    { slug: 'base', label: 'Base', curve: 0, addressId: 'evm', explorer: explorerPrefix('base'), rpc: rpcUrls('base', 'base'), symbol: 'ETH' },
+    { slug: 'polygon', label: 'Polygon', curve: 0, addressId: 'evm', explorer: explorerPrefix('polygon'), rpc: rpcUrls('polygon'), symbol: 'POL' },
+    { slug: 'avalanche', label: 'Avalanche', curve: 0, addressId: 'evm', explorer: explorerPrefix('avalanche'), rpc: rpcUrls('avalanche', 'avalanche'), symbol: 'AVAX' },
+    { slug: 'zksync', label: 'zkSync', curve: 0, addressId: 'evm', explorer: explorerPrefix('zksync'), rpc: rpcUrls('zksync', 'zksync'), symbol: 'ETH' },
+    { slug: 'litecoin', label: 'Litecoin', curve: 0, addressId: 'ltc_p2wpkh', explorer: explorerPrefix('litecoin') },
+    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', curve: 0, addressId: 'bch_legacy', explorer: explorerPrefix('bitcoin-cash') },
+    { slug: 'dogecoin', label: 'Dogecoin', curve: 0, addressId: 'doge_p2pkh', explorer: explorerPrefix('dogecoin') },
+    { slug: 'zcash', label: 'Zcash', curve: 0, addressId: 'zcash_p2pkh', explorer: explorerPrefix('zcash') },
+    { slug: 'xrp', label: 'XRP', curve: 0, addressId: 'xrp_classic', explorer: explorerPrefix('xrp') },
+    { slug: 'tron', label: 'TRON', curve: 0, addressId: 'tron', explorer: explorerPrefix('tron') },
+    { slug: 'solana', label: 'Solana', curve: 1, addressId: 'solana', explorer: explorerPrefix('solana') },
+    { slug: 'sui', label: 'Sui', curve: 1, addressId: 'sui', explorer: explorerPrefix('sui') },
+    { slug: 'ton', label: 'TON', curve: 1, addressId: 'ton', explorer: explorerPrefix('ton') }
   ];
 
   var CHAIN_BY_SLUG = {};
@@ -1331,7 +1354,7 @@
   }
 
   async function fetchBtcBalance(address, apiBase) {
-    var base = apiBase || 'https://mempool.space/api';
+    var base = apiBase || SSOT_PROVIDERS.find('bitcoin', 'mempool').url;
     var response = await fetchWithTimeout(base + '/address/' + encodeURIComponent(address));
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var data = await response.json();
@@ -1375,7 +1398,7 @@
   }
 
   async function fetchTronBalance(address) {
-    var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address));
+    var response = await fetchWithTimeout(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address));
     if (response.status === 404) return '0 TRX · account not activated';
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var raw = await response.text();

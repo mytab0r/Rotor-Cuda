@@ -10,6 +10,7 @@ pub mod coordinator;
 pub mod engine;
 pub mod field;
 pub mod filter;
+pub mod generated;
 #[cfg(feature = "gpu")]
 pub mod gpu;
 #[cfg(any(feature = "gpu", test))]

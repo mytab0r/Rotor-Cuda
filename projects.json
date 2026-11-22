@@ -6,10 +6,12 @@
       "owner": "site-ui",
       "paths": [
         "apps/site/**",
+        "data/**",
         "design/**"
       ],
       "build": [
         "node --check apps/site/site.js",
+        "node --check apps/site/chains.generated.js",
         "node --check apps/site/key.js",
         "node --check apps/site/address-codecs.js",
         "node --check apps/site/rotor-worker.js",
@@ -44,6 +46,10 @@
         "node --check scripts/check-token-usage.mjs",
         "node --check scripts/build-gallery.mjs",
         "node --check scripts/check-components.mjs",
+        "node --check scripts/gen-ssot.mjs",
+        "node --check scripts/check-ssot.mjs",
+        "node scripts/gen-ssot.mjs --check",
+        "node scripts/check-ssot.mjs",
         "node scripts/build-tokens.mjs --check",
         "node scripts/check-token-usage.mjs",
         "node scripts/build-gallery.mjs --check",
