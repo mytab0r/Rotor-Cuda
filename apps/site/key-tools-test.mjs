@@ -1019,7 +1019,7 @@ assert(tools.tickerFor("TRX") === "TRX" && tools.tickerFor("tron") === "TRX", "T
 assert(tools.tickerFor("unknown-chain") === "", "unknown chains have no ticker");
 assert(
   tools.tickerList().join(",") ===
-    "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,TRXUSDT,LTCUSDT,DOGEUSDT,BCHUSDT,XRPUSDT,ZECUSDT,POLUSDT,AVAXUSDT,TONUSDT,SUIUSDT",
+    "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,TRXUSDT,LTCUSDT,DOGEUSDT,BCHUSDT,XRPUSDT,USDCUSDT,ZECUSDT,POLUSDT,AVAXUSDT,TONUSDT,SUIUSDT",
   `ticker list ${tools.tickerList().join(",")}`,
 );
 assert(

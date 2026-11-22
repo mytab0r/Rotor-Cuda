@@ -107,6 +107,7 @@ const TX_PAGE_JS: &str = include_str!("../../apps/site/tx-page.js");
 const CABINET_WALLET_PAGE: &str = include_str!("../../apps/site/wallet.html");
 const WALLET_JS: &str = include_str!("../../apps/site/wallet.js");
 const WALLET_SUMMARY_JS: &str = include_str!("../../apps/site/wallet-summary.js");
+const WALLET_ASSETS_JS: &str = include_str!("../../apps/site/wallet-assets.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
@@ -117,6 +118,7 @@ const TRON_TX_JS: &str = include_str!("../../apps/site/tron-tx.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const CHAINS_GENERATED_JS: &str = include_str!("../../apps/site/chains.generated.js");
+const ASSETS_GENERATED_JS: &str = include_str!("../../apps/site/assets.generated.js");
 const AMOUNT_JS: &str = include_str!("../../apps/site/amount.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
 const MANROPE_WOFF2: &[u8] = include_bytes!("../../apps/site/fonts/manrope-latin.woff2");
@@ -1825,6 +1827,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             CHAINS_GENERATED_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/assets.generated.js" => Some((
+            ASSETS_GENERATED_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/amount.js" => Some((
             AMOUNT_JS.as_bytes(),
             "application/javascript; charset=utf-8",
@@ -1845,6 +1851,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-summary.js" => Some((
             WALLET_SUMMARY_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-assets.js" => Some((
+            WALLET_ASSETS_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/wallet-vault.js" => Some((
@@ -2769,10 +2779,15 @@ fn prepare_html_document(path: &str, html: String) -> String {
 /// reference.
 fn with_shared_data(html: String) -> String {
     const CHAINS_TAG: &str = "<script src=\"/chains.generated.js\"></script>";
+    const ASSETS_TAG: &str = "<script src=\"/assets.generated.js\"></script>";
     const AMOUNT_TAG: &str = "<script src=\"/amount.js\"></script>";
     let mut tags = String::new();
     if !html.contains(CHAINS_TAG) {
         tags.push_str(CHAINS_TAG);
+        tags.push('\n');
+    }
+    if !html.contains(ASSETS_TAG) {
+        tags.push_str(ASSETS_TAG);
         tags.push('\n');
     }
     if !html.contains(AMOUNT_TAG) {
@@ -6897,6 +6912,32 @@ mod tests {
         assert!(
             amount < site,
             "generated page must load amount.js before site.js"
+        );
+    }
+
+    #[test]
+    fn wallet_loads_generated_assets_before_its_scripts() {
+        let (body, _) = static_asset("/cabinet/wallet").expect("/cabinet/wallet is embedded");
+        let html = prepare_html_document(
+            "/cabinet/wallet",
+            String::from_utf8_lossy(body).into_owned(),
+        );
+        let assets = html
+            .find("/assets.generated.js")
+            .expect("the wallet loads /assets.generated.js");
+        let amount = html
+            .find("/amount.js")
+            .expect("the wallet loads /amount.js");
+        let script = html
+            .find("/wallet-assets.js")
+            .expect("the wallet loads /wallet-assets.js");
+        assert!(
+            assets < amount,
+            "assets.generated.js must load before amount.js\n{html}"
+        );
+        assert!(
+            amount < script,
+            "amount.js must load before wallet-assets.js\n{html}"
         );
     }
 

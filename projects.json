@@ -12,6 +12,8 @@
       "build": [
         "node --check apps/site/site.js",
         "node --check apps/site/chains.generated.js",
+        "node --check apps/site/assets.generated.js",
+        "node --check apps/site/wallet-assets.js",
         "node --check apps/site/amount.js",
         "node --check apps/site/key.js",
         "node --check apps/site/address-codecs.js",
@@ -88,6 +90,8 @@
         "node apps/site/wallet-btc-test.mjs",
         "node apps/site/wallet-history-test.mjs",
         "node apps/site/wallet-summary-test.mjs",
+        "node apps/site/wallet-assets-test.mjs",
+        "node apps/site/wallet-onboarding-test.mjs",
         "node apps/site/wallet-seed-test.mjs",
         "node apps/site/send-test.mjs",
         "node apps/site/tx-test.mjs",

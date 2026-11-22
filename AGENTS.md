@@ -55,6 +55,10 @@ explorer URL or chain identity into a page script.
 - Generate the consumers with `node scripts/gen-ssot.mjs`:
   `apps/site/chains.generated.js` (`window.RotorChains`,
   `window.RotorProviders`) and `src/generated/chains.rs`.
+- `data/assets.json` is the one top-10 asset list. `gen-ssot.mjs` validates it
+  (ranks, supported chains, contracts, price source) and generates
+  `apps/site/assets.generated.js` (`window.RotorAssetsData`); `--check` fails
+  when that output is stale. Do not copy the list into a page script.
 - `node scripts/gen-ssot.mjs --check` fails when either output is stale.
 - `node scripts/check-ssot.mjs` validates the data and fails when a first-party
   `apps/site/*.js` file contains a canonical provider/explorer host literal.
