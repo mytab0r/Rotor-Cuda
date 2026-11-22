@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher) from free public providers; only BCH and ZEC have no provider and show —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher) and BCH (Haskoin) from free public providers; only ZEC has no provider and shows —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
   });
 
   oursRoute({
@@ -212,10 +212,10 @@
     href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
     area: 'puzzle',
-    status: 'parity',
+    status: 'partial',
     priority: '-',
     donorIds: ['pkf:/bitcoin-puzzle/<n>'],
-    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
+    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. Missing the donor’s Discussion link (its target is not recorded in the capture) and its Solution field (blocked: `puzzles.rs` stores only `solved: bool`).'
   });
 
   oursRoute({
@@ -315,8 +315,8 @@
     path: '/pubkey-add',
     title: 'Add public keys',
     area: 'tools',
-    status: 'partial',
-    priority: 'P1',
+    status: 'parity',
+    priority: '-',
     donorIds: ['pkf:/pubkey-add', 'ss:/PubkeyAdd'],
     note: 'P + Q, P − Q and k · P are shipped; the donor offers the same three operations.'
   });
@@ -448,7 +448,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'Encrypted local vault and Sepolia review/confirm flow. The import card also generates a 12/24-word BIP39 phrase, shows its word count, entropy bits and checksum state with a brute-force estimate, then derives one chain-specific key (BIP44 preset) into the vault. No donor equivalent.'
+    note: 'Encrypted local vault with a review/confirm send flow. Sepolia is the default EVM network; eight EVM mainnets (Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche, zkSync) are signable only after the user arms mainnet for the session, and the arm resets on lock, unlock and reload. Gates: the chain id is read before review and again before signing and must match a descriptor in the wallet chain table; EIP-55 checksum and the zero address; nonce/balance from the node; amount plus the maximum network fee must fit the balance; per-transaction native fee cap 0.05 ETH on Ethereum and 0.01 native elsewhere; mainnet gas limit is eth_estimateGas + 20%. This slice is native-token transfers only (no ERC-20, approvals, Bitcoin or TRON mainnet). Bitcoin testnet send remains. The import card also generates a 12/24-word BIP39 phrase and derives one chain-specific key. No donor equivalent.'
   });
 
   oursRoute({
@@ -682,7 +682,7 @@
     path: '/pubkey-add',
     title: 'Add public keys',
     area: 'tools',
-    status: 'partial',
+    status: 'parity',
     ours: '/pubkey-add'
   });
 
@@ -811,13 +811,13 @@
 
   /* secretscan.org navigation, 2026-11-19. */
   [
-    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto shows one shared `0x` EVM row plus the eight donor chain rows marked `↑ same`; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
-    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; BCH and ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyEth', 'Ethereum private key', 'key', '/key?chain=ethereum', 'partial', 'P0', 'Crypto shows one shared `0x` EVM row plus the eight donor chain rows marked `↑ same`; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeyTron', 'TRON private key', 'key', '/key?chain=tron', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKeySegwit', 'SegWit private key', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/PrivateKey_wif_to_hex', 'WIF to HEX', 'key', '/key/wif', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
+    ['/Bech32', 'Bech32 address calculator', 'key', '/key?chain=bitcoin&type=segwit', 'partial', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; ZEC balances stay `—` (no keyless provider).'],
     ['/PublicKey', 'Public key calculator', 'tools', '/public-key', 'parity', '-', ''],
     ['/PubkeyAdd', 'Add public keys', 'tools', '/pubkey-add', 'parity', '-', 'P + Q, P − Q and k · P run in the local wasm core, with the same compressed/uncompressed report.'],
     ['/Reconstruction', 'Private key reconstruction', 'tools', '/reconstruction', 'partial', 'P1', 'Formula search vs a known-byte assembler.'],
@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'All chains except TON: rows, pager, word counts, phrase/key/WIF copy, path and address types are present. Balance checks run for BTC and the EVM chains only (mnemonic-seeds providerMeta); TON is an explicit unsupported state.'
+    note: 'All chains except TON: rows, pager, word counts, phrase/key copy, path and address types are present (the donor row has no WIF links, and neither do ours). Balance checks run for BTC and the EVM chains only (mnemonic-seeds providerMeta); TON is an explicit unsupported state.'
   });
 
   feature({
@@ -981,11 +981,11 @@
     area: 'puzzle',
     capability: 'Puzzle detail: copy target/range, difficulty/TX, decimal, grid',
     donor: 'present',
-    rotor: 'present',
-    status: 'parity',
+    rotor: 'partial',
+    status: 'partial',
     priority: '-',
     sources: ['privatekeyfinder.io'],
-    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker.'
+    note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. Missing the donor’s Discussion link (target not recorded) and its Solution field (blocked on puzzle data).'
   });
 
   feature({

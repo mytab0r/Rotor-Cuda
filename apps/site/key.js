@@ -2293,15 +2293,43 @@
     };
   }
 
+  /* Haskoin's keyless BCH endpoint answers CORS-friendly JSON: one entry per
+   * requested address with satoshis in `confirmed` + `unconfirmed`. */
+  async function fetchHaskoinBch(address, signal) {
+    var response = await fetchWithTimeout(
+      'https://api.haskoin.com/bch/address/balances?addresses=' + encodeURIComponent(address),
+      null,
+      signal
+    );
+    var parsed = await parseProviderJson(response, 'parseHaskoinBch');
+    var sats = BigInt(parsed.confirmed) + BigInt(parsed.unconfirmed);
+    if (sats < 0n) sats = 0n;
+    var txs = parsed.txs;
+    var txLabel = txs === null ? '' : ' · ' + txs + ' tx';
+    return {
+      text: sats.toLocaleString('en-US') + ' sats' + txLabel,
+      summary: {
+        amount: sats,
+        chain: 'bch',
+        symbol: 'BCH',
+        decimals: 8,
+        active: sats > 0n || (txs !== null && txs > 0),
+        balanceSat: sats,
+        txs: txs
+      }
+    };
+  }
+
   /* Rows whose identifiers have a working public provider. Kept in one place
-   * so the counters and the checks agree on what "N" means. BCH and ZEC still
-   * have no free keyless provider (Blockchair answers 430 without a key). */
+   * so the counters and the checks agree on what "N" means. ZEC still has no
+   * free keyless provider (Blockchair answers 430 without a key). */
   function rowHasProvider(id) {
     if (!id) return false;
     if (id === 'solana' || id === 'sui' || id === 'ton' || id === 'ton_w5') return true;
     if (id.indexOf('xrp_') === 0) return true;
     if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return true;
-    if (id.indexOf('bch_') === 0 || id.indexOf('zcash_') === 0) return false;
+    if (id.indexOf('bch_') === 0) return true;
+    if (id.indexOf('zcash_') === 0) return false;
     return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
   }
 
@@ -2505,6 +2533,9 @@
     } else if (id.indexOf('doge_') === 0) {
       provider = 'blockcypher';
       chain = 'doge';
+    } else if (id.indexOf('bch_') === 0) {
+      provider = 'haskoin';
+      chain = 'bch';
     } else {
       return null;
     }
@@ -2660,6 +2691,7 @@
       if (id === 'ton' || id === 'ton_w5') return fetchTon(address, signal);
       if (id.indexOf('ltc_') === 0) return fetchBlockcypher(address, signal, 'ltc');
       if (id.indexOf('doge_') === 0) return fetchBlockcypher(address, signal, 'doge');
+      if (id.indexOf('bch_') === 0) return fetchHaskoinBch(address, signal);
       throw new Error('no provider in v1');
     };
     try {

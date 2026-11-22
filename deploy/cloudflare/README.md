@@ -186,3 +186,10 @@ the fetch handler is tested with stubbed `caches.default` and `fetch`.
 - Historical balances, USD pricing and chart data.
 - Testnet chains: BTC validation is mainnet-only because mempool.space is.
 - Rewriting or proxying the provider responses beyond the fields above.
+
+## Related worker
+
+`provider-proxy/` is a separate Worker for outbound provider calls (TronScan,
+TronGrid, TronStack, JSON-RPC, Sun.io). It hides the origin from providers and
+keeps provider keys out of browser code. See `provider-proxy/README.md` and
+`docs/ops/privacy.md`.
