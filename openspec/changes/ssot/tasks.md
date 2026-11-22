@@ -149,6 +149,10 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
 
 ## Slice 4b - SEO route table (open)
 
+- [ ] Restore the per-detector "Fix at the right level" hints: add a `fix`
+      field to `data/detectors.json`, render it as an extra column in the
+      generated skill table, and regenerate the docs with
+      `scripts/gen-detector-docs.mjs`.
 - [ ] Single-source the SEO route table used by `render_sitemap`,
       `render_robots` and `docs/site-map`.
 - [ ] Generate the vendor/SRI hash list consumed by the coordinator, HTML and

@@ -70,6 +70,10 @@
   ],
   "nonCopies": [
     {
+      "source": "apps/site/seed.LICENSE.txt",
+      "reason": "License text that accompanies the vendored seed bundle; the pilot never serves it."
+    },
+    {
       "source": "apps/site/ton.LICENSE.txt",
       "reason": "License text that accompanies the vendored TON bundle; the pilot never serves it."
     },
