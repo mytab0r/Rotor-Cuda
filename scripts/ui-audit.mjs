@@ -2131,7 +2131,7 @@ function auditPage(args) {
 
   // 7b. The Seeds nav item is a destination, not a label: it must resolve to
   //     the browsable directory, never the /seed converter studio.
-  const seedsNav = document.querySelector('.site-nav nav a[data-nav="seeds"]');
+  const seedsNav = document.querySelector('.site-nav [data-nav="seeds"]');
   if (seedsNav) {
     const rawHref = seedsNav.getAttribute("href") || "";
     let destination = rawHref;
