@@ -64,8 +64,8 @@ block removes the animation. The header itself does not animate.
   share a name; mobile shows the utility cluster at once, so a duplicate reads
   as the same action twice.
 - The drawer closes on Escape and outside click; focus returns to the trigger.
-- Reflow: the header wraps to its own row below 860px; no horizontal overflow at
-  375px.
+- Reflow: at 860px and below the primary links move into the drawer; the bar
+  stays one 60px row with no horizontal overflow at 375px.
 
 ## Copy rules
 
