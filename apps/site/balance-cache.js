@@ -168,6 +168,23 @@
     };
   }
 
+  /* Esplora `GET /address/<address>`: the endpoint declared under litecoin in
+   * data/providers.json answers this shape keyless with CORS. `chain_stats`
+   * carries satoshi integers, so the confirmed balance is
+   * `funded_txo_sum - spent_txo_sum` in BigInt and never touches a float. A
+   * body without both sums is not a balance. */
+  function parseLitecoinSpaceAddress(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    var stats = data.chain_stats;
+    if (!stats || typeof stats !== 'object' || Array.isArray(stats)) return null;
+    var funded = atomicAmount(stats.funded_txo_sum);
+    var spent = atomicAmount(stats.spent_txo_sum);
+    if (funded === null || spent === null) return null;
+    var amount = BigInt(funded) - BigInt(spent);
+    if (amount < 0n) amount = 0n;
+    return { amount: amount.toString() };
+  }
+
   /* Like atomicAmount but tolerates the signed `unconfirmed` delta. */
   function signedAmount(value) {
     if (typeof value === 'string' && /^-?\d+$/.test(value)) return value;
@@ -449,6 +466,7 @@
     parseTonBalance: parseTonBalance,
     parseBlockcypherBalance: parseBlockcypherBalance,
     parseSochainBalance: parseSochainBalance,
+    parseLitecoinSpaceAddress: parseLitecoinSpaceAddress,
     parseHaskoinBch: parseHaskoinBch,
     parseHaskoinBchBatch: parseHaskoinBchBatch,
     hasAddress: hasAddress,

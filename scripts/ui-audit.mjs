@@ -231,6 +231,41 @@ function legacyTokenViolations() {
   }];
 }
 
+// mnemonic-ltc-sochain-fallback: the Litecoin directory pages are not in
+// DEFAULT_ROUTES (they fan out up to one request per address), so this static
+// half asserts the wiring: the shared SoChain fetcher must fall back to the
+// SSOT `litecoinspace` Esplora provider for litecoin only, through the pure
+// parser that lives in balance-cache.js. DOGE and ZEC have no fallback and
+// keep the retry state, as the quota-storm test asserts.
+function litecoinFallbackViolations() {
+  const providersFile = path.join(REPO_ROOT, "apps", "site", "balance-providers.js");
+  const cacheFile = path.join(REPO_ROOT, "apps", "site", "balance-cache.js");
+  const providers = readFileSync(providersFile, "utf8");
+  const cache = readFileSync(cacheFile, "utf8");
+  const issues = [];
+  if (!/find\(\s*['"]litecoin['"]\s*,\s*['"]litecoinspace['"]\s*\)/.test(providers)) {
+    issues.push("balance-providers.js does not read the litecoinspace provider through the SSOT API");
+  }
+  if (!/meta\.chain\s*!==\s*['"]litecoin['"]/.test(providers)) {
+    issues.push("balance-providers.js does not gate the fallback to litecoin");
+  }
+  if (!providers.includes("parseLitecoinSpaceAddress")) {
+    issues.push("balance-providers.js does not call parseLitecoinSpaceAddress");
+  }
+  if (!/function parseLitecoinSpaceAddress\s*\(/.test(cache)) {
+    issues.push("balance-cache.js does not define parseLitecoinSpaceAddress");
+  }
+  if (!/parseLitecoinSpaceAddress:\s*parseLitecoinSpaceAddress/.test(cache)) {
+    issues.push("balance-cache.js does not export parseLitecoinSpaceAddress");
+  }
+  if (!issues.length) return [];
+  return [{
+    id: "mnemonic-ltc-sochain-fallback",
+    message: "the Litecoin directory fallback wiring is missing or misdirected",
+    detail: issues,
+  }];
+}
+
 // empty-state-grammar: one shared empty box and one shared error box.
 // Page-local empty classes and page-local error margins are deleted; the
 // shared box uses the documented tokens. Static half of the check.
@@ -3555,6 +3590,7 @@ async function main() {
     const siteMapStatus = siteMapResponse ? siteMapResponse.status : null;
     const globalViolations = [];
     globalViolations.push(...legacyTokenViolations());
+    globalViolations.push(...litecoinFallbackViolations());
     globalViolations.push(...emptyStateViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({

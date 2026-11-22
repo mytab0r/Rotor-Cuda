@@ -263,6 +263,56 @@ const tests = [
     assert.equal(cache.atomicAmount(1.5), null);
   }),
 
+  test("Esplora address body decodes to a confirmed satoshi balance", () => {
+    // Pinned live probe (2026-11-22, the SSOT litecoinspace endpoint): funded
+    // minus spent is 70827261 sat for this address.
+    assert.deepEqual(
+      cache.parseLitecoinSpaceAddress({
+        address: "LdP8Qox1VAhCzLJNqrr74YovaWYyNBUWvL",
+        chain_stats: {
+          funded_txo_count: 4724,
+          funded_txo_sum: 468500180181831,
+          spent_txo_count: 4687,
+          spent_txo_sum: 468500109354570,
+          tx_count: 9462,
+        },
+        mempool_stats: {
+          funded_txo_count: 0,
+          funded_txo_sum: 0,
+          spent_txo_count: 0,
+          spent_txo_sum: 0,
+          tx_count: 0,
+        },
+      }),
+      { amount: "70827261" },
+    );
+    assert.deepEqual(
+      cache.parseLitecoinSpaceAddress({ chain_stats: { funded_txo_sum: "10", spent_txo_sum: "4" } }),
+      { amount: "6" },
+      "string sums are accepted",
+    );
+    assert.deepEqual(
+      cache.parseLitecoinSpaceAddress({ chain_stats: { funded_txo_sum: 4, spent_txo_sum: 10 } }),
+      { amount: "0" },
+      "a negative net clamps to zero",
+    );
+
+    // Malformed bodies are rejected, never reported as a zero balance.
+    assert.equal(cache.parseLitecoinSpaceAddress(null), null);
+    assert.equal(cache.parseLitecoinSpaceAddress([]), null);
+    assert.equal(cache.parseLitecoinSpaceAddress({}), null);
+    assert.equal(cache.parseLitecoinSpaceAddress({ chain_stats: [] }), null);
+    assert.equal(
+      cache.parseLitecoinSpaceAddress({ chain_stats: { funded_txo_sum: "lots", spent_txo_sum: 0 } }),
+      null,
+    );
+    assert.equal(cache.parseLitecoinSpaceAddress({ chain_stats: { funded_txo_sum: 1 } }), null);
+    assert.equal(
+      cache.parseLitecoinSpaceAddress({ chain_stats: { funded_txo_sum: 1.5, spent_txo_sum: 0 } }),
+      null,
+    );
+  }),
+
   test("SoChain decimal coin strings convert to atomic units without floats", () => {
     // Valid: 8-decimal coin strings become satoshis as BigInt.
     assert.deepEqual(
