@@ -1776,8 +1776,10 @@ fn browse_listing_row_shows_every_address_without_disclosure() {
         .map_or(body.len(), |index| start + 1 + index);
     let row = &body[start..end];
     assert!(
-        row.contains("class=\"icon-button icon-button--quiet icon-button--lg copy-btn\""),
-        "the row key copy action must use the shared 44px icon-button"
+        row.contains(
+            "class=\"icon-button icon-button--sm icon-button--quiet row-action copy-btn\""
+        ),
+        "the row key copy action must use the shared dense icon-button (44px hit area, 28px visual on desktop)"
     );
     assert!(
         row.contains("aria-label=\"Copy private key\"")

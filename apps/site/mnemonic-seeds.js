@@ -301,6 +301,7 @@
   var typeCards = byId('mnemonic-type-cards');
   var pageInput = byId('mnemonic-page-input');
   var refreshButton = byId('mnemonic-balance-refresh');
+  var refreshRetry = byId('mnemonic-balance-retry');
   var refreshCount = byId('mnemonic-balance-refresh-count');
   var refreshStatus = byId('mnemonic-balance-refresh-status');
   var cacheApi = window.RotorBalanceCache || null;
@@ -1066,12 +1067,14 @@
 
   function updateRefreshButton(records, meta) {
     var count = refreshPendingCount(records || [], meta);
+    var hasFailures = count > 0;
     if (refreshCount) refreshCount.textContent = String(count);
+    if (refreshRetry) refreshRetry.hidden = !hasFailures;
     if (refreshButton) {
-      refreshButton.disabled = !meta || count === 0 || state.balanceBusy;
+      refreshButton.disabled = !meta || !hasFailures || state.balanceBusy;
       refreshButton.setAttribute(
         'aria-label',
-        'Refresh ' + count + ' failed or stale ' + (count === 1 ? 'balance' : 'balances')
+        'Retry ' + count + ' failed ' + (count === 1 ? 'balance' : 'balances')
       );
       refreshButton.classList.toggle('busy', Boolean(state.balanceBusy));
     }

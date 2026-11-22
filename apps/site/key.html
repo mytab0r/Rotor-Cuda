@@ -33,7 +33,7 @@
     <p class="key-tagline">Every private key is a number. See what yours opens — all derivation happens in this browser.</p>
   </section>
 
-  <section class="card key-input-card">
+  <section class="card card--form key-input-card">
     <form id="key-form" class="key-form field--hero" autocomplete="off" novalidate>
       <label class="visually-hidden" for="priv">Private key</label>
       <input id="priv" type="text" class="mono" placeholder="64 hex, decimal, or BTC WIF"
@@ -189,10 +189,9 @@
         <button type="button" id="copy-all-rows" class="key-copy">Copy all</button>
         <button type="button" id="csv-rows" class="key-copy">CSV</button>
       </div>
-      <div class="balance-refresh">
-        <button type="button" class="balance-refresh-btn" id="key-balance-refresh" aria-label="Refresh 0 failed or stale balances" disabled>
+      <div class="balance-refresh balance-retry" id="key-balance-retry" hidden>
+        <button type="button" class="icon-button icon-button--sm icon-button--quiet balance-refresh-btn" id="key-balance-refresh" aria-label="Retry failed balances" data-tooltip="Retry failed balances" disabled>
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
-          <span>Refresh failed / stale</span>
           <span class="balance-refresh-count" id="key-balance-refresh-count" aria-hidden="true">0</span>
         </button>
         <span class="visually-hidden" id="key-balance-refresh-status" role="status" aria-atomic="true"></span>
