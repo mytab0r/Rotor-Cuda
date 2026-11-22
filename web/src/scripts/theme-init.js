@@ -10,7 +10,7 @@
   var root = document.documentElement;
   root.className += (root.className ? ' ' : '') + 'js';
 
-  var STORAGE_KEY = 'rotor-theme';
+  var STORAGE_KEY = 'rotor-theme'; // mirrors THEME_STORAGE_KEY in src/lib/site.ts
   var choice = '';
   try {
     var stored = localStorage.getItem(STORAGE_KEY);

@@ -3,9 +3,9 @@
  *
  * The pre-paint theme decision happens in theme-init.js (loaded from <head>);
  * this module only wires the button and reacts to OS changes. */
+import { THEME_STORAGE_KEY } from '../lib/site';
 
 const MOBILE_NAV_QUERY = '(max-width: 1200px)';
-const THEME_STORAGE_KEY = 'rotor-theme';
 
 type Theme = 'light' | 'dark';
 
