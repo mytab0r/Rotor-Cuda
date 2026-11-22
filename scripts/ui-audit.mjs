@@ -102,6 +102,7 @@ Options:
   --viewports 375,768,1280   widths to test; heights are preset (default 375,768,1280)
   --themes dark,light   colour schemes to test (default dark,light)
   --serve               spawn target/release/rotor-coord on 127.0.0.1:7899 with temp state
+                        seeded with one public job so the jobs board is audited
   --admin-token TOKEN   coordinator token used to log in for /cabinet/admin routes
                         (with --serve the default is the harness token)
   --json PATH           write the machine-readable summary
@@ -3451,6 +3452,13 @@ async function main() {
       }
       const stateDir = path.join(tempRoot, "state");
       await mkdir(stateDir, { recursive: true });
+      // Seed one public job: the jobs table only renders with a non-empty job
+      // store, so an empty store hid its missing `.data-table` shell and the
+      // audit passed without ever exercising that state (issue #261).
+      await writeFile(
+        path.join(stateDir, "coordinator.json"),
+        await readFile(path.join(REPO_ROOT, "scripts", "fixtures", "audit-public-job-state.json")),
+      );
       server = spawn(
         exe,
         [
@@ -3645,6 +3653,17 @@ async function main() {
               await waitForSelector(cdp, ".bw-row", SELECTOR_TIMEOUT_MS);
             } else if (route === "/bitcoin-puzzle") {
               await waitForSelector(cdp, "[data-puzzle-row]", SELECTOR_TIMEOUT_MS);
+              // The jobs board renders from an async fetch; --serve seeds one
+              // public job, so its table must be present before measuring
+              // (issue #261). An external --base store may be empty.
+              if (options.serve) {
+                const rendered = await waitForSelector(cdp, ".puzzle-table", SELECTOR_TIMEOUT_MS);
+                if (!rendered) {
+                  throw new Error(
+                    "--serve seeded a public job, but /bitcoin-puzzle rendered no .puzzle-table",
+                  );
+                }
+              }
             } else if (route === "/private-keys/bitcoin") {
               // Derivation is local but chunked; the address model is only
               // complete when the last row has its links. Balances settle

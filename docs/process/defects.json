@@ -556,6 +556,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "puzzle-jobs-table-grammar",
+      "reported": "2026-11-22",
+      "symptom": "The public puzzle jobs table rendered only when the job store was non-empty, and that state was never audited, so table.puzzle-table shipped without .data-table and the shared 8/12 cell padding and 12px/600 header style; the empty --serve store hid it (issue #261).",
+      "detector": "table-grammar",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "error-message-light-contrast",
       "reported": "2026-11-22",
       "symptom": "The .error component hardcoded #ffb3b3 for its text in both themes; on the light theme that is about 1.7:1, so every field error (now load-bearing for the allowance grant) was unreadable. The same literal was copied into .balance-note.err, .directory-hint.err, .global-search-error and .balance-info.err.",
