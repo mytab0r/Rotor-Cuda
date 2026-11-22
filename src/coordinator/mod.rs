@@ -1844,7 +1844,14 @@ fn chain_curve_suffix(chain: &ChainDescriptor) -> &'static str {
 }
 
 fn chain_kind(chain: &ChainDescriptor) -> AddressKind {
-    match chain.id {
+    address_kind_for(chain.id)
+}
+
+/// Map a canonical slug to the coordinator's address-type family. A chain
+/// added to `data/chains.json` without a mapping is a programming error: fail
+/// loud instead of rendering Bitcoin-shaped pages for it.
+fn address_kind_for(slug: &str) -> AddressKind {
+    match slug {
         "bitcoin" => AddressKind::Bitcoin,
         "ethereum" | "bnb" | "arbitrum" | "optimism" | "base" | "polygon" | "avalanche"
         | "zksync" => AddressKind::Evm,
@@ -1857,7 +1864,9 @@ fn chain_kind(chain: &ChainDescriptor) -> AddressKind {
         "bitcoin-cash" => AddressKind::BitcoinCash,
         "dogecoin" => AddressKind::Dogecoin,
         "zcash" => AddressKind::Zcash,
-        _ => AddressKind::Bitcoin,
+        _ => panic!(
+            "coordinator has no address kind for chain '{slug}'; add it to address_kind_for()"
+        ),
     }
 }
 
@@ -6685,6 +6694,11 @@ mod tests {
         assert!(body.contains("class=\"mono\""));
     }
 
+    /// Wiring test, not a data-drift test: both sides intentionally read the
+    /// same generated table, so regenerating a changed name keeps this green.
+    /// Data drift is caught by `gen-ssot.mjs --check` (stale generated output)
+    /// and by the pinned order/symbol expectations in
+    /// `apps/site/chains-test.mjs` and `apps/site/search-test.mjs`.
     #[test]
     fn chain_hub_and_descriptor_agree_on_identity() {
         let descriptors = crate::chain::all();
@@ -6723,6 +6737,19 @@ mod tests {
             crate::generated::chains::CHAINS_MAINNET,
             "the coordinator must expose the same canonical order as crate::chain"
         );
+    }
+
+    #[test]
+    fn every_canonical_chain_has_an_address_kind() {
+        for chain in crate::chain::all() {
+            let _ = chain_kind(chain);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "coordinator has no address kind for chain 'unknown-chain'")]
+    fn unknown_chain_id_is_loud_instead_of_bitcoin_shaped() {
+        let _ = address_kind_for("unknown-chain");
     }
 
     #[test]

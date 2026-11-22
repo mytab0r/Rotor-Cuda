@@ -85,7 +85,12 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
       `zkSync Era`; the four L2s report the native `ETH` symbol.
 - [x] Wire `src/generated/chains.rs` into `ChainHub` and `crate::chain` so the
       coordinator stops keeping a second table (`src/coordinator/mod.rs`) and
-      `crate::chain` is the only Rust descriptor table.
+      `crate::chain` is the only Rust descriptor table. The Rust
+      `chain_hub_and_descriptor_agree_on_identity` test checks wiring only
+      (both sides read the generated table); data drift is caught by
+      `gen-ssot.mjs --check` when the generated output is stale and by the
+      pinned order/symbol expectations in `apps/site/chains-test.mjs` and
+      `apps/site/search-test.mjs`.
 - [x] Migrate the JS chain catalogs (`search.js`, `wallet.js`,
       `brainwallet-engine.js`, `mnemonic-seeds.js`, `seed-page.js`,
       `brainwallet.js`, `key.js`, `browse.js`, `wallet-evm.js`, `site.js`) to
