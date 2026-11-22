@@ -2365,10 +2365,10 @@
     };
   }
 
-  /* Litecoin and Dogecoin prefer SoChain (2500 requests/hour, keyless, CORS)
-   * and fall back to BlockCypher on any provider failure, so a rate-limited
-   * provider never blanks the row. An aborted request is not a provider
-   * failure: it stops the lookup instead of starting a second one. */
+  /* Litecoin and Dogecoin prefer SoChain (2500 lookups a day per IP, keyless,
+   * CORS) and fall back to BlockCypher on any provider failure, so a
+   * rate-limited provider never blanks the row. An aborted request is not a
+   * provider failure: it stops the lookup instead of starting a second one. */
   async function fetchSochainOrBlockcypher(address, signal, chainName, chainClass) {
     try {
       return await fetchSochain(address, signal, chainName);

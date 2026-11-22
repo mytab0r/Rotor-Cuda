@@ -159,7 +159,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI, TON, LTC, DOGE and ZEC. BCH and SUI fill all 60 rows; LTC/DOGE/ZEC use the shared per-address SoChain provider (2500 requests/hour keyless, so a page is 2.4% of budget); XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. Rows carry no WIF links, matching the donor.'
+    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI, TON, LTC, DOGE and ZEC. BCH and SUI fill all 60 rows; LTC/DOGE/ZEC use the shared per-address SoChain provider (2500 lookups a day per IP keyless, so a page is 2.4% of the daily budget, and the first 429 stops the rest of the page); XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. Rows carry no WIF links, matching the donor.'
   });
 
   CHAINS.forEach(function (item) {
@@ -877,7 +877,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, BCH, TRON, XRP, SOL, SUI, TON, LTC, DOGE and ZEC have directory providers. BCH uses one batched Haskoin request per page, the same provider the mnemonic directory uses. LTC/DOGE/ZEC use the shared per-address SoChain provider (2500 requests/hour keyless, so a 60-row page is 2.4% of budget), the same wiring as the mnemonic directory; a provider failure stays a retry state, never a fake zero.'
+    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, BCH, TRON, XRP, SOL, SUI, TON, LTC, DOGE and ZEC have directory providers. BCH uses one batched Haskoin request per page, the same provider the mnemonic directory uses. LTC/DOGE/ZEC use the shared per-address SoChain provider (2500 lookups a day per IP keyless, so a 60-row page is 2.4% of the daily budget, and the first 429 stops the rest of the page), the same wiring as the mnemonic directory; a provider failure stays a retry state, never a fake zero.'
   });
 
   feature({

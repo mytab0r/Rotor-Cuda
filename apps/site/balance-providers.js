@@ -479,7 +479,14 @@
         }, {})
       });
     }
+    /* SoChain's keyless budget is 2500 lookups a DAY per IP. Once it answers
+     * 429 ("Limits reached") every further address would fail the same way, so
+     * the first 429 stops the rest of the page: without this a 60-row page
+     * turns one exhausted quota into ~240 failing lookups. The rows keep the
+     * honest retry state. */
+    var exhausted = null;
     return perAddressProvider(addresses, function (address) {
+      if (exhausted) return Promise.reject(exhausted);
       return requestJson(base + '/balance/' + encodeURIComponent(ticker) + '/' + encodeURIComponent(address))
         .then(function (data) {
           var api = cacheApi();
@@ -490,6 +497,10 @@
           var amount = BigInt(parsed.confirmed) + BigInt(parsed.unconfirmed);
           if (amount < 0n) amount = 0n;
           return { balance: amount.toString() };
+        })
+        .catch(function (err) {
+          if (Number(err && err.status) === 429) exhausted = err;
+          throw err;
         });
     });
   }
