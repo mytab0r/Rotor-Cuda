@@ -33,6 +33,10 @@ ship two renderers for the same route.
 
 - [ ] `/key`, `/key/<hex>` (curated static, others 301 to `/key#<hex>`).
 - [ ] `/private-keys` and chain pages (page 1 prerendered, later pages on edge).
+      Page 1 is built for all 18 mainnet slugs in
+      `web/src/pages/private-keys/[chain].astro` with a content collection and
+      the `scripts/check-seo.mjs` gate; the coordinator still serves the route
+      and `data/routes.json` keeps its renderer/status until cutover.
 - [ ] Fragment key contract: no key in the request path; legacy redirect.
 
 ## 4. Seed and puzzle

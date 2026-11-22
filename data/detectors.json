@@ -428,7 +428,7 @@
     },
     {
       "id": "browse-row-address-count",
-      "rule": "A BTC legacy listing row renders both address forms without a disclosure.",
+      "rule": "A directory listing renders every declared address for each key: the coordinator's legacy pair model and the Astro static table's one-column-per-format model.",
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
@@ -444,7 +444,7 @@
     },
     {
       "id": "browse-row-key-copy",
-      "rule": "Each listing row has one visible, labelled key copy action.",
+      "rule": "Each listing row has one visible, labelled key copy action with a 28 visual/44 hit area on a fine desktop pointer and 44 on touch.",
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
@@ -452,7 +452,7 @@
     },
     {
       "id": "browse-row-height",
-      "rule": "Listing rows keep one stable height under the two-address ceiling.",
+      "rule": "Directory listing rows keep one stable height: 40-44 on a fine desktop pointer and 44 on touch, plus the collapsed row border for the static table.",
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
@@ -984,6 +984,78 @@
       "batch": "routing-map",
       "implemented_in": "scripts/lib/site-routes.mjs",
       "doc_anchor": "docs/site-map/index.html",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-page-set",
+      "rule": "web/dist contains exactly the 18 mainnet chain directory pages from data/chains.json, with no missing or extra slug.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-metadata-bounds",
+      "rule": "Chain page title is 50-60 characters with the chain name first and the brand last; description is 120-160 characters with at least one digit.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-canonical-robots",
+      "rule": "Chain page canonical is its own https://rotor.pxbt.app/private-keys/<slug> URL and robots is index,follow.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-duplicate-metadata",
+      "rule": "No two chain pages share a title or a meta description.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-hidden-heading",
+      "rule": "One visible H1 reading '<Chain> private keys', no visually-hidden H1, and at least two visible content H2s in the unique prose section.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-rendered-rows",
+      "rule": "The first chain page ships at least 40 key/address rows as <tr data-key> in the initial HTML, not only as a JavaScript skeleton.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-prose-uniqueness",
+      "rule": "Each chain page has at least 120 unique prose words and every pair of pages stays below 0.50 5-gram Jaccard similarity; the shared safety block is excluded.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-structured-data",
+      "rule": "Chain page JSON-LD contains both CollectionPage and BreadcrumbList.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-og-image-alt",
+      "rule": "og:image is present and og:image:alt plus twitter:image:alt name the chain, so one family image still tells crawlers which page it represents.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
       "status": "implemented"
     }
   ]

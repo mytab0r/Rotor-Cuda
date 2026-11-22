@@ -253,6 +253,7 @@
         "node --check scripts/lib/task-tracking.mjs",
         "node --check scripts/density-parity.mjs",
         "node --check scripts/check-screenshots.mjs",
+        "node --check scripts/check-seo.mjs",
         "node --check scripts/check-advisories.mjs",
         "node --check scripts/gen-security-page.mjs",
         "node --check scripts/lib/security-advisories.mjs",

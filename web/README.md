@@ -1,9 +1,11 @@
-# web/ — Astro frontend (phase 0-2)
+# web/ — Astro frontend (phase 0-3)
 
 Static Astro build for the public site. Phase 1 migrated `/mnemonic-converter`;
-phase 2 adds the shared `SiteLayout` and the landing page (`/`). The Rust
-coordinator keeps serving every route until the later phases in
-`openspec/changes/frontend-platform/proposal.md`.
+phase 2 adds the shared `SiteLayout` and the landing page (`/`); phase 3 adds
+the `/private-keys/<chain>` page-1 template for all 18 mainnet chains. The
+chain pages are built in `dist/` but **not routed**: the Rust coordinator keeps
+serving `/private-keys/<chain>` until the frontend-platform cutover, and
+`data/routes.json` still names the coordinator as the renderer.
 
 ## Commands
 
@@ -13,6 +15,7 @@ npm run check     # astro check + tsc --noEmit
 npm run build     # static output in dist/, then /a/<build>/ asset prefixing
 npm run preview -- --port 4321
 npm test          # tsc -p tsconfig.test.json + node --test (no browser)
+node ../scripts/check-seo.mjs   # after build: chain-directory SEO gate
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
 ```
 
@@ -34,6 +37,11 @@ only deviation from the brief and is called out in the PR.
 | `src/scripts/site-shell.ts` | The only hydrated islands: theme toggle, mobile nav disclosure and the shared `[data-tooltip]` primitive. |
 | `src/styles/site-shell.css` | Shell additions and landing layout rules, all consuming the tokens generated into `/site.css`. |
 | `src/pages/index.astro` | Landing page; content-equivalent to the live `/`, with static chain/tool/database links and no live counters. |
+| `src/pages/private-keys/[chain].astro` | Chain directory page 1 for the 18 mainnet slugs; built but not routed until cutover. |
+| `src/content.config.ts`, `src/content/chains/*.md` | One Markdown entry per chain: unique prose, two content H2s, title and description. |
+| `src/lib/chain-directory.ts` | Build-time derivation: drives the existing WASM `derive_report` ABI for keys 1–60 and maps report ids to each chain's address formats. |
+| `src/lib/chains.ts` | Typed view of `data/chains.json`: the 18 mainnet chains in canonical order. |
+| `src/scripts/chain-copy.ts` | The page's only hydrated behaviour: copy a private key with the shared check-glyph state. |
 | `src/pages/mnemonic-converter.astro` | The pilot page: same markup and copy as `apps/site/mnemonic-converter.html`, now on `SiteLayout`. |
 | `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/mnemonic-converter`). |
 | `src/components/JsonLd.astro` | The only JSON-LD writer. |
@@ -47,6 +55,25 @@ only deviation from the brief and is called out in the PR.
 | `tests/` | Node tests: fixed vectors from `apps/site/seed-test.mjs` and `apps/site/mnemonic-seeds-test.mjs`. |
 | `scripts/cdp-parity.mjs` | Headless-browser check: convert two fixed phrases at 375/768/1280 light/dark, compare addresses, save screenshots. |
 | `scripts/build-prefix.mjs` | Post-build step: copies the asset files under `a/<build>/` and rewrites every absolute asset reference, matching the coordinator's immutable asset URLs. HTML and sitemap are not copied into the prefix. |
+
+## Chain directory (built, not routed)
+
+`npm run build` emits `/private-keys/<slug>/index.html` for the 18 mainnet
+slugs from `data/chains.json`. Each page has a visible H1, unique Markdown
+prose with two content H2s, one shared safety block, and 60 deterministic
+example keys. The table is server-rendered: the build calls the same
+`rotor_wasm.wasm` `derive_report` ABI the browser uses, once per key, and maps
+the report ids to that chain's formats (Bitcoin and Litecoin four, Bitcoin Cash
+two, every other chain one). There is no second crypto implementation; the
+Bitcoin Cash CashAddr view reuses `apps/site/address-codecs.js`.
+
+The page links to the coordinator's later pages and to `/key/<hex>` for the
+calculator, but no coordinator route changes in this phase. Balance cells are
+reserved placeholders, not live queries. `node ../scripts/check-seo.mjs` reads
+`dist/` and enforces the measured contract: title 50–60, description 120–160,
+canonical and `index,follow`, one visible H1, at least two content H2s, at
+least 40 rendered rows, ≥120 unique prose words, pairwise 5-gram Jaccard below
+0.50, `CollectionPage` + `BreadcrumbList`, and chain-named OG alt text.
 
 ## Provenance of copied assets
 
