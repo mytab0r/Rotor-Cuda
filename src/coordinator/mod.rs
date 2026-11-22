@@ -1153,6 +1153,11 @@ fn admin_login(app: &Arc<App>, mut request: Request) {
     }
 }
 
+/// Clear the browser cookies after a CSRF-checked logout.
+///
+/// Sessions are stateless, so this does not invalidate a cookie that was
+/// already copied elsewhere; that cookie stays valid until `exp` or token
+/// rotation. The clear headers are the whole logout contract.
 fn admin_logout(app: &Arc<App>, request: Request) {
     let Some(session) = admin_session(app, &request) else {
         return respond_admin_json(request, 401, &json!({"error": "unauthorized"}));
