@@ -113,16 +113,37 @@ assertEqual(stale.state, "stale", "a stale cache is stale");
 assertEqual(stale.cents, null, "stale prices do not produce a fiat value");
 assertEqual(stale.reason, "prices-stale", "stale reason");
 assertEqual(summary.totalText(stale), "—", "stale total prints —");
+assertEqual(stale.excluded.length, totals.perChain.length, "stale USD names every loaded chain as excluded");
+assert(
+  stale.excluded.some((item) => item.label === "Bitcoin testnet"),
+  "stale USD names the unpriced testnet chain",
+);
 assertEqual(totals.perChain[0].amount, 2000000000000000000n, "native totals survive a stale ticker");
 
 const offline = summary.fiat(totals, null, "unavailable");
 assertEqual(offline.state, "unavailable", "an unreachable ticker is unavailable");
 assertEqual(offline.cents, null, "no offline fiat value");
 assertEqual(summary.totalText(offline), "—", "offline total prints —");
+assertEqual(offline.excluded.length, totals.perChain.length, "offline USD names every loaded chain as excluded");
 
 const loading = summary.fiat(totals, null, "loading");
 assertEqual(loading.state, "loading", "a pending ticker is loading");
 assertEqual(summary.totalText(loading), "…", "a pending total is not a value");
+
+// ------------------------------------------------------ address not derived
+
+assertEqual(summary.loadState(null), "error", "a missing address is an error row");
+assertEqual(summary.loadState({ error: "boom" }), "error", "a derivation error is an error row");
+assertEqual(summary.loadState({ address: "0xabc" }), "ready", "a derived address is ready");
+const noAddress = summary.aggregate([
+  row("ethereum", "Ethereum", "ETH", 18, null, "error"),
+]);
+assertEqual(noAddress.loaded, 0, "a row without a derived address is not loaded");
+assertEqual(noAddress.failed, 1, "a row without a derived address is counted as failed");
+assertEqual(noAddress.perChain.length, 0, "a row without a derived address adds no native total");
+const noAddressFiat = summary.fiat(noAddress, prices, "fresh");
+assertEqual(noAddressFiat.state, "empty", "a row without a derived address is an empty total");
+assertEqual(summary.totalText(noAddressFiat), "—", "a row without a derived address never prints $0.00");
 
 // ------------------------------------------------------------- bad amounts
 

@@ -90,6 +90,14 @@
     return loaded + ' of ' + total + (total === 1 ? ' balance loaded' : ' balances loaded');
   }
 
+  /* The per-row state implied by the address outcome. A missing or failed
+   * address is an error row, never a zero balance, so a bulk refresh surfaces
+   * it instead of leaving it silently "missing". */
+  function loadState(derived) {
+    if (!derived || derived.error || !derived.address) return 'error';
+    return 'ready';
+  }
+
   function formatNative(amount, decimals, symbol) {
     var value = toBigInt(amount);
     if (value === null || value < 0n) return '—';
@@ -123,6 +131,11 @@
     };
     var chains = summary && Array.isArray(summary.perChain) ? summary.perChain : [];
     if (!chains.length) return result;
+    var allExcluded = function () {
+      return chains.map(function (row) {
+        return { chain: row.chain, label: row.label };
+      });
+    };
     if (priceState === 'loading') {
       result.state = 'loading';
       result.reason = 'prices-loading';
@@ -131,11 +144,13 @@
     if (priceState === 'stale') {
       result.state = 'stale';
       result.reason = 'prices-stale';
+      result.excluded = allExcluded();
       return result;
     }
     if (priceState === 'unavailable' || !prices || typeof prices !== 'object') {
       result.state = 'unavailable';
       result.reason = 'prices-unavailable';
+      result.excluded = allExcluded();
       return result;
     }
     if (!TOOLS || typeof TOOLS.priceScaled !== 'function' || typeof TOOLS.fiatTotals !== 'function') {
@@ -189,6 +204,7 @@
   var api = {
     aggregate: aggregate,
     loadedLine: loadedLine,
+    loadState: loadState,
     formatNative: formatNative,
     fiat: fiat,
     totalText: totalText,
