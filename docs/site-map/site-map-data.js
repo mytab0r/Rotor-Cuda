@@ -159,7 +159,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP and SUI. LTC/DOGE/ZEC show — (a per-address keyless provider would exceed the page budget) and TON is an explicit unsupported state. Rows carry no WIF links, matching the donor.'
+    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP and SUI. BCH and SUI fill all 60 rows; XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. LTC/DOGE/ZEC show — (a per-address keyless provider would exceed the page budget) and TON is an explicit unsupported state. Rows carry no WIF links, matching the donor.'
   });
 
   CHAINS.forEach(function (item) {
@@ -173,7 +173,7 @@
       donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
       note: ton
         ? 'Seed derivation for TON is not implemented; the page shows an explicit unsupported state instead of a faked address.'
-        : 'Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP and SUI; LTC/DOGE/ZEC show — (per-address provider budget); no WIF links, matching the donor.'
+        : 'Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP and SUI; XRP accounts that XRPScan redirects to its bulk dataset show the retry state; LTC/DOGE/ZEC show — (per-address provider budget); no WIF links, matching the donor.'
     });
   });
 
