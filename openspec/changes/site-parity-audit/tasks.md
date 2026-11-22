@@ -137,8 +137,11 @@
   redirects some accounts to `data.xrpscan.com/tx.json`, which has no CORS
   header, so the XRP fetcher calls it with `{ redirect: 'error' }` and those
   rows show the retry state instead of a filled balance (they are not claimed
-  as 60/60); BCH and SUI were verified at 60/60. Evidence:
-  `apps/site/balance-providers.js:383` (`haskoinBatchUrl`), `:389`
+  as 60/60); BCH and SUI were verified at 60/60. Audit coverage:
+  `/mnemonic-seeds/bitcoin-cash` is now in `scripts/ui-audit.mjs`
+  `DEFAULT_ROUTES` (one batched Haskoin request per page, like Solana;
+  TRON/XRP/SUI stay out because they fan out one request per address).
+  Evidence: `apps/site/balance-providers.js:383` (`haskoinBatchUrl`), `:389`
   (`haskoinBchProvider`), `:414` (`FETCHERS`), `:436` (`fetchProvider`),
   `:214` (`accountJson` forwards fetch options), `:357` (`xrpBalance` passes
   `redirect: 'error'`); `apps/site/balance-cache.js:171`
