@@ -11,6 +11,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
@@ -69,7 +70,8 @@
     window.RotorSeedPage = {
       countWords: countSeedWords,
       phraseHint: phraseHint,
-      batchIndices: batchIndices
+      batchIndices: batchIndices,
+      aggregateText: aggregateText
     };
   }
 
@@ -644,7 +646,8 @@
       wifUncompressed: report.wif_uncompressed || '',
       balanceEl: null,
       balanceValue: null,
-      balanceUnit: ''
+      balanceUnit: '',
+      receivedValue: null
     };
   }
 
@@ -902,14 +905,6 @@
 
   /* ------------------------------------------------------------- balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   function iconUse(name) {
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'icon');
@@ -1001,17 +996,20 @@
         var info = data[entry.address];
         if (!info) {
           entry.balanceValue = null;
+          entry.receivedValue = null;
           showBalanceError(entry, 'Balance row missing from the provider.');
           return;
         }
         entry.balanceValue = BigInt(info.final_balance || 0);
+        entry.receivedValue = BigInt(info.total_received || 0);
         entry.balanceUnit = BTC_UNIT.symbol;
-        setBalance(entry, coin(info.final_balance, BTC_UNIT.decimals) + ' ' + BTC_UNIT.symbol + ' · ' + Number(info.n_tx || 0) + ' tx');
+        setBalance(entry, AMOUNT.coin(info.final_balance, BTC_UNIT.decimals) + ' ' + BTC_UNIT.symbol + ' · ' + Number(info.n_tx || 0) + ' tx');
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
       entries.forEach(function (entry) {
         entry.balanceValue = null;
+        entry.receivedValue = null;
         showBalanceError(entry, 'Balance lookup failed.');
       });
     }
@@ -1047,7 +1045,7 @@
         }
         entry.balanceValue = value;
         entry.balanceUnit = ETH_UNIT.symbol;
-        setBalance(entry, coin(value, ETH_UNIT.decimals) + ' ' + ETH_UNIT.symbol);
+        setBalance(entry, AMOUNT.coin(value, ETH_UNIT.decimals) + ' ' + ETH_UNIT.symbol);
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
@@ -1064,32 +1062,43 @@
     });
   }
 
-  /* Honest aggregates only: rows with a known positive balance, plus a summed
-   * current balance when every rendered row shares one chain/asset. Providers
-   * here do not expose lifetime received totals, so none is invented. */
-  function updateAggregates() {
-    if (!aggregateEl) return;
-    if (!state.results.length) {
-      aggregateEl.hidden = true;
-      aggregateEl.textContent = '';
-      return;
-    }
-    var known = state.results.filter(function (entry) { return entry.balanceValue !== null; });
-    if (!known.length) {
-      aggregateEl.hidden = true;
-      aggregateEl.textContent = '';
-      return;
-    }
+  /* Honest aggregates only: rows with a known balance, the lifetime Received
+   * total when every row is a checked BTC row, and a summed current balance
+   * when every rendered row shares one asset. blockchain.info returns
+   * total_received in the same balance response, so the Received line costs no
+   * extra request. */
+  function aggregateText(entries) {
+    if (!entries || !entries.length) return '';
+    var known = entries.filter(function (entry) { return entry.balanceValue !== null; });
+    if (!known.length) return '';
     var active = known.filter(function (entry) { return entry.balanceValue > 0; }).length;
     var text = 'Active: ' + active;
-    var unchecked = state.results.length - known.length;
+    var unchecked = entries.length - known.length;
     if (unchecked) text += ' · ' + unchecked + ' address' + (unchecked === 1 ? '' : 'es') + ' not checked';
-    var unit = state.results[0].balanceUnit;
-    var sameAsset = (unit === BTC_UNIT.symbol || unit === ETH_UNIT.symbol) && known.length === state.results.length &&
-      state.results.every(function (entry) { return entry.balanceUnit === unit; });
+    var unit = entries[0].balanceUnit;
+    var sameAsset = (unit === BTC_UNIT.symbol || unit === ETH_UNIT.symbol) && known.length === entries.length &&
+      entries.every(function (entry) { return entry.balanceUnit === unit; });
+    var hasReceived = entries.every(function (entry) {
+      return entry.balanceUnit === BTC_UNIT.symbol && typeof entry.receivedValue === 'bigint';
+    });
+    if (hasReceived) {
+      var received = entries.reduce(function (acc, entry) { return acc + entry.receivedValue; }, 0n);
+      text += ' · Received: ' + AMOUNT.coin(received, BTC_UNIT.decimals) + ' ' + BTC_UNIT.symbol;
+    }
     if (sameAsset) {
       var sum = known.reduce(function (acc, entry) { return acc + entry.balanceValue; }, 0n);
-      text += ' · Sum: ' + coin(sum, unit === BTC_UNIT.symbol ? BTC_UNIT.decimals : ETH_UNIT.decimals) + ' ' + unit;
+      text += ' · Sum: ' + AMOUNT.coin(sum, unit === BTC_UNIT.symbol ? BTC_UNIT.decimals : ETH_UNIT.decimals) + ' ' + unit;
+    }
+    return text;
+  }
+
+  function updateAggregates() {
+    if (!aggregateEl) return;
+    var text = aggregateText(state.results);
+    if (!text) {
+      aggregateEl.hidden = true;
+      aggregateEl.textContent = '';
+      return;
     }
     aggregateEl.textContent = text;
     aggregateEl.hidden = false;
@@ -1122,6 +1131,7 @@
     var evm = balanceRows('ethereum', rows);
     rows.forEach(function (entry) {
       entry.balanceValue = null;
+      entry.receivedValue = null;
       if (entry.chain !== 'bitcoin' && entry.chain !== 'ethereum') {
         setBalance(entry, 'Explorer only — no public balance adapter here.');
       } else if (!entry.address) {

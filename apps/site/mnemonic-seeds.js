@@ -9,6 +9,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
@@ -28,16 +29,11 @@
     zcash: 'zat'
   };
 
+  /* EVM chains share one JSON-RPC method; the primary URL per chain comes
+   * from data/providers.json through the generated globals. */
   var RPC = {};
   SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
     RPC[slug] = SSOT_PROVIDERS.first(slug).url;
-  });
-
-  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
-   * when the official host rejects the browser (it answers 403 to some
-   * origins). Order comes from data/providers.json, like every other page. */
-  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
-    return provider.url;
   });
 
   function evmConfig() {
@@ -299,8 +295,12 @@
   var refreshStatus = byId('mnemonic-balance-refresh-status');
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
-  var BALANCE_LIMIT = 5;
   var BALANCE_JITTER_MS = 400;
+
+  /* Read at call time so the shared module may load before or after this one. */
+  function balanceProvidersApi() {
+    return window.RotorBalanceProviders || null;
+  }
 
   var state = {
     disposed: false,
@@ -667,6 +667,9 @@
   function createRow(entry) {
     var row = document.createElement('div');
     row.className = 'key-row mnemonic-row';
+    /* Balance instrumentation lives on the row element, matching browse.js:
+     * a verifier can select [data-balance-state] on both directories. */
+    entry.row = row;
 
     var keyCell = document.createElement('div');
     keyCell.className = 'col-key';
@@ -782,30 +785,18 @@
 
   /* ------------------------------------------------------------- balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   /* The donor shows a tiny Received amount in atomic units (`sat`, `zat` for
    * Zcash); Balance always stays in the native unit. The donor doc records only
    * "small", not the constant: 0.0001 coin (10,000 sat) is the cut used here,
    * above which the native unit stays readable. */
   function receivedText(value, decimals, symbol, chainName) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number) || number === 0) return '0';
-    var unit = ATOMIC_UNITS[chainName];
-    if (unit && number > 0 && number < 0.0001) {
-      return String(Math.round(number * Math.pow(10, decimals))) + ' ' + unit;
-    }
-    return coin(value, decimals) + ' ' + symbol;
+    return AMOUNT.receivedText(value, decimals, symbol, ATOMIC_UNITS[chainName]);
   }
 
   /* Balance provider for a chain name. Pure (no captured page state) so the
-   * Node test can assert it without a DOM; `providerMeta` binds the page. */
+   * Node test can assert it without a DOM; `providerMeta` binds the page.
+   * LTC/DOGE/ZEC/TON stay unsupported here on purpose (per-address provider
+   * budget); each row keeps an honest "—" and its explorer link. */
   function providerMetaFor(chainName, evmSymbol) {
     var meta = SSOT_CHAINS.bySlug[chainName];
     if (!meta) return null;
@@ -817,6 +808,18 @@
     }
     if (chainName === 'solana') {
       return { provider: 'solana', chain: 'solana', decimals: meta.decimals, symbol: meta.symbol };
+    }
+    if (chainName === 'bitcoin-cash') {
+      return { provider: 'haskoin-bch', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
+    }
+    if (chainName === 'tron') {
+      return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: 'TRX' };
+    }
+    if (chainName === 'xrp') {
+      return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
+    }
+    if (chainName === 'sui') {
+      return { provider: 'sui', chain: 'sui', decimals: 9, symbol: 'SUI' };
     }
     return null;
   }
@@ -853,7 +856,7 @@
     var value = picked.value || {};
     var balance = document.createElement('span');
     balance.className = 'bal';
-    balance.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    balance.textContent = AMOUNT.coin(value.balance, meta.decimals) + ' ' + meta.symbol;
     line.appendChild(balance);
     if (value.tx !== undefined && value.tx !== null) {
       var tx = document.createElement('span');
@@ -871,6 +874,12 @@
     return { line: line, ok: true, failed: false };
   }
 
+  function setBalanceState(entry, stateName, cachedEntry) {
+    if (!entry.row) return;
+    entry.row.dataset.balanceState = stateName;
+    entry.row.dataset.balanceAt = String(cachedEntry && cachedEntry.fetchedAt ? cachedEntry.fetchedAt : '');
+  }
+
   function renderEntry(entry, cached, errors, meta) {
     var cell = entry.balanceCell;
     if (!cell) return;
@@ -878,37 +887,25 @@
     if (!entry.records || !entry.records.length) {
       cell.textContent = '-';
       entry.balanceState = 'missing';
+      setBalanceState(entry, 'missing', null);
       return;
     }
+    var now = Date.now();
     var ok = false;
     var failed = false;
+    var fresh = true;
     entry.records.forEach(function (record) {
       var result = balanceLine(record, cached, errors, meta);
       if (result.ok) ok = true;
       if (result.failed) failed = true;
+      var picked = cached[record.key];
+      if (!cacheApi || !cacheApi.isFresh(picked, meta.provider, now)) fresh = false;
       cell.appendChild(result.line);
     });
     cell.classList.toggle('has-balance', ok);
-    entry.balanceState = failed ? 'err' : ok ? 'ok' : 'missing';
-  }
-
-  async function fetchJson(url, options) {
-    var response = await fetch(url, options);
-    if (!response.ok) {
-      var err = new Error('HTTP ' + response.status);
-      err.status = response.status;
-      throw err;
-    }
-    return response.json();
-  }
-
-  function retryOptions() {
-    return { attempts: 2, baseDelay: 500, maxDelay: 4000 };
-  }
-
-  function requestJson(url, options) {
-    if (!cacheApi) return fetchJson(url, options);
-    return cacheApi.withRetry(function () { return fetchJson(url, options); }, retryOptions());
+    entry.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';
+    var first = entry.records.length ? cached[entry.records[0].key] : null;
+    setBalanceState(entry, entry.balanceState, first);
   }
 
   function errorMessage(err) {
@@ -961,6 +958,7 @@
     var big = meta.provider === 'evm' || meta.provider === 'solana';
     var sumBig = 0n;
     var sumNum = 0;
+    var receivedBig = 0n;
     var received = 0;
     var tx = 0;
     var any = false;
@@ -974,7 +972,8 @@
       if (big) sumBig += BigInt(value.balance || 0);
       else sumNum += Number(value.balance || 0);
       if (value.received !== undefined) {
-        received += Number(value.received);
+        if (big) receivedBig += BigInt(value.received || 0);
+        else received += Number(value.received);
         hasReceived = true;
       }
       if (value.tx !== undefined) {
@@ -987,8 +986,8 @@
       return;
     }
     setSummary(
-      coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
-      hasReceived ? receivedText(received, meta.decimals, meta.symbol, chain) : '—',
+      AMOUNT.coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
+      hasReceived ? receivedText(big ? receivedBig : received, meta.decimals, meta.symbol, chain) : '—',
       hasTx ? String(tx) : '—'
     );
   }
@@ -1046,106 +1045,17 @@
     updateRefreshButton(records, meta);
   }
 
-  async function btcProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return { values: values, errors: errors };
-    var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url + unique.map(encodeURIComponent).join('|');
-    var data = await requestJson(url);
-    unique.forEach(function (address) {
-      var info = data[address];
-      if (!info) {
-        errors[address] = 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = {
-        balance: String(info.final_balance || 0),
-        received: String(info.total_received || 0),
-        tx: Number(info.n_tx || 0)
-      };
-    });
-    return { values: values, errors: errors };
-  }
-
-  async function evmProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var rpc = RPC[chain];
-    if (!rpc) throw new Error('No RPC for this chain');
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return { values: values, errors: errors };
-    var payload = unique.map(function (address, index) {
-      return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
-    });
-    var list = await requestJson(rpc, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    var byId = {};
-    (Array.isArray(list) ? list : [list]).forEach(function (item) {
-      if (item && item.id !== undefined) byId[item.id] = item;
-    });
-    unique.forEach(function (address, index) {
-      var item = byId[index + 1];
-      if (!item || typeof item.result !== 'string') {
-        errors[address] = item && item.error && item.error.message
-          ? item.error.message
-          : 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = { balance: BigInt(item.result).toString() };
-    });
-    return { values: values, errors: errors };
-  }
-
-  /* One request for every address on the page, as the key directory does. */
+  /* Thin views over the shared provider module so this page and the
+   * private-key directory use one implementation. */
   function solanaBatchBody(addresses) {
-    return {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getMultipleAccounts',
-      params: [addresses, { encoding: 'base64', commitment: 'confirmed' }]
-    };
-  }
-
-  async function solanaProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return { values: values, errors: errors };
-    var body = solanaBatchBody(unique);
-    var amounts = null;
-    var lastError = null;
-    for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
-      try {
-        var data = await requestJson(SOLANA_RPC_URLS[i], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        amounts = cacheApi && typeof cacheApi.parseSolanaAccounts === 'function'
-          ? cacheApi.parseSolanaAccounts(data)
-          : null;
-        if (amounts) break;
-        lastError = new Error('bad response');
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    if (!amounts) throw lastError || new Error('bad response');
-    unique.forEach(function (address, index) {
-      values[address] = { balance: amounts[index] || '0' };
-    });
-    return { values: values, errors: errors };
+    var api = balanceProvidersApi();
+    return api ? api.solanaBatchBody(addresses) : null;
   }
 
   function fetchProvider(meta, addresses) {
-    if (meta.provider === 'blockchain.info') return btcProvider(addresses);
-    if (meta.provider === 'evm') return evmProvider(addresses);
-    if (meta.provider === 'solana') return solanaProvider(addresses);
-    return Promise.resolve({ values: {}, errors: {} });
+    var api = balanceProvidersApi();
+    if (!api) return Promise.resolve({ values: {}, errors: {} });
+    return api.fetchProvider(meta, addresses);
   }
 
   async function fetchAndApply(records, pending, run, meta) {
@@ -1155,6 +1065,9 @@
     });
     if (!addresses.length) return;
     state.balanceBusy = true;
+    pending.forEach(function (record) {
+      if (record.entry && record.entry.row) record.entry.row.dataset.balanceState = 'loading';
+    });
     updateRefreshButton(records, meta);
     var result;
     try {
@@ -1195,6 +1108,7 @@
     if (state.disposed) return;
     var meta = providerMeta();
     if (!meta) {
+      state.entries.forEach(function (entry) { setBalanceState(entry, 'missing', null); });
       setSummary('—', '—', '—');
       setNote('Live balance lookup is not available for this chain here; each address links to its explorer.');
       updateRefreshButton([], null);
@@ -1202,6 +1116,7 @@
     }
     var records = balanceRecords(meta);
     if (!records.length) {
+      state.entries.forEach(function (entry) { setBalanceState(entry, 'missing', null); });
       setSummary('—', '—', '—');
       setNote('No derived public address to send; nothing was sent. Each address links to its explorer.');
       updateRefreshButton([], meta);

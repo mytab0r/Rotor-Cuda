@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 const evm = require("./wallet-evm.js");
 
 const KEY1 = "0x" + "0".repeat(63) + "1";

@@ -33,6 +33,12 @@
 // One page load per viewport (plus at most one normal-user-agent retry on the
 // donor when it blocks the headless browser).
 //
+// A zero must never be mistaken for data. When the row selector matches
+// nothing on a page that has content, the side's status becomes
+// `selector_matched_nothing`, a warning names the selector, and the JSON row
+// counts are `null` (not 0). A legitimately empty page opts in with
+// `--allow-empty`; only then is `0` reported as a measured zero.
+//
 // Exit codes: 0 = report produced (donor may be unreachable), 2 = harness error.
 
 import { spawn, spawnSync } from "node:child_process";
@@ -101,6 +107,8 @@ Options:
   --settle MS            post-load settle time (default ${SETTLE_MS})
   --nav-timeout MS       navigation timeout (default ${NAV_TIMEOUT_MS})
   --no-ua-retry          do not retry the donor once with a normal user agent
+  --allow-empty          treat a row selector that matches nothing as a measured
+                         zero (default: status selector_matched_nothing, rows null)
   -h, --help             show this help
 
 Exit: 0 = report produced, 2 = harness error (no browser, bad arguments).`;
@@ -141,6 +149,7 @@ function parseArgs(argv) {
     settle: SETTLE_MS,
     navTimeout: NAV_TIMEOUT_MS,
     uaRetry: true,
+    allowEmpty: false,
     help: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -196,6 +205,9 @@ function parseArgs(argv) {
         break;
       case "--no-ua-retry":
         options.uaRetry = false;
+        break;
+      case "--allow-empty":
+        options.allowEmpty = true;
         break;
       default:
         throw new Error(`unknown argument: ${arg}`);
@@ -464,7 +476,7 @@ async function navigate(cdp, url, timeoutMs, settleMs) {
 // Runs inside the page. Keep every helper inside so the function serializes
 // without closing over the Node scope.
 function measurePage(args) {
-  const { rowsSelector, blockSelectors, titleSelectors, viewportHeight } = args;
+  const { rowsSelector, blockSelectors, titleSelectors, viewportHeight, allowEmpty } = args;
   const H = viewportHeight;
   const W = window.innerWidth;
 
@@ -545,13 +557,16 @@ function measurePage(args) {
       .split(",")
       .map((part) => part.trim())
       .filter(Boolean);
+    let rawMatches = 0;
     for (const selector of selectors) {
-      let nodes = [];
+      let matched = [];
       try {
-        nodes = [...document.querySelectorAll(selector)].filter(rendered);
+        matched = [...document.querySelectorAll(selector)];
       } catch {
         continue;
       }
+      rawMatches += matched.length;
+      let nodes = matched.filter(rendered);
       // A chain strip of 16 chips matches ".key-row"-free generic selectors
       // only when the selector is wrong; require a real row body (two text-ish
       // descendants) so a tab strip cannot masquerade as the data table.
@@ -559,9 +574,9 @@ function measurePage(args) {
         const textCells = [...node.children].filter((child) => rendered(child) && textOf(child)).length;
         return textCells >= 2 || node.matches("tr");
       });
-      if (nodes.length >= 3) return { selector, nodes };
+      if (nodes.length >= 3) return { selector, nodes, rawMatches };
     }
-    return { selector: null, nodes: [] };
+    return { selector: null, nodes: [], rawMatches };
   }
 
   function detectRows() {
@@ -597,15 +612,36 @@ function measurePage(args) {
   }
 
   let picked = pickRows(rowsSelector);
+  const selectedRows = picked;
+  const selectorMatchedNothing = selectedRows.rawMatches === 0;
   let rowsSource = "selector";
-  if (!picked.nodes.length) {
-    picked = detectRows() || { selector: null, nodes: [] };
+  let detected = null;
+  // --allow-empty means "zero rows is legitimate": do not substitute an
+  // auto-detected group, or the opt-in would hide a wrong selector and report
+  // someone else's count as data.
+  if (!picked.nodes.length && !(selectorMatchedNothing && allowEmpty)) {
+    detected = detectRows();
+    picked = detected
+      ? { selector: detected.selector, nodes: detected.items }
+      : { selector: null, nodes: [] };
     rowsSource = picked.selector ? "auto-detected" : "none";
+  } else if (selectorMatchedNothing && allowEmpty) {
+    detected = null;
+    picked = { selector: null, nodes: [] };
   }
+  const bodyText = document.body ? (document.body.innerText || document.body.textContent || "").trim() : "";
+  const documentHasContent = bodyText.length > 0;
+  const plausibleRowContainer = Boolean(detected) || Boolean(
+    document.querySelector("main, table, tbody, .key-row, [class*='key-row'], [data-key]")
+  );
   const rowBoxes = picked.nodes.map((node) => ({ node, box: rectOf(node) }));
   const allHeights = rowBoxes.map(({ box }) => box.height);
   const visibleRowBoxes = rowBoxes.filter(({ box }) => inViewport(box));
-  const firstRow = rowBoxes.length ? rowBoxes[0] : null;
+  // A selector that matched nothing must not leak a row count: 0 would read
+  // as "the page is empty", which is exactly the silent-zero defect. Unless
+  // the caller opted in with --allow-empty, both counts are null.
+  const hideCounts = selectorMatchedNothing && !allowEmpty;
+  const firstRow = rowBoxes.length && !hideCounts ? rowBoxes[0] : null;
 
   // --- interactive controls ------------------------------------------------
   const controlSelector =
@@ -780,14 +816,22 @@ function measurePage(args) {
     title: document.title,
     rows: {
       selector: picked.selector,
+      requestedSelector: rowsSelector,
+      selectorMatchedNothing,
       source: rowsSource,
-      total: rowBoxes.length,
-      visible: visibleRowBoxes.length,
-      height: { min: allHeights.length ? Math.round(Math.min(...allHeights)) : null, median: median(allHeights), max: allHeights.length ? Math.round(Math.max(...allHeights)) : null },
-      visibleHeight: median(visibleRowBoxes.map(({ box }) => box.height)),
+      total: hideCounts ? null : rowBoxes.length,
+      visible: hideCounts ? null : visibleRowBoxes.length,
+      totalReason: hideCounts ? "selector_matched_nothing" : null,
+      height: hideCounts
+        ? { min: null, median: null, max: null }
+        : { min: allHeights.length ? Math.round(Math.min(...allHeights)) : null, median: median(allHeights), max: allHeights.length ? Math.round(Math.max(...allHeights)) : null },
+      visibleHeight: hideCounts ? null : median(visibleRowBoxes.map(({ box }) => box.height)),
       firstTop: firstRow ? Math.round(firstRow.box.top) : null,
       firstInViewport: firstRow ? inViewport(firstRow.box) : null,
       firstText: firstRow ? textOf(firstRow.node).slice(0, 80) : null,
+      documentHasContent,
+      plausibleRowContainer,
+      autoDetected: detected ? { selector: detected.selector, total: detected.items.length } : null,
     },
     chromeHeight: firstRow ? Math.round(firstRow.box.top) : null,
     controls: {
@@ -902,6 +946,7 @@ async function measureSide(cdp, side, options, browserState) {
               blockSelectors: [...options.blocks[side]],
               titleSelectors: ["h1", "[class*='page-title']", "[class*='hero-title']"],
               viewportHeight: viewport.height,
+              allowEmpty: options.allowEmpty,
             })})`,
           );
           const blocked = looksBlocked(measured, mainStatus);
@@ -934,13 +979,25 @@ async function measureSide(cdp, side, options, browserState) {
             break;
           }
           if (!measured.rows.total) {
-            result.status = "partial";
-            result.error = nav.loadTimedOut
-              ? `page did not finish loading within ${options.navTimeout}ms and no data rows rendered`
-              : "no data rows matched";
-            if (side === "donor") {
-              result.status = "unreachable";
-              result.error = `${result.error}; donor numbers are not reported`;
+            if (measured.rows.selectorMatchedNothing && !options.allowEmpty &&
+                (measured.rows.documentHasContent || measured.rows.plausibleRowContainer)) {
+              result.status = "selector_matched_nothing";
+              result.error =
+                `row selector "${options.rows[side]}" matched nothing on a page with content; ` +
+                "fix the selector or pass --allow-empty for a legitimately empty page";
+              log(`WARNING ${side}: ${result.error}`);
+            } else if (measured.rows.selectorMatchedNothing && options.allowEmpty) {
+              result.status = "measured";
+              result.error = null;
+            } else {
+              result.status = "partial";
+              result.error = nav.loadTimedOut
+                ? `page did not finish loading within ${options.navTimeout}ms and no data rows rendered`
+                : "no data rows matched";
+              if (side === "donor") {
+                result.status = "unreachable";
+                result.error = `${result.error}; donor numbers are not reported`;
+              }
             }
           } else {
             result.status = "measured";
@@ -969,7 +1026,7 @@ async function measureSide(cdp, side, options, browserState) {
       if (side === "donor" && result.status === "unreachable") break;
       log(
         `${side} ${viewport.width}x${viewport.height} ${theme}: ${result.status}` +
-          (measured && measured.rows ? ` (${measured.rows.total} rows, chrome ${measured.chromeHeight ?? "-"}px)` : ""),
+          (measured && measured.rows ? ` (${measured.rows.total ?? "-"} rows, chrome ${measured.chromeHeight ?? "-"}px)` : ""),
       );
     }
     if (side === "donor" && result.status === "unreachable") break;
@@ -985,14 +1042,16 @@ function buildComparisons(sides) {
   const comparisons = [];
   for (const donorRun of sides.donor.runs.filter((run) => run.status === "measured")) {
     const oursRun = sides.ours.runs.find(
-      (run) => run.viewport.width === donorRun.viewport.width &&
+      (run) => run.status === "measured" &&
+        run.viewport.width === donorRun.viewport.width &&
         run.viewport.height === donorRun.viewport.height &&
         run.theme === donorRun.theme,
     );
     if (!oursRun) continue;
     const d = donorRun.measured;
     const o = oursRun.measured;
-    const density = (rows, chrome) => (chrome && chrome > 0 ? rows / (chrome / 1000) : null);
+    const density = (rows, chrome) =>
+      rows !== null && rows !== undefined && chrome && chrome > 0 ? rows / (chrome / 1000) : null;
     const donorDensity = density(d.rows.visible, d.chromeHeight);
     const oursDensity = density(o.rows.visible, o.chromeHeight);
     const blockDeltas = [];
@@ -1031,7 +1090,7 @@ function buildComparisons(sides) {
       },
       // 0 means not a single row reached the fold; it is a measured zero, not
       // a missing value. Only a missing chrome height yields null.
-      densityRatio: donorDensity ? Number(((oursDensity ?? 0) / donorDensity).toFixed(2)) : null,
+      densityRatio: donorDensity && oursDensity !== null ? Number((oursDensity / donorDensity).toFixed(2)) : null,
       blockDeltas,
     });
   }
@@ -1055,7 +1114,7 @@ function printReport(report) {
         side,
         runKey(run),
         m.chromeHeight ?? "-",
-        `${m.rows.visible}/${m.rows.total}`,
+        `${m.rows.visible ?? "-"}/${m.rows.total ?? "-"}`,
         m.rows.height.median ?? "-",
         `${m.controls.inViewport}/${m.controls.rendered}`,
         m.docHeight,
@@ -1077,6 +1136,14 @@ function printReport(report) {
     log("");
     log(`DONOR UNREACHABLE: ${report.sides.donor.error}`);
     log("Donor numbers are absent on purpose; only our side is reported.");
+  }
+
+  for (const side of ["donor", "ours"]) {
+    const data = report.sides[side];
+    if (data.status !== "selector_matched_nothing") continue;
+    log("");
+    log(`SELECTOR MATCHED NOTHING (${side}): ${data.error}`);
+    log("Row counts are reported as null, not 0; this is not an empty page.");
   }
 
   if (report.comparisons.length) {
@@ -1168,6 +1235,7 @@ async function main() {
       browser: browserPath,
       viewports: options.viewports,
       themes: options.themes,
+      allowEmpty: options.allowEmpty,
       selectors: {
         rows: options.rows,
         blocks: Object.fromEntries(

@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import "./chains.generated.js";
+import "./amount.js";
 import search from "./search.js";
 
 const require = createRequire(import.meta.url);
@@ -369,11 +370,14 @@ const priorDocument = globalThis.document;
 globalThis.window = globalThis;
 globalThis.document = { querySelector: () => null };
 try {
+  require("./balance-providers.js");
   require("./browse.js");
 } finally {
   globalThis.window = priorWindow;
   globalThis.document = priorDocument;
 }
+const balanceProviders = globalThis.RotorBalanceProviders;
+assert.ok(balanceProviders, "shared balance providers must load for the Node test");
 const browse = globalThis.RotorBrowse;
 assert.ok(browse, "browse row helpers must be exported for the Node test");
 
@@ -423,16 +427,16 @@ assert.deepEqual(browse.metricFlags(null), { hasTx: false, hasRecv: false });
 /* The batch endpoint returns the same TRON payload as the single-address
  * route, so both paths must feed the cache and balance cell the same shape. */
 assert.deepEqual(
-  browse.tronValue({ chain: "tron", balance_sun: "123", tx_count: 4, last_tx_at: 1700000000000 }),
+  balanceProviders.tronValue({ chain: "tron", balance_sun: "123", tx_count: 4, last_tx_at: 1700000000000 }),
   { balance: "123", tx: 4, lastTxAt: 1700000000000 },
   "batch payload maps to the per-address value shape"
 );
 assert.deepEqual(
-  browse.tronValue({ chain: "tron", balance_sun: null }),
+  balanceProviders.tronValue({ chain: "tron", balance_sun: null }),
   { balance: null, tx: undefined, lastTxAt: undefined },
   "a provider overflow keeps a null balance"
 );
-assert.equal(browse.tronValue({ balance_sun: "1" }), null, "a non-TRON payload is rejected");
+assert.equal(balanceProviders.tronValue({ balance_sun: "1" }), null, "a non-TRON payload is rejected");
 
 /* ?key= resolves to the page containing the key (60 keys per page).
  * Short values use the hex route, so "3c" is 60 and "3d" is 61. */

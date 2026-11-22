@@ -428,6 +428,55 @@
       "symptom": "Chain tabs and cards read colors from separate tables; site.css disagreed with the coordinator on ethereum, tron, litecoin and xrp, and a local symbol table printed ARB/OP/BASE/zkSync instead of ETH.",
       "detector": "chain-tab-color",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "mnemonic-bch-balances",
+      "reported": "2026-11-22",
+      "symptom": "the BCH mnemonic directory rendered — for all 60 rows although the keyless Haskoin batch endpoint answers 60 addresses per request",
+      "detector": "mnemonic-bch-balances",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "mnemonic-tron-xrp-sui-balances",
+      "reported": "2026-11-22",
+      "symptom": "the TRON, XRP and SUI mnemonic directories rendered — for every row although the pages already fetched those chains in the private-key directory",
+      "detector": "mnemonic-tron-xrp-sui-balances",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "mnemonic-xrp-redirect",
+      "reported": "2026-11-22",
+      "symptom": "XRPScan answered 302 to data.xrpscan.com/tx.json for some accounts; the page followed the redirect into a bulk dataset with no CORS header, so 59 of 60 XRP rows ended in the retry state",
+      "detector": "mnemonic-xrp-redirect",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "lossy-amount-formatter",
+      "reported": "2026-11-22",
+      "symptom": "Eleven amount formatters and three parsers in ten files reimplemented decimal conversion; five coin() copies converted 18-decimal wei through Number and lost precision above 2^53 (e.g. 2^256-1 wei displayed as a rounded ~1e59).",
+      "detector": "lossy-amount-formatter",
+      "where": "scripts/check-ssot.mjs"
+    },
+    {
+      "id": "seed-received-aggregate",
+      "reported": "2026-11-22",
+      "symptom": "The seed converter's aggregate line claimed public providers expose no lifetime totals and showed only Active/Sum, although blockchain.info returns total_received in the same balance response it already fetches.",
+      "detector": "aggregateText",
+      "where": "apps/site/seed-test.mjs"
+    },
+    {
+      "id": "mnemonic-balance-state-row",
+      "reported": "2026-11-22",
+      "symptom": "The mnemonic-seeds rows never set data-balance-state/data-balance-at on the row element, so a verifier selecting [data-balance-state] reported 0 rows on a page rendering 60 (a silent-zero measurement).",
+      "detector": "balance-state-attribute",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "density-parity-silent-zero",
+      "reported": "2026-11-22",
+      "symptom": "scripts/density-parity.mjs reported total rows 0 when the row selector matched nothing, indistinguishable from an empty page; the silent zero was read as a measurement.",
+      "detector": "selector_matched_nothing",
+      "where": "scripts/density-parity.mjs"
     }
   ]
 }

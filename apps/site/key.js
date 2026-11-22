@@ -8,6 +8,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
@@ -26,8 +27,6 @@
     return list.length ? [list[0].url] : [];
   }
   var SECP_N = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
-  var WEI = 1000000000000000000n;
-  var WEI_PER_MICRO = 1000000000000n;
   var DECODER = new TextDecoder('utf-8');
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
@@ -1924,13 +1923,6 @@
     return typeof value === 'number' && isFinite(value) ? value : 0;
   }
 
-  function formatUnits6(value, unit) {
-    var whole = value / unit;
-    var fraction = value % unit;
-    var text = fraction.toString().padStart(6, '0').replace(/0+$/, '');
-    return text ? whole.toString() + '.' + text : whole.toString();
-  }
-
   function timeAgo(ms) {
     return cacheApi && typeof cacheApi.relativeTime === 'function'
       ? cacheApi.relativeTime(ms, Date.now())
@@ -1941,18 +1933,11 @@
    * Missing fields keep the page's "—" convention instead of a fake zero. */
   function tronText(sun, txs, lastTxAt) {
     var parts = [];
-    parts.push(sun === null || sun === undefined ? '—' : formatUnits6(sun, 1000000n) + ' TRX');
+    parts.push(sun === null || sun === undefined ? '—' : AMOUNT.formatUnits(sun, 6) + ' TRX');
     if (txs !== null && txs !== undefined) parts.push(String(txs) + ' tx');
     var age = lastTxAt === null || lastTxAt === undefined ? '' : timeAgo(lastTxAt);
     if (age) parts.push('last ' + age);
     return parts.join(' · ');
-  }
-
-  function formatEth(wei) {
-    var whole = wei / WEI;
-    var fraction = (wei % WEI) / WEI_PER_MICRO;
-    var text = fraction.toString().padStart(6, '0').replace(/0+$/, '');
-    return text ? whole.toString() + '.' + text : whole.toString();
   }
 
   async function fetchBtc(address, signal) {
@@ -2009,7 +1994,7 @@
       throw new Error(reason);
     }
     var wei = BigInt(balance.result);
-    var text = formatEth(wei) + ' ' + chain.symbol;
+    var text = AMOUNT.formatUnits(wei, 18, { maximumFractionDigits: 6 }) + ' ' + chain.symbol;
     var nonce = byId[2];
     var nonceCount = 0n;
     if (nonce && typeof nonce.result === 'string') {

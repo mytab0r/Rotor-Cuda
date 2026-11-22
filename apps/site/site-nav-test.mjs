@@ -8,6 +8,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 
 const source = readFileSync(fileURLToPath(new URL("./site.js", import.meta.url)), "utf8");
 

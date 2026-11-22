@@ -39,6 +39,7 @@ import { REPO_ROOT, run } from "./gen-ssot.mjs";
 
 const SITE_DIR = "apps/site";
 const GENERATED_JS = "chains.generated.js";
+const AMOUNT_JS = "amount.js";
 const ALLOW_PATH = "data/ssot-allow.json";
 const EXEMPT_GENERATED = new Set([GENERATED_JS]);
 const CSS_START = "/* chains:start */";
@@ -149,6 +150,30 @@ function urlSpans(text) {
 function insideUrl(spans, index) {
   return spans.some((span) => index >= span.start && index < span.end);
 }
+
+// Amount conversion has one implementation: apps/site/amount.js. A local copy
+// in a consumer is how the eleven formatters and three parsers drifted apart;
+// those copies used Number and lost precision above 2^53. Detector id:
+// lossy-amount-formatter. It catches declarations, function expressions and
+// `var x =` aliases, Number amount math and BigInt power-of-ten scaling.
+const AMOUNT_DEFINITIONS = [
+  {
+    name: "a local amount function",
+    re: /\bfunction\s+(?:formatUnits|formatUnits6|parseUnits|coin|formatEth)\s*\(/g,
+  },
+  {
+    name: "a local amount function alias",
+    re: /\b(?:const|let|var)\s+(?:formatUnits|formatUnits6|parseUnits|coin|formatEth)\s*=/g,
+  },
+  {
+    name: "Number amount math",
+    re: /\bMath\.pow\(\s*10\s*,/g,
+  },
+  {
+    name: "BigInt decimal scaling",
+    re: /\b10n\s*\*\*\s*(?:BigInt\(|\d+n?)/g,
+  },
+];
 
 const PROVIDER_CALLS = [
   {
@@ -322,6 +347,48 @@ function allowSet(entries) {
   return set;
 }
 
+function lineTextAt(text, index) {
+  const start = text.lastIndexOf("\n", index) + 1;
+  const end = text.indexOf("\n", index);
+  return text.slice(start, end === -1 ? text.length : end);
+}
+
+// Allowlist entries cover the exact reviewed line: a fee-cap constant or a
+// fiat conversion is not an amount formatter, and the entry still carries
+// reason/owner/expires through validateAllowlist above.
+function allowlistedAmount(allow, relative, text, match) {
+  if (!Array.isArray(allow)) return false;
+  const line = lineTextAt(text, match.index);
+  return allow.some(
+    (entry) =>
+      entry &&
+      entry.file === relative &&
+      entry.match !== "*" &&
+      typeof entry.match === "string" &&
+      line.includes(entry.match),
+  );
+}
+
+export function validateAmountFormatters(root, files, allow, wholeFile) {
+  const errors = [];
+  let checked = 0;
+  for (const relative of files) {
+    if (relative === `${SITE_DIR}/${AMOUNT_JS}` || wholeFile.has(relative)) continue;
+    checked += 1;
+    const text = fs.readFileSync(path.join(root, relative), "utf8");
+    for (const definition of AMOUNT_DEFINITIONS) {
+      for (const match of text.matchAll(definition.re)) {
+        if (allowlistedAmount(allow, relative, text, match)) continue;
+        errors.push(
+          `${relative}:${lineAt(text, match.index)} defines ${definition.name} (lossy-amount-formatter); ` +
+            "use window.RotorAmount from apps/site/amount.js, or add a reviewed data/ssot-allow.json entry",
+        );
+      }
+    }
+  }
+  return { errors, checked };
+}
+
 export function check(root = REPO_ROOT) {
   const errors = [];
   const freshness = run({ root, check: true });
@@ -340,6 +407,8 @@ export function check(root = REPO_ROOT) {
   const files = listSiteFiles(root);
   const references = validateReferences(root, files, data);
   errors.push(...references.errors);
+  const amounts = validateAmountFormatters(root, files, allow, wholeFile);
+  errors.push(...amounts.errors);
 
   let checked = 0;
   let allowlisted = 0;
@@ -427,6 +496,7 @@ export function check(root = REPO_ROOT) {
     references: references.references,
     colorOccurrences,
     orderArrays,
+    amountFormatters: amounts.checked,
   };
 }
 
@@ -441,6 +511,7 @@ export function main() {
     console.log(
       `ssot:check OK (${result.needles.length} canonical hosts, ${result.checked} site scripts, ` +
         `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider/chain reference(s), ` +
+        `${result.amountFormatters} amount-checked script(s), ` +
         `${result.colorOccurrences} chain color literal(s) outside the generated output, ` +
         `${result.orderArrays} local order array(s))`,
     );

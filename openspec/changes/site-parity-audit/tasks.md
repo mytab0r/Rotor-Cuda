@@ -124,6 +124,34 @@
   the ZEC row shows `—` and the route status stays `partial` (superseded
   2026-11-22: the ZEC provider landed in PR #237 and the row is now parity).
   Evidence: `docs/site-map/site-map-data.js` (seven donor rows).
+- [x] Mnemonic directory BCH/TRON/XRP/SUI balances (2026-11-22, code-only): the
+  BCH, TRON, XRP and SUI pages previously rendered `—` for every row although
+  keyless providers already served the private-key directory. The four chains
+  now map to `haskoin-bch`, `tronscan`, `xrpscan` and `sui` metas; BCH uses one
+  batched Haskoin GET per page (60 addresses, results mapped back by index
+  because the provider echoes CashAddr) and a rejected batch fails every
+  address instead of showing zero. The provider code moved out of `browse.js`
+  into the shared `balance-providers.js` so the two directories cannot drift.
+  LTC/DOGE/ZEC/TON stay `—` on this page (per-address provider budget); the
+  ledger row stays `partial`. XRP is honest about its provider: XRPScan
+  redirects some accounts to `data.xrpscan.com/tx.json`, which has no CORS
+  header, so the XRP fetcher calls it with `{ redirect: 'error' }` and those
+  rows show the retry state instead of a filled balance (they are not claimed
+  as 60/60); BCH and SUI were verified at 60/60. Audit coverage:
+  `/mnemonic-seeds/bitcoin-cash` is now in `scripts/ui-audit.mjs`
+  `DEFAULT_ROUTES` (one batched Haskoin request per page, like Solana;
+  TRON/XRP/SUI stay out because they fan out one request per address).
+  Evidence: `apps/site/balance-providers.js:383` (`haskoinBatchUrl`), `:389`
+  (`haskoinBchProvider`), `:414` (`FETCHERS`), `:436` (`fetchProvider`),
+  `:214` (`accountJson` forwards fetch options), `:357` (`xrpBalance` passes
+  `redirect: 'error'`); `apps/site/balance-cache.js:171`
+  (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:795` (`providerMetaFor`),
+  `:1035` (delegating `fetchProvider`); `apps/site/browse.js:492` (delegating
+  `fetchProvider`); tests `apps/site/mnemonic-seeds-test.mjs` (four metas, BCH
+  order/index mapping, batch rejection, XRP redirect, browse-dispatch
+  coverage), `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row
+  case); defects `mnemonic-bch-balances`, `mnemonic-tron-xrp-sui-balances` and
+  `mnemonic-xrp-redirect` in `docs/process/defects.json`.
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
@@ -159,6 +187,16 @@
   Discussion link (its target is not recorded) and the blocked Solution field;
   the wrong `parity` cells for the brainwallet generator and pubkey-add are
   fixed.
+- [x] Ledger honesty pass for ZEC (2026-11-22, docs-only): the seven secretscan
+  `/PrivateKey*`/`/Bech32` donor rows, the `/key` route entry and the three
+  `/key/<format>` aliases still said ZEC had no keyless provider and stayed
+  `partial`. PR #237 wired SoChain (`apps/site/key.js:2336`, dispatch `:2733`)
+  and the matrix row is already `parity`, so those rows are now `parity` with
+  the correct provider list; the `key-balances` note distinguishes the
+  single-key ZEC provider from the 60-row private-key directory (BCH has a
+  batched Haskoin provider used by the mnemonic directory but not wired here;
+  ZEC is per-address). Evidence: `docs/site-map/site-map-data.js`,
+  `node docs/site-map/site-map-test.mjs`.
 
 ## Live donor audit follow-ups (2026-11-21)
 
@@ -328,11 +366,21 @@ follow-ups were code-only.
   `:86` (20-address option), `:106-107` (Copy All / Load next 5),
   `:109` (Active/Sum aggregate); `apps/site/seed-page.js:397` (word counter and
   scheme hint), `:653` (`loadNextBatch`, next five per path from the snapshot),
-  `:1070` (honest aggregates), `:1177` (public rows only, never keys);
-  `apps/site/seed-test.mjs` (word hints per scheme, batch index math, a pinned
-  20-address derivation). The lifetime "Received" total is not shown: the
-  public providers used here (blockchain.info, `eth_getBalance`) do not return
-  it, so none is invented.
+  `:1082` (`aggregateText`, honest aggregates), `:1177` (public rows only, never
+  keys); `apps/site/seed-test.mjs` (word hints per scheme, batch index math, a
+  pinned 20-address derivation).
+- [x] Seed converter lifetime Received aggregate (2026-11-22, code-only): the
+  BTC balance provider (`blockchain.info/balance`) already returns
+  `total_received` beside `final_balance`/`n_tx` in the same response, so the
+  aggregate line now adds ` · Received: <BTC>` before ` · Sum:` for a fully
+  checked BTC result set. No extra request and no invented value: EVM rows and
+  any row without a numeric total show no Received segment. Evidence:
+  `apps/site/seed-page.js:1016` (`entry.receivedValue = BigInt(info.total_received
+  || 0)`), `:1011`/`:1024` (missing row and error clear it), `:1082`
+  (pure `aggregateText`), `:86` (export); test
+  `apps/site/seed-test.mjs:337` ("aggregateText adds the BTC lifetime Received
+  total and keeps the usual wording"); defect `seed-received-aggregate` in
+  `docs/process/defects.json`.
 - [x] Vanity: difficulty, ETA and a recent-address list. Evidence:
   `apps/site/vanity.html:68` (expected work next to the pattern inputs),
   `:74-77` (Attempts / Rate / ETA / Elapsed, four even groups), `:87-90`

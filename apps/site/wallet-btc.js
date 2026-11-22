@@ -28,6 +28,7 @@
   var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var CHAIN_SLUG = 'bitcoin-testnet';
   var NETWORK = 'testnet';
@@ -49,36 +50,12 @@
     return err && err.message ? err.message : String(err);
   }
 
-  /* Exact decimal -> integer conversion. No Number, no exponent, no rounding. */
-  function parseUnits(text, decimals) {
-    if (typeof text !== 'string') throw new Error('use a plain decimal number');
-    var value = text.trim();
-    if (!value) throw new Error('a number is required');
-    var match = /^(\d+)(?:\.(\d+))?$/.exec(value);
-    if (!match) {
-      throw new Error('use a plain decimal number like 0.001 (no exponent, sign or comma)');
-    }
-    var fraction = match[2] || '';
-    if (fraction.length > decimals) {
-      throw new Error('at most ' + decimals + ' decimal places');
-    }
-    return BigInt(match[1]) * (10n ** BigInt(decimals)) +
-      BigInt(fraction.padEnd(decimals, '0') || '0');
-  }
-
-  function formatUnits(value, decimals) {
-    var unit = 10n ** BigInt(decimals);
-    var whole = value / unit;
-    var fraction = (value % unit).toString().padStart(decimals, '0').replace(/0+$/, '');
-    return fraction ? whole.toString() + '.' + fraction : whole.toString();
-  }
-
   function parseBtcToSats(text) {
-    return parseUnits(text, SATS_DECIMALS);
+    return AMOUNT.parseUnits(text, SATS_DECIMALS);
   }
 
   function formatBtc(sats) {
-    return formatUnits(sats, SATS_DECIMALS);
+    return AMOUNT.formatUnits(sats, SATS_DECIMALS);
   }
 
   /* Fee rate in sat/vB. Stored as hundredths of a sat/vB so a fractional rate
@@ -636,8 +613,6 @@
     EXPLORER_TX: EXPLORER_TX,
     DUST_LIMIT: DUST_LIMIT,
     SATS_DECIMALS: SATS_DECIMALS,
-    parseUnits: parseUnits,
-    formatUnits: formatUnits,
     parseBtcToSats: parseBtcToSats,
     formatBtc: formatBtc,
     parseFeeRate: parseFeeRate,
