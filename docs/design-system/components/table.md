@@ -1,7 +1,7 @@
 # Table
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/table.json` · Gallery: `/design` (family
+Source of truth: `design/components/table.json` · Gallery: `/cabinet/admin/design` (family
 `table`).
 
 ## Purpose
@@ -32,7 +32,7 @@ and use the shared `.icon-button` at 44px.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default row | transparent; hairline bottom | yes (all four variants) |
 | Hover | `--row-hover` | live |
