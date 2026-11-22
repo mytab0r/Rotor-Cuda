@@ -6918,16 +6918,27 @@ mod tests {
     #[test]
     fn wallet_loads_generated_assets_before_its_scripts() {
         let (body, _) = static_asset("/cabinet/wallet").expect("/cabinet/wallet is embedded");
-        let html = prepare_html_document("/cabinet/wallet", String::from_utf8_lossy(body).into_owned());
+        let html = prepare_html_document(
+            "/cabinet/wallet",
+            String::from_utf8_lossy(body).into_owned(),
+        );
         let assets = html
             .find("/assets.generated.js")
             .expect("the wallet loads /assets.generated.js");
-        let amount = html.find("/amount.js").expect("the wallet loads /amount.js");
+        let amount = html
+            .find("/amount.js")
+            .expect("the wallet loads /amount.js");
         let script = html
             .find("/wallet-assets.js")
             .expect("the wallet loads /wallet-assets.js");
-        assert!(assets < amount, "assets.generated.js must load before amount.js\n{html}");
-        assert!(amount < script, "amount.js must load before wallet-assets.js\n{html}");
+        assert!(
+            assets < amount,
+            "assets.generated.js must load before amount.js\n{html}"
+        );
+        assert!(
+            amount < script,
+            "amount.js must load before wallet-assets.js\n{html}"
+        );
     }
 
     #[test]
