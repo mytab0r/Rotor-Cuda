@@ -71,11 +71,44 @@
       <button type="button" class="monitor-provider" id="monitor-connect-walletconnect" data-chain="walletconnect">
         <span class="monitor-provider-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg></span>
         <span class="monitor-provider-name">WalletConnect (EVM)</span>
-        <span class="monitor-provider-desc">Scan with a mobile wallet; EVM only in this build.</span>
+        <span class="monitor-provider-desc">Scan a QR code or open the connection in a mobile wallet app; EVM only in this build.</span>
         <span class="monitor-provider-hint" data-provider-hint="walletconnect">Detecting…</span>
       </button>
     </div>
-    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. WalletConnect connects a mobile EVM wallet over QR; it is EVM-only in this build. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Crypto never asks for a private key, WIF or seed phrase.</p>
+    <p id="monitor-provider-note" class="muted monitor-note">EVM, Solana and TRON sign you in by signing a one-time challenge. WalletConnect connects a mobile EVM wallet over a QR code or a wallet-app deep link; it is EVM-only in this build. Bitcoin cannot sign yet: after you sign in with another chain, its addresses can be imported as unverified. Crypto never asks for a private key, WIF or seed phrase.</p>
+    <div id="monitor-wc-panel" class="monitor-wc-panel" role="region" aria-label="WalletConnect" hidden>
+      <div class="monitor-wc-head">
+        <h3>WalletConnect</h3>
+        <button type="button" class="icon-button icon-button--quiet icon-button--lg" id="monitor-wc-close" aria-label="Close WalletConnect panel" data-tooltip="Close WalletConnect">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-close"></use></svg>
+        </button>
+      </div>
+      <p id="monitor-wc-state" class="monitor-status" role="status" aria-live="polite">Connecting…</p>
+      <p id="monitor-wc-error" class="error monitor-status" role="alert" hidden></p>
+      <div id="monitor-wc-ready" hidden>
+        <div id="monitor-wc-qr-box" class="monitor-wc-qr" hidden>
+          <canvas id="monitor-wc-qr-canvas" width="320" height="320" role="img" aria-label="WalletConnect QR code"></canvas>
+          <p class="muted monitor-note">Scan with the wallet app on your phone.</p>
+        </div>
+        <p id="monitor-wc-qr-fallback" class="muted monitor-note" hidden>QR unavailable. Open the connection in a wallet app below.</p>
+        <div id="monitor-wc-mobile" class="monitor-wc-mobile" hidden>
+          <label>Wallet app
+            <select id="monitor-wc-wallet"></select>
+          </label>
+          <button type="button" id="monitor-wc-open-mobile">Open wallet</button>
+        </div>
+        <div id="monitor-wc-links" class="monitor-wc-links" role="group" aria-label="Open the connection in a wallet app"></div>
+        <div class="monitor-wc-uri-row">
+          <code id="monitor-wc-uri" class="mono"></code>
+          <button type="button" class="icon-button icon-button--outline icon-button--lg" id="monitor-wc-copy" aria-label="Copy WalletConnect URI" data-tooltip="Copy URI">
+            <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+          </button>
+        </div>
+        <p id="monitor-wc-expiry" class="muted monitor-note"></p>
+      </div>
+      <button type="button" id="monitor-wc-regenerate" hidden>Regenerate connection</button>
+      <ul id="monitor-wc-accounts" class="monitor-wc-accounts" hidden></ul>
+    </div>
     <p id="monitor-account-line" class="monitor-account-line" hidden>
       <span>Primary</span>
       <code class="mono" id="monitor-account"></code>
@@ -182,6 +215,7 @@
   </section>
 </main>
 
+<script src="/wc-links.js"></script>
 <script src="/cabinet.js"></script>
 <script src="/site.js"></script>
 </body>

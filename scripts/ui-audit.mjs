@@ -61,6 +61,7 @@ const DEFAULT_ROUTES = [
   "/send/usdt",
   "/send/tron",
   "/cabinet/wallet",
+  "/cabinet",
   "/mnemonic-converter",
   "/mnemonic-seeds",
   "/milk-sad",
@@ -3362,6 +3363,284 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
   return { ok: problems.length === 0, evidence, problems };
 }
 
+/* /cabinet WalletConnect panel. A headless browser cannot approve a real
+ * WalletConnect session, so the bundle is replaced with a stub that emits one
+ * display_uri. That exercises the code the page owns: the panel, QR, deep
+ * links, copy action, expiry state and overflow. */
+async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
+  const capture = async (name) => {
+    const shot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true });
+    const file = path.join(
+      screenshotsDir,
+      `walletconnect-${name}-${viewport.width}-${theme}.png`,
+    );
+    await writeFile(file, Buffer.from(shot.data, "base64"));
+    return file;
+  };
+  const evidence = {};
+  const problems = [];
+
+  const ready = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const panel = document.getElementById('monitor-wc-panel');
+      const open = document.getElementById('monitor-connect-walletconnect');
+      const linksApi = window.RotorWcLinks;
+      if (!panel || !open) {
+        return { evidence, problems: ['the WalletConnect card or panel is missing'] };
+      }
+      if (!linksApi || typeof linksApi.deepLink !== 'function' || typeof linksApi.isMobile !== 'function') {
+        return { evidence, problems: ['/wc-links.js did not expose RotorWcLinks'] };
+      }
+
+      const expiry = Math.floor(Date.now() / 1000) + 4;
+      const uri = 'wc:' + 'a'.repeat(16) + '@2?relay-protocol=irn&symKey=' +
+        'b'.repeat(64) + '&expiryTimestamp=' + expiry;
+      const encoded = encodeURIComponent(uri);
+      const listeners = {};
+      const provider = {
+        accounts: ['0x52908400098527886E0F7030069857D2E4169EE7'],
+        on: function (name, callback) { listeners[name] = callback; },
+        disconnect: function () { return Promise.resolve(); },
+        connect: function () { return new Promise(() => {}); }
+      };
+      const realFetch = window.fetch;
+      const realRotorWC = window.RotorWC;
+      // Load the committed bundle only for its real QR renderer; create/connect
+      // stay stubbed because a headless browser cannot approve a wallet. The
+      // screenshot then shows a genuine QR, not a placeholder block.
+      let realQr = null;
+      try {
+        if (!window.RotorWC || typeof window.RotorWC.toCanvas !== 'function') {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = window.RotorAssets && typeof window.RotorAssets.url === 'function'
+              ? window.RotorAssets.url('/walletconnect.js')
+              : '/walletconnect.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        if (window.RotorWC && typeof window.RotorWC.toCanvas === 'function') {
+          realQr = window.RotorWC.toCanvas.bind(window.RotorWC);
+        }
+      } catch (error) {
+        // The panel still renders with the honest fallback note.
+      }
+      window.fetch = async function (input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url.indexOf('/api/v1/monitor/config') !== -1) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ walletconnect_project_id: 'audit-project' })
+          };
+        }
+        return realFetch(input, init);
+      };
+      window.RotorWC = {
+        create: async function () { return provider; },
+        connect: async function () {
+          if (listeners.display_uri) listeners.display_uri(uri);
+          return new Promise(() => {});
+        },
+        toCanvas: async function (canvas, text) {
+          if (realQr) await realQr(canvas, text);
+          canvas.dataset.auditPainted = '1';
+        }
+      };
+
+      try {
+        open.click();
+        const ready = await waitFor(() => {
+          const box = document.getElementById('monitor-wc-ready');
+          return !panel.hidden && box && !box.hidden;
+        }, 8000);
+        evidence.ready = ready;
+        if (!ready) problems.push('the panel never reached the ready state');
+
+        const uriText = (document.getElementById('monitor-wc-uri') || {}).textContent || '';
+        evidence.uri = uriText.trim() === uri;
+        if (!evidence.uri) problems.push('the panel does not show the connection URI');
+
+        const box = document.getElementById('monitor-wc-qr-box');
+        const canvas = document.getElementById('monitor-wc-qr-canvas');
+        const qrRect = canvas ? canvas.getBoundingClientRect() : { width: 0, height: 0 };
+        evidence.qr = {
+          visible: Boolean(box && !box.hidden),
+          painted: Boolean(canvas && canvas.dataset.auditPainted === '1'),
+          width: Math.round(qrRect.width),
+          height: Math.round(qrRect.height)
+        };
+        if (!evidence.qr.visible || !evidence.qr.painted) {
+          problems.push('the desktop QR code did not appear');
+        }
+        if (qrRect.width < 120 || qrRect.height < 120) {
+          problems.push('the QR canvas is too small: ' + qrRect.width + 'x' + qrRect.height);
+        }
+
+        const wallets = {
+          metamask: 'https://metamask.app.link/wc?uri=',
+          trust: 'https://link.trustwallet.com/wc?uri=',
+          rainbow: 'https://rainbow.me/wc?uri=',
+          coinbase: 'https://go.cb-w.com/wc?uri='
+        };
+        const links = Array.from(document.querySelectorAll('#monitor-wc-links a'));
+        evidence.links = links.length;
+        for (const id of Object.keys(wallets)) {
+          const prefix = wallets[id];
+          const link = links.find((anchor) => (anchor.getAttribute('href') || '').indexOf(prefix) === 0);
+          if (!link) {
+            problems.push('missing the ' + id + ' deep link');
+            continue;
+          }
+          if (link.getAttribute('href') !== prefix + encoded) {
+            problems.push('the ' + id + ' deep link does not carry the encoded URI');
+          }
+          const height = link.getBoundingClientRect().height;
+          if (height < 43.5) problems.push('the ' + id + ' deep link is ' + height + 'px high');
+        }
+        const generic = links.find((anchor) => anchor.getAttribute('href') === uri);
+        evidence.genericLink = Boolean(generic);
+        if (!generic) problems.push('the generic wc: link is missing');
+
+        const copy = document.getElementById('monitor-wc-copy');
+        const copyRect = copy ? copy.getBoundingClientRect() : { width: 0, height: 0 };
+        evidence.copy = {
+          iconButton: Boolean(copy && copy.classList.contains('icon-button')),
+          width: Math.round(copyRect.width),
+          height: Math.round(copyRect.height),
+          ariaLabel: copy ? copy.getAttribute('aria-label') : null,
+          tooltip: copy ? copy.getAttribute('data-tooltip') : null,
+          title: copy ? copy.getAttribute('title') : null
+        };
+        if (!evidence.copy.iconButton) problems.push('the copy action is not an icon-button');
+        if (!evidence.copy.ariaLabel || !evidence.copy.tooltip || evidence.copy.title) {
+          problems.push('the copy action needs aria-label + data-tooltip and no title');
+        }
+        if (copyRect.width < 43.5 || copyRect.height < 43.5) {
+          problems.push('the copy action is ' + copyRect.width + 'x' + copyRect.height);
+        }
+
+        const regenerate = document.getElementById('monitor-wc-regenerate');
+        evidence.regenerateHidden = Boolean(regenerate && regenerate.hidden);
+        if (!evidence.regenerateHidden) problems.push('Regenerate is visible before the URI expires');
+
+        evidence.overflow = panel.scrollWidth - panel.clientWidth;
+        if (panel.scrollWidth > panel.clientWidth + 2) {
+          problems.push('the panel overflows horizontally by ' + evidence.overflow + 'px');
+        }
+
+        const panelTop = panel.getBoundingClientRect().top + window.scrollY - 110;
+        window.scrollTo({ top: panelTop, behavior: 'instant' });
+        await sleep(80);
+        window.__wcAudit = { realFetch, realRotorWC };
+        return { evidence, problems };
+      } catch (error) {
+        window.fetch = realFetch;
+        if (realRotorWC === undefined) delete window.RotorWC;
+        else window.RotorWC = realRotorWC;
+        throw error;
+      }
+    })()`,
+    30000,
+  );
+  evidence.ready = ready.evidence;
+  problems.push(...ready.problems);
+  evidence.readyScreenshot = await capture("ready");
+
+  const expired = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const panel = document.getElementById('monitor-wc-panel');
+      const regenerate = document.getElementById('monitor-wc-regenerate');
+      const appeared = await waitFor(
+        () => Boolean(regenerate && !regenerate.hidden),
+        9000
+      );
+      evidence.expired = appeared;
+      if (!appeared) {
+        problems.push('the expired-URI state never appeared');
+      } else {
+        const state = document.getElementById('monitor-wc-state');
+        evidence.expiredState = state ? state.textContent : '';
+        if (!/expired/i.test(evidence.expiredState || '')) {
+          problems.push('the expired state does not say the URI expired');
+        }
+        const regenRect = regenerate.getBoundingClientRect();
+        evidence.regenerate = {
+          width: Math.round(regenRect.width),
+          height: Math.round(regenRect.height)
+        };
+        if (regenRect.height < 43.5) {
+          problems.push('the regenerate action is ' + regenRect.height + 'px high');
+        }
+      }
+      if (panel && panel.scrollWidth > panel.clientWidth + 2) {
+        problems.push('the expired panel overflows horizontally');
+      }
+      if (panel) {
+        const panelTop = panel.getBoundingClientRect().top + window.scrollY - 110;
+        window.scrollTo({ top: panelTop, behavior: 'instant' });
+        await sleep(80);
+      }
+      return { evidence, problems };
+    })()`,
+    15000,
+  );
+  evidence.expired = expired.evidence;
+  problems.push(...expired.problems);
+  evidence.expiredScreenshot = await capture("expired");
+
+  const closed = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const panel = document.getElementById('monitor-wc-panel');
+      const close = document.getElementById('monitor-wc-close');
+      if (close) close.click();
+      // Reset the scroll instantly: the resting auditPage checks must see the
+      // card from its top, not mid-animation with its first children off-screen.
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      await sleep(150);
+      const saved = window.__wcAudit || {};
+      if (saved.realFetch) window.fetch = saved.realFetch;
+      if (saved.realRotorWC === undefined) delete window.RotorWC;
+      else window.RotorWC = saved.realRotorWC;
+      delete window.__wcAudit;
+      return { closed: Boolean(panel && panel.hidden), scrollY: window.scrollY };
+    })()`,
+    5000,
+  );
+  evidence.closed = closed.closed;
+  if (!closed.closed) problems.push('the panel did not close');
+
+  return { ok: problems.length === 0, evidence, problems };
+}
+
 async function auditKeyAutoDerive(cdp) {
   return evaluate(
     cdp,
@@ -4139,6 +4418,23 @@ async function main() {
                   id: "wallet-history-surface",
                   message: `/cabinet/wallet history panel failed: ${(history.problems || []).join("; ")}`,
                   detail: history,
+                });
+              }
+            }
+
+            if (route === "/cabinet") {
+              const walletconnect = await auditWalletConnect(
+                cdp,
+                screenshotsDir,
+                viewport,
+                theme,
+              );
+              run.metrics.walletConnect = walletconnect.evidence;
+              if (!walletconnect.ok) {
+                run.violations.push({
+                  id: "walletconnect-handoff",
+                  message: `/cabinet WalletConnect panel failed: ${walletconnect.problems.join("; ")}`,
+                  detail: walletconnect,
                 });
               }
             }

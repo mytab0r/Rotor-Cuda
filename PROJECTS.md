@@ -58,7 +58,11 @@ owned by exactly one area; the most-specific glob wins.
   Bitcoin testnet send flow: bech32 validation, coin selection, dust/change,
   review and confirm over injected UTXO/broadcast callbacks) and `wallet.js`
   (page logic);
-  the coordinator never receives a key, WIF or passphrase. The operator cabinet
+  the coordinator never receives a key, WIF or passphrase. The cabinet at
+  `/cabinet` shares `monitor.js` and `wc-links.js` (pure WalletConnect
+  deep-link builders and mobile detection) and lazy-loads the vendored
+  `walletconnect.js` bundle; the provider is built with `showQrModal: false`
+  and the page renders its own URI/QR/deep-link panel. The operator cabinet
   lives at `/cabinet/admin` behind a signed session cookie (login at
   `/cabinet/admin/login`, dashboard data at `/cabinet/admin/api/overview`, both
   scoped to `Path=/cabinet/admin`); its read-only inventory panels
