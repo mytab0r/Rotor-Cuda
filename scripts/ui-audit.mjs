@@ -2738,6 +2738,180 @@ async function auditWalletApprovals(cdp) {
   return { ok: result.problems.length === 0, ...result };
 }
 
+/* /cabinet/wallet portfolio summary. auditWalletApprovals() leaves the vault
+ * unlocked with one Ethereum key. The summary must start in an explicit empty
+ * state (not $0.00), then count only loaded balances against a stubbed RPC and
+ * ticker, keep a real loaded zero distinct from "nothing loaded", and expose a
+ * 44px shared icon-button refresh control with the stat token grammar. */
+async function auditWalletPortfolio(cdp) {
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const shown = (el) => Boolean(el) && !el.hidden && el.getClientRects().length > 0;
+      const problems = [];
+      const evidence = {};
+      const block = document.getElementById('wallet-summary');
+      const total = document.getElementById('wallet-summary-total');
+      const loaded = document.getElementById('wallet-summary-loaded');
+      const entries = document.getElementById('wallet-summary-entries');
+      const empty = document.getElementById('wallet-summary-empty');
+      const chains = document.getElementById('wallet-summary-chains');
+      const status = document.getElementById('wallet-summary-status');
+      const refreshed = document.getElementById('wallet-summary-refreshed');
+      const refresh = document.getElementById('wallet-summary-refresh');
+      const toggle = document.getElementById('wallet-lookup-toggle');
+      if (!block || !total || !loaded || !entries || !empty || !chains || !status || !refreshed || !refresh || !toggle) {
+        return { evidence, problems: ['the portfolio summary controls are missing'] };
+      }
+      if (!shown(block)) problems.push('the summary is hidden with one entry in the vault');
+
+      // Empty state: nothing loaded yet is not a zero value.
+      evidence.emptyTotal = total.textContent.trim();
+      evidence.emptyLoaded = loaded.textContent.trim();
+      if (evidence.emptyTotal !== '—') {
+        problems.push('empty total is "' + evidence.emptyTotal + '" (expected —)');
+      }
+      if (!/^0 of \\d+ balance/.test(evidence.emptyLoaded)) {
+        problems.push('empty loaded line is "' + evidence.emptyLoaded + '"');
+      }
+      if (empty.hidden) problems.push('the explicit empty state is hidden');
+      if (!/No balances loaded yet/.test(empty.textContent)) {
+        problems.push('empty state text: ' + empty.textContent.trim());
+      }
+
+      // The shared icon-button grammar and 44px target.
+      const box = refresh.getBoundingClientRect();
+      evidence.refresh = {
+        classes: refresh.className,
+        label: refresh.getAttribute('aria-label') || '',
+        tooltip: refresh.getAttribute('data-tooltip') || '',
+        box: Math.round(box.width) + 'x' + Math.round(box.height)
+      };
+      if (!refresh.classList.contains('icon-button')) problems.push('refresh is not .icon-button');
+      if (!evidence.refresh.label) problems.push('refresh has no aria-label');
+      if (!evidence.refresh.tooltip) problems.push('refresh has no data-tooltip');
+      if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
+        problems.push('refresh is ' + evidence.refresh.box + ' (expected 44x44)');
+      }
+
+      // Stat token grammar: 12px sentence-case label, 24px tabular value.
+      const label = block.querySelector('.stat-label');
+      const value = block.querySelector('.stat-value');
+      if (!label || !value) {
+        problems.push('the summary has no shared .stat-label/.stat-value');
+      } else {
+        const labelStyle = getComputedStyle(label);
+        const valueStyle = getComputedStyle(value);
+        evidence.label = {
+          size: Math.round(Number.parseFloat(labelStyle.fontSize)),
+          transform: labelStyle.textTransform
+        };
+        evidence.value = {
+          size: Math.round(Number.parseFloat(valueStyle.fontSize)),
+          variant: valueStyle.fontVariantNumeric
+        };
+        if (evidence.label.size !== 12) problems.push('stat label is ' + evidence.label.size + 'px');
+        if (evidence.label.transform !== 'none') problems.push('stat label is ' + evidence.label.transform);
+        if (![20, 24, 28].includes(evidence.value.size)) {
+          problems.push('stat value is ' + evidence.value.size + 'px');
+        }
+        if (!String(evidence.value.variant).includes('tabular-nums')) {
+          problems.push('stat value is not tabular: ' + evidence.value.variant);
+        }
+      }
+
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change', { bubbles: true }));
+      const entryCount = Number(entries.textContent.trim());
+      if (!Number.isInteger(entryCount) || entryCount < 1) {
+        problems.push('entries count is "' + entries.textContent.trim() + '"');
+      }
+
+      try { localStorage.removeItem('rotor.prices.v1'); } catch (err) {}
+
+      const realFetch = window.fetch;
+      const response = (payload) => ({
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      });
+      const rpcResult = (value) => response({ jsonrpc: '2.0', id: 1, result: value });
+      let wei = '0xde0b6b3a7640000';
+      window.fetch = async (url, init) => {
+        const target = String(url);
+        if (target.indexOf('api.binance.com') >= 0) {
+          return response([
+            { symbol: 'ETHUSDT', price: '3000' },
+            { symbol: 'BTCUSDT', price: '60000' },
+          ]);
+        }
+        const body = init && init.body ? JSON.parse(init.body) : null;
+        if (body && body.method === 'eth_getBalance') return rpcResult(wei);
+        return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+      };
+
+      try {
+        refresh.click();
+        const loadedOk = await waitFor(() => total.textContent.trim() === '$3,000.00', 20000);
+        evidence.loadedTotal = total.textContent.trim();
+        evidence.loadedLine = loaded.textContent.trim();
+        if (!loadedOk) problems.push('loaded total is "' + evidence.loadedTotal + '" (expected $3,000.00)');
+        if (!new RegExp('^1 of ' + entryCount + ' balance').test(evidence.loadedLine)) {
+          problems.push('loaded line is "' + evidence.loadedLine + '"');
+        }
+        evidence.chains = [...chains.querySelectorAll('li')].map((item) => item.textContent.trim());
+        if (!evidence.chains.some((text) => /^Ethereum.*1 ETH$/.test(text))) {
+          problems.push('no per-chain 1 ETH total: ' + evidence.chains.join(' | '));
+        }
+        evidence.refreshed = refreshed.textContent.trim();
+        if (!/Balances last refreshed/.test(evidence.refreshed)) {
+          problems.push('refresh timestamp is missing: ' + evidence.refreshed);
+        }
+        if (!empty.hidden) problems.push('the empty state stays visible after a load');
+
+        // A loaded zero is $0.00 and still counts as loaded.
+        wei = '0x0';
+        refresh.click();
+        const zeroOk = await waitFor(() => total.textContent.trim() === '$0.00', 20000);
+        evidence.zeroTotal = total.textContent.trim();
+        evidence.zeroLoaded = loaded.textContent.trim();
+        if (!zeroOk) problems.push('loaded zero total is "' + evidence.zeroTotal + '" (expected $0.00)');
+        if (evidence.zeroLoaded !== evidence.loadedLine) {
+          problems.push('a loaded zero changed the loaded count: ' + evidence.zeroLoaded);
+        }
+
+        wei = '0xde0b6b3a7640000';
+        refresh.click();
+        await waitFor(() => total.textContent.trim() === '$3,000.00', 20000);
+      } finally {
+        window.fetch = realFetch;
+      }
+
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      evidence.overflow = overflow;
+      if (overflow > 1) problems.push('page overflows by ' + overflow + 'px');
+      // Leave a neutral scroll position: the grant/revoke scenarios focus a
+      // confirm button further down, and the taller summary would otherwise
+      // push the seed controls above the viewport for the page-wide check.
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      await sleep(50);
+      return { evidence, problems };
+    })()`,
+    60000,
+  );
+  return { ok: result.problems.length === 0, ...result };
+}
+
 async function auditKeyAutoDerive(cdp) {
   return evaluate(
     cdp,
@@ -3496,6 +3670,15 @@ async function main() {
                   id: "wallet-approvals-surface",
                   message: `/cabinet/wallet approvals table failed: ${(approvals.problems || []).join("; ")}`,
                   detail: approvals,
+                });
+              }
+              const portfolio = await auditWalletPortfolio(cdp);
+              run.metrics.walletPortfolio = portfolio.evidence;
+              if (!portfolio.ok) {
+                run.violations.push({
+                  id: "wallet-portfolio-summary",
+                  message: `/cabinet/wallet portfolio summary failed: ${(portfolio.problems || []).join("; ")}`,
+                  detail: portfolio,
                 });
               }
             }

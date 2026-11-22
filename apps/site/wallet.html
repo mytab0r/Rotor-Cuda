@@ -153,6 +153,35 @@
     <h2>Addresses</h2>
     <label class="wallet-check"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
     <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent.</p>
+    <section class="wallet-summary" id="wallet-summary" aria-labelledby="wallet-summary-title" hidden>
+      <div class="wallet-summary-head">
+        <div>
+          <h3 id="wallet-summary-title">Portfolio summary</h3>
+          <p class="muted" id="wallet-summary-help">Only balances that actually loaded are counted; loading, failed or missing rows are not zero. Chains without a public price (for example Bitcoin testnet) are excluded from USD and named. The ticker is the same public Binance source as the key explorer, cached for up to six hours; a stale or offline ticker shows — while the native totals stay.</p>
+        </div>
+        <button type="button" class="icon-button icon-button--quiet" id="wallet-summary-refresh" aria-label="Refresh all loaded balances" data-tooltip="Refresh balances">
+          <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
+        </button>
+      </div>
+      <div class="stat-grid wallet-summary-stats">
+        <div class="stat">
+          <span class="stat-label">Total value</span>
+          <strong class="stat-value" id="wallet-summary-total">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Balances loaded</span>
+          <strong class="stat-value" id="wallet-summary-loaded">0 of 0</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Entries</span>
+          <strong class="stat-value" id="wallet-summary-entries">0</strong>
+        </div>
+      </div>
+      <p class="muted wallet-summary-empty" id="wallet-summary-empty">No balances loaded yet. Use Refresh to read the public addresses you allowed above.</p>
+      <ul class="wallet-summary-chains" id="wallet-summary-chains" aria-label="Per-chain native totals" hidden></ul>
+      <p class="muted stat__meta" id="wallet-summary-status" role="status" aria-live="polite"></p>
+      <p class="muted stat__meta" id="wallet-summary-refreshed"></p>
+    </section>
     <div class="wallet-groups" id="wallet-entries"></div>
     <p class="muted" id="wallet-empty">No keys in this vault yet. Import a WIF or a hex key above.</p>
   </section>
@@ -402,6 +431,8 @@
   <p class="muted key-help">Related: <a href="/cabinet">cabinet dashboard</a>, <a href="/key">key explorer</a>, <a href="/docs">documentation</a>.</p>
 </main>
 
+<script src="/key-tools.js"></script>
+<script src="/wallet-summary.js"></script>
 <script src="/wallet-vault.js"></script>
 <script src="/wallet-evm.js"></script>
 <script src="/wallet-btc.js"></script>

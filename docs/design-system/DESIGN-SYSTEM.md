@@ -725,6 +725,7 @@ standalone freshness gate.
 | `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
 | `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
 | `wallet-approvals-surface` | The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow; the grant form has labelled 44px fields, its own unlimited warning line, a visible zero-amount error state and a rendered unlimited review. | phase 4 | implemented |
+| `wallet-portfolio-summary` | The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar. | phase 4 | implemented |
 | `search-xrp-secret-routing` | XRP family seeds and secrets route to /key instead of a brainwallet hash. | phase 4 | implemented |
 | `search-short-hex-padding` | 1-63 hex characters stay brainwallet text; exactly 64 hex is a key. | phase 4 | implemented |
 | `mnemonic-solana-balances` | The Solana directory fetches every row with one batched getMultipleAccounts call. | phase 4 | implemented |

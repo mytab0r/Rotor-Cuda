@@ -60,6 +60,10 @@
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var WIF_MIN_LENGTH = 50;
   var WIF_MAX_LENGTH = 53;
+  /* One public ticker request per six hours, shared with /key through
+   * key-tools.js; only ticker symbols leave the browser. */
+  var PRICE_CACHE_KEY = (window.RotorKeyTools && window.RotorKeyTools.PRICE_CACHE_KEY) || 'rotor.prices.v1';
+  var PRICE_TTL_MS = (window.RotorKeyTools && window.RotorKeyTools.PRICE_TTL_MS) || 6 * 60 * 60 * 1000;
 
   /* Address rows come from the wasm derive_report report; explorer, label,
    * symbol and decimals come from data/chains.json. */
@@ -112,6 +116,13 @@
     lookup: false,
     generation: 0,
     rows: {},
+    balances: {},
+    summaryRefreshing: false,
+    lastBalanceRefreshAt: 0,
+    prices: null,
+    priceMeta: null,
+    priceStatus: 'idle',
+    pricePromise: null,
     deriving: {},
     preparing: false,
     sending: false,
@@ -150,6 +161,19 @@
   var importSecret = byId('wallet-secret');
   var importChain = byId('wallet-chain');
   var importLabel = byId('wallet-label');
+
+  /* Portfolio summary above the address groups. It reads only the balance
+   * results the page already fetched and the shared public ticker cache. */
+  var summaryBlock = byId('wallet-summary');
+  var summaryRefresh = byId('wallet-summary-refresh');
+  var summaryTotal = byId('wallet-summary-total');
+  var summaryLoaded = byId('wallet-summary-loaded');
+  var summaryEntries = byId('wallet-summary-entries');
+  var summaryEmpty = byId('wallet-summary-empty');
+  var summaryChains = byId('wallet-summary-chains');
+  var summaryStatus = byId('wallet-summary-status');
+  var summaryRefreshed = byId('wallet-summary-refreshed');
+  var summaryHelper = window.RotorWalletSummary;
 
   /* Seed-phrase block: phrase generation and one-chain derivation. */
   var seedPhrase = byId('wallet-seed-phrase');
@@ -256,6 +280,11 @@
   }
   if (!btcSend) {
     if (btcCard) btcCard.hidden = true;
+  }
+  if (!summaryHelper && summaryBlock) {
+    /* The vault still works without the portfolio math; the summary says so
+     * instead of rendering a number it cannot prove. */
+    summaryBlock.hidden = true;
   }
 
   /* ------------------------------------------------------------- small utils */
@@ -929,8 +958,16 @@
     state.derived = {};
     state.deriving = {};
     state.rows = {};
+    state.balances = {};
+    state.summaryRefreshing = false;
+    state.lastBalanceRefreshAt = 0;
+    state.prices = null;
+    state.priceMeta = null;
+    state.priceStatus = 'idle';
+    state.pricePromise = null;
     state.generation += 1;
     if (entriesEl) entriesEl.textContent = '';
+    if (summaryBlock) summaryBlock.hidden = true;
     if (panel) panel.hidden = true;
     if (setupCard) setupCard.hidden = !!state.record;
     if (unlockCard) unlockCard.hidden = !state.record;
@@ -1181,6 +1218,7 @@
     Object.keys(state.derived).forEach(function (id) {
       if (id !== entry.id) nextDerived[id] = state.derived[id];
     });
+    delete state.balances[entry.id];
     try {
       await saveEntries(nextEntries, nextDerived);
       renderEntries();
@@ -1329,6 +1367,20 @@
     refs.copy.disabled = false;
   }
 
+  function applyBalance(entry, badge) {
+    var current = state.balances[entry.id];
+    if (!current) {
+      badge.hidden = true;
+      return;
+    }
+    badge.hidden = false;
+    badge.className = 'wallet-balance' +
+      (current.state === 'ok' ? ' ok' : current.state === 'error' ? ' err' : '');
+    if (current.state === 'loading') badge.textContent = 'checking…';
+    else if (current.text) badge.textContent = current.text;
+    else badge.hidden = true;
+  }
+
   function renderEntries() {
     if (!entriesEl) return;
     entriesEl.textContent = '';
@@ -1336,6 +1388,7 @@
     var generation = state.generation;
     if (!state.entries.length) {
       emptyEl.hidden = false;
+      renderSummary();
       if (state.unlocked) renderSend();
       return;
     }
@@ -1351,6 +1404,7 @@
         var row = buildRow(entry);
         state.rows[entry.id] = row;
         applyDerived(entry, row);
+        applyBalance(entry, row._refs.badge);
         group.appendChild(row);
       });
       entriesEl.appendChild(group);
@@ -1362,6 +1416,7 @@
     state.entries.forEach(function (entry) {
       if (!state.derived[entry.id]) deriveEntry(entry, generation);
     });
+    renderSummary();
     if (state.unlocked) renderSend();
   }
 
@@ -1399,7 +1454,7 @@
     return fetch(url, settings).finally(function () { window.clearTimeout(timer); });
   }
 
-  async function fetchBtcBalance(address, apiBase) {
+  async function fetchBtcBalance(address, apiBase, symbol) {
     var base = apiBase || SSOT_PROVIDERS.find('bitcoin', 'mempool').url;
     var response = await fetchWithTimeout(base + '/address/' + encodeURIComponent(address));
     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -1413,7 +1468,12 @@
     var sats = funded - spent;
     if (sats < 0n) sats = 0n;
     var txs = (Number(chain.tx_count) || 0) + (Number(mempool.tx_count) || 0);
-    return sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx';
+    return {
+      amount: sats,
+      decimals: 8,
+      symbol: symbol || 'BTC',
+      text: sats.toLocaleString('en-US') + ' sats · ' + txs + ' tx'
+    };
   }
 
   async function fetchEvmBalance(spec, address) {
@@ -1435,7 +1495,13 @@
         if (!data || typeof data.result !== 'string') {
           throw new Error(data && data.error && data.error.message ? data.error.message : 'unexpected response');
         }
-        return AMOUNT.formatUnits(BigInt(data.result), spec.decimals, { symbol: spec.symbol });
+        var units = BigInt(data.result);
+        return {
+          amount: units,
+          decimals: spec.decimals,
+          symbol: spec.symbol,
+          text: AMOUNT.formatUnits(units, spec.decimals, { symbol: spec.symbol })
+        };
       } catch (err) {
         lastError = err;
       }
@@ -1446,7 +1512,14 @@
   async function fetchTronBalance(address) {
     var unit = SSOT_CHAINS.bySlug.tron;
     var response = await fetchWithTimeout(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address));
-    if (response.status === 404) return '0 ' + unit.symbol + ' · account not activated';
+    if (response.status === 404) {
+      return {
+        amount: 0n,
+        decimals: unit.decimals,
+        symbol: unit.symbol,
+        text: '0 ' + unit.symbol + ' · account not activated'
+      };
+    }
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var raw = await response.text();
     var data;
@@ -1460,35 +1533,315 @@
     var sun = match ? BigInt(match[1]) : 0n;
     var text = AMOUNT.formatUnits(sun, unit.decimals, { symbol: unit.symbol });
     if (typeof data.totalTransactionCount === 'number') text += ' · ' + data.totalTransactionCount + ' tx';
-    return text;
+    return { amount: sun, decimals: unit.decimals, symbol: unit.symbol, text: text };
   }
 
   async function fetchBalance(chain, address) {
     var spec = chainSpec(chain);
-    if (chain === 'bitcoin') return fetchBtcBalance(address);
-    if (chain === 'bitcoin-testnet') return fetchBtcBalance(address, spec.btcApi);
+    if (chain === 'bitcoin') return fetchBtcBalance(address, null, spec.symbol);
+    if (chain === 'bitcoin-testnet') return fetchBtcBalance(address, spec.btcApi, spec.symbol);
     if (chain === 'tron') return fetchTronBalance(address);
     if (spec && spec.rpc) return fetchEvmBalance(spec, address);
     throw new Error('no public balance provider in this phase');
   }
 
-  async function checkBalance(entry, badge) {
-    if (!state.lookup) return;
+  /* One balance request per row. The badge and the portfolio summary read the
+   * same result, so a failed or pending row can never become a zero total. */
+  async function loadBalance(entry, badge, generation) {
     var derived = state.derived[entry.id];
-    badge.hidden = false;
-    badge.className = 'wallet-balance';
-    if (!derived || derived.error || !derived.address) {
-      badge.textContent = 'address not derived yet';
+    var spec = chainSpec(entry.chain) || {};
+    var addressState = summaryHelper && typeof summaryHelper.loadState === 'function'
+      ? summaryHelper.loadState(derived)
+      : (!derived || derived.error || !derived.address ? 'error' : 'ready');
+    if (addressState === 'error') {
+      state.balances[entry.id] = { state: 'error', amount: null, text: 'address not derived yet' };
+      if (badge) {
+        badge.hidden = false;
+        badge.className = 'wallet-balance err';
+        badge.textContent = 'address not derived yet';
+      }
+      renderSummary();
       return;
     }
-    badge.textContent = 'checking…';
+    state.balances[entry.id] = { state: 'loading', amount: null, symbol: spec.symbol };
+    if (badge) {
+      badge.hidden = false;
+      badge.className = 'wallet-balance';
+      badge.textContent = 'checking…';
+    }
+    renderSummary();
     try {
-      var text = await fetchBalance(entry.chain, derived.address);
-      badge.textContent = text;
-      badge.classList.add('ok');
+      var result = await fetchBalance(entry.chain, derived.address);
+      if (generation !== state.generation || !state.unlocked) return;
+      state.balances[entry.id] = {
+        state: 'ok',
+        amount: result.amount,
+        decimals: result.decimals,
+        symbol: result.symbol,
+        text: result.text
+      };
+      state.lastBalanceRefreshAt = Date.now();
+      if (badge) {
+        badge.hidden = false;
+        badge.className = 'wallet-balance ok';
+        badge.textContent = result.text;
+      }
     } catch (err) {
-      badge.textContent = 'lookup failed: ' + errorText(err);
-      badge.classList.add('err');
+      if (generation !== state.generation || !state.unlocked) return;
+      state.balances[entry.id] = { state: 'error', amount: null, text: 'lookup failed: ' + errorText(err) };
+      if (badge) {
+        badge.hidden = false;
+        badge.className = 'wallet-balance err';
+        badge.textContent = state.balances[entry.id].text;
+      }
+    }
+    if (generation === state.generation) renderSummary();
+  }
+
+  async function checkBalance(entry, badge) {
+    if (!state.lookup) return;
+    await loadBalance(entry, badge, state.generation);
+  }
+
+  /* -------------------------------------------------------- prices + summary */
+
+  function readPriceCache() {
+    try {
+      var raw = window.localStorage.getItem(PRICE_CACHE_KEY);
+      if (!raw) return null;
+      var entry = JSON.parse(raw);
+      return entry && typeof entry === 'object' ? entry : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function writePriceCache(entry) {
+    try {
+      window.localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(entry));
+    } catch (err) {
+      /* private mode or a full quota: keep the in-memory copy */
+    }
+  }
+
+  /* The same Binance ticker and six-hour localStorage entry as /key. A failed
+   * refresh keeps the previous entry and marks it stale; a stale cache still
+   * never becomes a USD number, only a stated reason. */
+  function ensurePrices(force) {
+    var helper = window.RotorKeyTools;
+    if (!helper || typeof helper.priceRequestUrl !== 'function') {
+      state.priceStatus = 'unavailable';
+      return Promise.resolve();
+    }
+    if (state.pricePromise) return state.pricePromise;
+    var cached = readPriceCache();
+    if (helper.priceCacheState(cached, Date.now(), PRICE_TTL_MS) === 'fresh') {
+      state.prices = cached.prices;
+      state.priceMeta = { fetchedAt: cached.fetchedAt, stale: false };
+      state.priceStatus = 'fresh';
+      renderSummary();
+      return Promise.resolve();
+    }
+    if (!force && state.priceStatus !== 'idle') return Promise.resolve();
+    state.priceStatus = 'loading';
+    renderSummary();
+    state.pricePromise = (async function () {
+      try {
+        var response = await fetchWithTimeout(
+          helper.priceRequestUrl(),
+          { headers: { Accept: 'application/json' } }
+        );
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        var prices = helper.parsePriceResponse(data);
+        if (!Object.keys(prices).length) throw new Error('no ticker prices');
+        var entry = { prices: prices, fetchedAt: Date.now(), source: 'binance' };
+        writePriceCache(entry);
+        state.prices = prices;
+        state.priceMeta = { fetchedAt: entry.fetchedAt, stale: false };
+        state.priceStatus = 'fresh';
+      } catch (err) {
+        if (cached && cached.prices && Object.keys(cached.prices).length) {
+          state.prices = cached.prices;
+          state.priceMeta = { fetchedAt: cached.fetchedAt, stale: true };
+          state.priceStatus = 'stale';
+        } else {
+          state.prices = null;
+          state.priceMeta = null;
+          state.priceStatus = 'unavailable';
+        }
+      } finally {
+        state.pricePromise = null;
+        renderSummary();
+      }
+    })();
+    return state.pricePromise;
+  }
+
+  function excludedNames(fiat) {
+    return (fiat && fiat.excluded ? fiat.excluded : []).map(function (row) {
+      return row.label || row.chain;
+    });
+  }
+
+  function fiatTitle(fiat) {
+    if (!fiat) return '';
+    if (fiat.state === 'empty') return 'No balance has loaded yet; this is not a zero total.';
+    if (fiat.state === 'loading') return 'Waiting for the balance refresh and the public ticker.';
+    if (fiat.state === 'stale') {
+      return 'The cached public ticker is stale, so no USD value is shown. Per-chain native totals remain.';
+    }
+    if (fiat.state === 'unavailable') {
+      return 'No public ticker is reachable, so no USD value is shown. Per-chain native totals remain.';
+    }
+    if (fiat.state === 'unpriced') return 'No loaded chain has a public price.';
+    if (fiat.cents === null) return 'No USD value.';
+    var text = 'Exact total from ' + fiat.included + ' priced chain' + (fiat.included === 1 ? '' : 's');
+    var when = summaryHelper.formatTime(state.priceMeta && state.priceMeta.fetchedAt);
+    if (when) text += '; prices fetched ' + when;
+    if (state.priceMeta && state.priceMeta.stale) text += '; stale cache';
+    if (fiat.excluded.length) text += '; excluded: ' + excludedNames(fiat).join(', ');
+    return text + '.';
+  }
+
+  function summaryStatusText(totals, fiat) {
+    var parts = [];
+    if (state.summaryRefreshing) parts.push('Refreshing balances…');
+    if (!state.lookup) parts.push('Enable “Allow public balance lookups” to refresh all balances.');
+    var excluded = excludedNames(fiat);
+    var excludedText = excluded.length ? ' Excluded from USD: ' + excluded.join(', ') + '.' : '';
+    if (fiat.state === 'stale') {
+      var when = summaryHelper.formatTime(state.priceMeta && state.priceMeta.fetchedAt);
+      parts.push('Fiat value hidden: the cached public ticker is stale' +
+        (when ? ' (fetched ' + when + ')' : '') +
+        '. Per-chain native totals are still shown.' + excludedText);
+    } else if (fiat.state === 'unavailable') {
+      parts.push('Fiat value unavailable: no public ticker is reachable. Per-chain native totals are still shown.' + excludedText);
+    } else if (fiat.state === 'unpriced') {
+      var unpriced = excludedNames(fiat);
+      parts.push('Fiat value unavailable: no loaded chain has a price' +
+        (unpriced.length ? ' (excluded: ' + unpriced.join(', ') + ')' : '') +
+        '. Per-chain native totals are still shown.');
+    } else if (fiat.state === 'loading') {
+      if (totals.loaded > 0) parts.push('Waiting for the public ticker.');
+    } else if (excluded.length) {
+      parts.push('Excluded from USD (no price): ' + excluded.join(', ') + '.');
+    }
+    return parts.join(' ');
+  }
+
+  function renderSummaryChains(totals) {
+    if (!summaryChains) return;
+    summaryChains.textContent = '';
+    totals.perChain.forEach(function (row) {
+      var item = document.createElement('li');
+      item.className = 'wallet-summary-chain';
+      item.setAttribute('data-chain', row.chain);
+      var name = document.createElement('span');
+      name.className = 'wallet-summary-chain-name';
+      name.textContent = row.label;
+      var value = document.createElement('strong');
+      value.className = 'wallet-summary-chain-value';
+      value.textContent = summaryHelper.formatNative(row.amount, row.decimals, row.symbol);
+      item.appendChild(name);
+      item.appendChild(value);
+      summaryChains.appendChild(item);
+    });
+    summaryChains.hidden = totals.perChain.length === 0;
+  }
+
+  function renderSummary() {
+    if (!summaryBlock) return;
+    var visible = state.unlocked && state.entries.length > 0 && !!summaryHelper;
+    summaryBlock.hidden = !visible;
+    if (!visible) return;
+    var rows = state.entries.map(function (entry) {
+      var spec = chainSpec(entry.chain) || {};
+      var current = state.balances[entry.id];
+      var rowState = current ? current.state : 'missing';
+      if (rowState === 'ok') {
+        return {
+          chain: entry.chain,
+          label: chainLabel(entry.chain),
+          symbol: current.symbol || spec.symbol,
+          decimals: Number.isInteger(current.decimals) ? current.decimals : spec.decimals,
+          amount: current.amount,
+          state: 'ok'
+        };
+      }
+      return {
+        chain: entry.chain,
+        label: chainLabel(entry.chain),
+        symbol: spec.symbol,
+        decimals: spec.decimals,
+        amount: null,
+        state: rowState
+      };
+    });
+    var totals = summaryHelper.aggregate(rows);
+    if (totals.loaded > 0 && state.priceStatus === 'idle') ensurePrices(false);
+    var priceState;
+    if (state.priceStatus === 'fresh') priceState = 'fresh';
+    else if (state.priceStatus === 'stale') priceState = 'stale';
+    else if (state.priceStatus === 'loading' || state.priceStatus === 'idle') priceState = 'loading';
+    else priceState = 'unavailable';
+    var fiat = summaryHelper.fiat(totals, state.prices, priceState);
+
+    if (summaryTotal) {
+      summaryTotal.textContent = summaryHelper.totalText(fiat);
+      summaryTotal.classList.toggle('empty', fiat.cents === null);
+      summaryTotal.title = fiatTitle(fiat);
+    }
+    if (summaryLoaded) summaryLoaded.textContent = summaryHelper.loadedLine(totals);
+    if (summaryEntries) summaryEntries.textContent = String(totals.total);
+    if (summaryEmpty) {
+      summaryEmpty.hidden = totals.loaded > 0;
+      summaryEmpty.textContent = totals.loading > 0
+        ? 'Loading ' + totals.loading + ' balance' + (totals.loading === 1 ? '' : 's') + '…'
+        : 'No balances loaded yet. Use Refresh to read the public addresses you allowed above.';
+    }
+    renderSummaryChains(totals);
+    if (summaryStatus) summaryStatus.textContent = summaryStatusText(totals, fiat);
+    if (summaryRefreshed) {
+      summaryRefreshed.textContent = state.lastBalanceRefreshAt
+        ? 'Balances last refreshed ' + (summaryHelper.formatTime(state.lastBalanceRefreshAt) || 'just now') + '.'
+        : 'Balances have not been refreshed yet.';
+    }
+    if (summaryRefresh) {
+      summaryRefresh.disabled = state.summaryRefreshing;
+      summaryRefresh.setAttribute('aria-busy', state.summaryRefreshing ? 'true' : 'false');
+    }
+    summaryBlock.setAttribute(
+      'aria-busy',
+      state.summaryRefreshing || fiat.state === 'loading' ? 'true' : 'false'
+    );
+  }
+
+  async function refreshPortfolio() {
+    if (!state.unlocked) return;
+    if (!state.lookup) {
+      if (summaryStatus) {
+        summaryStatus.textContent = 'Enable “Allow public balance lookups” to refresh all balances.';
+      }
+      return;
+    }
+    if (state.summaryRefreshing) return;
+    state.summaryRefreshing = true;
+    renderSummary();
+    var generation = state.generation;
+    var jobs = [];
+    state.entries.forEach(function (entry) {
+      var row = state.rows[entry.id];
+      jobs.push(loadBalance(entry, row && row._refs ? row._refs.badge : null, generation));
+    });
+    if (jobs.length) jobs.push(ensurePrices(true));
+    try {
+      await Promise.all(jobs);
+    } finally {
+      if (generation === state.generation) {
+        state.summaryRefreshing = false;
+        renderSummary();
+      }
     }
   }
 
@@ -1497,7 +1850,12 @@
     Array.prototype.forEach.call(entriesEl.querySelectorAll('.wallet-balance-button'), function (button) {
       button.disabled = !state.lookup;
     });
+    renderSummary();
   });
+
+  if (summaryRefresh) {
+    summaryRefresh.addEventListener('click', function () { refreshPortfolio(); });
+  }
 
   /* ------------------------------------------------------------- EVM send */
 
