@@ -491,6 +491,13 @@
       "symptom": "The 60-row /private-keys/bitcoin-cash directory rendered — for every balance although the shared batched Haskoin provider already existed and the mnemonic directory used it.",
       "detector": "browse.js must use the batched Haskoin provider for BCH",
       "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "key-utxo-blockcypher-429",
+      "reported": "2026-11-22",
+      "symptom": "The /key Litecoin and Dogecoin rows showed no balance whenever BlockCypher answered HTTP 429 {\"error\":\"Limits reached.\"}; both chains had only that one provider although SoChain v3 serves LTC, DOGE and ZEC keyless with CORS. The row attribute recorded only that some provider existed, so the audit stayed green.",
+      "detector": "key-utxo-provider",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
