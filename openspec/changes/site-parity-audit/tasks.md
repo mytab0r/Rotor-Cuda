@@ -263,6 +263,31 @@
   Defect `sochain-quota-storm`, detector `mnemonic-sochain-quota-storm`. The
   matrix row stays `partial`: the live 60/60 measurement is still missing, and
   the daily quota was already spent when this run probed it.
+- [x] LTC directory fallback to litecoinspace (2026-11-22, code-only): SoChain
+  answered 429 for every request (retry-after ~11.6 h), so all 60 LTC rows on
+  `/mnemonic-seeds/litecoin` and `/private-keys/litecoin` kept the retry state
+  although `data/providers.json` already declared
+  `https://litecoinspace.org/api` under litecoin. The shared `sochainProvider`
+  (`apps/site/balance-providers.js`) now, on the first 429 for
+  `meta.chain === 'litecoin'`, stops the SoChain fan-out and serves the whole
+  page through `litecoinspace` (`GET <base>/address/<addr>`, one request per
+  address, base read from the SSOT provider entry), decoded by the pure
+  `parseLitecoinSpaceAddress` (`apps/site/balance-cache.js`) as
+  `chain_stats.funded_txo_sum - chain_stats.spent_txo_sum` in BigInt. Live probe
+  2026-11-22: CORS `*`, 200; for
+  `LdP8Qox1VAhCzLJNqrr74YovaWYyNBUWvL` funded 468500180181831, spent
+  468500109354570, balance 70827261 sat; ten concurrent requests all answered
+  200, so pacing is not the issue. DOGE and ZEC keep today's behaviour (the
+  first 429 stops the page and rows keep the retry state). Both directory entry
+  points (`providerMetaFor`, `providerMeta`) inherit the fallback from the
+  shared fetcher; `/key` stays SoChain with its BlockCypher fallback and
+  `key-utxo-provider` still passes. Tests: `apps/site/mnemonic-seeds-test.mjs`
+  (the quota-storm test now uses DOGE; an all-429 LTC page resolves 60/60 from
+  mocked litecoinspace JSON with each request on the SSOT URL; DOGE/ZEC never
+  call litecoinspace) and `apps/site/balance-cache-test.mjs` (the pinned
+  70827261 vector plus malformed bodies). Defect `mnemonic-ltc-sochain-fallback`,
+  detector `mnemonic-ltc-sochain-fallback`. A full live 60/60 measurement of all
+  three chains is still missing.
 - [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
   60-row directory returned no provider meta for BCH and rendered `—` for every
   row, although the shared batched Haskoin provider already existed and the

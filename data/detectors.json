@@ -571,6 +571,14 @@
       "status": "implemented"
     },
     {
+      "id": "mnemonic-ltc-sochain-fallback",
+      "rule": "A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
       "id": "balance-state-attribute",
       "rule": "Every balance row sets data-balance-state and data-balance-at on the row.",
       "batch": "phase 4",
