@@ -8,6 +8,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+require("./amount.js");
 const decoders = require("./tx-decoders.js");
 
 function assert(condition, message) {

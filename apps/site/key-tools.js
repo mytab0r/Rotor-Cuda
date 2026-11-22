@@ -8,6 +8,7 @@
 
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   function clean(text) {
     return String(text == null ? '' : text).trim().replace(/[\s_]+/g, '');
@@ -947,14 +948,9 @@
     var decimals = summary && Number.isInteger(summary.decimals) ? summary.decimals : 0;
     if (decimals < 0) decimals = 0;
     if (decimals > 30) decimals = 30;
-    var unit = 1n;
-    for (var index = 0; index < decimals; index += 1) unit *= 10n;
-    var whole = amount / unit;
-    var fraction = decimals > 0
-      ? (amount % unit).toString().padStart(decimals, '0').replace(/0+$/, '')
-      : '';
-    var text = fraction ? whole.toString() + '.' + fraction : whole.toString();
-    return text + (summary && summary.symbol ? ' ' + summary.symbol : '');
+    return AMOUNT.formatUnits(amount, decimals, {
+      symbol: summary && summary.symbol ? summary.symbol : ''
+    });
   }
 
   /* The row text and the title are the same line: amount, tx count, nonce,
