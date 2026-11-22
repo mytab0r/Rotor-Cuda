@@ -23,6 +23,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   function explorerPrefix(slug) {
     return SSOT_CHAINS.bySlug[slug].explorerPrefix;
@@ -1346,13 +1347,6 @@
     return fetch(url, settings).finally(function () { window.clearTimeout(timer); });
   }
 
-  function formatUnits(value, decimals, symbol) {
-    var unit = 10n ** BigInt(decimals);
-    var whole = value / unit;
-    var fraction = (value % unit).toString().padStart(decimals, '0').replace(/0+$/, '');
-    return (fraction ? whole.toString() + '.' + fraction : whole.toString()) + ' ' + symbol;
-  }
-
   async function fetchBtcBalance(address, apiBase) {
     var base = apiBase || SSOT_PROVIDERS.find('bitcoin', 'mempool').url;
     var response = await fetchWithTimeout(base + '/address/' + encodeURIComponent(address));
@@ -1389,7 +1383,7 @@
         if (!data || typeof data.result !== 'string') {
           throw new Error(data && data.error && data.error.message ? data.error.message : 'unexpected response');
         }
-        return formatUnits(BigInt(data.result), 18, spec.symbol || 'ETH');
+        return AMOUNT.formatUnits(BigInt(data.result), 18, { symbol: spec.symbol || 'ETH' });
       } catch (err) {
         lastError = err;
       }
@@ -1411,7 +1405,7 @@
     if (!data || typeof data !== 'object') throw new Error('unexpected response');
     var match = /"balance"\s*:\s*"?(\d+)"?/.exec(raw);
     var sun = match ? BigInt(match[1]) : 0n;
-    var text = formatUnits(sun, 6, 'TRX');
+    var text = AMOUNT.formatUnits(sun, 6, { symbol: 'TRX' });
     if (typeof data.totalTransactionCount === 'number') text += ' · ' + data.totalTransactionCount + ' tx';
     return text;
   }
@@ -1648,14 +1642,14 @@
 
   function fillSendDefaults(review) {
     if (!sendValueInput.value.trim()) {
-      sendValueInput.value = evmSend.formatUnits(review.valueWei, 18);
+      sendValueInput.value = AMOUNT.formatUnits(review.valueWei, 18);
     }
     if (!sendGasInput.value.trim()) sendGasInput.value = review.gasLimit.toString();
     if (!sendPriorityInput.value.trim()) {
-      sendPriorityInput.value = evmSend.formatUnits(review.priorityWei, 9);
+      sendPriorityInput.value = AMOUNT.formatUnits(review.priorityWei, 9);
     }
     if (!sendMaxFeeInput.value.trim()) {
-      sendMaxFeeInput.value = evmSend.formatUnits(review.maxFeeWei, 9);
+      sendMaxFeeInput.value = AMOUNT.formatUnits(review.maxFeeWei, 9);
     }
   }
 
@@ -1683,7 +1677,7 @@
       (review.testnet ? ' · testnet' : ' · MAINNET'));
     addReviewRow('From', review.from, true);
     addReviewRow('To', review.to, true);
-    addReviewRow('Amount', evmSend.formatUnits(review.valueWei, 18) + ' ' + symbol +
+    addReviewRow('Amount', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol +
       ' (' + review.valueWei + ' wei)');
     addReviewRow('Data', review.dataHex, true);
     addReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
@@ -1694,16 +1688,16 @@
         ? ' (eth_estimateGas)'
         : ' (eth_estimateGas + 20% buffer)')));
     addReviewRow('Nonce', review.nonce.toString());
-    addReviewRow('Max fee (per gas)', evmSend.formatUnits(review.maxFeeWei, 9) + ' gwei (' +
+    addReviewRow('Max fee (per gas)', AMOUNT.formatUnits(review.maxFeeWei, 9) + ' gwei (' +
       review.maxFeeWei + ' wei)');
-    addReviewRow('Priority fee', evmSend.formatUnits(review.priorityWei, 9) + ' gwei');
-    addReviewRow('Base fee', evmSend.formatUnits(review.baseFeeWei, 9) + ' gwei');
-    addReviewRow('Maximum network fee', evmSend.formatUnits(feeWei, 18) + ' ' + symbol);
-    addReviewRow('Total max cost', evmSend.formatUnits(review.totalMaxCostWei, 18) + ' ' +
+    addReviewRow('Priority fee', AMOUNT.formatUnits(review.priorityWei, 9) + ' gwei');
+    addReviewRow('Base fee', AMOUNT.formatUnits(review.baseFeeWei, 9) + ' gwei');
+    addReviewRow('Maximum network fee', AMOUNT.formatUnits(feeWei, 18) + ' ' + symbol);
+    addReviewRow('Total max cost', AMOUNT.formatUnits(review.totalMaxCostWei, 18) + ' ' +
       symbol + ' (' + review.totalMaxCostWei + ' wei)');
-    addReviewRow('Balance', evmSend.formatUnits(review.balanceWei, 18) + ' ' + symbol);
+    addReviewRow('Balance', AMOUNT.formatUnits(review.balanceWei, 18) + ' ' + symbol);
     if (review.feeCapWei !== null && review.feeCapWei !== undefined) {
-      addReviewRow('Fee cap', evmSend.formatUnits(review.feeCapWei, 18) + ' ' + symbol +
+      addReviewRow('Fee cap', AMOUNT.formatUnits(review.feeCapWei, 18) + ' ' + symbol +
         ' · within cap');
     }
     addReviewRow('RPC', review.providerLabel + ' · ' + review.providerUrl);

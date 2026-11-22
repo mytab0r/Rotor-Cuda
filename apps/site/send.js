@@ -41,6 +41,7 @@
    * generated globals in chains.generated.js (loaded before this script). */
   var SSOT_CHAINS = root.RotorChains;
   var SSOT_PROVIDERS = root.RotorProviders;
+  var AMOUNT = root.RotorAmount;
 
   var BTC_CHAIN = 'bitcoin-testnet';
   var EVM_CHAIN = 'ethereum-sepolia';
@@ -357,24 +358,6 @@
     return parsed;
   }
 
-  /* Strict decimal -> raw integer. No Number, no exponent, no rounding. This
-   * is deliberately local: send.js is required standalone in the Node tests,
-   * so it does not depend on RotorEvmSend being on the global object. */
-  function parseTokenUnits(text, decimals) {
-    var value = typeof text === 'string' ? text.trim() : '';
-    if (!value) throw new Error('Enter a token amount.');
-    var match = /^(\d+)(?:\.(\d+))?$/.exec(value);
-    if (!match) {
-      throw new Error('Use a plain decimal token amount like 1.5 (no exponent, sign or comma).');
-    }
-    var fraction = match[2] || '';
-    if (fraction.length > decimals) {
-      throw new Error('At most ' + decimals + ' decimal places for this token.');
-    }
-    return BigInt(match[1]) * (10n ** BigInt(decimals)) +
-      BigInt(fraction.padEnd(decimals, '0') || '0');
-  }
-
   function pad32(hex) {
     if (hex.length > 64) throw new Error('A 32-byte word cannot hold that value.');
     return hex.padStart(64, '0');
@@ -388,7 +371,7 @@
     var contract = normalizeEvmAddress(input.contract, 'Token contract');
     var recipient = normalizeEvmAddress(input.recipient, 'Recipient');
     var decimals = tokenDecimals(input.decimals);
-    var rawAmount = parseTokenUnits(input.amount, decimals);
+    var rawAmount = AMOUNT.parseUnits(input.amount, decimals);
     if (rawAmount <= 0n) throw new Error('Token amount must be greater than zero.');
     if (rawAmount > U256_MAX) throw new Error('Token amount is too large for a uint256.');
     var data = ERC20_TRANSFER_SELECTOR + pad32(recipient.slice(2)) + pad32(rawAmount.toString(16));
@@ -1015,18 +998,18 @@
         addRow('Recipient', state.token.recipient, true);
         addRow('Token contract', state.token.contract, true);
         addRow('Decimals', String(state.token.decimals));
-        addRow('Token amount', evm.formatUnits(state.token.rawAmount, state.token.decimals));
+        addRow('Token amount', AMOUNT.formatUnits(state.token.rawAmount, state.token.decimals));
         addRow('Calldata', state.token.data, true);
         addRow('Value', '0 (the token amount travels in the calldata)');
       } else {
         addRow('To', review.to, true);
-        addRow('Value', evm.formatUnits(review.valueWei, evm.ETH_DECIMALS) + ' ' + symbol);
+        addRow('Value', AMOUNT.formatUnits(review.valueWei, evm.ETH_DECIMALS) + ' ' + symbol);
       }
       addRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual ? ' (manual)' : ' (estimated)'));
-      addRow('Max fee', evm.formatUnits(review.maxFeeWei, evm.GWEI_DECIMALS) + ' gwei');
-      addRow('Priority fee', evm.formatUnits(review.priorityWei, evm.GWEI_DECIMALS) + ' gwei');
+      addRow('Max fee', AMOUNT.formatUnits(review.maxFeeWei, evm.GWEI_DECIMALS) + ' gwei');
+      addRow('Priority fee', AMOUNT.formatUnits(review.priorityWei, evm.GWEI_DECIMALS) + ' gwei');
       addRow('Nonce', review.nonce.toString());
-      addRow('Total max cost', evm.formatUnits(review.totalMaxCostWei, evm.ETH_DECIMALS) + ' ' + symbol);
+      addRow('Total max cost', AMOUNT.formatUnits(review.totalMaxCostWei, evm.ETH_DECIMALS) + ' ' + symbol);
       addRow('Provider', review.providerLabel);
       renderWarnings(review.warnings);
       if (reviewUnsigned) reviewUnsigned.textContent = review.unsignedHex;
@@ -1412,7 +1395,6 @@
     containsSecret: containsSecret,
     normalizeEvmAddress: normalizeEvmAddress,
     tokenDecimals: tokenDecimals,
-    parseTokenUnits: parseTokenUnits,
     buildErc20Transfer: buildErc20Transfer,
     tronAmountSun: tronAmountSun,
     prepareTronTransfer: prepareTronTransfer,
