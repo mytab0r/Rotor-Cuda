@@ -713,9 +713,10 @@ has no shared component; everything else consumes a shared component or token.
 The surviving exceptions, by file:
 
 - `apps/site/site.css` — the "Page-scoped rules (batch 7)" section. Wallet vault
-  rows/split/review grid, send form/review/hex blocks, the tools family grid and
-  the mnemonic seed row grid. These are page-only layouts; they use `--space-*`,
-  `--text-*`, `--radius-*` and the semantic colours.
+  rows/split/review grid, send form/review/hex blocks, the `.wallet-check`
+  checkbox row (44px through `--control-h`, 18px box), the tools family grid
+  and the mnemonic seed row grid. These are page-only layouts; they use
+  `--space-*`, `--text-*`, `--radius-*` and the semantic colours.
 - `apps/site/brainwallet.css` — the directory row grid (`bw-rows-header`/
   `bw-row`), key/phrase/address line layout, the generator form grid, the
   checkbox row and the balance cell. The badge box comes from the shared status

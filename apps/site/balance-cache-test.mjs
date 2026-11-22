@@ -215,6 +215,21 @@ const tests = [
     });
     assert.equal(cache.parseBlockcypherBalance({ total_received: 10 }), null);
 
+    // Haskoin BCH: one entry per address, satoshis split into confirmed and
+    // (possibly negative) unconfirmed, plus the tx count.
+    assert.deepEqual(
+      cache.parseHaskoinBch([{ confirmed: 5593777459, unconfirmed: -500, txs: 11724 }]),
+      { confirmed: "5593777459", unconfirmed: "-500", txs: 11724 },
+    );
+    assert.deepEqual(cache.parseHaskoinBch([{ confirmed: "42" }]), {
+      confirmed: "42",
+      unconfirmed: "0",
+      txs: null,
+    });
+    assert.equal(cache.parseHaskoinBch([]), null);
+    assert.equal(cache.parseHaskoinBch({ confirmed: 1 }), null);
+    assert.equal(cache.parseHaskoinBch([{ txs: 3 }]), null);
+
     // Numeric shapes stay strings; negative/float values are not amounts.
     assert.equal(cache.atomicAmount(123), "123");
     assert.equal(cache.atomicAmount(-1), null);
