@@ -830,8 +830,8 @@
 
   /* Balance provider for a chain name. Pure (no captured page state) so the
    * Node test can assert it without a DOM; `providerMeta` binds the page.
-   * LTC, DOGE and ZEC read SoChain per address (2500 requests/hour keyless,
-   * CORS), so a 60-row page uses ~2.4% of the provider budget. */
+   * LTC, DOGE and ZEC read SoChain per address (2500 lookups a day per IP,
+   * keyless, CORS), so a 60-row page uses ~2.4% of the daily budget. */
   function providerMetaFor(chainName, evmSymbol) {
     var meta = SSOT_CHAINS.bySlug[chainName];
     if (!meta) return null;

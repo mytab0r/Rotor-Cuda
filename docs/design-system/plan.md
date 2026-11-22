@@ -365,6 +365,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `bch-directory-provider` | The private-key BCH directory wires the batched Haskoin provider instead of per-row lookups. | phase 4 | implemented |
 | `mnemonic-tron-xrp-sui-balances` | The TRON, XRP and SUI directories fetch balances for every row. | phase 4 | implemented |
 | `mnemonic-xrp-redirect` | XRPScan is called with redirect: error so a cross-origin hop fails loud. | phase 4 | implemented |
+| `mnemonic-sochain-quota-storm` | The first SoChain 429 stops the rest of a directory page instead of firing 60 retries. | phase 4 | implemented |
 | `balance-state-attribute` | Every balance row sets data-balance-state and data-balance-at on the row. | phase 4 | implemented |
 | `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
 | `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |
