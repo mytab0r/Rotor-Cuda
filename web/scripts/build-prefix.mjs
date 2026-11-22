@@ -53,6 +53,18 @@ for (const rel of files) {
   copyFileSync(path.join(DIST, rel), target);
 }
 
+// CSS loaded from the prefixed tree must fetch its fonts/images from the same
+// immutable tree. The root copy stays untouched for coordinator compatibility.
+for (const rel of files.filter((file) => file.endsWith('.css'))) {
+  const target = path.join(DIST, prefix, rel);
+  const css = readFileSync(target, 'utf8');
+  const rewritten = css.replace(
+    /url\((["']?)\/(?!a\/)([^)"']+)\1\)/g,
+    (match, quote, asset) => (ASSET.test(asset) ? `url(${quote}/${prefix}/${asset}${quote})` : match),
+  );
+  if (rewritten !== css) writeFileSync(target, rewritten);
+}
+
 const htmlFiles = files.filter((rel) => rel.endsWith('.html'));
 for (const rel of htmlFiles) {
   const file = path.join(DIST, rel);
