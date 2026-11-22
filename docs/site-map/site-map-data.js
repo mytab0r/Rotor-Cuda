@@ -1129,7 +1129,7 @@
     status: 'missing',
     priority: 'P0',
     sources: ['ref-site-a', 'ref-site-b'],
-    note: 'Crypto only has dataset dumps under /wallets; ref-site-a has top-100 tables per chain.'
+    note: 'Crypto only has dataset dumps under /wallets; ref-site-a has top-100 tables for seven chains (bitcoin, ethereum, bnb, polygon, arbitrum, tron, dogecoin). The keyless SoChain rich_list ranks BTC, DOGE, LTC and ZEC only and so cannot cover the five EVM/Tron lists; the route stays absent until the owner chooses between a BTC/DOGE-only list and a ranked dataset.'
   });
 
   feature({
