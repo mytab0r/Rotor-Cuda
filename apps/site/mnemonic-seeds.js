@@ -146,10 +146,19 @@
         { id: 'bip44', label: 'BIP44', path: "m/44'/784'/0'/0'/0'", desc: '0x...' }
       ]
     },
+    /* TON derives ed25519 keys with SLIP-0010 at the donor's path
+     * m/44'/607'/0'. Wallet v4R2 needs the wallet contract builder in
+     * /ton.js (loaded lazily on this page only); W5 comes from the WASM
+     * report as `ton_w5`. */
     ton: {
-      unsupported: 'TON mnemonic seeds need the wallet contract builder as well as the key. Use the TON key page or a TON wallet for now; no addresses are faked here.',
-      types: [],
-      presets: []
+      types: [
+        { value: 'ton', label: 'Wallet v4R2', desc: 'EQ…', field: 'ton', path: "m/44'/607'/0'" },
+        { value: 'ton_w5', label: 'Wallet W5', desc: 'EQ…/UQ…', field: 'ton_w5', path: "m/44'/607'/0'" }
+      ],
+      presets: [
+        { id: 'master', label: 'Master Key', path: 'm', desc: 'BIP-32 root' },
+        { id: 'tonkeeper', label: 'Tonkeeper', path: "m/44'/607'/0'", desc: 'V4/W5' }
+      ]
     }
   };
 
@@ -254,6 +263,7 @@
     compactPhrase: compactPhrase,
     receivedText: receivedText,
     providerMetaFor: providerMetaFor,
+    chainConfig: function (name) { return CHAINS[name] || null; },
     solanaBatchBody: solanaBatchBody
   };
 
@@ -305,6 +315,8 @@
   var state = {
     disposed: false,
     wasmPromise: null,
+    tonPromise: null,
+    tonError: null,
     entries: [],
     cached: {},
     balanceBusy: false,
@@ -528,6 +540,29 @@
     } finally {
       wasm.dealloc(ptr, bytes.length);
     }
+  }
+
+  /* TON v4R2 addresses are built from the ed25519 public key by /ton.js.
+   * The bundle is ~220 KB, so it is fetched lazily and only on the TON page;
+   * a rejected promise is dropped so a later attempt may retry. */
+  function loadTon() {
+    if (window.RotorTon) return Promise.resolve(window.RotorTon);
+    if (state.tonPromise) return state.tonPromise;
+    state.tonPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+      script.src = window.RotorAssets && typeof window.RotorAssets.url === 'function'
+        ? window.RotorAssets.url('/ton.js')
+        : '/ton.js';
+      script.async = true;
+      script.onload = function () {
+        if (window.RotorTon) resolve(window.RotorTon);
+        else reject(new Error('The TON wallet library did not load.'));
+      };
+      script.onerror = function () { reject(new Error('Cannot load /ton.js.')); };
+      document.head.appendChild(script);
+    });
+    state.tonPromise.catch(function () { state.tonPromise = null; });
+    return state.tonPromise;
   }
 
   function addressMap(report) {
@@ -795,7 +830,7 @@
 
   /* Balance provider for a chain name. Pure (no captured page state) so the
    * Node test can assert it without a DOM; `providerMeta` binds the page.
-   * LTC/DOGE/ZEC/TON stay unsupported here on purpose (per-address provider
+   * LTC/DOGE/ZEC stay unsupported here on purpose (per-address provider
    * budget); each row keeps an honest "—" and its explorer link. */
   function providerMetaFor(chainName, evmSymbol) {
     var meta = SSOT_CHAINS.bySlug[chainName];
@@ -820,6 +855,9 @@
     }
     if (chainName === 'sui') {
       return { provider: 'sui', chain: 'sui', decimals: 9, symbol: 'SUI' };
+    }
+    if (chainName === 'ton') {
+      return { provider: 'tonapi', chain: 'ton', decimals: 9, symbol: 'TON' };
     }
     return null;
   }
@@ -1172,6 +1210,23 @@
     }
     entry.report = report;
     entry.addressMap = addressMap(report);
+    if (chain === 'ton' && !entry.addressMap.ton) {
+      /* W5 rows come from the WASM report; only the v4R2 row needs the
+       * /ton.js bundle, so a failure must not blank the W5 page. */
+      var needsV4 = activeType.field === 'ton';
+      if (state.tonError && needsV4) throw state.tonError;
+      if (!report || !report.ed_pubkey) {
+        if (needsV4) throw new Error('The derivation report has no ed25519 public key.');
+      } else if (!state.tonError) {
+        try {
+          var ton = await loadTon();
+          entry.addressMap.ton = await ton.address(report.ed_pubkey);
+        } catch (err) {
+          state.tonError = err;
+          if (needsV4) throw err;
+        }
+      }
+    }
     entry.address = entry.addressMap[activeType.field] || '';
     entry.key = privateKeyFor(chain, report);
     entry.keyHref = privateKeyHref(chain, entry.key) +
