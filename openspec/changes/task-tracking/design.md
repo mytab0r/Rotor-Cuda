@@ -108,8 +108,10 @@ Rules:
   `Closes|Fixes|Resolves #<n>`. A closing reference to a different issue does
   not satisfy it.
 - `Task: none — <reason>` → pass only when every changed path is docs/process
-  (`docs/`, `openspec/`, `scripts/`, `.github/`, `AGENTS.md`, `PROJECTS.md`,
-  `projects.json`, `*.md`/`*.mdx`) and the reason is non-empty.
+  (`docs/`, `openspec/`, `scripts/`, `.github/`, `projects.json`, or a
+  repository-root Markdown file such as `AGENTS.md`) and the reason is
+  non-empty. A Markdown file inside product code (`apps/site/README.md`) does
+  not qualify.
 - Any product path needs a key. Empty/unknown file lists are treated as
   product, so a broken `gh` call fails safe.
 

@@ -11,9 +11,11 @@ import assert from "node:assert/strict";
 
 import {
   archiveStalePullRequestItems,
+  branchMatchesChange,
   closingIssueNumbers,
   epicBody,
   evaluateTaskLinks,
+  filesBelongToChange,
   isDocsOnly,
   isProcessOnly,
   issueNumberFromKey,
@@ -185,6 +187,8 @@ test("parseBlockers expands ranges, keeps keys, notes and unresolved names", () 
   assert.deepEqual(parseBlockers("1-3").sectionNumbers, ["1", "2", "3"]);
   assert.deepEqual(parseBlockers("T1-T2").sectionNumbers, ["1", "2"]);
   assert.deepEqual(parseBlockers("ROT-9").keys, ["ROT-9"]);
+  assert.deepEqual(parseBlockers("#12").keys, ["ROT-12"]);
+  assert.deepEqual(parseBlockers("ROT-9, #12").keys, ["ROT-9", "ROT-12"]);
   assert.deepEqual(parseBlockers("—").sectionNumbers, []);
   assert.deepEqual(parseBlockers("demand gate").unresolved, ["demand gate"]);
   assert.deepEqual(parseBlockers("developer + designer").notes, [
@@ -217,11 +221,69 @@ test("resolveBlockedBy maps sections to keys, drops self-loops and reports lefto
 test("docs/process-only classification", () => {
   assert.equal(isDocsOnly(["docs/process/x.md"]), true);
   assert.equal(isDocsOnly(["openspec/changes/a/tasks.md"]), true);
+  assert.equal(isDocsOnly(["README.md", "docs/process/x.md"]), true);
+  assert.equal(isDocsOnly(["apps/site/README.md"]), false);
   assert.equal(isDocsOnly(["docs/process/x.md", "apps/site/x.js"]), false);
   assert.equal(isDocsOnly([]), false);
   assert.equal(isProcessOnly(["scripts/sync-board.mjs"]), true);
   assert.equal(isProcessOnly(["docs/x.md", ".github/workflows/task-links.yml"]), true);
+  assert.equal(isProcessOnly(["README.md", "scripts/sync-board.mjs"]), true);
+  assert.equal(isProcessOnly(["apps/site/README.md"]), false);
   assert.equal(isProcessOnly(["src/coordinator/mod.rs"]), false);
+});
+
+test("branch matching does not confuse a change id with a longer registered id", () => {
+  const ids = ["wallet-mainnet-signing", "wallet-mainnet-signing-erc20"];
+  assert.equal(
+    branchMatchesChange("fix/wallet-mainnet-signing", "wallet-mainnet-signing", ids),
+    "match",
+  );
+  assert.equal(
+    branchMatchesChange(
+      "fix/wallet-mainnet-signing-approvals",
+      "wallet-mainnet-signing",
+      ids,
+    ),
+    "ambiguous",
+  );
+  assert.equal(
+    branchMatchesChange(
+      "fix/wallet-mainnet-signing-erc20-approvals",
+      "wallet-mainnet-signing",
+      ids,
+    ),
+    "ambiguous",
+  );
+  assert.equal(
+    branchMatchesChange(
+      "fix/wallet-mainnet-signing-erc20-approvals",
+      "wallet-mainnet-signing-erc20",
+      ids,
+    ),
+    "match",
+  );
+  assert.equal(
+    branchMatchesChange(
+      "feat/other-change",
+      "wallet-mainnet-signing",
+      ids,
+    ),
+    "no",
+  );
+  assert.equal(
+    filesBelongToChange(
+      ["openspec/changes/wallet-mainnet-signing/tasks.md"],
+      "wallet-mainnet-signing",
+    ),
+    true,
+  );
+  assert.equal(
+    filesBelongToChange(
+      ["openspec/changes/wallet-mainnet-signing-erc20/tasks.md"],
+      "wallet-mainnet-signing",
+    ),
+    false,
+  );
 });
 
 test("evaluateTaskLinks passes and fails the CI cases", () => {
@@ -287,6 +349,13 @@ test("evaluateTaskLinks passes and fails the CI cases", () => {
     files: ["scripts/sync-board.mjs", ".github/workflows/task-links.yml", "AGENTS.md"],
   });
   assert.equal(processNone.ok, true);
+
+  const productMarkdown = evaluateTaskLinks({
+    body: "Task: none — docs: a readme\n",
+    files: ["apps/site/README.md"],
+  });
+  assert.equal(productMarkdown.ok, false);
+  assert.match(productMarkdown.errors.join("\n"), /only allowed/);
 
   const invalid = evaluateTaskLinks({
     body: "Task: ROT-zero\nCloses #1\n",
@@ -419,6 +488,36 @@ test("syncChangeTasks --dry-run prints the plan and performs no mutation", () =>
     const text = lines.join("\n");
     assert.match(text, /\[dry-run\] create sub-issue demo\/first/);
     assert.match(text, /\[dry-run\] blockers demo\/second: §2 <- §1/);
+  }));
+
+test("syncChangeTasks --dry-run prints an unresolved blocker once", () =>
+  withTempDir((tempDir) => {
+    const { sections } = parseTasksMarkdown(
+      [
+        "# Tasks",
+        "## 1. First (blocked by: 2, demand gate)",
+        "- [ ] a",
+      ].join("\n"),
+    );
+
+    const lines = [];
+    syncChangeTasks({
+      changeId: "demo",
+      epicNumber: null,
+      tasks: sections,
+      existingIssues: [],
+      gh: () => {
+        throw new Error("dry run must not call gh");
+      },
+      repo: "o/r",
+      dryRun: true,
+      tempDir,
+      log: (line) => lines.push(line),
+      areaForTask: () => "site",
+    });
+
+    const line = lines.find((value) => value.includes("blockers demo/first"));
+    assert.equal(line, "[dry-run] blockers demo/first: §1 <- §2, unresolved: demand gate");
   }));
 
 test("syncChangeTasks keeps an existing sub-issue when its section is fully checked", () =>

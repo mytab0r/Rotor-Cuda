@@ -24,7 +24,8 @@ const NON_TASK_TITLE_RE =
 const ROLE_NOTE_RE =
   /^(?:analyst|critic|developer|designer|tester|orchestrator|owner|product|legal|ops|back|front|qa|wasm|desktop|coordinator|site)(?:\s*[+&]\s*\w+)*$/i;
 const SOFT_NOTE_RE = /^(?:follows|after|needs?|depends on|see)\b/i;
-const DOC_PATH_RE = /^(?:docs\/|openspec\/)|\.(?:md|mdx)$/i;
+const DOC_PATH_RE = /^(?:docs\/|openspec\/)/i;
+const ROOT_MARKDOWN_RE = /^[^/]+\.(?:md|mdx)$/i;
 const PROCESS_PATH_RE =
   /^(?:scripts\/|\.github\/)|^(?:projects\.json|AGENTS\.md|PROJECTS\.md)$/;
 
@@ -72,10 +73,7 @@ export function closingIssueNumbers(body) {
 
 export function isDocsOnly(files) {
   const list = Array.isArray(files) ? files : [];
-  return (
-    list.length > 0 &&
-    list.every((file) => DOC_PATH_RE.test(normalizeFile(file)))
-  );
+  return list.length > 0 && list.every((file) => isDocsPath(normalizeFile(file)));
 }
 
 // Docs plus the process machinery that cannot be gated by a key before the
@@ -86,13 +84,44 @@ export function isProcessOnly(files) {
     list.length > 0 &&
     list.every((file) => {
       const normalized = normalizeFile(file);
-      return DOC_PATH_RE.test(normalized) || PROCESS_PATH_RE.test(normalized);
+      return isDocsPath(normalized) || PROCESS_PATH_RE.test(normalized);
     })
   );
 }
 
+// `docs/` and `openspec/` are documentation. A Markdown file counts only at
+// the repository root: `apps/site/README.md` is product code and needs a task.
+function isDocsPath(normalized) {
+  return DOC_PATH_RE.test(normalized) || ROOT_MARKDOWN_RE.test(normalized);
+}
+
 function normalizeFile(file) {
   return String(file).replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Branch convention: `<type>/<change-id>-<slug>`. A longer registered change
+// id that starts with this id (e.g. `wallet-mainnet-signing-erc20` after
+// `wallet-mainnet-signing`) makes the branch ambiguous; the caller must then
+// use `filesBelongToChange` instead of guessing.
+export function branchMatchesChange(headRefName, changeId, changeIds = []) {
+  const head = String(headRefName ?? "").replaceAll("\\", "/");
+  const escaped = escapeRegExp(changeId);
+  if (new RegExp(`(^|/)${escaped}(?=$|/)`).test(head)) return "match";
+  if (!new RegExp(`(^|/)${escaped}-[a-z0-9]`, "i").test(head)) return "no";
+  const longer = (changeIds ?? []).some(
+    (id) => id !== changeId && id.startsWith(`${changeId}-`),
+  );
+  return longer ? "ambiguous" : "match";
+}
+
+export function filesBelongToChange(files, changeId) {
+  return (files ?? []).some((file) =>
+    normalizeFile(file).startsWith(`openspec/changes/${changeId}/`),
+  );
 }
 
 // Pure verdict for a pull request. `issueExists` is true/false when the caller
@@ -249,6 +278,12 @@ export function parseBlockers(raw) {
     if (/^[—–-]+$/.test(token)) continue;
     if (expandRange(token, result)) continue;
 
+    const hash = /^#([1-9]\d*)$/.exec(token);
+    if (hash) {
+      result.keys.push(taskKey(Number(hash[1])));
+      continue;
+    }
+
     const key = new RegExp(`(?:^|\\s)(${KEY_PREFIX}-[1-9]\\d*)(?:\\b|$)`, "i").exec(token);
     if (key) {
       result.keys.push(taskKey(issueNumberFromKey(key[1])));
@@ -324,20 +359,31 @@ function lookupSection(raw, keyBySectionNumber) {
 function blockerEdge(task, resolved, keyBySectionNumber) {
   const current = task.number ? `§${task.number}` : "(no section number)";
   const parts = [];
+  const represented = new Set();
   const push = (value) => {
     if (!parts.includes(value)) parts.push(value);
   };
 
   for (const number of task.blockers.sectionNumbers) {
     const key = lookupSection(number, keyBySectionNumber);
-    if (key) push(`${key} (#${issueNumberFromKey(key)})`);
-    else if (resolved.unresolved.includes(`${number} (self)`)) {
+    if (key) {
+      push(`${key} (#${issueNumberFromKey(key)})`);
+      represented.add(key);
+    } else if (resolved.unresolved.includes(`${number} (self)`)) {
       push(`unresolved: ${number} (self)`);
-    } else push(`§${number}`);
+      represented.add(`${number} (self)`);
+    } else {
+      push(`§${number}`);
+      represented.add(number);
+    }
   }
   for (const key of task.blockers.keys) push(`${key} (#${issueNumberFromKey(key)})`);
-  for (const value of task.blockers.unresolved) push(`unresolved: ${value}`);
+  for (const value of task.blockers.unresolved) {
+    push(`unresolved: ${value}`);
+    represented.add(value);
+  }
   for (const value of resolved.unresolved) {
+    if (represented.has(value)) continue;
     if (value.endsWith(" (self)")) continue;
     push(`unresolved: ${value}`);
   }

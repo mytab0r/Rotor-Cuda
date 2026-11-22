@@ -103,8 +103,10 @@ Task: none — docs: fix the task-tracking example
 ```
 
 The reason is mandatory. "Docs/process-only" means every changed path is under
-`docs/`, `openspec/`, `scripts/`, `.github/`, or is `AGENTS.md`, `PROJECTS.md`
-or `projects.json`, or ends in `.md`/`.mdx`. Any product path
+`docs/`, `openspec/`, `scripts/` or `.github/`, is `projects.json`, or is a
+Markdown file at the repository root (`README.md`, `AGENTS.md`,
+`PROJECTS.md`, ...). A Markdown file inside product code
+(`apps/site/README.md`) is product and needs a key. Any product path
 (`apps/`, `web/`, `src/`, `crates/`, `data/`, `design/`, `tests/`) requires a
 key.
 
@@ -120,6 +122,12 @@ For example `feat/task-tracking-board-sync` or
 folder name. The slug is short and lowercase. The key is deliberately absent:
 the branch may be pushed before the sub-issue exists, and a fork cannot be
 forced to carry it.
+
+If a longer registered change id starts with this one (for example
+`wallet-mainnet-signing` and `wallet-mainnet-signing-erc20`), a branch
+`<type>/<change-id>-<slug>` is ambiguous. The sync then requires a changed file
+under `openspec/changes/<change-id>/` before it appends `Closes`; otherwise it
+reports the PR for a manual decision.
 
 ## Provider mapping
 
