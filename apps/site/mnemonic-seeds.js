@@ -833,8 +833,9 @@
    * LTC, DOGE and ZEC read SoChain per address (2500 lookups a day per IP,
    * keyless, CORS), so a 60-row page uses ~2.4% of the daily budget. When
    * SoChain answers 429 the shared fetcher serves the whole Litecoin page from
-   * the keyless litecoinspace Esplora provider; DOGE and ZEC have no fallback
-   * and keep the retry state. */
+   * the keyless litecoinspace Esplora provider and the whole Dogecoin page from
+   * one SSOT BlockCypher batch (small hourly quota, each address counts); ZEC
+   * has no fallback and keeps the retry state. */
   function providerMetaFor(chainName, evmSymbol) {
     var meta = SSOT_CHAINS.bySlug[chainName];
     if (!meta) return null;
