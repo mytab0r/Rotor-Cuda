@@ -248,7 +248,63 @@ test("mnemonic-tron-xrp-sui-balances: providerMetaFor maps TRON, XRP and SUI", (
   assertEqual(api.providerMetaFor("litecoin"), null, "LTC stays unsupported on this page");
   assertEqual(api.providerMetaFor("dogecoin"), null, "DOGE stays unsupported on this page");
   assertEqual(api.providerMetaFor("zcash"), null, "ZEC stays unsupported on this page");
-  assertEqual(api.providerMetaFor("ton"), null, "TON stays unsupported on this page");
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("ton")),
+    JSON.stringify({ provider: "toncenter", chain: "ton", decimals: 9, symbol: "TON" }),
+    "TON uses the Toncenter per-address provider"
+  );
+});
+
+test("mnemonic-ton-seeds: the config matches the donor path, types and presets", () => {
+  const config = api.chainConfig("ton");
+  assert(config, "TON must have a real config, not an unsupported state");
+  assertEqual(config.unsupported, undefined, "TON must not keep an unsupported message");
+  assertEqual(
+    JSON.stringify(config.types.map((type) => [type.value, type.field, type.path])),
+    JSON.stringify([
+      ["ton", "ton", "m/44'/607'/0'"],
+      ["ton_w5", "ton_w5", "m/44'/607'/0'"],
+    ]),
+    "the donor path serves both the v4R2 and the W5 address type"
+  );
+  assertEqual(
+    JSON.stringify(config.presets.map((preset) => [preset.id, preset.label, preset.path])),
+    JSON.stringify([
+      ["master", "Master Key", "m"],
+      ["tonkeeper", "Tonkeeper", "m/44'/607'/0'"],
+    ]),
+    "preset ids, labels and paths are identical to the donor"
+  );
+  assertEqual(
+    JSON.stringify(api.addressEntriesFor("ton", "ton_w5", { ton: "EQv4", ton_w5: "EQw5" }, "ton_w5")),
+    JSON.stringify([{ prefix: "", address: "EQw5" }]),
+    "the W5 row reads the report's ton_w5 address as-is"
+  );
+});
+
+test("mnemonic-ton-seeds: deriveEntry builds v4R2 through /ton.js and keeps W5 from the report", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  assert(
+    source.includes("entry.addressMap.ton = await ton.address(report.ed_pubkey)"),
+    "the v4R2 row must be built by the TON bundle, not faked"
+  );
+  assert(
+    source.includes("script.src = window.RotorAssets && typeof window.RotorAssets.url === 'function'"),
+    "the TON bundle URL must use the build-prefixed asset URL"
+  );
+  assert(
+    source.includes("if (chain === 'ton' && !entry.addressMap.ton)"),
+    "the TON augmentation must be gated to the TON page"
+  );
+  assert(
+    !source.includes("TON mnemonic seeds need the wallet contract builder"),
+    "the old unsupported message must be gone"
+  );
+  assertEqual(
+    JSON.stringify(api.addressEntriesFor("ton", "ton", { ton: "EQv4", ton_w5: "EQw5" }, "ton")),
+    JSON.stringify([{ prefix: "", address: "EQv4" }]),
+    "the v4R2 rows read the bundle-built address"
+  );
 });
 
 test("mnemonic-bch-balances: one Haskoin request lists each address once in order", async () => {
