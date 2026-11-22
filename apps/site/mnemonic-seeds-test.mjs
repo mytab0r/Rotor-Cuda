@@ -371,6 +371,139 @@ test("the row script never stores or logs keys", async () => {
   assert(!/console\.(log|info|debug|warn|error)/.test(source), "keys must not be logged");
 });
 
+/* Balance-row instrumentation contract. A listing row that renders balances
+ * must expose `data-balance-state` (and `data-balance-at` where a timestamp
+ * exists) on the row element itself, or a verifier selecting
+ * [data-balance-state] silently measures zero rows. */
+const BALANCE_ROW_CONTRACT = [
+  {
+    file: "browse.js",
+    fn: "renderGroup",
+    state: /group\.row\.dataset\.balanceState\s*=/,
+    at: /group\.row\.dataset\.balanceAt\s*=/,
+  },
+  {
+    file: "browse.js",
+    fn: "fetchAndApply",
+    state: /record\.row\.dataset\.balanceState\s*=\s*['"]loading['"]/,
+  },
+  {
+    file: "key.js",
+    fn: "renderCachedRow",
+    state: /row\.dataset\.balanceState\s*=\s*['"]ok['"]/,
+    at: /row\.dataset\.balanceAt\s*=/,
+  },
+  {
+    file: "key.js",
+    fn: "checkRow",
+    state: /row\.dataset\.balanceState\s*=\s*['"]loading['"]/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "createRow",
+    state: /entry\.row\s*=\s*row/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "renderEntry",
+    state: /setBalanceState\(entry,\s*entry\.balanceState/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "setBalanceState",
+    state: /dataset\.balanceState\s*=/,
+    at: /dataset\.balanceAt\s*=/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "fetchAndApply",
+    state: /record\.entry\.row\.dataset\.balanceState\s*=\s*['"]loading['"]/,
+  },
+];
+
+function functionBody(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  if (start < 0) return null;
+  const open = source.indexOf("{", start);
+  if (open < 0) return null;
+  let depth = 0;
+  let quote = null;
+  for (let i = open; i < source.length; i += 1) {
+    const char = source[i];
+    if (quote) {
+      if (char === "\\") i += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(open, i + 1);
+    }
+  }
+  return null;
+}
+
+function scanBalanceRowContract(sources, contract = BALANCE_ROW_CONTRACT) {
+  const problems = [];
+  for (const rule of contract) {
+    const body = functionBody(sources[rule.file] || "", rule.fn);
+    if (!body) {
+      problems.push(`${rule.file}:${rule.fn}: function not found`);
+      continue;
+    }
+    if (!rule.state.test(body)) {
+      problems.push(`${rule.file}:${rule.fn}: balance rows do not set data-balance-state`);
+    }
+    if (rule.at && !rule.at.test(body)) {
+      problems.push(`${rule.file}:${rule.fn}: balance rows do not set data-balance-at`);
+    }
+  }
+  return problems;
+}
+
+test("balance-state-attribute: every balance row sets data-balance-state on the row", async () => {
+  const sources = {
+    "browse.js": await readFile(browsePath, "utf8"),
+    "key.js": await readFile(fileURLToPath(new URL("./key.js", import.meta.url)), "utf8"),
+    "mnemonic-seeds.js": await readFile(scriptPath, "utf8"),
+  };
+  assertEqual(scanBalanceRowContract(sources).join("\n"), "", "balance rows must carry the state attribute");
+});
+
+test("balance-state-attribute: the detector catches a removed mnemonic state write", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  assert(source.includes("setBalanceState(entry, entry.balanceState, first)"), "fixture must contain the state write");
+  const mutated = source.replace(
+    "    setBalanceState(entry, entry.balanceState, first);",
+    "    /* state write removed by the mutation test */"
+  );
+  assert(mutated !== source, "mutation must change the source");
+  const problems = scanBalanceRowContract({ "mnemonic-seeds.js": mutated });
+  assert(
+    problems.some((problem) => problem.includes("mnemonic-seeds.js:renderEntry")),
+    `mutation must fail the detector, got: ${problems.join("; ")}`
+  );
+});
+
+test("balance-state-attribute: the detector catches a removed browse state write", async () => {
+  const source = await readFile(browsePath, "utf8");
+  const mutated = source.replace(
+    "group.row.dataset.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';",
+    "/* state write removed by the mutation test */"
+  );
+  assert(mutated !== source, "mutation must change the source");
+  const problems = scanBalanceRowContract({ "browse.js": mutated });
+  assert(
+    problems.some((problem) => problem.includes("browse.js:renderGroup")),
+    `mutation must fail the detector, got: ${problems.join("; ")}`
+  );
+});
+
 let failed = 0;
 for (const { name, fn } of tests) {
   try {
