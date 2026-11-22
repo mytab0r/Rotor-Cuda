@@ -90,9 +90,9 @@ hand-edit it.
 
 ## Behaviour notes
 
-- The page loads `/vendor/seed.js`, `/vendor/seed-crypto.js` and
-  `/rotor_wasm.wasm` exactly where the current page does. Derivation, WIF and
-  address encoding still come from the same code.
+- The page loads `/vendor/seed.js`, `/vendor/seed-crypto.js` and the
+  build-prefixed `rotor_wasm.wasm` exactly where the current page does.
+  Derivation, WIF and address encoding still come from the same code.
 - Balances use the same public endpoints (`blockchain.info` for BTC, a public
   Ethereum JSON-RPC endpoint for EVM); only derived public addresses leave the
   page. The phrase, passphrase and keys stay in the tab and are not stored. The
@@ -103,7 +103,7 @@ hand-edit it.
 - The landing loads no WASM and no coordinator API: chain cards come from
   `data/chains.json` at build time, and the dynamic totals/leaderboard link to
   the operator console instead of rendering stale numbers. Its only scripts are
-  the deferred theme bootstrap (601 B gzip) and the shell island bundle (882 B
+  the deferred theme bootstrap (601 B gzip) and the shell island bundle (913 B
   gzip).
 - The shared shell is the one header/footer source. The pilot no longer carries
   its own copy, and it uses the layout's static theme toggle, skip link, active
