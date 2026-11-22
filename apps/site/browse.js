@@ -90,16 +90,24 @@
   var root = document.querySelector('.browse-page');
   if (!root) return;
 
+  var chainSlug = root.getAttribute('data-chain') || 'bitcoin';
+  var chainMeta = SSOT_CHAINS.bySlug[chainSlug] || SSOT_CHAINS.bySlug.bitcoin;
   var config = {
-    chain: root.getAttribute('data-chain') || 'bitcoin',
-    symbol: root.getAttribute('data-symbol') || '',
-    explorer: root.getAttribute('data-explorer') || '',
+    chain: chainSlug,
+    symbol: chainMeta.symbol,
+    decimals: chainMeta.decimals,
+    explorer: chainMeta.explorerPrefix,
     type: root.getAttribute('data-type') || 'legacy',
     field: root.getAttribute('data-field') || '',
     curve: Number(root.getAttribute('data-curve') || '0'),
     pages: root.getAttribute('data-pages') || '1',
     page: root.getAttribute('data-page') || '1'
   };
+
+  function unitFor(slug) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return { symbol: meta.symbol, decimals: meta.decimals };
+  }
 
   var state = {
     wasm: null,
@@ -381,14 +389,14 @@
   }
 
   function providerMeta() {
-    if (config.chain === 'bitcoin') return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
-    if (RPC[config.chain]) return { provider: 'evm', chain: config.chain, decimals: 18, symbol: config.symbol };
-    if (config.chain === 'solana') return { provider: 'solana', chain: 'solana', decimals: 9, symbol: 'SOL' };
-    if (config.chain === 'sui') return { provider: 'sui', chain: 'sui', decimals: 9, symbol: 'SUI' };
-    if (config.chain === 'tron') return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: config.symbol || 'TRX' };
-    if (config.chain === 'xrp') return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
-    if (config.chain === 'ton') return { provider: 'toncenter', chain: 'ton', decimals: 9, symbol: 'TON' };
-    if (config.chain === 'bitcoin-cash') return { provider: 'haskoin-bch', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
+    if (config.chain === 'bitcoin') return Object.assign({ provider: 'blockchain.info', chain: 'bitcoin' }, unitFor('bitcoin'));
+    if (RPC[config.chain]) return { provider: 'evm', chain: config.chain, symbol: config.symbol, decimals: config.decimals };
+    if (config.chain === 'solana') return Object.assign({ provider: 'solana', chain: 'solana' }, unitFor('solana'));
+    if (config.chain === 'sui') return Object.assign({ provider: 'sui', chain: 'sui' }, unitFor('sui'));
+    if (config.chain === 'tron') return Object.assign({ provider: 'tronscan', chain: 'tron' }, unitFor('tron'));
+    if (config.chain === 'xrp') return Object.assign({ provider: 'xrpscan', chain: 'xrp' }, unitFor('xrp'));
+    if (config.chain === 'ton') return Object.assign({ provider: 'toncenter', chain: 'ton' }, unitFor('ton'));
+    if (config.chain === 'bitcoin-cash') return Object.assign({ provider: 'haskoin-bch', chain: 'bitcoin-cash' }, unitFor('bitcoin-cash'));
     /* LTC and DOGE do have a keyless provider (BlockCypher) on the single-key
      * page. This 60-row directory does not use it: 60 lookups would exceed the
      * keyless rate limit, so those cells stay "—" (each address keeps its

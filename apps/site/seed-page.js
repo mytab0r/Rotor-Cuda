@@ -13,65 +13,53 @@
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
   var AMOUNT = SSOT_ROOT.RotorAmount;
 
-  function explorerPrefix(slug) {
-    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
-  }
-
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
   var DECODER = new TextDecoder('utf-8');
   var BALANCE_TIMEOUT_MS = 12000;
 
+  function chainConfig(slug, presets) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return { label: meta.name, explorer: meta.explorerPrefix, presets: presets };
+  }
+
   var CHAINS = {
-    bitcoin: {
-      label: 'Bitcoin',
-      explorer: explorerPrefix('bitcoin'),
-      presets: [
-        { id: 'btc_p2pkh', label: 'BIP44 · Legacy', path: "m/44'/0'/0'/0/0" },
-        { id: 'btc_p2sh_p2wpkh', label: 'BIP49 · Nested SegWit', path: "m/49'/0'/0'/0/0" },
-        { id: 'btc_p2wpkh', label: 'BIP84 · Native SegWit', path: "m/84'/0'/0'/0/0" },
-        { id: 'btc_p2tr', label: 'BIP86 · Taproot', path: "m/86'/0'/0'/0/0" }
-      ]
-    },
-    ethereum: {
-      label: 'Ethereum / EVM',
-      explorer: explorerPrefix('ethereum'),
-      presets: [{ id: 'evm', label: 'BIP44 · Ethereum', path: "m/44'/60'/0'/0/0" }]
-    },
-    tron: {
-      label: 'TRON',
-      explorer: explorerPrefix('tron'),
-      presets: [{ id: 'tron', label: 'BIP44 · TRON', path: "m/44'/195'/0'/0/0" }]
-    },
-    litecoin: {
-      label: 'Litecoin',
-      explorer: explorerPrefix('litecoin'),
-      presets: [
-        { id: 'ltc_p2pkh', label: 'BIP44 · Legacy', path: "m/44'/2'/0'/0/0" },
-        { id: 'ltc_p2sh_p2wpkh', label: 'BIP49 · Nested SegWit', path: "m/49'/2'/0'/0/0" },
-        { id: 'ltc_p2wpkh', label: 'BIP84 · Native SegWit', path: "m/84'/2'/0'/0/0" }
-      ]
-    },
-    dogecoin: {
-      label: 'Dogecoin',
-      explorer: explorerPrefix('dogecoin'),
-      presets: [{ id: 'doge_p2pkh', label: 'BIP44 · Dogecoin', path: "m/44'/3'/0'/0/0" }]
-    },
-    'bitcoin-cash': {
-      label: 'Bitcoin Cash',
-      explorer: explorerPrefix('bitcoin-cash'),
-      presets: [{ id: 'bch_legacy', label: 'BIP44 · Bitcoin Cash', path: "m/44'/145'/0'/0/0" }]
-    },
-    xrp: {
-      label: 'XRP',
-      explorer: explorerPrefix('xrp'),
-      presets: [{ id: 'xrp_classic', label: 'BIP44 · XRP', path: "m/44'/144'/0'/0/0" }]
-    }
+    bitcoin: chainConfig('bitcoin', [
+      { id: 'btc_p2pkh', label: 'BIP44 · Legacy', path: "m/44'/0'/0'/0/0" },
+      { id: 'btc_p2sh_p2wpkh', label: 'BIP49 · Nested SegWit', path: "m/49'/0'/0'/0/0" },
+      { id: 'btc_p2wpkh', label: 'BIP84 · Native SegWit', path: "m/84'/0'/0'/0/0" },
+      { id: 'btc_p2tr', label: 'BIP86 · Taproot', path: "m/86'/0'/0'/0/0" }
+    ]),
+    ethereum: chainConfig('ethereum', [
+      { id: 'evm', label: 'BIP44 · Ethereum', path: "m/44'/60'/0'/0/0" }
+    ]),
+    tron: chainConfig('tron', [
+      { id: 'tron', label: 'BIP44 · TRON', path: "m/44'/195'/0'/0/0" }
+    ]),
+    litecoin: chainConfig('litecoin', [
+      { id: 'ltc_p2pkh', label: 'BIP44 · Legacy', path: "m/44'/2'/0'/0/0" },
+      { id: 'ltc_p2sh_p2wpkh', label: 'BIP49 · Nested SegWit', path: "m/49'/2'/0'/0/0" },
+      { id: 'ltc_p2wpkh', label: 'BIP84 · Native SegWit', path: "m/84'/2'/0'/0/0" }
+    ]),
+    dogecoin: chainConfig('dogecoin', [
+      { id: 'doge_p2pkh', label: 'BIP44 · Dogecoin', path: "m/44'/3'/0'/0/0" }
+    ]),
+    'bitcoin-cash': chainConfig('bitcoin-cash', [
+      { id: 'bch_legacy', label: 'BIP44 · Bitcoin Cash', path: "m/44'/145'/0'/0/0" }
+    ]),
+    xrp: chainConfig('xrp', [
+      { id: 'xrp_classic', label: 'BIP44 · XRP', path: "m/44'/144'/0'/0/0" }
+    ])
   };
-  var CHAIN_ORDER = ['bitcoin', 'ethereum', 'tron', 'litecoin', 'dogecoin', 'bitcoin-cash', 'xrp'];
+  /* The page supports a subset; keep the canonical order from data/chains.json. */
+  var CHAIN_ORDER = SSOT_CHAINS.order.filter(function (slug) {
+    return Object.prototype.hasOwnProperty.call(CHAINS, slug);
+  });
   var EVM_RPC = SSOT_PROVIDERS.first('ethereum').url;
   var BTC_BALANCE_URL = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url;
+  var BTC_UNIT = SSOT_CHAINS.bySlug.bitcoin;
+  var ETH_UNIT = SSOT_CHAINS.bySlug.ethereum;
   var WORDS = [12, 15, 18, 21, 24];
   var LOAD_BATCH = 5;
 
@@ -1014,8 +1002,8 @@
         }
         entry.balanceValue = BigInt(info.final_balance || 0);
         entry.receivedValue = BigInt(info.total_received || 0);
-        entry.balanceUnit = 'BTC';
-        setBalance(entry, AMOUNT.coin(info.final_balance, 8) + ' BTC · ' + Number(info.n_tx || 0) + ' tx');
+        entry.balanceUnit = BTC_UNIT.symbol;
+        setBalance(entry, AMOUNT.coin(info.final_balance, BTC_UNIT.decimals) + ' ' + BTC_UNIT.symbol + ' · ' + Number(info.n_tx || 0) + ' tx');
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
@@ -1056,8 +1044,8 @@
           return;
         }
         entry.balanceValue = value;
-        entry.balanceUnit = 'ETH';
-        setBalance(entry, AMOUNT.coin(value, 18) + ' ETH');
+        entry.balanceUnit = ETH_UNIT.symbol;
+        setBalance(entry, AMOUNT.coin(value, ETH_UNIT.decimals) + ' ' + ETH_UNIT.symbol);
       });
     } catch (err) {
       if (run !== state.run || (signal && signal.aborted)) return;
@@ -1088,18 +1076,18 @@
     var unchecked = entries.length - known.length;
     if (unchecked) text += ' · ' + unchecked + ' address' + (unchecked === 1 ? '' : 'es') + ' not checked';
     var unit = entries[0].balanceUnit;
-    var sameAsset = (unit === 'BTC' || unit === 'ETH') && known.length === entries.length &&
+    var sameAsset = (unit === BTC_UNIT.symbol || unit === ETH_UNIT.symbol) && known.length === entries.length &&
       entries.every(function (entry) { return entry.balanceUnit === unit; });
     var hasReceived = entries.every(function (entry) {
-      return entry.balanceUnit === 'BTC' && typeof entry.receivedValue === 'bigint';
+      return entry.balanceUnit === BTC_UNIT.symbol && typeof entry.receivedValue === 'bigint';
     });
     if (hasReceived) {
       var received = entries.reduce(function (acc, entry) { return acc + entry.receivedValue; }, 0n);
-      text += ' · Received: ' + AMOUNT.coin(received, 8) + ' BTC';
+      text += ' · Received: ' + AMOUNT.coin(received, BTC_UNIT.decimals) + ' ' + BTC_UNIT.symbol;
     }
     if (sameAsset) {
       var sum = known.reduce(function (acc, entry) { return acc + entry.balanceValue; }, 0n);
-      text += ' · Sum: ' + AMOUNT.coin(sum, unit === 'BTC' ? 8 : 18) + ' ' + unit;
+      text += ' · Sum: ' + AMOUNT.coin(sum, unit === BTC_UNIT.symbol ? BTC_UNIT.decimals : ETH_UNIT.decimals) + ' ' + unit;
     }
     return text;
   }

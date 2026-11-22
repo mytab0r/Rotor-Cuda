@@ -530,9 +530,9 @@
       sum += info.balance;
       tx += info.tx;
       if (info.balance > 0n) active += 1;
-      setBalance(entry, AMOUNT.coin(info.balance, 18) + ' ' + chain.symbol, info.balance.toString() + ' wei', info.balance > 0n ? 'active' : 'empty');
+      setBalance(entry, AMOUNT.coin(info.balance, chain.decimals) + ' ' + chain.symbol, info.balance.toString() + ' wei', info.balance > 0n ? 'active' : 'empty');
     });
-    setSummary(AMOUNT.coin(sum, 18) + ' ' + chain.symbol, String(active), '—', tx.toString());
+    setSummary(AMOUNT.coin(sum, chain.decimals) + ' ' + chain.symbol, String(active), '—', tx.toString());
   }
 
   function setBalanceMode(mode) {
