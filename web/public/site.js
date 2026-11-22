@@ -340,9 +340,7 @@
     rebuild();
   }
 
-  /* Directory search shares the key page's detector: an XRP secret opens
-   * /key/<secret>, a mnemonic opens /mnemonic-converter, and anything with a
-   * canonical hex key opens /key/<hex>. */
+  /* Directory search shares the key page's detector and routing helper. */
   function bindKeySearches() {
     Array.prototype.forEach.call(document.querySelectorAll('form[data-key-search]'), function (form) {
       form.addEventListener('submit', function (event) {
@@ -355,17 +353,8 @@
           if (hint) hint.textContent = 'Search is still loading. Try again.';
           return;
         }
-        window.RotorSearch.detect(value).then(function (result) {
-          if (result.kind === 'xrp-secret') {
-            window.location.href = '/key/' + encodeURIComponent(result.value);
-          } else if (result.kind === 'mnemonic') {
-            window.location.href = '/mnemonic-converter';
-          } else if (result.hex) {
-            window.location.href = '/key/' + result.hex;
-          } else if (hint) {
-            hint.textContent = 'Cannot read that key.';
-            hint.classList.add('err');
-          }
+        window.RotorSearch.keyHref(value).then(function (href) {
+          window.location.href = href;
         }, function (err) {
           if (hint) {
             hint.textContent = err && err.message ? err.message : 'Cannot read that key.';

@@ -370,8 +370,8 @@
       return;
     }
     searchHint.textContent = 'Reading the key in your browser…';
-    window.RotorSearch.resolve(value).then(function (hex) {
-      window.location.assign('/key/' + hex);
+    window.RotorSearch.keyHref(value).then(function (href) {
+      window.location.assign(href);
     }, function (err) {
       hint((err && err.message ? err.message + ' ' : '') + 'Use the ', [
         { href: '/key', text: 'key calculator' },
