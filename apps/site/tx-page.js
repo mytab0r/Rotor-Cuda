@@ -110,6 +110,7 @@
     var scroll = document.createElement('div');
     scroll.className = 'table-scroll';
     var table = document.createElement('table');
+    table.className = 'data-table';
     var caption = document.createElement('caption');
     caption.className = 'visually-hidden';
     caption.textContent = captionText;
