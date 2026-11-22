@@ -25,10 +25,6 @@
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
   var AMOUNT = SSOT_ROOT.RotorAmount;
 
-  function explorerPrefix(slug) {
-    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
-  }
-
   /* The canonical table holds every public endpoint. `providerId` keeps a
    * chain on the single endpoint this page has always used (the rest of the
    * list is the wallet send path); no id means the full ordered fallback. */
@@ -65,28 +61,39 @@
   var WIF_MIN_LENGTH = 50;
   var WIF_MAX_LENGTH = 53;
 
-  /* Address rows come from the wasm derive_report report; explorer and
-   * provider URLs come from data/chains.json and data/providers.json. */
+  /* Address rows come from the wasm derive_report report; explorer, label,
+   * symbol and decimals come from data/chains.json. */
+  function chainRow(slug, extra) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return Object.assign({
+      slug: slug,
+      label: meta.name,
+      symbol: meta.symbol,
+      decimals: meta.decimals,
+      explorer: meta.explorerPrefix
+    }, extra);
+  }
+
   var CHAINS = [
-    { slug: 'bitcoin', label: 'Bitcoin', curve: 0, addressId: 'btc_p2wpkh', explorer: explorerPrefix('bitcoin') },
-    { slug: 'bitcoin-testnet', label: 'Bitcoin testnet', curve: 0, addressId: 'btc_p2wpkh', explorer: explorerPrefix('bitcoin-testnet'), btcApi: SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url, network: 1 },
-    { slug: 'ethereum', label: 'Ethereum', curve: 0, addressId: 'evm', explorer: explorerPrefix('ethereum'), rpc: rpcUrls('ethereum'), symbol: 'ETH' },
-    { slug: 'bnb', label: 'BNB Chain', curve: 0, addressId: 'evm', explorer: explorerPrefix('bnb'), rpc: rpcUrls('bnb', 'bsc-dataseed'), symbol: 'BNB' },
-    { slug: 'arbitrum', label: 'Arbitrum', curve: 0, addressId: 'evm', explorer: explorerPrefix('arbitrum'), rpc: rpcUrls('arbitrum', 'arbitrum'), symbol: 'ETH' },
-    { slug: 'optimism', label: 'Optimism', curve: 0, addressId: 'evm', explorer: explorerPrefix('optimism'), rpc: rpcUrls('optimism'), symbol: 'ETH' },
-    { slug: 'base', label: 'Base', curve: 0, addressId: 'evm', explorer: explorerPrefix('base'), rpc: rpcUrls('base', 'base'), symbol: 'ETH' },
-    { slug: 'polygon', label: 'Polygon', curve: 0, addressId: 'evm', explorer: explorerPrefix('polygon'), rpc: rpcUrls('polygon'), symbol: 'POL' },
-    { slug: 'avalanche', label: 'Avalanche', curve: 0, addressId: 'evm', explorer: explorerPrefix('avalanche'), rpc: rpcUrls('avalanche', 'avalanche'), symbol: 'AVAX' },
-    { slug: 'zksync', label: 'zkSync', curve: 0, addressId: 'evm', explorer: explorerPrefix('zksync'), rpc: rpcUrls('zksync', 'zksync'), symbol: 'ETH' },
-    { slug: 'litecoin', label: 'Litecoin', curve: 0, addressId: 'ltc_p2wpkh', explorer: explorerPrefix('litecoin') },
-    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', curve: 0, addressId: 'bch_legacy', explorer: explorerPrefix('bitcoin-cash') },
-    { slug: 'dogecoin', label: 'Dogecoin', curve: 0, addressId: 'doge_p2pkh', explorer: explorerPrefix('dogecoin') },
-    { slug: 'zcash', label: 'Zcash', curve: 0, addressId: 'zcash_p2pkh', explorer: explorerPrefix('zcash') },
-    { slug: 'xrp', label: 'XRP', curve: 0, addressId: 'xrp_classic', explorer: explorerPrefix('xrp') },
-    { slug: 'tron', label: 'TRON', curve: 0, addressId: 'tron', explorer: explorerPrefix('tron') },
-    { slug: 'solana', label: 'Solana', curve: 1, addressId: 'solana', explorer: explorerPrefix('solana') },
-    { slug: 'sui', label: 'Sui', curve: 1, addressId: 'sui', explorer: explorerPrefix('sui') },
-    { slug: 'ton', label: 'TON', curve: 1, addressId: 'ton', explorer: explorerPrefix('ton') }
+    chainRow('bitcoin', { curve: 0, addressId: 'btc_p2wpkh' }),
+    chainRow('bitcoin-testnet', { curve: 0, addressId: 'btc_p2wpkh', btcApi: SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url, network: 1 }),
+    chainRow('ethereum', { curve: 0, addressId: 'evm', rpc: rpcUrls('ethereum') }),
+    chainRow('bnb', { curve: 0, addressId: 'evm', rpc: rpcUrls('bnb', 'bsc-dataseed') }),
+    chainRow('arbitrum', { curve: 0, addressId: 'evm', rpc: rpcUrls('arbitrum', 'arbitrum') }),
+    chainRow('optimism', { curve: 0, addressId: 'evm', rpc: rpcUrls('optimism') }),
+    chainRow('base', { curve: 0, addressId: 'evm', rpc: rpcUrls('base', 'base') }),
+    chainRow('polygon', { curve: 0, addressId: 'evm', rpc: rpcUrls('polygon') }),
+    chainRow('avalanche', { curve: 0, addressId: 'evm', rpc: rpcUrls('avalanche', 'avalanche') }),
+    chainRow('zksync', { curve: 0, addressId: 'evm', rpc: rpcUrls('zksync', 'zksync') }),
+    chainRow('litecoin', { curve: 0, addressId: 'ltc_p2wpkh' }),
+    chainRow('bitcoin-cash', { curve: 0, addressId: 'bch_legacy' }),
+    chainRow('dogecoin', { curve: 0, addressId: 'doge_p2pkh' }),
+    chainRow('zcash', { curve: 0, addressId: 'zcash_p2pkh' }),
+    chainRow('xrp', { curve: 0, addressId: 'xrp_classic' }),
+    chainRow('tron', { curve: 0, addressId: 'tron' }),
+    chainRow('solana', { curve: 1, addressId: 'solana' }),
+    chainRow('sui', { curve: 1, addressId: 'sui' }),
+    chainRow('ton', { curve: 1, addressId: 'ton' })
   ];
 
   var CHAIN_BY_SLUG = {};
@@ -154,6 +161,7 @@
   var sendArmedCheckbox = byId('wallet-send-armed');
   var sendFromLine = byId('wallet-send-from');
   var sendToInput = byId('wallet-send-to');
+  var sendTokenInput = byId('wallet-send-token');
   var sendValueInput = byId('wallet-send-value');
   var sendDataInput = byId('wallet-send-data');
   var sendGasInput = byId('wallet-send-gas');
@@ -1383,7 +1391,7 @@
         if (!data || typeof data.result !== 'string') {
           throw new Error(data && data.error && data.error.message ? data.error.message : 'unexpected response');
         }
-        return AMOUNT.formatUnits(BigInt(data.result), 18, { symbol: spec.symbol || 'ETH' });
+        return AMOUNT.formatUnits(BigInt(data.result), spec.decimals, { symbol: spec.symbol });
       } catch (err) {
         lastError = err;
       }
@@ -1392,8 +1400,9 @@
   }
 
   async function fetchTronBalance(address) {
+    var unit = SSOT_CHAINS.bySlug.tron;
     var response = await fetchWithTimeout(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address));
-    if (response.status === 404) return '0 TRX · account not activated';
+    if (response.status === 404) return '0 ' + unit.symbol + ' · account not activated';
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var raw = await response.text();
     var data;
@@ -1405,7 +1414,7 @@
     if (!data || typeof data !== 'object') throw new Error('unexpected response');
     var match = /"balance"\s*:\s*"?(\d+)"?/.exec(raw);
     var sun = match ? BigInt(match[1]) : 0n;
-    var text = AMOUNT.formatUnits(sun, 6, { symbol: 'TRX' });
+    var text = AMOUNT.formatUnits(sun, unit.decimals, { symbol: unit.symbol });
     if (typeof data.totalTransactionCount === 'number') text += ' · ' + data.totalTransactionCount + ' tx';
     return text;
   }
@@ -1454,11 +1463,22 @@
 
   var SEND_ERROR_IDS = {
     to: 'wallet-send-to-error',
+    token: 'wallet-send-token-error',
     value: 'wallet-send-value-error',
     data: 'wallet-send-data-error',
     gasLimit: 'wallet-send-gas-error',
     maxFee: 'wallet-send-max-fee-error',
     priorityFee: 'wallet-send-priority-error'
+  };
+
+  var SEND_INPUTS = {
+    to: sendToInput,
+    token: sendTokenInput,
+    value: sendValueInput,
+    data: sendDataInput,
+    gasLimit: sendGasInput,
+    maxFee: sendMaxFeeInput,
+    priorityFee: sendPriorityInput
   };
 
   function entryById(id) {
@@ -1483,6 +1503,8 @@
   function showSendFieldErrors(errors) {
     Object.keys(SEND_ERROR_IDS).forEach(function (key) {
       setError(SEND_ERROR_IDS[key], errors[key] || '');
+      var input = SEND_INPUTS[key];
+      if (input) input.setAttribute('aria-invalid', errors[key] ? 'true' : 'false');
     });
   }
 
@@ -1504,6 +1526,27 @@
     if (!sendArmedRow) return;
     var network = selectedNetwork();
     sendArmedRow.hidden = !network || network.testnet;
+  }
+
+  var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
+
+  /* A token send builds its own calldata, so the free-form data field is
+   * disabled while a token contract is set. The typed data is kept: entering
+   * a token does not destroy it, and the error says why it must be cleared
+   * before review. */
+  function updateSendTokenState() {
+    if (!sendTokenInput || !sendDataInput) return;
+    var hasToken = sendTokenInput.value.trim() !== '';
+    sendDataInput.disabled = hasToken;
+    var box = byId('wallet-send-data-error');
+    var showingTokenDataError = !!(box && !box.hidden && box.textContent === TOKEN_DATA_ERROR);
+    if (hasToken && sendDataInput.value.trim() && TOKEN_DATA_ERROR) {
+      setError('wallet-send-data-error', TOKEN_DATA_ERROR);
+      sendDataInput.setAttribute('aria-invalid', 'true');
+    } else if (!hasToken && showingTokenDataError) {
+      setError('wallet-send-data-error', '');
+      sendDataInput.setAttribute('aria-invalid', 'false');
+    }
   }
 
   function renderSendNetworks() {
@@ -1582,6 +1625,7 @@
       return;
     }
     sendCard.hidden = false;
+    updateSendTokenState();
     renderSendNetworks();
     var previous = sendEntrySelect.value;
     sendEntrySelect.textContent = '';
@@ -1616,6 +1660,7 @@
   function readSendForm() {
     return {
       to: sendToInput.value,
+      token: sendTokenInput.value,
       value: sendValueInput.value,
       data: sendDataInput.value,
       gasLimit: sendGasInput.value,
@@ -1642,7 +1687,9 @@
 
   function fillSendDefaults(review) {
     if (!sendValueInput.value.trim()) {
-      sendValueInput.value = AMOUNT.formatUnits(review.valueWei, 18);
+      sendValueInput.value = review.isToken
+        ? AMOUNT.formatUnits(review.tokenAmountWei, review.tokenDecimals)
+        : AMOUNT.formatUnits(review.valueWei, 18);
     }
     if (!sendGasInput.value.trim()) sendGasInput.value = review.gasLimit.toString();
     if (!sendPriorityInput.value.trim()) {
@@ -1670,16 +1717,29 @@
   }
 
   function renderReview(review) {
-    var symbol = review.symbol || 'ETH';
+    var symbol = review.symbol || SSOT_CHAINS.bySlug.ethereum.symbol;
     var feeWei = review.gasLimit * review.maxFeeWei;
     sendReviewList.textContent = '';
     addReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +
       (review.testnet ? ' · testnet' : ' · MAINNET'));
     addReviewRow('From', review.from, true);
-    addReviewRow('To', review.to, true);
-    addReviewRow('Amount', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol +
-      ' (' + review.valueWei + ' wei)');
-    addReviewRow('Data', review.dataHex, true);
+    if (review.isToken) {
+      addReviewRow('Token contract', review.tokenContract, true);
+      addReviewRow('Token symbol', review.tokenSymbol);
+      addReviewRow('Token decimals', String(review.tokenDecimals));
+      addReviewRow('Token balance', AMOUNT.formatUnits(review.tokenBalanceWei, review.tokenDecimals) +
+        ' ' + review.tokenSymbol);
+      addReviewRow('To (recipient)', review.to, true);
+      addReviewRow('Amount', AMOUNT.formatUnits(review.tokenAmountWei, review.tokenDecimals) + ' ' +
+        review.tokenSymbol + ' (' + review.tokenAmountWei + ' raw units)');
+      addReviewRow('Native value', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol);
+      addReviewRow('Data (built locally)', review.dataHex, true);
+    } else {
+      addReviewRow('To', review.to, true);
+      addReviewRow('Amount', AMOUNT.formatUnits(review.valueWei, 18) + ' ' + symbol +
+        ' (' + review.valueWei + ' wei)');
+      addReviewRow('Data', review.dataHex, true);
+    }
     addReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
       ? (review.gasEstimate === null || review.gasEstimate === undefined
         ? ' (manual; node estimate unavailable)'
@@ -1741,6 +1801,7 @@
     if (sendArmedCheckbox) sendArmedCheckbox.checked = false;
     if (sendArmedRow) sendArmedRow.hidden = true;
     if (sendForm) sendForm.reset();
+    updateSendTokenState();
     clearSendFieldErrors();
     setError('wallet-send-error', '');
     setError('wallet-send-confirm-error', '');
@@ -1810,7 +1871,9 @@
 
     state.preparing = true;
     var generation = state.generation;
-    setSendBusy(true, 'Reading the chain id, nonce, balance, fees and gas estimate…');
+    setSendBusy(true, sendTokenInput.value.trim()
+      ? 'Reading the chain id, token decimals, symbol and balance, nonce, fees and gas estimate…'
+      : 'Reading the chain id, nonce, balance, fees and gas estimate…');
     try {
       var from = await ensureDerivedAddress(entry);
       var review = await evmSend.prepareTransaction({
@@ -1845,6 +1908,12 @@
   });
 
   sendForm.addEventListener('input', invalidateSendReview);
+  if (sendTokenInput) {
+    sendTokenInput.addEventListener('input', updateSendTokenState);
+  }
+  if (sendDataInput) {
+    sendDataInput.addEventListener('input', updateSendTokenState);
+  }
   sendEntrySelect.addEventListener('change', function () {
     updateSendFrom();
     invalidateSendReview();
@@ -1899,6 +1968,7 @@
         review: review,
         fetchJson: rpcFetchJson,
         mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTx,
         sign: function (fields) { return signTxWithEntry(entry, fields); }
       });
       if (generation !== state.generation || !state.unlocked) return;

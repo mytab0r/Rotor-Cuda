@@ -152,6 +152,46 @@
   coverage), `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row
   case); defects `mnemonic-bch-balances`, `mnemonic-tron-xrp-sui-balances` and
   `mnemonic-xrp-redirect` in `docs/process/defects.json`.
+- [x] Mnemonic directory TON v4R2/W5 (2026-11-22, code-only): the donor page's
+  inline `MNEMONIC_SEEDS_PRESETS` derives TON at `m/44'/607'/0'` (Master `m` +
+  Tonkeeper preset) and shows the v4R2/W5 wallets, while our page rendered an
+  explicit unsupported state. `apps/site/mnemonic-seeds.js` now has the real
+  `ton` config (`types` = `ton`/`ton_w5` at `m/44'/607'/0'`, `presets` =
+  Master/Tonkeeper), the ed25519 derive branch builds `entry.addressMap.ton`
+  from `window.RotorTon.address(report.ed_pubkey)` loaded lazily from `/ton.js`
+  (build-prefixed, TON page only) while `ton_w5` comes from the WASM report, and
+  `providerMetaFor('ton')` maps to the batched `tonapi` provider: one
+  `POST /v2/accounts/_bulk` per page, accounts mapped back by request index
+  (TonAPI echoes raw `0:hex` addresses), with a malformed/short body throwing
+  so rows show the retry state, never a zero. `browse.js` uses the same
+  `tonapi` batch, so `/private-keys/ton` no longer fans out; `toncenter` stays
+  for the single-address `/key` page. Measured: `/mnemonic-seeds/ton` and
+  `/private-keys/ton` each 60/60 rows `data-balance-state="ok"` at
+  375/768/1280 in dark and light (12 runs, one request each); the TON ui-audit
+  run is 6/6 PASS with zero console warnings and zero overflow. Evidence:
+  `data/providers.json` (`tonapi`), `apps/site/balance-providers.js`
+  (`tonApiBatchUrl`, `parseTonApiAccounts`, `tonApiProvider`, `FETCHERS`),
+  `apps/site/mnemonic-seeds.js` (`ton:` config, `loadTon`, `deriveEntry`,
+  `providerMetaFor`), `apps/site/browse.js` (`providerMeta`),
+  `apps/site/mnemonic-seeds-test.mjs` (config/derive, one-POST mapping,
+  malformed-body and TonAPI meta cases; `balance-state-attribute` stays green),
+  donor source `https://ref-site-a/mnemonic-seeds/ton`
+  (`window.MNEMONIC_SEEDS_PRESETS`, `PKF_CONFIG.type = null`). Deliberate derivation deviation, recorded rather
+  than copied: the donor takes the BIP32 secp256k1 master bytes and feeds them
+  to the v4R2 builder (row 0 abandon…about, master preset: key
+  `1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67`,
+  address `EQD5BSqbqr-TBe8BHVx26V85ly7o5lkYFU0MKAJWVUwlkPZG`; Tonkeeper key
+  `2d1b84ab366915a9b58d64ea6d3a8766e490479ac2ab8aea635603afe3ad6153`,
+  address `EQBuAV_45fTfgLs-CqOtQnNP5rh-Z3xv0jVCL_Nz8C1fe-`), while we ship
+  standard SLIP-0010 ed25519 (master key
+  `560f9f3c94558b6551928bb781cf6092c6b8800b4fc544af2c9444ed126d51aa`,
+  address `EQBql5EyfHFHHq0eULGOI7xdUWgk62w-HzLBlEcAyqYM79AN`; Tonkeeper key
+  `b477ef5ed17fb8a2b8faddd7a9835a227243a82c70b190c7af4896155aa7df9f`,
+  address `EQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-U9d`), the standard
+  real-wallet derivation the preset name implies. The donor has one v4R2 row
+  per entry with static `0 TON` text and no address-type control; our v4R2/W5
+  cards and live batched TonAPI balances are a deliberate superset.
+  Ledger: `docs/site-map/site-map-data.js` (`/mnemonic-seeds/ton` now `parity`).
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
@@ -174,6 +214,20 @@
   `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
   matrix row is now `parity` after the independent browser review and the PR #237
   merge.
+- [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
+  60-row directory returned no provider meta for BCH and rendered `—` for every
+  row, although the shared batched Haskoin provider already existed and the
+  mnemonic directory used it. `providerMeta()` in `apps/site/browse.js` now
+  returns `haskoin-bch` for `bitcoin-cash`, so one `GET /bch/address/balances`
+  request fills all 60 rows (8 decimals, BCH). Rendered live: 60/60
+  `data-balance-state="ok"`, first row `0.00001 BCH 59 tx`, matching the
+  provider probe (`confirmed: 1000`, `txs: 59`); targeted audit 6/6 PASS with 0
+  warnings at 375/768/1280 in both themes. `/private-keys/bitcoin-cash` is now
+  in `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (one batched request per run like
+  the BCH seed page). Evidence:
+  `apps/site/browse.js` (`providerMeta`), `apps/site/mnemonic-seeds-test.mjs`
+  (the source lock), defect `bch-directory-balances`. ZEC stays `—` here
+  (per-address SoChain), as does LTC/DOGE (BlockCypher rate limit).
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:

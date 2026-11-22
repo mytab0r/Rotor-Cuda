@@ -119,6 +119,13 @@
     "expires": "2027-06-30"
   },
   {
+    "file": "apps/site/send.js",
+    "match": "var MAINNET_SLUGS = ['bitcoin', 'ethereum', 'bnb', 'usdt', 'tron'];",
+    "reason": "The send page selects chains plus the USDT token; this is a transfer target set, not the hub display order. The display order comes from window.RotorChains.order.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
     "file": "apps/site/key-tools.js",
     "match": "10n ** BigInt(digits + 8)",
     "reason": "ZEC fiat/USD scaling from the SoChain price string, not atomic-unit conversion; the amount formatter lives in RotorAmount.",

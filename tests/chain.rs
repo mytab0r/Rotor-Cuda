@@ -75,37 +75,102 @@ fn crc16_xmodem(data: &[u8]) -> u16 {
 }
 
 #[test]
-fn registry_covers_all_eighteen_site_networks() {
+fn registry_covers_all_eighteen_site_networks_in_canonical_order() {
     let ids: Vec<&str> = chain::all()
         .iter()
         .map(|descriptor| descriptor.id)
         .collect();
-    assert_eq!(ids.len(), 18, "one descriptor per site network");
+    assert_eq!(
+        ids,
+        [
+            "bitcoin",
+            "ethereum",
+            "bnb",
+            "arbitrum",
+            "optimism",
+            "base",
+            "polygon",
+            "avalanche",
+            "zksync",
+            "solana",
+            "tron",
+            "xrp",
+            "litecoin",
+            "bitcoin-cash",
+            "dogecoin",
+            "zcash",
+            "sui",
+            "ton",
+        ],
+        "the descriptor sequence must equal the canonical display order"
+    );
+    assert_eq!(
+        ids,
+        rotor::generated::chains::CHAINS_MAINNET,
+        "chain::all() must read the generated canonical order"
+    );
 
     let unique: HashSet<&str> = ids.iter().copied().collect();
     assert_eq!(unique.len(), ids.len(), "chain ids must be unique");
+}
 
-    for expected in [
-        "bitcoin",
-        "ethereum",
-        "bnb",
-        "arbitrum",
-        "optimism",
-        "base",
-        "polygon",
-        "avalanche",
-        "zksync",
-        "solana",
-        "tron",
-        "xrp",
-        "litecoin",
-        "bitcoin-cash",
-        "dogecoin",
-        "zcash",
-        "sui",
-        "ton",
-    ] {
-        assert!(unique.contains(expected), "missing chain {expected}");
+#[test]
+fn identity_fields_come_from_the_generated_tables() {
+    fn text(table: &'static [(&'static str, &'static str)], id: &str) -> &'static str {
+        table
+            .iter()
+            .find(|(slug, _)| *slug == id)
+            .map(|(_, value)| *value)
+            .unwrap_or_else(|| panic!("generated table is missing {id}"))
+    }
+    fn number<T: Copy>(table: &'static [(&'static str, T)], id: &str) -> T {
+        table
+            .iter()
+            .find(|(slug, _)| *slug == id)
+            .map(|(_, value)| *value)
+            .unwrap_or_else(|| panic!("generated table is missing {id}"))
+    }
+
+    for descriptor in chain::all() {
+        let id = descriptor.id;
+        assert_eq!(
+            descriptor.name,
+            text(rotor::generated::chains::CHAIN_NAMES, id)
+        );
+        assert_eq!(
+            descriptor.symbol,
+            text(rotor::generated::chains::CHAIN_SYMBOLS, id)
+        );
+        assert_eq!(
+            descriptor.color,
+            text(rotor::generated::chains::CHAIN_COLORS, id)
+        );
+        assert_eq!(
+            descriptor.order,
+            number(rotor::generated::chains::CHAIN_ORDERS, id)
+        );
+        assert_eq!(
+            descriptor.decimals,
+            number(rotor::generated::chains::CHAIN_DECIMALS, id)
+        );
+        assert_eq!(
+            descriptor.explorer,
+            text(rotor::generated::chains::CHAIN_EXPLORERS, id)
+        );
+        assert!(descriptor.color.starts_with('#'), "{id} color");
+        assert_eq!(descriptor.color.len(), 7, "{id} color");
+        assert!(descriptor.order > 0, "{id} order");
+    }
+
+    let orders: Vec<u16> = chain::all().iter().map(|chain| chain.order).collect();
+    assert!(
+        orders.windows(2).all(|pair| pair[0] < pair[1]),
+        "descriptors must be sorted by the canonical order: {orders:?}"
+    );
+
+    // One explicit symbol decision: the four L2s settle in ETH.
+    for id in ["ethereum", "arbitrum", "optimism", "base", "zksync"] {
+        assert_eq!(chain::by_id(id).expect(id).symbol, "ETH", "{id}");
     }
 }
 
@@ -144,6 +209,10 @@ fn descriptor_fields_are_populated() {
     for descriptor in chain::all() {
         assert!(!descriptor.id.is_empty());
         assert!(!descriptor.name.is_empty());
+        assert!(!descriptor.symbol.is_empty());
+        assert!(descriptor.color.starts_with('#'));
+        assert!(descriptor.order > 0);
+        assert!(descriptor.decimals <= 30);
         assert!(
             descriptor.explorer.contains("{address}"),
             "{} explorer must be a template",

@@ -430,6 +430,13 @@
       "where": "apps/site/mnemonic-seeds-test.mjs"
     },
     {
+      "id": "chain-color-drift",
+      "reported": "2026-11-22",
+      "symptom": "Chain tabs and cards read colors from separate tables; site.css disagreed with the coordinator on ethereum, tron, litecoin and xrp, and a local symbol table printed ARB/OP/BASE/zkSync instead of ETH.",
+      "detector": "chain-tab-color",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "mnemonic-bch-balances",
       "reported": "2026-11-22",
       "symptom": "the BCH mnemonic directory rendered — for all 60 rows although the keyless Haskoin batch endpoint answers 60 addresses per request",
@@ -498,6 +505,13 @@
       "symptom": "A detector registry edit could leave the generated tables in SKILL.md, DESIGN-SYSTEM.md and plan.md stale, so the human docs described rules the gate no longer enforced.",
       "detector": "detector-docs-fresh",
       "where": "scripts/gen-detector-docs.mjs"
+    },
+    {
+      "id": "bch-directory-balances",
+      "reported": "2026-11-22",
+      "symptom": "The 60-row /private-keys/bitcoin-cash directory rendered — for every balance although the shared batched Haskoin provider already existed and the mnemonic directory used it.",
+      "detector": "bch-directory-provider",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
     }
   ]
 }
