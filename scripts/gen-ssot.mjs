@@ -2,15 +2,17 @@
 // Generate the single-source-of-truth chain/provider layer.
 //
 // Source of truth:
-//   - data/chains.json     chain identity (slug, name, symbol, family, explorer)
+//   - data/chains.json     chain identity (slug, name, symbol, color, decimals,
+//                          order, family, explorer)
 //   - data/providers.json  per-chain ordered public RPC/API endpoints + groups
 //
 // Outputs:
 //   - apps/site/chains.generated.js  ES5 globals for the build-less site
 //   - src/generated/chains.rs        Rust constants for the coordinator/CLI
+//   - apps/site/site.css             the marked `chains:start` region only
 //
-// `--check` regenerates both in memory and exits 1 with a line diff summary
-// when a committed output is stale.
+// `--check` regenerates all three in memory and exits 1 with a line diff
+// summary when a committed output is stale.
 //
 // Node built-ins only; no dependencies, Windows-safe.
 
@@ -24,6 +26,10 @@ const CHAINS_PATH = "data/chains.json";
 const PROVIDERS_PATH = "data/providers.json";
 const JS_PATH = "apps/site/chains.generated.js";
 const RS_PATH = "src/generated/chains.rs";
+const CSS_PATH = "apps/site/site.css";
+const CSS_START = "/* chains:start */";
+const CSS_END = "/* chains:end */";
+const COLOR_RE = /^#[0-9a-f]{6}$/;
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FAMILIES = new Set([
@@ -125,6 +131,7 @@ export function loadData(root = REPO_ROOT) {
 
   const chains = [];
   const slugs = new Set();
+  const orders = new Set();
   for (const [index, chain] of chainsJson.chains.entries()) {
     const where = `${CHAINS_PATH}.chains[${index}]`;
     if (!isObject(chain)) fail(`${where} must be an object`);
@@ -137,6 +144,17 @@ export function loadData(root = REPO_ROOT) {
       if (!isNonEmptyString(chain[field])) fail(`${where}.${field} must be a non-empty string`);
     }
     if (!FAMILIES.has(chain.family)) fail(`${where}.family is unknown: ${chain.family}`);
+    if (typeof chain.color !== "string" || !COLOR_RE.test(chain.color)) {
+      fail(`${where}.color must be a lowercase #rrggbb literal`);
+    }
+    if (!Number.isInteger(chain.decimals) || chain.decimals < 0 || chain.decimals > 30) {
+      fail(`${where}.decimals must be an integer between 0 and 30`);
+    }
+    if (!Number.isInteger(chain.order) || chain.order < 1) {
+      fail(`${where}.order must be a positive integer`);
+    }
+    if (orders.has(chain.order)) fail(`${CHAINS_PATH} repeats chain order ${chain.order}`);
+    orders.add(chain.order);
     if (chain.testnet !== undefined && typeof chain.testnet !== "boolean") {
       fail(`${where}.testnet must be a boolean`);
     }
@@ -146,12 +164,16 @@ export function loadData(root = REPO_ROOT) {
       slug: chain.slug,
       name: chain.name,
       symbol: chain.symbol,
+      color: chain.color,
+      decimals: chain.decimals,
+      order: chain.order,
       family: chain.family,
       testnet: chain.testnet === true,
       explorer: chain.explorer,
       explorerTx: chain.explorerTx ?? null,
     });
   }
+  chains.sort((left, right) => left.order - right.order);
 
   const providers = new Map();
   for (const [slug, list] of Object.entries(providersJson.chains)) {
@@ -279,14 +301,24 @@ function prefixOf(template) {
 }
 
 function renderJs(data, eol = "\n") {
-  const orders = data.chains.map((chain) => chain.slug);
+  // `data.chains` is already sorted by the canonical `order`; production
+  // chains (the 18 site hubs) come before the testnets and drive every
+  // consumer-facing list.
+  const orders = data.chains
+    .filter((chain) => !chain.testnet)
+    .map((chain) => chain.slug);
   const bySlug = {};
   for (const chain of data.chains) {
     bySlug[chain.slug] = {
       slug: chain.slug,
       name: chain.name,
       symbol: chain.symbol,
+      color: chain.color,
+      decimals: chain.decimals,
+      order: chain.order,
       family: chain.family,
+      testnet: chain.testnet,
+      icon: `chain-${chain.slug}`,
       explorer: chain.explorer,
       explorerPrefix: prefixOf(chain.explorer),
       explorerTx: chain.explorerTx,
@@ -364,9 +396,18 @@ function renderRs(data, eol = "\n") {
   for (const chain of data.chains) lines.push(`    ${rustString(chain.slug)},`);
   lines.push("];", "");
 
+  lines.push("#[rustfmt::skip]", "pub static CHAINS_MAINNET: &[&str] = &[");
+  for (const chain of data.chains) {
+    if (chain.testnet) continue;
+    lines.push(`    ${rustString(chain.slug)},`);
+  }
+  lines.push("];", "");
+
   const tables = [
     ["CHAIN_NAMES", (chain) => [chain.slug, chain.name]],
     ["CHAIN_SYMBOLS", (chain) => [chain.slug, chain.symbol]],
+    ["CHAIN_COLORS", (chain) => [chain.slug, chain.color]],
+    ["CHAIN_ICONS", (chain) => [chain.slug, `chain-${chain.slug}`]],
     ["CHAIN_FAMILIES", (chain) => [chain.slug, chain.family]],
     ["CHAIN_EXPLORERS", (chain) => [chain.slug, chain.explorer]],
   ];
@@ -378,6 +419,24 @@ function renderRs(data, eol = "\n") {
     }
     lines.push("];", "");
   }
+
+  lines.push(
+    "#[rustfmt::skip]",
+    "pub static CHAIN_DECIMALS: &[(&str, u8)] = &[",
+  );
+  for (const chain of data.chains) {
+    lines.push(`    (${rustString(chain.slug)}, ${chain.decimals}),`);
+  }
+  lines.push("];", "");
+
+  lines.push(
+    "#[rustfmt::skip]",
+    "pub static CHAIN_ORDERS: &[(&str, u16)] = &[",
+  );
+  for (const chain of data.chains) {
+    lines.push(`    (${rustString(chain.slug)}, ${chain.order}),`);
+  }
+  lines.push("];", "");
 
   lines.push(
     "#[rustfmt::skip]",
@@ -421,6 +480,75 @@ function renderRs(data, eol = "\n") {
   return withEol(lines.join("\n"), eol);
 }
 
+// Families whose color classes exist in first-party CSS. The representative
+// chain is the first production chain of that family in canonical order.
+const CARD_FAMILIES = ["btc", "evm", "tron", "solana", "ltc", "doge", "bch", "xrp"];
+const KEY_DOT_FAMILIES = [
+  "btc",
+  "evm",
+  "tron",
+  "solana",
+  "ltc",
+  "doge",
+  "bch",
+  "xrp",
+  "zcash",
+  "sui",
+  "ton",
+];
+const MONITOR_FAMILIES = ["evm", "btc", "tron", "solana"];
+
+function familyRepresentatives(data) {
+  const byFamily = new Map();
+  for (const chain of data.chains) {
+    if (chain.testnet) continue;
+    if (!byFamily.has(chain.family)) byFamily.set(chain.family, chain.slug);
+  }
+  for (const family of new Set([...CARD_FAMILIES, ...KEY_DOT_FAMILIES, ...MONITOR_FAMILIES])) {
+    if (!byFamily.has(family)) fail(`no production chain carries family ${family}`);
+  }
+  return byFamily;
+}
+
+function renderCssRegion(data, eol = "\n") {
+  const families = familyRepresentatives(data);
+  const lines = [
+    CSS_START,
+    "/* DO NOT EDIT - generated by scripts/gen-ssot.mjs from data/chains.json.",
+    " * All chain colors live here; first-party CSS and JS read these values. */",
+    ":root {",
+  ];
+  for (const chain of data.chains) {
+    lines.push(`  --chain-${chain.slug}: ${chain.color};`);
+  }
+  lines.push("}");
+  for (const family of CARD_FAMILIES) {
+    lines.push(`.chain-${family} { --chain-color: var(--chain-${families.get(family)}); }`);
+  }
+  for (const family of KEY_DOT_FAMILIES) {
+    lines.push(`.key-dot-${family} { background: var(--chain-${families.get(family)}); }`);
+  }
+  for (const family of MONITOR_FAMILIES) {
+    const value = `var(--chain-${families.get(family)})`;
+    lines.push(`.monitor-chain-${family} { border-color: ${value}; color: ${value}; }`);
+  }
+  lines.push(CSS_END);
+  return withEol(lines.join("\n"), eol);
+}
+
+function renderCss(data, actual, eol = "\n") {
+  const start = actual.indexOf(CSS_START);
+  const end = actual.indexOf(CSS_END);
+  if (start === -1 || end === -1 || end < start) {
+    fail(`${CSS_PATH} must contain ${CSS_START} and ${CSS_END} markers`);
+  }
+  return (
+    actual.slice(0, start) +
+    renderCssRegion(data, eol) +
+    actual.slice(end + CSS_END.length)
+  );
+}
+
 function diffSummary(actual, expected) {
   const actualLines = actual.split("\n");
   const expectedLines = expected.split("\n");
@@ -458,14 +586,17 @@ export function run({ root = REPO_ROOT, check = false } = {}) {
   const data = loadData(root);
   const jsActual = readIfExists(root, JS_PATH);
   const rsActual = readIfExists(root, RS_PATH);
+  const cssActual = readIfExists(root, CSS_PATH);
   const expectedJs = renderJs(data, detectEol(jsActual));
   const expectedRs = renderRs(data, detectEol(rsActual));
+  const expectedCss = renderCss(data, cssActual, detectEol(cssActual));
 
   const messages = [];
   const stale = [];
   for (const [relative, actual, expected] of [
     [JS_PATH, jsActual, expectedJs],
     [RS_PATH, rsActual, expectedRs],
+    [CSS_PATH, cssActual, expectedCss],
   ]) {
     const diff = diffSummary(actual, expected);
     if (diff) stale.push({ relative, diff });
@@ -484,7 +615,7 @@ export function run({ root = REPO_ROOT, check = false } = {}) {
     }
     messages.push(
       `ssot:check OK (${data.chains.length} chains, ${data.providers.size} provider tables, ` +
-        `${data.groups.size} groups; ${JS_PATH} and ${RS_PATH} current)`,
+        `${data.groups.size} groups; ${JS_PATH}, ${RS_PATH} and the ${CSS_PATH} region current)`,
     );
     return { ok: true, stale, messages, data };
   }
@@ -492,6 +623,7 @@ export function run({ root = REPO_ROOT, check = false } = {}) {
   const written = [];
   if (writeIfChanged(root, JS_PATH, expectedJs)) written.push(JS_PATH);
   if (writeIfChanged(root, RS_PATH, expectedRs)) written.push(RS_PATH);
+  if (writeIfChanged(root, CSS_PATH, expectedCss)) written.push(CSS_PATH);
   messages.push(
     written.length > 0
       ? `ssot: wrote ${written.join(", ")}`

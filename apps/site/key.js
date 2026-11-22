@@ -37,33 +37,36 @@
   var PRICE_TTL_MS = 6 * 60 * 60 * 1000;
 
   /* One EVM account, eight networks. Every row carries the same address; the
-   * balance is read from each network's public RPC, never assumed. Explorers
-   * and providers come from data/chains.json and data/providers.json. */
+   * balance is read from each network's public RPC, never assumed. Label,
+   * symbol, decimals and explorer come from data/chains.json. */
+  function evmChain(slug, rpc) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return {
+      slug: slug,
+      label: meta.name,
+      symbol: meta.symbol,
+      decimals: meta.decimals,
+      rpc: rpc,
+      explorer: meta.explorerPrefix
+    };
+  }
+
   var EVM_CHAINS = {
-    evm: { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', explorer: SSOT_CHAINS.bySlug.ethereum.explorerPrefix },
-    evm_bnb: { slug: 'bnb', label: 'BNB Chain', symbol: 'BNB', rpc: evmRpcUrls('bnb'), explorer: SSOT_CHAINS.bySlug.bnb.explorerPrefix },
-    evm_arbitrum: { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ETH', rpc: evmRpcUrls('arbitrum'), explorer: SSOT_CHAINS.bySlug.arbitrum.explorerPrefix },
-    evm_optimism: { slug: 'optimism', label: 'Optimism', symbol: 'ETH', rpc: evmRpcUrls('optimism', true), explorer: SSOT_CHAINS.bySlug.optimism.explorerPrefix },
-    evm_base: { slug: 'base', label: 'Base', symbol: 'ETH', rpc: evmRpcUrls('base'), explorer: SSOT_CHAINS.bySlug.base.explorerPrefix },
-    evm_polygon: { slug: 'polygon', label: 'Polygon', symbol: 'POL', rpc: evmRpcUrls('polygon', true), explorer: SSOT_CHAINS.bySlug.polygon.explorerPrefix },
-    evm_avalanche: { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', rpc: evmRpcUrls('avalanche'), explorer: SSOT_CHAINS.bySlug.avalanche.explorerPrefix },
-    evm_zksync: { slug: 'zksync', label: 'zkSync Era', symbol: 'ETH', rpc: evmRpcUrls('zksync'), explorer: SSOT_CHAINS.bySlug.zksync.explorerPrefix }
+    evm: evmChain('ethereum'),
+    evm_bnb: evmChain('bnb', evmRpcUrls('bnb')),
+    evm_arbitrum: evmChain('arbitrum', evmRpcUrls('arbitrum')),
+    evm_optimism: evmChain('optimism', evmRpcUrls('optimism', true)),
+    evm_base: evmChain('base', evmRpcUrls('base')),
+    evm_polygon: evmChain('polygon', evmRpcUrls('polygon', true)),
+    evm_avalanche: evmChain('avalanche', evmRpcUrls('avalanche')),
+    evm_zksync: evmChain('zksync', evmRpcUrls('zksync'))
   };
   var EVM_IDS = Object.keys(EVM_CHAINS);
 
-  /* Donor short names for the eight EVM chain rows. The map keeps each
-   * network's real ticker (three of them settle in ETH), while the table
-   * names the network itself. */
-  var EVM_SHORT = {
-    evm: 'ETH',
-    evm_bnb: 'BNB',
-    evm_arbitrum: 'ARB',
-    evm_optimism: 'OP',
-    evm_base: 'BASE',
-    evm_polygon: 'POL',
-    evm_avalanche: 'AVAX',
-    evm_zksync: 'zkSync'
-  };
+  /* The chain's native unit as the canonical data defines it. */
+  function chainUnit(slug) {
+    return window.RotorKeyTools.chainUnit(slug);
+  }
 
   var PRESETS = {
     all: null,
@@ -204,12 +207,25 @@
     ton: ['ton']
   };
 
-  var CHAIN_NAMES = {
-    ltc: 'Litecoin',
-    doge: 'Dogecoin',
-    bch: 'Bitcoin Cash',
-    xrp: 'XRP'
+  /* Address-row family -> canonical chain slug, so names come from the data. */
+  var CHAIN_SLUGS = {
+    btc: 'bitcoin',
+    evm: 'ethereum',
+    tron: 'tron',
+    solana: 'solana',
+    ltc: 'litecoin',
+    doge: 'dogecoin',
+    bch: 'bitcoin-cash',
+    xrp: 'xrp',
+    zcash: 'zcash',
+    sui: 'sui',
+    ton: 'ton'
   };
+
+  function chainDisplayName(chainClass) {
+    var slug = CHAIN_SLUGS[chainClass];
+    return slug && SSOT_CHAINS.bySlug[slug] ? SSOT_CHAINS.bySlug[slug].name : '';
+  }
 
   var state = {
     wasm: null,
@@ -1122,29 +1138,10 @@
     return svg;
   }
 
-  /* Chain identity for one address row: icon id from /icons.svg plus ticker. */
+  /* Chain identity for one address row: icon id, ticker and decimals from
+   * data/chains.json. */
   function chainMeta(id) {
-    if (EVM_CHAINS[id]) {
-      return {
-        ticker: EVM_CHAINS[id].symbol,
-        icon: 'chain-' + EVM_CHAINS[id].slug,
-        decimals: Number.isInteger(EVM_CHAINS[id].decimals) ? EVM_CHAINS[id].decimals : 18
-      };
-    }
-    var table = {
-      btc: { ticker: 'BTC', icon: 'chain-bitcoin', decimals: 8 },
-      ltc: { ticker: 'LTC', icon: 'chain-litecoin', decimals: 8 },
-      doge: { ticker: 'DOGE', icon: 'chain-dogecoin', decimals: 8 },
-      bch: { ticker: 'BCH', icon: 'chain-bitcoin-cash', decimals: 8 },
-      zcash: { ticker: 'ZEC', icon: 'chain-zcash', decimals: 8 },
-      xrp: { ticker: 'XRP', icon: 'chain-xrp', decimals: 6 },
-      solana: { ticker: 'SOL', icon: 'chain-solana', decimals: 9 },
-      sui: { ticker: 'SUI', icon: 'chain-sui', decimals: 9 },
-      ton: { ticker: 'TON', icon: 'chain-ton', decimals: 9 },
-      tron: { ticker: 'TRX', icon: 'chain-tron', decimals: 6 }
-    };
-    var prefix = String(id).split('_')[0];
-    return table[id] || table[prefix] || { ticker: String(id).toUpperCase(), icon: 'ui-blockchain', decimals: 0 };
+    return window.RotorKeyTools.chainMeta(id);
   }
 
   function typeLabel(addr) {
@@ -1280,7 +1277,7 @@
       chainId.appendChild(svgUse('/icons.svg#' + chain.icon, 'key-chain-icon'));
       var ticker = document.createElement('span');
       ticker.className = 'key-chain-ticker';
-      ticker.textContent = addr.sharedEvm ? (EVM_SHORT[addr.id] || chain.ticker) : chain.ticker;
+      ticker.textContent = addr.sharedEvm ? (EVM_CHAINS[addr.id] ? EVM_CHAINS[addr.id].symbol : chain.ticker) : chain.ticker;
       chainId.appendChild(ticker);
       chainCell.appendChild(chainId);
     }
@@ -1582,7 +1579,7 @@
   }
 
   function emptyMessage() {
-    var name = CHAIN_NAMES[state.chain];
+    var name = chainDisplayName(state.chain);
     if (name && state.report && state.report.curve !== 'ed25519' &&
         !chainHasRows(state.chain, state.addressRows)) {
       return name + ' addresses are coming soon. The derivation core does not report ' +
@@ -1959,6 +1956,7 @@
   }
 
   async function fetchBtc(address, signal) {
+    var unit = chainUnit('bitcoin');
     var response = await fetchWithTimeout(SSOT_PROVIDERS.find('bitcoin', 'mempool').url + '/address/' + encodeURIComponent(address), null, signal);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var data = await response.json();
@@ -1976,8 +1974,8 @@
       summary: {
         amount: sats,
         chain: 'btc',
-        symbol: 'BTC',
-        decimals: 8,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: txs > 0,
         balanceSat: sats,
         receivedSat: funded,
@@ -2024,7 +2022,7 @@
         amount: wei,
         chain: chain.slug,
         symbol: chain.symbol,
-        decimals: 18,
+        decimals: chain.decimals,
         active: nonceCount > 0n,
         nonce: Number(nonceCount)
       }
@@ -2073,15 +2071,16 @@
   }
 
   async function fetchTronDirect(address, signal) {
+    var unit = chainUnit('tron');
     var response = await fetchWithTimeout(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address), null, signal);
     if (response.status === 404) {
       return {
-        text: '0 TRX · account not activated',
+        text: '0 ' + unit.symbol + ' · account not activated',
         summary: {
           amount: 0n,
           chain: 'tron',
-          symbol: 'TRX',
-          decimals: 6,
+          symbol: unit.symbol,
+          decimals: unit.decimals,
           active: false,
           txs: 0,
           note: 'account not activated'
@@ -2104,8 +2103,8 @@
       summary: {
         amount: sun,
         chain: 'tron',
-        symbol: 'TRX',
-        decimals: 6,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: txs !== null && txs > 0,
         txs: txs
       }
@@ -2113,6 +2112,7 @@
   }
 
   async function fetchTron(address, signal) {
+    var unit = chainUnit('tron');
     /* Same-origin first: the coordinator holds the TronScan key. A static
      * host (404) or a coordinator without the key (501) falls back to the
      * previous direct public request; every other failure is surfaced. */
@@ -2143,8 +2143,8 @@
       summary: {
         amount: sun === null ? 0n : sun,
         chain: 'tron',
-        symbol: 'TRX',
-        decimals: 6,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: txs !== null && txs > 0,
         txs: txs,
         lastTxAt: lastTxAt
@@ -2168,6 +2168,7 @@
   }
 
   async function fetchXrp(address, signal) {
+    var unit = chainUnit('xrp');
     var response = await fetchWithTimeout(
       SSOT_PROVIDERS.find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address),
       null,
@@ -2175,12 +2176,12 @@
     );
     if (response.status === 404) {
       return {
-        text: '0 XRP · account not activated',
+        text: '0 ' + unit.symbol + ' · account not activated',
         summary: {
           amount: 0n,
           chain: 'xrp',
-          symbol: 'XRP',
-          decimals: 6,
+          symbol: unit.symbol,
+          decimals: unit.decimals,
           active: false,
           txs: 0,
           note: 'account not activated'
@@ -2195,8 +2196,8 @@
       summary: {
         amount: drops,
         chain: 'xrp',
-        symbol: 'XRP',
-        decimals: 6,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: txs === null ? drops > 0n : txs > 0,
         txs: txs
       }
@@ -2220,6 +2221,7 @@
   });
 
   async function fetchSolana(address, signal) {
+    var unit = chainUnit('solana');
     var lastError = null;
     for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
       try {
@@ -2231,8 +2233,8 @@
           summary: {
             amount: lamports,
             chain: 'solana',
-            symbol: 'SOL',
-            decimals: 9,
+            symbol: unit.symbol,
+            decimals: unit.decimals,
             active: lamports > 0n
           }
         };
@@ -2245,6 +2247,7 @@
   }
 
   async function fetchSui(address, signal) {
+    var unit = chainUnit('sui');
     /* The public Sui JSON-RPC fullnodes are deprecated (-32601); the GraphQL
      * gateway returns the same MIST balance and allows browser CORS. */
     var response = await fetchWithTimeout(SSOT_PROVIDERS.find('sui', 'graphql').url, {
@@ -2262,14 +2265,15 @@
       summary: {
         amount: mist,
         chain: 'sui',
-        symbol: 'SUI',
-        decimals: 9,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: mist > 0n
       }
     };
   }
 
   async function fetchTon(address, signal) {
+    var unit = chainUnit('ton');
     var response = await fetchWithTimeout(
       SSOT_PROVIDERS.find('ton', 'toncenter').url + '/getAddressBalance?address=' + encodeURIComponent(address),
       null,
@@ -2282,8 +2286,8 @@
       summary: {
         amount: nanotons,
         chain: 'ton',
-        symbol: 'TON',
-        decimals: 9,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: nanotons > 0n
       }
     };
@@ -2292,8 +2296,10 @@
   /* BlockCypher's keyless balance endpoint allows browser CORS for both
    * Litecoin (incl. taproot) and Dogecoin; amounts arrive in atomic units. */
   async function fetchBlockcypher(address, signal, chainClass) {
+    var slug = chainClass === 'ltc' ? 'litecoin' : 'dogecoin';
+    var unit = chainUnit(slug);
     var response = await fetchWithTimeout(
-      SSOT_PROVIDERS.find(chainClass === 'ltc' ? 'litecoin' : 'dogecoin', 'blockcypher').url +
+      SSOT_PROVIDERS.find(slug, 'blockcypher').url +
         '/addrs/' + encodeURIComponent(address) + '/balance',
       null,
       signal
@@ -2308,8 +2314,8 @@
       summary: {
         amount: sats,
         chain: chainClass,
-        symbol: chainClass === 'ltc' ? 'LTC' : 'DOGE',
-        decimals: 8,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: txs > 0,
         balanceSat: sats,
         receivedSat: received,
@@ -2321,6 +2327,7 @@
   /* Haskoin's keyless BCH endpoint answers CORS-friendly JSON: one entry per
    * requested address with satoshis in `confirmed` + `unconfirmed`. */
   async function fetchHaskoinBch(address, signal) {
+    var unit = chainUnit('bitcoin-cash');
     var response = await fetchWithTimeout(
       SSOT_PROVIDERS.find('bitcoin-cash', 'haskoin').url + '/address/balances?addresses=' + encodeURIComponent(address),
       null,
@@ -2336,8 +2343,8 @@
       summary: {
         amount: sats,
         chain: 'bch',
-        symbol: 'BCH',
-        decimals: 8,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: sats > 0n || (txs !== null && txs > 0),
         balanceSat: sats,
         txs: txs
@@ -2349,6 +2356,7 @@
    * decimal coin strings; the parser converts them to satoshis without floats.
    * The response carries no transaction count, so `active` is amount > 0 only. */
   async function fetchSochainZec(address, signal) {
+    var unit = chainUnit('zcash');
     var response = await fetchWithTimeout(
       'https://sochain.com/api/v3/balance/ZEC/' + encodeURIComponent(address),
       null,
@@ -2362,8 +2370,8 @@
       summary: {
         amount: sats,
         chain: 'zcash',
-        symbol: 'ZEC',
-        decimals: 8,
+        symbol: unit.symbol,
+        decimals: unit.decimals,
         active: sats > 0n
       }
     };

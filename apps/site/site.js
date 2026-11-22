@@ -394,10 +394,12 @@
   SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
     EVM_RPC[slug] = SSOT_PROVIDERS.first(slug).url;
   });
-  var EVM_NATIVE = {
-    ethereum: 'ETH', bnb: 'BNB', arbitrum: 'ETH', optimism: 'ETH',
-    base: 'ETH', polygon: 'POL', avalanche: 'AVAX', zksync: 'ETH'
-  };
+
+  /* The chain's native unit, as defined once in data/chains.json. */
+  function unitFor(slug) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return { symbol: meta.symbol, decimals: meta.decimals };
+  }
 
   function chipLabel(mode) {
     for (var index = 0; index < SEARCH_CHIPS.length; index += 1) {
@@ -665,14 +667,15 @@
               var amount = funded - spent;
               if (amount < 0n) amount = 0n;
               var txs = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
-              return { amount: amount, decimals: 8, symbol: 'BTC', active: txs > 0 };
+              var unit = unitFor('bitcoin');
+              return { amount: amount, decimals: unit.decimals, symbol: unit.symbol, active: txs > 0 };
             });
           }
         };
       }
       if (EVM_RPC[slug]) {
         var rpc = EVM_RPC[slug];
-        var symbol = EVM_NATIVE[slug] || 'ETH';
+        var unit = unitFor(slug);
         return {
           name: 'evm',
           chain: slug,
@@ -684,12 +687,13 @@
             }, signal).then(function (data) {
               if (!data || typeof data.result !== 'string') throw new Error('unexpected response');
               var amount = BigInt(data.result);
-              return { amount: amount, decimals: 18, symbol: symbol, active: amount > 0n };
+              return { amount: amount, decimals: unit.decimals, symbol: unit.symbol, active: amount > 0n };
             });
           }
         };
       }
       if (slug === 'tron') {
+        var tronUnit = unitFor('tron');
         return {
           name: 'tronscan',
           chain: 'tron',
@@ -702,8 +706,8 @@
                   : BigInt(String(data.balance_sun));
                 return {
                   amount: amount,
-                  decimals: 6,
-                  symbol: 'TRX',
+                  decimals: tronUnit.decimals,
+                  symbol: tronUnit.symbol,
                   active: typeof data.tx_count === 'number' && data.tx_count > 0
                 };
               })
@@ -713,7 +717,7 @@
                     .then(function (data) {
                       var amount = BigInt(String(data && data.balance ? data.balance : 0));
                       var txs = data && (data.totalTransactionCount || data.transactionCount || 0);
-                      return { amount: amount, decimals: 6, symbol: 'TRX', active: Number(txs) > 0 };
+                      return { amount: amount, decimals: tronUnit.decimals, symbol: tronUnit.symbol, active: Number(txs) > 0 };
                     });
                 }
                 throw err;
@@ -732,12 +736,14 @@
               body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address] })
             }, signal).then(function (data) {
               var amount = data && data.result && data.result.value !== undefined ? BigInt(data.result.value) : 0n;
-              return { amount: amount, decimals: 9, symbol: 'SOL', active: amount > 0n };
+              var unit = unitFor('solana');
+              return { amount: amount, decimals: unit.decimals, symbol: unit.symbol, active: amount > 0n };
             });
           }
         };
       }
       if (slug === 'xrp') {
+        var xrpUnit = unitFor('xrp');
         return {
           name: 'xrpscan',
           chain: 'xrp',
@@ -745,12 +751,12 @@
             return fetchWithTimeout(SSOT_PROVIDERS.find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address), null, signal)
               .then(function (response) {
                 if (response.status === 404) {
-                  return { amount: 0n, decimals: 6, symbol: 'XRP', active: false };
+                  return { amount: 0n, decimals: xrpUnit.decimals, symbol: xrpUnit.symbol, active: false };
                 }
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 return response.json().then(function (data) {
                   var amount = BigInt(String(data && data.Balance !== undefined ? data.Balance : 0));
-                  return { amount: amount, decimals: 6, symbol: 'XRP', active: amount > 0n };
+                  return { amount: amount, decimals: xrpUnit.decimals, symbol: xrpUnit.symbol, active: amount > 0n };
                 });
               });
           }
@@ -767,7 +773,8 @@
               var funded = Number(chain.funded_txo_sum || 0) + Number(mempool.funded_txo_sum || 0);
               var spent = Number(chain.spent_txo_sum || 0) + Number(mempool.spent_txo_sum || 0);
               var txs = Number(chain.tx_count || 0) + Number(mempool.tx_count || 0);
-              return { amount: BigInt(Math.trunc(funded - spent)), decimals: 8, symbol: 'LTC', active: txs > 0 };
+              var unit = unitFor('litecoin');
+              return { amount: BigInt(Math.trunc(funded - spent)), decimals: unit.decimals, symbol: unit.symbol, active: txs > 0 };
             });
           }
         };
@@ -780,10 +787,11 @@
             return fetchJson(SSOT_PROVIDERS.find('bitcoin-cash', 'haskoin').url + '/address/balances?addresses=' + encodeURIComponent(address), null, signal).then(function (rows) {
               var info = Array.isArray(rows) ? rows[0] : null;
               var amount = info ? BigInt(Math.trunc(Number(info.confirmed || 0) + Number(info.unconfirmed || 0))) : 0n;
+              var unit = unitFor('bitcoin-cash');
               return {
                 amount: amount,
-                decimals: 8,
-                symbol: 'BCH',
+                decimals: unit.decimals,
+                symbol: unit.symbol,
                 active: amount > 0n || Number(info && info.txs || 0) > 0
               };
             });
@@ -792,7 +800,7 @@
       }
       if (slug === 'dogecoin' || slug === 'zcash') {
         var network = slug === 'dogecoin' ? 'dogecoin' : 'zcash';
-        var ticker = slug === 'dogecoin' ? 'DOGE' : 'ZEC';
+        var dogeUnit = unitFor(slug);
         return {
           name: 'blockchair',
           chain: slug,
@@ -802,8 +810,8 @@
               var amount = info ? BigInt(Math.trunc(Number(info.balance || 0))) : 0n;
               return {
                 amount: amount,
-                decimals: 8,
-                symbol: ticker,
+                decimals: dogeUnit.decimals,
+                symbol: dogeUnit.symbol,
                 active: amount > 0n || Number(info && info.transaction_count || 0) > 0
               };
             });
@@ -824,7 +832,8 @@
                 var amount = data && data.result && data.result.totalBalance !== undefined
                   ? BigInt(String(data.result.totalBalance))
                   : 0n;
-                return { amount: amount, decimals: 9, symbol: 'SUI', active: amount > 0n };
+                var unit = unitFor('sui');
+                return { amount: amount, decimals: unit.decimals, symbol: unit.symbol, active: amount > 0n };
               });
             }
             return request('suix_getBalance').catch(function (err) {
@@ -841,7 +850,8 @@
           fetch: function (address, signal) {
             return fetchJson(SSOT_PROVIDERS.find('ton', 'toncenter').url + '/getAddressBalance?address=' + encodeURIComponent(address), null, signal).then(function (data) {
               var amount = data && data.result !== undefined ? BigInt(String(data.result)) : 0n;
-              return { amount: amount, decimals: 9, symbol: 'TON', active: amount > 0n };
+              var unit = unitFor('ton');
+              return { amount: amount, decimals: unit.decimals, symbol: unit.symbol, active: amount > 0n };
             });
           }
         };

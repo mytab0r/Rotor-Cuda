@@ -218,7 +218,7 @@ assert.equal(search.shapeReport(report, { chain: "bitcoin", count: 1 }).length, 
 
 const bnb = search.shapeReport(report, { chain: "bnb", count: 5 });
 assert.equal(bnb.length, 1);
-assert.equal(bnb[0].chainLabel, "BNB");
+assert.equal(bnb[0].chainLabel, "BNB Chain");
 assert.equal(bnb[0].address, KEY1_EVM);
 assert.equal(bnb[0].explorer, "https://bscscan.com/address/" + KEY1_EVM);
 
@@ -265,6 +265,22 @@ assert.equal(search.familyOf("btc_p2wpkh"), "btc");
 assert.equal(search.familyOf("evm"), "evm");
 assert.equal(search.shapeReport(report, { chain: "", count: 2 }).length, 5);
 assert.equal(search.CHAINS.length, 18);
+assert.deepEqual(
+  search.CHAINS.map((chain) => chain.slug),
+  [
+    "bitcoin", "ethereum", "bnb", "arbitrum", "optimism", "base", "polygon",
+    "avalanche", "zksync", "solana", "tron", "xrp", "litecoin", "bitcoin-cash",
+    "dogecoin", "zcash", "sui", "ton",
+  ],
+  "the search selector follows the canonical order from data/chains.json",
+);
+for (const slug of ["ethereum", "arbitrum", "optimism", "base", "zksync"]) {
+  assert.equal(
+    search.CHAINS.find((chain) => chain.slug === slug).symbol,
+    "ETH",
+    `${slug} reports its native ETH unit, not a network short name`,
+  );
+}
 assert.deepEqual(search.COUNTS, [1, 3, 5, 10]);
 
 /* ------------------------------------------------------- result cards */
@@ -280,6 +296,14 @@ assert.equal(cards[0].rows[4].type, "Taproot");
 
 const ethereumCard = cards.find((card) => card.slug === "ethereum");
 assert.equal(ethereumCard.rows.length, 1, "an EVM chain card has the shared 0x row");
+assert.equal(ethereumCard.symbol, "ETH");
+for (const slug of ["arbitrum", "optimism", "base", "zksync"]) {
+  assert.equal(
+    cards.find((card) => card.slug === slug).symbol,
+    "ETH",
+    `${slug} card reports ETH, not a network short name`,
+  );
+}
 assert.equal(ethereumCard.rows[0].address, KEY1_EVM);
 assert.equal(ethereumCard.rows[0].explorer, "https://etherscan.io/address/" + KEY1_EVM);
 assert.equal(cards.find((card) => card.slug === "bnb").rows[0].explorer, "https://bscscan.com/address/" + KEY1_EVM);

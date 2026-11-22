@@ -537,9 +537,9 @@
       sum += info.balance;
       tx += info.tx;
       if (info.balance > 0n) active += 1;
-      setBalance(entry, coin(info.balance, 18) + ' ' + chain.symbol, info.balance.toString() + ' wei', info.balance > 0n ? 'active' : 'empty');
+      setBalance(entry, coin(info.balance, chain.decimals) + ' ' + chain.symbol, info.balance.toString() + ' wei', info.balance > 0n ? 'active' : 'empty');
     });
-    setSummary(coin(sum, 18) + ' ' + chain.symbol, String(active), '—', tx.toString());
+    setSummary(coin(sum, chain.decimals) + ' ' + chain.symbol, String(active), '—', tx.toString());
   }
 
   function setBalanceMode(mode) {

@@ -366,7 +366,7 @@
       }
       rows.forEach(function (row) {
         var value = byAddress[row.address];
-        if (value !== undefined) row.balance = coin(value, 18) + ' ' + chain.symbol;
+        if (value !== undefined) row.balance = coin(value, chain.decimals) + ' ' + chain.symbol;
       });
     } else {
       rows.forEach(function (row) {

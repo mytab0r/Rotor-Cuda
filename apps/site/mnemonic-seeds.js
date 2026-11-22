@@ -7,6 +7,7 @@
   /* Chain identity and public providers come from data/*.json through the
    * generated globals in chains.generated.js (loaded before this script). */
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
 
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
@@ -272,7 +273,8 @@
   var config = CHAINS[chain];
   var balanceLabel = document.getElementById('mnemonic-balance-label');
   if (balanceLabel) {
-    balanceLabel.textContent = (root.getAttribute('data-symbol') || 'BTC') + ' Balance';
+    var unit = SSOT_CHAINS.bySlug[chain] || SSOT_CHAINS.bySlug.bitcoin;
+    balanceLabel.textContent = (root.getAttribute('data-symbol') || unit.symbol) + ' Balance';
   }
   var byId = function (id) { return document.getElementById(id); };
   var rowsEl = byId('mnemonic-rows');
@@ -805,14 +807,16 @@
   /* Balance provider for a chain name. Pure (no captured page state) so the
    * Node test can assert it without a DOM; `providerMeta` binds the page. */
   function providerMetaFor(chainName, evmSymbol) {
+    var meta = SSOT_CHAINS.bySlug[chainName];
+    if (!meta) return null;
     if (chainName === 'bitcoin') {
-      return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
+      return { provider: 'blockchain.info', chain: 'bitcoin', decimals: meta.decimals, symbol: meta.symbol };
     }
     if (RPC[chainName]) {
-      return { provider: 'evm', chain: chainName, decimals: 18, symbol: evmSymbol || '' };
+      return { provider: 'evm', chain: chainName, decimals: meta.decimals, symbol: evmSymbol || meta.symbol };
     }
     if (chainName === 'solana') {
-      return { provider: 'solana', chain: 'solana', decimals: 9, symbol: 'SOL' };
+      return { provider: 'solana', chain: 'solana', decimals: meta.decimals, symbol: meta.symbol };
     }
     return null;
   }

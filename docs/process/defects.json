@@ -421,6 +421,13 @@
       "symptom": "the Solana mnemonic directory rendered — for all 60 rows although a batched getMultipleAccounts provider exists",
       "detector": "mnemonic-solana-balances",
       "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "chain-color-drift",
+      "reported": "2026-11-22",
+      "symptom": "Chain tabs and cards read colors from separate tables; site.css disagreed with the coordinator on ethereum, tron, litecoin and xrp, and a local symbol table printed ARB/OP/BASE/zkSync instead of ETH.",
+      "detector": "chain-tab-color",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
