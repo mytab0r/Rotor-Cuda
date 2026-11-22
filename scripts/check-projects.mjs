@@ -53,6 +53,103 @@ function cacheTokenViolations() {
     .map((relative) => `cache-token: ${relative} adds a ?v= query; assets revalidate by ETag`);
 }
 
+// The Docker image builds from a context that only contains what the Dockerfile
+// COPYs, while a checkout contains every source directory. A Rust include that
+// points outside the copied set therefore passes `cargo build` locally and
+// fails only inside the image. Resolve every include literal against its Rust
+// file and require its top-level path to be copied into the build stage.
+const RUST_INCLUDE = /\binclude_(?:str|bytes)!\s*\(\s*"((?:[^"\\]|\\.)*)"\s*\)/g;
+
+function rustFilesUnder(relativeDir) {
+  const files = [];
+  const walk = (relative) => {
+    for (const entry of fs.readdirSync(path.join(REPO_ROOT, relative), { withFileTypes: true })) {
+      const child = path.posix.join(relative, entry.name);
+      if (entry.isDirectory()) walk(child);
+      else if (entry.isFile() && entry.name.endsWith(".rs")) files.push(child);
+    }
+  };
+  walk(relativeDir);
+  return files;
+}
+
+function dockerBuildCopiedPaths() {
+  const dockerfile = path.join(REPO_ROOT, "Dockerfile");
+  if (!fs.existsSync(dockerfile)) return null;
+  const lines = fs
+    .readFileSync(dockerfile, "utf8")
+    .replace(/\\\r?\n/g, " ")
+    .split(/\r?\n/);
+  const stages = [];
+  let stage = null;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    if (/^FROM\s/i.test(line)) {
+      stage = { instructions: [] };
+      stages.push(stage);
+    } else if (stage) {
+      stage.instructions.push(line);
+    }
+  }
+  // The build stage is the one that compiles; the runtime stage only copies
+  // the binary out of it.
+  const build = stages.find((candidate) =>
+    candidate.instructions.some((instruction) => /\bcargo build\b/.test(instruction)),
+  );
+  if (!build) return null;
+  const copied = new Set();
+  for (const instruction of build.instructions) {
+    const match = /^(?:COPY|ADD)\s+(.*)$/i.exec(instruction);
+    if (!match) continue;
+    const rest = match[1].trim();
+    let tokens;
+    if (rest.startsWith("[")) {
+      try {
+        tokens = JSON.parse(rest);
+      } catch {
+        continue;
+      }
+    } else {
+      tokens = rest.split(/\s+/).filter((token) => !token.startsWith("--"));
+    }
+    if (!Array.isArray(tokens) || tokens.length < 2) continue;
+    for (const source of tokens.slice(0, -1)) {
+      if (typeof source !== "string" || path.isAbsolute(source) || /^(?:[a-z]+:)?\/\//i.test(source)) continue;
+      const normalized = source.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+      if (!normalized || normalized === "." || normalized === "..") continue;
+      copied.add(normalized.split("/")[0]);
+    }
+  }
+  return copied;
+}
+
+function dockerIncludeViolations() {
+  const copied = dockerBuildCopiedPaths();
+  if (copied === null) return [];
+  const violations = [];
+  for (const file of rustFilesUnder("src")) {
+    const source = fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
+    for (const match of source.matchAll(RUST_INCLUDE)) {
+      const literal = match[1].replace(/\\(.)/g, "$1");
+      const resolved = path.resolve(REPO_ROOT, path.dirname(file), literal);
+      const relative = path.relative(REPO_ROOT, resolved).replaceAll("\\", "/");
+      if (relative === "" || relative.startsWith("../") || path.isAbsolute(relative)) {
+        violations.push(`docker-copy: ${file} includes ${literal}, which escapes the repository root`);
+        continue;
+      }
+      const top = relative.split("/")[0];
+      if (!copied.has(top)) {
+        const line = source.slice(0, match.index).split("\n").length;
+        violations.push(
+          `docker-copy: ${file}:${line} includes ${literal}, but the Dockerfile build stage does not COPY ${top} (add \`COPY ${top} ./${top}\`)`,
+        );
+      }
+    }
+  }
+  return violations;
+}
+
 let projects;
 try {
   projects = loadProjects(REPO_ROOT);
@@ -152,6 +249,7 @@ for (const filePath of tracked) {
 }
 
 errors.push(...cacheTokenViolations());
+errors.push(...dockerIncludeViolations());
 
 if (errors.length > 0) {
   fail(errors);

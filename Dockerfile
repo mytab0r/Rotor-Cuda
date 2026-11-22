@@ -9,6 +9,10 @@ COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
 COPY crates ./crates
 COPY apps ./apps
+# The coordinator embeds `data/` files at compile time (include_str!), so the
+# directory must exist in the build context; a checkout has it, the image does
+# not unless it is copied here.
+COPY data ./data
 # The Docker context has no .git, so build.rs cannot read the commit: the
 # workflow passes it in and it becomes the footer build id and the
 # `/a/<build>/` asset prefix.
