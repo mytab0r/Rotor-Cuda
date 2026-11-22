@@ -3,6 +3,13 @@
   "rules": "Every defect the owner reports gets one entry here in the same PR as its detector. The detector id must exist in data/detectors.json, resolve to an implemented entry, and be present in the implementation file named by `where`; check-defect-ledger.mjs and check-ssot.mjs fail otherwise.",
   "defects": [
     {
+      "id": "screenshots-in-repo",
+      "reported": "2026-11-22",
+      "symptom": "31 UI evidence screenshots (15 donor-parity captures and 16 process-evidence captures) were committed under docs/, so evidence lived in git history and every checkout paid for it.",
+      "detector": "screenshots-in-repo",
+      "where": "scripts/check-screenshots.mjs"
+    },
+    {
       "id": "duplicate-preset-controls",
       "reported": "2026-11-20",
       "symptom": "The key page rendered wallet-preset chips and an equivalent preset <select> side by side.",

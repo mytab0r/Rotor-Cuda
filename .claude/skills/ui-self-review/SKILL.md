@@ -140,6 +140,7 @@ page-local override.
 | `detector-registry` | Every ui-audit id and every defect-ledger detector resolves to one implemented registry entry. | 4a | implemented |
 | `detector-docs-fresh` | The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json. | 4a | implemented |
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
+| `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a
@@ -191,8 +192,10 @@ expected to be fixed once in the header/typography token, not page by page.
    and `node scripts/check-projects.mjs`.
 3. In the PR description include: the command you ran, the routes/viewports/
    themes covered, `ui-audit PASS` (or the exact remaining violation IDs and why
-   they are outside the change), and the screenshot directory or attached
-   before/after images. Do not paste the whole JSON report.
+   they are outside the change), and the link to the `ui-audit-report-<run id>`
+   CI artifact (screenshots + JSON). Never commit screenshots; the repo guard
+   `node scripts/check-screenshots.mjs` rejects tracked images under `docs/`.
+   Do not paste the whole JSON report.
 
 The audit is the gate. A visual check in the browser pane is additional
 evidence, not a replacement.
