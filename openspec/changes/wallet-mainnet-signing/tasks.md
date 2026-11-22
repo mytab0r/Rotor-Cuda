@@ -77,7 +77,32 @@
 - [x] `node scripts/check-ssot.mjs`
 - [x] `cargo test --release --test coordinator_api`
 
-## 6. Next slices
+## 6. ERC-20 approvals (read + revoke)
+
+- [x] Add an approvals panel that reuses the send owner, network and provider
+  controls and accepts a token contract with the transfer validation (EIP-55
+  or all-lowercase, contract code present, 0–24 decimals, printable symbol of
+  at most 32 characters).
+- [x] Scan `Approval(address,address,uint256)` logs with `eth_getLogs` over a
+  configurable window (default 50,000 blocks), adapt the chunk to a provider
+  range limit, stop honestly at the archive horizon and state the blocks
+  actually scanned in the UI.
+- [x] Deduplicate by spender keeping the newest log, cap the list at 50 and
+  re-read the live `allowance(owner,spender)` for every row; show 2^256-1 as
+  "Unlimited" and label each spender EOA/contract via `eth_getCode`.
+- [x] Revoke with locally built `approve(spender, 0)` calldata through the same
+  chain-id, arm, fee-cap, `eth_estimateGas`, review, unsigned-pin and
+  single-broadcast gates; refuse an allowance that is already zero and re-read
+  the allowance after broadcast.
+- [x] Tests: allowance formatting, chunking and dedupe pure functions, the
+  revoke vector against an independent encoding, token refusals, EOA labeling,
+  the allowance-zero refusal, chain/arm/fee/unsigned-tamper and mutated
+  spender/amount refusals.
+- [x] Register `node apps/site/wallet-approvals-test.mjs` in `projects.json`,
+  update the `/cabinet/wallet` site-map note and the page help text (window
+  limit, no indexer, no granting in this slice).
+
+## 7. Next slices
 
 - [x] ERC-20 transfer: optional token contract field on `/cabinet/wallet`;
   `eth_getCode`, `decimals()`, `symbol()` and `balanceOf(owner)` reads; refusal
@@ -85,8 +110,8 @@
   characters or non-printable, and a balance below the amount; local
   `transfer(address,uint256)` calldata with value 0; the same chain, arm, fee
   cap, gas estimate, review and single-broadcast gates.
-- [ ] Approvals: list current allowances, revoke (approve 0) and grant with an
-  explicit allowance amount and a separate review.
+- [ ] ERC-20 approvals grant: an explicit allowance amount and a separate
+  review, reusing the same approval reader and signing gates.
 - [ ] Bitcoin mainnet: UTXO/fee source, mainnet WIF policy, address type and
   broadcast provider, with its own fee cap.
 - [ ] TRON mainnet: requires a TRON provider API key; document the key source

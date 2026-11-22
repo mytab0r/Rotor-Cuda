@@ -7470,6 +7470,9 @@ mod tests {
         assert!(html.contains("<script src=\"/wallet.js\"></script>"));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
+        assert!(html.contains("id=\"wallet-approvals\""));
+        assert!(html.contains("id=\"wallet-approvals-token\""));
+        assert!(html.contains("id=\"wallet-approvals-rows\""));
 
         let (script, content_type) = static_asset("/wallet.js").expect("/wallet.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
