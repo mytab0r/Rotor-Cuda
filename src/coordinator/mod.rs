@@ -62,6 +62,7 @@ const PUZZLE_BROWSER_JS: &str = include_str!("../../apps/site/puzzle-browser.js"
 const PUZZLE_WORKER_JS: &str = include_str!("../../apps/site/puzzle-worker.js");
 const MONITOR_PAGE: &str = include_str!("../../apps/site/monitor.html");
 const MONITOR_JS: &str = include_str!("../../apps/site/monitor.js");
+const WC_LINKS_JS: &str = include_str!("../../apps/site/wc-links.js");
 const ROTOR_WORKER: &str = include_str!("../../apps/site/rotor-worker.js");
 const ROTOR_WASM: &[u8] = include_bytes!("../../apps/site/rotor_wasm.wasm");
 const WALLETCONNECT_JS: &[u8] = include_bytes!("../../apps/site/walletconnect.js");
@@ -1871,6 +1872,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/cabinet.js" | "/monitor.js" => Some((
             MONITOR_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wc-links.js" => Some((
+            WC_LINKS_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/site.css" => Some((SITE_CSS.as_bytes(), "text/css; charset=utf-8")),
@@ -6707,7 +6712,7 @@ mod tests {
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(!body.is_empty());
 
-        for path in ["/cabinet.js", "/monitor.js"] {
+        for path in ["/cabinet.js", "/monitor.js", "/wc-links.js"] {
             let (body, content_type) = static_asset(path).expect("monitor JS is embedded");
             assert_eq!(content_type, "application/javascript; charset=utf-8");
             assert!(!body.is_empty());

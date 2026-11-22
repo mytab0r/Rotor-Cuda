@@ -66,6 +66,53 @@ they use the shared navigation and intentionally carry no marketing footer.
 `node scripts/ui-audit.mjs --serve` covers every panel at 375/768/1280 in dark
 and light.
 
+## User cabinet WalletConnect
+
+The public cabinet at `/cabinet` offers WalletConnect for mobile EVM wallets.
+The coordinator serves the Reown/WalletConnect project id as
+`walletconnect_project_id` from `GET /api/v1/monitor/config`; set it with
+`ROTOR_WALLETCONNECT_PROJECT_ID`.
+
+- **Whitelist the origin.** In the Reown dashboard (project settings -> allowed
+  domains) add every served origin, for example `https://rotor.pxbt.app` and the
+  staging origin. A missing entry makes the relay verification fail; the
+  cabinet shows that error verbatim because it is diagnostic.
+- The bundle is built by `sh scripts/build-walletconnect.sh` and committed as
+  `apps/site/walletconnect.js`. It is a vendored artifact; the script is the
+  source of truth.
+- `chains: [1]` stays the required chain. `optionalChains` covers every EVM
+  chain the site supports: 1, 56, 137, 42161, 10, 8453, 43114 and 324. One EVM
+  account is exposed; the page never invents a per-chain address.
+- The provider is built with `showQrModal: false`. The cabinet listens for
+  `display_uri` and renders its own panel: QR code, copy action, wallet deep
+  links (MetaMask, Trust Wallet, Rainbow, Coinbase Wallet and a generic `wc:`
+  link), and loading/error/expired states. On a mobile user agent the panel
+  opens the selected wallet app instead of showing the QR.
+- After `connect()` resolves, the SIWE `personal_sign` flow is unchanged. The
+  session token stays in `localStorage` and is never rendered.
+
+### Manual test with a real wallet
+
+A headless browser cannot drive a real wallet, so the handoff and signature
+steps stay a human check. The automated audit covers the panel layout and the
+static sign-in card.
+
+1. **Desktop QR** - open `/cabinet`, click WalletConnect, scan the QR with
+   MetaMask, Trust Wallet, Rainbow or Coinbase Wallet on a phone. The wallet
+   asks to approve the session, then shows the sign-in message.
+2. **Mobile deep link** - open `/cabinet` in a phone browser and choose the
+   wallet app. The app must open on its own with the connection request; no
+   copying the URI into the wallet's dapp browser. Return to the browser and
+   approve the signature.
+3. **Expired URI** - leave the panel open for about five minutes without
+   approving. The panel must say the URI expired and offer Regenerate; a fresh
+   QR or deep link must appear.
+4. **Rejected signature** - approve the connection but reject the
+   `personal_sign` request. The page must say the request was rejected and stay
+   signed out.
+5. **Unlisted origin** - remove the origin from the Reown allowlist and retry.
+   The relay/verify error must be shown as-is.
+
 ## Routes and the site map
 
 The admin API endpoints are not content routes and are intentionally absent
