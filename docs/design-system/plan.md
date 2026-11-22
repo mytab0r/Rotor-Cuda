@@ -104,7 +104,7 @@ node apps/site/site-nav-test.mjs
 node scripts/check-projects.mjs
 ```
 
-Review: `critic` measures every pill: height 18–32, padding-inline 8, radius
+Review: `critic` measures every pill: height 20–32, padding-inline 8, radius
 pill, font ≥12; confirms no non-status layout changed in the screenshots.
 
 Non-goals: uppercase copy removal (the underlying strings stay; only CSS
@@ -160,8 +160,8 @@ hero input as `.field--hero` (56/14); selects use a height-derived arrow; one
 
 Detectors:
 
-- `control-height-scale`: visible controls have height in {40, 44, 56} ±1; no
-  38/46/52/58.
+- `control-height-scale`: visible controls have height in {28, 36, 44, 56} ±1 (28
+  only in dense table rows); no 38/46/52/58.
 - `field-geometry`: input/select/textarea radius in {10, 16 for hero}, label
   size ≥12, focus ring present.
 - `segmented-geometry`: track pad 4/radius 12, item min-h 44/radius 8–10, one
@@ -288,33 +288,111 @@ On Git Bash, omit the leading slash in `--routes` (MSYS path rewriting), or pass
 
 ## 3. Detector backlog
 
-| ID | Rule | Batch | Checkable |
-|---|---|---|---|
-| `status-pill-geometry` | pills: height 18–32, padding-inline 8, pill radius, font ≥12 | 1 | yes |
-| `icon-button-scale` | box 28/36/44, icon 14/16/18, `aria-label` + `data-tooltip` | 2 | yes |
-| `adjacent-icon-gap` | ≥8px between adjacent icon-only controls, distinct labels | 2 | yes |
-| `tooltip-naming` | accessible name independent of the tooltip; `aria-describedby` resolves | 2 | yes |
-| `control-height-scale` | heights in {28, 36, 44, 56} ±1 (28 dense rows only) | 3 | yes |
-| `field-geometry` | control radius/size/label/focus ring | 3 | yes |
-| `segmented-geometry` | one track grammar, one selected item | 3 | yes |
-| `stat-geometry` | label ≥12 sentence case; value in {20,24,28} | 4 | yes |
-| `card-padding-scale` | padding {16,20,24}, radius {12,16} | 4 | yes |
-| `table-header-style` | 12/600, no uppercase, no tracking | 5 | yes |
-| `table-row-height` | interactive rows ≥44 or 44px action | 5 | yes |
-| `row-action-geometry` | 44×44, radius 10, icon 16, labelled | 5 | yes |
-| `nav-link-height` | nav/breadcrumb links ≥44×44 | 6 | yes |
-| `breadcrumb-current` | one `aria-current`, no raw path | 6 | yes |
-| `pager-geometry` | 44, radius 10, disabled semantics | 6 | yes |
-| `radius-scale` | component radii in the scale | 7 | yes |
-| `raw-hex-outside-root` | no hex outside root blocks | 7 | yes |
-| `legacy-selector` | no shared-family page override | 7 | yes |
-| `legacy-token` | one `:root` token block; no duplicate custom-property declarations | 7 | yes |
-| `tooltip-timing` | 400ms delay, Esc dismiss | 2 | partial (DOM events; manual evidence) |
-| `status-line-margin` | margin top in {8,12} | 1/3 | yes (proposed) |
+`data/detectors.json` is the single detector registry; this table is generated
+by `scripts/gen-detector-docs.mjs`. A detector is added only when the family is
+normalised, so the gate does not fail on known legacy debt without an owner.
+Every `docs/process/defects.json` entry names an implemented registry entry, and
+the `status` column distinguishes an implemented rule from a planned one.
 
-A detector is added only when the family is normalised, so the gate does not
-fail on known legacy debt without an owner. Every added detector gets a ledger
-entry in the same PR.
+<!-- BEGIN GENERATED detectors:plan -->
+| ID | Rule | Batch | Status |
+|---|---|---|---|
+| `status-pill-geometry` | Status/badge pill: text >=12px, height 20-32px, pill radius, inline padding 6/8/10/12. | 1 | implemented |
+| `icon-button-scale` | Icon button box 28/36/44, icon 14/16/18, aria-label plus data-tooltip, no native title. | 2 | implemented |
+| `icon-only-shared-component` | Icon-only action uses the shared .icon-button component, not a page-local button. | 2 | implemented |
+| `look-alike-icon-button` | A quiet icon control must not render as a full bordered 44px button. | 2 | implemented |
+| `quiet-icon-hover-border` | Quiet icon buttons gain no hover border; outline buttons keep their strong line. | 2 | implemented |
+| `tooltip-primitive` | data-tooltip target: non-empty text <=40 chars, no native title, accessible name. | 2 | implemented |
+| `tooltip-behaviour` | Tooltip appears within 300ms, hides on Escape, and the popover keeps row geometry. | 2 | implemented |
+| `key-meta-row` | The /key input meta row is one 40px line with the info control centred. | 2 | implemented |
+| `control-height-scale` | Input/select/chip/segmented height in {28,36,44,56}; 28 is reserved for dense table rows. | 3 | implemented |
+| `field-geometry` | Field radius 10/16, label >=12px, visible focus ring. | 3 | implemented |
+| `segmented-geometry` | One track grammar (4px padding, radius 12), 44px items, exactly one selected. | 3 | implemented |
+| `key-input-type` | The /key private-key field renders as plain text, not type=password. | 3 | implemented |
+| `key-auto-derive` | /key derives rows from the input without an explicit action. | 3 | implemented |
+| `key-calculate-button` | /key exposes no Calculate button; the form input is the only control. | 3 | implemented |
+| `duplicate-preset-control` | /key renders one preset control, not chips and an equivalent select. | 3 | implemented |
+| `seed-form-narrow` | The /seed form uses more than 80% of the card width. | 3 | implemented |
+| `ragged-summary-columns` | Multi-column summary lists end within 2px of each other. | 3 | implemented |
+| `summary-grid-orphan` | At <=560px the summary grid leaves no empty trailing cell. | 3 | implemented |
+| `card-padding-scale` | Card padding 16/20/24 and radius 12/16; no page-local card override. | 4 | implemented |
+| `stat-geometry` | Stat label >=12px sentence case; value 20/24/28 with tabular digits. | 4 | implemented |
+| `table-grammar` | Every table is .data-table inside .table-scroll with 8/12 cell padding and even headers. | 5 | implemented |
+| `table-header-style` | Table header is 12px/600 sentence case with no uppercase or tracking. | 5 | implemented |
+| `table-row-height` | Every table row is at least 44px tall or carries a 44px action. | 5 | implemented |
+| `row-action-geometry` | Row actions are 44x44, radius 10, with an accessible name. | 5 | implemented |
+| `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
+| `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
+| `nav-keystore-highlight` | /keystore-parser highlights Tools, not Search. | 6 | implemented |
+| `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
+| `breadcrumb-current` | Exactly one aria-current crumb and never a raw path label. | 6 | implemented |
+| `pager-grammar` | One labelled pager structure with the jump control and no legacy random modifier. | 6 | implemented |
+| `pager-geometry` | Pager buttons are 44px, radius 10, aria-disabled and 16px icons. | 6 | implemented |
+| `footer-presence` | Exactly one footer with the donor links, copyright and build id. | 6 | implemented |
+| `legacy-token` | One :root token block; light overrides only through html[data-theme]. | 7 | implemented |
+| `radius-scale` | border-radius uses var(--radius-*), never an off-scale literal. | 7 | implemented |
+| `raw-hex-outside-root` | No raw colour outside the generated token regions (CSS or inline style). | 7 | implemented |
+| `legacy-selector` | No page-scoped selector overrides a shared component family. | 7 | implemented |
+| `empty-state-grammar` | Empty and error states share one grammar (dashed, radius 12, 20px padding). | 7 | implemented |
+| `token-contract` | tokens.json, the generated region and the frozen contract agree and every var() resolves. | phase 2 | implemented |
+| `orphan-token` | A declared token has a first-party consumer or is marked reserved. | phase 2 | implemented |
+| `theme-parity` | Every colour token declared in :root has a light-theme declaration. | phase 2 | implemented |
+| `lossy-amount-formatter` | No local amount formatter, Number amount math or 10n amount scale outside amount.js. | 2 | implemented |
+| `aggregateText` | The seed aggregate line includes the BTC lifetime received total. | 2 | implemented |
+| `field-hero-height` | Every rendered .field--hero control is at least 56px high. | phase 3 | implemented |
+| `manifest-shape` | Component manifests carry the contract fields, a semver version and unique ids. | phase 3 | implemented |
+| `unknown-variant` | Every manifest variant and size class has a rule in site.css. | phase 3 | implemented |
+| `gallery-variant` | Every manifest variant, size and state renders in the generated gallery. | phase 3 | implemented |
+| `gallery-missing` | The generated /cabinet/admin/design gallery exists and is current. | phase 3 | implemented |
+| `required-attribute` | Every gallery example carries its declared required attributes. | phase 3 | implemented |
+| `page-local-family` | A page <style> block does not restyle a shared component family. | phase 3 | implemented |
+| `browse-row-address-count` | A BTC legacy listing row renders both address forms without a disclosure. | phase 4 | implemented |
+| `browse-row-balance-lines` | One balance line per address, received only when non-zero, and a named TX pill. | phase 4 | implemented |
+| `browse-row-key-copy` | Each listing row has one visible, labelled key copy action. | phase 4 | implemented |
+| `browse-row-height` | Listing rows keep one stable height under the two-address ceiling. | phase 4 | implemented |
+| `browse-stat-level` | Browse stat cards end within 2px of each other. | phase 4 | implemented |
+| `browse-row-wif` | A listing row is HEX plus copy, address and balance; the WIF stays on /key. | phase 4 | implemented |
+| `balance-consistency` | A balance row text agrees with its title amount and TX count. | phase 4 | implemented |
+| `key-zec-provider` | Every /key ZEC row has a balance provider. | phase 4 | implemented |
+| `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
+| `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
+| `search-xrp-secret-routing` | XRP family seeds and secrets route to /key instead of a brainwallet hash. | phase 4 | implemented |
+| `search-short-hex-padding` | 1-63 hex characters stay brainwallet text; exactly 64 hex is a key. | phase 4 | implemented |
+| `mnemonic-solana-balances` | The Solana directory fetches every row with one batched getMultipleAccounts call. | phase 4 | implemented |
+| `mnemonic-bch-balances` | The BCH directory batches every address through the Haskoin endpoint. | phase 4 | implemented |
+| `mnemonic-tron-xrp-sui-balances` | The TRON, XRP and SUI directories fetch balances for every row. | phase 4 | implemented |
+| `mnemonic-xrp-redirect` | XRPScan is called with redirect: error so a cross-origin hop fails loud. | phase 4 | implemented |
+| `balance-state-attribute` | Every balance row sets data-balance-state and data-balance-at on the row. | phase 4 | implemented |
+| `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
+| `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |
+| `raw-path-text` | A table cell renders a human label, never a raw path. | all | implemented |
+| `small-text` | Visible text is at least 12px; hidden and aria-hidden text is exempt. | all | implemented |
+| `small-touch-target` | Visible controls are at least 44x44; inline prose links are exempt. | all | implemented |
+| `unlabeled-icon-control` | An icon-only button or link carries an accessible name. | all | implemented |
+| `address-type-width-spread` | Address-type cards in one visual row differ by at most 15%. | all | implemented |
+| `duplicate-address-type-implementation` | One address-type component family is used, not two competing ones. | all | implemented |
+| `mostly-empty-block` | A block taller than 220px is not more than 45% empty. | all | implemented |
+| `manual-balance-control` | No visible manual balance button or checkbox; balances load automatically. | all | implemented |
+| `brainwallet-row-count` | /brainwallet/<chain> renders 60 .bw-row entries. | all | implemented |
+| `puzzle-row-count` | /bitcoin-puzzle renders 160 data-puzzle rows. | all | implemented |
+| `site-map-still-served` | /site-map answers 404 after the docs move. | all | implemented |
+| `http-error` | A same-origin HTTP error response fails the route. | all | implemented |
+| `asset-fingerprint` | Every asset reference uses the /a/<build>/ prefix. | all | implemented |
+| `route-coverage` | Every public page route in the coordinator map is audited by DEFAULT_ROUTES. | all | implemented |
+| `cache-token` | No ?v= cache token; assets revalidate by content ETag. | all | implemented |
+| `cramped-padding` | Impeccable ignores exist only with measured evidence, never to hide a real defect. | all | implemented |
+| `selector_matched_nothing` | A density-parity selector that matches nothing reports selector_matched_nothing, not a silent zero. | all | implemented |
+| `head_mirrors_get_for_public_resources` | HEAD mirrors GET for every public page and asset. | coordinator | implemented |
+| `vendor-lock-digest` | Every data/vendor.lock.json entry matches both files byte for byte and every web/public file is locked. | 4a | implemented |
+| `detector-registry` | Every ui-audit id and every defect-ledger detector resolves to one implemented registry entry. | 4a | implemented |
+| `detector-docs-fresh` | The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json. | 4a | implemented |
+| `adjacent-icon-gap` | Adjacent icon-only controls keep at least 8px between them and distinct labels. | 2 | planned |
+| `tooltip-naming` | The accessible name is independent of the tooltip and aria-describedby resolves. | 2 | planned |
+| `tooltip-timing` | Tooltip shows after a 400ms delay and Escape dismisses it. | 2 | planned |
+| `status-line-margin` | Text-only status lines use a top margin in {8,12}. | 1/3 | planned |
+<!-- END GENERATED detectors:plan -->
+
+Every added detector gets a ledger entry in the same PR.
 
 ## 4. Risk register
 

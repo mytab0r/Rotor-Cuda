@@ -2,6 +2,13 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
+
   /* Narrow-header split: four primary links stay inline and the rest move into
    * a "More" disclosure. These helpers are pure and exported before the DOM
    * guard so the node test can exercise them without a browser. */
@@ -384,16 +391,10 @@
   ];
   var SEARCH_MNEMONIC_COUNTS = [1, 3, 5, 10];
   var SEARCH_TIMEOUT_MS = 8000;
-  var EVM_RPC = {
-    ethereum: 'https://ethereum-rpc.publicnode.com',
-    bnb: 'https://bsc-rpc.publicnode.com',
-    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
-    optimism: 'https://optimism-rpc.publicnode.com',
-    base: 'https://base-rpc.publicnode.com',
-    polygon: 'https://polygon-bor-rpc.publicnode.com',
-    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
-    zksync: 'https://mainnet.era.zksync.io'
-  };
+  var EVM_RPC = {};
+  SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
+    EVM_RPC[slug] = SSOT_PROVIDERS.first(slug).url;
+  });
   var EVM_NATIVE = {
     ethereum: 'ETH', bnb: 'BNB', arbitrum: 'ETH', optimism: 'ETH',
     base: 'ETH', polygon: 'POL', avalanche: 'AVAX', zksync: 'ETH'
@@ -404,17 +405,6 @@
       if (SEARCH_CHIPS[index][0] === mode) return SEARCH_CHIPS[index][1];
     }
     return 'that format';
-  }
-
-  function formatUnits(amount, decimals) {
-    var value = BigInt(amount);
-    var places = Number.isInteger(decimals) && decimals >= 0 ? decimals : 0;
-    var unit = 1n;
-    for (var index = 0; index < places; index += 1) unit *= 10n;
-    var whole = value / unit;
-    var fraction = value % unit;
-    var text = fraction ? whole.toString() + '.' + fraction.toString().padStart(places, '0').replace(/0+$/, '') : whole.toString();
-    return text;
   }
 
   function installGlobalSearch() {
@@ -657,7 +647,7 @@
           name: 'mempool',
           chain: 'bitcoin',
           fetch: function (address, signal) {
-            return fetchJson('https://mempool.space/api/address/' + encodeURIComponent(address), null, signal).then(function (data) {
+            return fetchJson(SSOT_PROVIDERS.find('bitcoin', 'mempool').url + '/address/' + encodeURIComponent(address), null, signal).then(function (data) {
               var chain = data.chain_stats || {};
               var mempool = data.mempool_stats || {};
               var funded = BigInt(Math.trunc(chain.funded_txo_sum || 0)) + BigInt(Math.trunc(mempool.funded_txo_sum || 0));
@@ -709,7 +699,7 @@
               })
               .catch(function (err) {
                 if (err && (err.status === 404 || err.status === 501)) {
-                  return fetchJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address), null, signal)
+                  return fetchJson(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address), null, signal)
                     .then(function (data) {
                       var amount = BigInt(String(data && data.balance ? data.balance : 0));
                       var txs = data && (data.totalTransactionCount || data.transactionCount || 0);
@@ -726,7 +716,7 @@
           name: 'solana',
           chain: 'solana',
           fetch: function (address, signal) {
-            return fetchJson('https://solana-rpc.publicnode.com', {
+            return fetchJson(SSOT_PROVIDERS.find('solana', 'publicnode').url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address] })
@@ -742,7 +732,7 @@
           name: 'xrpscan',
           chain: 'xrp',
           fetch: function (address, signal) {
-            return fetchWithTimeout('https://api.xrpscan.com/api/v1/account/' + encodeURIComponent(address), null, signal)
+            return fetchWithTimeout(SSOT_PROVIDERS.find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address), null, signal)
               .then(function (response) {
                 if (response.status === 404) {
                   return { amount: 0n, decimals: 6, symbol: 'XRP', active: false };
@@ -761,7 +751,7 @@
           name: 'litecoinspace',
           chain: 'litecoin',
           fetch: function (address, signal) {
-            return fetchJson('https://litecoinspace.org/api/address/' + encodeURIComponent(address), null, signal).then(function (data) {
+            return fetchJson(SSOT_PROVIDERS.find('litecoin', 'litecoinspace').url + '/address/' + encodeURIComponent(address), null, signal).then(function (data) {
               var chain = data.chain_stats || {};
               var mempool = data.mempool_stats || {};
               var funded = Number(chain.funded_txo_sum || 0) + Number(mempool.funded_txo_sum || 0);
@@ -777,7 +767,7 @@
           name: 'haskoin',
           chain: 'bitcoin-cash',
           fetch: function (address, signal) {
-            return fetchJson('https://api.haskoin.com/bch/address/balances?addresses=' + encodeURIComponent(address), null, signal).then(function (rows) {
+            return fetchJson(SSOT_PROVIDERS.find('bitcoin-cash', 'haskoin').url + '/address/balances?addresses=' + encodeURIComponent(address), null, signal).then(function (rows) {
               var info = Array.isArray(rows) ? rows[0] : null;
               var amount = info ? BigInt(Math.trunc(Number(info.confirmed || 0) + Number(info.unconfirmed || 0))) : 0n;
               return {
@@ -797,7 +787,7 @@
           name: 'blockchair',
           chain: slug,
           fetch: function (address, signal) {
-            return fetchJson('https://api.blockchair.com/' + network + '/dashboards/addresses/' + encodeURIComponent(address), null, signal).then(function (data) {
+            return fetchJson(SSOT_PROVIDERS.find(slug, 'blockchair').url + '/' + network + '/dashboards/addresses/' + encodeURIComponent(address), null, signal).then(function (data) {
               var info = data && data.data && data.data[address] && data.data[address].address;
               var amount = info ? BigInt(Math.trunc(Number(info.balance || 0))) : 0n;
               return {
@@ -816,7 +806,7 @@
           chain: 'sui',
           fetch: function (address, signal) {
             function request(method) {
-              return fetchJson('https://fullnode.mainnet.sui.io', {
+              return fetchJson(SSOT_PROVIDERS.find('sui', 'fullnode').url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: [address] })
@@ -839,7 +829,7 @@
           name: 'toncenter',
           chain: 'ton',
           fetch: function (address, signal) {
-            return fetchJson('https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address), null, signal).then(function (data) {
+            return fetchJson(SSOT_PROVIDERS.find('ton', 'toncenter').url + '/getAddressBalance?address=' + encodeURIComponent(address), null, signal).then(function (data) {
               var amount = data && data.result !== undefined ? BigInt(String(data.result)) : 0n;
               return { amount: amount, decimals: 9, symbol: 'TON', active: amount > 0n };
             });
@@ -1017,8 +1007,11 @@
       } catch (err) {
         amount = 0n;
       }
-      var text = formatUnits(amount, Number.isInteger(value.decimals) ? value.decimals : 0) +
-        (value.symbol ? ' ' + value.symbol : '');
+      var text = AMOUNT.formatUnits(
+        amount,
+        Number.isInteger(value.decimals) ? value.decimals : 0,
+        { symbol: value.symbol }
+      );
       view.balance.textContent = text;
       view.balance.title = text;
       var active = value.active === true || amount > 0n;
@@ -1337,8 +1330,11 @@
         if (card.balance) {
           var amount;
           try { amount = BigInt(String(card.balance.amount)); } catch (err) { amount = 0n; }
-          out[card.slug] = formatUnits(amount, Number.isInteger(card.balance.decimals) ? card.balance.decimals : 0) +
-            (card.balance.symbol ? ' ' + card.balance.symbol : '');
+          out[card.slug] = AMOUNT.formatUnits(
+            amount,
+            Number.isInteger(card.balance.decimals) ? card.balance.decimals : 0,
+            { symbol: card.balance.symbol }
+          );
         } else {
           out[card.slug] = '—';
         }
