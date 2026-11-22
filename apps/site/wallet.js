@@ -25,10 +25,6 @@
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
   var AMOUNT = SSOT_ROOT.RotorAmount;
 
-  function explorerPrefix(slug) {
-    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
-  }
-
   /* The canonical table holds every public endpoint. `providerId` keeps a
    * chain on the single endpoint this page has always used (the rest of the
    * list is the wallet send path); no id means the full ordered fallback. */
@@ -65,28 +61,39 @@
   var WIF_MIN_LENGTH = 50;
   var WIF_MAX_LENGTH = 53;
 
-  /* Address rows come from the wasm derive_report report; explorer and
-   * provider URLs come from data/chains.json and data/providers.json. */
+  /* Address rows come from the wasm derive_report report; explorer, label,
+   * symbol and decimals come from data/chains.json. */
+  function chainRow(slug, extra) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    return Object.assign({
+      slug: slug,
+      label: meta.name,
+      symbol: meta.symbol,
+      decimals: meta.decimals,
+      explorer: meta.explorerPrefix
+    }, extra);
+  }
+
   var CHAINS = [
-    { slug: 'bitcoin', label: 'Bitcoin', curve: 0, addressId: 'btc_p2wpkh', explorer: explorerPrefix('bitcoin') },
-    { slug: 'bitcoin-testnet', label: 'Bitcoin testnet', curve: 0, addressId: 'btc_p2wpkh', explorer: explorerPrefix('bitcoin-testnet'), btcApi: SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url, network: 1 },
-    { slug: 'ethereum', label: 'Ethereum', curve: 0, addressId: 'evm', explorer: explorerPrefix('ethereum'), rpc: rpcUrls('ethereum'), symbol: 'ETH' },
-    { slug: 'bnb', label: 'BNB Chain', curve: 0, addressId: 'evm', explorer: explorerPrefix('bnb'), rpc: rpcUrls('bnb', 'bsc-dataseed'), symbol: 'BNB' },
-    { slug: 'arbitrum', label: 'Arbitrum', curve: 0, addressId: 'evm', explorer: explorerPrefix('arbitrum'), rpc: rpcUrls('arbitrum', 'arbitrum'), symbol: 'ETH' },
-    { slug: 'optimism', label: 'Optimism', curve: 0, addressId: 'evm', explorer: explorerPrefix('optimism'), rpc: rpcUrls('optimism'), symbol: 'ETH' },
-    { slug: 'base', label: 'Base', curve: 0, addressId: 'evm', explorer: explorerPrefix('base'), rpc: rpcUrls('base', 'base'), symbol: 'ETH' },
-    { slug: 'polygon', label: 'Polygon', curve: 0, addressId: 'evm', explorer: explorerPrefix('polygon'), rpc: rpcUrls('polygon'), symbol: 'POL' },
-    { slug: 'avalanche', label: 'Avalanche', curve: 0, addressId: 'evm', explorer: explorerPrefix('avalanche'), rpc: rpcUrls('avalanche', 'avalanche'), symbol: 'AVAX' },
-    { slug: 'zksync', label: 'zkSync', curve: 0, addressId: 'evm', explorer: explorerPrefix('zksync'), rpc: rpcUrls('zksync', 'zksync'), symbol: 'ETH' },
-    { slug: 'litecoin', label: 'Litecoin', curve: 0, addressId: 'ltc_p2wpkh', explorer: explorerPrefix('litecoin') },
-    { slug: 'bitcoin-cash', label: 'Bitcoin Cash', curve: 0, addressId: 'bch_legacy', explorer: explorerPrefix('bitcoin-cash') },
-    { slug: 'dogecoin', label: 'Dogecoin', curve: 0, addressId: 'doge_p2pkh', explorer: explorerPrefix('dogecoin') },
-    { slug: 'zcash', label: 'Zcash', curve: 0, addressId: 'zcash_p2pkh', explorer: explorerPrefix('zcash') },
-    { slug: 'xrp', label: 'XRP', curve: 0, addressId: 'xrp_classic', explorer: explorerPrefix('xrp') },
-    { slug: 'tron', label: 'TRON', curve: 0, addressId: 'tron', explorer: explorerPrefix('tron') },
-    { slug: 'solana', label: 'Solana', curve: 1, addressId: 'solana', explorer: explorerPrefix('solana') },
-    { slug: 'sui', label: 'Sui', curve: 1, addressId: 'sui', explorer: explorerPrefix('sui') },
-    { slug: 'ton', label: 'TON', curve: 1, addressId: 'ton', explorer: explorerPrefix('ton') }
+    chainRow('bitcoin', { curve: 0, addressId: 'btc_p2wpkh' }),
+    chainRow('bitcoin-testnet', { curve: 0, addressId: 'btc_p2wpkh', btcApi: SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url, network: 1 }),
+    chainRow('ethereum', { curve: 0, addressId: 'evm', rpc: rpcUrls('ethereum') }),
+    chainRow('bnb', { curve: 0, addressId: 'evm', rpc: rpcUrls('bnb', 'bsc-dataseed') }),
+    chainRow('arbitrum', { curve: 0, addressId: 'evm', rpc: rpcUrls('arbitrum', 'arbitrum') }),
+    chainRow('optimism', { curve: 0, addressId: 'evm', rpc: rpcUrls('optimism') }),
+    chainRow('base', { curve: 0, addressId: 'evm', rpc: rpcUrls('base', 'base') }),
+    chainRow('polygon', { curve: 0, addressId: 'evm', rpc: rpcUrls('polygon') }),
+    chainRow('avalanche', { curve: 0, addressId: 'evm', rpc: rpcUrls('avalanche', 'avalanche') }),
+    chainRow('zksync', { curve: 0, addressId: 'evm', rpc: rpcUrls('zksync', 'zksync') }),
+    chainRow('litecoin', { curve: 0, addressId: 'ltc_p2wpkh' }),
+    chainRow('bitcoin-cash', { curve: 0, addressId: 'bch_legacy' }),
+    chainRow('dogecoin', { curve: 0, addressId: 'doge_p2pkh' }),
+    chainRow('zcash', { curve: 0, addressId: 'zcash_p2pkh' }),
+    chainRow('xrp', { curve: 0, addressId: 'xrp_classic' }),
+    chainRow('tron', { curve: 0, addressId: 'tron' }),
+    chainRow('solana', { curve: 1, addressId: 'solana' }),
+    chainRow('sui', { curve: 1, addressId: 'sui' }),
+    chainRow('ton', { curve: 1, addressId: 'ton' })
   ];
 
   var CHAIN_BY_SLUG = {};
@@ -1383,7 +1390,7 @@
         if (!data || typeof data.result !== 'string') {
           throw new Error(data && data.error && data.error.message ? data.error.message : 'unexpected response');
         }
-        return AMOUNT.formatUnits(BigInt(data.result), 18, { symbol: spec.symbol || 'ETH' });
+        return AMOUNT.formatUnits(BigInt(data.result), spec.decimals, { symbol: spec.symbol });
       } catch (err) {
         lastError = err;
       }
@@ -1392,8 +1399,9 @@
   }
 
   async function fetchTronBalance(address) {
+    var unit = SSOT_CHAINS.bySlug.tron;
     var response = await fetchWithTimeout(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address));
-    if (response.status === 404) return '0 TRX · account not activated';
+    if (response.status === 404) return '0 ' + unit.symbol + ' · account not activated';
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var raw = await response.text();
     var data;
@@ -1405,7 +1413,7 @@
     if (!data || typeof data !== 'object') throw new Error('unexpected response');
     var match = /"balance"\s*:\s*"?(\d+)"?/.exec(raw);
     var sun = match ? BigInt(match[1]) : 0n;
-    var text = AMOUNT.formatUnits(sun, 6, { symbol: 'TRX' });
+    var text = AMOUNT.formatUnits(sun, unit.decimals, { symbol: unit.symbol });
     if (typeof data.totalTransactionCount === 'number') text += ' · ' + data.totalTransactionCount + ' tx';
     return text;
   }
@@ -1670,7 +1678,7 @@
   }
 
   function renderReview(review) {
-    var symbol = review.symbol || 'ETH';
+    var symbol = review.symbol || SSOT_CHAINS.bySlug.ethereum.symbol;
     var feeWei = review.gasLimit * review.maxFeeWei;
     sendReviewList.textContent = '';
     addReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +

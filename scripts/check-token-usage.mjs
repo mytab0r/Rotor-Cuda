@@ -45,6 +45,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import {
+  TOKENS_REGION,
+  findGeneratedRegions,
+} from "./generated-regions.mjs";
+
 export const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const TOKENS_PATH = "design/tokens/tokens.json";
@@ -52,8 +57,6 @@ const CONTRACT_PATH = "design/tokens/tokens.contract.json";
 const BASELINE_PATH = "design/tokens/token-usage-baseline.json";
 const CSS_PATH = "apps/site/site.css";
 const SITE_DIR = "apps/site";
-const START_MARKER = "/* tokens:start */";
-const END_MARKER = "/* tokens:end */";
 const CSS_COMMENT_NS = "org.rotor.css";
 
 // Vendored bundles carry their own license files (ton.LICENSE.txt,
@@ -207,24 +210,24 @@ export function reserved(token) {
   return token.$extensions?.[CSS_COMMENT_NS]?.reserved === true;
 }
 
-// Locate the two generated regions and their kinds. Offsets refer to the
-// original file text (comments are not stripped for this step).
+// Every generated region in the committed CSS. Scanners that look for generic
+// CSS facts (raw hex, off-scale radius, page-local overrides) skip all of them.
+export function generatedRegionSpans(css) {
+  return findGeneratedRegions(css, { file: CSS_PATH });
+}
+
+// Locate the token regions and their kinds. Offsets refer to the original file
+// text (comments are not stripped for this step).
 export function generatedRegions(css) {
   const regions = [];
-  let cursor = 0;
-  while (true) {
-    const start = css.indexOf(START_MARKER, cursor);
-    const end = start === -1 ? -1 : css.indexOf(END_MARKER, start + START_MARKER.length);
-    if (start === -1) break;
-    if (end === -1) fail(`unclosed ${START_MARKER}`);
-    const bodyStart = start + START_MARKER.length;
-    const region = css.slice(bodyStart, end);
+  for (const span of generatedRegionSpans(css)) {
+    if (span.name !== TOKENS_REGION.name) continue;
+    const region = css.slice(span.bodyStart, span.bodyEnd);
     const open = region.indexOf("{");
     const selector = open === -1 ? "" : region.slice(0, open).trim();
     const kind = selector === ":root" ? "dark" : selector === 'html[data-theme="light"]' ? "light" : null;
     if (!kind) fail(`tokens region has an unknown selector: ${selector || "(empty)"}`);
-    regions.push({ start, end, bodyStart, bodyEnd: end, kind });
-    cursor = end + END_MARKER.length;
+    regions.push({ ...span, kind });
   }
   if (regions.length === 0) fail(`${CSS_PATH} has no generated token regions`);
   return regions;
@@ -505,8 +508,8 @@ function hexOccurrences(relative, segment, fullText, baseOffset) {
 export function checkRawHex({ cssFiles, htmlFiles, regions }) {
   const violations = [];
   for (const { relative, text } of cssFiles) {
-    // Only declaration bodies, so `#id` selectors never match. The generated
-    // :root and light regions are the documented home of raw colours.
+    // Only declaration bodies, so `#id` selectors never match. Every generated
+    // region (tokens and chains today) is the documented home of raw values.
     for (const block of text.matchAll(/\{([^{}]*)\}/g)) {
       const bodyStart = block.index + 1;
       if (inRegion(regions, block.index)) continue;
@@ -516,7 +519,7 @@ export function checkRawHex({ cssFiles, htmlFiles, regions }) {
           "raw-hex-outside-root",
           relative,
           found.line,
-          `raw colour ${found.hex} outside the generated token regions`,
+          `raw colour ${found.hex} outside the generated regions`,
           found.hex,
         );
       }
@@ -534,7 +537,7 @@ export function checkRawHex({ cssFiles, htmlFiles, regions }) {
             "raw-hex-outside-root",
             relative,
             found.line,
-            `raw colour ${found.hex} in an inline <style> block outside the generated token regions`,
+            `raw colour ${found.hex} in an inline <style> block outside the generated regions`,
             found.hex,
           );
         }
@@ -549,7 +552,7 @@ export function checkRawHex({ cssFiles, htmlFiles, regions }) {
           "raw-hex-outside-root",
           relative,
           found.line,
-          `raw colour ${found.hex} in an inline style outside the generated token regions`,
+          `raw colour ${found.hex} in an inline style outside the generated regions`,
           found.hex,
         );
       }
@@ -702,6 +705,7 @@ export function collectChecks(root = REPO_ROOT) {
   const contract = readJson(root, CONTRACT_PATH);
   const css = read(root, CSS_PATH);
   const regions = generatedRegions(css);
+  const generatedSpans = generatedRegionSpans(css);
   const siteDir = path.join(root, SITE_DIR);
 
   const cssFiles = list(siteDir, ".css").map((name) => ({ relative: `${SITE_DIR}/${name}`, text: stripComments(read(root, `${SITE_DIR}/${name}`)) }));
@@ -714,9 +718,9 @@ export function collectChecks(root = REPO_ROOT) {
     { id: "token-contract", violations: checkTokenContract({ css, tokens, contract, regions, cssFiles, htmlFiles, jsFiles }) },
     { id: "orphan-token", violations: checkOrphanTokens({ tokens, cssFiles, htmlFiles, jsFiles }) },
     { id: "theme-parity", violations: checkThemeParity({ css, tokens, regions }) },
-    { id: "radius-scale", violations: checkRadiusScale({ tokens, cssFiles, regions }) },
-    { id: "raw-hex-outside-root", violations: checkRawHex({ cssFiles, htmlFiles, regions }) },
-    { id: "legacy-selector", violations: checkLegacySelectors({ cssFiles, regions }) },
+    { id: "radius-scale", violations: checkRadiusScale({ tokens, cssFiles, regions: generatedSpans }) },
+    { id: "raw-hex-outside-root", violations: checkRawHex({ cssFiles, htmlFiles, regions: generatedSpans }) },
+    { id: "legacy-selector", violations: checkLegacySelectors({ cssFiles, regions: generatedSpans }) },
     { id: "browse-row-wif", violations: checkBrowseRowWif({ jsFiles, cssFiles }) },
     { id: "browse-row-address-count", violations: checkBrowseRowAddressCount({ jsFiles, cssFiles }) },
   ];
