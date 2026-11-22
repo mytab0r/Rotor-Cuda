@@ -68,15 +68,36 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
 
 ## Slice 2 - amount and atomic-unit formatting
 
-- [ ] Add one formatter module (parsing, formatting, decimals and atomic units)
-      and a generated or hand-maintained decimals table keyed by chain slug.
-- [ ] Replace `site.js formatUnits`, `key.js formatEth`,
-      `wallet-evm.js formatUnits`, `wallet.js` amount text, `send.js`,
-      `browse.js`, `mnemonic-seeds.js` and `seed-page.js` formatting with the
-      shared module.
-- [ ] Add a detector that fails when a first-party script redefines
-      `formatUnits`/`formatEth` or hard-codes `10**`/`1e18` amount math.
-- [ ] Pin the existing atomic-unit vectors in the shared module's tests.
+- [x] Add one formatter module `apps/site/amount.js` (`window.RotorAmount`:
+      `formatUnits`, `parseUnits`, `coin`, `receivedText`) with BigInt-only
+      conversion. The exact rules are documented in the module: trailing zeros
+      are trimmed, `maximumFractionDigits` truncates, `minimumFractionDigits`
+      pads, grouping and a symbol suffix are opt-in, and `coin` groups
+      thousands and rounds half-up at 6 fraction digits above 8 decimals.
+- [x] Replace `site.js formatUnits`, `key.js formatUnits6`/`formatEth`,
+      `tx-decoders.js formatUnits`, `wallet-btc.js`/`wallet-evm.js`
+      `formatUnits`/`parseUnits`, `wallet.js formatUnits`, `send.js
+      parseTokenUnits`, `browse.js`, `brainwallet.js`,
+      `brainwallet-directory.js`, `mnemonic-seeds.js`, `seed-page.js` and
+      `key-tools.js formatAtomic` with the shared module; delete the local
+      copies. `tron-tx.js` TRX conversion delegates too, keeping its donor error
+      text.
+- [x] Add a detector to `scripts/check-ssot.mjs` that fails when a first-party
+      `apps/site/*.js` (except `amount.js`) defines or aliases `formatUnits`,
+      `formatUnits6`, `parseUnits`, `coin` or `formatEth` (declaration,
+      `function` expression or `const/let/var` assignment), keeps a
+      `Math.pow(10,` conversion, or hard-codes a `10n ** ...` amount scale.
+      Allowlist entries keep the existing reason/owner/expires schema; the
+      detector id is `lossy-amount-formatter`. The three new shapes are
+      mutation-proven.
+- [x] Pin the existing atomic-unit vectors and add exact 0/8/9/18/24-decimal,
+      above-2^53 and near-2^256 cases in `apps/site/amount-test.mjs`; add the
+      suite to `projects.json` and require `amount.js` before every consumer in
+      the Node tests.
+- [ ] Move the chain-slug decimals table into `data/chains.json` with the
+      symbol/identity work in slice 3. Until then `amount.js` takes `decimals`
+      from the caller because token decimals are user-supplied, not a chain
+      constant.
 
 ## Slice 3 - chain identity
 

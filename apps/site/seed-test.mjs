@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 const wasmPath = process.argv[2] ?? fileURLToPath(new URL("./rotor_wasm.wasm", import.meta.url));
 
 globalThis.window = globalThis;
@@ -331,6 +332,41 @@ test("the next five indices continue after the rendered count", () => {
   assertEqual(page.batchIndices(1, 5).join(","), "1,2,3,4,5", "after a single address");
   assertEqual(page.batchIndices(0, 5).join(","), "0,1,2,3,4", "first batch");
   assertEqual(page.batchIndices(18, 5).join(","), "18,19,20,21,22", "partial overlap is not re-derived by math");
+});
+
+test("aggregateText adds the BTC lifetime Received total and keeps the usual wording", () => {
+  assertEqual(page.aggregateText([]), "", "empty results hide the line");
+  assertEqual(
+    page.aggregateText([
+      { balanceUnit: "BTC", balanceValue: 1n, receivedValue: 5n },
+      { balanceUnit: "BTC", balanceValue: 0n, receivedValue: 7n }
+    ]),
+    "Active: 1 · Received: 0.00000012 BTC · Sum: 0.00000001 BTC",
+    "BTC rows sum the current and lifetime received values"
+  );
+  assertEqual(
+    page.aggregateText([
+      { balanceUnit: "BTC", balanceValue: 2n, receivedValue: null },
+      { balanceUnit: "BTC", balanceValue: 3n, receivedValue: null }
+    ]),
+    "Active: 2 · Sum: 0.00000005 BTC",
+    "a BTC row without a lifetime total adds no Received segment"
+  );
+  assertEqual(
+    page.aggregateText([
+      { balanceUnit: "ETH", balanceValue: 10n ** 18n, receivedValue: undefined }
+    ]),
+    "Active: 1 · Sum: 1 ETH",
+    "ETH rows never show a Received segment"
+  );
+  assertEqual(
+    page.aggregateText([
+      { balanceUnit: "BTC", balanceValue: 1n, receivedValue: 5n },
+      { balanceUnit: "", balanceValue: null, receivedValue: null }
+    ]),
+    "Active: 1 · 1 address not checked",
+    "mixed rows keep the not-checked wording and drop both totals"
+  );
 });
 
 test("derives 20 consecutive addresses for one BIP39 path", async () => {

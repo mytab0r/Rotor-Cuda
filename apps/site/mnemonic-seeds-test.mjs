@@ -11,7 +11,12 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
+require("./balance-cache.js");
+require("./balance-providers.js");
+const providers = globalThis.RotorBalanceProviders;
 const scriptPath = fileURLToPath(new URL("./mnemonic-seeds.js", import.meta.url));
+const browsePath = fileURLToPath(new URL("./browse.js", import.meta.url));
 
 globalThis.window = globalThis;
 globalThis.document = { querySelector: () => null };
@@ -219,6 +224,115 @@ test("mnemonic-solana-balances: one getMultipleAccounts body lists both addresse
   assertEqual(body.params[1].commitment, "confirmed", "confirmed commitment");
 });
 
+test("mnemonic-tron-xrp-sui-balances: providerMetaFor maps TRON, XRP and SUI", () => {
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("bitcoin-cash")),
+    JSON.stringify({ provider: "haskoin-bch", chain: "bitcoin-cash", decimals: 8, symbol: "BCH" }),
+    "BCH uses the batched Haskoin provider"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("tron")),
+    JSON.stringify({ provider: "tronscan", chain: "tron", decimals: 6, symbol: "TRX" }),
+    "TRON uses Tronscan"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("xrp")),
+    JSON.stringify({ provider: "xrpscan", chain: "xrp", decimals: 6, symbol: "XRP" }),
+    "XRP uses XRP Scan"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("sui")),
+    JSON.stringify({ provider: "sui", chain: "sui", decimals: 9, symbol: "SUI" }),
+    "SUI uses the Sui GraphQL provider"
+  );
+  assertEqual(api.providerMetaFor("litecoin"), null, "LTC stays unsupported on this page");
+  assertEqual(api.providerMetaFor("dogecoin"), null, "DOGE stays unsupported on this page");
+  assertEqual(api.providerMetaFor("zcash"), null, "ZEC stays unsupported on this page");
+  assertEqual(api.providerMetaFor("ton"), null, "TON stays unsupported on this page");
+});
+
+test("mnemonic-bch-balances: one Haskoin request lists each address once in order", async () => {
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [
+        { address: "bitcoincash:qqqaaa", confirmed: "1000", unconfirmed: "0", txs: 3 },
+        { address: "bitcoincash:qqqbbb", confirmed: "2000", unconfirmed: "500", txs: 0 }
+      ]
+    };
+  };
+  try {
+    const result = await providers.fetchProvider(
+      api.providerMetaFor("bitcoin-cash"),
+      ["legacyA", "legacyA", "legacyB"]
+    );
+    assertEqual(requests.length, 1, "one request for the whole page");
+    assert(
+      requests[0].endsWith("/address/balances?addresses=legacyA,legacyB"),
+      `the query lists each address once in input order, got ${requests[0]}`
+    );
+    assertEqual(result.values.legacyA.balance, "1000", "row 0 maps to the first address by index");
+    assertEqual(result.values.legacyB.balance, "2500", "confirmed + unconfirmed is the balance");
+    assertEqual(result.values.legacyB.tx, 0, "the tx count comes from the same row");
+    assertEqual(Object.keys(result.errors).length, 0, "no error when the provider answers");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-bch-balances: a rejected batch is an error for every address, never zero", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: "user-error" }) });
+  try {
+    await providers.fetchProvider(
+      api.providerMetaFor("bitcoin-cash"),
+      ["legacyA", "legacyB"]
+    );
+    throw new Error("a 400 response must reject, not return zero balances");
+  } catch (error) {
+    assertEqual(error.message, "HTTP 400", "the whole batch fails loud");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-xrp-redirect: XRP Scan is called with redirect: error", async () => {
+  const calls = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ account_data: { Balance: "1234567", TransactionCount: 4 } })
+    };
+  };
+  try {
+    const result = await providers.fetchProvider({ provider: "xrpscan" }, ["rTest"]);
+    assertEqual(calls.length, 1, "one request per address");
+    assertEqual(calls[0].init && calls[0].init.redirect, "error", "a 302 must reject instead of being followed");
+    assertEqual(result.values.rTest.balance, "1234567", "a normal JSON response still yields a balance");
+    assertEqual(result.values.rTest.tx, 4, "the transaction count is kept");
+    assertEqual(Object.keys(result.errors).length, 0, "no error on a normal response");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-tron-xrp-sui-balances: the shared dispatcher covers every browse provider", async () => {
+  const source = await readFile(browsePath, "utf8");
+  const emitted = [...source.matchAll(/provider:\s*'([^']+)'/g)].map((match) => match[1]);
+  assert(emitted.length >= 7, `browse.js must still declare its providers, found ${emitted.length}`);
+  emitted.forEach((provider) => {
+    assert(providers.supportsProvider(provider), `browse.js emits "${provider}" but the dispatcher lacks it`);
+  });
+  assertEqual(await providers.fetchProvider({ provider: "not-a-provider" }, ["a"]).then((r) => Object.keys(r.values).length), 0, "an unknown provider resolves empty");
+});
+
 test("copy wiring writes the exact value to the clipboard", async () => {
   clipboardWrites.length = 0;
   const target = button("Copy WIF private key");
@@ -255,6 +369,139 @@ test("the row script never stores or logs keys", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert(!/localStorage|sessionStorage/.test(source), "keys must not use web storage");
   assert(!/console\.(log|info|debug|warn|error)/.test(source), "keys must not be logged");
+});
+
+/* Balance-row instrumentation contract. A listing row that renders balances
+ * must expose `data-balance-state` (and `data-balance-at` where a timestamp
+ * exists) on the row element itself, or a verifier selecting
+ * [data-balance-state] silently measures zero rows. */
+const BALANCE_ROW_CONTRACT = [
+  {
+    file: "browse.js",
+    fn: "renderGroup",
+    state: /group\.row\.dataset\.balanceState\s*=/,
+    at: /group\.row\.dataset\.balanceAt\s*=/,
+  },
+  {
+    file: "browse.js",
+    fn: "fetchAndApply",
+    state: /record\.row\.dataset\.balanceState\s*=\s*['"]loading['"]/,
+  },
+  {
+    file: "key.js",
+    fn: "renderCachedRow",
+    state: /row\.dataset\.balanceState\s*=\s*['"]ok['"]/,
+    at: /row\.dataset\.balanceAt\s*=/,
+  },
+  {
+    file: "key.js",
+    fn: "checkRow",
+    state: /row\.dataset\.balanceState\s*=\s*['"]loading['"]/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "createRow",
+    state: /entry\.row\s*=\s*row/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "renderEntry",
+    state: /setBalanceState\(entry,\s*entry\.balanceState/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "setBalanceState",
+    state: /dataset\.balanceState\s*=/,
+    at: /dataset\.balanceAt\s*=/,
+  },
+  {
+    file: "mnemonic-seeds.js",
+    fn: "fetchAndApply",
+    state: /record\.entry\.row\.dataset\.balanceState\s*=\s*['"]loading['"]/,
+  },
+];
+
+function functionBody(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  if (start < 0) return null;
+  const open = source.indexOf("{", start);
+  if (open < 0) return null;
+  let depth = 0;
+  let quote = null;
+  for (let i = open; i < source.length; i += 1) {
+    const char = source[i];
+    if (quote) {
+      if (char === "\\") i += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"' || char === "`") {
+      quote = char;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(open, i + 1);
+    }
+  }
+  return null;
+}
+
+function scanBalanceRowContract(sources, contract = BALANCE_ROW_CONTRACT) {
+  const problems = [];
+  for (const rule of contract) {
+    const body = functionBody(sources[rule.file] || "", rule.fn);
+    if (!body) {
+      problems.push(`${rule.file}:${rule.fn}: function not found`);
+      continue;
+    }
+    if (!rule.state.test(body)) {
+      problems.push(`${rule.file}:${rule.fn}: balance rows do not set data-balance-state`);
+    }
+    if (rule.at && !rule.at.test(body)) {
+      problems.push(`${rule.file}:${rule.fn}: balance rows do not set data-balance-at`);
+    }
+  }
+  return problems;
+}
+
+test("balance-state-attribute: every balance row sets data-balance-state on the row", async () => {
+  const sources = {
+    "browse.js": await readFile(browsePath, "utf8"),
+    "key.js": await readFile(fileURLToPath(new URL("./key.js", import.meta.url)), "utf8"),
+    "mnemonic-seeds.js": await readFile(scriptPath, "utf8"),
+  };
+  assertEqual(scanBalanceRowContract(sources).join("\n"), "", "balance rows must carry the state attribute");
+});
+
+test("balance-state-attribute: the detector catches a removed mnemonic state write", async () => {
+  const source = await readFile(scriptPath, "utf8");
+  assert(source.includes("setBalanceState(entry, entry.balanceState, first)"), "fixture must contain the state write");
+  const mutated = source.replace(
+    "    setBalanceState(entry, entry.balanceState, first);",
+    "    /* state write removed by the mutation test */"
+  );
+  assert(mutated !== source, "mutation must change the source");
+  const problems = scanBalanceRowContract({ "mnemonic-seeds.js": mutated });
+  assert(
+    problems.some((problem) => problem.includes("mnemonic-seeds.js:renderEntry")),
+    `mutation must fail the detector, got: ${problems.join("; ")}`
+  );
+});
+
+test("balance-state-attribute: the detector catches a removed browse state write", async () => {
+  const source = await readFile(browsePath, "utf8");
+  const mutated = source.replace(
+    "group.row.dataset.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';",
+    "/* state write removed by the mutation test */"
+  );
+  assert(mutated !== source, "mutation must change the source");
+  const problems = scanBalanceRowContract({ "browse.js": mutated });
+  assert(
+    problems.some((problem) => problem.includes("browse.js:renderGroup")),
+    `mutation must fail the detector, got: ${problems.join("; ")}`
+  );
 });
 
 let failed = 0;

@@ -24,6 +24,7 @@
   var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var ETH_DECIMALS = 18;
   var GWEI_DECIMALS = 9;
@@ -202,36 +203,12 @@
     errors[key] = message;
   }
 
-  /* Exact decimal -> integer conversion. No Number, no exponent, no rounding. */
-  function parseUnits(text, decimals) {
-    if (typeof text !== 'string') throw new Error('use a plain decimal number');
-    var value = text.trim();
-    if (!value) throw new Error('a number is required');
-    var match = /^(\d+)(?:\.(\d+))?$/.exec(value);
-    if (!match) {
-      throw new Error('use a plain decimal number like 0.01 (no exponent, sign or comma)');
-    }
-    var fraction = match[2] || '';
-    if (fraction.length > decimals) {
-      throw new Error('at most ' + decimals + ' decimal places');
-    }
-    return BigInt(match[1]) * (10n ** BigInt(decimals)) +
-      BigInt(fraction.padEnd(decimals, '0') || '0');
-  }
-
-  function formatUnits(value, decimals) {
-    var unit = 10n ** BigInt(decimals);
-    var whole = value / unit;
-    var fraction = (value % unit).toString().padStart(decimals, '0').replace(/0+$/, '');
-    return fraction ? whole.toString() + '.' + fraction : whole.toString();
-  }
-
   function parseEthToWei(text) {
-    return parseUnits(text, ETH_DECIMALS);
+    return AMOUNT.parseUnits(text, ETH_DECIMALS);
   }
 
   function parseGweiToWei(text) {
-    return parseUnits(text, GWEI_DECIMALS);
+    return AMOUNT.parseUnits(text, GWEI_DECIMALS);
   }
 
   /* ------------------------------------------------------------- keccak-256 */
@@ -551,9 +528,9 @@
     if (network.feeCapWei === null) return;
     var feeWei = gasLimit * maxFee;
     if (feeWei > network.feeCapWei) {
-      throw new Error('The maximum network fee ' + formatUnits(feeWei, ETH_DECIMALS) + ' ' +
+      throw new Error('The maximum network fee ' + AMOUNT.formatUnits(feeWei, ETH_DECIMALS) + ' ' +
         network.symbol + ' exceeds the ' + network.name + ' cap of ' +
-        formatUnits(network.feeCapWei, ETH_DECIMALS) + ' ' + network.symbol +
+        AMOUNT.formatUnits(network.feeCapWei, ETH_DECIMALS) + ' ' + network.symbol +
         '; refusing to sign. Lower the gas limit or the max fee.');
     }
   }
@@ -561,8 +538,8 @@
   function assertSufficientBalance(network, balance, totalWei) {
     if (totalWei > balance) {
       throw new Error('The amount plus the maximum network fee (' +
-        formatUnits(totalWei, ETH_DECIMALS) + ' ' + network.symbol +
-        ') exceeds the balance of ' + formatUnits(balance, ETH_DECIMALS) + ' ' +
+        AMOUNT.formatUnits(totalWei, ETH_DECIMALS) + ' ' + network.symbol +
+        ') exceeds the balance of ' + AMOUNT.formatUnits(balance, ETH_DECIMALS) + ' ' +
         network.symbol + '; refusing to sign.');
     }
   }
@@ -851,7 +828,7 @@
           }
           if (network.testnet && totalMaxCost > balance) {
             warnings.push('The maximum cost exceeds the balance of ' +
-              formatUnits(balance, ETH_DECIMALS) + ' ' + symbol +
+              AMOUNT.formatUnits(balance, ETH_DECIMALS) + ' ' + symbol +
               '; the node will reject the transaction.');
           }
 
@@ -963,8 +940,6 @@
     EVM_CHAIN_SLUGS: EVM_CHAIN_SLUGS,
     ETH_DECIMALS: ETH_DECIMALS,
     GWEI_DECIMALS: GWEI_DECIMALS,
-    parseUnits: parseUnits,
-    formatUnits: formatUnits,
     parseEthToWei: parseEthToWei,
     parseGweiToWei: parseGweiToWei,
     keccak256Hex: keccak256Hex,

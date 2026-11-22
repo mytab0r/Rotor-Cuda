@@ -35,6 +35,8 @@ const DEFAULT_ROUTES = [
   "/private-keys/ethereum",
   "/seed",
   "/mnemonic-seeds/bitcoin",
+  // BCH renders through one batched Haskoin GET per page (60 addresses, keyless, CORS-enabled); a provider error is the honest retryable state, not a violation.
+  "/mnemonic-seeds/bitcoin-cash",
   // Solana renders through one batched getMultipleAccounts POST per page (60 addresses); a 403 from the public RPC on hosts that refuse the browser is a console warning, not a violation.
   "/mnemonic-seeds/solana",
   // TON is the explicit unsupported-chain state (message, no rows).

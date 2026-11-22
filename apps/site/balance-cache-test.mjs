@@ -159,6 +159,33 @@ const tests = [
     assert.equal(cache.hasAddress("bc1qexample"), true);
   }),
 
+  test("haskoin batch maps 60 rows by index and sums confirmed + unconfirmed", () => {
+    const addresses = Array.from({ length: 60 }, (_, i) => `legacy${i}`);
+    // The provider echoes CashAddr, not the legacy address that was sent.
+    const rows = addresses.map((_, i) => ({
+      address: `bitcoincash:qqq${i}`,
+      confirmed: String(1000 + i),
+      unconfirmed: i % 2 ? "-1" : "0",
+      txs: i,
+    }));
+    const parsed = cache.parseHaskoinBchBatch(rows, addresses);
+    assert.equal(parsed.length, 60);
+    assert.deepEqual(parsed[0], { amount: "1000", tx: 0 });
+    assert.deepEqual(parsed[1], { amount: "1000", tx: 1 });
+    assert.deepEqual(parsed[59], { amount: "1058", tx: 59 });
+
+    assert.deepEqual(cache.parseHaskoinBchBatch([{ confirmed: "42" }], ["a"]), [{ amount: "42", tx: null }]);
+    assert.deepEqual(cache.parseHaskoinBchBatch([{}], ["a"]), [null], "a malformed row is null");
+    assert.equal(cache.parseHaskoinBchBatch([{ confirmed: "1" }], ["a", "b"]), null, "length mismatch");
+    assert.equal(cache.parseHaskoinBchBatch({ confirmed: "1" }, ["a"]), null, "non-array body");
+    assert.equal(cache.parseHaskoinBchBatch([{ confirmed: "1" }], undefined), null, "missing request list");
+    assert.deepEqual(
+      cache.parseHaskoinBchBatch([{ confirmed: "1", unconfirmed: "-5" }], ["a"]),
+      [{ amount: "0", tx: null }],
+      "a negative net balance clamps to zero instead of going negative"
+    );
+  }),
+
   test("free-provider bodies decode to atomic amounts", () => {
     // XRPScan: drops in account_data.Balance, transaction count alongside.
     assert.deepEqual(

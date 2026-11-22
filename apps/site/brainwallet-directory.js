@@ -11,6 +11,7 @@
    * globals in chains.generated.js (loaded before this script). */
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var engine = window.RotorBrainwallet;
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
@@ -419,14 +420,6 @@
 
   /* ------------------------------------------------------------ balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   function setBalance(entry, text, raw, state) {
     entry.balanceValue.textContent = text;
     if (raw !== undefined) entry.balanceValue.title = raw;
@@ -483,9 +476,9 @@
       received += Number(info.total_received || 0);
       tx += Number(info.n_tx || 0);
       if (balance > 0) active += 1;
-      setBalance(entry, coin(balance, 8) + ' BTC', Number(info.n_tx || 0) + ' tx', balance > 0 ? 'active' : 'empty');
+      setBalance(entry, AMOUNT.coin(balance, 8) + ' BTC', Number(info.n_tx || 0) + ' tx', balance > 0 ? 'active' : 'empty');
     });
-    setSummary(coin(sum, 8) + ' BTC', String(active), coin(received, 8) + ' BTC', String(tx));
+    setSummary(AMOUNT.coin(sum, 8) + ' BTC', String(active), AMOUNT.coin(received, 8) + ' BTC', String(tx));
   }
 
   async function evmBatch(addresses) {
@@ -537,9 +530,9 @@
       sum += info.balance;
       tx += info.tx;
       if (info.balance > 0n) active += 1;
-      setBalance(entry, coin(info.balance, chain.decimals) + ' ' + chain.symbol, info.balance.toString() + ' wei', info.balance > 0n ? 'active' : 'empty');
+      setBalance(entry, AMOUNT.coin(info.balance, chain.decimals) + ' ' + chain.symbol, info.balance.toString() + ' wei', info.balance > 0n ? 'active' : 'empty');
     });
-    setSummary(coin(sum, chain.decimals) + ' ' + chain.symbol, String(active), '—', tx.toString());
+    setSummary(AMOUNT.coin(sum, chain.decimals) + ' ' + chain.symbol, String(active), '—', tx.toString());
   }
 
   function setBalanceMode(mode) {

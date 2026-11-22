@@ -11,6 +11,7 @@
    * globals in chains.generated.js (loaded before this script). */
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var engine = window.RotorBrainwallet;
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
@@ -321,14 +322,6 @@
 
   /* ------------------------------------------------------------- balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   async function fetchJson(url, options) {
     var response = await fetch(url, options);
     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -344,7 +337,7 @@
       var data = await fetchJson(url);
       rows.forEach(function (row) {
         var info = data[row.address];
-        if (info) row.balance = coin(info.final_balance, 8) + ' BTC';
+        if (info) row.balance = AMOUNT.coin(info.final_balance, 8) + ' BTC';
       });
     } else if (chain.balance === 'evm') {
       var unique = Array.from(new Set(addresses));
@@ -366,7 +359,7 @@
       }
       rows.forEach(function (row) {
         var value = byAddress[row.address];
-        if (value !== undefined) row.balance = coin(value, chain.decimals) + ' ' + chain.symbol;
+        if (value !== undefined) row.balance = AMOUNT.coin(value, chain.decimals) + ' ' + chain.symbol;
       });
     } else {
       rows.forEach(function (row) {

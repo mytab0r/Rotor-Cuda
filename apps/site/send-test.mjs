@@ -17,6 +17,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 const send = require("./send.js");
 const btc = require("./wallet-btc.js");
 const evm = require("./wallet-evm.js");
@@ -63,6 +64,15 @@ const TRON_BLOCK = {
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest();
+}
+
+function messageOf(fn) {
+  try {
+    fn();
+  } catch (err) {
+    return err && err.message ? err.message : String(err);
+  }
+  return null;
 }
 
 function base58Encode(bytes) {
@@ -509,6 +519,38 @@ add("ERC-20 builder rejects absent/fabricated contracts and bad fields", () => {
       amount: "1.1234567",
     }),
     /6 decimal places/,
+  );
+  // The generic parser keeps its own wording; the send page translates it back
+  // to the token-specific, actionable strings.
+  assert.equal(
+    messageOf(() => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "6",
+      amount: "",
+    })),
+    "Enter a token amount.",
+    "an empty token amount names the field",
+  );
+  assert.equal(
+    messageOf(() => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "6",
+      amount: "1e3",
+    })),
+    "Use a plain decimal token amount like 1.5 (no exponent, sign or comma).",
+    "a malformed token amount keeps the token-specific guidance",
+  );
+  assert.equal(
+    messageOf(() => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
+      recipient: USDT_RECIPIENT,
+      decimals: "6",
+      amount: "1.1234567",
+    })),
+    "At most 6 decimal places for this token.",
+    "too many token decimals keeps the token-specific cutoff",
   );
   // Raw amount above 2^256-1 cannot fit one calldata word.
   assert.throws(
