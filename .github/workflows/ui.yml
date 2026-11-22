@@ -64,6 +64,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-audit-report-${{ github.run_id }}
-          path: ${{ runner.temp }}/ui-audit
+          # Only the report and the screenshots: the Chrome profile also lives
+          # under TMPDIR and must not bloat the artifact.
+          path: |
+            ${{ runner.temp }}/ui-audit/report.json
+            ${{ runner.temp }}/ui-audit/rotor-ui-audit-*/screenshots
           retention-days: 14
           if-no-files-found: ignore
