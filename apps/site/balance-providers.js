@@ -211,8 +211,8 @@
     return { balance: parsed.amount };
   }
 
-  async function accountJson(url) {
-    var response = await fetch(url);
+  async function accountJson(url, options) {
+    var response = await fetch(url, options);
     if (response.status === 404) return {};
     if (!response.ok) {
       var err = new Error('HTTP ' + response.status);
@@ -355,7 +355,13 @@
   }
 
   function xrpBalance(address) {
-    return accountJson(providers().find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address))
+    /* XRPScan redirects some accounts to its bulk dataset
+     * (data.xrpscan.com/tx.json), which carries no CORS header; the browser
+     * would fail the request anyway, and following it downloads a huge file.
+     * A redirect is therefore an honest provider failure, never a balance. */
+    return accountJson(providers().find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address), {
+      redirect: 'error'
+    })
       .then(function (data) {
         /* 404 (unactivated account) comes back as {}: a real zero balance. */
         if (!data || typeof data !== 'object' || !Object.keys(data).length) return '0';
