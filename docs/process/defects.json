@@ -598,6 +598,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "mnemonic-doge-blockcypher-batch",
+      "reported": "2026-11-22",
+      "symptom": "DOGE had no fallback at all when SoChain 429'd, although the SSOT-declared BlockCypher endpoint can serve a batch when its own small quota has room.",
+      "detector": "mnemonic-doge-blockcypher-batch",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
       "id": "puzzle-detail-discussion-link",
       "reported": "2026-11-22",
       "symptom": "The puzzle detail action row omitted the donor Discussion link; the donor target was never recorded.",
