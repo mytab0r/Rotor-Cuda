@@ -12,7 +12,7 @@
 - [x] Brainwallet single calculator on `/brainwallet-generator` with network,
   passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence:
   `render_brainwallet_generator` (`src/coordinator/mod.rs`),
-  `brainwallet.js:457-503`.
+  `brainwallet.js`.
 - [x] Seed rows: private key + copy icons; full phrase in the donor layout.
   The donor prints the whole mnemonic, so the earlier compact first-two/last-word
   reveal was dropped and each row shows the full phrase (mono, ellipsis with the
@@ -26,10 +26,10 @@
   `apps/site/mnemonic-seeds-test.mjs`.
 - [x] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
   Balance/TX/Actions. Evidence: `render_puzzle_home` (`src/coordinator/mod.rs`),
-  `puzzle-browser.js:236-365`.
+  `puzzle-browser.js`.
 - [x] Puzzle random: Community Hunt counters and a live result table.
   Evidence: `render_puzzle_random` (`src/coordinator/mod.rs`),
-  `puzzle-browser.js:367-432,864-886`.
+  `puzzle-browser.js`.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
   explorer. **Blocked on an owner decision, not on "no API".** Live capture
   2026-11-22: the donor serves seven chains (`bitcoin, ethereum, bnb, polygon,
@@ -40,7 +40,7 @@
   LTC and ZEC (2500 lookups a day per IP). It ranks UTXO chains only, so it cannot
   cover the donor's ethereum/bnb/polygon/arbitrum/tron lists, and the repo
   still has no licensed dataset (only gzip mirrors,
-  `src/coordinator/wallets.rs:34-40`). The route stays absent rather than
+  `src/coordinator/wallets.rs` (`Dataset`, `DEFAULT_UPSTREAM`)). The route stays absent rather than
   shipping 2 of the donor's 7 chains. Open question for the owner: ship a
   BTC/DOGE-only list, or supply a ranked dataset for the other five. Not faked.
 - [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
@@ -53,8 +53,8 @@
   proof), `tests/coordinator_api.rs` (three routes return 200 with TESTNET
   copy).
 - [x] `/key` debounced auto-derive, icon-only utility actions, full formats and
-  counters. Evidence: `key.js:592-598` (`scheduleDerive`), `key.html:78`
-  (`#key-info-btn` icon action), `key-tools.js:218` (key-fact format summary).
+  counters. Evidence: `key.js` (`scheduleDerive`), `key.html`
+  (`#key-info-btn` icon action), `key-tools.js` (key-fact format summary).
 - [x] Global search results in place: interpret-as, 1/3/5/10 addresses, result
   cards (`ws-chain-card`), Copy All/CSV. Evidence:
   `apps/site/search-test.mjs` (detect modes, row
@@ -65,31 +65,31 @@
   `Detected: Electrum SegWit|Legacy|Mnemonic` label from the lazily loaded
   `seed-crypto.js` `electrumSeedType`), and their assertions in
   `apps/site/search-test.mjs`.
-  Directory-search detector parity: `apps/site/site.js:344` (`bindKeySearches`
+  Directory-search detector parity: `apps/site/site.js` (`bindKeySearches`
   uses `RotorSearch.keyHref`, shared with the landing handler) and
-  `apps/site/search.js:319` (`keyHref`) over `apps/site/search.js:27`
+  `apps/site/search.js` (`keyHref`) over `apps/site/search.js`
   (`looksLikeXrpSecret`; only 64 hex is a key; the landing address guard
   defers to it for base58 secrets). Nav highlight:
-  `apps/site/site.js:33` (`sectionForPath`, `/keystore-parser` -> Tools),
+  `apps/site/site.js` (`sectionForPath`, `/keystore-parser` -> Tools),
   covered by `apps/site/site-nav-test.mjs`.
 - [x] BNB Smart Chain testnet builder (`/send/bnb`, PR #97). Evidence:
-  `apps/site/send.js:72` (chain table, chapel chain id 97), `:55` and `:163`
-  (BSC-testnet provider allowlist), `apps/site/send-test.mjs:671` (chain-id
+  `apps/site/send.js` (chain table, chapel chain id 97; BSC-testnet provider
+  allowlist), `apps/site/send-test.mjs` (chain-id
   guard and mainnet-provider rejection). Testnet only; BSC mainnet is not
   claimed.
 - [x] USDT / generic ERC-20 builder on Sepolia (`/send/usdt`, PR #97).
-  Evidence: `apps/site/send.js:365` (`buildErc20Transfer`, canonical
-  `transfer(address,uint256)` calldata), `apps/site/send-test.mjs:316`
-  (pinned calldata vector) and `:725` (review wiring with value 0). The token
+  Evidence: `apps/site/send.js` (`buildErc20Transfer`, canonical
+  `transfer(address,uint256)` calldata), `apps/site/send-test.mjs`
+  (pinned calldata vector; review wiring with value 0). The token
   contract is user-supplied; Sepolia has no canonical USDT deployment, so this
   is not a mainnet USDT claim.
 - [x] TRON Nile testnet TRX transfer (`/send/tron`, this change). Evidence:
-  `apps/site/send.js:84` (chain table), `:403` (`prepareTronTransfer`),
-  `:451` (`signTronTransfer`), `apps/site/tron-tx.js` (Nile-only host/path
-  gate), `crates/rotor-wasm/src/tron.rs:89` / `:101` and
-  `crates/rotor-wasm/src/lib.rs:547` / `:567` (sign/unsigned exports),
-  `apps/site/send-test.mjs:417` (TRX->sun), `:431` (prepare) and `:499`
-  (sign/broadcast without a key leak), `src/coordinator/mod.rs` (the
+  `apps/site/send.js` (chain table, `prepareTronTransfer`,
+  `signTronTransfer`), `apps/site/tron-tx.js` (Nile-only host/path
+  gate), `crates/rotor-wasm/src/tron.rs` and
+  `crates/rotor-wasm/src/lib.rs` (`tron_sign_tx` / `tron_unsigned_tx`,
+  sign/unsigned exports), `apps/site/send-test.mjs` (TRX->sun, prepare,
+  sign/broadcast without a key leak), `src/coordinator/mod.rs` (the
   `/send/tron` route and the embedded `TRON_TX_JS` helper),
   `tests/coordinator_api.rs` (the `/send/tron` route and the served helper).
   Nile testnet only: mainnet TRON hosts
@@ -117,10 +117,9 @@
   keyless `getMultipleAccounts` POST per page (official RPC first, publicnode
   fallback), parsed by `balance-cache.js`'s `parseSolanaAccounts`, and renders
   through the existing `coin`/`receivedText` path with 9 decimals and SOL.
-  Evidence: `apps/site/mnemonic-seeds.js:39` (`SOLANA_RPC_URLS`), `:809`
-  (`providerMetaFor`), `:1102` (`solanaBatchBody`), `:1111`
-  (`solanaProvider`), `:1145` (dispatcher branch); tests at
-  `apps/site/mnemonic-seeds-test.mjs:193` and `:207`; defect
+  Evidence: `apps/site/mnemonic-seeds.js` (`providerMetaFor`,
+  `solanaBatchBody`) and `apps/site/balance-providers.js` (`solanaProvider`,
+  dispatcher branch); tests at `apps/site/mnemonic-seeds-test.mjs`; defect
   `mnemonic-solana-balances` in `docs/process/defects.json`.
   Audit coverage: `/mnemonic-seeds/solana` and `/mnemonic-seeds/ton` are now in
   `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (18/18 page runs PASS, no violations;
@@ -155,12 +154,12 @@
   `/mnemonic-seeds/bitcoin-cash` is now in `scripts/ui-audit.mjs`
   `DEFAULT_ROUTES` (one batched Haskoin request per page, like Solana;
   TRON/XRP/SUI stay out because they fan out one request per address).
-  Evidence: `apps/site/balance-providers.js:383` (`haskoinBatchUrl`), `:389`
-  (`haskoinBchProvider`), `:414` (`FETCHERS`), `:436` (`fetchProvider`),
-  `:214` (`accountJson` forwards fetch options), `:357` (`xrpBalance` passes
-  `redirect: 'error'`); `apps/site/balance-cache.js:171`
-  (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:795` (`providerMetaFor`),
-  `:1035` (delegating `fetchProvider`); `apps/site/browse.js:492` (delegating
+  Evidence: `apps/site/balance-providers.js` (`haskoinBatchUrl`,
+  `haskoinBchProvider`, `FETCHERS`, `fetchProvider`,
+  `accountJson` forwards fetch options, `xrpBalance` passes
+  `redirect: 'error'`); `apps/site/balance-cache.js`
+  (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js` (`providerMetaFor`,
+  delegating `fetchProvider`); `apps/site/browse.js` (delegating
   `fetchProvider`); tests `apps/site/mnemonic-seeds-test.mjs` (four metas, BCH
   order/index mapping, batch rejection, XRP redirect, browse-dispatch
   coverage), `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row
@@ -217,13 +216,13 @@
   code-only): SoChain v3 `GET https://sochain.com/api/v3/balance/ZEC/<addr>`
   answers 200 with CORS `*` and decimal ZEC strings (live probe 2026-11-22;
   Blockchair stays 430 without a key). `fetchSochain`
-  (`apps/site/key.js:2345`) calls the pure `parseSochainBalance`
-  (`apps/site/key-tools.js:1027`, satoshis without floats), `zcash_` is in
-  `rowHasProvider` (`apps/site/key.js:2401`), `rowCacheInfo` (`:2590`) and the
-  `checkRow` dispatch (`:2724`), so no chain group lacks a provider. The eight
+  (`apps/site/key.js`) calls the pure `parseSochainBalance`
+  (`apps/site/key-tools.js`, satoshis without floats), `zcash_` is in
+  `rowHasProvider` (`apps/site/key.js`), `rowCacheInfo` and the
+  `checkRow` dispatch, so no chain group lacks a provider. The eight
   shared-EVM sub-rows now build their explorer anchor outside the
-  `!sharedEvm` guard (`apps/site/key.js:1342-1355`) from `explorerFor` in
-  `apps/site/key-tools.js:1055`, while copy/details/toggle stay suppressed.
+  `!sharedEvm` guard (`apps/site/key.js`) from `explorerFor` in
+  `apps/site/key-tools.js`, while copy/details/toggle stay suppressed.
   Evidence: `apps/site/key.js`, `apps/site/key-tools.js`,
   `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
   matrix row is now `parity` after the independent browser review and the PR #237
@@ -238,15 +237,15 @@
   SoChain allows 2500 lookups a day per IP, so a 60-row page is 2.4% of the daily
   budget (the old "per-address provider budget" premise was false). `sochain` is now the
   first provider for litecoin/dogecoin/zcash in `data/providers.json`;
-  `fetchSochain` (`apps/site/key.js:2345`) builds the URL from the SSOT entry,
-  LTC/DOGE fall back to `fetchBlockcypher` (`:2372`) and ZEC is SoChain-only;
-  the render-time `data-balance-provider` carries the provider id (`:1257`), and
-  `key-utxo-provider` (`scripts/ui-audit.mjs:1414`) fails if an LTC/DOGE/ZEC
+  `fetchSochain` (`apps/site/key.js`) builds the URL from the SSOT entry,
+  LTC/DOGE fall back to `fetchBlockcypher` and ZEC is SoChain-only;
+  the render-time `data-balance-provider` carries the provider id, and
+  `key-utxo-provider` (`scripts/ui-audit.mjs`) fails if an LTC/DOGE/ZEC
   row names anything but `sochain`. The one decimal-string parser lives in
-  `apps/site/balance-cache.js:158` (`key-tools.js` delegates);
-  `providerMetaFor` (`apps/site/mnemonic-seeds.js:835`) and `providerMeta`
-  (`apps/site/browse.js:391`) map all three chains to the shared
-  `sochain` fetcher (`apps/site/balance-providers.js:458`). Evidence:
+  `apps/site/balance-cache.js` (`key-tools.js` delegates);
+  `providerMetaFor` (`apps/site/mnemonic-seeds.js`) and `providerMeta`
+  (`apps/site/browse.js`) map all three chains to the shared
+  `sochain` fetcher (`apps/site/balance-providers.js`). Evidence:
   `apps/site/balance-cache-test.mjs`, `apps/site/mnemonic-seeds-test.mjs`,
   `apps/site/key-tools-test.mjs`, defect `key-utxo-blockcypher-429`.
 - [x] SoChain 429 stops the directory fan-out (2026-11-22, code-only): the
@@ -255,7 +254,7 @@
   Measured on an exhausted account: one 60-row mnemonic page fired **240**
   SoChain requests (60 addresses x inner retry x outer retry), every one a 429,
   so ten page loads would spend the whole daily budget. `sochainProvider`
-  (`apps/site/balance-providers.js:482`) now records the first 429 and rejects
+  (`apps/site/balance-providers.js`) now records the first 429 and rejects
   the remaining addresses without a request; the rows keep the honest retry
   state. Mutation-proven: with the guard disabled the new test sees 240
   requests, with it <= 10. All hourly-quota claims are corrected in `key.js`,
@@ -286,8 +285,14 @@
   mocked litecoinspace JSON with each request on the SSOT URL; DOGE/ZEC never
   call litecoinspace) and `apps/site/balance-cache-test.mjs` (the pinned
   70827261 vector plus malformed bodies). Defect `mnemonic-ltc-sochain-fallback`,
-  detector `mnemonic-ltc-sochain-fallback`. A full live 60/60 measurement of all
-  three chains is still missing.
+  detector `mnemonic-ltc-sochain-fallback`. Live measurement after merge
+  (`511e156`, coordinator rebuilt and served on :7973): SoChain still answered
+  429 to every request, and both `/mnemonic-seeds/litecoin` and
+  `/private-keys/litecoin` rendered 60/60 `data-balance-state="ok"` at
+  375/768/1280 in light and dark (12 page runs); each page sent ~10 SoChain
+  429s, then exactly 60 `litecoinspace.org` 200s, 0 failed requests. DOGE and
+  ZEC rendered 60/60 `err` (no fallback), so their live 60/60 remains
+  unmeasured.
 - [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
   60-row directory returned no provider meta for BCH and rendered `—` for every
   row, although the shared batched Haskoin provider already existed and the
@@ -319,7 +324,7 @@
 - [x] Ledger honesty pass for ZEC (2026-11-22, docs-only): the seven secretscan
   `/PrivateKey*`/`/Bech32` donor rows, the `/key` route entry and the three
   `/key/<format>` aliases still said ZEC had no keyless provider and stayed
-  `partial`. PR #237 wired SoChain (`apps/site/key.js:2336`, dispatch `:2733`)
+  `partial`. PR #237 wired SoChain (`apps/site/key.js`, dispatch)
   and the matrix row is already `parity`, so those rows are now `parity` with
   the correct provider list; the `key-balances` note distinguishes the
   single-key ZEC provider from the 60-row private-key directory (BCH has a
@@ -374,10 +379,10 @@ follow-ups were code-only.
 - [x] WIF detection parity (2026-11-22, code-only): all three input contexts use
   the donor shape `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$` and the global search
   decodes Litecoin (0xb0) and Dogecoin (0x9e) WIFs, not just Bitcoin (0x80) and
-  BCH. Evidence: `apps/site/key.js:320` (`WIF_RE`/`WIF_PARTIAL_RE`),
-  `apps/site/key-tools.js:388` (`SEARCH_WIF_SHAPE`, also used by
-  `routeKeyInput` and `resolveKeyInput`; error text at `:459`),
-  `apps/site/search.js:24` (`WIF_RE`) and `:156` (`decodeWif` versions),
+  BCH. Evidence: `apps/site/key.js` (`WIF_RE`/`WIF_PARTIAL_RE`),
+  `apps/site/key-tools.js` (`SEARCH_WIF_SHAPE`, also used by
+  `routeKeyInput` and `resolveKeyInput`; error text),
+  `apps/site/search.js` (`WIF_RE`, `decodeWif` versions),
   `docs/donor-parity/directory-pages.md:29`, `docs/donor-parity/directories.md:82`.
   Tests: `apps/site/key-tools-test.mjs` ("Litecoin (version 0xb0) and Dogecoin
   (0x9e) WIFs" round-trip block, "Litecoin/Dogecoin WIF" routing block) and
@@ -456,8 +461,8 @@ follow-ups were code-only.
   ≤520px, reduced motion off); search and theme toggles were already
   icon-only; `apps/site/site-nav-test.mjs`.
 - [x] Tools index: 8 families with alias rows. Evidence:
-  `apps/site/tools.html:45,62,75,89,101,114,130,143` (eight `article.tool-family`
-  blocks), `apps/site/site.css:4161` (`.tool-family-links` chips, 44px targets).
+  `apps/site/tools.html` (eight `article.tool-family`
+  blocks), `apps/site/site.css` (`.tool-family-links` chips, 44px targets).
 - [x] Address types: BCH legacy + CashAddr, DOGE compressed/uncompressed,
   ZEC transparent compressed/uncompressed. Evidence:
   `apps/site/address-codecs.js` (CashAddr + Base58Check encoders),
@@ -465,8 +470,8 @@ follow-ups were code-only.
   (BCH spec translation vectors; DOGE/ZEC addresses independently reproduced
   with Python), UI audit on `/key` and `/key/<key1>` at 375/768/1280 in both
   themes.
-  LTC Taproot card: `crates/rotor-wasm/src/derive.rs:466,580` (`ltc_p2tr` row,
-  bech32m) and `lib.rs:1761` (vector); `src/coordinator/mod.rs` `LTC_TYPES`
+  LTC Taproot card: `crates/rotor-wasm/src/derive.rs` (`ltc_p2tr` row,
+  bech32m) and `lib.rs` (vector); `src/coordinator/mod.rs` `LTC_TYPES`
   gains the fourth `taproot`/`ltc_p2tr` entry (feeds both the `/private-keys`
   cards and the `?type=` switch); `apps/site/browse.js` `TYPE_FIELDS.litecoin`,
   `apps/site/brainwallet-engine.js` `LTC_TYPES` and `apps/site/key.js`
@@ -476,11 +481,12 @@ follow-ups were code-only.
   types. Balance lookup already covers bech32m.
 - [x] TON v5/W5 address type (PR #105). Evidence:
   `crates/rotor-wasm/src/ton.rs` (official `wallet_v5` code cell, pinned
-  upstream commit), `crates/rotor-wasm/src/derive.rs:717` (`ton_w5` row
+  upstream commit), `crates/rotor-wasm/src/derive.rs` (`ton_w5` row
   from `w5_address`), `crates/rotor-wasm/ton-w5-vectors.mjs` (independent
-  Tonkeeper V5R1 vectors), `apps/site/key.js:99,123,145` and
-  `apps/site/key-tools.js:799` (label, explainer, derivation steps),
-  `crates/rotor-wasm/src/lib.rs:1890` (row assertion). v4R2 stays as the
+  Tonkeeper V5R1 vectors), `apps/site/key.js` (`ID_LABELS.ton_w5`,
+  `EXPLAIN.ton_w5`, `STEP_ORDER.ton_w5`: label, explainer, derivation steps) and
+  `apps/site/key-tools.js`,
+  `crates/rotor-wasm/src/lib.rs` (row assertion). v4R2 stays as the
   second TON row; directory tabs still show one type per chain.
 - [x] Breadcrumbs on every public page; one current crumb per trail. Evidence:
   `apps/site/*.html` (crumb as the first child of `<main>` on docs, key, vanity,
@@ -492,11 +498,11 @@ follow-ups were code-only.
   `aria-current="page"` markers stay in place: they are different landmarks,
   and the test scopes its count to the breadcrumb nav.
 - [x] Seed converter: live word counter, 20 addresses, Load next 5, Copy All.
-  Evidence: `apps/site/mnemonic-converter.html:75` (live counter),
-  `:86` (20-address option), `:106-107` (Copy All / Load next 5),
-  `:109` (Active/Sum aggregate); `apps/site/seed-page.js:397` (word counter and
-  scheme hint), `:653` (`loadNextBatch`, next five per path from the snapshot),
-  `:1082` (`aggregateText`, honest aggregates), `:1177` (public rows only, never
+  Evidence: `apps/site/mnemonic-converter.html` (live counter,
+  20-address option, Copy All / Load next 5, Active/Sum aggregate);
+  `apps/site/seed-page.js` (word counter and
+  scheme hint, `loadNextBatch`, next five per path from the snapshot,
+  `aggregateText`, honest aggregates, public rows only, never
   keys); `apps/site/seed-test.mjs` (word hints per scheme, batch index math, a
   pinned 20-address derivation).
 - [x] Seed converter lifetime Received aggregate (2026-11-22, code-only): the
@@ -505,23 +511,22 @@ follow-ups were code-only.
   aggregate line now adds ` · Received: <BTC>` before ` · Sum:` for a fully
   checked BTC result set. No extra request and no invented value: EVM rows and
   any row without a numeric total show no Received segment. Evidence:
-  `apps/site/seed-page.js:1016` (`entry.receivedValue = BigInt(info.total_received
-  || 0)`), `:1011`/`:1024` (missing row and error clear it), `:1082`
-  (pure `aggregateText`), `:86` (export); test
-  `apps/site/seed-test.mjs:337` ("aggregateText adds the BTC lifetime Received
+  `apps/site/seed-page.js` (`entry.receivedValue = BigInt(info.total_received
+  || 0)`; missing row and error clear it; pure `aggregateText`; export); test
+  `apps/site/seed-test.mjs` ("aggregateText adds the BTC lifetime Received
   total and keeps the usual wording"); defect `seed-received-aggregate` in
   `docs/process/defects.json`.
 - [x] Vanity: difficulty, ETA and a recent-address list. Evidence:
-  `apps/site/vanity.html:68` (expected work next to the pattern inputs),
-  `:74-77` (Attempts / Rate / ETA / Elapsed, four even groups), `:87-90`
-  (recent matches card); `apps/site/vanity.js:22-55` (alphabet, attempts and
-  ETA helpers), `:285` (`addRecent`), `:223-241` (localStorage whitelist:
+  `apps/site/vanity.html` (expected work next to the pattern inputs,
+  Attempts / Rate / ETA / Elapsed, four even groups,
+  recent matches card); `apps/site/vanity.js` (alphabet, attempts and
+  ETA helpers, `addRecent`, localStorage whitelist:
   chain, pattern, address, foundAt only); `apps/site/vanity-test.mjs`
   (difficulty/ETA math and a sanitizer test proving `key`/`wif`/`priv_hex`
   never survive). Deliberate deviation: private keys and WIF are never saved,
   and the page keeps saying so.
 - [x] Vanity: multi-thread workers. Evidence: `apps/site/vanity-worker.js`
-  (classic worker: `assetUrl('/rotor_wasm.wasm')` at `:26-31`, random key per
+  (classic worker: `assetUrl('/rotor_wasm.wasm')`, random key per
   attempt, 250 ms progress
   and match messages), `apps/site/vanity.js` (`threadCount` clamped 1-4,
   worker pool, aggregate attempts/rate/ETA, first match terminates the pool,
@@ -529,11 +534,11 @@ follow-ups were code-only.
   `src/coordinator/mod.rs` (embedded `/vanity-worker.js` asset and route),
   `apps/site/vanity-test.mjs` (thread clamp, pattern/match rule, message
   sanitizer, keys never saved), `tests/coordinator_api.rs` (asset is served).
-- [x] Vanity: QR output. Evidence: `apps/site/qr.js:348` (`encode`: byte
-  mode, EC-M, versions 1-6), `apps/site/qr.js:55` (Reed-Solomon) and
-  `apps/site/qr.js:323` (mask penalty), `apps/site/vanity.js:547` (`paintQr`:
+- [x] Vanity: QR output. Evidence: `apps/site/qr.js` (`encode`: byte
+  mode, EC-M, versions 1-6, Reed-Solomon, mask penalty),
+  `apps/site/vanity.js` (`paintQr`:
   address-only payload, integer scale, 4-module quiet zone, hides the row if
-  encoding fails), `apps/site/vanity.html:83` (canvas in the result card),
+  encoding fails), `apps/site/vanity.html` (canvas in the result card),
   `apps/site/qr-test.mjs` (pinned reference hashes and structural checks),
   `src/coordinator/mod.rs` (embedded `/qr.js` asset and route).
 - [x] Keystore parser: drag-drop file, examples, metadata. Evidence:
@@ -544,10 +549,10 @@ follow-ups were code-only.
   tests including a wasm decrypt of the shipped web3 secret-storage vector),
   `apps/site/site.css` `.dropzone`, `docs/design-system/DESIGN-SYSTEM.md` 3.16.
 - [x] Pubkey-add: P−Q and scalar multiplication. Evidence:
-  `crates/rotor-wasm/src/derive.rs:309` (`pubkey_subtract_report`),
-  `:323` (`pubkey_mul_report`, scalar 1..n−1), `:346` (shared point report);
-  `crates/rotor-wasm/src/lib.rs:441` / `:458` (session methods), `:985` /
-  `:1013` (C exports); `apps/site/pubkey-add.html:45-46` (operation select);
+  `crates/rotor-wasm/src/derive.rs` (`pubkey_subtract_report`,
+  `pubkey_mul_report`, scalar 1..n−1, shared point report);
+  `crates/rotor-wasm/src/lib.rs` (session methods, C exports);
+  `apps/site/pubkey-add.html` (operation select);
   `apps/site/key-tools-test.mjs` (pinned P2−P1=P1, k·G, zero-scalar rejection);
   `cargo test -p rotor-wasm` 75 passed.
 
@@ -565,22 +570,22 @@ and not deployed**.
       backoff + jitter, secret-shaped body rejection:
       `deploy/cloudflare/src/providers.mjs`, `src/security.mjs`.
 - [x] Batch endpoint `GET /v1/balances?chain=&addresses=<csv>` (cap 60).
-      Evidence: `deploy/cloudflare/src/worker.mjs:112` (handler: chain/CSV
-      validation, normalize + dedupe, per-item fresh/stale/miss handling),
-      `:145` (`batchBalance`), `deploy/cloudflare/test/worker.test.mjs:540`
-      (fresh order), `:578` (dedupe), `:598` (empty/61/bad chain), `:618`
-      (one invalid item), `:639` (bucket: 8 resolve, 9th `rate_limited`),
-      `:661` (stale + `waitUntil`); 41 worker tests pass.
+      Evidence: `deploy/cloudflare/src/worker.mjs` (handler: chain/CSV
+      validation, normalize + dedupe, per-item fresh/stale/miss handling,
+      `batchBalance`), `deploy/cloudflare/test/worker.test.mjs`
+      (fresh order, dedupe, empty/61/bad chain,
+      one invalid item, bucket: 8 resolve, 9th `rate_limited`,
+      stale + `waitUntil`); 41 worker tests pass.
 - [x] Per-client (IP-keyed) token bucket wired into every public route
       (120 burst, 20 tokens/s refill, LRU-bounded at 5000 keys, 10 min idle
       prune); `OPTIONS` and `GET /healthz` are exempt and `/v1/balances`
       charges one token per address (clamped to 60). Evidence:
-      `deploy/cloudflare/src/limiters.mjs:43` (`createKeyedLimiter`),
-      `src/worker.mjs:37` (module limiter), `:78` (pre-routing check),
-      `:294` (`requestCost`), `:303` (`enforceClientLimit`, 429 +
-      `Retry-After`), `test/worker.test.mjs:229` (keyed limiter unit tests),
-      `:928` (exhausted IP gets 429, another IP unaffected), `:947`
-      (`/healthz` exempt), `:957` (per-address batch cost); 48 tests pass.
+      `deploy/cloudflare/src/limiters.mjs` (`createKeyedLimiter`),
+      `src/worker.mjs` (module limiter, pre-routing check,
+      `requestCost`, `enforceClientLimit`, 429 +
+      `Retry-After`), `test/worker.test.mjs` (keyed limiter unit tests,
+      exhausted IP gets 429, another IP unaffected,
+      `/healthz` exempt, per-address batch cost); 48 tests pass.
       Honest limitation: the counter is per isolate, so it is a best-effort
       per-isolate quota across a PoP, not a global or cross-isolate guarantee.
 - [ ] Client wiring + deploy. **Blocked: no valid Cloudflare credential**
