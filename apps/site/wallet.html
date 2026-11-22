@@ -36,12 +36,12 @@
       <div>
         <h1>Cabinet wallet</h1>
         <p class="key-tagline">Keep WIF and hex keys in an encrypted vault on this device and watch the addresses they control. The vault is encrypted with a passphrase you choose; the server never receives the passphrase, a private key or a WIF.</p>
-        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia EVM send</span><span>Bitcoin testnet send</span></div>
+        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia EVM send</span><span>EVM mainnet (armed per session)</span><span>Bitcoin testnet send</span></div>
       </div>
     </div>
   </section>
 
-  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send on Ethereum Sepolia and Bitcoin keys can send on Bitcoin testnet: the page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. Mainnet signing stays disabled in this phase.</p>
+  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. Mainnet signing is native-token transfers only: ERC-20 transfers, approvals and Bitcoin/TRON mainnet are not part of this phase. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
 
@@ -151,14 +151,14 @@
     <p class="muted" id="wallet-seed-help">The phrase is generated and shown in this tab only; it is never stored, sent or logged. The vault stores only the derived key for one chain, with the default BIP44 path of the selected chain. Zcash, Solana, Sui and TON have no BIP44 preset here: import a WIF or hex key for those chains instead.</p>
 
     <h2>Addresses</h2>
-    <label class="wallet-row-actions"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
+    <label class="wallet-check"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance lookups</label>
     <p class="muted" id="wallet-lookup-note">Off by default. When enabled, pressing Balance sends only the public address of that row to a public provider. No key, WIF or passphrase is ever sent.</p>
     <div class="wallet-groups" id="wallet-entries"></div>
     <p class="muted" id="wallet-empty">No keys in this vault yet. Import a WIF or a hex key above.</p>
   </section>
 
   <section class="card" id="wallet-send" hidden>
-    <h2>Send an EVM testnet transaction</h2>
+    <h2>Send an EVM transaction</h2>
     <p class="muted">The transaction is built from this form, reviewed field by field, signed in this tab by the local WASM core and then broadcast as a signed raw transaction. Public reads and the broadcast go directly from this browser to the chosen public RPC with the browser's real <code class="mono">Origin</code>; the server never sees a key and does not proxy these requests.</p>
     <form id="wallet-send-form" class="key-form" autocomplete="off">
       <label>From (unlocked vault entry)
@@ -169,31 +169,31 @@
         <label>Network
           <select id="wallet-send-network">
             <option value="11155111">Ethereum Sepolia — testnet (chain id 11155111)</option>
-            <option value="1" disabled>Ethereum mainnet — disabled in this phase</option>
           </select>
         </label>
         <label>Public RPC
           <select id="wallet-send-provider"></select>
         </label>
       </div>
-      <p class="muted">Only Sepolia is enabled. Mainnet signing stays off until the testnet flow is verified end to end. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch refuses the send.</p>
+      <label class="wallet-check" id="wallet-send-armed-row" hidden><input type="checkbox" id="wallet-send-armed"> I understand that a mainnet transaction spends real funds and cannot be reversed; arm mainnet signing for this session.</label>
+      <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Mainnet in this phase is a native-token transfer only: no calldata, no ERC-20 and no approvals. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other chains.</p>
 
-      <label>To (0x address)
+      <label>To (0x address, EIP-55 checksum enforced)
         <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…">
       </label>
       <p class="error wallet-field-error" id="wallet-send-to-error" role="alert" hidden></p>
       <div class="wallet-split">
-        <label>Value (ETH)
+        <label>Amount (native unit)
           <input id="wallet-send-value" type="text" inputmode="decimal" autocomplete="off" placeholder="0.01">
         </label>
-        <label>Data (optional hex)
+        <label>Data (testnet only, optional hex)
           <input id="wallet-send-data" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x">
         </label>
       </div>
       <p class="error wallet-field-error" id="wallet-send-value-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-send-data-error" role="alert" hidden></p>
       <div class="wallet-split">
-        <label>Gas limit (empty = estimate)
+        <label>Gas limit (empty = estimate + 20%)
           <input id="wallet-send-gas" type="text" inputmode="numeric" autocomplete="off" placeholder="auto">
         </label>
         <label>Priority fee (gwei, empty = network)
@@ -206,7 +206,7 @@
       <p class="error wallet-field-error" id="wallet-send-gas-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-send-priority-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-send-max-fee-error" role="alert" hidden></p>
-      <p class="muted">Empty gas limit uses <code class="mono">eth_estimateGas</code>; empty fees use the node's priority fee and 2 × base fee + priority. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
+      <p class="muted">Empty gas limit uses <code class="mono">eth_estimateGas</code>; mainnet adds a 20% buffer. Empty fees use the node's priority fee and 2 × base fee + priority. On mainnet the amount plus the maximum network fee must fit the balance and the network fee must stay under the chain cap, or the send is refused before signing. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
       <div class="key-buttons">
         <button type="submit" class="primary" id="wallet-send-prepare">Fetch fees and review</button>
       </div>
@@ -232,7 +232,7 @@
       <h3>Broadcast result</h3>
       <p class="muted" id="wallet-send-provider-note"></p>
       <p>Transaction hash: <code class="mono" id="wallet-send-hash"></code></p>
-      <p><a id="wallet-send-explorer" target="_blank" rel="noopener noreferrer">Open on Sepolia Etherscan</a></p>
+      <p><a id="wallet-send-explorer" target="_blank" rel="noopener noreferrer">Open the transaction in the chain explorer</a></p>
       <p class="muted">Signed raw transaction:</p>
       <code class="mono wallet-hex" id="wallet-send-signed"></code>
     </div>
@@ -240,7 +240,7 @@
 
   <section class="card" id="wallet-btc-send" hidden>
     <h2>Send a Bitcoin testnet transaction</h2>
-    <p class="muted">Only Bitcoin testnet is enabled; mainnet signing stays off until the testnet flow is verified end to end. UTXOs and the recommended fee are read from <code class="mono">mempool.space/testnet/api</code> and the signed raw transaction is posted back there, directly from this browser with its real <code class="mono">Origin</code>. The server never sees a key and does not proxy these requests.</p>
+    <p class="muted">Only Bitcoin testnet is enabled here; Bitcoin mainnet signing is not available on this page. UTXOs and the recommended fee are read from <code class="mono">mempool.space/testnet/api</code> and the signed raw transaction is posted back there, directly from this browser with its real <code class="mono">Origin</code>. The server never sees a key and does not proxy these requests.</p>
     <form id="wallet-btc-form" class="key-form" autocomplete="off">
       <label>From (unlocked vault entry)
         <select id="wallet-btc-entry"></select>
@@ -312,7 +312,7 @@
       <div>
         <h3>What is stored</h3>
         <p class="muted">IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
-        <p class="muted">This page can sign and broadcast Sepolia EVM and Bitcoin testnet transactions only after the review screen. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
+        <p class="muted">This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
       </div>
     </div>
   </section>

@@ -1847,7 +1847,7 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
         && (51..=52).contains(&hex.len())
         && matches!(
             hex.as_bytes().first(),
-            Some(b'5' | b'K' | b'L' | b'T' | b'Q')
+            Some(b'5' | b'6' | b'K' | b'L' | b'T' | b'Q')
         )
         && let Ok(decoded) = bs58::decode(hex).with_check(None).into_vec()
     {
