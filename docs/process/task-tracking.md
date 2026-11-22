@@ -1,0 +1,191 @@
+# Task tracking
+
+Every task has one key, `ROT-<n>`, where `<n>` is the GitHub issue number. The
+same key appears in the issue title, every commit that implements the task, the
+pull-request body, and the sub-issue's `Blocked by:` line. The convention is
+provider-neutral: GitHub is the current backend, and the same text works with
+Bitbucket Cloud's issue tracker or Jira without a second identifier.
+
+## Decisions
+
+1. **The key is the issue number, not a separate counter.** `ROT-12` means
+   issue #12 in `mytab0r/Rotor-Cuda`. A provider carries the issue number in
+   plain text (`#12`, `ROT-12`), so nothing has to be looked up to interpret a
+   commit or a PR body. A local incrementing counter would drift after a
+   provider migration or a deleted issue; a UUID would not fit a commit
+   trailer. The number is the only identifier every provider can preserve.
+2. **A task is a section in `openspec/changes/<change-id>/tasks.md`.** The
+   section is the unit that owns a `blocked by:` line and a checkbox list, so
+   it maps one-to-one to a sub-issue. Individual checkboxes stay in the file and
+   are the task's progress detail.
+3. **One epic issue per OpenSpec change.** The epic is the change, not a task.
+   It has no `ROT-` key; its title is `[<change-id>] <heading>` and its body
+   lists the sub-issues and the aggregate progress.
+4. **Blockers are text plus native sub-issue links.** `Blocked by: ROT-7 (#7)`
+   gives a provider-neutral key and a GitHub-native link. The sync writes it
+   from the section's `blocked by:` line; a blocker that cannot be resolved to a
+   synced task is written as `Blocked by (unresolved): <text>` and reported.
+5. **The sync never closes issues.** It creates and updates. An agent (or the
+   project's auto-close workflow) closes a finished issue. This keeps the board
+   a mirror, not a second source of truth.
+6. **The branch does not need the key.** Forks and Bitbucket workspaces cannot
+   guarantee that a contributor has an issue number before pushing. The branch
+   convention is `<type>/<change-id>-<slug>`; the key lives in the PR body and
+   the commit trailer, which are written after the issue exists.
+7. **PR titles stay free-form.** The PR body carries `Task: ROT-<n>` and a
+   closing reference. The title is for humans and stays readable in the merge
+   history.
+
+## Anatomy
+
+### Epic
+
+- Title: `[<change-id>] <first heading of tasks.md>`.
+- Labels: `epic`, `area:<area>`.
+- Marker: `<!-- openspec-change: <change-id> -->` (idempotency).
+- Body: folder link, `Progress: <closed>/<total> sub-issues closed (<p>%)`, the
+  sub-issue list, unresolved blockers and `Source of truth: tasks.md`.
+- Board: `Area`, `Progress` (closed sub-issues / total sub-issues) and `Status`
+  (`Todo` at 0%, `Done` at 100%, `In Progress` otherwise).
+
+### Sub-issue
+
+- Title: `ROT-<n> — <task title>` (for example `ROT-12 — Providers and watcher`).
+- Labels: `change:<change-id>`, `area:<area>`.
+- Marker: `<!-- openspec-task: <change-id>/<slug> -->`, where the slug is the
+  heading without its number, tags or `blocked by:` parenthetical.
+- Body: epic reference, source path and section, checkbox counts,
+  `Blocked by: ROT-7 (#7), ROT-8 (#8)`, unresolved blockers and notes.
+- Native sub-issue relationship: `addSubIssue` over GraphQL. The sync queries
+  the current parent first, so a second run is a no-op. A GraphQL error aborts
+  with the issue numbers in the message; there is no silent fallback.
+
+The sync creates a sub-issue only for a section that still has an unchecked box
+or already has a sub-issue. A fully checked section that never had one is
+historical work and is not retroactively opened. An existing sub-issue is
+updated even when its section becomes fully checked; the sync never closes it.
+
+### Commit
+
+Put the key in a trailer at the end of the commit message:
+
+```text
+fix(site): serve Litecoin directories from litecoinspace on SoChain 429
+
+Task: ROT-12
+```
+
+The trailer is provider-neutral and survives a rebase, a squash and a provider
+migration. A commit may serve several tasks; repeat the trailer
+(`Task: ROT-12`, `Task: ROT-15`) or put the main task first. Do not add
+`Closes`/`Fixes` to a commit: closing belongs to the PR, where the provider can
+act on it.
+
+### Pull request
+
+The body must contain both lines:
+
+```text
+Task: ROT-12
+
+Closes #12
+```
+
+`Task:` identifies the sub-issue. The closing reference is what the provider
+uses to close it on merge; it is also what makes the PR appear as a linked item
+on the board. `Closes`, `Fixes` and `Resolves` are accepted by the check.
+Closing a different issue than the keyed one fails the check.
+
+A docs/process-only PR has no product task. It may use:
+
+```text
+Task: none — docs: fix the task-tracking example
+```
+
+The reason is mandatory. "Docs/process-only" means every changed path is under
+`docs/`, `openspec/`, `scripts/`, `.github/`, or is `AGENTS.md`, `PROJECTS.md`
+or `projects.json`, or ends in `.md`/`.mdx`. Any product path
+(`apps/`, `web/`, `src/`, `crates/`, `data/`, `design/`, `tests/`) requires a
+key.
+
+### Branch
+
+```text
+<type>/<change-id>-<slug>
+```
+
+For example `feat/task-tracking-board-sync` or
+`fix/wallet-mainnet-signing-erc20-approvals`. `<type>` is the usual
+`feat`/`fix`/`docs`/`refactor`/`test`/`chore`. The change id is the OpenSpec
+folder name. The slug is short and lowercase. The key is deliberately absent:
+the branch may be pushed before the sub-issue exists, and a fork cannot be
+forced to carry it.
+
+## Provider mapping
+
+| Provider | Where the key lives | Closing reference | Notes |
+|---|---|---|---|
+| GitHub | issue number → `ROT-<n>`; sub-issue title, PR body `Task: ROT-<n>`, commit trailer | `Closes #<n>` (or `Fixes`/`Resolves`) in the PR body; merge closes the issue | `scripts/sync-board.mjs` maintains epics, sub-issues, blockers and project items; `scripts/check-task-links.mjs` is the CI gate. |
+| Bitbucket Cloud | issue-tracker id → `ROT-<n>` in the PR description and commit trailer | `Closes #<n>` / `Fixes #<n>` in the PR description or a commit message; Bitbucket's issue tracker acts on the keyword | The sync adapter becomes a Bitbucket REST client; the text convention and the marker comments stay the same. |
+| Jira | issue key `ROT-<n>` (project key `ROT`); the key is also the Jira key | Smart commit `ROT-<n> #close` in a commit message, or the transition configured in the Jira/GitHub or Jira/Bitbucket app | Jira links the PR through the app; the `Task:` line and the key text stay readable either way. |
+
+A provider migration keeps the numbers. If the project key changes, update this
+table and the sync adapter; old commit text still names a valid historical key
+and needs no rewrite.
+
+## Lifecycle
+
+1. Add or edit a section in `openspec/changes/<change-id>/tasks.md`, including
+   `(blocked by: ...)` on the heading.
+2. The owner runs `node scripts/sync-board.mjs` (or `--dry-run` first). It
+   creates the epic if needed, creates or updates sub-issues, resolves the
+   blocker sections to `ROT-` keys, links the sub-issues to the epic and adds
+   them to the project with an `Area`.
+3. An agent picks a sub-issue, uses the branch convention, commits with
+   `Task: ROT-<n>`, opens a PR whose body has `Task: ROT-<n>` and
+   `Closes #<n>`.
+4. Review and merge. The provider closes the issue. When the work lands without
+   a PR, the agent closes the sub-issue it finished.
+5. The next sync recomputes the epic progress from the closed sub-issues and
+   reports PRs that still lack a Task line or cannot be linked.
+
+## Commands
+
+```sh
+node scripts/sync-board.mjs --dry-run   # print the plan, change nothing
+node scripts/sync-board.mjs             # apply (owner's gh login, project scope)
+
+node scripts/check-task-links.mjs --pr 123
+node scripts/check-task-links.mjs --body-file body.md \
+  --files scripts/sync-board.mjs,AGENTS.md --issue-exists skip
+```
+
+`sync-board` needs `gh` with `repo` and `project` scopes; it also creates the
+`change:<id>` labels on demand. `.github/workflows/task-links.yml` runs the
+check on every `pull_request` event (`opened`, `edited`, `synchronize`,
+`reopened`) with the default `GITHUB_TOKEN` and read-only `issues` /
+`pull-requests` permissions. The check fails when:
+
+- the body has no `Task:` line;
+- the key shape is invalid or the keyed issue does not exist;
+- the closing reference to the keyed issue is missing;
+- `Task: none` has no reason, or is used on a PR that changes product paths.
+
+The workflow needs no secret. If the repository moves under a provider without
+GitHub's issue tracker, the check is replaced by the provider's own status
+context; the text convention does not change.
+
+## What the owner must configure once
+
+- Keep GitHub Issues enabled in `mytab0r/Rotor-Cuda`; the sync and the check
+  rely on them.
+- Run the first `node scripts/sync-board.mjs` after this mechanics change lands.
+  That run creates the `change:*` labels, the epics and the sub-issues, and
+  populates the board. Existing fully checked sections are not retroactively
+  opened.
+- Make the `task-links` check a required status check in the branch protection
+  for `main` after the first sync exists; until then it reports without
+  blocking.
+- The project (owner `mytab0r`, number 3) must keep the `Area`, `Progress` and
+  `Status` fields. `Area` options are `site`, `coordinator`, `desktop`, `infra`,
+  `design`, `docs`; the script cannot add single-select options through `gh`.
