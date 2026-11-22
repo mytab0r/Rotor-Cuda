@@ -640,6 +640,13 @@
       "where": "src/coordinator/mod.rs"
     },
     {
+      "id": "puzzle-detail-tool-links",
+      "reported": "2026-11-22",
+      "symptom": "The puzzle detail action row omitted the donor's three solver-tool links (BitCrack, Keyhunt, VanitySearch) on unsolved puzzles.",
+      "detector": "puzzle-detail-tool-links",
+      "where": "src/coordinator/mod.rs"
+    },
+    {
       "id": "wallet-top-assets-zero-lie",
       "reported": "2026-11-22",
       "symptom": "The wallet had no market-cap asset view. A naive table would have printed 0 or $0.00 for a row whose provider failed or had no key, and a token row could have shown a native balance instead of its contract balance; no detector asserted rank order, the shared table shell, per-network rows, the explicit USDT peg or the failed-row exclusion from the total.",
