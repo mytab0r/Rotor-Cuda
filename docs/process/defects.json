@@ -414,6 +414,13 @@
       "symptom": "Every /key chain group except ZEC showed a live balance; the two Zcash rows rendered — because no keyless ZEC provider was wired.",
       "detector": "key-zec-provider",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "mnemonic-solana-balances",
+      "reported": "2026-11-22",
+      "symptom": "the Solana mnemonic directory rendered — for all 60 rows although a batched getMultipleAccounts provider exists",
+      "detector": "mnemonic-solana-balances",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
     }
   ]
 }

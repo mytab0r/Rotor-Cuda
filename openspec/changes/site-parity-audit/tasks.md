@@ -98,6 +98,22 @@
   (10,000 sat) is the inferred cut and is marked as such in `receivedText`.
   Evidence: `apps/site/mnemonic-seeds.js` (`ATOMIC_UNITS`, `receivedText`),
   `apps/site/mnemonic-seeds-test.mjs` (six cases).
+- [x] Mnemonic directory Solana balances (2026-11-22, code-only): the Solana
+  page previously rendered `—` for all 60 rows; it now uses one batched
+  keyless `getMultipleAccounts` POST per page (official RPC first, publicnode
+  fallback), parsed by `balance-cache.js`'s `parseSolanaAccounts`, and renders
+  through the existing `coin`/`receivedText` path with 9 decimals and SOL.
+  Evidence: `apps/site/mnemonic-seeds.js:39` (`SOLANA_RPC_URLS`), `:809`
+  (`providerMetaFor`), `:1102` (`solanaBatchBody`), `:1111`
+  (`solanaProvider`), `:1145` (dispatcher branch); tests at
+  `apps/site/mnemonic-seeds-test.mjs:193` and `:207`; defect
+  `mnemonic-solana-balances` in `docs/process/defects.json`.
+  Known gap: `scripts/ui-audit.mjs` still omits `/mnemonic-seeds/<chain>` routes
+  except `/mnemonic-seeds/bitcoin`; `/mnemonic-seeds/solana` was verified by
+  browser review (one POST for 60 addresses, 60/60 rows rendered) and by the unit
+  detector, and adding the chain pages to the audit route set is the next
+  gate-coverage step (it would add about five provider console warnings per audit
+  run on hosts where the public Solana RPC refuses the browser).
 - [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
   still claimed "the interactive curve editor and signing entry remain". The
   donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
@@ -105,8 +121,9 @@
   bullet). The notes now name the real remainder: ZEC balances have no keyless
   provider (Blockchair 430 without a key; zcha.in unreachable, probed
   2026-11-21), while BCH was later wired through Haskoin (bullet below), so only
-  the ZEC row shows `—` and the route status stays `partial`. Evidence:
-  `docs/site-map/site-map-data.js` (seven donor rows).
+  the ZEC row shows `—` and the route status stays `partial` (superseded
+  2026-11-22: the ZEC provider landed in PR #237 and the row is now parity).
+  Evidence: `docs/site-map/site-map-data.js` (seven donor rows).
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
@@ -126,7 +143,9 @@
   `!sharedEvm` guard (`apps/site/key.js:1314`) from `explorerFor` in
   `apps/site/key-tools.js:988`, while copy/details/toggle stay suppressed.
   Evidence: `apps/site/key.js`, `apps/site/key-tools.js`,
-  `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`).
+  `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
+  matrix row is now `parity` after the independent browser review and the PR #237
+  merge.
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:
