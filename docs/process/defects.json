@@ -449,6 +449,13 @@
       "symptom": "Eleven amount formatters and three parsers in ten files reimplemented decimal conversion; five coin() copies converted 18-decimal wei through Number and lost precision above 2^53 (e.g. 2^256-1 wei displayed as a rounded ~1e59).",
       "detector": "lossy-amount-formatter",
       "where": "scripts/check-ssot.mjs"
+    },
+    {
+      "id": "seed-received-aggregate",
+      "reported": "2026-11-22",
+      "symptom": "The seed converter's aggregate line claimed public providers expose no lifetime totals and showed only Active/Sum, although blockchain.info returns total_received in the same balance response it already fetches.",
+      "detector": "aggregateText",
+      "where": "apps/site/seed-test.mjs"
     }
   ]
 }

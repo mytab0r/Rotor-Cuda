@@ -191,10 +191,10 @@
     path: '/mnemonic-converter',
     title: 'Mnemonic converter',
     area: 'seeds',
-    status: 'partial',
+    status: 'parity',
     priority: 'P1',
     donorIds: ['pkf:/mnemonic-converter'],
-    note: 'Word counter, 20-address option, “Load next 5”, Copy All and Active/Sum aggregates are present. The donor’s lifetime Received total is not shown because the public providers used here do not return it; there is no separate hardened checkbox.'
+    note: 'Word counter, 20-address option, “Load next 5”, Copy All and Active/Sum aggregates are present. The lifetime Received total is shown for BTC from the same blockchain.info balance response, so it costs no extra request; other assets have no lifetime total to show. There is no separate hardened checkbox.'
   });
 
   oursRoute({
