@@ -4,6 +4,11 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
@@ -22,16 +27,10 @@
     zcash: 'zat'
   };
 
-  var RPC = {
-    ethereum: 'https://ethereum-rpc.publicnode.com',
-    bnb: 'https://bsc-rpc.publicnode.com',
-    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
-    optimism: 'https://optimism-rpc.publicnode.com',
-    base: 'https://base-rpc.publicnode.com',
-    polygon: 'https://polygon-bor-rpc.publicnode.com',
-    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
-    zksync: 'https://mainnet.era.zksync.io'
-  };
+  var RPC = {};
+  SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
+    RPC[slug] = SSOT_PROVIDERS.first(slug).url;
+  });
 
   function evmConfig() {
     return {
@@ -1029,7 +1028,7 @@
     var errors = {};
     var unique = Array.from(new Set(addresses.filter(Boolean)));
     if (!unique.length) return { values: values, errors: errors };
-    var url = 'https://blockchain.info/balance?cors=true&active=' + unique.map(encodeURIComponent).join('|');
+    var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url + unique.map(encodeURIComponent).join('|');
     var data = await requestJson(url);
     unique.forEach(function (address) {
       var info = data[address];

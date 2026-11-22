@@ -3,15 +3,29 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
   var TIMEOUT_MS = 8000;
-  var EVM_RPC_URLS = [
-    'https://ethereum-rpc.publicnode.com',
-    'https://eth.drpc.org',
-    'https://1rpc.io/eth'
-  ];
+  var EVM_RPC_URLS = SSOT_PROVIDERS.byChain.ethereum.map(function (provider) {
+    return provider.url;
+  });
+
+  /* One provider by id, or the canonical ordered list. Single-provider chains
+   * keep their historical endpoint; Polygon and Optimism carry the full
+   * publicnode + dRPC fallback list from data/providers.json. */
+  function evmRpcUrls(slug, full) {
+    var list = SSOT_PROVIDERS.byChain[slug] || [];
+    if (full) return list.map(function (provider) { return provider.url; });
+    var preferred = SSOT_PROVIDERS.find(slug, 'publicnode') || list[0];
+    return preferred ? [preferred.url] : [];
+  }
   var SECP_N = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
   var WEI = 1000000000000000000n;
   var WEI_PER_MICRO = 1000000000000n;
@@ -24,16 +38,17 @@
   var PRICE_TTL_MS = 6 * 60 * 60 * 1000;
 
   /* One EVM account, eight networks. Every row carries the same address; the
-   * balance is read from each network's public RPC, never assumed. */
+   * balance is read from each network's public RPC, never assumed. Explorers
+   * and providers come from data/chains.json and data/providers.json. */
   var EVM_CHAINS = {
-    evm: { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', explorer: 'https://etherscan.io/address/' },
-    evm_bnb: { slug: 'bnb', label: 'BNB Chain', symbol: 'BNB', rpc: 'https://bsc-rpc.publicnode.com', explorer: 'https://bscscan.com/address/' },
-    evm_arbitrum: { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ETH', rpc: 'https://arbitrum-one-rpc.publicnode.com', explorer: 'https://arbiscan.io/address/' },
-    evm_optimism: { slug: 'optimism', label: 'Optimism', symbol: 'ETH', rpc: 'https://optimism-rpc.publicnode.com', explorer: 'https://optimistic.etherscan.io/address/' },
-    evm_base: { slug: 'base', label: 'Base', symbol: 'ETH', rpc: 'https://base-rpc.publicnode.com', explorer: 'https://basescan.org/address/' },
-    evm_polygon: { slug: 'polygon', label: 'Polygon', symbol: 'POL', rpc: 'https://polygon-bor-rpc.publicnode.com', explorer: 'https://polygonscan.com/address/' },
-    evm_avalanche: { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', rpc: 'https://avalanche-c-chain-rpc.publicnode.com', explorer: 'https://snowtrace.io/address/' },
-    evm_zksync: { slug: 'zksync', label: 'zkSync Era', symbol: 'ETH', rpc: 'https://mainnet.era.zksync.io', explorer: 'https://explorer.zksync.io/address/' }
+    evm: { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', explorer: SSOT_CHAINS.bySlug.ethereum.explorerPrefix },
+    evm_bnb: { slug: 'bnb', label: 'BNB Chain', symbol: 'BNB', rpc: evmRpcUrls('bnb'), explorer: SSOT_CHAINS.bySlug.bnb.explorerPrefix },
+    evm_arbitrum: { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ETH', rpc: evmRpcUrls('arbitrum'), explorer: SSOT_CHAINS.bySlug.arbitrum.explorerPrefix },
+    evm_optimism: { slug: 'optimism', label: 'Optimism', symbol: 'ETH', rpc: evmRpcUrls('optimism', true), explorer: SSOT_CHAINS.bySlug.optimism.explorerPrefix },
+    evm_base: { slug: 'base', label: 'Base', symbol: 'ETH', rpc: evmRpcUrls('base'), explorer: SSOT_CHAINS.bySlug.base.explorerPrefix },
+    evm_polygon: { slug: 'polygon', label: 'Polygon', symbol: 'POL', rpc: evmRpcUrls('polygon', true), explorer: SSOT_CHAINS.bySlug.polygon.explorerPrefix },
+    evm_avalanche: { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', rpc: evmRpcUrls('avalanche'), explorer: SSOT_CHAINS.bySlug.avalanche.explorerPrefix },
+    evm_zksync: { slug: 'zksync', label: 'zkSync Era', symbol: 'ETH', rpc: evmRpcUrls('zksync'), explorer: SSOT_CHAINS.bySlug.zksync.explorerPrefix }
   };
   var EVM_IDS = Object.keys(EVM_CHAINS);
 
@@ -1076,20 +1091,20 @@
   function explorerFor(id) {
     if (EVM_CHAINS[id]) return EVM_CHAINS[id].explorer;
     if (typeof id === 'string') {
-      if (id.indexOf('btc_') === 0) return 'https://mempool.space/address/';
-      if (id.indexOf('ltc_') === 0) return 'https://blockchair.com/litecoin/address/';
-      if (id.indexOf('doge_') === 0) return 'https://blockchair.com/dogecoin/address/';
-      if (id.indexOf('bch_') === 0) return 'https://blockchair.com/bitcoin-cash/address/';
-      if (id.indexOf('zcash_') === 0) return 'https://blockchair.com/zcash/address/';
-      if (id.indexOf('xrp_') === 0) return 'https://xrpscan.com/account/';
+      if (id.indexOf('btc_') === 0) return SSOT_CHAINS.bySlug.bitcoin.explorerPrefix;
+      if (id.indexOf('ltc_') === 0) return SSOT_CHAINS.bySlug.litecoin.explorerPrefix;
+      if (id.indexOf('doge_') === 0) return SSOT_CHAINS.bySlug.dogecoin.explorerPrefix;
+      if (id.indexOf('bch_') === 0) return SSOT_CHAINS.bySlug['bitcoin-cash'].explorerPrefix;
+      if (id.indexOf('zcash_') === 0) return SSOT_CHAINS.bySlug.zcash.explorerPrefix;
+      if (id.indexOf('xrp_') === 0) return SSOT_CHAINS.bySlug.xrp.explorerPrefix;
     }
     var map = {
-      evm: 'https://etherscan.io/address/',
-      tron: 'https://tronscan.org/#/address/',
-      solana: 'https://solscan.io/account/',
-      sui: 'https://suiscan.xyz/mainnet/account/',
-      ton: 'https://tonviewer.com/',
-      ton_w5: 'https://tonviewer.com/'
+      evm: SSOT_CHAINS.bySlug.ethereum.explorerPrefix,
+      tron: SSOT_CHAINS.bySlug.tron.explorerPrefix,
+      solana: SSOT_CHAINS.bySlug.solana.explorerPrefix,
+      sui: SSOT_CHAINS.bySlug.sui.explorerPrefix,
+      ton: SSOT_CHAINS.bySlug.ton.explorerPrefix,
+      ton_w5: SSOT_CHAINS.bySlug.ton.explorerPrefix
     };
     return map[id] || '';
   }
@@ -1938,7 +1953,7 @@
   }
 
   async function fetchBtc(address, signal) {
-    var response = await fetchWithTimeout('https://mempool.space/api/address/' + encodeURIComponent(address), null, signal);
+    var response = await fetchWithTimeout(SSOT_PROVIDERS.find('bitcoin', 'mempool').url + '/address/' + encodeURIComponent(address), null, signal);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var data = await response.json();
     var chain = data.chain_stats || {};
@@ -2012,9 +2027,10 @@
 
   async function fetchEvm(address, signal, id) {
     var chain = EVM_CHAINS[id] || EVM_CHAINS.evm;
-    /* Ethereum keeps the endpoint fallback; every other network has one
-     * public endpoint mapped to it. */
-    var urls = id === 'evm' ? EVM_RPC_URLS : [chain.rpc];
+    /* Ethereum keeps the endpoint fallback; Polygon and Optimism carry the
+     * canonical publicnode + dRPC list. The other networks have one public
+     * endpoint mapped to them. */
+    var urls = id === 'evm' ? EVM_RPC_URLS : (Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc]);
     var lastError = null;
     var lastUrl = '';
     for (var i = 0; i < urls.length; i++) {
@@ -2051,7 +2067,7 @@
   }
 
   async function fetchTronDirect(address, signal) {
-    var response = await fetchWithTimeout('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address), null, signal);
+    var response = await fetchWithTimeout(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address), null, signal);
     if (response.status === 404) {
       return {
         text: '0 TRX · account not activated',
@@ -2144,7 +2160,7 @@
 
   async function fetchXrp(address, signal) {
     var response = await fetchWithTimeout(
-      'https://api.xrpscan.com/api/v1/account/' + encodeURIComponent(address),
+      SSOT_PROVIDERS.find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address),
       null,
       signal
     );
@@ -2190,10 +2206,9 @@
   /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
    * when the official host rejects the browser (it answers 403 to some
    * origins). */
-  var SOLANA_RPC_URLS = [
-    'https://api.mainnet-beta.solana.com',
-    'https://solana-rpc.publicnode.com'
-  ];
+  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
+    return provider.url;
+  });
 
   async function fetchSolana(address, signal) {
     var lastError = null;
@@ -2223,7 +2238,7 @@
   async function fetchSui(address, signal) {
     /* The public Sui JSON-RPC fullnodes are deprecated (-32601); the GraphQL
      * gateway returns the same MIST balance and allows browser CORS. */
-    var response = await fetchWithTimeout('https://graphql.mainnet.sui.io/graphql', {
+    var response = await fetchWithTimeout(SSOT_PROVIDERS.find('sui', 'graphql').url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2247,7 +2262,7 @@
 
   async function fetchTon(address, signal) {
     var response = await fetchWithTimeout(
-      'https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address),
+      SSOT_PROVIDERS.find('ton', 'toncenter').url + '/getAddressBalance?address=' + encodeURIComponent(address),
       null,
       signal
     );
@@ -2269,7 +2284,8 @@
    * Litecoin (incl. taproot) and Dogecoin; amounts arrive in atomic units. */
   async function fetchBlockcypher(address, signal, chainClass) {
     var response = await fetchWithTimeout(
-      'https://api.blockcypher.com/v1/' + chainClass + '/main/addrs/' + encodeURIComponent(address) + '/balance',
+      SSOT_PROVIDERS.find(chainClass === 'ltc' ? 'litecoin' : 'dogecoin', 'blockcypher').url +
+        '/addrs/' + encodeURIComponent(address) + '/balance',
       null,
       signal
     );
@@ -2297,7 +2313,7 @@
    * requested address with satoshis in `confirmed` + `unconfirmed`. */
   async function fetchHaskoinBch(address, signal) {
     var response = await fetchWithTimeout(
-      'https://api.haskoin.com/bch/address/balances?addresses=' + encodeURIComponent(address),
+      SSOT_PROVIDERS.find('bitcoin-cash', 'haskoin').url + '/address/balances?addresses=' + encodeURIComponent(address),
       null,
       signal
     );
