@@ -75,7 +75,7 @@ that pulse. `.skeleton`-style shimmer is never combined with the pill.
 
 ## Detectors
 
-`status-pill-geometry` (12px text, 18–32px height, pill radius, inline padding
+`status-pill-geometry` (12px text, 20–32px height, pill radius, inline padding
 6/8/10/12). The tone contrast is covered by the token contrast table in
 `DESIGN-SYSTEM.md` §2.3 and the route-wide text contrast checks.
 

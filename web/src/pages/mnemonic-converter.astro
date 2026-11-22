@@ -132,6 +132,11 @@ const repositoryUrl = 'https://github.com/mytab0r/Rotor-Cuda';
   </section>
 </main>
 
+<!-- site.js reads the generated chain/provider globals and the shared amount
+     formatter; the coordinator injects the same two assets before its page
+     scripts. Keep this order (see data/vendor.lock.json). -->
+<script is:inline src="/chains.generated.js"></script>
+<script is:inline src="/amount.js"></script>
 <script is:inline src="/vendor/seed.js"></script>
 <script is:inline src="/vendor/seed-crypto.js"></script>
 <script is:inline src="/site.js"></script>
