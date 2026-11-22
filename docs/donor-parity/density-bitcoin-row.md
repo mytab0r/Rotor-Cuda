@@ -33,7 +33,7 @@ The donor loaded and resolved on this run. The density script measured
 | keys per page | **60** (`KEYS_PER_PAGE=0x3c` in `app.obf.js`; 60 `.key-row` in the served HTML) |
 | addresses per legacy BTC key | **2** — the compressed and uncompressed P2PKH address |
 | addresses per page (legacy BTC) | **120** (60 × 2; verified in the resolved DOM) |
-| columns | `.col-key` 1.6fr, `.col-address` 0.9fr, `.col-balance` `minmax(180px,auto)`; `gap: 1rem` |
+| columns | `.col-key` 1.6fr, `.col-address` 0.9fr, `.col-balance` `minmax(200px,auto)` on `.key-row` (the header uses 180px); `gap: 1rem` |
 | row height | 96px at 1440×900 and 1280×800; 226px at 375×812 |
 | address cell | both addresses visible at once as `.address-item` `(c)`/`(u)`, each with an explorer `.address-link` and a `copy-btn`; no `<details>`, `summary`, `aria-expanded` or second row |
 | key cell | hex key plus `(c)`/`(u)` WIF lines, each with a copy action (WIF stays key-level) |
@@ -116,8 +116,15 @@ be hidden is in the document.
 - The donor's pills are 3.2px-radius neutral chips; ours use the shared
   `.badge` status grammar (20px high, pill radius, 12px text) with semantic
   colours, per the design system.
+- Accent colours are deliberately swapped from the donor: the donor paints the
+  balance amber and the TX count blue; ours paints a positive balance with the
+  semantic `--ok` (green) and the TX badge with the single project signal colour
+  (`--signal`, amber). This is the design-system semantics (positive = ok, one
+  signal colour for the badge), not a bug.
 - The donor's mobile row is 226px; ours is 238px for the same 44px-floor
-  reason.
+  reason. `browse-row-height` is a desktop-only check (`innerWidth >= 1000`);
+  mobile rows vary 219–238 because the two 44px action lines stack and the
+  detector intentionally does not apply a desktop ceiling there.
 
 ## Verification
 
