@@ -118,6 +118,13 @@
     review: null,
     reviewEntryId: null,
     mainnetArmed: false,
+    approvalsScanning: false,
+    approvalsScan: null,
+    approvalsScanEntryId: null,
+    approvalsReview: null,
+    approvalsReviewEntryId: null,
+    approvalsReviewSpender: null,
+    approvalsSending: false,
     btcPreparing: false,
     btcSending: false,
     btcReview: null,
@@ -181,6 +188,31 @@
   var sendExplorerLink = byId('wallet-send-explorer');
   var sendSignedEl = byId('wallet-send-signed');
 
+  /* ERC-20 approvals panel. It reuses the send entry, network and provider
+   * controls; it never holds a private key. */
+  var approvalsCard = byId('wallet-approvals');
+  var approvalsForm = byId('wallet-approvals-form');
+  var approvalsTokenInput = byId('wallet-approvals-token');
+  var approvalsWindowInput = byId('wallet-approvals-window');
+  var approvalsScanButton = byId('wallet-approvals-scan');
+  var approvalsStatus = byId('wallet-approvals-status');
+  var approvalsCoverage = byId('wallet-approvals-coverage');
+  var approvalsWarnings = byId('wallet-approvals-warnings');
+  var approvalsTableWrap = byId('wallet-approvals-table-wrap');
+  var approvalsRows = byId('wallet-approvals-rows');
+  var approvalsEmpty = byId('wallet-approvals-empty');
+  var approvalsReviewBox = byId('wallet-approvals-review');
+  var approvalsReviewList = byId('wallet-approvals-review-list');
+  var approvalsReviewUnsigned = byId('wallet-approvals-review-unsigned');
+  var approvalsConfirmButton = byId('wallet-approvals-confirm');
+  var approvalsCancelButton = byId('wallet-approvals-cancel');
+  var approvalsResultBox = byId('wallet-approvals-result');
+  var approvalsProviderNote = byId('wallet-approvals-provider-note');
+  var approvalsHashEl = byId('wallet-approvals-hash');
+  var approvalsExplorerLink = byId('wallet-approvals-explorer');
+  var approvalsRereadEl = byId('wallet-approvals-reread');
+  var approvalsSignedEl = byId('wallet-approvals-signed');
+
   /* Bitcoin testnet send form. Nothing in this block holds a private key. */
   var btcCard = byId('wallet-btc-send');
   var btcForm = byId('wallet-btc-form');
@@ -210,6 +242,7 @@
   if (!evmSend) {
     /* The vault still works watch-only; sending stays unavailable and says so. */
     if (sendCard) sendCard.hidden = true;
+    if (approvalsCard) approvalsCard.hidden = true;
   }
   if (!btcSend) {
     if (btcCard) btcCard.hidden = true;
@@ -278,6 +311,7 @@
     if (unlockCard) unlockCard.hidden = true;
     if (panel) panel.hidden = true;
     if (sendCard) sendCard.hidden = true;
+    if (approvalsCard) approvalsCard.hidden = true;
   }
 
   /* ----------------------------------------------------------- IndexedDB */
@@ -1615,6 +1649,7 @@
 
   function renderSend() {
     renderBtcSend();
+    renderApprovals();
     if (!sendCard || !evmSend) return;
     var entries = sendEntries();
     if (state.review && !entries.some(function (entry) { return entry.id === state.reviewEntryId; })) {
@@ -1818,6 +1853,7 @@
     if (sendEntrySelect) sendEntrySelect.textContent = '';
     if (sendCard) sendCard.hidden = true;
     resetBtcSend();
+    resetApprovals();
     setSendBusy(false);
   }
 
@@ -1917,17 +1953,23 @@
   sendEntrySelect.addEventListener('change', function () {
     updateSendFrom();
     invalidateSendReview();
+    invalidateApprovalsScan('The selected key changed; run "Find approvals" again.');
   });
   sendNetworkSelect.addEventListener('change', function () {
     renderProviders();
     updateSendArmedRow();
     invalidateSendReview();
+    invalidateApprovalsScan('The network changed; run "Find approvals" again.');
   });
-  sendProviderSelect.addEventListener('change', invalidateSendReview);
+  sendProviderSelect.addEventListener('change', function () {
+    invalidateSendReview();
+    invalidateApprovalsScan('The RPC provider changed; run "Find approvals" again.');
+  });
   if (sendArmedCheckbox) {
     sendArmedCheckbox.addEventListener('change', function () {
       state.mainnetArmed = sendArmedCheckbox.checked;
       invalidateSendReview();
+      invalidateApprovalsReview();
     });
   }
 
@@ -1984,6 +2026,537 @@
     } finally {
       state.sending = false;
       setSendBusy(false);
+    }
+  });
+
+  /* ------------------------------------------------------ ERC-20 approvals */
+
+  /* The approvals panel reuses the send entry, network and provider controls.
+   * It reads Approval logs from the public RPC, then reads the current
+   * allowance and code of each spender. A revoke is prepared and confirmed by
+   * the same EVM codec path as a transfer; the key exists only inside
+   * signTxWithEntry. */
+
+  function blockText(value) {
+    return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function showApprovalsFieldErrors(errors) {
+    var tokenError = errors.token || '';
+    var windowError = errors.window || '';
+    setError('wallet-approvals-token-error', tokenError);
+    setError('wallet-approvals-window-error', windowError);
+    if (approvalsTokenInput) {
+      approvalsTokenInput.setAttribute('aria-invalid', tokenError ? 'true' : 'false');
+    }
+    if (approvalsWindowInput) {
+      approvalsWindowInput.setAttribute('aria-invalid', windowError ? 'true' : 'false');
+    }
+  }
+
+  function setApprovalsBusy(busy, message) {
+    var blocked = !!busy || state.approvalsScanning || state.approvalsSending;
+    if (approvalsScanButton) approvalsScanButton.disabled = blocked;
+    if (approvalsConfirmButton) approvalsConfirmButton.disabled = blocked;
+    if (approvalsStatus && message !== undefined) approvalsStatus.textContent = message;
+  }
+
+  function invalidateApprovalsReview() {
+    if (!state.approvalsReview) return;
+    state.approvalsReview = null;
+    state.approvalsReviewEntryId = null;
+    state.approvalsReviewSpender = null;
+    if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+    setError('wallet-approvals-confirm-error', '');
+  }
+
+  function invalidateApprovalsScan(message) {
+    if (!state.approvalsScan && !state.approvalsScanEntryId) return;
+    state.approvalsScan = null;
+    state.approvalsScanEntryId = null;
+    invalidateApprovalsReview();
+    renderApprovalsTable();
+    if (message && approvalsStatus) approvalsStatus.textContent = message;
+  }
+
+  function spenderTypeText(isContract) {
+    if (isContract === true) return 'Contract';
+    if (isContract === false) return 'EOA';
+    return 'Unknown (code read failed)';
+  }
+
+  function allowanceText(spender, scan) {
+    if (spender.allowance === null) return 'Unknown (read failed)';
+    var text = evmSend.formatAllowance(spender.allowance, scan.decimals);
+    return text === 'Unlimited' ? text : text + ' ' + scan.symbol;
+  }
+
+  function renderApprovalsWarnings(warnings) {
+    if (!approvalsWarnings) return;
+    approvalsWarnings.textContent = '';
+    if (!warnings || !warnings.length) {
+      approvalsWarnings.hidden = true;
+      return;
+    }
+    warnings.forEach(function (warning) {
+      var item = document.createElement('li');
+      item.textContent = warning;
+      approvalsWarnings.appendChild(item);
+    });
+    approvalsWarnings.hidden = false;
+  }
+
+  function renderApprovalsTable() {
+    if (!approvalsRows) return;
+    var scan = state.approvalsScan;
+    approvalsRows.textContent = '';
+    if (!scan) {
+      if (approvalsTableWrap) approvalsTableWrap.hidden = true;
+      if (approvalsEmpty) approvalsEmpty.hidden = true;
+      if (approvalsCoverage) { approvalsCoverage.hidden = true; approvalsCoverage.textContent = ''; }
+      renderApprovalsWarnings([]);
+      return;
+    }
+
+    var coverage;
+    if (scan.scannedFromBlock > scan.scannedToBlock) {
+      coverage = 'The provider refused every Approval log request in the requested window; ' +
+        'no blocks were scanned. Another RPC or an indexer is needed.';
+    } else {
+      coverage = 'Scanned blocks ' + blockText(scan.scannedFromBlock) + '–' +
+        blockText(scan.scannedToBlock) + ' of the requested ' + blockText(scan.requestedWindow) +
+        ' on ' + scan.providerLabel + ' · ' + scan.logCount + ' Approval log' +
+        (scan.logCount === 1 ? '' : 's') + ' · ' + scan.uniqueSpenders + ' unique spender' +
+        (scan.uniqueSpenders === 1 ? '' : 's') + '.';
+      if (scan.truncated) {
+        coverage += ' The provider could not serve the whole window; older approvals need a larger window on an archive RPC or an indexer.';
+      }
+    }
+    if (approvalsCoverage) {
+      approvalsCoverage.textContent = coverage;
+      approvalsCoverage.hidden = false;
+    }
+    renderApprovalsWarnings(scan.warnings);
+
+    if (!scan.spenders.length) {
+      if (approvalsTableWrap) approvalsTableWrap.hidden = true;
+      if (approvalsEmpty) {
+        approvalsEmpty.textContent = scan.truncated
+          ? 'No approvals were found in the blocks the provider could serve; older approvals need an archive RPC or an indexer.'
+          : 'No Approval logs for this owner were found in the scanned window.';
+        approvalsEmpty.hidden = false;
+      }
+      return;
+    }
+    if (approvalsEmpty) approvalsEmpty.hidden = true;
+    scan.spenders.forEach(function (spender) {
+      var row = document.createElement('tr');
+
+      var addressCell = document.createElement('td');
+      var addressCode = document.createElement('code');
+      addressCode.className = 'mono';
+      addressCode.textContent = spender.address;
+      addressCell.appendChild(addressCode);
+      var explorer = document.createElement('a');
+      explorer.className = 'icon-button icon-button--quiet';
+      explorer.target = '_blank';
+      explorer.rel = 'noopener noreferrer';
+      explorer.href = scan.explorerAddress + spender.address;
+      explorer.setAttribute('aria-label', 'Open ' + spender.address + ' in the chain explorer');
+      explorer.setAttribute('data-tooltip', 'Open spender in explorer');
+      explorer.appendChild(iconUse('ui-external'));
+      addressCell.appendChild(explorer);
+      row.appendChild(addressCell);
+
+      var typeCell = document.createElement('td');
+      typeCell.textContent = spenderTypeText(spender.isContract);
+      row.appendChild(typeCell);
+
+      var allowanceCell = document.createElement('td');
+      allowanceCell.textContent = allowanceText(spender, scan);
+      row.appendChild(allowanceCell);
+
+      var actionCell = document.createElement('td');
+      var revoke = document.createElement('button');
+      revoke.type = 'button';
+      revoke.className = 'icon-button';
+      revoke.setAttribute('aria-label', 'Revoke the ' + scan.symbol + ' allowance for ' + spender.address);
+      if (spender.allowance === 0n) {
+        revoke.disabled = true;
+        revoke.setAttribute('data-tooltip', 'Allowance is already zero');
+      } else {
+        revoke.setAttribute('data-tooltip', spender.allowance === null
+          ? 'Current allowance unknown; the revoke re-reads it'
+          : 'Revoke this approval (approve 0)');
+        revoke.addEventListener('click', function () {
+          startApprovalsRevoke(spender.address);
+        });
+      }
+      revoke.appendChild(iconUse('ui-close'));
+      actionCell.appendChild(revoke);
+      row.appendChild(actionCell);
+
+      approvalsRows.appendChild(row);
+    });
+    if (approvalsTableWrap) approvalsTableWrap.hidden = false;
+  }
+
+  function addApprovalsReviewRow(label, value, asCode) {
+    var term = document.createElement('dt');
+    term.textContent = label;
+    var detail = document.createElement('dd');
+    if (asCode) {
+      var code = document.createElement('code');
+      code.className = 'mono';
+      code.textContent = value;
+      detail.appendChild(code);
+    } else {
+      detail.textContent = value;
+    }
+    approvalsReviewList.appendChild(term);
+    approvalsReviewList.appendChild(detail);
+  }
+
+  function renderApprovalsReview(review) {
+    var nativeSymbol = review.symbol || SSOT_CHAINS.bySlug.ethereum.symbol;
+    var feeWei = review.gasLimit * review.maxFeeWei;
+    approvalsReviewList.textContent = '';
+    addApprovalsReviewRow('Network', review.chainName + ' · chain id ' + review.chainId +
+      (review.testnet ? ' · testnet' : ' · MAINNET'));
+    addApprovalsReviewRow('From', review.from, true);
+    addApprovalsReviewRow('Token contract', review.tokenContract, true);
+    addApprovalsReviewRow('Token symbol', review.tokenSymbol);
+    addApprovalsReviewRow('Token decimals', String(review.tokenDecimals));
+    addApprovalsReviewRow('Spender', review.spender, true);
+    addApprovalsReviewRow('Current allowance',
+      evmSend.formatAllowance(review.currentAllowanceWei, review.tokenDecimals) === 'Unlimited'
+        ? 'Unlimited'
+        : evmSend.formatAllowance(review.currentAllowanceWei, review.tokenDecimals) + ' ' +
+          review.tokenSymbol);
+    addApprovalsReviewRow('New allowance', '0 ' + review.tokenSymbol);
+    addApprovalsReviewRow('Data (built locally)', review.dataHex, true);
+    addApprovalsReviewRow('Gas limit', review.gasLimit.toString() + (review.gasLimitIsManual
+      ? ' (manual)'
+      : (review.testnet ? ' (eth_estimateGas)' : ' (eth_estimateGas + 20% buffer)')));
+    addApprovalsReviewRow('Nonce', review.nonce.toString());
+    addApprovalsReviewRow('Max fee (per gas)', AMOUNT.formatUnits(review.maxFeeWei, 9) + ' gwei (' +
+      review.maxFeeWei + ' wei)');
+    addApprovalsReviewRow('Priority fee', AMOUNT.formatUnits(review.priorityWei, 9) + ' gwei');
+    addApprovalsReviewRow('Maximum network fee', AMOUNT.formatUnits(feeWei, 18) + ' ' + nativeSymbol);
+    addApprovalsReviewRow('Balance', AMOUNT.formatUnits(review.balanceWei, 18) + ' ' + nativeSymbol);
+    if (review.feeCapWei !== null && review.feeCapWei !== undefined) {
+      addApprovalsReviewRow('Fee cap', AMOUNT.formatUnits(review.feeCapWei, 18) + ' ' +
+        nativeSymbol + ' · within cap');
+    }
+    addApprovalsReviewRow('RPC', review.providerLabel + ' · ' + review.providerUrl);
+    addApprovalsReviewRow('Fee source', review.feesSource + ' / priority: ' + review.prioritySource);
+    approvalsReviewUnsigned.textContent = review.unsignedHex;
+    approvalsReviewBox.hidden = false;
+    if (approvalsStatus) approvalsStatus.textContent = 'Revoke review ready. Check every field, then sign.';
+    if (approvalsConfirmButton) approvalsConfirmButton.focus();
+  }
+
+  function renderApprovalsResult(result) {
+    approvalsProviderNote.textContent = 'Sent to ' + result.providerLabel + ' · ' +
+      result.providerUrl + '. Crypto did not proxy or store the transaction.';
+    approvalsHashEl.textContent = result.txHash;
+    approvalsExplorerLink.href = result.explorerUrl;
+    approvalsExplorerLink.textContent = 'Open on the ' + (result.chainName || 'chain') + ' explorer';
+    approvalsSignedEl.textContent = result.signedHex;
+    approvalsResultBox.hidden = false;
+    if (approvalsStatus) approvalsStatus.textContent = 'The RPC accepted the signed revoke.';
+    approvalsExplorerLink.focus();
+  }
+
+  function clearApprovalsResult() {
+    if (approvalsResultBox) approvalsResultBox.hidden = true;
+    if (approvalsProviderNote) approvalsProviderNote.textContent = '';
+    if (approvalsHashEl) approvalsHashEl.textContent = '';
+    if (approvalsSignedEl) approvalsSignedEl.textContent = '';
+    if (approvalsRereadEl) approvalsRereadEl.textContent = '';
+    if (approvalsExplorerLink) approvalsExplorerLink.removeAttribute('href');
+  }
+
+  function resetApprovals() {
+    state.approvalsScanning = false;
+    state.approvalsSending = false;
+    state.approvalsScan = null;
+    state.approvalsScanEntryId = null;
+    state.approvalsReview = null;
+    state.approvalsReviewEntryId = null;
+    state.approvalsReviewSpender = null;
+    if (approvalsForm) approvalsForm.reset();
+    showApprovalsFieldErrors({});
+    setError('wallet-approvals-error', '');
+    setError('wallet-approvals-confirm-error', '');
+    if (approvalsCoverage) { approvalsCoverage.hidden = true; approvalsCoverage.textContent = ''; }
+    renderApprovalsWarnings([]);
+    renderApprovalsTable();
+    if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+    if (approvalsReviewList) approvalsReviewList.textContent = '';
+    if (approvalsReviewUnsigned) approvalsReviewUnsigned.textContent = '';
+    clearApprovalsResult();
+    if (approvalsStatus) approvalsStatus.textContent = '';
+    setApprovalsBusy(false);
+  }
+
+  function renderApprovals() {
+    if (!approvalsCard || !evmSend) return;
+    var entries = sendEntries();
+    if (!state.unlocked || !entries.length) {
+      approvalsCard.hidden = true;
+      return;
+    }
+    approvalsCard.hidden = false;
+    if (state.approvalsReview && !entries.some(function (entry) {
+      return entry.id === state.approvalsReviewEntryId;
+    })) {
+      invalidateApprovalsReview();
+    }
+    if (state.approvalsScan && !entries.some(function (entry) {
+      return entry.id === state.approvalsScanEntryId;
+    })) {
+      invalidateApprovalsScan('The selected key changed; run "Find approvals" again.');
+    }
+  }
+
+  async function startApprovalsRevoke(spender) {
+    if (!state.unlocked) {
+      setError('wallet-approvals-error', 'Unlock the vault first.');
+      return;
+    }
+    if (!evmSend || !state.approvalsScan) {
+      setError('wallet-approvals-error', 'Run "Find approvals" first.');
+      return;
+    }
+    if (state.approvalsScanning || state.approvalsSending) return;
+    var scan = state.approvalsScan;
+    var entry = entryById(state.approvalsScanEntryId);
+    if (!entry) {
+      setError('wallet-approvals-error', 'Select the vault key and scan again.');
+      return;
+    }
+    showApprovalsFieldErrors({});
+    setError('wallet-approvals-error', '');
+    setError('wallet-approvals-confirm-error', '');
+    invalidateApprovalsReview();
+    clearApprovalsResult();
+    state.approvalsSending = true;
+    var generation = state.generation;
+    setApprovalsBusy(true, 'Reading the current allowance, nonce, fees and gas estimate…');
+    try {
+      var owner = await ensureDerivedAddress(entry);
+      var review = await evmSend.prepareRevoke({
+        token: scan.contract,
+        spender: spender,
+        from: owner,
+        fetchJson: rpcFetchJson,
+        providerUrl: scan.providerUrl,
+        expectedChainId: scan.chainId,
+        networkName: scan.chainName,
+        mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTx
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      /* The review is only valid for the scan and the key it was prepared
+       * from; a change during the RPC reads must not leave a stale review. */
+      var stillSelected = selectedSendEntry();
+      if (state.approvalsScan !== scan || state.approvalsScanEntryId !== entry.id) return;
+      if (!stillSelected || stillSelected.id !== entry.id) return;
+      state.approvalsReview = review;
+      state.approvalsReviewEntryId = entry.id;
+      state.approvalsReviewSpender = spender;
+      renderApprovalsReview(review);
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (err.fieldErrors) showApprovalsFieldErrors(err.fieldErrors);
+      setError('wallet-approvals-error', errorText(err));
+      if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+      if (approvalsStatus) approvalsStatus.textContent = '';
+    } finally {
+      state.approvalsSending = false;
+      setApprovalsBusy(false);
+      if (state.approvalsReview && approvalsConfirmButton && !approvalsConfirmButton.disabled) {
+        approvalsConfirmButton.focus();
+      }
+    }
+  }
+
+  async function rereadApprovalsAllowance(scan, spender) {
+    if (!scan || !spender) return;
+    if (approvalsRereadEl) approvalsRereadEl.textContent = 'Re-reading the current allowance…';
+    try {
+      var value = await evmSend.readAllowance(rpcFetchJson, scan.providerUrl, scan.contract,
+        scan.owner, spender);
+      for (var i = 0; i < scan.spenders.length; i += 1) {
+        if (scan.spenders[i].address === spender) {
+          scan.spenders[i].allowance = value;
+          break;
+        }
+      }
+      renderApprovalsTable();
+      if (approvalsRereadEl) {
+        approvalsRereadEl.textContent = value === 0n
+          ? 'The current allowance is now 0 ' + scan.symbol + '.'
+          : 'The revoke was broadcast, but the provider still reports ' +
+            evmSend.formatAllowance(value, scan.decimals) + ' ' + scan.symbol +
+            '; it may update after the transaction is mined.';
+      }
+    } catch (err) {
+      if (approvalsRereadEl) {
+        approvalsRereadEl.textContent = 'The revoke was broadcast, but re-reading the allowance failed: ' +
+          errorText(err);
+      }
+    }
+  }
+
+  approvalsForm.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    if (!state.unlocked) {
+      setError('wallet-approvals-error', 'Unlock the vault first.');
+      return;
+    }
+    if (!evmSend) {
+      setError('wallet-approvals-error', 'The EVM module did not load. Reload the page.');
+      return;
+    }
+    if (state.approvalsScanning || state.approvalsSending) return;
+    var entry = selectedSendEntry();
+    if (!entry) {
+      setError('wallet-approvals-error', 'Import an EVM key and select it first.');
+      return;
+    }
+    showApprovalsFieldErrors({});
+    setError('wallet-approvals-error', '');
+    setError('wallet-approvals-confirm-error', '');
+    invalidateApprovalsReview();
+    invalidateApprovalsScan('');
+    clearApprovalsResult();
+    var tokenText = approvalsTokenInput.value;
+    var windowText = approvalsWindowInput.value;
+    var localErrors = {};
+    try {
+      evmSend.normalizeAddress(tokenText, 'token contract');
+    } catch (err) {
+      localErrors.token = errorText(err);
+    }
+    try {
+      evmSend.parseWindowBlocks(windowText);
+    } catch (err) {
+      localErrors.window = errorText(err);
+    }
+    if (Object.keys(localErrors).length) {
+      showApprovalsFieldErrors(localErrors);
+      setError('wallet-approvals-error', 'Fix the highlighted fields before scanning.');
+      return;
+    }
+
+    state.approvalsScanning = true;
+    var generation = state.generation;
+    setApprovalsBusy(true, 'Checking the token contract and scanning Approval logs…');
+    try {
+      var owner = await ensureDerivedAddress(entry);
+      var scan = await evmSend.scanApprovals({
+        token: tokenText,
+        owner: owner,
+        windowBlocks: windowText,
+        fetchJson: rpcFetchJson,
+        providerUrl: sendProviderSelect.value || null,
+        expectedChainId: Number(sendNetworkSelect.value),
+        networkName: selectedNetwork().name
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      /* A selection, network, provider or form change while the scan was in
+       * flight makes this result stale: do not show it over the new selection. */
+      var stillSelected = selectedSendEntry();
+      if (!stillSelected || stillSelected.id !== entry.id) return;
+      if (Number(sendNetworkSelect.value) !== Number(scan.chainId)) return;
+      var chosenProvider = sendProviderSelect.value;
+      if (chosenProvider && chosenProvider !== scan.providerUrl) return;
+      if (approvalsTokenInput.value !== tokenText || approvalsWindowInput.value !== windowText) return;
+      state.approvalsScan = scan;
+      state.approvalsScanEntryId = entry.id;
+      renderApprovalsTable();
+      if (approvalsStatus) {
+        approvalsStatus.textContent = 'Scan finished: ' + scan.uniqueSpenders + ' unique spender' +
+          (scan.uniqueSpenders === 1 ? '' : 's') + ' shown (cap ' + scan.cap + ').';
+      }
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (err.fieldErrors) showApprovalsFieldErrors(err.fieldErrors);
+      setError('wallet-approvals-error', errorText(err));
+      if (approvalsStatus) approvalsStatus.textContent = '';
+    } finally {
+      state.approvalsScanning = false;
+      setApprovalsBusy(false);
+    }
+  });
+
+  approvalsForm.addEventListener('input', function () {
+    invalidateApprovalsReview();
+    invalidateApprovalsScan('The form changed; run "Find approvals" again.');
+  });
+
+  approvalsCancelButton.addEventListener('click', function () {
+    invalidateApprovalsReview();
+    if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+    if (approvalsStatus) approvalsStatus.textContent = '';
+    if (approvalsTokenInput) approvalsTokenInput.focus();
+  });
+
+  approvalsConfirmButton.addEventListener('click', async function () {
+    if (!state.unlocked) {
+      setError('wallet-approvals-confirm-error', 'Unlock the vault first.');
+      return;
+    }
+    if (state.approvalsSending || state.approvalsScanning) {
+      setError('wallet-approvals-confirm-error', 'A revoke is already in flight.');
+      return;
+    }
+    var review = state.approvalsReview;
+    var entry = entryById(state.approvalsReviewEntryId);
+    if (!review || !entry) {
+      setError('wallet-approvals-confirm-error', 'Prepare a new revoke review first.');
+      return;
+    }
+    var selected = selectedSendEntry();
+    if (!selected || selected.id !== entry.id) {
+      setError('wallet-approvals-confirm-error', 'The selected key changed; prepare a new revoke review.');
+      return;
+    }
+    var scan = state.approvalsScan;
+    var spender = state.approvalsReviewSpender;
+    if (!scan || state.approvalsScanEntryId !== entry.id) {
+      setError('wallet-approvals-confirm-error', 'The scanned key changed; run "Find approvals" and prepare a new review.');
+      return;
+    }
+
+    state.approvalsSending = true;
+    var generation = state.generation;
+    setError('wallet-approvals-confirm-error', '');
+    setApprovalsBusy(true, 'Checking the chain id, signing locally and broadcasting…');
+    try {
+      var result = await evmSend.confirmTransaction({
+        review: review,
+        fetchJson: rpcFetchJson,
+        mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTx,
+        sign: function (fields) { return signTxWithEntry(entry, fields); }
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      state.approvalsReview = null;
+      state.approvalsReviewEntryId = null;
+      if (approvalsReviewBox) approvalsReviewBox.hidden = true;
+      renderApprovalsResult(result);
+      await rereadApprovalsAllowance(scan, spender);
+    } catch (err) {
+      if (generation === state.generation && state.unlocked) {
+        setError('wallet-approvals-confirm-error', errorText(err));
+        if (approvalsStatus) approvalsStatus.textContent = 'Signing or broadcast failed.';
+      }
+    } finally {
+      state.approvalsSending = false;
+      setApprovalsBusy(false);
     }
   });
 

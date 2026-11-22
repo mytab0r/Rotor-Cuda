@@ -526,6 +526,13 @@
       "symptom": "SoChain's keyless allowance is 2500 lookups a day per IP (the provider's 429 body says so), not 2500 an hour as the ledger claimed. With the quota exhausted, one 60-row mnemonic page fired 240 SoChain requests (60 addresses x inner retry x outer retry) although every one answered 429, turning one exhausted quota into a self-inflicted storm; ten page loads would exhaust the daily budget for the whole IP.",
       "detector": "mnemonic-sochain-quota-storm",
       "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "wallet-approvals-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "The new ERC-20 approvals table was not exercised by any detector: ui-audit ran with the vault locked, so 240/240 PASS said nothing about the shared table shell, 44px row actions, Unlimited/Contract/EOA labels or the archive-truncated warning.",
+      "detector": "wallet-approvals-surface",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
