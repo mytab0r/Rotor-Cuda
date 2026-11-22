@@ -47,38 +47,95 @@ directory and printed at the end.
 
 ## 3. Read every violation
 
-| ID | What it means | Fix at the right level |
-|---|---|---|
-| `horizontal-overflow` | `scrollWidth > clientWidth` | Fix the shared container/grid/`min-width` in `site.css`; never hide overflow with `overflow-x:hidden` as the fix. |
-| `small-text` | visible text below 12px | Raise the shared type token/class (`.stat-label`, `.type-desc`, etc.), not one page's rule. |
-| `small-touch-target` | control below 44x44 (inline prose links exempt) | Fix the shared icon-button/nav/pager primitive so every page inherits the size. |
-| `unlabeled-icon-control` | icon-only button/link without `aria-label` | Add the label to the shared component or icon helper. |
-| `icon-button-scale` | `.icon-button` box not 28/36/44 or icon not 14/16/18, or missing `aria-label`/`data-tooltip` | Fix the shared `.icon-button` sizes/variants; never restyle one page's copy button. |
-| `control-height-scale` | input/select/chip/segmented height outside 28/36/44/56 | Fix the shared `.field`/`.segmented`/`.chip` geometry, not the page. |
-| `field-geometry` | field radius not 10/16, label below 12px, or no focus ring | Fix the shared field grammar in `site.css`. |
-| `segmented-geometry` | track padding/radius wrong, item under 44, or not exactly one selected | Fix the shared `.segmented` component; one control per purpose. |
-| `card-padding-scale` | card padding outside 16/20/24 or radius outside 12/16 | Fix the shared card component in `site.css`; never restore a page-local `.key-page > .card` override. |
-| `stat-geometry` | stat label under 12px/uppercase/tracked, or value outside 20/24/28 with non-tabular digits | Fix the shared stat grammar; use `.stat--sm` for small values. |
-| `table-grammar` | table without `.data-table`/`.table-scroll`, cell padding not 8/12, or uneven header heights | Fix the shared table shell; never add a page-local table style. |
-| `table-header-style` | header not 12px/600 sentence case, or uppercase/tracked | Fix `.data-table thead th`/`.keys-header` in `site.css`. |
-| `table-row-height` | a row below 44px without a 44px action | Raise the shared row floor or add the row action. |
-| `row-action-geometry` | row action not 44x44, radius 10, or unlabelled | Fix the shared icon-button/row action component. |
-| `status-pill-geometry` | a status/badge pill outside the shared box: text <12px, height outside 18–32px, non-pill radius, or inline padding outside 6/8/10/12 | Fix the shared `.status`/`.badge` geometry in `site.css`; never restyle one page's pill. |
-| `duplicate-address-type-implementation` | `.key-types`/`.key-btc-panel` and `.address-type-panel` both used | Unify on one address-type component and delete the other markup/CSS family. |
-| `address-type-width-spread` | cards in one row differ by >15% | Fix the grid (`repeat(auto-fit, minmax(...))` or equal `1fr`) in the shared component. |
-| `mostly-empty-block` | card/section taller than 220px is >45% empty | Rebalance the shared card layout, split the block, or remove the fixed height. |
-| `manual-balance-control` | visible `Check balances`, `Check public balances`, `Online balance lookups`, `#check-balances`, `#seed-balances` | Balances must auto-compute from derived rows; delete the button/checkbox, do not restyle it. |
-| `key-calculate-button` / `key-auto-derive` | `/key` needs an explicit action | Derive on input (debounced) and keep the form as the only control. |
-| `seed-form-narrow` | `/seed` form uses ≤80% of the card width | Fix the shared seed form grid, not a page-local width. |
-| `wallet-seed-strength` | `/cabinet/wallet` seed block: strength line missing/hidden or without a word count/entropy figure, info control not the shared `.icon-button`, or Generate/Add under 44x44 | Fix the block markup and keep the shared field/segmented/icon-button grammar; the line must be computed from the phrase. |
-| `brainwallet-row-count` / `puzzle-row-count` | directory/home row count regressed | Restore the 60 / 160 row contract or update the audit deliberately with the change spec. |
-| `site-map-still-served` | `/site-map` returns 200 | After the docs move it must 404; remove the route rather than hiding the link. |
-| `token-contract` | tokens.json, the generated region and the frozen contract disagree, or a first-party `var(--x)` has no declaration | Fix the JSON/generator/contract together; never hand-edit the generated region. |
-| `orphan-token` | a declared token has no first-party consumer | Add the consumer in the batch that needs it, or mark it `reserved` in tokens.json with a reason; the grace period lives in review, not in code. |
-| `theme-parity` | a colour token declared in `:root` has no declaration under `html[data-theme="light"]` | Add the light value (an alias is enough); never leave light mode on a dark fallback. |
-| `radius-scale` | a literal `border-radius` outside `0`/`inherit`/`50%` | Use `var(--radius-*)`; an off-scale value needs a scale decision, not a page-local literal. |
-| `raw-hex-outside-root` | a raw colour outside the generated token regions (CSS or inline style) | Use the exact token, or baseline it with a reason; never edit the generated region by hand. |
-| `legacy-selector` | a page-scoped selector overrides a shared component family | Move the rule into the shared component; keep a temporary exception as a baseline entry with a reason. |
+`data/detectors.json` is the single detector registry (`id`, `rule`, `batch`,
+`implemented_in`, `doc_anchor`, `status`). The table below is generated by
+`scripts/gen-detector-docs.mjs`; do not edit it by hand. Fix every violation at
+the shared level (the shared component, token or helper), never with a
+page-local override.
+
+<!-- BEGIN GENERATED detectors:skill -->
+| ID | Rule | Batch | Status |
+|---|---|---|---|
+| `status-pill-geometry` | Status/badge pill: text >=12px, height 20-32px, pill radius, inline padding 6/8/10/12. | 1 | implemented |
+| `icon-button-scale` | Icon button box 28/36/44, icon 14/16/18, aria-label plus data-tooltip, no native title. | 2 | implemented |
+| `icon-only-shared-component` | Icon-only action uses the shared .icon-button component, not a page-local button. | 2 | implemented |
+| `look-alike-icon-button` | A quiet icon control must not render as a full bordered 44px button. | 2 | implemented |
+| `quiet-icon-hover-border` | Quiet icon buttons gain no hover border; outline buttons keep their strong line. | 2 | implemented |
+| `tooltip-primitive` | data-tooltip target: non-empty text <=40 chars, no native title, accessible name. | 2 | implemented |
+| `tooltip-behaviour` | Tooltip appears within 300ms, hides on Escape, and the popover keeps row geometry. | 2 | implemented |
+| `key-meta-row` | The /key input meta row is one 40px line with the info control centred. | 2 | implemented |
+| `control-height-scale` | Input/select/chip/segmented height in {28,36,44,56}; 28 is reserved for dense table rows. | 3 | implemented |
+| `field-geometry` | Field radius 10/16, label >=12px, visible focus ring. | 3 | implemented |
+| `segmented-geometry` | One track grammar (4px padding, radius 12), 44px items, exactly one selected. | 3 | implemented |
+| `key-input-type` | The /key private-key field renders as plain text, not type=password. | 3 | implemented |
+| `key-auto-derive` | /key derives rows from the input without an explicit action. | 3 | implemented |
+| `key-calculate-button` | /key exposes no Calculate button; the form input is the only control. | 3 | implemented |
+| `duplicate-preset-control` | /key renders one preset control, not chips and an equivalent select. | 3 | implemented |
+| `seed-form-narrow` | The /seed form uses more than 80% of the card width. | 3 | implemented |
+| `ragged-summary-columns` | Multi-column summary lists end within 2px of each other. | 3 | implemented |
+| `summary-grid-orphan` | At <=560px the summary grid leaves no empty trailing cell. | 3 | implemented |
+| `card-padding-scale` | Card padding 16/20/24 and radius 12/16; no page-local card override. | 4 | implemented |
+| `stat-geometry` | Stat label >=12px sentence case; value 20/24/28 with tabular digits. | 4 | implemented |
+| `table-grammar` | Every table is .data-table inside .table-scroll with 8/12 cell padding and even headers. | 5 | implemented |
+| `table-header-style` | Table header is 12px/600 sentence case with no uppercase or tracking. | 5 | implemented |
+| `table-row-height` | Every table row is at least 44px tall or carries a 44px action. | 5 | implemented |
+| `row-action-geometry` | Row actions are 44x44, radius 10, with an accessible name. | 5 | implemented |
+| `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
+| `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
+| `chain-tab-color` | Directory chain tabs read --chain from data/chains.json, not a page-local colour table. | phase 4 | implemented |
+| `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
+| `breadcrumb-current` | Exactly one aria-current crumb and never a raw path label. | 6 | implemented |
+| `pager-grammar` | One labelled pager structure with the jump control and no legacy random modifier. | 6 | implemented |
+| `pager-geometry` | Pager buttons are 44px, radius 10, aria-disabled and 16px icons. | 6 | implemented |
+| `footer-presence` | Exactly one footer with the donor links, copyright and build id. | 6 | implemented |
+| `legacy-token` | One :root token block; light overrides only through html[data-theme]. | 7 | implemented |
+| `radius-scale` | border-radius uses var(--radius-*), never an off-scale literal. | 7 | implemented |
+| `raw-hex-outside-root` | No raw colour outside the generated token regions (CSS or inline style). | 7 | implemented |
+| `legacy-selector` | No page-scoped selector overrides a shared component family. | 7 | implemented |
+| `empty-state-grammar` | Empty and error states share one grammar (dashed, radius 12, 20px padding). | 7 | implemented |
+| `token-contract` | tokens.json, the generated region and the frozen contract agree and every var() resolves. | phase 2 | implemented |
+| `orphan-token` | A declared token has a first-party consumer or is marked reserved. | phase 2 | implemented |
+| `theme-parity` | Every colour token declared in :root has a light-theme declaration. | phase 2 | implemented |
+| `lossy-amount-formatter` | No local amount formatter, Number amount math or 10n amount scale outside amount.js. | 2 | implemented |
+| `field-hero-height` | Every rendered .field--hero control is at least 56px high. | phase 3 | implemented |
+| `manifest-shape` | Component manifests carry the contract fields, a semver version and unique ids. | phase 3 | implemented |
+| `unknown-variant` | Every manifest variant and size class has a rule in site.css. | phase 3 | implemented |
+| `gallery-variant` | Every manifest variant, size and state renders in the generated gallery. | phase 3 | implemented |
+| `gallery-missing` | The generated /cabinet/admin/design gallery exists and is current. | phase 3 | implemented |
+| `required-attribute` | Every gallery example carries its declared required attributes. | phase 3 | implemented |
+| `page-local-family` | A page <style> block does not restyle a shared component family. | phase 3 | implemented |
+| `browse-row-address-count` | A BTC legacy listing row renders both address forms without a disclosure. | phase 4 | implemented |
+| `browse-row-balance-lines` | One balance line per address, received only when non-zero, and a named TX pill. | phase 4 | implemented |
+| `browse-row-key-copy` | Each listing row has one visible, labelled key copy action. | phase 4 | implemented |
+| `browse-row-height` | Listing rows keep one stable height under the two-address ceiling. | phase 4 | implemented |
+| `browse-stat-level` | Browse stat cards end within 2px of each other. | phase 4 | implemented |
+| `browse-row-wif` | A listing row is HEX plus copy, address and balance; the WIF stays on /key. | phase 4 | implemented |
+| `balance-consistency` | A balance row text agrees with its title amount and TX count. | phase 4 | implemented |
+| `key-zec-provider` | Every /key ZEC row has a balance provider. | phase 4 | implemented |
+| `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
+| `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
+| `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
+| `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |
+| `raw-path-text` | A table cell renders a human label, never a raw path. | all | implemented |
+| `small-text` | Visible text is at least 12px; hidden and aria-hidden text is exempt. | all | implemented |
+| `small-touch-target` | Visible controls are at least 44x44; inline prose links are exempt. | all | implemented |
+| `unlabeled-icon-control` | An icon-only button or link carries an accessible name. | all | implemented |
+| `address-type-width-spread` | Address-type cards in one visual row differ by at most 15%. | all | implemented |
+| `duplicate-address-type-implementation` | One address-type component family is used, not two competing ones. | all | implemented |
+| `mostly-empty-block` | A block taller than 220px is not more than 45% empty. | all | implemented |
+| `manual-balance-control` | No visible manual balance button or checkbox; balances load automatically. | all | implemented |
+| `brainwallet-row-count` | /brainwallet/<chain> renders 60 .bw-row entries. | all | implemented |
+| `puzzle-row-count` | /bitcoin-puzzle renders 160 data-puzzle rows. | all | implemented |
+| `site-map-still-served` | /site-map answers 404 after the docs move. | all | implemented |
+| `http-error` | A same-origin HTTP error response fails the route. | all | implemented |
+| `asset-fingerprint` | Every asset reference uses the /a/<build>/ prefix. | all | implemented |
+| `route-coverage` | Every public page route in the coordinator map is audited by DEFAULT_ROUTES. | all | implemented |
+| `cache-token` | No ?v= cache token; assets revalidate by content ETag. | all | implemented |
+| `selector_matched_nothing` | A density-parity selector that matches nothing reports selector_matched_nothing, not a silent zero. | all | implemented |
+| `vendor-lock-digest` | Every data/vendor.lock.json entry matches both files byte for byte and every web/public file is locked. | 4a | implemented |
+| `detector-registry` | Every ui-audit id and every defect-ledger detector resolves to one implemented registry entry. | 4a | implemented |
+| `detector-docs-fresh` | The generated detector tables in SKILL.md, DESIGN-SYSTEM.md and plan.md match data/detectors.json. | 4a | implemented |
+<!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a
 look when it comes from the page you changed.
