@@ -1550,7 +1550,10 @@
   async function loadBalance(entry, badge, generation) {
     var derived = state.derived[entry.id];
     var spec = chainSpec(entry.chain) || {};
-    if (!derived || derived.error || !derived.address) {
+    var addressState = summaryHelper && typeof summaryHelper.loadState === 'function'
+      ? summaryHelper.loadState(derived)
+      : (!derived || derived.error || !derived.address ? 'error' : 'ready');
+    if (addressState === 'error') {
       state.balances[entry.id] = { state: 'error', amount: null, text: 'address not derived yet' };
       if (badge) {
         badge.hidden = false;
@@ -1705,13 +1708,15 @@
     var parts = [];
     if (state.summaryRefreshing) parts.push('Refreshing balances…');
     if (!state.lookup) parts.push('Enable “Allow public balance lookups” to refresh all balances.');
+    var excluded = excludedNames(fiat);
+    var excludedText = excluded.length ? ' Excluded from USD: ' + excluded.join(', ') + '.' : '';
     if (fiat.state === 'stale') {
       var when = summaryHelper.formatTime(state.priceMeta && state.priceMeta.fetchedAt);
       parts.push('Fiat value hidden: the cached public ticker is stale' +
         (when ? ' (fetched ' + when + ')' : '') +
-        '. Per-chain native totals are still shown.');
+        '. Per-chain native totals are still shown.' + excludedText);
     } else if (fiat.state === 'unavailable') {
-      parts.push('Fiat value unavailable: no public ticker is reachable. Per-chain native totals are still shown.');
+      parts.push('Fiat value unavailable: no public ticker is reachable. Per-chain native totals are still shown.' + excludedText);
     } else if (fiat.state === 'unpriced') {
       var unpriced = excludedNames(fiat);
       parts.push('Fiat value unavailable: no loaded chain has a price' +
@@ -1719,8 +1724,8 @@
         '. Per-chain native totals are still shown.');
     } else if (fiat.state === 'loading') {
       if (totals.loaded > 0) parts.push('Waiting for the public ticker.');
-    } else if (fiat.excluded.length) {
-      parts.push('Excluded from USD (no price): ' + excludedNames(fiat).join(', ') + '.');
+    } else if (excluded.length) {
+      parts.push('Excluded from USD (no price): ' + excluded.join(', ') + '.');
     }
     return parts.join(' ');
   }
@@ -1826,8 +1831,6 @@
     var generation = state.generation;
     var jobs = [];
     state.entries.forEach(function (entry) {
-      var derived = state.derived[entry.id];
-      if (!derived || derived.error || !derived.address) return;
       var row = state.rows[entry.id];
       jobs.push(loadBalance(entry, row && row._refs ? row._refs.badge : null, generation));
     });
