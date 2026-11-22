@@ -1734,19 +1734,28 @@ fn key_url_accepts_uncompressed_litecoin_and_dogecoin_wifs() {
     handle.shutdown();
 }
 
-/// #220 and the BTC row model: the served listing row ships a real 44px key
-/// copy action (aria-label + the shared data-tooltip, no inline `display:none`),
-/// and the shipped script keeps the second address in a disclosed block instead
-/// of a second visible 44px line. Detector ids: `browse-row-key-copy` and
-/// `browse-row-address-disclosure` in scripts/ui-audit.mjs.
+/// The BTC listing row model: every address form of a legacy key is visible
+/// at once (the compressed and uncompressed P2PKH lines), with no disclosure.
+/// The page keeps 60 keys but declares the address total it renders (120 for
+/// legacy BTC, 60 for a single-address chain). The key copy is a real 44px
+/// action. Detector ids: `browse-row-address-count` and `browse-row-key-copy`
+/// in scripts/ui-audit.mjs.
 #[test]
-fn browse_listing_row_exposes_key_copy_and_address_disclosure() {
+fn browse_listing_row_shows_every_address_without_disclosure() {
     let temp = TempState::new("browse-row-model");
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
     let (status, _, body) = raw(addr, "GET", "/private-keys/bitcoin", None, None);
     assert_eq!(status, 200);
+    for needle in [
+        "data-keys-per-page=\"60\"",
+        "data-addresses-per-key=\"2\"",
+        "data-addresses-per-page=\"120\"",
+        "id=\"page-address-count\">120 addresses",
+    ] {
+        assert!(body.contains(needle), "bitcoin page misses {needle}");
+    }
     let start = body.find("<div class=\"key-row\"").expect("listing row");
     let after = &body[start + 1..];
     let end = after
@@ -1770,18 +1779,46 @@ fn browse_listing_row_exposes_key_copy_and_address_disclosure() {
     let (status, _, browse_js) = raw(addr, "GET", "/browse.js", None, None);
     assert_eq!(status, 200, "/browse.js");
     for needle in [
-        "addressCellModel",
+        "addressEntriesFor",
+        "addr-line",
+        "page-address-count",
+        "data-addresses-per-page",
+    ] {
+        assert!(
+            browse_js.contains(needle),
+            "browse.js lost the address row hook {needle}"
+        );
+    }
+    for removed in [
         "addr-extra",
         "addr-extra-toggle",
-        "aria-expanded",
-        "Show uncompressed address",
         "addr-expanded",
         "balance-extra",
     ] {
         assert!(
-            browse_js.contains(needle),
-            "browse.js lost the address disclosure hook {needle}"
+            !browse_js.contains(removed),
+            "browse.js still carries the removed disclosure hook {removed}"
         );
+    }
+    let (status, _, site_css) = raw(addr, "GET", "/site.css", None, None);
+    assert_eq!(status, 200, "/site.css");
+    for removed in [".addr-extra", ".addr-expanded", ".balance-extra"] {
+        assert!(
+            !site_css.contains(removed),
+            "site.css still carries the removed disclosure rule {removed}"
+        );
+    }
+
+    // A single-address chain keeps 60 keys and declares 60 addresses; the
+    // per-page total is honest, not copied from the legacy BTC value.
+    let (status, _, ethereum) = raw(addr, "GET", "/private-keys/ethereum", None, None);
+    assert_eq!(status, 200);
+    for needle in [
+        "data-addresses-per-key=\"1\"",
+        "data-addresses-per-page=\"60\"",
+        "id=\"page-address-count\">60 addresses",
+    ] {
+        assert!(ethereum.contains(needle), "ethereum page misses {needle}");
     }
 
     handle.shutdown();

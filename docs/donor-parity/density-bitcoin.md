@@ -1,5 +1,11 @@
 # Density parity: `/private-keys/bitcoin`
 
+> Superseded for the BTC legacy row model by
+> [`density-bitcoin-row.md`](density-bitcoin-row.md) (2026-11-22). The
+> disclosure described below was removed: the donor renders both address forms
+> immediately (120 addresses per 60-key page). The rest of this document stays
+> as the historical measurement of the earlier layout.
+
 Follow-up to the `/private-keys/tron` measurement and PR #218. Measured on
 2026-11-22 with `scripts/density-parity.mjs` (headless Chrome, DevTools
 protocol, one page load per viewport plus one user-agent retry on the donor at
