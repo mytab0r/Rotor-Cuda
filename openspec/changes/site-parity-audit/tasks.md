@@ -628,6 +628,17 @@ and not deployed**.
   `cargo clippy --all-targets -D warnings` and `cargo fmt --check` clean.
   `node --test deploy/cloudflare/test/worker.test.mjs` 41/41, now wired into the
   `ops` test list and the `projects` CI job (PR #138).
+- [x] Table-class sweep (2026-11-22, code-only): the tx decoder tables built by
+      `apps/site/tx-page.js` `buildTable` only render after a decode input, so
+      the rendered audit never saw them; they now carry `.data-table` inside
+      `.table-scroll` (their cells already use the `.data-table .wrap` rule).
+      A static `table-grammar` scan in `scripts/ui-audit.mjs`
+      (`tableClassViolations`) enforces the class on every JS table builder,
+      every HTML page and the Rust-embedded markup, so the class cannot regress
+      in a state the rendered audit cannot reach. The puzzle jobs-board half of
+      the class is covered by the seeded `--serve` fixture (PR #277 writes
+      `scripts/fixtures/audit-public-job-state.json` and waits for the rendered
+      table). Defect `tx-page-table-grammar`.
 
 ## Relocation to internal docs (done)
 
