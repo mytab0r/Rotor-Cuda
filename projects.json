@@ -12,6 +12,7 @@
       "build": [
         "node --check apps/site/site.js",
         "node --check apps/site/chains.generated.js",
+        "node --check apps/site/amount.js",
         "node --check apps/site/key.js",
         "node --check apps/site/address-codecs.js",
         "node --check apps/site/rotor-worker.js",
@@ -60,6 +61,7 @@
         "node scripts/ui-audit.mjs --help",
         "node --test scripts/build-tokens.test.mjs",
         "node --test scripts/check-token-usage.test.mjs",
+        "node apps/site/amount-test.mjs",
         "node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/puzzle-worker-test.mjs apps/site/rotor_wasm.wasm",
         "node apps/site/key-tools-test.mjs apps/site/rotor_wasm.wasm",

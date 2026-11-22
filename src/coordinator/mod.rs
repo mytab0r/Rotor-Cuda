@@ -112,6 +112,7 @@ const TRON_TX_JS: &str = include_str!("../../apps/site/tron-tx.js");
 const SEARCH_JS: &str = include_str!("../../apps/site/search.js");
 const THEME_JS: &str = include_str!("../../apps/site/theme.js");
 const CHAINS_GENERATED_JS: &str = include_str!("../../apps/site/chains.generated.js");
+const AMOUNT_JS: &str = include_str!("../../apps/site/amount.js");
 const ICONS_SVG: &[u8] = include_bytes!("../../apps/site/icons.svg");
 const MANROPE_WOFF2: &[u8] = include_bytes!("../../apps/site/fonts/manrope-latin.woff2");
 const FAVICON_ICO: &[u8] = include_bytes!("../../apps/site/favicon.ico");
@@ -1493,6 +1494,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
             CHAINS_GENERATED_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
+        "/amount.js" => Some((
+            AMOUNT_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
         "/icons.svg" => Some((ICONS_SVG, "image/svg+xml")),
         "/wallets/LICENSE.txt" => Some((
             wallets::LICENSE_TEXT.as_bytes(),
@@ -2529,22 +2534,33 @@ fn prepare_html_document(path: &str, html: String) -> String {
     fingerprint_assets(with_shared_data(with_site_footer(path, html)), BUILD_ID)
 }
 
-/// Every served document loads the generated chain/provider globals before any
-/// page script. The file is embedded and fingerprinted like every other asset,
-/// so pages never carry a bare asset reference.
+/// Every served document loads the generated chain/provider globals and the
+/// amount formatter before any page script. Both files are embedded and
+/// fingerprinted like every other asset, so pages never carry a bare asset
+/// reference.
 fn with_shared_data(html: String) -> String {
-    const TAG: &str = "<script src=\"/chains.generated.js\"></script>";
-    if html.contains(TAG) {
+    const CHAINS_TAG: &str = "<script src=\"/chains.generated.js\"></script>";
+    const AMOUNT_TAG: &str = "<script src=\"/amount.js\"></script>";
+    let mut tags = String::new();
+    if !html.contains(CHAINS_TAG) {
+        tags.push_str(CHAINS_TAG);
+        tags.push('\n');
+    }
+    if !html.contains(AMOUNT_TAG) {
+        tags.push_str(AMOUNT_TAG);
+        tags.push('\n');
+    }
+    if tags.is_empty() {
         return html;
     }
     let Some(index) = html.find("<head>") else {
         return html;
     };
     let insert_at = index + "<head>".len();
-    let mut out = String::with_capacity(html.len() + TAG.len() + 1);
+    let mut out = String::with_capacity(html.len() + tags.len());
     out.push_str(&html[..insert_at]);
     out.push('\n');
-    out.push_str(TAG);
+    out.push_str(&tags);
     out.push_str(&html[insert_at..]);
     out
 }
@@ -6315,6 +6331,52 @@ mod tests {
         assert!(page.contains(r#"<script src="/theme.js"></script>"#));
         assert!(page.contains(r#"<script src="/search.js"></script>"#));
         assert!(page.contains(r#"<script src="/site.js"></script>"#));
+    }
+
+    #[test]
+    fn pages_load_amount_module_before_consumers() {
+        for (path, consumer) in [
+            ("/key", "/key.js"),
+            ("/key", "/key-tools.js"),
+            ("/cabinet/wallet", "/wallet.js"),
+            ("/send", "/send.js"),
+            ("/mnemonic-seeds", "/mnemonic-seeds.js"),
+            ("/seed", "/seed-page.js"),
+        ] {
+            let (body, content_type) =
+                static_asset(path).unwrap_or_else(|| panic!("{path} is embedded"));
+            assert_eq!(content_type, "text/html; charset=utf-8");
+            let html = prepare_html_document(path, String::from_utf8_lossy(body).into_owned());
+            let chains = html
+                .find("chains.generated.js")
+                .unwrap_or_else(|| panic!("{path} misses /chains.generated.js"));
+            let amount = html
+                .find("amount.js")
+                .unwrap_or_else(|| panic!("{path} misses /amount.js"));
+            let consumer_at = html
+                .find(consumer)
+                .unwrap_or_else(|| panic!("{path} misses {consumer}"));
+            assert!(
+                chains < amount,
+                "{path}: amount.js must load after chains.generated.js\n{html}"
+            );
+            assert!(
+                amount < consumer_at,
+                "{path}: amount.js must load before {consumer}\n{html}"
+            );
+        }
+
+        let generated = prepare_html_document("/faq", html_document("FAQ", "", ""));
+        let amount = generated
+            .find("amount.js")
+            .expect("generated page loads amount.js");
+        let site = generated
+            .find("/site.js")
+            .expect("generated page loads site.js");
+        assert!(
+            amount < site,
+            "generated page must load amount.js before site.js"
+        );
     }
 
     #[test]

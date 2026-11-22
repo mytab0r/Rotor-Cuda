@@ -8,6 +8,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
@@ -390,14 +391,6 @@
 
   /* -------------------------------------------------------------- balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   function timeAgo(ms) {
     return cacheApi && typeof cacheApi.relativeTime === 'function'
       ? cacheApi.relativeTime(ms, Date.now())
@@ -520,7 +513,7 @@
     var value = picked.value || {};
     var balance = document.createElement('span');
     balance.className = 'bal';
-    balance.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    balance.textContent = AMOUNT.coin(value.balance, meta.decimals) + ' ' + meta.symbol;
     line.appendChild(balance);
     if (value.tx !== undefined && value.tx !== null) {
       var flags = metricFlags(value);
@@ -533,7 +526,7 @@
       var recv = document.createElement('span');
       var recvFlags = metricFlags(value);
       recv.className = 'recv' + (recvFlags.hasRecv ? ' has-recv' : '');
-      recv.textContent = '↓ ' + coin(value.received, meta.decimals) + ' ' + meta.symbol;
+      recv.textContent = '↓ ' + AMOUNT.coin(value.received, meta.decimals) + ' ' + meta.symbol;
       line.appendChild(recv);
     }
     var lastAgo = value.lastTxAt !== undefined && value.lastTxAt !== null ? timeAgo(value.lastTxAt) : '';
@@ -591,6 +584,7 @@
     var big = meta.provider === 'evm' || meta.provider === 'solana';
     var sumBig = 0n;
     var sumNum = 0;
+    var receivedBig = 0n;
     var received = 0;
     var tx = 0;
     var active = 0;
@@ -605,7 +599,8 @@
       if (big) sumBig += BigInt(value.balance || 0);
       else sumNum += Number(value.balance || 0);
       if (value.received !== undefined) {
-        received += Number(value.received);
+        if (big) receivedBig += BigInt(value.received || 0);
+        else received += Number(value.received);
         hasReceived = true;
       }
       if (value.tx !== undefined) {
@@ -620,8 +615,8 @@
       return;
     }
     setSummary(
-      coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
-      hasReceived ? coin(received, meta.decimals) + ' ' + meta.symbol : '—',
+      AMOUNT.coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
+      hasReceived ? AMOUNT.coin(big ? receivedBig : received, meta.decimals) + ' ' + meta.symbol : '—',
       hasTx ? String(tx) : '—',
       String(active)
     );
