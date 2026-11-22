@@ -20,9 +20,9 @@
   var WALLET_NOTE = 'No browser wallet was detected. Crypto signs you in with a one-time challenge: ' +
     'your wallet signs it, and the signature proves the address is yours. EVM (MetaMask/Rabby), ' +
     'Solana (Phantom) and TRON (TronLink) can sign in, and WalletConnect links a mobile EVM wallet ' +
-    'over QR (EVM only in this build). Bitcoin (Unisat) has no signature scheme yet: ' +
-    'after signing in with another chain you can import its addresses as unverified. No private key, ' +
-    'WIF or seed phrase is ever requested. Install a wallet and reload this page.';
+    'over a QR code or a wallet-app deep link (EVM only in this build). Bitcoin (Unisat) has no ' +
+    'signature scheme yet: after signing in with another chain you can import its addresses as ' +
+    'unverified. No private key, WIF or seed phrase is ever requested. Install a wallet and reload this page.';
 
   var state = {
     token: '',
@@ -52,6 +52,23 @@
       btc: byId('monitor-connect-btc')
     },
     walletconnect: byId('monitor-connect-walletconnect'),
+    wcPanel: byId('monitor-wc-panel'),
+    wcClose: byId('monitor-wc-close'),
+    wcState: byId('monitor-wc-state'),
+    wcError: byId('monitor-wc-error'),
+    wcReady: byId('monitor-wc-ready'),
+    wcQrBox: byId('monitor-wc-qr-box'),
+    wcQrCanvas: byId('monitor-wc-qr-canvas'),
+    wcQrFallback: byId('monitor-wc-qr-fallback'),
+    wcMobile: byId('monitor-wc-mobile'),
+    wcWallet: byId('monitor-wc-wallet'),
+    wcOpenMobile: byId('monitor-wc-open-mobile'),
+    wcLinks: byId('monitor-wc-links'),
+    wcUri: byId('monitor-wc-uri'),
+    wcCopy: byId('monitor-wc-copy'),
+    wcExpiry: byId('monitor-wc-expiry'),
+    wcRegenerate: byId('monitor-wc-regenerate'),
+    wcAccounts: byId('monitor-wc-accounts'),
     providerNote: byId('monitor-provider-note'),
     accountLine: byId('monitor-account-line'),
     account: byId('monitor-account'),
@@ -926,6 +943,234 @@
     return walletConnectLoader;
   }
 
+  /* -------------------------------------------------------- WalletConnect UI
+   * The bundle only produces the connection URI. This panel owns the QR code,
+   * the copy action, the wallet deep links and the loading/error/expired
+   * states, so a mobile wallet opens directly instead of asking the visitor to
+   * paste a URI into the wallet's dapp browser. */
+  var WC_URI_TTL_MS = 5 * 60 * 1000;
+  var wcFlow = {
+    provider: null,
+    uri: '',
+    timer: null,
+    generation: 0,
+    expired: false,
+    connected: false
+  };
+
+  function wcIsMobile() {
+    var api = window.RotorWcLinks;
+    return !!(api && typeof api.isMobile === 'function' && api.isMobile(navigator.userAgent));
+  }
+
+  function wcSetPhase(phase, message) {
+    if (!els.wcPanel || !els.wcState) return;
+    var isError = phase === 'error';
+    els.wcState.textContent = isError ? 'WalletConnect could not continue.' : (message || '');
+    els.wcState.className = 'monitor-status' +
+      (isError ? ' err' : (phase === 'connected' ? ' ok' : ''));
+    if (els.wcError) {
+      els.wcError.hidden = !isError;
+      els.wcError.textContent = isError ? (message || 'WalletConnect request failed.') : '';
+    }
+    if (els.wcReady) els.wcReady.hidden = phase !== 'ready';
+    if (els.wcRegenerate) els.wcRegenerate.hidden = phase !== 'expired';
+    if (els.wcClose) els.wcClose.disabled = phase === 'connected';
+  }
+
+  function wcOpenPanel(message) {
+    if (!els.wcPanel) return;
+    els.wcPanel.hidden = false;
+    if (els.wcAccounts) {
+      els.wcAccounts.hidden = true;
+      els.wcAccounts.textContent = '';
+    }
+    if (els.wcQrBox) els.wcQrBox.hidden = true;
+    if (els.wcQrFallback) els.wcQrFallback.hidden = true;
+    if (els.wcUri) els.wcUri.textContent = '';
+    if (els.wcLinks) els.wcLinks.textContent = '';
+    if (els.wcExpiry) els.wcExpiry.textContent = '';
+    wcSetPhase('loading', message || 'Connecting to the WalletConnect relay…');
+  }
+
+  function wcPopulateWallets(wallets) {
+    if (!els.wcWallet || els.wcWallet.options.length) return;
+    (Array.isArray(wallets) ? wallets : []).forEach(function (wallet) {
+      var option = document.createElement('option');
+      option.value = wallet.id;
+      option.textContent = wallet.name;
+      els.wcWallet.appendChild(option);
+    });
+    var generic = document.createElement('option');
+    generic.value = 'generic';
+    generic.textContent = 'Any installed wallet (wc: link)';
+    els.wcWallet.appendChild(generic);
+  }
+
+  /* Desktop renders the deep links; mobile renders one wallet chooser and
+   * navigates to the selected app, so the same choice is never offered twice. */
+  function wcRenderLinks(uri) {
+    var api = window.RotorWcLinks;
+    if (!api || !els.wcLinks) return;
+    els.wcLinks.textContent = '';
+    var mobile = wcIsMobile();
+    els.wcLinks.hidden = mobile;
+    if (els.wcMobile) els.wcMobile.hidden = !mobile;
+    if (mobile) {
+      wcPopulateWallets(api.wallets);
+      return;
+    }
+    (Array.isArray(api.wallets) ? api.wallets : []).forEach(function (wallet) {
+      var href = api.deepLink(wallet.id, uri);
+      if (!href) return;
+      var link = document.createElement('a');
+      link.className = 'chip';
+      link.href = href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open in ' + wallet.name;
+      els.wcLinks.appendChild(link);
+    });
+    var generic = api.genericLink(uri);
+    if (generic) {
+      var any = document.createElement('a');
+      any.className = 'chip';
+      any.href = generic;
+      any.target = '_blank';
+      any.rel = 'noopener noreferrer';
+      any.textContent = 'Open with another wallet';
+      els.wcLinks.appendChild(any);
+    }
+  }
+
+  function wcSelectedLink(uri) {
+    var api = window.RotorWcLinks;
+    if (!api || !uri) return '';
+    var id = els.wcWallet ? els.wcWallet.value : '';
+    if (id === 'generic') return api.genericLink(uri);
+    return api.deepLink(id, uri) || api.genericLink(uri);
+  }
+
+  function wcPaintQr(sdk, uri, generation) {
+    if (!els.wcQrBox || !els.wcQrCanvas) return;
+    if (!sdk || typeof sdk.toCanvas !== 'function') {
+      if (els.wcQrFallback) els.wcQrFallback.hidden = false;
+      return;
+    }
+    try {
+      Promise.resolve(sdk.toCanvas(els.wcQrCanvas, uri)).then(function () {
+        if (generation !== wcFlow.generation) return;
+        els.wcQrBox.hidden = false;
+        if (els.wcQrFallback) els.wcQrFallback.hidden = true;
+      }).catch(function () {
+        if (generation !== wcFlow.generation) return;
+        els.wcQrBox.hidden = true;
+        if (els.wcQrFallback) els.wcQrFallback.hidden = false;
+      });
+    } catch (err) {
+      els.wcQrBox.hidden = true;
+      if (els.wcQrFallback) els.wcQrFallback.hidden = false;
+    }
+  }
+
+  function wcUriExpiry(uri) {
+    var match = /[?&]expiryTimestamp=(\d+)/.exec(uri);
+    if (match) {
+      var stamp = Number(match[1]);
+      if (Number.isFinite(stamp) && stamp > 0) return stamp * 1000;
+    }
+    return Date.now() + WC_URI_TTL_MS;
+  }
+
+  /* The relay drops an unapproved URI after about five minutes. Terminate the
+   * pending connect at that point and offer a fresh URI instead of leaving the
+   * card spinning forever. */
+  function wcScheduleExpiry(uri, generation) {
+    if (wcFlow.timer !== null) window.clearTimeout(wcFlow.timer);
+    var delay = Math.max(0, wcUriExpiry(uri) - Date.now());
+    if (els.wcExpiry) {
+      var minutes = Math.max(1, Math.round(delay / 60000));
+      els.wcExpiry.textContent = 'The connection URI expires in about ' + minutes +
+        ' min. Regenerate it if it goes stale.';
+    }
+    wcFlow.timer = window.setTimeout(function () {
+      wcFlow.timer = null;
+      if (generation !== wcFlow.generation) return;
+      wcFlow.expired = true;
+      var provider = wcFlow.provider;
+      wcFlow.provider = null;
+      wcFlow.generation += 1;
+      if (provider && typeof provider.disconnect === 'function') {
+        Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+      }
+      setConnectBusy(false);
+      wcSetPhase('expired', 'The connection URI expired. Generate a new one to keep signing in.');
+    }, delay);
+  }
+
+  function wcRenderAccounts(accounts) {
+    if (!els.wcAccounts) return;
+    els.wcAccounts.textContent = '';
+    if (!accounts.length) {
+      els.wcAccounts.hidden = true;
+      return;
+    }
+    accounts.forEach(function (address) {
+      var item = document.createElement('li');
+      var code = document.createElement('code');
+      code.className = 'mono';
+      code.textContent = address;
+      item.appendChild(code);
+      els.wcAccounts.appendChild(item);
+    });
+    els.wcAccounts.hidden = false;
+  }
+
+  function wcApplyUri(sdk, uri, generation) {
+    if (generation !== wcFlow.generation || wcFlow.connected) return;
+    wcFlow.uri = uri;
+    if (els.wcUri) els.wcUri.textContent = uri;
+    wcSetPhase('ready', 'Scan the QR code, or open the connection in your wallet app.');
+    wcRenderLinks(uri);
+    var mobile = wcIsMobile();
+    if (els.wcQrBox && mobile) els.wcQrBox.hidden = true;
+    if (els.wcQrFallback) els.wcQrFallback.hidden = true;
+    if (!mobile) wcPaintQr(sdk, uri, generation);
+    wcScheduleExpiry(uri, generation);
+    if (mobile) {
+      var target = wcSelectedLink(uri);
+      if (target) window.location.href = target;
+    }
+  }
+
+  function wcAbort() {
+    wcFlow.generation += 1;
+    wcFlow.expired = false;
+    wcFlow.connected = false;
+    wcFlow.uri = '';
+    if (wcFlow.timer !== null) {
+      window.clearTimeout(wcFlow.timer);
+      wcFlow.timer = null;
+    }
+    var provider = wcFlow.provider;
+    wcFlow.provider = null;
+    if (provider && typeof provider.disconnect === 'function') {
+      Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+    }
+    setConnectBusy(false);
+  }
+
+  function closeWalletConnectPanel() {
+    wcAbort();
+    if (els.wcPanel) els.wcPanel.hidden = true;
+    setWalletState(state.token ? 'Session active.' : 'No session.', state.token ? 'ok' : 'muted');
+  }
+
+  function regenerateWalletConnect() {
+    wcAbort();
+    if (!state.busy) connectWalletConnect();
+  }
+
   /* The coordinator verifies Solana signatures as hex (or Base64). Phantom
    * returns raw bytes, so encode them as lowercase hex. */
   function hexEncode(bytes) {
@@ -1034,7 +1279,7 @@
     button.setAttribute('aria-busy', busy ? 'true' : 'false');
     var label;
     if (busy) label = 'connecting…';
-    else if (!state.token) label = 'sign in with a mobile wallet';
+    else if (!state.token) label = 'sign in with a wallet app';
     else label = 'link or import';
     if (hint) hint.textContent = label;
   }
@@ -1067,10 +1312,17 @@
   function walletConnectErrorMessage(err) {
     if (!err) return 'WalletConnect request failed.';
     var message = err.message ? String(err.message) : '';
-    if (err.code === 4001 || /reject|denied|cancel|closed|declin|expired|timeout/i.test(message)) {
-      return 'The WalletConnect request was rejected, closed or timed out. Nothing was sent to Crypto.';
+    if (err.code === 4001 || /reject|denied|cancel|closed|declin/i.test(message)) {
+      return 'The WalletConnect request was rejected or closed. Nothing was sent to Crypto.';
     }
-    return 'WalletConnect error: ' + (message || 'unknown error');
+    if (/expired|timed? out|timeout/i.test(message)) {
+      return 'The WalletConnect request timed out. Nothing was sent to Crypto.';
+    }
+    /* Relay and project-verification failures are diagnostic (missing allowed
+     * domain, wrong project id, WebSocket blocked); keep the message intact. */
+    if (message) return 'WalletConnect error: ' + message;
+    if (err.code !== undefined) return 'WalletConnect error: code ' + err.code;
+    return 'WalletConnect error: unknown error';
   }
 
   function walletErrorMessage(err, chain) {
@@ -1398,27 +1650,54 @@
     var linking = !!state.token;
     var loggedIn = false;
     var provider = null;
+    var generation = wcFlow.generation;
     setConnectBusy(true, 'walletconnect');
+    wcOpenPanel('Checking the WalletConnect configuration…');
     setWalletState('Checking WalletConnect configuration…', 'muted');
     try {
       var config = await api('/config', { token: '' });
       var projectId = config && typeof config.walletconnect_project_id === 'string'
         ? config.walletconnect_project_id.trim() : '';
       if (!projectId) {
+        wcSetPhase('error', 'WalletConnect is not configured on this server. Use a browser wallet for now, or ask the operator to set a project ID.');
         showWalletError('WalletConnect is not configured on this server. Use a browser wallet for now, or ask the operator to set a project ID.');
         setWalletState(state.token ? 'Session active.' : 'No session.', state.token ? 'ok' : 'muted');
         return;
       }
 
+      wcSetPhase('loading', 'Loading the WalletConnect bundle…');
       setWalletState('Loading WalletConnect…', 'muted');
       var sdk = await loadWalletConnectBundle();
-      setWalletState('Scan the QR code with your mobile wallet…', 'muted');
-      provider = await sdk.connect({ projectId: projectId, metadata: walletConnectMetadata() });
+      if (typeof sdk.create !== 'function') {
+        throw new Error('The WalletConnect bundle did not expose create().');
+      }
+
+      generation = wcFlow.generation + 1;
+      wcFlow.generation = generation;
+      wcFlow.expired = false;
+      wcFlow.connected = false;
+      wcSetPhase('loading', 'Connecting to the WalletConnect relay…');
+      setWalletState('Opening the WalletConnect relay…', 'muted');
+      provider = await sdk.create({ projectId: projectId, metadata: walletConnectMetadata() });
+      if (generation !== wcFlow.generation) return;
+      wcFlow.provider = provider;
+      if (typeof provider.on === 'function') {
+        provider.on('display_uri', function (uri) {
+          if (typeof uri !== 'string' || !uri) return;
+          wcApplyUri(sdk, uri, generation);
+        });
+      }
+      setWalletState('Scan the QR code or open the connection in your wallet app…', 'muted');
+      await sdk.connect(provider);
+      if (generation !== wcFlow.generation) return;
       var accounts = provider && Array.isArray(provider.accounts)
         ? provider.accounts.filter(function (address) { return typeof address === 'string' && address; })
         : [];
       if (!accounts.length) throw new Error('WalletConnect returned no EVM account.');
       var primary = accounts[0];
+      wcFlow.connected = true;
+      wcRenderAccounts(accounts);
+      wcSetPhase('connected', 'Connected. Sign the message in your wallet to finish.');
 
       /* Already linked to this session: import the exposed accounts without a
        * second sign-in, matching the injected wallet adapters. */
@@ -1427,6 +1706,7 @@
         var linkedCount = await importAddressList('evm', accounts);
         await refresh();
         setWalletState('Imported ' + linkedCount + ' WalletConnect address(es).', 'ok');
+        wcSetPhase('connected', 'Connected. Imported ' + linkedCount + ' EVM address(es).');
         return;
       }
 
@@ -1500,27 +1780,42 @@
       await refresh();
       setWalletState((linking ? 'Wallet linked' : 'Signed in') + '. Imported ' + imported +
         ' WalletConnect address(es).', 'ok');
+      wcSetPhase('connected', (linking ? 'Wallet linked' : 'Signed in') + '. Imported ' +
+        imported + ' EVM address(es).');
     } catch (err) {
+      if (generation !== wcFlow.generation) return; /* regenerate, close or expiry answered already */
       if (err && err.status !== undefined) {
         if (err.status === 401 && linking) {
           resetSession('Your session expired or was rejected. Sign in again with a signing wallet.');
+          wcSetPhase('error', 'Your session expired or was rejected. Sign in again with a signing wallet.');
           return;
         }
         var prefix = loggedIn ? 'Import failed' : (linking ? 'Linking failed' : 'Sign-in failed');
         showWalletError(prefix + ': ' + (err.message || 'request failed') + '.');
+        wcSetPhase('error', prefix + ': ' + (err.message || 'request failed') + '.');
         if (!state.token) setWalletState('No session.', 'muted');
         else setWalletState('Session active.', 'ok');
       } else {
-        showWalletError(walletConnectErrorMessage(err));
+        var message = walletConnectErrorMessage(err);
+        showWalletError(message);
+        wcSetPhase('error', message);
         if (!state.token) setWalletState('No session.', 'muted');
         else setWalletState('Session active.', 'ok');
       }
     } finally {
-      /* Closing the WC session is best effort; never block the cabinet on it. */
-      if (provider && typeof provider.disconnect === 'function') {
-        Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+      if (generation === wcFlow.generation) {
+        if (wcFlow.timer !== null) {
+          window.clearTimeout(wcFlow.timer);
+          wcFlow.timer = null;
+        }
+        wcFlow.provider = null;
+        /* Closing the WC session is best effort; never block the cabinet on it. */
+        if (provider && typeof provider.disconnect === 'function') {
+          Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+        }
+        if (els.wcClose) els.wcClose.disabled = false;
+        setConnectBusy(false);
       }
-      setConnectBusy(false);
     }
   }
 
@@ -1647,6 +1942,36 @@
     }
   }
 
+  /* Icon-only actions must keep their glyph; swap copy for a check instead of
+   * replacing the button's text (which would destroy the icon-button grammar). */
+  function copyUri(button) {
+    if (!button || !wcFlow.uri) return;
+    var use = button.querySelector('use');
+    function done() {
+      if (use) use.setAttribute('href', '/icons.svg#ui-check');
+      button.classList.add('is-copied');
+      button.setAttribute('aria-label', 'WalletConnect URI copied');
+      button.setAttribute('data-tooltip', 'Copied');
+      button.disabled = true;
+      window.setTimeout(function () {
+        if (use) use.setAttribute('href', '/icons.svg#ui-copy');
+        button.classList.remove('is-copied');
+        button.setAttribute('aria-label', 'Copy WalletConnect URI');
+        button.setAttribute('data-tooltip', 'Copy URI');
+        button.disabled = false;
+      }, 1200);
+    }
+    function fallback() {
+      legacyCopy(wcFlow.uri);
+      done();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(wcFlow.uri).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+
   /* ---------------------------------------------------------------- events */
 
   PROVIDER_ORDER.forEach(function (chain) {
@@ -1654,6 +1979,20 @@
     if (button) button.addEventListener('click', function () { connectProvider(chain); });
   });
   if (els.walletconnect) els.walletconnect.addEventListener('click', connectWalletConnect);
+  if (els.wcClose) els.wcClose.addEventListener('click', closeWalletConnectPanel);
+  if (els.wcRegenerate) els.wcRegenerate.addEventListener('click', regenerateWalletConnect);
+  if (els.wcCopy) els.wcCopy.addEventListener('click', function () {
+    copyUri(els.wcCopy);
+  });
+  if (els.wcOpenMobile) els.wcOpenMobile.addEventListener('click', function () {
+    var target = wcSelectedLink(wcFlow.uri);
+    if (target) window.location.href = target;
+  });
+  if (els.wcWallet) els.wcWallet.addEventListener('change', function () {
+    /* Picking a wallet is the action: open it with the live URI. */
+    var target = wcSelectedLink(wcFlow.uri);
+    if (target) window.location.href = target;
+  });
   els.logout.addEventListener('click', logout);
   els.addForm.addEventListener('submit', addAddress);
   els.settingsForm.addEventListener('submit', saveSettings);
