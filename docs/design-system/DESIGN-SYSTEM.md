@@ -585,6 +585,8 @@ desktop tier so data pages read like a bank app rather than a phone layout.
 
 - Standard control 36 (`--control-h: var(--control-h-md)`); hero field 56;
   primary CTA (`.primary`, `.chip--primary`, `.icon-button--solid`) 44.
+  The site header is one 44px row: brand, nav links and header tools share the
+  primary height so `header-row-parity` sees one top edge.
 - Icon buttons: `--md`/`--lg` render 36, `--sm` renders 28 with an 8px
   `::before` hit extension (44px hit). Touch and every viewport below 1024
   render 44 for `--md`/`--sm`.
