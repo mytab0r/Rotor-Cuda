@@ -1236,7 +1236,8 @@ function auditPage(args) {
 
   // 4b. Status pills share one geometry. Regression guard for
   //     docs/design-system/DESIGN-SYSTEM.md §3.5: >=12px text, pill radius,
-  //     8px inline padding, 18-32px height.
+  //     8px inline padding, 20-32px height (the documented min-height is 20;
+  //     the ceiling stops a pill from growing into a card).
   const statusPillSelectors = [
     ".badge",
     ".key-badges span",
@@ -1257,7 +1258,7 @@ function auditPage(args) {
     const padInline = Number.parseFloat(style.paddingLeft);
     const issues = [];
     if (!Number.isFinite(fontSize) || fontSize < 12) issues.push(`font ${fontSize}px`);
-    if (!(box.height >= 18 && box.height <= 32)) issues.push(`height ${Math.round(box.height)}px`);
+    if (!(box.height >= 20 && box.height <= 32)) issues.push(`height ${Math.round(box.height)}px`);
     if (!(radius >= Math.min(box.width, box.height) / 2 - 1)) issues.push(`radius ${radius}px not pill`);
     if (![6, 8, 10, 12].includes(Math.round(padInline))) issues.push(`padding-inline ${padInline}px`);
     if (issues.length) statusPills.push({ selector: selectorOf(el), issues });
@@ -1415,14 +1416,26 @@ function auditPage(args) {
       add("balance-consistency", `${balanceIssues.length} balance row(s) disagree with their title`, balanceIssues.slice(0, 8));
     }
 
-    // Every chain group has a balance provider. The row carries the wiring as
-    // a render-time attribute, so this needs no balance check (and no network)
-    // to have run. key-zec-provider.
-    const zecRow = document.querySelector('.key-row[data-id="zcash_p2pkh"]');
-    metrics.keyZecProvider = zecRow ? zecRow.dataset.balanceProvider || "" : "absent";
-    if (zecRow && zecRow.dataset.balanceProvider !== "1") {
-      add("key-zec-provider", `${selectorOf(zecRow)} has no balance provider (data-balance-provider=${zecRow.dataset.balanceProvider || "missing"})`);
+    // Every UTXO chain row names its balance provider at render time, and the
+    // value is the provider id (not "1"), so a silent switch back to a
+    // rate-limited provider fails deterministically without a network call.
+    // LTC/DOGE/ZEC must read `sochain`; the BlockCypher fallback is never the
+    // rendered provider. Detector ids: key-zec-provider, key-utxo-provider.
+    const providerRows = [
+      { rowId: "zcash_p2pkh", detector: "key-zec-provider" },
+      { rowId: "ltc_p2pkh", detector: "key-utxo-provider" },
+      { rowId: "doge_p2pkh", detector: "key-utxo-provider" },
+    ];
+    metrics.keyBalanceProviders = {};
+    for (const entry of providerRows) {
+      const row = document.querySelector(`.key-row[data-id="${entry.rowId}"]`);
+      const provider = row ? row.dataset.balanceProvider || "" : "absent";
+      metrics.keyBalanceProviders[entry.rowId] = provider;
+      if (row && provider !== "sochain") {
+        add(entry.detector, `${selectorOf(row)} has balance provider ${provider || "missing"} (expected sochain)`);
+      }
     }
+    metrics.keyZecProvider = metrics.keyBalanceProviders.zcash_p2pkh || "";
   }
 
   // 5. Duplicate address-type implementations on one page.

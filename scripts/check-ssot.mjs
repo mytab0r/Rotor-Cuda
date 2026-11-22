@@ -17,6 +17,13 @@
 //                    reference names a chain and provider id that exist in
 //                    data/providers.json / data/chains.json. `RotorChains.order`
 //                    membership checks are validated the same way.
+//   vendor-lock      every data/vendor.lock.json entry matches its source and
+//                    target byte for byte, and every file under web/public is
+//                    locked or listed as an intentional non-copy.
+//   detector-registry every id emitted by scripts/ui-audit.mjs appears in
+//                    data/detectors.json, every defect-ledger detector names an
+//                    implemented registry entry, and the generated markdown
+//                    tables (scripts/gen-detector-docs.mjs) are current.
 //   chain-color      no first-party apps/site/*.js or *.css file carries a
 //                    canonical chain color outside the generated globals and
 //                    the marked `chains:start` CSS region.
@@ -35,13 +42,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { REPO_ROOT, run } from "./gen-ssot.mjs";
+import { REPO_ROOT, run, sha256Vendored } from "./gen-ssot.mjs";
+import { validateAuditCoverage, validateDefectCoverage, validateRegistry } from "./lib/detectors.mjs";
+import { checkDetectorDocs } from "./gen-detector-docs.mjs";
 import { findGeneratedRegions } from "./generated-regions.mjs";
 
 const SITE_DIR = "apps/site";
 const GENERATED_JS = "chains.generated.js";
 const AMOUNT_JS = "amount.js";
 const ALLOW_PATH = "data/ssot-allow.json";
+const VENDOR_LOCK_PATH = "data/vendor.lock.json";
+const WEB_PUBLIC_DIR = "web/public";
 const EXEMPT_GENERATED = new Set([GENERATED_JS]);
 const OWNERS = new Set([
   "site-ui",
@@ -391,6 +402,144 @@ export function validateAmountFormatters(root, files, allow, wholeFile) {
   return { errors, checked };
 }
 
+function walkFiles(root, relative) {
+  const files = [];
+  const visit = (dirRelative) => {
+    const full = path.join(root, dirRelative);
+    for (const entry of fs.readdirSync(full, { withFileTypes: true })) {
+      const child = `${dirRelative}/${entry.name}`;
+      if (entry.isDirectory()) visit(child);
+      else if (entry.isFile()) files.push(child);
+    }
+  };
+  if (fs.existsSync(path.join(root, relative))) visit(relative);
+  return files.sort();
+}
+
+function relativePathErrors(root, relative, prefix) {
+  const errors = [];
+  if (typeof relative !== "string" || relative.trim() === "") {
+    errors.push(`vendor-lock-digest: ${prefix} must be a non-empty path`);
+    return errors;
+  }
+  if (path.isAbsolute(relative) || relative.includes("\\") || relative.split("/").includes("..")) {
+    errors.push(`vendor-lock-digest: ${prefix} must be a relative POSIX path: ${relative}`);
+  }
+  if (!fs.existsSync(path.join(root, relative))) {
+    errors.push(`vendor-lock-digest: ${prefix} does not exist: ${relative}`);
+  }
+  return errors;
+}
+
+// web/public/ holds byte copies of apps/site assets for the Astro pilot. The
+// lock is the machine source: a digest mismatch, a missing file or a new file
+// under web/public without an entry fails here.
+export function validateVendorLock(root = REPO_ROOT) {
+  let json;
+  try {
+    json = readJson(root, VENDOR_LOCK_PATH);
+  } catch (error) {
+    return { errors: [`vendor-lock-digest: ${error.message}`], entries: 0, nonCopies: 0 };
+  }
+  const errors = [];
+  if (!isObject(json) || json.version !== 1 || !Array.isArray(json.entries) || !Array.isArray(json.nonCopies)) {
+    return {
+      errors: [`vendor-lock-digest: ${VENDOR_LOCK_PATH} must be { version: 1, entries: [], nonCopies: [] }`],
+      entries: 0,
+      nonCopies: 0,
+    };
+  }
+
+  const targets = new Set();
+  for (const [index, entry] of json.entries.entries()) {
+    const where = `${VENDOR_LOCK_PATH}.entries[${index}]`;
+    if (!isObject(entry)) {
+      errors.push(`vendor-lock-digest: ${where} must be an object`);
+      continue;
+    }
+    for (const field of ["source", "target", "sha256"]) {
+      if (typeof entry[field] !== "string" || entry[field].trim() === "") {
+        errors.push(`vendor-lock-digest: ${where}.${field} must be a non-empty string`);
+      }
+    }
+    if (typeof entry.source === "string" && !entry.source.startsWith(`${SITE_DIR}/`)) {
+      errors.push(`vendor-lock-digest: ${where}.source must live under ${SITE_DIR}/: ${entry.source}`);
+    }
+    if (typeof entry.target === "string" && !entry.target.startsWith(`${WEB_PUBLIC_DIR}/`)) {
+      errors.push(`vendor-lock-digest: ${where}.target must live under ${WEB_PUBLIC_DIR}/: ${entry.target}`);
+    }
+    const before = errors.length;
+    errors.push(...relativePathErrors(root, entry.source, `${where}.source`));
+    errors.push(...relativePathErrors(root, entry.target, `${where}.target`));
+    if (entry.target) {
+      if (targets.has(entry.target)) errors.push(`vendor-lock-digest: ${where}.target repeats ${entry.target}`);
+      targets.add(entry.target);
+    }
+    if (errors.length !== before) continue;
+    if (!/^[0-9a-f]{64}$/.test(entry.sha256)) {
+      errors.push(`vendor-lock-digest: ${where}.sha256 must be 64 lowercase hex characters`);
+      continue;
+    }
+    const sourceDigest = sha256Vendored(path.join(root, entry.source));
+    const targetDigest = sha256Vendored(path.join(root, entry.target));
+    if (entry.sha256 !== sourceDigest) {
+      errors.push(
+        `vendor-lock-digest: ${where}.sha256 does not match ${entry.source}: ` +
+          `locked ${entry.sha256}, actual ${sourceDigest}`,
+      );
+    }
+    if (targetDigest !== sourceDigest) {
+      errors.push(
+        `vendor-lock-digest: ${entry.target} drifted from ${entry.source}: ` +
+          `copy ${targetDigest}, source ${sourceDigest}; copy apps/site again`,
+      );
+    }
+  }
+
+  for (const file of walkFiles(root, WEB_PUBLIC_DIR)) {
+    if (!targets.has(file)) {
+      errors.push(
+        `vendor-lock-digest: ${file} is not in ${VENDOR_LOCK_PATH}; add the source/digest pair or remove the copy`,
+      );
+    }
+  }
+
+  const seenNonCopies = new Set();
+  for (const [index, entry] of json.nonCopies.entries()) {
+    const where = `${VENDOR_LOCK_PATH}.nonCopies[${index}]`;
+    if (!isObject(entry)) {
+      errors.push(`vendor-lock-digest: ${where} must be an object`);
+      continue;
+    }
+    if (typeof entry.reason !== "string" || entry.reason.trim() === "") {
+      errors.push(`vendor-lock-digest: ${where}.reason must explain why the file is not copied`);
+    }
+    if (typeof entry.source !== "string" || !entry.source.startsWith(`${SITE_DIR}/`)) {
+      errors.push(`vendor-lock-digest: ${where}.source must live under ${SITE_DIR}/`);
+      continue;
+    }
+    if (seenNonCopies.has(entry.source)) errors.push(`vendor-lock-digest: ${where}.source repeats ${entry.source}`);
+    seenNonCopies.add(entry.source);
+    errors.push(...relativePathErrors(root, entry.source, `${where}.source`));
+  }
+
+  return { errors, entries: json.entries.length, nonCopies: json.nonCopies.length };
+}
+
+// One detector registry: data/detectors.json. The audit must be covered, a
+// defect-ledger detector must resolve to an implemented entry, and the three
+// generated markdown tables must match the registry.
+export function validateDetectors(root = REPO_ROOT) {
+  const registry = validateRegistry(root);
+  const errors = [...registry.errors];
+  if (registry.ok) {
+    errors.push(...validateAuditCoverage(root, registry));
+    errors.push(...validateDefectCoverage(root, registry));
+    errors.push(...checkDetectorDocs(root).errors);
+  }
+  return { errors, entries: registry.entries.length };
+}
+
 export function check(root = REPO_ROOT) {
   const errors = [];
   const freshness = run({ root, check: true });
@@ -411,6 +560,11 @@ export function check(root = REPO_ROOT) {
   errors.push(...references.errors);
   const amounts = validateAmountFormatters(root, files, allow, wholeFile);
   errors.push(...amounts.errors);
+
+  const vendor = validateVendorLock(root);
+  errors.push(...vendor.errors);
+  const detectors = validateDetectors(root);
+  errors.push(...detectors.errors);
 
   let checked = 0;
   let allowlisted = 0;
@@ -499,6 +653,9 @@ export function check(root = REPO_ROOT) {
     colorOccurrences,
     orderArrays,
     amountFormatters: amounts.checked,
+    vendorEntries: vendor.entries,
+    vendorNonCopies: vendor.nonCopies,
+    detectors: detectors.entries,
   };
 }
 
@@ -513,7 +670,8 @@ export function main() {
     console.log(
       `ssot:check OK (${result.needles.length} canonical hosts, ${result.checked} site scripts, ` +
         `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider/chain reference(s), ` +
-        `${result.amountFormatters} amount-checked script(s), ` +
+        `${result.amountFormatters} amount-checked script(s), ${result.vendorEntries} vendor lock entries ` +
+        `(${result.vendorNonCopies} intentional non-copies), ${result.detectors} detectors, ` +
         `${result.colorOccurrences} chain color literal(s) outside the generated output, ` +
         `${result.orderArrays} local order array(s))`,
     );

@@ -1252,8 +1252,9 @@
     row.className = 'key-row';
     row.setAttribute('data-id', addr.id);
     /* Provider wiring is known at render time; the audit reads this instead of
-     * the later balance-check state. */
-    row.setAttribute('data-balance-provider', rowHasProvider(addr.id) ? '1' : '0');
+     * the later balance-check state. The value is the provider id, or "0" for a
+     * row with no public provider. */
+    row.setAttribute('data-balance-provider', rowProviderName(addr.id) || '0');
     row.setAttribute('data-address', addr.address);
     row.setAttribute('data-curve', addr.curve || '');
     row.setAttribute('data-group', rowGroup(addr.id));
@@ -2337,13 +2338,15 @@
     };
   }
 
-  /* SoChain v3's keyless ZEC balance endpoint answers CORS-friendly JSON with
-   * decimal coin strings; the parser converts them to satoshis without floats.
+  /* SoChain v3's keyless balance endpoint answers CORS-friendly JSON with
+   * decimal coin strings for LTC, DOGE and ZEC; the parser converts them to
+   * satoshis without floats. The endpoint host comes from data/providers.json.
    * The response carries no transaction count, so `active` is amount > 0 only. */
-  async function fetchSochainZec(address, signal) {
-    var unit = chainUnit('zcash');
+  async function fetchSochain(address, signal, chainName) {
+    var unit = chainUnit(chainName);
     var response = await fetchWithTimeout(
-      'https://sochain.com/api/v3/balance/ZEC/' + encodeURIComponent(address),
+      SSOT_PROVIDERS.find(chainName, 'sochain').url +
+        '/balance/' + encodeURIComponent(unit.symbol) + '/' + encodeURIComponent(address),
       null,
       signal
     );
@@ -2354,7 +2357,7 @@
       text: sats.toLocaleString('en-US') + ' sats',
       summary: {
         amount: sats,
-        chain: 'zcash',
+        chain: chainName,
         symbol: unit.symbol,
         decimals: unit.decimals,
         active: sats > 0n
@@ -2362,18 +2365,41 @@
     };
   }
 
-  /* Rows whose identifiers have a working public provider. Kept in one place
-   * so the counters and the checks agree on what "N" means. Every chain group
-   * now has a keyless provider (ZEC via SoChain; Blockchair answers 430
-   * without a key and is not used). */
+  /* Litecoin and Dogecoin prefer SoChain (2500 requests/hour, keyless, CORS)
+   * and fall back to BlockCypher on any provider failure, so a rate-limited
+   * provider never blanks the row. An aborted request is not a provider
+   * failure: it stops the lookup instead of starting a second one. */
+  async function fetchSochainOrBlockcypher(address, signal, chainName, chainClass) {
+    try {
+      return await fetchSochain(address, signal, chainName);
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      return fetchBlockcypher(address, signal, chainClass);
+    }
+  }
+
+  /* The provider each row id reads at render time. Kept in one place so the
+   * row attribute, the cache namespace and the counters agree on what "N"
+   * means. LTC/DOGE/ZEC read SoChain; the LTC/DOGE BlockCypher endpoint stays
+   * only as a fallback and is not the rendered provider. `null` means the row
+   * has no public provider. */
+  function rowProviderName(id) {
+    if (!id) return null;
+    if (id === 'solana') return 'solana';
+    if (id === 'sui') return 'sui';
+    if (id === 'ton' || id === 'ton_w5') return 'toncenter';
+    if (id.indexOf('xrp_') === 0) return 'xrpscan';
+    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return 'sochain';
+    if (id.indexOf('bch_') === 0) return 'haskoin';
+    if (id.indexOf('zcash_') === 0) return 'sochain';
+    if (id === 'tron') return 'tronscan';
+    if (id.indexOf('btc_') === 0) return 'mempool';
+    if (EVM_CHAINS[id]) return 'evm';
+    return null;
+  }
+
   function rowHasProvider(id) {
-    if (!id) return false;
-    if (id === 'solana' || id === 'sui' || id === 'ton' || id === 'ton_w5') return true;
-    if (id.indexOf('xrp_') === 0) return true;
-    if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return true;
-    if (id.indexOf('bch_') === 0) return true;
-    if (id.indexOf('zcash_') === 0) return true;
-    return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
+    return rowProviderName(id) !== null;
   }
 
   function updateCounters() {
@@ -2543,48 +2569,31 @@
     );
   }
 
+  /* Cache chain label for a row id. The provider comes from rowProviderName,
+   * so the render-time attribute and the cache key cannot disagree. */
+  function rowCacheChain(id) {
+    if (!id) return null;
+    if (id.indexOf('btc_') === 0) return 'bitcoin';
+    if (EVM_CHAINS[id]) return EVM_CHAINS[id].slug;
+    if (id === 'tron') return 'tron';
+    if (id.indexOf('xrp_') === 0) return 'xrp';
+    if (id === 'solana') return 'solana';
+    if (id === 'sui') return 'sui';
+    if (id === 'ton' || id === 'ton_w5') return 'ton';
+    if (id.indexOf('ltc_') === 0) return 'ltc';
+    if (id.indexOf('doge_') === 0) return 'doge';
+    if (id.indexOf('bch_') === 0) return 'bch';
+    if (id.indexOf('zcash_') === 0) return 'zcash';
+    return null;
+  }
+
   function rowCacheInfo(row) {
     var id = row.getAttribute('data-id');
     var address = row.getAttribute('data-address');
     if (!id || !address) return null;
-    var provider = null;
-    var chain = null;
-    if (id.indexOf('btc_') === 0) {
-      provider = 'mempool';
-      chain = 'bitcoin';
-    } else if (EVM_CHAINS[id]) {
-      provider = 'evm';
-      chain = EVM_CHAINS[id].slug;
-    } else if (id === 'tron') {
-      provider = 'tronscan';
-      chain = 'tron';
-    } else if (id.indexOf('xrp_') === 0) {
-      provider = 'xrpscan';
-      chain = 'xrp';
-    } else if (id === 'solana') {
-      provider = 'solana';
-      chain = 'solana';
-    } else if (id === 'sui') {
-      provider = 'sui';
-      chain = 'sui';
-    } else if (id === 'ton' || id === 'ton_w5') {
-      provider = 'toncenter';
-      chain = 'ton';
-    } else if (id.indexOf('ltc_') === 0) {
-      provider = 'blockcypher';
-      chain = 'ltc';
-    } else if (id.indexOf('doge_') === 0) {
-      provider = 'blockcypher';
-      chain = 'doge';
-    } else if (id.indexOf('bch_') === 0) {
-      provider = 'haskoin';
-      chain = 'bch';
-    } else if (id.indexOf('zcash_') === 0) {
-      provider = 'sochain';
-      chain = 'zcash';
-    } else {
-      return null;
-    }
+    var provider = rowProviderName(id);
+    var chain = rowCacheChain(id);
+    if (!provider || !chain) return null;
     return {
       provider: provider,
       chain: chain,
@@ -2735,10 +2744,10 @@
       if (id === 'solana') return fetchSolana(address, signal);
       if (id === 'sui') return fetchSui(address, signal);
       if (id === 'ton' || id === 'ton_w5') return fetchTon(address, signal);
-      if (id.indexOf('ltc_') === 0) return fetchBlockcypher(address, signal, 'ltc');
-      if (id.indexOf('doge_') === 0) return fetchBlockcypher(address, signal, 'doge');
+      if (id.indexOf('ltc_') === 0) return fetchSochainOrBlockcypher(address, signal, 'litecoin', 'ltc');
+      if (id.indexOf('doge_') === 0) return fetchSochainOrBlockcypher(address, signal, 'dogecoin', 'doge');
       if (id.indexOf('bch_') === 0) return fetchHaskoinBch(address, signal);
-      if (id.indexOf('zcash_') === 0) return fetchSochainZec(address, signal);
+      if (id.indexOf('zcash_') === 0) return fetchSochain(address, signal, 'zcash');
       throw new Error('no provider in v1');
     };
     try {

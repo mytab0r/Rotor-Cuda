@@ -262,6 +262,63 @@ const tests = [
     assert.equal(cache.atomicAmount(-1), null);
     assert.equal(cache.atomicAmount(1.5), null);
   }),
+
+  test("SoChain decimal coin strings convert to atomic units without floats", () => {
+    // Valid: 8-decimal coin strings become satoshis as BigInt.
+    assert.deepEqual(
+      cache.parseSochainBalance({
+        status: "success",
+        data: { confirmed: "0.14201511", unconfirmed: "0.00000000" },
+      }),
+      { confirmed: 14201511n, unconfirmed: 0n },
+    );
+    assert.deepEqual(
+      cache.parseSochainBalance({
+        status: "success",
+        data: { confirmed: "1234.5", unconfirmed: "0.25" },
+      }),
+      { confirmed: 123450000000n, unconfirmed: 25000000n },
+    );
+
+    // Zero is a real zero, not a missing balance.
+    assert.deepEqual(
+      cache.parseSochainBalance({
+        status: "success",
+        data: { confirmed: "0", unconfirmed: "0.00000000" },
+      }),
+      { confirmed: 0n, unconfirmed: 0n },
+    );
+
+    // Rounding: the fractional part truncates to 8 digits (no Number math).
+    assert.equal(
+      cache.parseSochainBalance({
+        status: "success",
+        data: { confirmed: "0.123456789", unconfirmed: "0" },
+      }).confirmed,
+      12345678n,
+    );
+    assert.equal(
+      cache.parseSochainBalance({
+        status: "success",
+        data: { confirmed: "0.000000001", unconfirmed: "0" },
+      }).confirmed,
+      0n,
+    );
+
+    // Malformed bodies return null; the caller (parseProviderJson) throws, so a
+    // provider error can never be cached as a zero balance.
+    assert.equal(cache.parseSochainBalance({ status: "fail", data: {} }), null);
+    assert.equal(cache.parseSochainBalance(null), null);
+    assert.equal(cache.parseSochainBalance({ status: "success", data: [] }), null);
+    assert.equal(
+      cache.parseSochainBalance({ status: "success", data: { confirmed: "lots", unconfirmed: "0" } }),
+      null,
+    );
+    assert.equal(
+      cache.parseSochainBalance({ status: "success", data: { confirmed: "-1", unconfirmed: "0" } }),
+      null,
+    );
+  }),
 ];
 
 await Promise.all(tests);

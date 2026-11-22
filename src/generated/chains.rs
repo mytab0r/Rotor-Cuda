@@ -386,6 +386,7 @@ pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[
     (
         "litecoin",
         &[
+            ("sochain", "https://sochain.com/api/v3", "SoChain"),
             ("litecoinspace", "https://litecoinspace.org/api", "Litecoin Space"),
             ("blockcypher", "https://api.blockcypher.com/v1/ltc/main", "BlockCypher"),
         ],
@@ -400,6 +401,7 @@ pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[
     (
         "dogecoin",
         &[
+            ("sochain", "https://sochain.com/api/v3", "SoChain"),
             ("blockcypher", "https://api.blockcypher.com/v1/doge/main", "BlockCypher"),
             ("blockchair", "https://api.blockchair.com", "Blockchair"),
         ],
@@ -407,6 +409,7 @@ pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[
     (
         "zcash",
         &[
+            ("sochain", "https://sochain.com/api/v3", "SoChain"),
             ("blockchair", "https://api.blockchair.com", "Blockchair"),
         ],
     ),
