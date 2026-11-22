@@ -51,7 +51,8 @@
 
 - [x] `node --check` on the wallet scripts; history tests green.
 - [x] `cargo test --release`.
-- [x] `node scripts/ui-audit.mjs --serve` PASS; the `ui-audit-report` CI
-      artifact carries the history screenshots (nothing committed).
+- [x] `node scripts/ui-audit.mjs --serve` PASS; the audit produces the history
+      screenshots, nothing is committed, and the `ui-audit-report` artifact
+      upload is owned by the separate workflow cleanup.
 - [x] `check-projects`, `check-defect-ledger`, `check-ssot`,
       `gen-detector-docs --check`.
