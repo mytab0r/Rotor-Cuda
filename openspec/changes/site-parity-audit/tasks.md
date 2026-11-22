@@ -108,6 +108,12 @@
   (`solanaProvider`), `:1145` (dispatcher branch); tests at
   `apps/site/mnemonic-seeds-test.mjs:193` and `:207`; defect
   `mnemonic-solana-balances` in `docs/process/defects.json`.
+  Known gap: `scripts/ui-audit.mjs` still omits `/mnemonic-seeds/<chain>` routes
+  except `/mnemonic-seeds/bitcoin`; `/mnemonic-seeds/solana` was verified by
+  browser review (one POST for 60 addresses, 60/60 rows rendered) and by the unit
+  detector, and adding the chain pages to the audit route set is the next
+  gate-coverage step (it would add about five provider console warnings per audit
+  run on hosts where the public Solana RPC refuses the browser).
 - [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
   still claimed "the interactive curve editor and signing entry remain". The
   donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
@@ -136,7 +142,9 @@
   `!sharedEvm` guard (`apps/site/key.js:1314`) from `explorerFor` in
   `apps/site/key-tools.js:988`, while copy/details/toggle stay suppressed.
   Evidence: `apps/site/key.js`, `apps/site/key-tools.js`,
-  `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`).
+  `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
+  matrix row is now `parity` after the independent browser review and the PR #237
+  merge.
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:
