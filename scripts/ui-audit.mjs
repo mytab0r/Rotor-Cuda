@@ -289,8 +289,9 @@ function tableClassViolations() {
 // DEFAULT_ROUTES (they fan out up to one request per address), so this static
 // half asserts the wiring: the shared SoChain fetcher must fall back to the
 // SSOT `litecoinspace` Esplora provider for litecoin only, through the pure
-// parser that lives in balance-cache.js. DOGE and ZEC have no fallback and
-// keep the retry state, as the quota-storm test asserts.
+// parser that lives in balance-cache.js. DOGE falls back to one SSOT BlockCypher
+// batch request; ZEC has no fallback and keeps the retry state, as the
+// quota-storm test asserts.
 function litecoinFallbackViolations() {
   const providersFile = path.join(REPO_ROOT, "apps", "site", "balance-providers.js");
   const cacheFile = path.join(REPO_ROOT, "apps", "site", "balance-cache.js");
@@ -300,11 +301,26 @@ function litecoinFallbackViolations() {
   if (!/find\(\s*['"]litecoin['"]\s*,\s*['"]litecoinspace['"]\s*\)/.test(providers)) {
     issues.push("balance-providers.js does not read the litecoinspace provider through the SSOT API");
   }
-  if (!/meta\.chain\s*!==\s*['"]litecoin['"]/.test(providers)) {
+  if (!/meta\.chain\s*(?:===|!==)\s*['"]litecoin['"]/.test(providers)) {
     issues.push("balance-providers.js does not gate the fallback to litecoin");
   }
   if (!providers.includes("parseLitecoinSpaceAddress")) {
     issues.push("balance-providers.js does not call parseLitecoinSpaceAddress");
+  }
+  if (!/find\(\s*['"]dogecoin['"]\s*,\s*['"]blockcypher['"]\s*\)/.test(providers)) {
+    issues.push("balance-providers.js does not read the blockcypher provider for dogecoin through the SSOT API");
+  }
+  if (!/blockcypherDogeProvider\s*\(\s*addresses\s*\)/.test(providers)) {
+    issues.push("balance-providers.js does not route the DOGE fallback through blockcypherDogeProvider(addresses)");
+  }
+  if (!cache.includes("parseBlockcypherDogeBatch")) {
+    issues.push("balance-cache.js does not define/export parseBlockcypherDogeBatch");
+  }
+  for (const match of providers.matchAll(/(?:blockcypherDogeProvider|litecoinSpaceProvider)\s*\(/g)) {
+    const near = providers.slice(Math.max(0, match.index - 80), match.index + match[0].length + 80);
+    if (/['"]zcash['"]/.test(near)) {
+      issues.push(`${match[0]} sits next to a zcash literal; ZEC must not use a fallback`);
+    }
   }
   if (!/function parseLitecoinSpaceAddress\s*\(/.test(cache)) {
     issues.push("balance-cache.js does not define parseLitecoinSpaceAddress");
@@ -2428,6 +2444,128 @@ async function auditWalletSeed(cdp) {
   return { ok: result.problems.length === 0, ...result };
 }
 
+async function auditWalletOnboarding(cdp) {
+  // The seed phrase and a single private key / WIF are both first-class.
+  // auditWalletSeed() leaves the vault unlocked; this scenario proves the two
+  // chips are the shared 44px control, that the key choice focuses the import
+  // form, and that both a WIF and a 64-hex key reach the vault from there.
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const shown = (el) => Boolean(el) && !el.hidden && el.getClientRects().length > 0;
+      const problems = [];
+      const evidence = {};
+      const seed = document.getElementById('wallet-onboard-seed');
+      const key = document.getElementById('wallet-onboard-key');
+      const hint = document.getElementById('wallet-onboard-hint');
+      const form = document.getElementById('wallet-import-form');
+      const secret = document.getElementById('wallet-secret');
+      const chain = document.getElementById('wallet-chain');
+      const label = document.getElementById('wallet-label');
+      if (!seed || !key || !hint || !form || !secret || !chain || !label) {
+        return { evidence, problems: ['the onboarding controls are missing'] };
+      }
+      evidence.copy = {
+        seed: seed.textContent.trim(),
+        key: key.textContent.trim(),
+        hint: hint.textContent.trim(),
+      };
+      for (const [name, button] of [['seed', seed], ['key', key]]) {
+        const box = button.getBoundingClientRect();
+        evidence[name] = {
+          classes: button.className,
+          pressed: button.getAttribute('aria-pressed'),
+          box: Math.round(box.width) + 'x' + Math.round(box.height),
+        };
+        if (!button.classList.contains('chip')) problems.push(name + ' onboarding entry is not .chip');
+        if (Math.round(box.height) !== 44) problems.push(name + ' onboarding entry is ' + evidence[name].box);
+        if (button.getAttribute('aria-pressed') !== 'false') {
+          problems.push(name + ' onboarding entry starts pressed');
+        }
+      }
+      if (!/private key\\s*\\/\\s*WIF/i.test(evidence.copy.key)) {
+        problems.push('key onboarding copy: ' + evidence.copy.key);
+      }
+
+      // Warm the wasm core once: the first derivation in a fresh profile pays
+      // the compile cost, and the assertion below is about the WIF path, not
+      // about a cold compile.
+      try {
+        await window.RotorKeyTools.loadWasm();
+        evidence.wasmWarm = true;
+      } catch (err) {
+        evidence.wasmWarm = false;
+        problems.push('the wasm core did not load: ' + (err && err.message ? err.message : err));
+      }
+
+      seed.click();
+      await sleep(50);
+      evidence.seedPressed = seed.getAttribute('aria-pressed');
+      if (!/seed phrase form is open/i.test(hint.textContent)) {
+        problems.push('seed choice did not point at the seed form: ' + hint.textContent);
+      }
+      key.click();
+      await sleep(50);
+      evidence.keyPressed = key.getAttribute('aria-pressed');
+      evidence.keyHint = hint.textContent.trim();
+      evidence.focused = document.activeElement === secret;
+      if (seed.getAttribute('aria-pressed') !== 'false' || key.getAttribute('aria-pressed') !== 'true') {
+        problems.push('the onboarding choice is not exclusive');
+      }
+      if (!shown(form) || !shown(secret)) problems.push('the import form is not visible after the key choice');
+      if (!evidence.focused) problems.push('the key choice did not focus the import field');
+      if (!/never sent to the server|encrypted/i.test(evidence.keyHint)) {
+        problems.push('the key choice lost the safety copy: ' + evidence.keyHint);
+      }
+
+      // A mainnet WIF reaches the vault from the onboarding entry.
+      secret.value = 'KwDiBf89QgGbjEhKnhXJuH7LrciVrZi3qYjgd9M7rFU73sVHnoWn';
+      chain.value = 'bitcoin';
+      label.value = 'onboard WIF';
+      form.requestSubmit();
+      const wifOk = await waitFor(() => {
+        const row = document.querySelector('#wallet-entries [data-chain="bitcoin"]');
+        if (!row) return false;
+        const code = row.querySelector('.wallet-address-line code');
+        return Boolean(code && code.textContent && code.textContent !== 'deriving…');
+      }, 45000);
+      evidence.wif = wifOk;
+      evidence.wifError = (document.getElementById('wallet-add-error') || {}).textContent || '';
+      if (!wifOk) problems.push('a WIF submitted from onboarding did not reach the vault: ' + evidence.wifError);
+
+      // A 64-character hex key reaches the vault from the same entry.
+      key.click();
+      await sleep(50);
+      secret.value = '0'.repeat(63) + '2';
+      chain.value = 'sui';
+      label.value = 'onboard hex';
+      form.requestSubmit();
+      const hexOk = await waitFor(() => {
+        const row = document.querySelector('#wallet-entries [data-chain="sui"]');
+        if (!row) return false;
+        const code = row.querySelector('.wallet-address-line code');
+        return Boolean(code && code.textContent && code.textContent !== 'deriving…');
+      }, 30000);
+      evidence.hex = hexOk;
+      evidence.hexError = (document.getElementById('wallet-add-error') || {}).textContent || '';
+      if (!hexOk) problems.push('a 64-hex key submitted from onboarding did not reach the vault: ' + evidence.hexError);
+
+      return { evidence, problems };
+    })()`,
+    120000,
+  );
+  return { ok: result.problems.length === 0, ...result };
+}
+
 async function auditWalletMainnetArm(cdp) {
   // The mainnet arm is the only new control in the mainnet slice. It must be
   // a real labelled checkbox, unchecked by default, 44px high through the
@@ -2461,7 +2599,7 @@ async function auditWalletMainnetArm(cdp) {
         chain.value = 'ethereum';
         label.value = 'audit key';
         form.requestSubmit();
-        await waitFor(() => shown(card), 15000);
+        await waitFor(() => shown(card), 30000);
       }
       if (!shown(card)) {
         return { evidence, problems: ['the EVM send card did not become visible'] };
@@ -2505,7 +2643,7 @@ async function auditWalletMainnetArm(cdp) {
       network.dispatchEvent(new Event('change', { bubbles: true }));
       return { evidence, problems };
     })()`,
-    40000,
+    60000,
   );
   return { ok: result.problems.length === 0, ...result };
 }
@@ -2935,6 +3073,7 @@ async function auditWalletPortfolio(cdp) {
         text: async () => JSON.stringify(payload),
       });
       const rpcResult = (value) => response({ jsonrpc: '2.0', id: 1, result: value });
+      const zeroWord = '0x' + '0'.repeat(64);
       let wei = '0xde0b6b3a7640000';
       window.fetch = async (url, init) => {
         const target = String(url);
@@ -2944,8 +3083,30 @@ async function auditWalletPortfolio(cdp) {
             { symbol: 'BTCUSDT', price: '60000' },
           ]);
         }
+        if (target.indexOf('blockchain.info') >= 0) {
+          // A 200 without the address keeps the top-assets BTC row in the
+          // honest error state without triggering the retry backoff.
+          return response({});
+        }
+        if (target.indexOf('/api/v1/chain/tron/address') >= 0) {
+          return response({ chain: 'tron', balance_sun: '0', tx_count: 0 });
+        }
+        if (target.indexOf('mempool.space') >= 0) {
+          // The per-entry Bitcoin lookup is not counted as loaded; the
+          // portfolio assertion stays "1 of N" (Ethereum only).
+          return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+        }
         const body = init && init.body ? JSON.parse(init.body) : null;
+        if (Array.isArray(body)) {
+          return response(body.map((item) => ({
+            jsonrpc: '2.0',
+            id: item.id,
+            result: item.method === 'eth_getTransactionCount' ? '0x0' : wei,
+          })));
+        }
         if (body && body.method === 'eth_getBalance') return rpcResult(wei);
+        if (body && body.method === 'eth_getTransactionCount') return rpcResult('0x0');
+        if (body && body.method === 'eth_call') return rpcResult(zeroWord);
         return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
       };
 
@@ -2997,6 +3158,235 @@ async function auditWalletPortfolio(cdp) {
       return { evidence, problems };
     })()`,
     60000,
+  );
+  return { ok: result.problems.length === 0, ...result };
+}
+
+/* /cabinet/wallet top-10 assets. auditWalletHistory() leaves Bitcoin, TRON and
+ * Ethereum entries in the unlocked vault. The table must list every asset
+ * network in rank order, start honest ("not loaded", total —), then price only
+ * the rows whose public balance actually loaded against a stubbed provider and
+ * ticker. A failed provider row must say "lookup failed" and must not reduce
+ * the total to a silent zero. */
+async function auditWalletTopAssets(cdp) {
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const section = document.getElementById('wallet-assets');
+      const table = document.getElementById('wallet-assets-table');
+      const rows = document.getElementById('wallet-assets-rows');
+      const total = document.getElementById('wallet-assets-total');
+      const status = document.getElementById('wallet-assets-status');
+      const error = document.getElementById('wallet-assets-error');
+      const empty = document.getElementById('wallet-assets-empty');
+      const wrap = document.getElementById('wallet-assets-table-wrap');
+      const refresh = document.getElementById('wallet-summary-refresh');
+      const toggle = document.getElementById('wallet-lookup-toggle');
+      if (!section || !table || !rows || !total || !status || !error || !empty || !wrap || !refresh || !toggle) {
+        return { evidence, problems: ['the top-assets controls are missing'] };
+      }
+      evidence.shell = {
+        table: table.className,
+        wrapped: table.parentElement ? table.parentElement.className : '',
+        headers: [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()),
+        rows: rows.querySelectorAll('tr').length,
+      };
+      if (!table.classList.contains('data-table')) problems.push('the asset table is not .data-table');
+      if (evidence.shell.wrapped !== 'table-scroll') problems.push('the asset table is not in .table-scroll');
+      if (evidence.shell.headers.join('|') !== 'Asset|Network|Balance|USD') {
+        problems.push('asset table headers: ' + evidence.shell.headers.join('|'));
+      }
+      if (evidence.shell.rows < 10) problems.push('the asset table has only ' + evidence.shell.rows + ' rows');
+      const ranks = [...rows.querySelectorAll('tr')].map((tr) => Number(tr.getAttribute('data-rank')));
+      for (let index = 1; index < ranks.length; index += 1) {
+        if (ranks[index] < ranks[index - 1]) {
+          problems.push('asset rows are not in rank order at ' + index);
+          break;
+        }
+      }
+      evidence.ranks = [...new Set(ranks)];
+      if (evidence.ranks.join(',') !== '1,2,3,4,5,6,7,8,9,10') {
+        problems.push('asset ranks: ' + evidence.ranks.join(','));
+      }
+
+      // Reset the portfolio/asset state the earlier scenarios loaded. Locking
+      // and unlocking clears every balance and price while keeping the
+      // encrypted entries, so the honest initial "—" total is observable.
+      const lock = document.getElementById('wallet-lock');
+      const unlock = document.getElementById('wallet-unlock');
+      const unlockForm = document.getElementById('wallet-unlock-form');
+      const unlockPass = document.getElementById('wallet-unlock-pass');
+      const walletPanel = document.getElementById('wallet-panel');
+      if (lock && unlock && unlockForm && unlockPass && walletPanel) {
+        lock.click();
+        const locked = await waitFor(() => !unlock.hidden, 5000);
+        if (!locked) {
+          problems.push('the vault did not lock for the top-assets reset');
+        } else {
+          unlockPass.value = 'ui-audit-passphrase';
+          unlockForm.requestSubmit();
+          const opened = await waitFor(() => !walletPanel.hidden, 20000);
+          if (!opened) problems.push('the vault did not unlock for the top-assets reset');
+          await waitFor(() => {
+            const codes = [...document.querySelectorAll('.wallet-address-line code')];
+            return codes.length >= 4 && codes.every((code) => code.textContent && code.textContent !== 'deriving…');
+          }, 45000);
+        }
+      }
+
+      evidence.emptyTotal = total.textContent.trim();
+      if (evidence.emptyTotal !== '—') problems.push('nothing loaded prints "' + evidence.emptyTotal + '"');
+
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change', { bubbles: true }));
+      try { localStorage.removeItem('rotor.prices.v1'); } catch (err) {}
+
+      const realFetch = window.fetch;
+      const response = (payload) => ({
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      });
+      const rpcResult = (value) => response({ jsonrpc: '2.0', id: 1, result: value });
+      let btcMode = 'ok';
+      let wei = '0xde0b6b3a7640000';
+      const word = (value) => '0x' + BigInt(value).toString(16).padStart(64, '0');
+      window.fetch = async (url, init) => {
+        const target = String(url);
+        if (target.indexOf('api.binance.com') >= 0) {
+          return response([
+            { symbol: 'BTCUSDT', price: '60000' },
+            { symbol: 'ETHUSDT', price: '3000' },
+            { symbol: 'BNBUSDT', price: '600' },
+            { symbol: 'SOLUSDT', price: '150' },
+            { symbol: 'XRPUSDT', price: '0.5' },
+            { symbol: 'USDCUSDT', price: '1' },
+            { symbol: 'DOGEUSDT', price: '0.1' },
+            { symbol: 'TRXUSDT', price: '0.1' },
+            { symbol: 'BCHUSDT', price: '400' }
+          ]);
+        }
+        if (target.indexOf('blockchain.info') >= 0) {
+          if (btcMode === 'error') {
+            return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+          }
+          const addresses = new URL(target).searchParams.get('active') || '';
+          const payload = {};
+          addresses.split('|').filter(Boolean).forEach((address, index) => {
+            payload[address] = {
+              final_balance: index === 0 ? 100000000 : 0,
+              total_received: 0,
+              n_tx: 0
+            };
+          });
+          return response(payload);
+        }
+        if (target.indexOf('/api/v1/chain/tron/address') >= 0) {
+          return response({ chain: 'tron', balance_sun: '1000000', tx_count: 0 });
+        }
+        if (target.indexOf('/account?address=') >= 0) {
+          return response({
+            address: 'audit-tron',
+            balance: 1000000,
+            trc20: [{ TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t: '5000000' }]
+          });
+        }
+        const body = init && init.body ? JSON.parse(init.body) : null;
+        if (Array.isArray(body)) {
+          return response(body.map((item) => ({
+            jsonrpc: '2.0',
+            id: item.id,
+            result: item.method === 'eth_getTransactionCount' ? '0x0' : wei
+          })));
+        }
+        if (body && body.method === 'eth_getBalance') return rpcResult(wei);
+        if (body && body.method === 'eth_getTransactionCount') return rpcResult('0x0');
+        if (body && body.method === 'eth_call') return rpcResult(word(2000000));
+        return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+      };
+
+      try {
+        refresh.click();
+        const loaded = await waitFor(() => total.textContent.trim() === '$63,615.10', 30000);
+        evidence.loadedTotal = total.textContent.trim();
+        evidence.loadedStatus = status.textContent.trim();
+        evidence.rowText = [...rows.querySelectorAll('tr')].map((tr) =>
+          [...tr.children].map((cell) => cell.textContent.trim()).join(' | ')
+        );
+        if (!loaded) problems.push('loaded total is "' + evidence.loadedTotal + '" (expected $63,615.10)');
+        if (!/Loaded 10 of 14 rows/.test(evidence.loadedStatus)) {
+          problems.push('loaded status: ' + evidence.loadedStatus);
+        }
+        const byAsset = (symbol, chain) => [...rows.querySelectorAll('tr')].find((tr) =>
+          tr.getAttribute('data-asset') === symbol && tr.getAttribute('data-chain') === chain
+        );
+        const btc = byAsset('BTC', 'bitcoin');
+        const eth = byAsset('ETH', 'ethereum');
+        const usdt = byAsset('USDT', 'tron');
+        const trx = byAsset('TRX', 'tron');
+        const bnb = byAsset('BNB', 'bnb');
+        const sol = byAsset('SOL', 'solana');
+        evidence.cells = {
+          btc: btc ? btc.children[3].textContent.trim() : '',
+          eth: eth ? eth.children[3].textContent.trim() : '',
+          usdt: usdt ? usdt.children[3].textContent.trim() : '',
+          trx: trx ? trx.children[3].textContent.trim() : '',
+          bnb: bnb ? bnb.children[2].textContent.trim() : '',
+          solBalance: sol ? sol.children[2].textContent.trim() : ''
+        };
+        if (evidence.cells.btc !== '$60,000.00') problems.push('BTC row: ' + evidence.cells.btc);
+        if (evidence.cells.eth !== '$3,000.00') problems.push('ETH row: ' + evidence.cells.eth);
+        if (evidence.cells.usdt !== '$5.00') problems.push('USDT peg row: ' + evidence.cells.usdt);
+        if (evidence.cells.trx !== '$0.10') problems.push('TRX row: ' + evidence.cells.trx);
+        if (evidence.cells.bnb !== '1 BNB') {
+          problems.push('the EVM address reads BNB on BNB Chain: ' + evidence.cells.bnb);
+        }
+        if (evidence.cells.solBalance !== 'not loaded') {
+          problems.push('SOL row without a key says: ' + evidence.cells.solBalance);
+        }
+        if (!empty.hidden) problems.push('the no-key empty state stays visible with keys present');
+        if (!error.hidden) problems.push('the error line is visible on a successful load');
+
+        // A failed provider row is named and excluded; it never becomes zero.
+        btcMode = 'error';
+        refresh.click();
+        const failed = await waitFor(() => /lookup failed/.test(
+          (byAsset('BTC', 'bitcoin') || { textContent: '' }).textContent
+        ), 30000);
+        evidence.failedTotal = total.textContent.trim();
+        evidence.failedText = (byAsset('BTC', 'bitcoin') || { textContent: '' }).textContent.trim();
+        evidence.errorText = error.hidden ? '' : error.textContent.trim();
+        if (!failed) problems.push('a failed BTC row never showed lookup failed');
+        if (evidence.failedTotal !== '$3,615.10') {
+          problems.push('failed-row total is "' + evidence.failedTotal + '" (expected $3,615.10)');
+        }
+        if (error.hidden || !/not counted in the total/i.test(evidence.errorText)) {
+          problems.push('the failed-row error line is missing: ' + evidence.errorText);
+        }
+      } finally {
+        window.fetch = realFetch;
+      }
+
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      evidence.overflow = overflow;
+      if (overflow > 1) problems.push('page overflows by ' + overflow + 'px');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      await sleep(50);
+      return { evidence, problems };
+    })()`,
+    180000,
   );
   return { ok: result.problems.length === 0, ...result };
 }
@@ -3053,11 +3443,11 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
         label.value = text;
         form.requestSubmit();
         return waitFor(() => {
-          const row = document.querySelector('[data-chain="' + slug + '"]');
+          const row = document.querySelector('#wallet-entries [data-chain="' + slug + '"]');
           if (!row) return false;
           const code = row.querySelector('.wallet-address-line code');
           return Boolean(code && code.textContent && code.textContent !== 'deriving…');
-        }, 15000);
+        }, 30000);
       };
       const hex = (n) => '0'.repeat(63) + n;
       const btcOk = await importKey(hex('1'), 'bitcoin', 'audit btc');
@@ -3065,8 +3455,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       toggle.checked = true;
       toggle.dispatchEvent(new Event('change', { bubbles: true }));
       const enabled = await waitFor(() => {
-        const b = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
-        const t = document.querySelector('[data-chain="tron"] [data-history-button]');
+        const b = document.querySelector('#wallet-entries [data-chain="bitcoin"] [data-history-button]');
+        const t = document.querySelector('#wallet-entries [data-chain="tron"] [data-history-button]');
         return Boolean(b && !b.disabled && t && !t.disabled);
       }, 5000);
 
@@ -3076,8 +3466,8 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
         json: async () => payload,
         text: async () => JSON.stringify(payload)
       });
-      const btcAddress = (document.querySelector('[data-chain="bitcoin"] .wallet-address-line code') || {}).textContent || '';
-      const tronAddress = (document.querySelector('[data-chain="tron"] .wallet-address-line code') || {}).textContent || '';
+      const btcAddress = (document.querySelector('#wallet-entries [data-chain="bitcoin"] .wallet-address-line code') || {}).textContent || '';
+      const tronAddress = (document.querySelector('#wallet-entries [data-chain="tron"] .wallet-address-line code') || {}).textContent || '';
       window.__historyRealFetch = window.__historyRealFetch || window.fetch;
       window.__historyCalls = [];
       window.__historyMode = 'data';
@@ -3148,7 +3538,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       if (!enabled) problems.push('the history buttons stayed disabled after enabling lookups');
       return { ok: problems.length === 0, problems, chains, btcAddress, tronAddress, enabled };
     })()`,
-    40000,
+    120000,
   );
   evidence.prepared = prepared;
   if (!prepared.ok) {
@@ -3169,7 +3559,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       };
       const problems = [];
       const evidence = {};
-      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const button = document.querySelector('#wallet-entries [data-chain="bitcoin"] [data-history-button]');
       const panel = document.getElementById('wallet-history');
       if (!button || !panel) return { evidence, problems: ['the Bitcoin history action or panel is missing'] };
       const box = button.getBoundingClientRect();
@@ -3234,7 +3624,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       };
       const problems = [];
       const evidence = {};
-      const button = document.querySelector('[data-chain="tron"] [data-history-button]');
+      const button = document.querySelector('#wallet-entries [data-chain="tron"] [data-history-button]');
       if (!button) return { evidence, problems: ['the TRON history action is missing'] };
       const before = window.__historyCalls.length;
       button.click();
@@ -3281,7 +3671,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       };
       const problems = [];
       const evidence = {};
-      const button = document.querySelector('[data-chain="ethereum"] [data-history-button]');
+      const button = document.querySelector('#wallet-entries [data-chain="ethereum"] [data-history-button]');
       const unavailable = document.getElementById('wallet-history-unavailable');
       if (!button || !unavailable) return { evidence, problems: ['the EVM history action or unavailable note is missing'] };
       const before = window.__historyCalls.length;
@@ -3324,7 +3714,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       const problems = [];
       const evidence = {};
       window.__historyMode = 'empty';
-      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const button = document.querySelector('#wallet-entries [data-chain="bitcoin"] [data-history-button]');
       const emptyEl = document.getElementById('wallet-history-empty');
       button.click();
       const shown = await waitFor(() => emptyEl && !emptyEl.hidden, 10000);
@@ -3359,7 +3749,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
       const problems = [];
       const evidence = {};
       window.__historyMode = 'error';
-      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const button = document.querySelector('#wallet-entries [data-chain="bitcoin"] [data-history-button]');
       const errorEl = document.getElementById('wallet-history-error');
       button.click();
       const shown = await waitFor(() => errorEl && !errorEl.hidden, 10000);
@@ -3393,7 +3783,7 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
         return false;
       };
       window.__historyMode = 'data';
-      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const button = document.querySelector('#wallet-entries [data-chain="bitcoin"] [data-history-button]');
       button.click();
       const loaded = await waitFor(() => document.querySelectorAll('#wallet-history-rows tr').length === 2, 10000);
       window.fetch = window.__historyRealFetch;
@@ -4742,6 +5132,15 @@ async function main() {
                   detail: seed,
                 });
               }
+              const onboarding = await auditWalletOnboarding(cdp);
+              run.metrics.walletOnboarding = onboarding.evidence;
+              if (!onboarding.ok) {
+                run.violations.push({
+                  id: "wallet-onboarding-key-entry",
+                  message: `/cabinet/wallet onboarding key entry failed: ${(onboarding.problems || []).join("; ")}`,
+                  detail: onboarding,
+                });
+              }
               const arm = await auditWalletMainnetArm(cdp);
               run.metrics.walletMainnetArm = arm.evidence;
               if (!arm.ok) {
@@ -4776,6 +5175,15 @@ async function main() {
                   id: "wallet-history-surface",
                   message: `/cabinet/wallet history panel failed: ${(history.problems || []).join("; ")}`,
                   detail: history,
+                });
+              }
+              const topAssets = await auditWalletTopAssets(cdp);
+              run.metrics.walletTopAssets = topAssets.evidence;
+              if (!topAssets.ok) {
+                run.violations.push({
+                  id: "wallet-top-assets-surface",
+                  message: `/cabinet/wallet top-assets table failed: ${(topAssets.problems || []).join("; ")}`,
+                  detail: topAssets,
                 });
               }
             }

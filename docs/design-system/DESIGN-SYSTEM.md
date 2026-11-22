@@ -728,6 +728,8 @@ standalone freshness gate.
 | `wallet-history-surface` | The wallet history panel uses the shared table shell and a 44px labelled action, renders time/direction/amount/counterparty/status with a truncated counterparty title, and shows loading, empty, error and the honest EVM-unavailable state without overflow or a provider call. | phase 4 | implemented |
 | `walletconnect-handoff` | The cabinet WalletConnect panel exposes the connection URI with a 44px labelled copy action, a QR code on desktop, deep links for MetaMask/Trust/Rainbow/Coinbase Wallet plus the generic wc: link carrying the encoded URI, and the expired-URI state with a 44px regenerate action, without horizontal overflow; every link builder accepts only wc: URIs, an Android user agent gets a 44px wallet chooser and a MetaMask deep-link navigation instead of a QR, expiry clears the dead URI and hides the QR/link blocks until Regenerate restores them, and aborting during create() disconnects the new provider. | phase 4 | implemented |
 | `wallet-portfolio-summary` | The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar. | phase 4 | implemented |
+| `wallet-top-assets-surface` | The top-10 asset table uses .data-table inside .table-scroll, lists every asset network once in rank order, prices only rows whose balance loaded, prints — instead of $0.00 with nothing loaded, and names a failed row instead of counting it as zero. | phase 4 | implemented |
+| `wallet-onboarding-key-entry` | The onboarding screen offers a seed-phrase and a private-key/WIF entry as shared 44px chips next to each other; the key choice focuses the import form and both a WIF and a 64-hex key reach the vault from there. | phase 4 | implemented |
 | `search-xrp-secret-routing` | XRP family seeds and secrets route to /key instead of a brainwallet hash. | phase 4 | implemented |
 | `search-short-hex-padding` | 1-63 hex characters stay brainwallet text; exactly 64 hex is a key. | phase 4 | implemented |
 | `mnemonic-solana-balances` | The Solana directory fetches every row with one batched getMultipleAccounts call. | phase 4 | implemented |
@@ -736,7 +738,7 @@ standalone freshness gate.
 | `mnemonic-tron-xrp-sui-balances` | The TRON, XRP and SUI directories fetch balances for every row. | phase 4 | implemented |
 | `mnemonic-xrp-redirect` | XRPScan is called with redirect: error so a cross-origin hop fails loud. | phase 4 | implemented |
 | `mnemonic-sochain-quota-storm` | The first SoChain 429 stops the rest of a directory page instead of firing 60 retries. | phase 4 | implemented |
-| `mnemonic-ltc-sochain-fallback` | A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only. | phase 4 | implemented |
+| `mnemonic-ltc-sochain-fallback` | A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider and the whole Dogecoin page from one SSOT BlockCypher batch; ZEC stays SoChain-only with no fallback. | phase 4 | implemented |
 | `balance-state-attribute` | Every balance row sets data-balance-state and data-balance-at on the row. | phase 4 | implemented |
 | `horizontal-overflow` | The page scrollWidth does not exceed clientWidth. | all | implemented |
 | `clipped-control` | A control does not spill outside its card padding box without a scrollable ancestor. | all | implemented |
@@ -767,6 +769,7 @@ standalone freshness gate.
 | `status-line-margin` | Text-only status lines use a top margin in {8,12}. | 1/3 | planned |
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 | `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
+| `mnemonic-doge-blockcypher-batch` | Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index. | phase 4 | implemented |
 | `puzzle-detail-discussion-link` | The puzzle detail page renders the donor Discussion action with its recorded target. | phase 4 | implemented |
 <!-- END GENERATED detectors:design-system -->
 

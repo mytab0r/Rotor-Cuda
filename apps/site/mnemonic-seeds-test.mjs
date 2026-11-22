@@ -312,10 +312,10 @@ test("mnemonic-sochain-quota-storm: the first 429 stops the rest of the page", a
     return { ok: false, status: 429, json: async () => ({}) };
   };
   try {
-    /* DOGE has no fallback, so this is the SoChain-only path the guard was
-     * built for; Litecoin is covered by the fallback test below. */
-    const addresses = Array.from({ length: 60 }, (_, index) => `doge${index}`);
-    const result = await providers.fetchProvider(api.providerMetaFor("dogecoin"), addresses);
+    /* ZEC has no fallback, so this is the SoChain-only path the guard was
+     * built for; Litecoin and Dogecoin are covered by the fallback tests. */
+    const addresses = Array.from({ length: 60 }, (_, index) => `zec${index}`);
+    const result = await providers.fetchProvider(api.providerMetaFor("zcash"), addresses);
     assertEqual(Object.keys(result.values).length, 0, "a 429 never yields a balance");
     assertEqual(Object.keys(result.errors).length, 60, "every row keeps the retry state");
     assert(
@@ -383,7 +383,146 @@ test("mnemonic-ltc-sochain-fallback: a 429 serves all 60 LTC rows from litecoins
   }
 });
 
-test("mnemonic-ltc-sochain-fallback: DOGE and ZEC never call litecoinspace", async () => {
+test("mnemonic-doge-blockcypher-batch: a SoChain 429 falls back to one BlockCypher request for all 60 rows", async () => {
+  const sochainRequests = [];
+  const blockcypherRequests = [];
+  const blockcypherBase = globalThis.RotorProviders.find("dogecoin", "blockcypher").url;
+  const litecoinSpaceBase = globalThis.RotorProviders.find("litecoin", "litecoinspace").url;
+  const addresses = Array.from({ length: 60 }, (_, index) => `Ddoge${index}`);
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const text = String(url);
+    if (text.startsWith(blockcypherBase + "/addrs/")) {
+      blockcypherRequests.push(text);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => addresses.map((address, index) => ({
+          address,
+          balance: String(1000 + index),
+          total_received: String(5000 + index),
+          n_tx: index
+        }))
+      };
+    }
+    sochainRequests.push(text);
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    const result = await providers.fetchProvider(api.providerMetaFor("dogecoin"), addresses);
+    assertEqual(Object.keys(result.values).length, 60, "all 60 rows resolve from the fallback");
+    assertEqual(Object.keys(result.errors).length, 0, "no row keeps the retry state");
+    addresses.forEach((address, index) => {
+      assertEqual(result.values[address].balance, String(1000 + index), "balance maps by request order");
+      assertEqual(result.values[address].received, String(5000 + index), "received maps by request order");
+      assertEqual(result.values[address].tx, index, "tx maps by request order");
+    });
+    assert(
+      sochainRequests.length <= providers.BALANCE_LIMIT * 2,
+      `the exhausted quota stops the SoChain fan-out, got ${sochainRequests.length} requests`
+    );
+    assertEqual(blockcypherRequests.length, 1, "one BlockCypher request for the whole page");
+    assertEqual(
+      blockcypherRequests[0],
+      blockcypherBase + "/addrs/" + addresses.map(encodeURIComponent).join(";") + "/balance",
+      "the SSOT BlockCypher batch URL lists every address once in input order"
+    );
+    assert(
+      sochainRequests.every((url) => !url.startsWith(litecoinSpaceBase)),
+      "DOGE never calls litecoinspace"
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-doge-blockcypher-batch: a short batch is an error for every affected row, never zero", async () => {
+  const blockcypherBase = globalThis.RotorProviders.find("dogecoin", "blockcypher").url;
+  const addresses = ["DdogeA", "DdogeB", "DdogeC"];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).startsWith(blockcypherBase + "/addrs/")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{ address: addresses[0], balance: "7", total_received: "9", n_tx: 1 }]
+      };
+    }
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    const result = await providers.fetchProvider(api.providerMetaFor("dogecoin"), addresses);
+    assertEqual(Object.keys(result.values).length, 0, "a short body never yields a value");
+    addresses.forEach((address) => {
+      assertEqual(typeof result.errors[address], "string", "every affected row keeps the retry state");
+    });
+    assertEqual(result.errors[addresses[0]], "unexpected response", "the honest parser error is surfaced");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-doge-blockcypher-batch: one address is read from the single-object form", async () => {
+  const blockcypherBase = globalThis.RotorProviders.find("dogecoin", "blockcypher").url;
+  const address = "DH5yaieqoZN36fDVciNyRueRGvGLR3mr7L";
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const text = String(url);
+    if (text.startsWith(blockcypherBase + "/addrs/")) {
+      requests.push(text);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          address,
+          balance: "6223536467666",
+          total_received: "4385334473843834264",
+          n_tx: 1487
+        })
+      };
+    }
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    const result = await providers.fetchProvider(api.providerMetaFor("dogecoin"), [address]);
+    assertEqual(requests.length, 1, "one fallback request");
+    assertEqual(
+      requests[0],
+      blockcypherBase + "/addrs/" + encodeURIComponent(address) + "/balance",
+      "the SSOT single-address batch URL"
+    );
+    assertEqual(result.values[address].balance, "6223536467666", "the object form is parsed");
+    assertEqual(result.values[address].received, "4385334473843834264", "total_received is kept");
+    assertEqual(result.values[address].tx, 1487, "n_tx is kept");
+    assertEqual(Object.keys(result.errors).length, 0, "no error when the provider answers");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-doge-blockcypher-batch: the private-key directory keeps DOGE on SoChain with a BlockCypher fallback", async () => {
+  const source = await readFile(browsePath, "utf8");
+  const providersSource = await readFile(
+    fileURLToPath(new URL("./balance-providers.js", import.meta.url)),
+    "utf8"
+  );
+  assert(
+    source.includes("config.chain === 'dogecoin'"),
+    "browse.js must still declare DOGE among the SoChain chains"
+  );
+  assert(
+    !source.includes("provider: 'blockcypher-doge'"),
+    "browse.js must not wire BlockCypher as DOGE's primary provider"
+  );
+  assert(
+    providersSource.includes("meta.chain === 'dogecoin'") &&
+      providersSource.includes("blockcypherDogeProvider(addresses)"),
+    "balance-providers.js must fall back to the BlockCypher batch for DOGE"
+  );
+});
+
+test("mnemonic-ltc-sochain-fallback: ZEC never calls litecoinspace", async () => {
   const requests = [];
   const fallbackBase = globalThis.RotorProviders.find("litecoin", "litecoinspace").url;
   const previousFetch = globalThis.fetch;
@@ -392,14 +531,12 @@ test("mnemonic-ltc-sochain-fallback: DOGE and ZEC never call litecoinspace", asy
     return { ok: false, status: 429, json: async () => ({}) };
   };
   try {
-    for (const [chain, address] of [["dogecoin", "dogeAddr"], ["zcash", "zecAddr"]]) {
-      const result = await providers.fetchProvider(api.providerMetaFor(chain), [address]);
-      assertEqual(result.values[address], undefined, `${chain} has no fallback balance`);
-      assertEqual(typeof result.errors[address], "string", `${chain} keeps the retry state`);
-    }
+    const result = await providers.fetchProvider(api.providerMetaFor("zcash"), ["zecAddr"]);
+    assertEqual(result.values.zecAddr, undefined, "ZEC has no fallback balance");
+    assertEqual(typeof result.errors.zecAddr, "string", "ZEC keeps the retry state");
     assert(
       requests.every((url) => !url.startsWith(fallbackBase)),
-      "DOGE/ZEC stay SoChain-only, no litecoinspace request"
+      "ZEC stays SoChain-only, no litecoinspace request"
     );
   } finally {
     globalThis.fetch = previousFetch;

@@ -523,6 +523,22 @@
       "status": "implemented"
     },
     {
+      "id": "wallet-top-assets-surface",
+      "rule": "The top-10 asset table uses .data-table inside .table-scroll, lists every asset network once in rank order, prices only rows whose balance loaded, prints — instead of $0.00 with nothing loaded, and names a failed row instead of counting it as zero.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "wallet-onboarding-key-entry",
+      "rule": "The onboarding screen offers a seed-phrase and a private-key/WIF entry as shared 44px chips next to each other; the key choice focuses the import form and both a WIF and a 64-hex key reach the vault from there.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "search-xrp-secret-routing",
       "rule": "XRP family seeds and secrets route to /key instead of a brainwallet hash.",
       "batch": "phase 4",
@@ -588,7 +604,7 @@
     },
     {
       "id": "mnemonic-ltc-sochain-fallback",
-      "rule": "A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only.",
+      "rule": "A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider and the whole Dogecoin page from one SSOT BlockCypher batch; ZEC stays SoChain-only with no fallback.",
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
@@ -856,6 +872,14 @@
       "batch": "4a",
       "implemented_in": "scripts/check-screenshots.mjs",
       "doc_anchor": "docs/process/self-checking.md#7-no-screenshots-or-test-evidence-in-the-repo",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-doge-blockcypher-batch",
+      "rule": "Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
       "status": "implemented"
     },
     {

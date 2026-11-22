@@ -626,11 +626,32 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "mnemonic-doge-blockcypher-batch",
+      "reported": "2026-11-22",
+      "symptom": "DOGE had no fallback at all when SoChain 429'd, although the SSOT-declared BlockCypher endpoint can serve a batch when its own small quota has room.",
+      "detector": "mnemonic-doge-blockcypher-batch",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
       "id": "puzzle-detail-discussion-link",
       "reported": "2026-11-22",
       "symptom": "The puzzle detail action row omitted the donor Discussion link; the donor target was never recorded.",
       "detector": "puzzle-detail-discussion-link",
       "where": "src/coordinator/mod.rs"
+    },
+    {
+      "id": "wallet-top-assets-zero-lie",
+      "reported": "2026-11-22",
+      "symptom": "The wallet had no market-cap asset view. A naive table would have printed 0 or $0.00 for a row whose provider failed or had no key, and a token row could have shown a native balance instead of its contract balance; no detector asserted rank order, the shared table shell, per-network rows, the explicit USDT peg or the failed-row exclusion from the total.",
+      "detector": "wallet-top-assets-surface",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-onboarding-key-hidden",
+      "reported": "2026-11-22",
+      "symptom": "The vault accepted a WIF and a 64-hex key but the only entry was a form inside the unlocked panel, so a user arriving with a single key had no first-class path next to the seed phrase. Nothing proved the WIF and hex submissions were reachable from the onboarding screen.",
+      "detector": "wallet-onboarding-key-entry",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

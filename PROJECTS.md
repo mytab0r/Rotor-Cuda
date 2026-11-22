@@ -62,7 +62,10 @@ owned by exactly one area; the most-specific glob wins.
   `/cabinet` shares `monitor.js` and `wc-links.js` (pure WalletConnect
   deep-link builders and mobile detection) and lazy-loads the vendored
   `walletconnect.js` bundle; the provider is built with `showQrModal: false`
-  and the page renders its own URI/QR/deep-link panel. The operator cabinet
+  and the page renders its own URI/QR/deep-link panel. `/assets.generated.js`
+  carries the `data/assets.json` top-10 list and `/wallet-assets.js` its pure
+  ordering/price/row model; the wallet page also loads the shared
+  `balance-cache.js` and `balance-providers.js` for native rows. The operator cabinet
   lives at `/cabinet/admin` behind a signed session cookie (login at
   `/cabinet/admin/login`, dashboard data at `/cabinet/admin/api/overview`, both
   scoped to `Path=/cabinet/admin`); its read-only inventory panels

@@ -411,6 +411,49 @@
     return { values: values, errors: errors };
   }
 
+  /* BlockCypher `GET /addrs/<addr1>;<addr2>;.../balance`: one request for the
+   * whole page, one row per address in the SAME ORDER as the query. The body
+   * is a JSON array for two or more addresses and a single object for one;
+   * `parseBlockcypherDogeBatch` accepts both. A malformed or short body is an
+   * honest error for every address, never a zero balance. The base URL comes
+   * from the SSOT `blockcypher` entry, never from a literal in this file. */
+  function blockcypherDogeBatchUrl(addresses) {
+    var unique = uniqueAddresses(addresses);
+    return providers().find('dogecoin', 'blockcypher').url +
+      '/addrs/' + unique.map(encodeURIComponent).join(';') + '/balance';
+  }
+
+  async function blockcypherDogeProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
+    var data = await requestJson(blockcypherDogeBatchUrl(unique));
+    var api = cacheApi();
+    var rows = api && typeof api.parseBlockcypherDogeBatch === 'function'
+      ? api.parseBlockcypherDogeBatch(unique, data)
+      : null;
+    if (!rows) {
+      unique.forEach(function (address) {
+        errors[address] = 'unexpected response';
+      });
+      return { values: values, errors: errors };
+    }
+    unique.forEach(function (address, index) {
+      var row = rows[index];
+      if (!row) {
+        errors[address] = 'Balance row missing from the provider.';
+        return;
+      }
+      values[address] = {
+        balance: row.amount,
+        received: row.received,
+        tx: row.tx
+      };
+    });
+    return { values: values, errors: errors };
+  }
+
   /* TonAPI `POST /accounts/_bulk`: `{ account_ids: [...] }` answers
    * `{ accounts: [...] }` in the SAME ORDER as the request. The echoed
    * `address` is the raw `0:hex` form, so rows are mapped back by index,
@@ -512,10 +555,12 @@
     /* SoChain's keyless budget is 2500 lookups a DAY per IP. Once it answers
      * 429 ("Limits reached") every further address would fail the same way, so
      * the first 429 stops the rest of the page: without this a 60-row page
-     * turns one exhausted quota into ~240 failing lookups. DOGE and ZEC have no
-     * fallback, so their rows keep the honest retry state; Litecoin serves the
+     * turns one exhausted quota into ~240 failing lookups. Litecoin serves the
      * whole page through the keyless `litecoinspace` Esplora provider that the
-     * SSOT already declares, like `/key` falls back to BlockCypher. */
+     * SSOT already declares; Dogecoin serves it through one SSOT BlockCypher
+     * batch request (`/addrs/<a;b;...>/balance`), though that provider's small
+     * hourly quota counts each address and may also be exhausted, in which case
+     * the rows keep the honest retry state; ZEC has no fallback. */
     var exhausted = null;
     var sochain = perAddressProvider(addresses, function (address) {
       if (exhausted) return Promise.reject(exhausted);
@@ -535,10 +580,17 @@
           throw err;
         });
     });
-    if (meta.chain !== 'litecoin') return sochain;
-    return sochain.then(function (result) {
-      return exhausted ? litecoinSpaceProvider(addresses) : result;
-    });
+    if (meta.chain === 'litecoin') {
+      return sochain.then(function (result) {
+        return exhausted ? litecoinSpaceProvider(addresses) : result;
+      });
+    }
+    if (meta.chain === 'dogecoin') {
+      return sochain.then(function (result) {
+        return exhausted ? blockcypherDogeProvider(addresses) : result;
+      });
+    }
+    return sochain;
   }
 
   var FETCHERS = {
@@ -558,11 +610,42 @@
     'toncenter': function (meta, addresses) { return perAddressProvider(addresses, tonCenterBalance); },
     'tonapi': function (meta, addresses) { return tonApiProvider(addresses); },
     'haskoin-bch': function (meta, addresses) { return haskoinBchProvider(addresses); },
+    'blockcypher-doge': function (meta, addresses) { return blockcypherDogeProvider(addresses); },
     'sochain': function (meta, addresses) { return sochainProvider(meta, addresses); }
   };
 
   function supportsProvider(name) {
     return Object.prototype.hasOwnProperty.call(FETCHERS, String(name));
+  }
+
+  /* Resolve the one provider path a chain uses. The caller supplies the
+   * display unit; the chain family comes from data/chains.json. This is the
+   * shared mapping the wallet top-assets view uses, so a chain wired here
+   * cannot silently stay "not loaded" there. */
+  function metaFor(chainSlug, options) {
+    var chains = root.RotorChains;
+    var chain = chains && chains.bySlug ? chains.bySlug[chainSlug] : null;
+    if (!chain) return null;
+    var settings = options || {};
+    var base = {
+      chain: chainSlug,
+      symbol: settings.symbol || chain.symbol,
+      decimals: settings.decimals === undefined ? chain.decimals : settings.decimals
+    };
+    if (chain.family === 'evm') return Object.assign({ provider: 'evm' }, base);
+    if (chain.family === 'btc') {
+      return chain.testnet ? null : Object.assign({ provider: 'blockchain.info' }, base);
+    }
+    if (chain.family === 'solana') return Object.assign({ provider: 'solana' }, base);
+    if (chain.family === 'sui') return Object.assign({ provider: 'sui' }, base);
+    if (chain.family === 'tron') return Object.assign({ provider: 'tronscan' }, base);
+    if (chain.family === 'xrp') return Object.assign({ provider: 'xrpscan' }, base);
+    if (chain.family === 'ton') return Object.assign({ provider: 'tonapi' }, base);
+    if (chain.family === 'bch') return Object.assign({ provider: 'haskoin-bch' }, base);
+    if (chain.family === 'ltc' || chain.family === 'doge' || chain.family === 'zcash') {
+      return Object.assign({ provider: 'sochain' }, base);
+    }
+    return null;
   }
 
   function fetchProvider(meta, addresses) {
@@ -578,10 +661,12 @@
     TRON_BATCH_MAX: TRON_BATCH_MAX,
     providers: Object.keys(FETCHERS),
     supportsProvider: supportsProvider,
+    metaFor: metaFor,
     fetchProvider: fetchProvider,
     uniqueAddresses: uniqueAddresses,
     solanaBatchBody: solanaBatchBody,
     haskoinBatchUrl: haskoinBatchUrl,
+    blockcypherDogeBatchUrl: blockcypherDogeBatchUrl,
     parseTonApiAccounts: parseTonApiAccounts,
     tronValue: tronValue,
     tronChunks: tronChunks

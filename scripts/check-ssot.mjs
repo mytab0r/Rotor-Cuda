@@ -53,7 +53,7 @@ const AMOUNT_JS = "amount.js";
 const ALLOW_PATH = "data/ssot-allow.json";
 const VENDOR_LOCK_PATH = "data/vendor.lock.json";
 const WEB_PUBLIC_DIR = "web/public";
-const EXEMPT_GENERATED = new Set([GENERATED_JS]);
+const EXEMPT_GENERATED = new Set([GENERATED_JS, "assets.generated.js"]);
 const OWNERS = new Set([
   "site-ui",
   "coordinator",
