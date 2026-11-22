@@ -103,7 +103,7 @@ hand-edit it.
 - The landing loads no WASM and no coordinator API: chain cards come from
   `data/chains.json` at build time, and the dynamic totals/leaderboard link to
   the operator console instead of rendering stale numbers. Its only scripts are
-  the deferred theme bootstrap (601 B gzip) and the shell island bundle (913 B
+  the deferred theme bootstrap (635 B gzip) and the shell island bundle (913 B
   gzip).
 - The shared shell is the one header/footer source. The pilot no longer carries
   its own copy, and it uses the layout's static theme toggle, skip link, active
@@ -112,5 +112,9 @@ hand-edit it.
 - `assetsInlineLimit: 0` keeps every script a same-origin file. The CSP plan
   allows `script-src 'self'`; an inlined module or `data:` URL would violate it
   even when it is smaller.
+- The shell follows the #399 density tier: 36px standard actions on a fine
+  desktop pointer, 44px primary actions and the touch floor, and 28px dense row
+  actions with a 44px hit area. Header nav/utility controls stay 44px per the
+  documented one-row header exception.
 - UI copy, CSS and fonts are unchanged from the current site; only the shell
   behaviour above is new. This phase does not restyle the current design.

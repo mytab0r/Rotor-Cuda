@@ -29,10 +29,19 @@
   text-decoration: none;
 }
 
-/* Every standalone action keeps the shared 44px button grammar. A 36px
- * desktop variant would fail the project touch-target gate (`ui-audit`
- * small-touch-target is enforced at every viewport), so the landing uses
- * `.btn` unchanged. */
+/* Every standalone action keeps the shared button grammar. On a fine desktop
+ * pointer the standard action is 36px and the primary call to action stays
+ * 44px (the shared density tier); touch keeps 44 for both. The shared `.btn`
+ * block padding would render 39-41px even with a 36px min-height, so the
+ * secondary actions drop block padding and let the tier's min-height win. */
+@media (min-width: 1024px) and (pointer: fine) {
+  .landing-page .btn:not(.primary) { padding-block: 0; }
+}
+
+/* A flex row would stretch a 36px secondary action to the 44px primary
+ * action next to it; centre each control in its own tier instead. */
+.landing-page .actions,
+.landing-actions { align-items: center; }
 
 /* An action row outside the hero: same rhythm as .puzzle-actions without
  * borrowing the puzzle-specific class. */
@@ -45,13 +54,13 @@
 
 /* Tool cards are containers: the heading carries the short link and the
  * description stays outside the anchor, so a card never wraps a paragraph in
- * link text. The title link keeps the 44px touch floor as a standalone
- * control. */
+ * link text. The title link follows the shared density step: 36px on a fine
+ * desktop pointer, 44px on touch. */
 .tool-card h3 a {
   display: inline-flex;
   align-items: center;
-  min-width: var(--control-h-lg);
-  min-height: var(--control-h-lg);
+  min-width: var(--control-h);
+  min-height: var(--control-h);
   color: var(--ink-1);
 }
 .tool-card h3 a:hover { color: var(--signal); }
@@ -148,7 +157,7 @@
 .landing-facts a {
   display: inline-flex;
   align-items: center;
-  min-height: var(--control-h-lg);
+  min-height: var(--control-h);
   font-weight: var(--weight-semibold);
 }
 
