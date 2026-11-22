@@ -26,6 +26,24 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
   the coverage check fails otherwise.
 - Do not hand-edit generated artifacts (`target/`, wasm output) or add secrets.
 
+## Task tracking
+
+Convention: `docs/process/task-tracking.md`. One key per task: `ROT-<n>` from
+the GitHub issue number; an epic per OpenSpec change and a sub-issue per
+`tasks.md` section.
+
+- Implement work against a sub-issue. End the commit message with
+  `Task: ROT-<n>` (a trailer, provider-neutral; no `Closes` in commits).
+- The PR body must contain `Task: ROT-<n>` and a closing reference to the same
+  issue (`Closes #<n>`; Bitbucket/Jira equivalents are in the doc). The PR title
+  and the branch (`<type>/<change-id>-<slug>`) do not need the key.
+- A docs/process-only PR may use `Task: none — <reason>`; a product PR may not.
+- Close the sub-issue you finish; `node scripts/sync-board.mjs` only creates and
+  updates issues, it never closes them. Do not invent a key or create a second
+  issue beyond the sync marker.
+- `node scripts/check-task-links.mjs` is the CI gate; run it locally before
+  pushing when the PR body or the task mapping changed.
+
 Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
 
 ## Single source of truth
