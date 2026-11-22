@@ -508,7 +508,7 @@
     },
     {
       "id": "walletconnect-handoff",
-      "rule": "The cabinet WalletConnect panel exposes the connection URI with a 44px labelled copy action, a QR code on desktop, deep links for MetaMask/Trust/Rainbow/Coinbase Wallet plus the generic wc: link carrying the encoded URI, and the expired-URI state with a 44px regenerate action, without horizontal overflow.",
+      "rule": "The cabinet WalletConnect panel exposes the connection URI with a 44px labelled copy action, a QR code on desktop, deep links for MetaMask/Trust/Rainbow/Coinbase Wallet plus the generic wc: link carrying the encoded URI, and the expired-URI state with a 44px regenerate action, without horizontal overflow; every link builder accepts only wc: URIs, an Android user agent gets a 44px wallet chooser and a MetaMask deep-link navigation instead of a QR, expiry clears the dead URI and hides the QR/link blocks until Regenerate restores them, and aborting during create() disconnects the new provider.",
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",

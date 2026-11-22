@@ -39,3 +39,20 @@
       (full suite: 288 page runs across 48 routes; final `/cabinet` 6/6). The
       detector now captures the ready and expired panel screenshots as CI
       artifacts.
+
+## 5. Independent-review follow-ups
+
+- [x] `wc-links.js`: one `uriText()` scheme guard; `deepLink` and
+      `genericLink` accept only strings starting with `wc:`; tests cover
+      `javascript:`, `data:`, `http(s):`, uppercase `WC:` and non-string input.
+- [x] `monitor.js`: one `wcDisconnect()` helper for every abort path, and the
+      generation-mismatch finalizer disconnects a provider created while the
+      attempt was being invalidated.
+- [x] `monitor.js`: expiry clears `wcFlow.uri`, the URI text, the QR block and
+      the wallet-link/mobile blocks; Regenerate restores a fresh ready state.
+- [x] `ui-audit.mjs`: the `walletconnect-handoff` detector runs `/cabinet` at
+      375 with an Android Chrome UA, asserts the 44px mobile chooser and the
+      MetaMask deep-link navigation, asserts desktop still shows a QR with no
+      navigation, asserts expiry clears the URI/QR/links, and asserts an
+      aborted `create()` disconnects its provider. Verified by mutation:
+      forcing the mobile branch off fails the audit, restoring it passes.

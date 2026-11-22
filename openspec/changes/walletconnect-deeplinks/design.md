@@ -28,6 +28,12 @@ page never sees the URI.
   wallet.
 - `isMobile(userAgent)` - `/Android|iPhone|iPad/`.
 
+Both link builders funnel through one `uriText()` guard that accepts only a
+string starting with `wc:`. `javascript:`, `data:`, `http(s):` or any other
+scheme produces an empty link, so a caller cannot turn an unexpected value into
+an anchor href or a `location.href` target. Empty and non-string input stays
+empty as before.
+
 The coordinator embeds and serves the file at `/wc-links.js`; `monitor.html`
 loads it before `/cabinet.js`, and `apps/site/wc-links-test.mjs` unit-tests the
 four helpers.
@@ -44,8 +50,16 @@ four helpers.
 
 The expiry delay comes from `expiryTimestamp` in the URI, falling back to five
 minutes. Expiry disconnects the pending provider, invalidates that run with a
-generation counter and frees the busy state; late events from the old run are
-ignored. Closing the panel does the same without showing an error.
+generation counter, clears `wcFlow.uri`, empties the URI text and hides the QR,
+wallet-link and mobile-chooser blocks; Regenerate reopens the panel and a fresh
+`display_uri` restores them. Closing the panel does the same without showing an
+error.
+
+Every disconnect path (close, regenerate, expiry, finalizer) goes through one
+`wcDisconnect()` helper. When an attempt is invalidated while `create()` is
+still resolving, the provider is not yet reachable through `wcFlow.provider`,
+so the finalizer disconnects it explicitly instead of leaking the relay
+socket.
 
 Mobile auto-navigation happens once, when the URI arrives: the panel reads the
 selected wallet from its chooser and assigns `location.href`. Selecting another
@@ -67,7 +81,12 @@ diagnostic.
 
 ## Evidence
 
-A headless browser cannot approve a WalletConnect session. The UI audit covers
-the sign-in card layout at 375/768/1280 in dark and light; the QR/deep-link
-handoff, expired URI and rejected signature are manual checks with a real
-wallet, recorded in `docs/ops/admin-cabinet.md` and the PR.
+A headless browser cannot approve a WalletConnect session. The UI audit stubs
+`create`/`connect`, emits a real `display_uri` and the bundled QR renderer, then
+asserts the desktop QR/links, the copy and regenerate geometry, the expired
+state, and the URI/control cleanup. The 375 run of `/cabinet` swaps the user
+agent to Android Chrome so the mobile chooser, its 44px targets and the
+MetaMask deep-link navigation are exercised, and a controlled `create` proves
+that aborting a superseded attempt disconnects its provider. A real-wallet
+approval and signature stay manual checks, recorded in
+`docs/ops/admin-cabinet.md` and the PR.
