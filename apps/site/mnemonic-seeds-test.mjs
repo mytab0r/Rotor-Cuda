@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const scriptPath = fileURLToPath(new URL("./mnemonic-seeds.js", import.meta.url));
 
 globalThis.window = globalThis;

@@ -23,11 +23,17 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var CHAIN_SLUG = 'bitcoin-testnet';
   var NETWORK = 'testnet';
-  var API_BASE = 'https://mempool.space/testnet/api';
-  var EXPLORER_ADDRESS = 'https://mempool.space/testnet/address/';
-  var EXPLORER_TX = 'https://mempool.space/testnet/tx/';
+  var API_BASE = SSOT_PROVIDERS.find('bitcoin-testnet', 'mempool').url;
+  var EXPLORER_ADDRESS = SSOT_CHAINS.bySlug['bitcoin-testnet'].explorerPrefix;
+  var EXPLORER_TX = SSOT_CHAINS.bySlug['bitcoin-testnet'].explorerTxPrefix;
   var SATS_DECIMALS = 8;
   var MAX_MONEY = 21000000n * 100000000n;
   /* P2WPKH dust threshold at the default 3 sat/vB relay rate. Change below it

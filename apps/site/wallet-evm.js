@@ -19,6 +19,12 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var ETH_DECIMALS = 18;
   var GWEI_DECIMALS = 9;
 
@@ -35,17 +41,12 @@
       name: 'Ethereum Sepolia',
       symbol: 'ETH',
       testnet: true,
-      explorerTx: 'https://sepolia.etherscan.io/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.sepolia.explorerTxPrefix,
       feeCapWei: null,
       /* Verified with a real browser (Chrome, Origin http://127.0.0.1:18321) on
        * 2026-11-19: all three answer eth_chainId with 0xaa36a7 and allow CORS.
-       * rpc.sepolia.org returns HTTP 404 and sepolia.drpc.org refuses the
-       * Sepolia chain on its free plan, so neither is offered. */
-      providers: [
-        { id: 'publicnode', url: 'https://ethereum-sepolia-rpc.publicnode.com', label: 'publicnode.com' },
-        { id: '1rpc', url: 'https://1rpc.io/sepolia', label: '1RPC' },
-        { id: 'tenderly', url: 'https://sepolia.gateway.tenderly.co', label: 'Tenderly gateway' }
-      ]
+       * The canonical list lives in data/providers.json. */
+      providers: SSOT_PROVIDERS.byChain.sepolia
     },
     {
       slug: 'ethereum',
@@ -54,13 +55,9 @@
       name: 'Ethereum mainnet',
       symbol: 'ETH',
       testnet: false,
-      explorerTx: 'https://etherscan.io/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.ethereum.explorerTxPrefix,
       feeCapWei: 5n * 10n ** 16n,
-      providers: [
-        { id: 'publicnode', url: 'https://ethereum-rpc.publicnode.com', label: 'publicnode.com' },
-        { id: 'drpc', url: 'https://eth.drpc.org', label: 'dRPC' },
-        { id: '1rpc', url: 'https://1rpc.io/eth', label: '1RPC' }
-      ]
+      providers: SSOT_PROVIDERS.byChain.ethereum
     },
     {
       slug: 'bnb',
@@ -69,11 +66,9 @@
       name: 'BNB Chain mainnet',
       symbol: 'BNB',
       testnet: false,
-      explorerTx: 'https://bscscan.com/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.bnb.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
-      providers: [
-        { id: 'binance', url: 'https://bsc-dataseed.binance.org', label: 'bsc-dataseed.binance.org' }
-      ]
+      providers: [SSOT_PROVIDERS.find('bnb', 'bsc-dataseed')]
     },
     {
       slug: 'arbitrum',
@@ -82,11 +77,9 @@
       name: 'Arbitrum One',
       symbol: 'ETH',
       testnet: false,
-      explorerTx: 'https://arbiscan.io/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.arbitrum.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
-      providers: [
-        { id: 'arbitrum', url: 'https://arb1.arbitrum.io/rpc', label: 'arb1.arbitrum.io' }
-      ]
+      providers: [SSOT_PROVIDERS.find('arbitrum', 'arbitrum')]
     },
     {
       slug: 'optimism',
@@ -95,14 +88,11 @@
       name: 'OP Mainnet',
       symbol: 'ETH',
       testnet: false,
-      explorerTx: 'https://optimistic.etherscan.io/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.optimism.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
       /* mainnet.optimism.io answers HTTP 403 to a browser-like request even
        * with an Origin header (checked 2026-11-22), so it is not offered. */
-      providers: [
-        { id: 'publicnode', url: 'https://optimism-rpc.publicnode.com', label: 'publicnode.com' },
-        { id: 'drpc', url: 'https://optimism.drpc.org', label: 'dRPC' }
-      ]
+      providers: SSOT_PROVIDERS.byChain.optimism
     },
     {
       slug: 'base',
@@ -111,11 +101,9 @@
       name: 'Base mainnet',
       symbol: 'ETH',
       testnet: false,
-      explorerTx: 'https://basescan.org/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.base.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
-      providers: [
-        { id: 'base', url: 'https://mainnet.base.org', label: 'mainnet.base.org' }
-      ]
+      providers: [SSOT_PROVIDERS.find('base', 'base')]
     },
     {
       slug: 'polygon',
@@ -124,14 +112,11 @@
       name: 'Polygon mainnet',
       symbol: 'POL',
       testnet: false,
-      explorerTx: 'https://polygonscan.com/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.polygon.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
       /* polygon-rpc.com answers "API key disabled, tenant disabled" (checked
        * 2026-11-22), so it is not offered. */
-      providers: [
-        { id: 'publicnode', url: 'https://polygon-bor-rpc.publicnode.com', label: 'publicnode.com' },
-        { id: 'drpc', url: 'https://polygon.drpc.org', label: 'dRPC' }
-      ]
+      providers: SSOT_PROVIDERS.byChain.polygon
     },
     {
       slug: 'avalanche',
@@ -140,11 +125,9 @@
       name: 'Avalanche C-Chain',
       symbol: 'AVAX',
       testnet: false,
-      explorerTx: 'https://snowtrace.io/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.avalanche.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
-      providers: [
-        { id: 'avalanche', url: 'https://api.avax.network/ext/bc/C/rpc', label: 'api.avax.network' }
-      ]
+      providers: [SSOT_PROVIDERS.find('avalanche', 'avalanche')]
     },
     {
       slug: 'zksync',
@@ -153,11 +136,9 @@
       name: 'zkSync Era mainnet',
       symbol: 'ETH',
       testnet: false,
-      explorerTx: 'https://explorer.zksync.io/tx/',
+      explorerTx: SSOT_CHAINS.bySlug.zksync.explorerTxPrefix,
       feeCapWei: 10n ** 16n,
-      providers: [
-        { id: 'zksync', url: 'https://mainnet.era.zksync.io', label: 'mainnet.era.zksync.io' }
-      ]
+      providers: SSOT_PROVIDERS.byChain.zksync
     },
     {
       /* Used by the separate TESTNET /send page, which reuses this codec.
@@ -169,7 +150,7 @@
       symbol: 'tBNB',
       testnet: true,
       wallet: false,
-      explorerTx: 'https://testnet.bscscan.com/tx/',
+      explorerTx: SSOT_CHAINS.bySlug['bnb-testnet'].explorerTxPrefix,
       feeCapWei: null,
       providers: []
     }
@@ -199,9 +180,7 @@
   var GAS_BUFFER_PERCENT = 20n;
 
   /* EVM chains the vault can hold. */
-  var EVM_CHAIN_SLUGS = [
-    'ethereum', 'bnb', 'arbitrum', 'optimism', 'base', 'polygon', 'avalanche', 'zksync'
-  ];
+  var EVM_CHAIN_SLUGS = SSOT_PROVIDERS.groups['evm-mainnet'].slice();
   var U64_MAX = (1n << 64n) - 1n;
   var U128_MAX = (1n << 128n) - 1n;
 

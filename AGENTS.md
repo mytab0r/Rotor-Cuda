@@ -28,6 +28,26 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
 
 Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
 
+## Single source of truth
+
+Chain identity and public RPC/API endpoints have one machine source:
+`data/chains.json` and `data/providers.json`. Do not copy a provider host,
+explorer URL or chain identity into a page script.
+
+- Generate the consumers with `node scripts/gen-ssot.mjs`:
+  `apps/site/chains.generated.js` (`window.RotorChains`,
+  `window.RotorProviders`) and `src/generated/chains.rs`.
+- `node scripts/gen-ssot.mjs --check` fails when either output is stale.
+- `node scripts/check-ssot.mjs` validates the data and fails when a first-party
+  `apps/site/*.js` file contains a canonical provider/explorer host literal.
+  Known textual exceptions live in `data/ssot-allow.json` (`file`, `match`,
+  `reason`, `owner`, `expires`); the list is shrink-only and expired entries
+  fail.
+- The coordinator embeds and fingerprints `/chains.generated.js` and injects it
+  into every served document before the page scripts. Node tests that load a
+  migrated consumer call `require("./chains.generated.js")` first.
+- Never hand-edit either generated file.
+
 ## Security alerts
 
 - Code scanning alerts are triaged within one working day. `.github/workflows/codeql-alerts.yml`

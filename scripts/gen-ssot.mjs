@@ -290,7 +290,7 @@ function renderRs(data, eol = "\n") {
     ["CHAIN_EXPLORERS", (chain) => [chain.slug, chain.explorer]],
   ];
   for (const [name, map] of tables) {
-    lines.push("#[rustfmt::skip]", `pub static ${name}: &[(&'static str, &'static str)] = &[`);
+    lines.push("#[rustfmt::skip]", `pub static ${name}: &[(&str, &str)] = &[`);
     for (const chain of data.chains) {
       const [slug, value] = map(chain);
       lines.push(`    (${rustString(slug)}, ${rustString(value)}),`);
@@ -300,7 +300,7 @@ function renderRs(data, eol = "\n") {
 
   lines.push(
     "#[rustfmt::skip]",
-    "pub static CHAIN_EXPLORER_TX: &[(&'static str, &'static str)] = &[",
+    "pub static CHAIN_EXPLORER_TX: &[(&str, &str)] = &[",
   );
   for (const chain of data.chains) {
     if (!chain.explorerTx) continue;
@@ -310,7 +310,7 @@ function renderRs(data, eol = "\n") {
 
   lines.push(
     "#[rustfmt::skip]",
-    "pub static PROVIDER_GROUPS: &[(&'static str, &'static [&'static str])] = &[",
+    "pub static PROVIDER_GROUPS: &[(&str, &[&str])] = &[",
   );
   for (const [name, list] of data.groups) {
     lines.push(`    (${rustString(name)}, &[${list.map(rustString).join(", ")}]),`);
@@ -318,8 +318,10 @@ function renderRs(data, eol = "\n") {
   lines.push("];", "");
 
   lines.push(
+    "use super::ProviderEntry;",
+    "",
     "#[rustfmt::skip]",
-    "pub static PROVIDERS: &[(&'static str, &'static [(&'static str, &'static str, &'static str)])] = &[",
+    "pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[",
   );
   for (const [slug, list] of data.providers) {
     lines.push("    (");

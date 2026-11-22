@@ -5,7 +5,7 @@ owned by exactly one area; the most-specific glob wins.
 
 | Area | Owner | Owns | Build | Test |
 |---|---|---|---|---|
-| `site` | site-ui | `apps/site/**` | `node --check apps/site/*.js` | `node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm` |
+| `site` | site-ui | `apps/site/**`, `data/**` | `node --check apps/site/*.js` | `node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm` |
 | `web` | site-ui | `web/**` (Astro pilot) | `npm --prefix web ci && npm --prefix web run build` | `npm --prefix web test` |
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
 | `wasm-core` | wasm-core | `crates/rotor-wasm/**` | `sh scripts/build-wasm.sh` | `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |

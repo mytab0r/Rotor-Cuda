@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
+import "./chains.generated.js";
 import search from "./search.js";
 
 const require = createRequire(import.meta.url);

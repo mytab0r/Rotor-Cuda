@@ -30,7 +30,7 @@ pub static CHAINS: &[&str] = &[
 ];
 
 #[rustfmt::skip]
-pub static CHAIN_NAMES: &[(&'static str, &'static str)] = &[
+pub static CHAIN_NAMES: &[(&str, &str)] = &[
     ("bitcoin", "Bitcoin"),
     ("ethereum", "Ethereum"),
     ("bnb", "BNB Chain"),
@@ -56,7 +56,7 @@ pub static CHAIN_NAMES: &[(&'static str, &'static str)] = &[
 ];
 
 #[rustfmt::skip]
-pub static CHAIN_SYMBOLS: &[(&'static str, &'static str)] = &[
+pub static CHAIN_SYMBOLS: &[(&str, &str)] = &[
     ("bitcoin", "BTC"),
     ("ethereum", "ETH"),
     ("bnb", "BNB"),
@@ -82,7 +82,7 @@ pub static CHAIN_SYMBOLS: &[(&'static str, &'static str)] = &[
 ];
 
 #[rustfmt::skip]
-pub static CHAIN_FAMILIES: &[(&'static str, &'static str)] = &[
+pub static CHAIN_FAMILIES: &[(&str, &str)] = &[
     ("bitcoin", "btc"),
     ("ethereum", "evm"),
     ("bnb", "evm"),
@@ -108,7 +108,7 @@ pub static CHAIN_FAMILIES: &[(&'static str, &'static str)] = &[
 ];
 
 #[rustfmt::skip]
-pub static CHAIN_EXPLORERS: &[(&'static str, &'static str)] = &[
+pub static CHAIN_EXPLORERS: &[(&str, &str)] = &[
     ("bitcoin", "https://mempool.space/address/{address}"),
     ("ethereum", "https://etherscan.io/address/{address}"),
     ("bnb", "https://bscscan.com/address/{address}"),
@@ -134,7 +134,16 @@ pub static CHAIN_EXPLORERS: &[(&'static str, &'static str)] = &[
 ];
 
 #[rustfmt::skip]
-pub static CHAIN_EXPLORER_TX: &[(&'static str, &'static str)] = &[
+pub static CHAIN_EXPLORER_TX: &[(&str, &str)] = &[
+    ("bitcoin", "https://mempool.space/tx/{tx}"),
+    ("ethereum", "https://etherscan.io/tx/{tx}"),
+    ("bnb", "https://bscscan.com/tx/{tx}"),
+    ("arbitrum", "https://arbiscan.io/tx/{tx}"),
+    ("optimism", "https://optimistic.etherscan.io/tx/{tx}"),
+    ("base", "https://basescan.org/tx/{tx}"),
+    ("polygon", "https://polygonscan.com/tx/{tx}"),
+    ("avalanche", "https://snowtrace.io/tx/{tx}"),
+    ("zksync", "https://explorer.zksync.io/tx/{tx}"),
     ("bitcoin-testnet", "https://mempool.space/testnet/tx/{tx}"),
     ("sepolia", "https://sepolia.etherscan.io/tx/{tx}"),
     ("bnb-testnet", "https://testnet.bscscan.com/tx/{tx}"),
@@ -142,14 +151,16 @@ pub static CHAIN_EXPLORER_TX: &[(&'static str, &'static str)] = &[
 ];
 
 #[rustfmt::skip]
-pub static PROVIDER_GROUPS: &[(&'static str, &'static [&'static str])] = &[
+pub static PROVIDER_GROUPS: &[(&str, &[&str])] = &[
     ("evm-mainnet", &["ethereum", "bnb", "arbitrum", "optimism", "base", "polygon", "avalanche", "zksync"]),
     ("evm-testnet", &["sepolia", "bnb-testnet"]),
     ("btc-family", &["bitcoin", "litecoin", "dogecoin", "bitcoin-cash", "zcash"]),
 ];
 
+use super::ProviderEntry;
+
 #[rustfmt::skip]
-pub static PROVIDERS: &[(&'static str, &'static [(&'static str, &'static str, &'static str)])] = &[
+pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[
     (
         "bitcoin",
         &[
@@ -169,14 +180,14 @@ pub static PROVIDERS: &[(&'static str, &'static [(&'static str, &'static str, &'
         "bnb",
         &[
             ("publicnode", "https://bsc-rpc.publicnode.com", "publicnode.com"),
-            ("bsc-dataseed", "https://bsc-dataseed.binance.org", "BSC dataseed"),
+            ("bsc-dataseed", "https://bsc-dataseed.binance.org", "bsc-dataseed.binance.org"),
         ],
     ),
     (
         "arbitrum",
         &[
             ("publicnode", "https://arbitrum-one-rpc.publicnode.com", "publicnode.com"),
-            ("arbitrum", "https://arb1.arbitrum.io/rpc", "Arbitrum RPC"),
+            ("arbitrum", "https://arb1.arbitrum.io/rpc", "arb1.arbitrum.io"),
         ],
     ),
     (
@@ -190,7 +201,7 @@ pub static PROVIDERS: &[(&'static str, &'static [(&'static str, &'static str, &'
         "base",
         &[
             ("publicnode", "https://base-rpc.publicnode.com", "publicnode.com"),
-            ("base", "https://mainnet.base.org", "Base RPC"),
+            ("base", "https://mainnet.base.org", "mainnet.base.org"),
         ],
     ),
     (
@@ -204,13 +215,13 @@ pub static PROVIDERS: &[(&'static str, &'static [(&'static str, &'static str, &'
         "avalanche",
         &[
             ("publicnode", "https://avalanche-c-chain-rpc.publicnode.com", "publicnode.com"),
-            ("avalanche", "https://api.avax.network/ext/bc/C/rpc", "Avalanche RPC"),
+            ("avalanche", "https://api.avax.network/ext/bc/C/rpc", "api.avax.network"),
         ],
     ),
     (
         "zksync",
         &[
-            ("zksync", "https://mainnet.era.zksync.io", "zkSync Era RPC"),
+            ("zksync", "https://mainnet.era.zksync.io", "mainnet.era.zksync.io"),
         ],
     ),
     (

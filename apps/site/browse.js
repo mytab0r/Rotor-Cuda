@@ -34,9 +34,9 @@
   SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
     RPC[slug] = SSOT_PROVIDERS.first(slug).url;
   });
-  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
-   * when the official host rejects the browser (it answers 403 to some
-   * origins). */
+  /* The official RPC is primary; a public fallback serves the same mainnet
+   * JSON-RPC when the official host rejects the browser (it answers 403 to
+   * some origins). */
   var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
     return provider.url;
   });

@@ -6,63 +6,72 @@
       "name": "Bitcoin",
       "symbol": "BTC",
       "family": "btc",
-      "explorer": "https://mempool.space/address/{address}"
+      "explorer": "https://mempool.space/address/{address}",
+      "explorerTx": "https://mempool.space/tx/{tx}"
     },
     {
       "slug": "ethereum",
       "name": "Ethereum",
       "symbol": "ETH",
       "family": "evm",
-      "explorer": "https://etherscan.io/address/{address}"
+      "explorer": "https://etherscan.io/address/{address}",
+      "explorerTx": "https://etherscan.io/tx/{tx}"
     },
     {
       "slug": "bnb",
       "name": "BNB Chain",
       "symbol": "BNB",
       "family": "evm",
-      "explorer": "https://bscscan.com/address/{address}"
+      "explorer": "https://bscscan.com/address/{address}",
+      "explorerTx": "https://bscscan.com/tx/{tx}"
     },
     {
       "slug": "arbitrum",
       "name": "Arbitrum",
       "symbol": "ETH",
       "family": "evm",
-      "explorer": "https://arbiscan.io/address/{address}"
+      "explorer": "https://arbiscan.io/address/{address}",
+      "explorerTx": "https://arbiscan.io/tx/{tx}"
     },
     {
       "slug": "optimism",
       "name": "Optimism",
       "symbol": "ETH",
       "family": "evm",
-      "explorer": "https://optimistic.etherscan.io/address/{address}"
+      "explorer": "https://optimistic.etherscan.io/address/{address}",
+      "explorerTx": "https://optimistic.etherscan.io/tx/{tx}"
     },
     {
       "slug": "base",
       "name": "Base",
       "symbol": "ETH",
       "family": "evm",
-      "explorer": "https://basescan.org/address/{address}"
+      "explorer": "https://basescan.org/address/{address}",
+      "explorerTx": "https://basescan.org/tx/{tx}"
     },
     {
       "slug": "polygon",
       "name": "Polygon",
       "symbol": "POL",
       "family": "evm",
-      "explorer": "https://polygonscan.com/address/{address}"
+      "explorer": "https://polygonscan.com/address/{address}",
+      "explorerTx": "https://polygonscan.com/tx/{tx}"
     },
     {
       "slug": "avalanche",
       "name": "Avalanche",
       "symbol": "AVAX",
       "family": "evm",
-      "explorer": "https://snowtrace.io/address/{address}"
+      "explorer": "https://snowtrace.io/address/{address}",
+      "explorerTx": "https://snowtrace.io/tx/{tx}"
     },
     {
       "slug": "zksync",
       "name": "zkSync Era",
       "symbol": "ETH",
       "family": "evm",
-      "explorer": "https://explorer.zksync.io/address/{address}"
+      "explorer": "https://explorer.zksync.io/address/{address}",
+      "explorerTx": "https://explorer.zksync.io/tx/{tx}"
     },
     {
       "slug": "solana",

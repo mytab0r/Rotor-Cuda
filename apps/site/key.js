@@ -17,14 +17,13 @@
     return provider.url;
   });
 
-  /* One provider by id, or the canonical ordered list. Single-provider chains
-   * keep their historical endpoint; Polygon and Optimism carry the full
-   * publicnode + dRPC fallback list from data/providers.json. */
+  /* The canonical ordered list, or its first endpoint. Ethereum, Polygon and
+   * Optimism carry the full fallback list; the other chains keep the single
+   * primary endpoint this page has always used. */
   function evmRpcUrls(slug, full) {
     var list = SSOT_PROVIDERS.byChain[slug] || [];
     if (full) return list.map(function (provider) { return provider.url; });
-    var preferred = SSOT_PROVIDERS.find(slug, 'publicnode') || list[0];
-    return preferred ? [preferred.url] : [];
+    return list.length ? [list[0].url] : [];
   }
   var SECP_N = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
   var WEI = 1000000000000000000n;
@@ -2028,8 +2027,8 @@
   async function fetchEvm(address, signal, id) {
     var chain = EVM_CHAINS[id] || EVM_CHAINS.evm;
     /* Ethereum keeps the endpoint fallback; Polygon and Optimism carry the
-     * canonical publicnode + dRPC list. The other networks have one public
-     * endpoint mapped to them. */
+     * canonical ordered fallback list from data/providers.json. The other
+     * networks have one public endpoint mapped to them. */
     var urls = id === 'evm' ? EVM_RPC_URLS : (Array.isArray(chain.rpc) ? chain.rpc : [chain.rpc]);
     var lastError = null;
     var lastUrl = '';
@@ -2203,9 +2202,9 @@
     return response;
   }
 
-  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
-   * when the official host rejects the browser (it answers 403 to some
-   * origins). */
+  /* The official RPC is primary; a public fallback serves the same mainnet
+   * JSON-RPC when the official host rejects the browser (it answers 403 to
+   * some origins). */
   var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
     return provider.url;
   });

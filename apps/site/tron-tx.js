@@ -9,9 +9,8 @@
  *    TransferContract;
  *  - the Nile block-reference helper and the broadcast helper.
  *
- * Testnet only: every network call is hard-pinned to the exact
- * `https://api.nileex.io` origin and path. Any other host (api.trongrid.io,
- * api.tronstack.io, a mainnet node) or path is rejected with an explicit
+ * Testnet only: every network call is hard-pinned to the canonical Nile
+ * origin and path. Any other host or path is rejected with an explicit
  * "testnet only" error. The private key is never logged, stored, or put in a
  * URL or request body; only the signed transaction (txID, raw_data,
  * raw_data_hex, signature) is sent to the broadcaster.
@@ -23,8 +22,13 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  var NILE_BASE = 'https://api.nileex.io';
-  var NILE_HOST = 'api.nileex.io';
+  /* The canonical Nile endpoint comes from data/providers.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof globalThis !== 'undefined' ? globalThis : this;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
+  var NILE_BASE = SSOT_PROVIDERS.find('tron-nile', 'nileex').url;
+  var NILE_HOST = NILE_BASE.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   var ENDPOINTS = {
     nowBlock: NILE_BASE + '/wallet/getnowblock',
     broadcast: NILE_BASE + '/wallet/broadcasttransaction'

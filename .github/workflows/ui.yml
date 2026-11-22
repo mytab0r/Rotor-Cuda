@@ -27,6 +27,10 @@ jobs:
         run: node scripts/check-defect-ledger.mjs
       - name: Check the generated design tokens
         run: node scripts/build-tokens.mjs --check
+      - name: Check the generated chain/provider data
+        run: |
+          node scripts/gen-ssot.mjs --check
+          node scripts/check-ssot.mjs
       - name: Check token usage and drift detectors
         run: node scripts/check-token-usage.mjs
       # Phase 3: the component manifests, the generated /design gallery and the

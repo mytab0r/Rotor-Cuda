@@ -7,6 +7,11 @@
 (function () {
   'use strict';
 
+  /* Public providers come from data/providers.json through the generated
+   * globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var engine = window.RotorBrainwallet;
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
@@ -334,7 +339,7 @@
     var addresses = rows.map(function (row) { return row.address; }).filter(Boolean);
     if (!addresses.length) return;
     if (chain.balance === 'btc') {
-      var url = 'https://blockchain.info/balance?cors=true&active=' +
+      var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url +
         addresses.map(encodeURIComponent).join('|');
       var data = await fetchJson(url);
       rows.forEach(function (row) {

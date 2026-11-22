@@ -13,8 +13,8 @@
       "family": "btc",
       "explorer": "https://mempool.space/address/{address}",
       "explorerPrefix": "https://mempool.space/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://mempool.space/tx/{tx}",
+      "explorerTxPrefix": "https://mempool.space/tx/"
     },
     "ethereum": {
       "slug": "ethereum",
@@ -23,8 +23,8 @@
       "family": "evm",
       "explorer": "https://etherscan.io/address/{address}",
       "explorerPrefix": "https://etherscan.io/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://etherscan.io/tx/{tx}",
+      "explorerTxPrefix": "https://etherscan.io/tx/"
     },
     "bnb": {
       "slug": "bnb",
@@ -33,8 +33,8 @@
       "family": "evm",
       "explorer": "https://bscscan.com/address/{address}",
       "explorerPrefix": "https://bscscan.com/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://bscscan.com/tx/{tx}",
+      "explorerTxPrefix": "https://bscscan.com/tx/"
     },
     "arbitrum": {
       "slug": "arbitrum",
@@ -43,8 +43,8 @@
       "family": "evm",
       "explorer": "https://arbiscan.io/address/{address}",
       "explorerPrefix": "https://arbiscan.io/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://arbiscan.io/tx/{tx}",
+      "explorerTxPrefix": "https://arbiscan.io/tx/"
     },
     "optimism": {
       "slug": "optimism",
@@ -53,8 +53,8 @@
       "family": "evm",
       "explorer": "https://optimistic.etherscan.io/address/{address}",
       "explorerPrefix": "https://optimistic.etherscan.io/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://optimistic.etherscan.io/tx/{tx}",
+      "explorerTxPrefix": "https://optimistic.etherscan.io/tx/"
     },
     "base": {
       "slug": "base",
@@ -63,8 +63,8 @@
       "family": "evm",
       "explorer": "https://basescan.org/address/{address}",
       "explorerPrefix": "https://basescan.org/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://basescan.org/tx/{tx}",
+      "explorerTxPrefix": "https://basescan.org/tx/"
     },
     "polygon": {
       "slug": "polygon",
@@ -73,8 +73,8 @@
       "family": "evm",
       "explorer": "https://polygonscan.com/address/{address}",
       "explorerPrefix": "https://polygonscan.com/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://polygonscan.com/tx/{tx}",
+      "explorerTxPrefix": "https://polygonscan.com/tx/"
     },
     "avalanche": {
       "slug": "avalanche",
@@ -83,8 +83,8 @@
       "family": "evm",
       "explorer": "https://snowtrace.io/address/{address}",
       "explorerPrefix": "https://snowtrace.io/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://snowtrace.io/tx/{tx}",
+      "explorerTxPrefix": "https://snowtrace.io/tx/"
     },
     "zksync": {
       "slug": "zksync",
@@ -93,8 +93,8 @@
       "family": "evm",
       "explorer": "https://explorer.zksync.io/address/{address}",
       "explorerPrefix": "https://explorer.zksync.io/address/",
-      "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTx": "https://explorer.zksync.io/tx/{tx}",
+      "explorerTxPrefix": "https://explorer.zksync.io/tx/"
     },
     "solana": {
       "slug": "solana",
@@ -289,7 +289,7 @@
       {
         "id": "bsc-dataseed",
         "url": "https://bsc-dataseed.binance.org",
-        "label": "BSC dataseed"
+        "label": "bsc-dataseed.binance.org"
       }
     ],
     "arbitrum": [
@@ -301,7 +301,7 @@
       {
         "id": "arbitrum",
         "url": "https://arb1.arbitrum.io/rpc",
-        "label": "Arbitrum RPC"
+        "label": "arb1.arbitrum.io"
       }
     ],
     "optimism": [
@@ -325,7 +325,7 @@
       {
         "id": "base",
         "url": "https://mainnet.base.org",
-        "label": "Base RPC"
+        "label": "mainnet.base.org"
       }
     ],
     "polygon": [
@@ -349,14 +349,14 @@
       {
         "id": "avalanche",
         "url": "https://api.avax.network/ext/bc/C/rpc",
-        "label": "Avalanche RPC"
+        "label": "api.avax.network"
       }
     ],
     "zksync": [
       {
         "id": "zksync",
         "url": "https://mainnet.era.zksync.io",
-        "label": "zkSync Era RPC"
+        "label": "mainnet.era.zksync.io"
       }
     ],
     "solana": [

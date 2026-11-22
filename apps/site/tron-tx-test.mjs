@@ -22,6 +22,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const tron = require("./tron-tx.js");
 
 const WASM_PATH =

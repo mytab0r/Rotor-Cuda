@@ -35,11 +35,11 @@
     ],
     "bnb": [
       { "id": "publicnode", "url": "https://bsc-rpc.publicnode.com", "label": "publicnode.com" },
-      { "id": "bsc-dataseed", "url": "https://bsc-dataseed.binance.org", "label": "BSC dataseed" }
+      { "id": "bsc-dataseed", "url": "https://bsc-dataseed.binance.org", "label": "bsc-dataseed.binance.org" }
     ],
     "arbitrum": [
       { "id": "publicnode", "url": "https://arbitrum-one-rpc.publicnode.com", "label": "publicnode.com" },
-      { "id": "arbitrum", "url": "https://arb1.arbitrum.io/rpc", "label": "Arbitrum RPC" }
+      { "id": "arbitrum", "url": "https://arb1.arbitrum.io/rpc", "label": "arb1.arbitrum.io" }
     ],
     "optimism": [
       { "id": "publicnode", "url": "https://optimism-rpc.publicnode.com", "label": "publicnode.com" },
@@ -47,7 +47,7 @@
     ],
     "base": [
       { "id": "publicnode", "url": "https://base-rpc.publicnode.com", "label": "publicnode.com" },
-      { "id": "base", "url": "https://mainnet.base.org", "label": "Base RPC" }
+      { "id": "base", "url": "https://mainnet.base.org", "label": "mainnet.base.org" }
     ],
     "polygon": [
       { "id": "publicnode", "url": "https://polygon-bor-rpc.publicnode.com", "label": "publicnode.com" },
@@ -55,10 +55,10 @@
     ],
     "avalanche": [
       { "id": "publicnode", "url": "https://avalanche-c-chain-rpc.publicnode.com", "label": "publicnode.com" },
-      { "id": "avalanche", "url": "https://api.avax.network/ext/bc/C/rpc", "label": "Avalanche RPC" }
+      { "id": "avalanche", "url": "https://api.avax.network/ext/bc/C/rpc", "label": "api.avax.network" }
     ],
     "zksync": [
-      { "id": "zksync", "url": "https://mainnet.era.zksync.io", "label": "zkSync Era RPC" }
+      { "id": "zksync", "url": "https://mainnet.era.zksync.io", "label": "mainnet.era.zksync.io" }
     ],
     "solana": [
       { "id": "solana", "url": "https://api.mainnet-beta.solana.com", "label": "Solana mainnet-beta" },
