@@ -23,6 +23,11 @@
 //! Result blob of [`evm_unsigned_tx`]: the same request without `private_key`
 //! and the `0x`-prefixed unsigned type-2 payload for the review screen.
 //!
+//! Result blob of [`evm_sign_message`]: the `0x`-prefixed 65-byte EIP-191
+//! `personal_sign` signature `r || s || v` (`v = 27 + parity`) of the message
+//! bytes; on error the status is nonzero and the error buffer describes the
+//! problem.
+//!
 //! Result blob of [`derive_report_network`]: the same JSON derivation report
 //! as [`derive_report`] with a `network` field. Network 1 returns the Bitcoin
 //! testnet P2PKH/P2SH-P2WPKH/P2WPKH/P2TR rows and the testnet WIF (secp256k1
@@ -520,6 +525,26 @@ impl Session {
         match evm::unsigned_request(request) {
             Ok(raw) => {
                 self.result = evm::hex_prefixed(&raw).into_bytes();
+                OK
+            }
+            Err(message) => {
+                self.set_error(message);
+                ERR_BAD_TARGET
+            }
+        }
+    }
+
+    /// Sign an arbitrary message with EIP-191 `personal_sign`.
+    ///
+    /// The result is the `0x`-prefixed 65-byte `r || s || v` signature with
+    /// `v = 27 + parity`; no length prefix or envelope is added.
+    pub fn evm_sign_message(&mut self, key: &[u8; 32], message: &[u8]) -> u32 {
+        self.result.clear();
+        self.error.clear();
+
+        match evm::sign_message(key, message) {
+            Ok(signature) => {
+                self.result = evm::hex_prefixed(&signature).into_bytes();
                 OK
             }
             Err(message) => {
@@ -1096,6 +1121,39 @@ pub extern "C" fn evm_unsigned_tx(ptr: u32, len: u32) -> u32 {
         return ERR_BAD_TARGET;
     };
     session_mut().evm_unsigned_tx(request)
+}
+
+/// Sign an arbitrary UTF-8 message with EIP-191 `personal_sign`.
+///
+/// `key_len` must be 32. On success the result buffer holds the `0x`-prefixed
+/// 65-byte `r || s || v` signature (`v = 27 + parity`); otherwise a nonzero
+/// status is returned and the error buffer explains the problem. The uploaded
+/// key bytes and the stack copy are wiped before return.
+#[unsafe(no_mangle)]
+pub extern "C" fn evm_sign_message(key_ptr: u32, key_len: u32, msg_ptr: u32, msg_len: u32) -> u32 {
+    let Some(key_bytes) = read_bytes_mut(key_ptr, key_len) else {
+        session_mut().set_error("invalid private key pointer/length");
+        return ERR_BAD_TARGET;
+    };
+    let mut key: [u8; 32] = match key_bytes.try_into() {
+        Ok(key) => key,
+        Err(_) => {
+            session_mut().set_error("private key must be 32 bytes");
+            sign::wipe(key_bytes);
+            return ERR_BAD_TARGET;
+        }
+    };
+    sign::wipe(key_bytes);
+
+    let result = match read_bytes(msg_ptr, msg_len) {
+        Some(message) => session_mut().evm_sign_message(&key, message),
+        None => {
+            session_mut().set_error("invalid message pointer/length");
+            ERR_BAD_TARGET
+        }
+    };
+    sign::wipe(&mut key);
+    result
 }
 
 /// Sign a P2WPKH Bitcoin testnet transaction.
@@ -2072,6 +2130,27 @@ mod tests {
         );
 
         assert_eq!(session.evm_sign_tx("{}"), ERR_BAD_TARGET);
+        assert!(!session.error.is_empty());
+        assert!(session.result.is_empty());
+    }
+
+    #[test]
+    fn evm_sign_message_abi_returns_ethers_vector_and_errors() {
+        let mut session = Session::new();
+        let mut key = [0u8; 32];
+        key[31] = 1;
+        // ethers 6.13.4: new Wallet(key).signMessage("Hello World").
+        assert_eq!(session.evm_sign_message(&key, b"Hello World"), OK);
+        assert!(session.error.is_empty());
+        assert_eq!(
+            String::from_utf8(session.result.clone()).unwrap(),
+            "0x9020b81ff870c0fcdd0c0b1945770f2358c51ec57a0f4e6d9d82ce50d4988f483b767a68a5f051a9d6c25daf303583ea6e3e03875f735a9e2900d6e4099a03cb1b"
+        );
+
+        assert_eq!(
+            session.evm_sign_message(&[0u8; 32], b"Hello World"),
+            ERR_BAD_TARGET
+        );
         assert!(!session.error.is_empty());
         assert!(session.result.is_empty());
     }

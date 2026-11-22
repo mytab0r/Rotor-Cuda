@@ -35,7 +35,7 @@
     {
       "source": "apps/site/rotor_wasm.wasm",
       "target": "web/public/rotor_wasm.wasm",
-      "sha256": "b707fc7821aa21168f42a273187bc2bda3694f2a101f66aa2b48562e3a91aad7"
+      "sha256": "ca930076bd7b552b992bcff8f7a12c5f28c4a2bb797bed294e8800a419a09a6c"
     },
     {
       "source": "apps/site/seed-crypto.js",
@@ -55,7 +55,7 @@
     {
       "source": "apps/site/site.css",
       "target": "web/public/site.css",
-      "sha256": "37bc583c338eca7674ad8b881aaf2ac636c0b3290719b3f16d1f1e2170274189"
+      "sha256": "f797e59300d8c25c9ab43ef86619d667e6104954e99a631206dbe6c91a34663d"
     },
     {
       "source": "apps/site/site.js",
