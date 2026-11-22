@@ -26,14 +26,14 @@
   /* One EVM account, eight networks. Every row carries the same address; the
    * balance is read from each network's public RPC, never assumed. */
   var EVM_CHAINS = {
-    evm: { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH', explorer: 'https://etherscan.io/address/' },
-    evm_bnb: { slug: 'bnb', label: 'BNB Chain', symbol: 'BNB', rpc: 'https://bsc-rpc.publicnode.com', explorer: 'https://bscscan.com/address/' },
-    evm_arbitrum: { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ETH', rpc: 'https://arbitrum-one-rpc.publicnode.com', explorer: 'https://arbiscan.io/address/' },
-    evm_optimism: { slug: 'optimism', label: 'Optimism', symbol: 'ETH', rpc: 'https://optimism-rpc.publicnode.com', explorer: 'https://optimistic.etherscan.io/address/' },
-    evm_base: { slug: 'base', label: 'Base', symbol: 'ETH', rpc: 'https://base-rpc.publicnode.com', explorer: 'https://basescan.org/address/' },
-    evm_polygon: { slug: 'polygon', label: 'Polygon', symbol: 'POL', rpc: 'https://polygon-bor-rpc.publicnode.com', explorer: 'https://polygonscan.com/address/' },
-    evm_avalanche: { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', rpc: 'https://avalanche-c-chain-rpc.publicnode.com', explorer: 'https://snowtrace.io/address/' },
-    evm_zksync: { slug: 'zksync', label: 'zkSync Era', symbol: 'ETH', rpc: 'https://mainnet.era.zksync.io', explorer: 'https://explorer.zksync.io/address/' }
+    evm: { slug: 'ethereum', label: 'Ethereum', symbol: 'ETH' },
+    evm_bnb: { slug: 'bnb', label: 'BNB Chain', symbol: 'BNB', rpc: 'https://bsc-rpc.publicnode.com' },
+    evm_arbitrum: { slug: 'arbitrum', label: 'Arbitrum', symbol: 'ETH', rpc: 'https://arbitrum-one-rpc.publicnode.com' },
+    evm_optimism: { slug: 'optimism', label: 'Optimism', symbol: 'ETH', rpc: 'https://optimism-rpc.publicnode.com' },
+    evm_base: { slug: 'base', label: 'Base', symbol: 'ETH', rpc: 'https://base-rpc.publicnode.com' },
+    evm_polygon: { slug: 'polygon', label: 'Polygon', symbol: 'POL', rpc: 'https://polygon-bor-rpc.publicnode.com' },
+    evm_avalanche: { slug: 'avalanche', label: 'Avalanche', symbol: 'AVAX', rpc: 'https://avalanche-c-chain-rpc.publicnode.com' },
+    evm_zksync: { slug: 'zksync', label: 'zkSync Era', symbol: 'ETH', rpc: 'https://mainnet.era.zksync.io' }
   };
   var EVM_IDS = Object.keys(EVM_CHAINS);
 
@@ -1074,24 +1074,8 @@
   }
 
   function explorerFor(id) {
-    if (EVM_CHAINS[id]) return EVM_CHAINS[id].explorer;
-    if (typeof id === 'string') {
-      if (id.indexOf('btc_') === 0) return 'https://mempool.space/address/';
-      if (id.indexOf('ltc_') === 0) return 'https://blockchair.com/litecoin/address/';
-      if (id.indexOf('doge_') === 0) return 'https://blockchair.com/dogecoin/address/';
-      if (id.indexOf('bch_') === 0) return 'https://blockchair.com/bitcoin-cash/address/';
-      if (id.indexOf('zcash_') === 0) return 'https://blockchair.com/zcash/address/';
-      if (id.indexOf('xrp_') === 0) return 'https://xrpscan.com/account/';
-    }
-    var map = {
-      evm: 'https://etherscan.io/address/',
-      tron: 'https://tronscan.org/#/address/',
-      solana: 'https://solscan.io/account/',
-      sui: 'https://suiscan.xyz/mainnet/account/',
-      ton: 'https://tonviewer.com/',
-      ton_w5: 'https://tonviewer.com/'
-    };
-    return map[id] || '';
+    var helper = window.RotorKeyTools;
+    return helper && typeof helper.explorerFor === 'function' ? helper.explorerFor(id) : '';
   }
 
   function rowList() {
@@ -1323,19 +1307,23 @@
     if (!addr.sharedEvm) {
       var details = buildRowDetails(addr, name);
       addrCell.appendChild(details);
+    }
 
-      var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
-      if (explorer) {
-        var ext = document.createElement('a');
-        ext.className = 'icon-button icon-button--quiet icon-button--lg';
-        ext.href = explorer + encodeURIComponent(addr.address);
-        ext.target = '_blank';
-        ext.rel = 'noopener noreferrer';
-        ext.setAttribute('data-tooltip', 'Open in explorer');
-        ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
-        ext.appendChild(svgUse('/icons.svg#ui-external'));
-        actions.appendChild(ext);
-      }
+    /* Every EVM network row links to its own chain explorer, including the
+     * eight shared-address sub-rows that keep copy/details suppressed. */
+    var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
+    if (explorer) {
+      var ext = document.createElement('a');
+      ext.className = 'icon-button icon-button--quiet icon-button--lg';
+      ext.href = explorer + encodeURIComponent(addr.address);
+      ext.target = '_blank';
+      ext.rel = 'noopener noreferrer';
+      ext.setAttribute('data-tooltip', 'Open in explorer');
+      ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
+      ext.appendChild(svgUse('/icons.svg#ui-external'));
+      actions.appendChild(ext);
+    }
+    if (!addr.sharedEvm) {
       var copy = document.createElement('button');
       copy.type = 'button';
       copy.className = 'icon-button icon-button--quiet icon-button--lg';
@@ -2137,6 +2125,9 @@
     var data = await response.json();
     if (data && data.error && data.error.message) throw new Error(data.error.message);
     var parser = cacheApi && typeof cacheApi[parserName] === 'function' ? cacheApi[parserName] : null;
+    if (!parser && typeof window !== 'undefined' && window.RotorKeyTools) {
+      parser = typeof window.RotorKeyTools[parserName] === 'function' ? window.RotorKeyTools[parserName] : null;
+    }
     var parsed = parser ? parser(data) : null;
     if (!parsed) throw new Error('unexpected response');
     return parsed;
@@ -2320,16 +2311,41 @@
     };
   }
 
+  /* SoChain v3's keyless ZEC balance endpoint answers CORS-friendly JSON with
+   * decimal coin strings; the parser converts them to satoshis without floats.
+   * The response carries no transaction count, so `active` is amount > 0 only. */
+  async function fetchSochainZec(address, signal) {
+    var response = await fetchWithTimeout(
+      'https://sochain.com/api/v3/balance/ZEC/' + encodeURIComponent(address),
+      null,
+      signal
+    );
+    var parsed = await parseProviderJson(response, 'parseSochainBalance');
+    var sats = BigInt(parsed.confirmed) + BigInt(parsed.unconfirmed);
+    if (sats < 0n) sats = 0n;
+    return {
+      text: sats.toLocaleString('en-US') + ' sats',
+      summary: {
+        amount: sats,
+        chain: 'zcash',
+        symbol: 'ZEC',
+        decimals: 8,
+        active: sats > 0n
+      }
+    };
+  }
+
   /* Rows whose identifiers have a working public provider. Kept in one place
-   * so the counters and the checks agree on what "N" means. ZEC still has no
-   * free keyless provider (Blockchair answers 430 without a key). */
+   * so the counters and the checks agree on what "N" means. Every chain group
+   * now has a keyless provider (ZEC via SoChain; Blockchair answers 430
+   * without a key and is not used). */
   function rowHasProvider(id) {
     if (!id) return false;
     if (id === 'solana' || id === 'sui' || id === 'ton' || id === 'ton_w5') return true;
     if (id.indexOf('xrp_') === 0) return true;
     if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return true;
     if (id.indexOf('bch_') === 0) return true;
-    if (id.indexOf('zcash_') === 0) return false;
+    if (id.indexOf('zcash_') === 0) return true;
     return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
   }
 
@@ -2536,6 +2552,9 @@
     } else if (id.indexOf('bch_') === 0) {
       provider = 'haskoin';
       chain = 'bch';
+    } else if (id.indexOf('zcash_') === 0) {
+      provider = 'sochain';
+      chain = 'zcash';
     } else {
       return null;
     }
@@ -2692,6 +2711,7 @@
       if (id.indexOf('ltc_') === 0) return fetchBlockcypher(address, signal, 'ltc');
       if (id.indexOf('doge_') === 0) return fetchBlockcypher(address, signal, 'doge');
       if (id.indexOf('bch_') === 0) return fetchHaskoinBch(address, signal);
+      if (id.indexOf('zcash_') === 0) return fetchSochainZec(address, signal);
       throw new Error('no provider in v1');
     };
     try {
