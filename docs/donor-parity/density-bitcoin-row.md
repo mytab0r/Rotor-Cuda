@@ -143,6 +143,7 @@ be hidden is in the document.
   `node scripts/check-projects.mjs`, `node scripts/check-ssot.mjs`,
   `node scripts/build-tokens.mjs --check`, `node scripts/gen-ssot.mjs --check`
   -> pass.
-- Screenshots: after [`bitcoin-row-{375,768,1280}-{dark,light}.png`](screenshots/);
-  before `bitcoin-{375,768,1280}-{dark,light}.png` in the same directory (the
-  one-address + disclosure row, including the zero-received `10s ago` line).
+- Evidence: screenshots are produced by the PR's `ui-audit` CI run and attached
+  as the `ui-audit-report-<run id>` artifact; they are never committed. A
+  before/after pair is attached to the same PR when the audit is run against
+  both revisions.

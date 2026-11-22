@@ -163,6 +163,5 @@ and the ui-audit checks both links in the DOM on every audited run.
 - `node scripts/ui-audit.mjs --base http://127.0.0.1:7915 --routes private-keys/bitcoin --viewports 375,1280,1440 --themes dark,light` -> PASS, 0 violations.
 - The density script produced the tables above; the raw JSON is committed next
   to this file.
-- Screenshots: [`screenshots/`](screenshots/) — `bitcoin-1440-{dark,light}.png`,
-  `bitcoin-1280-{dark,light}.png`, `bitcoin-768-{dark,light}.png`,
-  `bitcoin-375-{dark,light}.png` and `bitcoin-1440-dark-expanded.png`.
+- Evidence: screenshots are produced by the PR's `ui-audit` CI run and attached
+  as the `ui-audit-report-<run id>` artifact; they are never committed.

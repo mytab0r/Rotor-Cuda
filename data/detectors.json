@@ -841,6 +841,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"
+    },
+    {
+      "id": "screenshots-in-repo",
+      "rule": "No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR.",
+      "batch": "4a",
+      "implemented_in": "scripts/check-screenshots.mjs",
+      "doc_anchor": "docs/process/self-checking.md#7-no-screenshots-or-test-evidence-in-the-repo",
+      "status": "implemented"
     }
   ]
 }
