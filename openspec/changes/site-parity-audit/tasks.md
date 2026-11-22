@@ -152,6 +152,35 @@
   coverage), `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row
   case); defects `mnemonic-bch-balances`, `mnemonic-tron-xrp-sui-balances` and
   `mnemonic-xrp-redirect` in `docs/process/defects.json`.
+- [x] Mnemonic directory TON v4R2/W5 (2026-11-22, code-only): the donor page's
+  inline `MNEMONIC_SEEDS_PRESETS` derives TON at `m/44'/607'/0'` (Master `m` +
+  Tonkeeper preset) and shows the v4R2/W5 wallets, while our page rendered an
+  explicit unsupported state. `apps/site/mnemonic-seeds.js` now has the real
+  `ton` config (`types` = `ton`/`ton_w5` at `m/44'/607'/0'`, `presets` =
+  Master/Tonkeeper), the ed25519 derive branch builds `entry.addressMap.ton`
+  from `window.RotorTon.address(report.ed_pubkey)` loaded lazily from `/ton.js`
+  (build-prefixed, TON page only) while `ton_w5` comes from the WASM report, and
+  `providerMetaFor('ton')` maps to `toncenter` with 9 decimals. Evidence:
+  `apps/site/mnemonic-seeds.js` (`ton:` config, `loadTon`, `deriveEntry`,
+  `providerMetaFor`), `apps/site/mnemonic-seeds-test.mjs` (config/derive and
+  Toncenter meta cases; `balance-state-attribute` stays green), donor source
+  `https://privatekeyfinder.io/mnemonic-seeds/ton` (`window.MNEMONIC_SEEDS_PRESETS`,
+  `PKF_CONFIG.type = null`). Deliberate derivation deviation, recorded rather
+  than copied: the donor takes the BIP32 secp256k1 master bytes and feeds them
+  to the v4R2 builder (row 0 abandon…about, master preset: key
+  `1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67`,
+  address `EQD5BSqbqr-TBe8BHVx26V85ly7o5lkYFU0MKAJWVUwlkPZG`; Tonkeeper key
+  `2d1b84ab366915a9b58d64ea6d3a8766e490479ac2ab8aea635603afe3ad6153`,
+  address `EQBuAV_45fTfgLs-CqOtQnNP5rh-Z3xv0jVCL_Nz8C1fe-`), while we ship
+  standard SLIP-0010 ed25519 (master key
+  `560f9f3c94558b6551928bb781cf6092c6b8800b4fc544af2c9444ed126d51aa`,
+  address `EQBql5EyfHFHHq0eULGOI7xdUWgk62w-HzLBlEcAyqYM79AN`; Tonkeeper key
+  `b477ef5ed17fb8a2b8faddd7a9835a227243a82c70b190c7af4896155aa7df9f`,
+  address `EQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-U9d`), the standard
+  real-wallet derivation the preset name implies. The donor has one v4R2 row
+  per entry with static `0 TON` text and no address-type control; our v4R2/W5
+  cards and live Toncenter balances are a deliberate superset.
+  Ledger: `docs/site-map/site-map-data.js` (`/mnemonic-seeds/ton` now `parity`).
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no

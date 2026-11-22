@@ -159,7 +159,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP and SUI. BCH and SUI fill all 60 rows; XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. LTC/DOGE/ZEC show — (a per-address keyless provider would exceed the page budget) and TON is an explicit unsupported state. Rows carry no WIF links, matching the donor.'
+    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI and TON. BCH and SUI fill all 60 rows; XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. LTC/DOGE/ZEC show — (a per-address keyless provider would exceed the page budget). Rows carry no WIF links, matching the donor.'
   });
 
   CHAINS.forEach(function (item) {
@@ -168,12 +168,12 @@
       path: '/mnemonic-seeds/' + item[0],
       title: item[1] + ' mnemonic seeds',
       area: 'seeds',
-      status: ton ? 'partial' : 'parity',
-      priority: ton ? 'P1' : '-',
+      status: 'parity',
+      priority: '-',
       donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
       note: ton
-        ? 'Seed derivation for TON is not implemented; the page shows an explicit unsupported state instead of a faked address.'
-        : 'Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP and SUI; XRP accounts that XRPScan redirects to its bulk dataset show the retry state; LTC/DOGE/ZEC show — (per-address provider budget); no WIF links, matching the donor.'
+        ? 'Derives BIP39 seeds with SLIP-0010 ed25519 at the donor path m/44\'/607\'/0\'; the Wallet v4R2 row is built by /ton.js and Wallet W5 comes from the WASM report, with per-address balances through Toncenter. Deliberate deviation: the donor feeds its BIP32 secp256k1 master bytes to the v4R2 builder (row 0, abandon…about: key 1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67, EQD5BSqbqr-TBe8BHVx26V85ly7o5lkYFU0MKAJWVUwlkPZG; Tonkeeper key 2d1b84ab366915a9b58d64ea6d3a8766e490479ac2ab8aea635603afe3ad6153, EQBuAV_45fTfgLs-CqOtQnNP5rh-Z3xv0jVCL_Nz8C1fe-), while we ship the standard SLIP-0010 ed25519 derivation (master key 560f9f3c94558b6551928bb781cf6092c6b8800b4fc544af2c9444ed126d51aa, EQBql5EyfHFHHq0eULGOI7xdUWgk62w-HzLBlEcAyqYM79AN; Tonkeeper key b477ef5ed17fb8a2b8faddd7a9835a227243a82c70b190c7af4896155aa7df9f, EQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-U9d), which is what real TON wallets use. The donor renders one v4R2 address per row with static 0 TON text; our v4R2/W5 type cards and real Toncenter balances are a deliberate superset. Master/Tonkeeper preset ids, labels and paths match the donor; no WIF links, matching the donor.'
+        : 'Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI and TON; XRP accounts that XRPScan redirects to its bulk dataset show the retry state; LTC/DOGE/ZEC show — (per-address provider budget); no WIF links, matching the donor.'
     });
   });
 
@@ -566,9 +566,9 @@
       path: '/mnemonic-seeds/' + item[0],
       title: item[1] + ' mnemonic seeds',
       area: 'seeds',
-      status: item[0] === 'ton' ? 'partial' : 'parity',
+      status: 'parity',
       ours: '/mnemonic-seeds/' + item[0],
-      note: item[0] === 'ton' ? 'Crypto shows an explicit TON-unsupported state.' : ''
+      note: ''
     });
   });
 
@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'All chains except TON: rows, pager, word counts, phrase/key copy, path and address types are present (the donor row has no WIF links, and neither do ours). Balance checks run for BTC, the EVM chains and Solana (one batched getMultipleAccounts POST per page); other chains render `—` with an explorer link; TON is an explicit unsupported state. The audit route set covers bitcoin, solana and ton; the other chain pages stay out because their providers fan out one request per address.'
+    note: 'Rows, pager, word counts, phrase/key copy, path and address types are present for every chain; TON derives v4R2/W5 at the donor path m/44\'/607\'/0\'. Balance checks run for BTC, the eight EVM chains, Solana (one batched getMultipleAccounts POST per page), BCH, SUI, TRON, XRP and TON (Toncenter per address); LTC/DOGE/ZEC render `—` with an explorer link (per-address provider budget). The audit route set covers bitcoin, solana, bitcoin-cash and ton; the other chain pages stay out because their providers fan out one request per address.'
   });
 
   feature({
