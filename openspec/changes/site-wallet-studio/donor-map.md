@@ -8,7 +8,7 @@ Crawled `privatekeyfinder.io/sitemap.xml` and representative pages on
 | `/private-keys`, `/private-keys/<18 chains>` | done, 18 chains | — |
 | `/key/<hex>` and `/key/<WIF>` | done | — |
 | direct key search modal (`Ctrl+K`, auto-detect HEX/WIF/keypair/XRP secret/mnemonic/brainwallet, 18 chain icons, “Search All Chains”) | partial: HEX/WIF/brainwallet only, no mnemonic/keypair/XRP secret, no chain icon strip | P0 |
-| `/mnemonic-seeds`, `/mnemonic-seeds/<chain>` | done: directory, 60-per-page seed space, 12/18/24 words, BIP-32 path, address type, pager and BTC/EVM balances; TON is an explicit unsupported state | — |
+| `/mnemonic-seeds`, `/mnemonic-seeds/<chain>` | done: directory, 60-per-page seed space, 12/18/24 words, BIP-32 path, address type, pager and per-address balances for BTC, EVM, Solana, BCH, TRON, XRP, SUI and TON (TON v4R2/W5 at `m/44'/607'/0'`) | — |
 | `/mnemonic-converter` | missing (converter lives only in `/seed`) | P1 |
 | `/brainwallet`, `/brainwallet/<chain>`, `/brainwallet/<chain>/<page>`, `/brainwallet-generator` | done: `/brainwallet` is an index of 18 chain directories; `/brainwallet/<chain>[/<page>]` lists a local 18,890-phrase corpus, 60 rows per page, 315 pages, with SHA-256 keys, chain addresses, BigInt pager, optional balances and address-type switch; `/brainwallet-generator` is the canonical single-passphrase calculator with 1/3/5/10 addresses and copy-all/CSV; no URL/storage/server for keys | — |
 | `/keystore-parser` | done: local V3 keystore decrypt (`scrypt`/`pbkdf2` + AES-128-CTR) with MAC check; unsupported variants get an explicit state | — |
