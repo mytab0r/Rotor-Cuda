@@ -34,11 +34,10 @@
 
   /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
    * when the official host rejects the browser (it answers 403 to some
-   * origins). Same endpoints as the key directory (`browse.js`). */
-  var SOLANA_RPC_URLS = [
-    'https://api.mainnet-beta.solana.com',
-    'https://solana-rpc.publicnode.com'
-  ];
+   * origins). Order comes from data/providers.json, like every other page. */
+  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
+    return provider.url;
+  });
 
   function evmConfig() {
     return {
