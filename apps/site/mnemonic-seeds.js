@@ -27,16 +27,11 @@
     zcash: 'zat'
   };
 
+  /* EVM chains share one JSON-RPC method; the primary URL per chain comes
+   * from data/providers.json through the generated globals. */
   var RPC = {};
   SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
     RPC[slug] = SSOT_PROVIDERS.first(slug).url;
-  });
-
-  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
-   * when the official host rejects the browser (it answers 403 to some
-   * origins). Order comes from data/providers.json, like every other page. */
-  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
-    return provider.url;
   });
 
   function evmConfig() {
@@ -297,8 +292,12 @@
   var refreshStatus = byId('mnemonic-balance-refresh-status');
   var cacheApi = window.RotorBalanceCache || null;
   var cacheStore = cacheApi ? cacheApi.createStore() : Promise.resolve(null);
-  var BALANCE_LIMIT = 5;
   var BALANCE_JITTER_MS = 400;
+
+  /* Read at call time so the shared module may load before or after this one. */
+  function balanceProvidersApi() {
+    return window.RotorBalanceProviders || null;
+  }
 
   var state = {
     disposed: false,
@@ -803,7 +802,9 @@
   }
 
   /* Balance provider for a chain name. Pure (no captured page state) so the
-   * Node test can assert it without a DOM; `providerMeta` binds the page. */
+   * Node test can assert it without a DOM; `providerMeta` binds the page.
+   * LTC/DOGE/ZEC/TON stay unsupported here on purpose (per-address provider
+   * budget); each row keeps an honest "—" and its explorer link. */
   function providerMetaFor(chainName, evmSymbol) {
     if (chainName === 'bitcoin') {
       return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
@@ -813,6 +814,18 @@
     }
     if (chainName === 'solana') {
       return { provider: 'solana', chain: 'solana', decimals: 9, symbol: 'SOL' };
+    }
+    if (chainName === 'bitcoin-cash') {
+      return { provider: 'haskoin-bch', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
+    }
+    if (chainName === 'tron') {
+      return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: 'TRX' };
+    }
+    if (chainName === 'xrp') {
+      return { provider: 'xrpscan', chain: 'xrp', decimals: 6, symbol: 'XRP' };
+    }
+    if (chainName === 'sui') {
+      return { provider: 'sui', chain: 'sui', decimals: 9, symbol: 'SUI' };
     }
     return null;
   }
@@ -886,25 +899,6 @@
     });
     cell.classList.toggle('has-balance', ok);
     entry.balanceState = failed ? 'err' : ok ? 'ok' : 'missing';
-  }
-
-  async function fetchJson(url, options) {
-    var response = await fetch(url, options);
-    if (!response.ok) {
-      var err = new Error('HTTP ' + response.status);
-      err.status = response.status;
-      throw err;
-    }
-    return response.json();
-  }
-
-  function retryOptions() {
-    return { attempts: 2, baseDelay: 500, maxDelay: 4000 };
-  }
-
-  function requestJson(url, options) {
-    if (!cacheApi) return fetchJson(url, options);
-    return cacheApi.withRetry(function () { return fetchJson(url, options); }, retryOptions());
   }
 
   function errorMessage(err) {
@@ -1042,106 +1036,17 @@
     updateRefreshButton(records, meta);
   }
 
-  async function btcProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return { values: values, errors: errors };
-    var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url + unique.map(encodeURIComponent).join('|');
-    var data = await requestJson(url);
-    unique.forEach(function (address) {
-      var info = data[address];
-      if (!info) {
-        errors[address] = 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = {
-        balance: String(info.final_balance || 0),
-        received: String(info.total_received || 0),
-        tx: Number(info.n_tx || 0)
-      };
-    });
-    return { values: values, errors: errors };
-  }
-
-  async function evmProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var rpc = RPC[chain];
-    if (!rpc) throw new Error('No RPC for this chain');
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return { values: values, errors: errors };
-    var payload = unique.map(function (address, index) {
-      return { jsonrpc: '2.0', id: index + 1, method: 'eth_getBalance', params: [address, 'latest'] };
-    });
-    var list = await requestJson(rpc, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    var byId = {};
-    (Array.isArray(list) ? list : [list]).forEach(function (item) {
-      if (item && item.id !== undefined) byId[item.id] = item;
-    });
-    unique.forEach(function (address, index) {
-      var item = byId[index + 1];
-      if (!item || typeof item.result !== 'string') {
-        errors[address] = item && item.error && item.error.message
-          ? item.error.message
-          : 'Balance row missing from the provider.';
-        return;
-      }
-      values[address] = { balance: BigInt(item.result).toString() };
-    });
-    return { values: values, errors: errors };
-  }
-
-  /* One request for every address on the page, as the key directory does. */
+  /* Thin views over the shared provider module so this page and the
+   * private-key directory use one implementation. */
   function solanaBatchBody(addresses) {
-    return {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getMultipleAccounts',
-      params: [addresses, { encoding: 'base64', commitment: 'confirmed' }]
-    };
-  }
-
-  async function solanaProvider(addresses) {
-    var values = {};
-    var errors = {};
-    var unique = Array.from(new Set(addresses.filter(Boolean)));
-    if (!unique.length) return { values: values, errors: errors };
-    var body = solanaBatchBody(unique);
-    var amounts = null;
-    var lastError = null;
-    for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
-      try {
-        var data = await requestJson(SOLANA_RPC_URLS[i], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        amounts = cacheApi && typeof cacheApi.parseSolanaAccounts === 'function'
-          ? cacheApi.parseSolanaAccounts(data)
-          : null;
-        if (amounts) break;
-        lastError = new Error('bad response');
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    if (!amounts) throw lastError || new Error('bad response');
-    unique.forEach(function (address, index) {
-      values[address] = { balance: amounts[index] || '0' };
-    });
-    return { values: values, errors: errors };
+    var api = balanceProvidersApi();
+    return api ? api.solanaBatchBody(addresses) : null;
   }
 
   function fetchProvider(meta, addresses) {
-    if (meta.provider === 'blockchain.info') return btcProvider(addresses);
-    if (meta.provider === 'evm') return evmProvider(addresses);
-    if (meta.provider === 'solana') return solanaProvider(addresses);
-    return Promise.resolve({ values: {}, errors: {} });
+    var api = balanceProvidersApi();
+    if (!api) return Promise.resolve({ values: {}, errors: {} });
+    return api.fetchProvider(meta, addresses);
   }
 
   async function fetchAndApply(records, pending, run, meta) {
