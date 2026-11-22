@@ -1387,6 +1387,15 @@ function auditPage(args) {
     if (balanceIssues.length) {
       add("balance-consistency", `${balanceIssues.length} balance row(s) disagree with their title`, balanceIssues.slice(0, 8));
     }
+
+    // Every chain group has a balance provider. rowHasProvider sets the row
+    // state to "off" synchronously when a group has none, so this needs no
+    // network success and cannot flake on the provider itself. key-zec-provider.
+    const zecRow = document.querySelector('.key-row[data-id^="zcash_"]');
+    metrics.keyZecProvider = zecRow ? zecRow.dataset.balanceState || "" : "absent";
+    if (zecRow && zecRow.dataset.balanceState === "off") {
+      add("key-zec-provider", `${selectorOf(zecRow)} has no balance provider (balanceState=off)`);
+    }
   }
 
   // 5. Duplicate address-type implementations on one page.
