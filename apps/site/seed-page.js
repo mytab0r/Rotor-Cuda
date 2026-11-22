@@ -6,6 +6,16 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
+  function explorerPrefix(slug) {
+    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
+  }
+
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
@@ -15,7 +25,7 @@
   var CHAINS = {
     bitcoin: {
       label: 'Bitcoin',
-      explorer: 'https://mempool.space/address/',
+      explorer: explorerPrefix('bitcoin'),
       presets: [
         { id: 'btc_p2pkh', label: 'BIP44 · Legacy', path: "m/44'/0'/0'/0/0" },
         { id: 'btc_p2sh_p2wpkh', label: 'BIP49 · Nested SegWit', path: "m/49'/0'/0'/0/0" },
@@ -25,17 +35,17 @@
     },
     ethereum: {
       label: 'Ethereum / EVM',
-      explorer: 'https://etherscan.io/address/',
+      explorer: explorerPrefix('ethereum'),
       presets: [{ id: 'evm', label: 'BIP44 · Ethereum', path: "m/44'/60'/0'/0/0" }]
     },
     tron: {
       label: 'TRON',
-      explorer: 'https://tronscan.org/#/address/',
+      explorer: explorerPrefix('tron'),
       presets: [{ id: 'tron', label: 'BIP44 · TRON', path: "m/44'/195'/0'/0/0" }]
     },
     litecoin: {
       label: 'Litecoin',
-      explorer: 'https://blockchair.com/litecoin/address/',
+      explorer: explorerPrefix('litecoin'),
       presets: [
         { id: 'ltc_p2pkh', label: 'BIP44 · Legacy', path: "m/44'/2'/0'/0/0" },
         { id: 'ltc_p2sh_p2wpkh', label: 'BIP49 · Nested SegWit', path: "m/49'/2'/0'/0/0" },
@@ -44,23 +54,23 @@
     },
     dogecoin: {
       label: 'Dogecoin',
-      explorer: 'https://blockchair.com/dogecoin/address/',
+      explorer: explorerPrefix('dogecoin'),
       presets: [{ id: 'doge_p2pkh', label: 'BIP44 · Dogecoin', path: "m/44'/3'/0'/0/0" }]
     },
     'bitcoin-cash': {
       label: 'Bitcoin Cash',
-      explorer: 'https://blockchair.com/bitcoin-cash/address/',
+      explorer: explorerPrefix('bitcoin-cash'),
       presets: [{ id: 'bch_legacy', label: 'BIP44 · Bitcoin Cash', path: "m/44'/145'/0'/0/0" }]
     },
     xrp: {
       label: 'XRP',
-      explorer: 'https://xrpscan.com/account/',
+      explorer: explorerPrefix('xrp'),
       presets: [{ id: 'xrp_classic', label: 'BIP44 · XRP', path: "m/44'/144'/0'/0/0" }]
     }
   };
   var CHAIN_ORDER = ['bitcoin', 'ethereum', 'tron', 'litecoin', 'dogecoin', 'bitcoin-cash', 'xrp'];
-  var EVM_RPC = 'https://ethereum-rpc.publicnode.com';
-  var BTC_BALANCE_URL = 'https://blockchain.info/balance?cors=true&active=';
+  var EVM_RPC = SSOT_PROVIDERS.first('ethereum').url;
+  var BTC_BALANCE_URL = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url;
   var WORDS = [12, 15, 18, 21, 24];
   var LOAD_BATCH = 5;
 

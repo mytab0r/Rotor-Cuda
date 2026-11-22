@@ -17,6 +17,29 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
+  function explorerPrefix(slug) {
+    return SSOT_CHAINS.bySlug[slug].explorerPrefix;
+  }
+
+  /* The canonical table holds every public endpoint. `providerId` keeps a
+   * chain on the single endpoint this page has always used (the rest of the
+   * list is the wallet send path); no id means the full ordered fallback. */
+  function rpcUrls(slug, providerId) {
+    if (providerId) {
+      var found = SSOT_PROVIDERS.find(slug, providerId);
+      return found ? [found.url] : [];
+    }
+    return (SSOT_PROVIDERS.byChain[slug] || []).map(function (provider) {
+      return provider.url;
+    });
+  }
+
   /* Build-prefixed URL for lazily loaded scripts and wasm. theme.js owns the
    * helper (it runs first); the local branch keeps a standalone page working. */
   function assetUrl(path) {
