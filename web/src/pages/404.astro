@@ -1,0 +1,57 @@
+---
+/* Root 404 document for the static build.
+ *
+ * Cloudflare Pages serves this file, with a real HTTP 404 status, for every
+ * unknown path; without it the platform answers 200 with the landing page (a
+ * soft 404 that search engines index as a duplicate). `noindex` keeps the
+ * response out of search results and `follow` lets a crawler keep exploring
+ * the linked pages. The layout owns the header, footer, theme and tooltips, so
+ * this page adds no client script of its own. */
+import SiteLayout from '../layouts/SiteLayout.astro';
+
+const TITLE = 'Page not found | Crypto';
+const DESCRIPTION =
+  'This address does not exist on the site. Follow a link to the home page, the key explorer, the private-key directory, the docs or the wallet.';
+
+const links = [
+  { label: 'Home', href: '/', text: 'What the site does and where to start' },
+  { label: 'Key explorer', href: '/key', text: 'Derive addresses from a private key, WIF or brainwallet' },
+  { label: 'Private keys', href: '/private-keys', text: 'Browse the 18-chain directory of example keys' },
+  { label: 'Docs', href: '/docs', text: 'How the calculators and the puzzle search work' },
+  { label: 'Wallet', href: '/cabinet/wallet', text: 'Open the local browser wallet' },
+];
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical="/404.html"
+  robots="noindex,follow"
+  mainClass="landing-page"
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span aria-current="page">Page not found</span></nav>
+
+  <section class="landing-hero" aria-labelledby="not-found-title">
+    <h1 id="not-found-title">Page not found</h1>
+    <p>
+      The address you opened does not exist on this site. Nothing was lost: the
+      link is wrong, or the page has moved. Pick a destination below.
+    </p>
+    <div class="actions">
+      <a class="btn primary" href="/">Go to the home page</a>
+      <a class="btn" href="/key">Open the key explorer</a>
+    </div>
+  </section>
+
+  <section class="card landing-section" aria-labelledby="not-found-links">
+    <h2 id="not-found-links">Useful pages</h2>
+    <ul class="landing-facts">
+      {links.map((link) => (
+        <li>
+          <a href={link.href}>{link.label}</a>
+          <span class="landing-facts__label">{link.text}</span>
+        </li>
+      ))}
+    </ul>
+  </section>
+</SiteLayout>

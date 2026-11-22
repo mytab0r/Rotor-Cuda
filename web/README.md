@@ -15,7 +15,7 @@ npm run check     # astro check + tsc --noEmit
 npm run build     # static output in dist/, then /a/<build>/ asset prefixing
 npm run preview -- --port 4321
 npm test          # tsc -p tsconfig.test.json + node --test (no browser)
-node ../scripts/check-seo.mjs   # after build: chain-directory SEO gate
+node ../scripts/check-seo.mjs   # after build: chain-directory and 404 SEO gate
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
 ```
 
@@ -37,6 +37,7 @@ only deviation from the brief and is called out in the PR.
 | `src/scripts/site-shell.ts` | The only hydrated islands: theme toggle, mobile nav disclosure and the shared `[data-tooltip]` primitive. |
 | `src/styles/site-shell.css` | Shell additions and landing layout rules, all consuming the tokens generated into `/site.css`. |
 | `src/pages/index.astro` | Landing page; content-equivalent to the live `/`, with static chain/tool/database links and no live counters. |
+| `src/pages/404.astro` | Root `404.html`: one H1, `noindex,follow`, links to home, the key explorer, private keys, docs and the wallet. Cloudflare Pages returns a real 404 status only when this file exists at the deploy root. |
 | `src/pages/private-keys/[chain].astro` | Chain directory page 1 for the 18 mainnet slugs; built but not routed until cutover. |
 | `src/content.config.ts`, `src/content/chains/*.md` | One Markdown entry per chain: unique prose, two content H2s, title and description. |
 | `src/lib/chain-directory.ts` | Build-time derivation: drives the existing WASM `derive_report` ABI for keys 1–60 and maps report ids to each chain's address formats. |
@@ -73,7 +74,9 @@ reserved placeholders, not live queries. `node ../scripts/check-seo.mjs` reads
 `dist/` and enforces the measured contract: title 50–60, description 120–160,
 canonical and `index,follow`, one visible H1, at least two content H2s, at
 least 40 rendered rows, ≥120 unique prose words, pairwise 5-gram Jaccard below
-0.50, `CollectionPage` + `BreadcrumbList`, and chain-named OG alt text.
+0.50, `CollectionPage` + `BreadcrumbList`, and chain-named OG alt text. It also
+requires `dist/404.html` with `noindex` and exactly one H1, so the deploy root
+can never fall back to a 200 landing page for an unknown path.
 
 ## Provenance of copied assets
 
