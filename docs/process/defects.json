@@ -456,6 +456,27 @@
       "symptom": "Eleven amount formatters and three parsers in ten files reimplemented decimal conversion; five coin() copies converted 18-decimal wei through Number and lost precision above 2^53 (e.g. 2^256-1 wei displayed as a rounded ~1e59).",
       "detector": "lossy-amount-formatter",
       "where": "scripts/check-ssot.mjs"
+    },
+    {
+      "id": "seed-received-aggregate",
+      "reported": "2026-11-22",
+      "symptom": "The seed converter's aggregate line claimed public providers expose no lifetime totals and showed only Active/Sum, although blockchain.info returns total_received in the same balance response it already fetches.",
+      "detector": "aggregateText",
+      "where": "apps/site/seed-test.mjs"
+    },
+    {
+      "id": "mnemonic-balance-state-row",
+      "reported": "2026-11-22",
+      "symptom": "The mnemonic-seeds rows never set data-balance-state/data-balance-at on the row element, so a verifier selecting [data-balance-state] reported 0 rows on a page rendering 60 (a silent-zero measurement).",
+      "detector": "balance-state-attribute",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "density-parity-silent-zero",
+      "reported": "2026-11-22",
+      "symptom": "scripts/density-parity.mjs reported total rows 0 when the row selector matched nothing, indistinguishable from an empty page; the silent zero was read as a measurement.",
+      "detector": "selector_matched_nothing",
+      "where": "scripts/density-parity.mjs"
     }
   ]
 }

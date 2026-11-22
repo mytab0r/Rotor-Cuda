@@ -366,11 +366,21 @@ follow-ups were code-only.
   `:86` (20-address option), `:106-107` (Copy All / Load next 5),
   `:109` (Active/Sum aggregate); `apps/site/seed-page.js:397` (word counter and
   scheme hint), `:653` (`loadNextBatch`, next five per path from the snapshot),
-  `:1070` (honest aggregates), `:1177` (public rows only, never keys);
-  `apps/site/seed-test.mjs` (word hints per scheme, batch index math, a pinned
-  20-address derivation). The lifetime "Received" total is not shown: the
-  public providers used here (blockchain.info, `eth_getBalance`) do not return
-  it, so none is invented.
+  `:1082` (`aggregateText`, honest aggregates), `:1177` (public rows only, never
+  keys); `apps/site/seed-test.mjs` (word hints per scheme, batch index math, a
+  pinned 20-address derivation).
+- [x] Seed converter lifetime Received aggregate (2026-11-22, code-only): the
+  BTC balance provider (`blockchain.info/balance`) already returns
+  `total_received` beside `final_balance`/`n_tx` in the same response, so the
+  aggregate line now adds ` · Received: <BTC>` before ` · Sum:` for a fully
+  checked BTC result set. No extra request and no invented value: EVM rows and
+  any row without a numeric total show no Received segment. Evidence:
+  `apps/site/seed-page.js:1016` (`entry.receivedValue = BigInt(info.total_received
+  || 0)`), `:1011`/`:1024` (missing row and error clear it), `:1082`
+  (pure `aggregateText`), `:86` (export); test
+  `apps/site/seed-test.mjs:337` ("aggregateText adds the BTC lifetime Received
+  total and keeps the usual wording"); defect `seed-received-aggregate` in
+  `docs/process/defects.json`.
 - [x] Vanity: difficulty, ETA and a recent-address list. Evidence:
   `apps/site/vanity.html:68` (expected work next to the pattern inputs),
   `:74-77` (Attempts / Rate / ETA / Elapsed, four even groups), `:87-90`
