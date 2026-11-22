@@ -1,7 +1,7 @@
 # Icon button
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/icon-button.json` · Gallery: `/design`
+Source of truth: `design/components/icon-button.json` · Gallery: `/cabinet/admin/design`
 (family `icon-button`).
 
 ## Purpose
@@ -35,7 +35,7 @@ the manifest.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | quiet: transparent; outline: `--surface-2` + `--line-strong` | yes (both variants) |
 | Hover | `--surface-2` (quiet) / `--surface-3` (outline) | live |

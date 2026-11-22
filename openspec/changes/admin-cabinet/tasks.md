@@ -2,25 +2,29 @@
 
 ## 1. Gate, auth, shell
 
-- [ ] `src/coordinator/admin.rs`: cookie format `v1.<exp>.<nonce>.<mac>`, key
+- [x] `src/coordinator/admin.rs`: cookie format `v1.<exp>.<nonce>.<mac>`, key
       derivation from the admin token, `constant_time_eq` validation, CSRF token,
       `Origin` check, 12 h TTL, logout.
-- [ ] `POST /cabinet/admin/login` (JSON token) and `POST /cabinet/admin/logout`;
+- [x] `POST /cabinet/admin/login` (JSON token) and `POST /cabinet/admin/logout`;
       `Set-Cookie` with `HttpOnly; Secure; SameSite=Strict; Path=/cabinet/admin`.
-- [ ] Rate-limit login through the shared `IpRateLimiter`: 5 failures / 15 min /
+- [x] Rate-limit login through the shared `IpRateLimiter`: 5 failures / 15 min /
       IP, fixed delay, audit failures with hashed IP.
-- [ ] Gate in `handle` before SEO/static: `/cabinet/admin*` without a valid cookie
+- [x] Gate in `handle` before SEO/static: `/cabinet/admin*` without a valid cookie
       → 302 to `/cabinet/admin/login` for HTML, 401 for API; bearer still accepted.
-- [ ] Remove `/design` from `static_asset`; serve the gallery at
+- [x] Remove `/design` from `static_asset`; serve the gallery at
       `/cabinet/admin/design` with admin headers.
-- [ ] `apps/site/admin.html` + `admin.css` + `admin.js`: shell with the shared nav
+- [x] `apps/site/admin.html` + `admin.css` + `admin.js`: shell with the shared nav
       language, no inline script/style, `/cabinet/admin/api/overview` for the
       dashboard (jobs, leases, clients, build id, uptime).
-- [ ] CI: `ui-audit --serve` logs in through the token it started the server with
+- [x] CI: `ui-audit --serve` logs in through the token it started the server with
       and sets the cookie via CDP; admin routes are part of the run, and a missing
       token is a harness error, not a skip.
-- [ ] Tests: cookie flags and TTL, MAC tamper, expiry, token rotation invalidates,
+- [x] Tests: cookie flags and TTL, MAC tamper, expiry, token rotation invalidates,
       CSRF missing/wrong, origin mismatch, 429 after five failures, `/design` 404.
+
+> Phase 1 note: the login limiter and its fixed delay are implemented and
+> tested; the failure *audit line* (`admin-audit.jsonl`, hash chain) ships with
+> the phase-2 audit store. Phase 1 has no audit writer yet.
 
 ## 2. Read-only inventory
 
@@ -32,6 +36,14 @@
 - [ ] DTOs with no `token_hash`, no secret values; a test serializes responses
       with test secrets set and asserts they are absent.
 - [ ] Panels with real data or explicit empty states; no fake placeholders.
+- [ ] Delta spec under `openspec/specs/coordinator/` for the admin cabinet:
+      `/cabinet/admin` cookie/CSRF auth, admin response headers, the
+      `/cabinet/admin/design` move and the `/design` 404 (phase 1 shipped
+      without one).
+- [ ] Runbook/trade-off notes: the admin cookies' `Secure` flag follows
+      `ROTOR_PUBLIC_URL` (an `http://` origin drops it); the per-IP login lock
+      can be held by one attacker behind a shared proxy IP (deliberate
+      availability trade-off, not a bypass).
 
 ## 3. Mutations
 
