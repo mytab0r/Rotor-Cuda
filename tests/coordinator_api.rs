@@ -1433,7 +1433,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 8] = [
+    let checks: [(&str, &[&str]); 9] = [
         (
             "/",
             &[
@@ -1485,6 +1485,10 @@ fn public_pages_and_assets_are_served() {
         ),
         ("/site.css", &[":root", "--bg", "@media"]),
         ("/site.js", &["window.Rotor", "sparkline", "TOKEN_KEY"]),
+        (
+            "/wc-links.js",
+            &["RotorWcLinks", "metamask.app.link", "link.trustwallet.com"],
+        ),
     ];
     for (path, needles) in checks {
         let (status, headers, body) = raw(addr, "GET", path, None, None);
