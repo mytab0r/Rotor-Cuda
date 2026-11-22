@@ -819,7 +819,9 @@ function auditPage(args) {
     const box = boxOf(el);
     const before = getComputedStyle(el, "::before");
     const hit = { width: box.width, height: box.height };
-    if (before && before.content && before.content !== "none" && before.position === "absolute") {
+    const hitTarget = el.classList.contains("icon-button--sm") ||
+      Boolean(el.closest(".row-actions, .balance-retry"));
+    if (before && before.position === "absolute" && hitTarget) {
       const top = Math.abs(Number.parseFloat(before.top) || 0);
       const right = Math.abs(Number.parseFloat(before.right) || 0);
       const bottom = Math.abs(Number.parseFloat(before.bottom) || 0);
@@ -994,7 +996,7 @@ function auditPage(args) {
   }
   metrics.smallTargets = smallTargets;
   if (smallTargets.length) {
-    add("small-touch-target", `${smallTargets.length} visible control(s) below ${floor}x${floor}`, smallTargets.slice(0, 8));
+    add("small-touch-target", `${smallTargets.length} visible control(s) below ${targetFloor}x${targetFloor}`, smallTargets.slice(0, 8));
   }
 
   // 4. Icon-only controls without an accessible name.
