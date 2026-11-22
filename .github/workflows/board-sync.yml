@@ -1,0 +1,40 @@
+name: board-sync
+
+on:
+  schedule:
+    # Off-peak daily sync so the board cannot lag behind merged PRs.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: board-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # A user-owned Project v2 cannot be edited by the default GITHUB_TOKEN.
+      # BOARD_SYNC_TOKEN is a personal token with `repo` and `project` scopes
+      # (classic) or issues/pull-requests write plus user-project access
+      # (fine-grained). The value is never stored in the repository.
+      - name: Require the owner token
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::BOARD_SYNC_TOKEN is not configured; see docs/process/board.md."
+            exit 1
+          fi
+      - name: Sync epics, sub-issues, blockers and PR links
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: node scripts/sync-board.mjs
