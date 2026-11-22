@@ -1122,6 +1122,12 @@
   }
 
   /* ------------------------------------------------------------ fiat prices */
+  /* One public ticker request per six hours; the entry lives in localStorage
+   * under PRICE_CACHE_KEY. Both the key page and the wallet portfolio use the
+   * same cache entry, so the pair is exported rather than repeated. */
+  var PRICE_CACHE_KEY = 'rotor.prices.v1';
+  var PRICE_TTL_MS = 6 * 60 * 60 * 1000;
+
   /* Public ticker symbols for the USD total. Only these symbols leave the
    * browser; no address, balance or key is part of a price request. */
   var USD_TICKERS = {
@@ -1379,6 +1385,8 @@
     priceRequestUrl: priceRequestUrl,
     parsePriceResponse: parsePriceResponse,
     priceScaled: priceScaled,
+    PRICE_CACHE_KEY: PRICE_CACHE_KEY,
+    PRICE_TTL_MS: PRICE_TTL_MS,
     atomicToCents: atomicToCents,
     fiatTotals: fiatTotals,
     formatUsd: formatUsd,

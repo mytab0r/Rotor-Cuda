@@ -535,6 +535,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "wallet-portfolio-zero-lie",
+      "reported": "2026-11-22",
+      "symptom": "A portfolio total could treat a balance that was still loading, failed or never requested as zero, and price a testnet coin at its mainnet ticker, so $0.00 or an inflated USD value looked like a real total.",
+      "detector": "wallet-portfolio-summary",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "wallet-approvals-grant-unchecked",
       "reported": "2026-11-22",
       "symptom": "The allowance grant form was not exercised by any detector: the approvals scenario stopped at the table, so nothing checked its labelled 44px fields, its own visible Unlimited warning line, the zero-amount error state or the rendered unlimited review.",
