@@ -320,6 +320,30 @@ function lookupSection(raw, keyBySectionNumber) {
   return null;
 }
 
+// Human-readable `§2 <- §1` / `§2 <- ROT-11 (#11)` line for the dry-run plan.
+function blockerEdge(task, resolved, keyBySectionNumber) {
+  const current = task.number ? `§${task.number}` : "(no section number)";
+  const parts = [];
+  const push = (value) => {
+    if (!parts.includes(value)) parts.push(value);
+  };
+
+  for (const number of task.blockers.sectionNumbers) {
+    const key = lookupSection(number, keyBySectionNumber);
+    if (key) push(`${key} (#${issueNumberFromKey(key)})`);
+    else if (resolved.unresolved.includes(`${number} (self)`)) {
+      push(`unresolved: ${number} (self)`);
+    } else push(`§${number}`);
+  }
+  for (const key of task.blockers.keys) push(`${key} (#${issueNumberFromKey(key)})`);
+  for (const value of task.blockers.unresolved) push(`unresolved: ${value}`);
+  for (const value of resolved.unresolved) {
+    if (value.endsWith(" (self)")) continue;
+    push(`unresolved: ${value}`);
+  }
+  return parts.length > 0 ? `${current} <- ${parts.join(", ")}` : null;
+}
+
 export function subIssueBody({
   changeId,
   epicNumber,
@@ -519,18 +543,17 @@ export function syncChangeTasks({
       record.task.number,
     );
 
-    if (!record.issue.number) {
-      if (record.task.blockers.sectionNumbers.length > 0 || resolved.keys.length > 0) {
-        log(
-          `[dry-run] set blockers on ${changeId}/${record.task.slug}: ` +
-            `${
-              resolved.keys.join(", ") ||
-              record.task.blockers.sectionNumbers.map((value) => `§${value}`).join(", ")
-            }`,
-        );
-      }
-      continue;
+    if (dryRun) {
+      const edge = blockerEdge(record.task, resolved, keyByNumber);
+      if (edge) log(`[dry-run] blockers ${changeId}/${record.task.slug}: ${edge}`);
+    } else if (resolved.unresolved.length > 0) {
+      log(
+        `blocker report ${changeId}/${record.task.slug}: unresolved ` +
+          resolved.unresolved.join(", "),
+      );
     }
+
+    if (!record.issue.number) continue;
 
     const key = taskKey(record.issue.number);
     const title = truncate(`${key} — ${record.task.title}`, 200);
@@ -618,6 +641,82 @@ export function syncChangeTasks({
     subIssues,
     planned: records.filter((record) => !record.issue.number).length,
   };
+}
+
+// Archive project items for pull requests that are no longer open, so the
+// board keeps only open PR cards and the epics carry the history. Issue items
+// are never touched. The state is read from the item when the item-list output
+// carries it, otherwise with `gh pr view`; a read failure is reported and the
+// item is left in place.
+export function archiveStalePullRequestItems({
+  items,
+  openPullRequestNumbers,
+  projectId,
+  ghJson,
+  repo,
+  dryRun = false,
+  log = () => {},
+}) {
+  const open =
+    openPullRequestNumbers instanceof Set
+      ? openPullRequestNumbers
+      : new Set(openPullRequestNumbers ?? []);
+  let archived = 0;
+
+  for (const item of items ?? []) {
+    const url = item.content?.url ?? item.url ?? "";
+    const match = /\/pull\/(\d+)$/.exec(url);
+    if (!match) continue;
+    const number = Number(match[1]);
+    if (open.has(number)) continue;
+
+    let state = item.content?.state ?? null;
+    if (!state) {
+      try {
+        state =
+          ghJson(["pr", "view", String(number), "--repo", repo, "--json", "state"])
+            ?.state ?? null;
+      } catch (error) {
+        log(`warning: cannot read PR #${number} state: ${error.message}`);
+        continue;
+      }
+    }
+    if (state === "OPEN") continue;
+    if (!item.id || !projectId) {
+      throw new Error(
+        `cannot archive the project item for PR #${number}: missing item or project id`,
+      );
+    }
+
+    if (dryRun) {
+      log(`[dry-run] archive project item for PR #${number} (${state ?? "unknown"})`);
+      archived += 1;
+      continue;
+    }
+
+    const mutation =
+      "mutation($projectId:ID!,$itemId:ID!){archiveProjectV2Item(input:{projectId:$projectId,itemId:$itemId}){item{id}}}";
+    const result = ghJson([
+      "api",
+      "graphql",
+      "-f",
+      `query=${mutation}`,
+      "-f",
+      `projectId=${projectId}`,
+      "-f",
+      `itemId=${item.id}`,
+    ]);
+    if (result?.errors?.length) {
+      throw new Error(
+        `cannot archive the project item for PR #${number}: ` +
+          result.errors.map((error) => error.message).join("; "),
+      );
+    }
+    log(`archived project item for PR #${number} (${state ?? "unknown"})`);
+    archived += 1;
+  }
+
+  return { archived };
 }
 
 // Link a sub-issue under its epic with GitHub's native sub-issue API. GraphQL

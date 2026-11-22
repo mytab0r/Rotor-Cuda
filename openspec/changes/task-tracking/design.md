@@ -126,6 +126,29 @@ All three can act on a closing keyword in a PR description or commit; the exact
 edges are in `docs/process/task-tracking.md`. A migration keeps the numbers; a
 project-key rename changes the prefix and the adapter, not the historical keys.
 
+### 7. The board is kept fresh by a daily workflow; stale PR cards are archived
+
+The sync remains a local script with an owner `gh` login for `--dry-run`
+inspection, but `.github/workflows/board-sync.yml` runs it daily at 03:17 UTC
+and on `workflow_dispatch` with the `BOARD_SYNC_TOKEN` secret. A user-owned
+Project v2 cannot be edited by the default `GITHUB_TOKEN`; the secret is a
+personal token with `repo` and `project` scopes, referenced by name only. The
+job fails with an explicit error if the secret is absent.
+
+Project items whose content is a pull request and whose state is no longer
+`OPEN` are archived with the GraphQL `archiveProjectV2Item` mutation. The board
+therefore shows open PR cards and the epics carry the history. Issue items are
+never archived. A state read failure is reported and leaves that item for the
+next run, so one inaccessible PR cannot abort the whole sync.
+
+### 8. Silent skips are forbidden
+
+A change with no `tasks.md` (today `frontend-platform`) or with no checkbox
+tasks is printed as a warning and named in the summary. The same change adds
+`openspec/changes/frontend-platform/tasks.md` with phases 0-7 from its proposal
+so it is tracked rather than skipped. A future change that adds specs without
+tasks is visible in the sync output instead of disappearing.
+
 ## Failure paths
 
 - `gh issue create` / `edit` failure: the sync aborts with the `gh` stderr.

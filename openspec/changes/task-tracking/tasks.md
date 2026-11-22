@@ -25,10 +25,19 @@
 - [x] PR linking: read `Task: ROT-<n>` from the body, append `Closes #<n>` only
       when the branch follows `<type>/<change-id>-<slug>` or the diff touches
       the change folder; report ambiguous PRs instead of editing.
-- [x] `--dry-run` prints the whole plan and performs no mutation; unit tests
-      inject a fake `gh`.
+- [x] Archive merged/closed PR project items with the GraphQL
+      `archiveProjectV2Item` mutation; issue items are never touched and only
+      open PRs remain as cards.
+- [x] Report changes without `tasks.md` (or without checkbox tasks) loudly
+      instead of skipping them; add `openspec/changes/frontend-platform/tasks.md`
+      for phases 0-7 so that change is tracked too.
+- [x] `--dry-run` prints the whole plan (including `§2 <- §1` /
+      `§2 <- ROT-<n>` blocker edges) and performs no mutation; unit tests inject
+      a fake `gh`.
 - [x] Tests: key parsing, blocked-by extraction including multi-blocker lines,
-      idempotent create/edit on a second run, dry-run with a throwing fake.
+      idempotent create/edit on a second run, dry-run with a throwing fake,
+      real blocker edges for `key-leak-monitor` and `tx-sign-broadcast`, and
+      the stale-PR archive planner.
 
 ## 3. PR gate (blocked by: 1)
 
@@ -38,6 +47,10 @@
 - [x] `.github/workflows/task-links.yml`: `pull_request` on opened/edited/
       synchronize/reopened, default token, read-only permissions, unit tests
       and the gate in the same job.
+- [x] `.github/workflows/board-sync.yml`: daily off-peak cron (03:17 UTC) and
+      `workflow_dispatch`, running `sync-board` with the owner
+      `BOARD_SYNC_TOKEN` secret (repo + project scopes) so the board cannot lag
+      behind merged PRs.
 - [x] Tests: every pass/fail case for the gate, both in the pure function and
       through the exported `checkPullRequest`.
 - [x] Gates: `node scripts/check-projects.mjs`, `check-defect-ledger`,
