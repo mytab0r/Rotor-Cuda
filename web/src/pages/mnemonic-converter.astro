@@ -103,15 +103,12 @@ const description =
     <p id="seed-aggregate" class="muted key-help" aria-live="polite" hidden></p>
   </section>
 
-  <!-- site.js reads the generated chain/provider globals and the shared amount
-       formatter; the coordinator injects the same two assets before its page
-       scripts. Keep this order (see data/vendor.lock.json). -->
+  <!-- Only the vendored crypto engine is page code: the layout owns the
+       header/menu/theme, and the derivation core owns chain and amount data.
+       Keep this order (see data/vendor.lock.json). -->
   <Fragment slot="scripts">
-    <script is:inline src="/chains.generated.js"></script>
-    <script is:inline src="/amount.js"></script>
     <script is:inline src="/vendor/seed.js"></script>
     <script is:inline src="/vendor/seed-crypto.js"></script>
-    <script is:inline src="/site.js"></script>
     <script>
       import '../scripts/mnemonic-converter.ts';
     </script>

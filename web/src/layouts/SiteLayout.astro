@@ -13,6 +13,7 @@ import {
   PRIMARY_NAV,
   REPOSITORY_URL,
   SITE_NAME,
+  THEME_STORAGE_KEY,
   absoluteUrl,
   sectionForPath,
 } from '../lib/site';
@@ -53,7 +54,7 @@ const buildId = getBuildId();
 ---
 
 <!doctype html>
-<html lang="en" data-build={buildId}>
+<html lang="en" data-build={buildId} data-theme-key={THEME_STORAGE_KEY}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -81,7 +82,7 @@ const buildId = getBuildId();
   <meta name="twitter:image:alt" content={imageAlt}>
   {jsonLd && <JsonLd data={jsonLd} />}
   <link rel="stylesheet" href="/site.css">
-  <script is:inline src={themeInitUrl} defer></script>
+  <script is:inline src={themeInitUrl}></script>
   <slot name="head" />
 </head>
 <body class={bodyClass}>

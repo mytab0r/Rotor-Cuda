@@ -10,13 +10,17 @@
   var root = document.documentElement;
   root.className += (root.className ? ' ' : '') + 'js';
 
-  var STORAGE_KEY = 'rotor-theme'; // mirrors THEME_STORAGE_KEY in src/lib/site.ts
+  /* The shared layout stamps the key on <html> at build time, so the
+   * storage name has one source (`src/lib/site.ts`). */
+  var STORAGE_KEY = root.getAttribute('data-theme-key') || '';
   var choice = '';
-  try {
-    var stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark') choice = stored;
-  } catch (err) {
-    /* private mode: follow the OS for this page */
+  if (STORAGE_KEY) {
+    try {
+      var stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === 'light' || stored === 'dark') choice = stored;
+    } catch (err) {
+      /* private mode: follow the OS for this page */
+    }
   }
 
   var system = 'dark';

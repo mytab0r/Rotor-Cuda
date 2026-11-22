@@ -46,8 +46,9 @@ function filesUnder(root, relative = '') {
 const id = buildId();
 const prefix = `a/${id}`;
 const files = filesUnder(DIST);
+const assetFiles = files.filter((rel) => ASSET.test(rel));
 
-for (const rel of files) {
+for (const rel of assetFiles) {
   const target = path.join(DIST, prefix, rel);
   mkdirSync(path.dirname(target), { recursive: true });
   copyFileSync(path.join(DIST, rel), target);
@@ -55,7 +56,7 @@ for (const rel of files) {
 
 // CSS loaded from the prefixed tree must fetch its fonts/images from the same
 // immutable tree. The root copy stays untouched for coordinator compatibility.
-for (const rel of files.filter((file) => file.endsWith('.css'))) {
+for (const rel of assetFiles.filter((file) => file.endsWith('.css'))) {
   const target = path.join(DIST, prefix, rel);
   const css = readFileSync(target, 'utf8');
   const rewritten = css.replace(
@@ -83,5 +84,5 @@ for (const rel of htmlFiles) {
   if (rewritten !== html) writeFileSync(file, rewritten);
 }
 
-const bytes = files.reduce((sum, rel) => sum + statSync(path.join(DIST, rel)).size, 0);
-console.log(`build prefix: ${prefix} (${files.length} files, ${bytes} bytes copied)`);
+const bytes = assetFiles.reduce((sum, rel) => sum + statSync(path.join(DIST, rel)).size, 0);
+console.log(`build prefix: ${prefix} (${assetFiles.length} assets, ${bytes} bytes copied)`);

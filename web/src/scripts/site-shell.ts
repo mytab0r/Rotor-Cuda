@@ -138,5 +138,136 @@ function setupNav(): void {
   syncToViewport();
 }
 
+function setupTooltips(): void {
+  const HOVER_DELAY = 150;
+  const CLICK_GRACE = 500;
+  let tip: HTMLDivElement | null = null;
+  let shownFor: HTMLElement | null = null;
+  let pendingFor: HTMLElement | null = null;
+  let originalDescribedBy: string | null = null;
+  let timer = 0;
+  let pointerDownAt = 0;
+
+  const node = (): HTMLDivElement => {
+    if (tip?.isConnected) return tip;
+    tip = document.createElement('div');
+    tip.id = 'ui-tooltip';
+    tip.className = 'ui-tooltip';
+    tip.setAttribute('role', 'tooltip');
+    tip.hidden = true;
+    document.body.appendChild(tip);
+    return tip;
+  };
+
+  const targetOf = (event: Event): HTMLElement | null => {
+    const from = event.target as Element | null;
+    if (!from || typeof from.closest !== 'function') return null;
+    return from.closest('[data-tooltip]') as HTMLElement | null;
+  };
+
+  const clearTimer = (): void => {
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = 0;
+    }
+    pendingFor = null;
+  };
+
+  const withoutTooltipId = (target: HTMLElement): string => {
+    const value = (target.getAttribute('aria-describedby') || '').trim();
+    if (!value) return '';
+    return value.split(/\s+/).filter((part) => part && part !== 'ui-tooltip').join(' ');
+  };
+
+  const place = (target: HTMLElement): void => {
+    const el = node();
+    el.style.visibility = 'hidden';
+    const tipBox = el.getBoundingClientRect();
+    const targetBox = target.getBoundingClientRect();
+    const gap = 8;
+    const edge = 8;
+    let top = targetBox.top - tipBox.height - gap;
+    if (top < edge) top = targetBox.bottom + gap;
+    let left = targetBox.left + (targetBox.width - tipBox.width) / 2;
+    const maxLeft = window.innerWidth - tipBox.width - edge;
+    if (left < edge) left = edge;
+    if (left > maxLeft) left = Math.max(edge, maxLeft);
+    el.style.top = `${Math.round(top)}px`;
+    el.style.left = `${Math.round(left)}px`;
+    el.style.visibility = '';
+  };
+
+  const hide = (): void => {
+    clearTimer();
+    if (!shownFor) {
+      if (tip) tip.hidden = true;
+      return;
+    }
+    if (originalDescribedBy === null) shownFor.removeAttribute('aria-describedby');
+    else shownFor.setAttribute('aria-describedby', originalDescribedBy);
+    shownFor = null;
+    originalDescribedBy = null;
+    if (tip) tip.hidden = true;
+  };
+
+  const show = (target: HTMLElement): void => {
+    if (!target.isConnected) return;
+    const text = target.getAttribute('data-tooltip') || '';
+    if (!text || shownFor === target) return;
+    hide();
+    const el = node();
+    el.textContent = text;
+    el.hidden = false;
+    place(target);
+    shownFor = target;
+    originalDescribedBy = target.getAttribute('aria-describedby');
+    const ids = withoutTooltipId(target);
+    target.setAttribute('aria-describedby', ids ? `${ids} ui-tooltip` : 'ui-tooltip');
+  };
+
+  document.addEventListener('pointerover', (event) => {
+    if (event.pointerType && event.pointerType !== 'mouse' && event.pointerType !== 'pen') return;
+    const target = targetOf(event);
+    if (!target || target === shownFor || target === pendingFor) return;
+    clearTimer();
+    pendingFor = target;
+    timer = window.setTimeout(() => {
+      timer = 0;
+      pendingFor = null;
+      show(target);
+    }, HOVER_DELAY);
+  });
+
+  document.addEventListener('pointerout', (event) => {
+    const target = targetOf(event);
+    if (!target) return;
+    const next = event.relatedTarget as Element | null;
+    if (next && typeof next.closest === 'function' && next.closest('[data-tooltip]') === target) return;
+    clearTimer();
+    if (shownFor === target) hide();
+  });
+
+  document.addEventListener('focusin', (event) => {
+    const target = targetOf(event);
+    if (!target || Date.now() - pointerDownAt < CLICK_GRACE) return;
+    show(target);
+  });
+
+  document.addEventListener('focusout', (event) => {
+    const target = targetOf(event);
+    if (target && shownFor === target) hide();
+  });
+
+  document.addEventListener('pointerdown', () => {
+    pointerDownAt = Date.now();
+    hide();
+  }, true);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' || event.key === 'Esc') hide();
+  });
+}
+
 setupTheme();
 setupNav();
+setupTooltips();

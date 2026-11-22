@@ -30,8 +30,8 @@ only deviation from the brief and is called out in the PR.
 | Path | Purpose |
 |---|---|
 | `src/layouts/SiteLayout.astro` | Shared static shell: header/nav/footer, skip link, metadata, OG/Twitter, JSON-LD slot. Active nav is computed at build time. |
-| `src/scripts/theme-init.js` | Deferred pre-paint theme bootstrap; adds `.js` so the narrow-screen nav can collapse. |
-| `src/scripts/site-shell.ts` | The only hydrated islands: theme toggle and mobile nav disclosure. |
+| `src/scripts/theme-init.js` | Pre-paint theme bootstrap (same-origin, blocking); reads the key from the `data-theme-key` attribute and adds `.js` so the narrow-screen nav can collapse. |
+| `src/scripts/site-shell.ts` | The only hydrated islands: theme toggle, mobile nav disclosure and the shared `[data-tooltip]` primitive. |
 | `src/styles/site-shell.css` | Shell additions and landing layout rules, all consuming the tokens generated into `/site.css`. |
 | `src/pages/index.astro` | Landing page; content-equivalent to the live `/`, with static chain/tool/database links and no live counters. |
 | `src/pages/mnemonic-converter.astro` | The pilot page: same markup and copy as `apps/site/mnemonic-converter.html`, now on `SiteLayout`. |
@@ -46,7 +46,7 @@ only deviation from the brief and is called out in the PR.
 | `public/vendor/` | Byte copies of the crypto engine loaded by the page. |
 | `tests/` | Node tests: fixed vectors from `apps/site/seed-test.mjs` and `apps/site/mnemonic-seeds-test.mjs`. |
 | `scripts/cdp-parity.mjs` | Headless-browser check: convert two fixed phrases at 375/768/1280 light/dark, compare addresses, save screenshots. |
-| `scripts/build-prefix.mjs` | Post-build step: copies the output under `a/<build>/` and rewrites every absolute asset reference, matching the coordinator's immutable asset URLs. |
+| `scripts/build-prefix.mjs` | Post-build step: copies the asset files under `a/<build>/` and rewrites every absolute asset reference, matching the coordinator's immutable asset URLs. HTML and sitemap are not copied into the prefix. |
 
 ## Provenance of copied assets
 
@@ -76,11 +76,13 @@ digest is stale, or when `web/public/` contains a file the lock does not cover.
 | `rotor_wasm.wasm` | `apps/site/rotor_wasm.wasm` |
 | `favicon.ico`, `favicon.png` | `apps/site/favicon.*` |
 
-The pilot page loads `/chains.generated.js` and `/amount.js` before `/site.js`,
-mirroring the coordinator's injection order: `site.js` reads the generated
-`window.RotorChains` / `window.RotorProviders` globals and `window.RotorAmount`.
-The vendored WalletConnect and TON bundles are deliberately not copied; the
-reason for each is in `data/vendor.lock.json` (`nonCopies`).
+The pilot loads only `/vendor/seed.js` and `/vendor/seed-crypto.js`; the shared
+layout owns the header, nav, theme and tooltips, and the derivation core owns
+chain and amount data. `chains.generated.js`, `amount.js` and `site.js` stay in
+`web/public/` as locked copies for the coordinator-served pages but are not
+loaded by the Astro pilot. The vendored WalletConnect and TON bundles are
+deliberately not copied; the reason for each is in `data/vendor.lock.json`
+(`nonCopies`).
 
 `rotor_wasm.wasm` is a generated artifact: after `sh scripts/build-wasm.sh`
 rebuilds `apps/site/rotor_wasm.wasm`, run
@@ -103,12 +105,13 @@ hand-edit it.
 - The landing loads no WASM and no coordinator API: chain cards come from
   `data/chains.json` at build time, and the dynamic totals/leaderboard link to
   the operator console instead of rendering stale numbers. Its only scripts are
-  the deferred theme bootstrap (635 B gzip) and the shell island bundle (913 B
-  gzip).
+  the pre-paint theme bootstrap (blocking, same-origin) and the shell island
+  bundle. Both sizes are reported in the PR.
 - The shared shell is the one header/footer source. The pilot no longer carries
   its own copy, and it uses the layout's static theme toggle, skip link, active
-  nav state and narrow-screen disclosure instead of `theme.js` plus `site.js`
-  nav splitting.
+  nav state, tooltips and narrow-screen disclosure instead of `theme.js` plus
+  `site.js`. The pilot no longer loads `site.js`, so only the layout's menu
+  exists in the header.
 - `assetsInlineLimit: 0` keeps every script a same-origin file. The CSP plan
   allows `script-src 'self'`; an inlined module or `data:` URL would violate it
   even when it is smaller.
