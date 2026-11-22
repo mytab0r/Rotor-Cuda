@@ -3721,6 +3721,7 @@ details > summary { min-height: 44px; }
  * so it wins over the page-specific pill rules without !important.
  * Enforced by scripts/ui-audit.mjs status-pill-geometry. */
 .badge,
+.status,
 .key-badges span,
 .puzzle-status,
 .pz-pill,
@@ -3740,6 +3741,31 @@ details > summary { min-height: 44px; }
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
+}
+
+/* Severity tones use the semantic state colours and the same box as the
+ * shared pill. The /security page and the wallet severity chip share these
+ * classes so critical and high cannot render as identical plain text. */
+.status--critical {
+  color: var(--state-err);
+  background: color-mix(in srgb, var(--state-err) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-err) 45%, transparent);
+}
+.status--high {
+  color: var(--state-warn);
+  background: color-mix(in srgb, var(--state-warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-warn) 45%, transparent);
+}
+.status--medium {
+  color: var(--state-warn);
+  background: color-mix(in srgb, var(--state-warn) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-warn) 30%, transparent);
+}
+.status--low,
+.status--info {
+  color: var(--state-ok);
+  background: color-mix(in srgb, var(--state-ok) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-ok) 35%, transparent);
 }
 
 /* Text-only status lines share the 12px floor and one rhythm. */

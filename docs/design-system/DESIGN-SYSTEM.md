@@ -814,6 +814,8 @@ standalone freshness gate.
 | `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
 | `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
 | `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
+| `security-advisory-integrity` | Every advisory cites an https primary source, carries actions and review provenance, and its local checker names a live coordinator route and implementation; the generated /security page is current. | security | implemented |
+| `wallet-security-severity-class` | The wallet Security status severity is rendered with the shared .status pill class, not as a bare text node. | security | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in
