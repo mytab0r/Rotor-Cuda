@@ -411,6 +411,47 @@
     return { values: values, errors: errors };
   }
 
+  /* TonAPI `POST /accounts/_bulk`: `{ account_ids: [...] }` answers
+   * `{ accounts: [...] }` in the SAME ORDER as the request. The echoed
+   * `address` is the raw `0:hex` form, so rows are mapped back by index,
+   * never by string. A short/malformed body throws (the row shows the retry
+   * state) instead of reporting a zero balance. `toncenter` stays for the
+   * single-address `/key` page; the directories use this one-request batch. */
+  function tonApiBatchUrl() {
+    return providers().find('ton', 'tonapi').url + '/accounts/_bulk';
+  }
+
+  function parseTonApiAccounts(addresses, data) {
+    var unique = uniqueAddresses(addresses);
+    if (!data || !Array.isArray(data.accounts)) throw new Error('unexpected response');
+    if (data.accounts.length !== unique.length) throw new Error('unexpected account count');
+    var values = {};
+    unique.forEach(function (address, index) {
+      var account = data.accounts[index];
+      if (!account || typeof account !== 'object') throw new Error('unexpected account row');
+      var balance = account.balance === undefined || account.balance === null
+        ? ''
+        : String(account.balance);
+      if (!/^\d+$/.test(balance)) throw new Error('unexpected account balance');
+      values[address] = { balance: balance };
+    });
+    return values;
+  }
+
+  async function tonApiProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = uniqueAddresses(addresses);
+    if (!unique.length) return { values: values, errors: errors };
+    var data = await requestJson(tonApiBatchUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account_ids: unique })
+    });
+    values = parseTonApiAccounts(unique, data);
+    return { values: values, errors: errors };
+  }
+
   var FETCHERS = {
     'blockchain.info': function (meta, addresses) { return btcProvider(addresses); },
     'evm': evmProvider,
@@ -426,6 +467,7 @@
     },
     'xrpscan': function (meta, addresses) { return perAddressProvider(addresses, xrpBalance); },
     'toncenter': function (meta, addresses) { return perAddressProvider(addresses, tonCenterBalance); },
+    'tonapi': function (meta, addresses) { return tonApiProvider(addresses); },
     'haskoin-bch': function (meta, addresses) { return haskoinBchProvider(addresses); }
   };
 
@@ -450,6 +492,7 @@
     uniqueAddresses: uniqueAddresses,
     solanaBatchBody: solanaBatchBody,
     haskoinBatchUrl: haskoinBatchUrl,
+    parseTonApiAccounts: parseTonApiAccounts,
     tronValue: tronValue,
     tronChunks: tronChunks
   };

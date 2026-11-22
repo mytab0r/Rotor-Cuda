@@ -493,6 +493,11 @@
         "id": "toncenter",
         "url": "https://toncenter.com/api/v2",
         "label": "TON Center"
+      },
+      {
+        "id": "tonapi",
+        "url": "https://tonapi.io/v2",
+        "label": "TonAPI"
       }
     ],
     "sui": [
