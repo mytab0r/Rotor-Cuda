@@ -491,6 +491,14 @@
       "status": "implemented"
     },
     {
+      "id": "wallet-approvals-surface",
+      "rule": "The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
       "id": "search-xrp-secret-routing",
       "rule": "XRP family seeds and secrets route to /key instead of a brainwallet hash.",
       "batch": "phase 4",
