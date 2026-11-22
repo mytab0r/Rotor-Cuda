@@ -5,8 +5,10 @@
  *  - EIP-55 destination validation and the zero-address refusal;
  *  - the chain table, the chain-id guard and the mainnet arm/balance/fee-cap
  *    gates;
- *  - ERC-20 token reads (decimals, symbol, balanceOf) and the fixed
- *    transfer(address,uint256) calldata built locally;
+ *  - ERC-20 token reads (decimals, symbol, balanceOf, allowance) and the fixed
+ *    transfer(address,uint256) and approve(spender, 0) calldata built locally;
+ *  - Approval log discovery (eth_getLogs, chunked and deduped) and the
+ *    per-spender current-allowance/code reads over an injected public RPC;
  *  - review preparation over an injected public RPC and the explicit confirm
  *    step that signs and broadcasts.
  *
@@ -46,6 +48,7 @@
       decimals: SSOT_CHAINS.bySlug['sepolia'].decimals,
       testnet: true,
       explorerTx: SSOT_CHAINS.bySlug.sepolia.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.sepolia.explorerPrefix,
       feeCapWei: null,
       /* Verified with a real browser (Chrome, Origin http://127.0.0.1:18321) on
        * 2026-11-19: all three answer eth_chainId with 0xaa36a7 and allow CORS.
@@ -61,6 +64,7 @@
       decimals: SSOT_CHAINS.bySlug['ethereum'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.ethereum.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.ethereum.explorerPrefix,
       feeCapWei: 5n * 10n ** 16n,
       providers: SSOT_PROVIDERS.byChain.ethereum
     },
@@ -73,6 +77,7 @@
       decimals: SSOT_CHAINS.bySlug['bnb'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.bnb.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.bnb.explorerPrefix,
       feeCapWei: 10n ** 16n,
       providers: [SSOT_PROVIDERS.find('bnb', 'bsc-dataseed')]
     },
@@ -85,6 +90,7 @@
       decimals: SSOT_CHAINS.bySlug['arbitrum'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.arbitrum.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.arbitrum.explorerPrefix,
       feeCapWei: 10n ** 16n,
       providers: [SSOT_PROVIDERS.find('arbitrum', 'arbitrum')]
     },
@@ -97,6 +103,7 @@
       decimals: SSOT_CHAINS.bySlug['optimism'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.optimism.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.optimism.explorerPrefix,
       feeCapWei: 10n ** 16n,
       /* mainnet.optimism.io answers HTTP 403 to a browser-like request even
        * with an Origin header (checked 2026-11-22), so it is not offered. */
@@ -111,6 +118,7 @@
       decimals: SSOT_CHAINS.bySlug['base'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.base.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.base.explorerPrefix,
       feeCapWei: 10n ** 16n,
       providers: [SSOT_PROVIDERS.find('base', 'base')]
     },
@@ -123,6 +131,7 @@
       decimals: SSOT_CHAINS.bySlug['polygon'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.polygon.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.polygon.explorerPrefix,
       feeCapWei: 10n ** 16n,
       /* polygon-rpc.com answers "API key disabled, tenant disabled" (checked
        * 2026-11-22), so it is not offered. */
@@ -137,6 +146,7 @@
       decimals: SSOT_CHAINS.bySlug['avalanche'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.avalanche.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.avalanche.explorerPrefix,
       feeCapWei: 10n ** 16n,
       providers: [SSOT_PROVIDERS.find('avalanche', 'avalanche')]
     },
@@ -149,6 +159,7 @@
       decimals: SSOT_CHAINS.bySlug['zksync'].decimals,
       testnet: false,
       explorerTx: SSOT_CHAINS.bySlug.zksync.explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug.zksync.explorerPrefix,
       feeCapWei: 10n ** 16n,
       providers: SSOT_PROVIDERS.byChain.zksync
     },
@@ -164,6 +175,7 @@
       testnet: true,
       wallet: false,
       explorerTx: SSOT_CHAINS.bySlug['bnb-testnet'].explorerTxPrefix,
+      explorerAddress: SSOT_CHAINS.bySlug['bnb-testnet'].explorerPrefix,
       feeCapWei: null,
       providers: []
     }
@@ -196,12 +208,29 @@
    * are the canonical function signatures; calldata is always built here and
    * never accepted from the form. */
   var ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
+  var ERC20_APPROVE_SELECTOR = '0x095ea7b3';
   var ERC20_DECIMALS_SELECTOR = '0x313ce567';
   var ERC20_SYMBOL_SELECTOR = '0x95d89b41';
   var ERC20_BALANCE_OF_SELECTOR = '0x70a08231';
+  var ERC20_ALLOWANCE_SELECTOR = '0xdd62ed3e';
+  /* keccak256("Approval(address,address,uint256)"): owner is topics[1],
+   * spender is topics[2] and the allowance value is the single data word. */
+  var APPROVAL_TOPIC = '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925';
   var TOKEN_MAX_DECIMALS = 24;
   var TOKEN_MAX_SYMBOL_CHARS = 32;
   var TOKEN_DATA_ERROR = 'Data is not allowed with a token transfer; the calldata is built from the fixed ERC-20 transfer ABI.';
+  /* Approval discovery is a read-only log scan. Public free RPCs advertise no
+   * standard range limit; measured on 2026-11-22, publicnode answers a range
+   * of ~9,900 recent blocks and rejects older blocks with an archive error,
+   * dRPC allows 100 blocks per call and 1RPC allows 50. The scan starts at
+   * LOG_CHUNK_BLOCKS and halves on a range error, stops honestly at the
+   * provider's archive horizon, and caps the number of log requests. */
+  var LOG_CHUNK_BLOCKS = 5000;
+  var LOG_DEFAULT_WINDOW = 50000;
+  var LOG_MAX_WINDOW = 1000000;
+  var LOG_MAX_SPENDERS = 50;
+  var LOG_MAX_REQUESTS = 60;
+  var LOG_READ_CONCURRENCY = 5;
 
   /* EVM chains the vault can hold. */
   var EVM_CHAIN_SLUGS = SSOT_PROVIDERS.groups['evm-mainnet'].slice();
@@ -408,6 +437,140 @@
       throw new Error('The token amount is too large for a uint256.');
     }
     return ERC20_TRANSFER_SELECTOR + padWord(to.slice(2)) + padWord(amountWei.toString(16));
+  }
+
+  /* Canonical approve(address,uint256): selector 0x095ea7b3, then the spender
+   * and the raw allowance each left-padded to one 32-byte word. This slice
+   * only ever builds amount 0 (a revoke); a grant will get its own review. */
+  function approveCalldata(spender, amountWei) {
+    var who = normalizeAddress(spender, 'spender');
+    if (typeof amountWei !== 'bigint' || amountWei < 0n || amountWei > U256_MAX) {
+      throw new Error('The approval amount must be a uint256.');
+    }
+    return ERC20_APPROVE_SELECTOR + padWord(who.slice(2)) + padWord(amountWei.toString(16));
+  }
+
+  function revokeCalldata(spender) {
+    return approveCalldata(spender, 0n);
+  }
+
+  /* Display helper: 2^256-1 is the conventional "unlimited" allowance. Every
+   * other value is printed exactly with the token's own decimals. */
+  function formatAllowance(value, decimals) {
+    var raw = typeof value === 'bigint' ? value : BigInt(value);
+    if (raw === U256_MAX) return 'Unlimited';
+    return AMOUNT.formatUnits(raw, decimals, { grouping: true });
+  }
+
+  function allowanceCalldata(owner, spender) {
+    var holder = normalizeAddress(owner, 'owner');
+    var who = normalizeAddress(spender, 'spender');
+    return ERC20_ALLOWANCE_SELECTOR + padWord(holder.slice(2)) + padWord(who.slice(2));
+  }
+
+  function parseWindowBlocks(text) {
+    var value = typeof text === 'string' ? text.trim() : '';
+    if (!/^\d+$/.test(value)) {
+      throw new Error('Scan window must be a whole number of blocks.');
+    }
+    var parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > LOG_MAX_WINDOW) {
+      throw new Error('Scan window must be between 1 and ' + LOG_MAX_WINDOW + ' blocks.');
+    }
+    return parsed;
+  }
+
+  /* A log filter is scanned newest-first so the most recent approval wins and
+   * a provider that cannot serve older blocks still returns useful data. */
+  function nextApprovalChunk(cursor, fromBlock, chunkSize) {
+    var top = BigInt(cursor);
+    var bottom = BigInt(fromBlock);
+    if (top < bottom) return null;
+    var size = Number(chunkSize);
+    if (!Number.isSafeInteger(size) || size < 1) {
+      throw new Error('The log chunk size must be a positive block count.');
+    }
+    var available = top - bottom + 1n;
+    if (BigInt(size) > available) size = Number(available);
+    return {
+      fromBlock: top - BigInt(size) + 1n,
+      toBlock: top,
+      size: size
+    };
+  }
+
+  function logQuantity(hex, what) {
+    if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]+$/.test(hex)) {
+      throw new Error('The Approval log ' + what + ' is not a hex quantity.');
+    }
+    var value = Number.parseInt(hex, 16);
+    if (!Number.isSafeInteger(value)) {
+      throw new Error('The Approval log ' + what + ' is too large.');
+    }
+    return value;
+  }
+
+  /* Parse one canonical Approval log. A log that does not belong to this
+   * contract, owner or event shape returns null (the RPC filter may be laxer
+   * than the ABI); a log that matches but is malformed throws. */
+  function parseApprovalLog(log, contract, owner) {
+    if (!log || typeof log !== 'object' || log.removed === true) return null;
+    if (typeof log.address !== 'string' ||
+        log.address.toLowerCase() !== String(contract).toLowerCase()) return null;
+    var topics = Array.isArray(log.topics) ? log.topics : [];
+    if (topics.length < 3) return null;
+    if (String(topics[0]).toLowerCase() !== APPROVAL_TOPIC) return null;
+    var ownerTopic = '0x' + padWord(normalizeAddress(owner, 'owner').slice(2));
+    if (String(topics[1]).toLowerCase() !== ownerTopic) return null;
+    var spenderTopic = String(topics[2]).toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(spenderTopic)) {
+      throw new Error('The Approval log spender topic is not a 32-byte word.');
+    }
+    var spender = '0x' + spenderTopic.slice(26);
+    if (!/^0x[0-9a-f]{40}$/.test(spender) || /^0x0{40}$/.test(spender)) return null;
+    var data = String(log.data || '').toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(data)) {
+      throw new Error('The Approval log data is not a single uint256 word.');
+    }
+    return {
+      spender: spender,
+      value: BigInt(data),
+      blockNumber: logQuantity(log.blockNumber, 'block number'),
+      logIndex: logQuantity(log.logIndex, 'log index')
+    };
+  }
+
+  /* Deduplicate by spender, keeping the newest log (highest block, then log
+   * index). The displayed value still comes from a fresh allowance() read. */
+  function mergeApprovalLogs(target, logs, contract, owner) {
+    var list = Array.isArray(logs) ? logs : [];
+    for (var i = 0; i < list.length; i += 1) {
+      var entry = parseApprovalLog(list[i], contract, owner);
+      if (!entry) continue;
+      var current = target.get(entry.spender);
+      if (!current || entry.blockNumber > current.blockNumber ||
+          (entry.blockNumber === current.blockNumber && entry.logIndex > current.logIndex)) {
+        target.set(entry.spender, entry);
+      }
+    }
+    return target;
+  }
+
+  /* Translate an eth_getLogs failure into the recovery step: a range limit is
+   * shrunk (the numeric limit is used when the message states it), an archive
+   * refusal means the provider cannot go further back, a network reset is a
+   * transient connection failure, and anything else is a real failure. */
+  function classifyLogRangeError(message) {
+    var text = String(message || '').toLowerCase();
+    if (/archive|personal token/.test(text)) return { kind: 'archive', limit: null };
+    if (/fetch failed|failed to fetch|load failed|network|econnreset|etimedout|timeout|err_connection/.test(text)) {
+      return { kind: 'network', limit: null };
+    }
+    var match = /(\d+)\s*blocks/.exec(text);
+    if (/range|limit|too many|max/.test(text)) {
+      return { kind: 'range', limit: match ? Number(match[1]) : null };
+    }
+    return { kind: 'other', limit: null };
   }
 
   function abiBody(hex, what) {
@@ -672,6 +835,38 @@
     return contract;
   }
 
+  /* A revoke review is only signable when its calldata is still exactly
+   * approve(spender, 0): a mutated spender, amount or calldata refuses. The
+   * same check runs on every chain, testnet included. */
+  function assertReviewedRevoke(review) {
+    var contract;
+    try {
+      contract = normalizeAddress(review.tokenContract, 'token contract');
+    } catch (err) {
+      throw new Error('The reviewed token contract is invalid: ' + errorText(err) +
+        ' Refusing to sign.');
+    }
+    var expected;
+    try {
+      expected = revokeCalldata(review.spender);
+    } catch (err) {
+      throw new Error('The reviewed revoke is invalid: ' + errorText(err) +
+        ' Refusing to sign.');
+    }
+    if (review.dataHex !== expected) {
+      throw new Error('The reviewed revoke calldata does not match the reviewed spender ' +
+        'and a zero allowance. Refusing to sign.');
+    }
+    if (review.approvalAmountWei !== 0n) {
+      throw new Error('The reviewed approval amount is not zero. Refusing to sign.');
+    }
+    if (review.valueWei !== 0n) {
+      throw new Error('A revoke must not send native value; the reviewed value is not zero. ' +
+        'Refusing to sign.');
+    }
+    return contract;
+  }
+
   function bufferedGasLimit(estimate) {
     var percent = 100n + GAS_BUFFER_PERCENT;
     var buffered = (estimate * percent + 99n) / 100n;
@@ -841,12 +1036,10 @@
     return err;
   }
 
-  /* Read one ERC-20 contract through the selected public RPC. The contract
-   * must have code on this chain; decimals, symbol and the sender's balance
-   * are read with plain eth_call and the amount is parsed exactly with the
-   * token's own decimals. The transfer calldata is built here from the
-   * recipient and the raw amount, never supplied by the form. */
-  async function readTokenMetadata(fetchJson, url, network, contract, owner, recipient, amountText) {
+  /* Read the contract code, decimals and symbol every token action needs.
+   * A contract without code, decimals outside 0-24 or an unfamiliar symbol is
+   * refused before any value is read or signed. */
+  async function readTokenHeader(fetchJson, url, network, contract) {
     var code = await read(fetchJson, url, 'eth_getCode', [contract, 'latest'],
       'the token contract code');
     if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) {
@@ -868,7 +1061,18 @@
     var symbolHex = await read(fetchJson, url, 'eth_call',
       [{ to: contract, data: ERC20_SYMBOL_SELECTOR }, 'latest'], 'the token symbol');
     var symbol = decodeTokenSymbol(symbolHex);
-    var decimals = Number(decimalsValue);
+    return { contract: contract, symbol: symbol, decimals: Number(decimalsValue) };
+  }
+
+  /* Read one ERC-20 contract through the selected public RPC. The contract
+   * must have code on this chain; decimals, symbol and the sender's balance
+   * are read with plain eth_call and the amount is parsed exactly with the
+   * token's own decimals. The transfer calldata is built here from the
+   * recipient and the raw amount, never supplied by the form. */
+  async function readTokenMetadata(fetchJson, url, network, contract, owner, recipient, amountText) {
+    var header = await readTokenHeader(fetchJson, url, network, contract);
+    var symbol = header.symbol;
+    var decimals = header.decimals;
     var balanceHex = await read(fetchJson, url, 'eth_call',
       [{ to: contract, data: ERC20_BALANCE_OF_SELECTOR + padWord(owner.slice(2)) }, 'latest'],
       'the token balance');
@@ -901,6 +1105,256 @@
     };
   }
 
+  /* Current allowance(owner,spender) read. The list never displays the value
+   * from the log: an old Approval may since have been replaced or revoked. */
+  async function readAllowance(fetchJson, url, contract, owner, spender) {
+    var token = normalizeAddress(contract, 'token contract');
+    var data = allowanceCalldata(owner, spender);
+    var hex = await read(fetchJson, url, 'eth_call', [{ to: token, data: data }, 'latest'],
+      'the current allowance');
+    return decodeUint256(hex, 'allowance');
+  }
+
+  /* Run at most `limit` async workers over the list, preserving order. Keeps
+   * the per-spender reads from opening 100 requests at once on a public RPC. */
+  function mapLimit(items, limit, worker) {
+    return new Promise(function (resolve, reject) {
+      var index = 0;
+      var results = new Array(items.length);
+      var active = Math.min(limit, items.length);
+      if (!active) { resolve(results); return; }
+      var settled = false;
+      function fail(err) {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      }
+      function run() {
+        if (index >= items.length) return Promise.resolve();
+        var current = index;
+        index += 1;
+        return Promise.resolve(worker(items[current], current)).then(function (value) {
+          results[current] = value;
+          return run();
+        }, fail);
+      }
+      var workers = [];
+      for (var i = 0; i < active; i += 1) workers.push(run());
+      Promise.all(workers).then(function () {
+        if (!settled) { settled = true; resolve(results); }
+      }, fail);
+    });
+  }
+
+  /* Scan Approval logs newest-first over [fromBlock, toBlock]. A range limit
+   * halves the chunk; an archive refusal stops the walk at the provider's
+   * horizon and marks the result truncated. The request budget bounds a chatty
+   * provider (dRPC allows only 100 blocks per call). */
+  async function scanApprovalRange(fetchJson, url, contract, owner, fromBlock, toBlock) {
+    var ownerTopic = '0x' + padWord(owner.slice(2));
+    var entries = new Map();
+    var cursor = BigInt(toBlock);
+    var bottom = BigInt(fromBlock);
+    var chunk = LOG_CHUNK_BLOCKS;
+    var requests = 0;
+    var logCount = 0;
+    var scannedFrom = cursor + 1n;
+    var truncated = false;
+    var warnings = [];
+    var networkRetries = 0;
+
+    while (cursor >= bottom && requests < LOG_MAX_REQUESTS) {
+      var plan = nextApprovalChunk(cursor, bottom, chunk);
+      requests += 1;
+      var logs;
+      try {
+        logs = await rpcCall(fetchJson, url, 'eth_getLogs', [{
+          address: contract,
+          fromBlock: toQuantity(plan.fromBlock),
+          toBlock: toQuantity(plan.toBlock),
+          topics: [APPROVAL_TOPIC, ownerTopic]
+        }]);
+      } catch (err) {
+        var info = classifyLogRangeError(errorText(err));
+        if (info.kind === 'range') {
+          var next = info.limit && info.limit < chunk ? info.limit : Math.floor(chunk / 2);
+          if (next >= 1 && next < chunk) {
+            chunk = next;
+            continue;
+          }
+          throw new Error('Scanning Approval logs failed on ' + providerLabel(url) +
+            ': the provider rejected every chunk size (' + errorText(err) + ').');
+        }
+        if (info.kind === 'archive') {
+          if (plan.size > 1) {
+            chunk = Math.max(1, Math.floor(plan.size / 2));
+            continue;
+          }
+          truncated = true;
+          warnings.push('The provider cannot serve Approval logs older than block ' +
+            (cursor + 1n).toString() + ' (archive range); older approvals need an ' +
+            'archive RPC or an indexer.');
+          break;
+        }
+        if (info.kind === 'network') {
+          /* A public RPC may reset a burst of log requests. Retry once, then
+           * keep the blocks already scanned and say where the scan stopped
+           * instead of throwing away a usable partial list. */
+          if (networkRetries < 1) {
+            networkRetries += 1;
+            continue;
+          }
+          if (scannedFrom <= BigInt(toBlock)) {
+            truncated = true;
+            warnings.push('The provider connection failed at block ' +
+              plan.fromBlock.toString() + ' (' + errorText(err) + '); the list covers ' +
+              'the blocks scanned before the failure. Run the scan again or use another RPC.');
+            break;
+          }
+          throw new Error('Scanning Approval logs failed on ' + providerLabel(url) + ': ' +
+            errorText(err));
+        }
+        throw new Error('Scanning Approval logs failed on ' + providerLabel(url) + ': ' +
+          errorText(err));
+      }
+      if (!Array.isArray(logs)) {
+        throw new Error('eth_getLogs returned a non-array value.');
+      }
+      logCount += logs.length;
+      mergeApprovalLogs(entries, logs, contract, owner);
+      scannedFrom = plan.fromBlock;
+      cursor = plan.fromBlock - 1n;
+    }
+    if (cursor >= bottom && requests >= LOG_MAX_REQUESTS) {
+      truncated = true;
+      warnings.push('Stopped after ' + LOG_MAX_REQUESTS + ' log requests; the requested ' +
+        'window is larger than this provider can serve in one scan.');
+    } else if (cursor >= bottom) {
+      truncated = true;
+    }
+    var spenders = Array.from(entries.values()).sort(function (left, right) {
+      if (left.blockNumber !== right.blockNumber) return right.blockNumber - left.blockNumber;
+      return right.logIndex - left.logIndex;
+    });
+    return {
+      spenders: spenders,
+      scannedFromBlock: scannedFrom,
+      scannedToBlock: BigInt(toBlock),
+      truncated: truncated,
+      requestCount: requests,
+      logCount: logCount,
+      warnings: warnings
+    };
+  }
+
+  /* options: { fetchJson, token, owner, windowBlocks?, providerUrl?,
+   *            providers?, expectedChainId?, networkName? }
+   *
+   * Reads the token header (code, decimals, symbol) with the same rules as a
+   * transfer, scans the requested recent window, then reads the current
+   * allowance and code of each spender (newest first, capped at 50). No
+   * indexer and no token discovery: the caller supplies the contract. */
+  async function scanApprovals(options) {
+    var settings = options || {};
+    var network = assertKnownNetwork(settings.expectedChainId === undefined
+      ? SEPOLIA.chainId
+      : settings.expectedChainId);
+    var contract;
+    var owner;
+    try {
+      contract = normalizeAddress(settings.token, 'token contract');
+    } catch (err) {
+      throw new Error('The token contract is invalid: ' + errorText(err));
+    }
+    try {
+      owner = normalizeAddress(settings.owner, 'owner');
+    } catch (err) {
+      throw new Error('The owner address is invalid: ' + errorText(err));
+    }
+    var windowBlocks;
+    try {
+      windowBlocks = parseWindowBlocks(settings.windowBlocks === undefined
+        ? String(LOG_DEFAULT_WINDOW)
+        : String(settings.windowBlocks));
+    } catch (err) {
+      throw tokenFieldError('window', errorText(err));
+    }
+    var providers = settings.providerUrl
+      ? [settings.providerUrl]
+      : (settings.providers || network.providers.map(function (provider) { return provider.url; }));
+    if (!providers.length) {
+      throw new Error('No RPC provider is configured for ' + network.name + '.');
+    }
+    var providerUrl = await chooseProvider(settings.fetchJson, providers, network.chainId,
+      settings.networkName || network.name);
+    var header = await readTokenHeader(settings.fetchJson, providerUrl, network, contract);
+    var latestHex = await read(settings.fetchJson, providerUrl, 'eth_blockNumber', [],
+      'the latest block');
+    var latest = quantity(latestHex, 'latest block');
+    if (latest > U64_MAX) throw new Error('The latest block number is out of range.');
+    var requestedFrom = latest >= BigInt(windowBlocks) - 1n
+      ? latest - BigInt(windowBlocks) + 1n
+      : 0n;
+    var scan = await scanApprovalRange(settings.fetchJson, providerUrl, contract, owner,
+      requestedFrom, latest);
+
+    var unique = scan.spenders;
+    var selected = unique.slice(0, LOG_MAX_SPENDERS);
+    var warnings = scan.warnings.slice();
+    if (unique.length > LOG_MAX_SPENDERS) {
+      warnings.push('Showing the ' + LOG_MAX_SPENDERS + ' most recent of ' + unique.length +
+        ' spenders found in the scanned window.');
+    }
+    var spenders = await mapLimit(selected, LOG_READ_CONCURRENCY, async function (entry) {
+      var allowance = await readAllowance(settings.fetchJson, providerUrl, contract, owner,
+        entry.spender);
+      var isContract = null;
+      try {
+        var code = await read(settings.fetchJson, providerUrl, 'eth_getCode',
+          [entry.spender, 'latest'], 'the spender code');
+        if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) {
+          throw new Error('eth_getCode returned a non-hex value.');
+        }
+        isContract = code.length > 2;
+      } catch (err) {
+        warnings.push('Could not read the code of ' + entry.spender + ': ' + errorText(err));
+      }
+      return {
+        address: entry.spender,
+        allowance: allowance,
+        isContract: isContract,
+        lastLogBlock: entry.blockNumber,
+        lastLogIndex: entry.logIndex
+      };
+    });
+
+    return {
+      chainId: network.chainId,
+      chainName: network.name,
+      networkSlug: network.slug,
+      testnet: network.testnet,
+      explorerAddress: network.explorerAddress,
+      providerUrl: providerUrl,
+      providerLabel: providerLabel(providerUrl),
+      contract: contract,
+      symbol: header.symbol,
+      decimals: header.decimals,
+      owner: owner,
+      latestBlock: latest,
+      requestedWindow: windowBlocks,
+      requestedFromBlock: requestedFrom,
+      scannedFromBlock: scan.scannedFromBlock,
+      scannedToBlock: scan.scannedToBlock,
+      truncated: scan.truncated,
+      requestCount: scan.requestCount,
+      logCount: scan.logCount,
+      uniqueSpenders: unique.length,
+      spenders: spenders,
+      cap: LOG_MAX_SPENDERS,
+      warnings: warnings
+    };
+  }
+
   /* --------------------------------------------------------------- prepare */
 
   /* Build the review. It never signs: `unsigned` is a local serializer and
@@ -915,19 +1369,54 @@
       : settings.expectedChainId);
     assertMainnetArmed(network, settings.mainnetArmed);
     var expectedChainId = network.chainId;
-    var validated = validateForm(settings.form);
-    var formInput = settings.form || {};
-    var tokenText = typeof formInput.token === 'string' ? formInput.token.trim() : '';
-    var tokenRequested = tokenText !== '';
-    /* A native mainnet transfer needs calldata to stay empty and the amount to
-     * be greater than zero. A token transfer carries locally built calldata
-     * and its native value is always zero. */
-    if (!network.testnet && !tokenRequested) {
-      if (!validated.errors.data && validated.values.data !== '0x') {
-        validated.errors.data = 'Mainnet signing here is native-token transfers only; clear the data field.';
+    var action = settings.action || null;
+    var isRevoke = false;
+    var spender = null;
+    var validated;
+    if (action) {
+      if (action.kind !== 'revoke') {
+        throw new Error('Unsupported token action.');
       }
-      if (!validated.errors.value && validated.values.value === 0n) {
-        validated.errors.value = 'Enter an amount greater than zero for a native-token transfer.';
+      var actionContract;
+      try {
+        actionContract = normalizeAddress(action.token, 'token contract');
+      } catch (err) {
+        throw new Error('The token contract is invalid: ' + errorText(err));
+      }
+      try {
+        spender = normalizeAddress(action.spender, 'spender');
+      } catch (err) {
+        throw new Error('The spender address is invalid: ' + errorText(err));
+      }
+      isRevoke = true;
+      validated = {
+        errors: {},
+        values: {
+          to: spender,
+          token: actionContract,
+          amountText: '',
+          value: 0n,
+          data: '0x',
+          gasLimit: null,
+          maxFee: null,
+          priorityFee: null
+        }
+      };
+    } else {
+      validated = validateForm(settings.form);
+      var formInput = settings.form || {};
+      var tokenText = typeof formInput.token === 'string' ? formInput.token.trim() : '';
+      var tokenRequested = tokenText !== '';
+      /* A native mainnet transfer needs calldata to stay empty and the amount to
+       * be greater than zero. A token transfer carries locally built calldata
+       * and its native value is always zero. */
+      if (!network.testnet && !tokenRequested) {
+        if (!validated.errors.data && validated.values.data !== '0x') {
+          validated.errors.data = 'Mainnet signing here is native-token transfers only; clear the data field.';
+        }
+        if (!validated.errors.value && validated.values.value === 0n) {
+          validated.errors.value = 'Enter an amount greater than zero for a native-token transfer.';
+        }
       }
     }
     if (Object.keys(validated.errors).length) {
@@ -949,12 +1438,17 @@
     var txTo = values.to;
     var nativeValue = values.value;
     var transferData = values.data;
-    if (values.token) {
+    if (isRevoke) {
+      txTo = values.token;
+      nativeValue = 0n;
+      transferData = revokeCalldata(spender);
+    } else if (values.token) {
       txTo = values.token;
       nativeValue = 0n;
       transferData = '0x';
     }
     var tokenMeta = null;
+    var currentAllowanceWei = null;
     var providers = settings.providerUrl
       ? [settings.providerUrl]
       : (settings.providers || network.providers.map(function (provider) { return provider.url; }));
@@ -976,6 +1470,23 @@
       settings.networkName || network.name)
       .then(function (chosen) {
         providerUrl = chosen;
+        if (isRevoke) {
+          /* Re-read the header and the current allowance at review time: a
+           * stale row or an already-zero allowance must not produce a pointless
+           * transaction. */
+          return readTokenHeader(settings.fetchJson, chosen, network, values.token)
+            .then(function (meta) {
+              tokenMeta = meta;
+              return readAllowance(settings.fetchJson, chosen, values.token, from, spender);
+            })
+            .then(function (allowance) {
+              currentAllowanceWei = allowance;
+              if (allowance === 0n) {
+                throw new Error('The allowance for ' + spender +
+                  ' is already zero; there is nothing to revoke.');
+              }
+            });
+        }
         if (!values.token) return null;
         return readTokenMetadata(settings.fetchJson, chosen, network, values.token, from,
           values.to, values.amountText).then(function (meta) {
@@ -1009,8 +1520,9 @@
             estimate = null;
             estimateError = providerLabel(providerUrl) + ': ' + errorText(err);
             if (values.gasLimit === null) {
-              throw new Error('Cannot estimate gas; enter a gas limit manually (' +
-                estimateError + ').');
+              throw new Error(isRevoke
+                ? 'Cannot estimate gas for this revoke (' + estimateError + ').'
+                : 'Cannot estimate gas; enter a gas limit manually (' + estimateError + ').');
             }
           });
       })
@@ -1098,15 +1610,20 @@
             testnet: network.testnet,
             symbol: symbol,
             explorerTx: network.explorerTx,
+            explorerAddress: network.explorerAddress,
             feeCapWei: network.feeCapWei,
             from: from,
-            to: values.to,
-            isToken: values.token !== null,
+            to: isRevoke ? values.token : values.to,
+            isToken: !isRevoke && values.token !== null,
+            isRevoke: isRevoke,
+            spender: spender,
+            approvalAmountWei: isRevoke ? 0n : null,
+            currentAllowanceWei: currentAllowanceWei,
             tokenContract: tokenMeta ? tokenMeta.contract : null,
             tokenSymbol: tokenMeta ? tokenMeta.symbol : null,
             tokenDecimals: tokenMeta ? tokenMeta.decimals : null,
-            tokenAmountWei: tokenMeta ? tokenMeta.amount : null,
-            tokenBalanceWei: tokenMeta ? tokenMeta.balance : null,
+            tokenAmountWei: !isRevoke && tokenMeta ? tokenMeta.amount : null,
+            tokenBalanceWei: !isRevoke && tokenMeta ? tokenMeta.balance : null,
             valueWei: nativeValue,
             dataHex: transferData,
             gasLimit: gasLimit,
@@ -1131,6 +1648,16 @@
 
   /* --------------------------------------------------------------- confirm */
 
+  /* Revoke one approval: build approve(spender, 0) locally and run the same
+   * prepare pipeline (chain id, arm, nonce, fee cap, estimateGas, review).
+   * options: { token, spender, from, fetchJson, providerUrl?, providers?,
+   *            unsigned, expectedChainId?, mainnetArmed?, chainName? } */
+  function prepareRevoke(options) {
+    var settings = Object.assign({}, options || {});
+    settings.action = { kind: 'revoke', token: settings.token, spender: settings.spender };
+    return prepareTransaction(settings);
+  }
+
   /* options: { review, fetchJson, sign(fields) -> signed hex,
    *            mainnetArmed? } */
   async function confirmTransaction(options) {
@@ -1151,14 +1678,16 @@
       throw new Error('The local unsigned-transaction builder is unavailable.');
     }
     var signTo = review.to;
-    if (review.isToken) {
+    if (review.isRevoke) {
+      signTo = assertReviewedRevoke(review);
+    } else if (review.isToken) {
       signTo = assertReviewedTokenTransfer(review);
     } else if (!network.testnet) {
       assertMainnetNativeTransfer(network, review.dataHex, review.valueWei);
     }
     if (!network.testnet) {
       assertFeeCap(network, review.gasLimit, review.maxFeeWei);
-      if (review.isToken) {
+      if (review.isToken || review.isRevoke) {
         assertFeeBalance(network, review.balanceWei, review.gasLimit * review.maxFeeWei);
       } else {
         assertSufficientBalance(network, review.balanceWei, review.totalMaxCostWei);
@@ -1241,8 +1770,24 @@
     normalizeAddress: normalizeAddress,
     normalizeData: normalizeData,
     transferCalldata: transferCalldata,
+    revokeCalldata: revokeCalldata,
+    allowanceCalldata: allowanceCalldata,
+    formatAllowance: formatAllowance,
+    parseWindowBlocks: parseWindowBlocks,
+    nextApprovalChunk: nextApprovalChunk,
+    parseApprovalLog: parseApprovalLog,
+    mergeApprovalLogs: mergeApprovalLogs,
+    classifyLogRangeError: classifyLogRangeError,
+    readAllowance: readAllowance,
+    scanApprovals: scanApprovals,
+    prepareRevoke: prepareRevoke,
     decodeTokenSymbol: decodeTokenSymbol,
     TOKEN_DATA_ERROR: TOKEN_DATA_ERROR,
+    APPROVAL_TOPIC: APPROVAL_TOPIC,
+    LOG_DEFAULT_WINDOW: LOG_DEFAULT_WINDOW,
+    LOG_MAX_WINDOW: LOG_MAX_WINDOW,
+    LOG_MAX_SPENDERS: LOG_MAX_SPENDERS,
+    LOG_MAX_REQUESTS: LOG_MAX_REQUESTS,
     parseChainId: parseChainId,
     assertChainId: assertChainId,
     assertKnownNetwork: assertKnownNetwork,

@@ -41,7 +41,7 @@
     </div>
   </section>
 
-  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers and the ERC-20 transfer(address,uint256) method only; token approvals, other token methods and Bitcoin/TRON mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
+  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read and revoke (approve(spender, 0)); granting a new allowance, other token methods and Bitcoin/TRON mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
 
@@ -176,7 +176,7 @@
         </label>
       </div>
       <label class="wallet-check" id="wallet-send-armed-row" hidden><input type="checkbox" id="wallet-send-armed"> I understand that a mainnet transaction spends real funds and cannot be reversed; arm mainnet signing for this session.</label>
-      <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. Approvals and other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other chains.</p>
+      <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. The separate ERC-20 approvals panel below reads current allowances and revokes them; granting a new allowance and other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other chains.</p>
 
       <label>To (0x address; EIP-55 mixed case or all-lowercase)
         <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-send-to-error" aria-invalid="false">
@@ -239,6 +239,62 @@
       <p><a id="wallet-send-explorer" target="_blank" rel="noopener noreferrer">Open the transaction in the chain explorer</a></p>
       <p class="muted">Signed raw transaction:</p>
       <code class="mono wallet-hex" id="wallet-send-signed"></code>
+    </div>
+  </section>
+
+  <section class="card" id="wallet-approvals" hidden>
+    <h2>ERC-20 approvals</h2>
+    <p class="muted">See which addresses can spend an ERC-20 token you hold and revoke an allowance. The scan reads <code class="mono">Approval(address,address,uint256)</code> logs and then reads the current <code class="mono">allowance(owner,spender)</code> for each spender, so the list shows the live value rather than the value in the log. It uses the network, public RPC and owner selected in “Send an EVM transaction” above, and a mainnet revoke needs the same session arm. There is no indexer: the list covers only the scanned block window, so an approval older than that window needs a larger window on an archive RPC or an indexer. Granting a new allowance is not part of this slice.</p>
+    <form id="wallet-approvals-form" class="key-form" autocomplete="off">
+      <div class="wallet-split">
+        <label>Token contract (ERC-20, 0x address)
+          <input id="wallet-approvals-token" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-approvals-token-error" aria-invalid="false">
+        </label>
+        <label>Scan window (recent blocks, default 50,000)
+          <input id="wallet-approvals-window" type="text" inputmode="numeric" autocomplete="off" value="50000" aria-describedby="wallet-approvals-window-error" aria-invalid="false">
+        </label>
+      </div>
+      <p class="error wallet-field-error" id="wallet-approvals-token-error" role="alert" hidden></p>
+      <p class="error wallet-field-error" id="wallet-approvals-window-error" role="alert" hidden></p>
+      <p class="muted">The contract is checked exactly like a transfer: EIP-55 or all-lowercase, contract code present, 0–24 decimals and a printable symbol of at most 32 characters. A free public RPC may serve only its recent block range; when that happens the panel states the blocks actually scanned. At most 50 spenders are listed, newest approval first.</p>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-approvals-scan">Find approvals</button>
+      </div>
+    </form>
+    <p class="muted status-line" id="wallet-approvals-status" role="status"></p>
+    <p id="wallet-approvals-error" class="error" role="alert" hidden></p>
+    <p class="muted" id="wallet-approvals-coverage" hidden></p>
+    <ul class="wallet-warnings" id="wallet-approvals-warnings" hidden></ul>
+
+    <div class="table-scroll" id="wallet-approvals-table-wrap" hidden>
+      <table class="data-table">
+        <thead><tr><th>Spender</th><th>Type</th><th>Current allowance</th><th>Action</th></tr></thead>
+        <tbody id="wallet-approvals-rows"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="wallet-approvals-empty" hidden>No Approval logs for this owner were found in the scanned window.</p>
+
+    <div id="wallet-approvals-review" hidden>
+      <h3>Review revoke before signing</h3>
+      <dl class="wallet-review" id="wallet-approvals-review-list"></dl>
+      <p class="muted">Unsigned EIP-1559 type-2 transaction — the exact bytes that will be signed:</p>
+      <code class="mono wallet-hex" id="wallet-approvals-review-unsigned"></code>
+      <div class="key-buttons">
+        <button type="button" class="primary" id="wallet-approvals-confirm">Sign and broadcast</button>
+        <button type="button" id="wallet-approvals-cancel">Back to the list</button>
+      </div>
+      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transaction to the selected RPC. The transaction calls <code class="mono">approve(spender, 0)</code>; the calldata is built locally and the signature covers the reviewed spender. No key leaves this tab.</p>
+      <p class="error" id="wallet-approvals-confirm-error" role="alert" hidden></p>
+    </div>
+
+    <div id="wallet-approvals-result" hidden>
+      <h3>Broadcast result</h3>
+      <p class="muted" id="wallet-approvals-provider-note"></p>
+      <p>Transaction hash: <code class="mono" id="wallet-approvals-hash"></code></p>
+      <p><a id="wallet-approvals-explorer" target="_blank" rel="noopener noreferrer">Open the transaction in the chain explorer</a></p>
+      <p class="muted" id="wallet-approvals-reread" role="status"></p>
+      <p class="muted">Signed raw transaction:</p>
+      <code class="mono wallet-hex" id="wallet-approvals-signed"></code>
     </div>
   </section>
 
