@@ -1408,14 +1408,26 @@ function auditPage(args) {
       add("balance-consistency", `${balanceIssues.length} balance row(s) disagree with their title`, balanceIssues.slice(0, 8));
     }
 
-    // Every chain group has a balance provider. The row carries the wiring as
-    // a render-time attribute, so this needs no balance check (and no network)
-    // to have run. key-zec-provider.
-    const zecRow = document.querySelector('.key-row[data-id="zcash_p2pkh"]');
-    metrics.keyZecProvider = zecRow ? zecRow.dataset.balanceProvider || "" : "absent";
-    if (zecRow && zecRow.dataset.balanceProvider !== "1") {
-      add("key-zec-provider", `${selectorOf(zecRow)} has no balance provider (data-balance-provider=${zecRow.dataset.balanceProvider || "missing"})`);
+    // Every UTXO chain row names its balance provider at render time, and the
+    // value is the provider id (not "1"), so a silent switch back to a
+    // rate-limited provider fails deterministically without a network call.
+    // LTC/DOGE/ZEC must read `sochain`; the BlockCypher fallback is never the
+    // rendered provider. Detector ids: key-zec-provider, key-utxo-provider.
+    const providerRows = [
+      { rowId: "zcash_p2pkh", detector: "key-zec-provider" },
+      { rowId: "ltc_p2pkh", detector: "key-utxo-provider" },
+      { rowId: "doge_p2pkh", detector: "key-utxo-provider" },
+    ];
+    metrics.keyBalanceProviders = {};
+    for (const entry of providerRows) {
+      const row = document.querySelector(`.key-row[data-id="${entry.rowId}"]`);
+      const provider = row ? row.dataset.balanceProvider || "" : "absent";
+      metrics.keyBalanceProviders[entry.rowId] = provider;
+      if (row && provider !== "sochain") {
+        add(entry.detector, `${selectorOf(row)} has balance provider ${provider || "missing"} (expected sochain)`);
+      }
     }
+    metrics.keyZecProvider = metrics.keyBalanceProviders.zcash_p2pkh || "";
   }
 
   // 5. Duplicate address-type implementations on one page.

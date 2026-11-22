@@ -721,6 +721,7 @@ standalone freshness gate.
 | `browse-row-wif` | A listing row is HEX plus copy, address and balance; the WIF stays on /key. | phase 4 | implemented |
 | `balance-consistency` | A balance row text agrees with its title amount and TX count. | phase 4 | implemented |
 | `key-zec-provider` | Every /key ZEC row has a balance provider. | phase 4 | implemented |
+| `key-utxo-provider` | Every /key LTC and DOGE row names sochain as its balance provider, not a rate-limited fallback. | phase 4 | implemented |
 | `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
 | `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
 | `search-xrp-secret-routing` | XRP family seeds and secrets route to /key instead of a brainwallet hash. | phase 4 | implemented |
