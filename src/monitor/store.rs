@@ -675,15 +675,22 @@ impl MonitorStore {
             .iter()
             .filter(|watch| watch.user_id == user_id)
             .count();
-        let mut events: Vec<Event> = data
-            .events
-            .iter()
-            .filter(|event| event.user_id == user_id)
-            .cloned()
-            .collect();
-        let start = events.len().saturating_sub(event_limit);
-        events.drain(..start);
-        let last_event_at = events.last().map(|event| event.at);
+        let mut events: Vec<Event> = Vec::with_capacity(event_limit.min(64));
+        let mut last_event_at = None;
+        // Walk backwards and stop after `event_limit` matches: the caller only
+        // needs the tail, and the store must not copy the whole history while
+        // holding the lock.
+        for event in data.events.iter().rev() {
+            if event.user_id != user_id {
+                continue;
+            }
+            last_event_at.get_or_insert(event.at);
+            events.push(event.clone());
+            if events.len() >= event_limit {
+                break;
+            }
+        }
+        events.reverse();
         Some(AdminUserDetail {
             id: user.id.clone(),
             address: user.address.clone(),
@@ -2146,5 +2153,30 @@ mod tests {
             .expect("user exists");
         assert!(settings.recovery_opt_in);
         assert!(!settings.alerts_enabled);
+    }
+
+    #[test]
+    fn admin_user_reads_only_the_bounded_event_tail() {
+        let temp = TempStore::new("admin-tail");
+        let user = temp.store.upsert_user(ADDRESS).expect("user");
+        for index in 0..25 {
+            temp.store
+                .record_event(
+                    &user.id,
+                    "btc",
+                    ADDRESS,
+                    "incoming",
+                    "info",
+                    &format!("event {index}"),
+                )
+                .expect("record");
+        }
+        let detail = temp.store.admin_user(&user.id, 10).expect("detail");
+        assert_eq!(detail.events.len(), 10, "only the tail is read");
+        // Newest last, oldest-to-newest within the tail.
+        assert_eq!(detail.events.first().expect("first").detail, "event 15");
+        assert_eq!(detail.events.last().expect("last").detail, "event 24");
+        let newest_at = detail.events.last().expect("last").at;
+        assert_eq!(detail.last_seen_at, Some(newest_at));
     }
 }

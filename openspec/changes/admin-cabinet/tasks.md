@@ -36,10 +36,11 @@
 - [x] DTOs with no `token_hash`, no secret values; a test serializes responses
       with test secrets set and asserts they are absent.
 - [x] Panels with real data or explicit empty states; no fake placeholders.
-- [x] Delta spec under `openspec/specs/coordinator/` for the admin cabinet:
-      `/cabinet/admin` cookie/CSRF auth, admin response headers, the
-      `/cabinet/admin/design` move and the `/design` 404 (phase 1 shipped
-      without one).
+- [x] Delta spec at `openspec/changes/admin-cabinet/specs/coordinator/spec.md`
+      for the admin cabinet: `/cabinet/admin` cookie/CSRF auth, admin response
+      headers, the `/cabinet/admin/design` move and the `/design` 404 (phase 1
+      shipped without one). The source spec stays untouched; the delta merges
+      at archive.
 - [x] Runbook/trade-off notes: the admin cookies' `Secure` flag follows
       `ROTOR_PUBLIC_URL` (an `http://` origin drops it); the per-IP login lock
       can be held by one attacker behind a shared proxy IP (deliberate
