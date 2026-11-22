@@ -281,11 +281,25 @@ mod tests {
     #[test]
     fn tampered_mac_is_rejected() {
         let auth = AdminAuth::new("token", "https://example.test");
-        let session = auth.mint().expect("mint");
-        let mut tampered = session.cookie.clone();
-        tampered.pop();
-        tampered.push(if tampered.ends_with('0') { '1' } else { '0' });
-        assert!(auth.validate(&tampered).is_none());
+        // Minting is random, so exercise many cookies: every single changed
+        // MAC digit must be rejected, never just most of them.
+        for attempt in 0..100 {
+            let session = auth.mint().expect("mint");
+            assert!(
+                auth.validate(&session.cookie).is_some(),
+                "attempt {attempt}: freshly minted cookie must validate"
+            );
+            let mut tampered = session.cookie;
+            // Flip the last nibble relative to the popped value. Comparing it
+            // with the new last character could push the same digit back and
+            // make the "tampered" cookie identical to the valid one.
+            let last = tampered.pop().expect("MAC digit");
+            tampered.push(if last == '0' { '1' } else { '0' });
+            assert!(
+                auth.validate(&tampered).is_none(),
+                "attempt {attempt}: a changed MAC digit must be rejected"
+            );
+        }
     }
 
     #[test]
