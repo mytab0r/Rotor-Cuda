@@ -78,6 +78,44 @@
  * stays in the header and the row can scroll. */
 .site-nav__menu { display: none; }
 
+/* A chain directory table keeps the shared 8/12 cell padding and the 44px
+ * touch floor at the same time: the key and address cells are one full-cell
+ * target, absolutely positioned into the cell's padding box so they add no
+ * row height. The card must be allowed to shrink below its table's min-content
+ * width, or the grid track's `minmax(0, 1fr)` is defeated; `position: relative`
+ * on the scroll wrapper keeps Chrome from propagating the table's scrollable
+ * overflow to the document. */
+.directory-page > .card { min-width: 0; }
+.directory-page .table-scroll { position: relative; }
+.directory-page .data-table tbody td {
+  position: relative;
+  /* 44px target plus the collapsed 1px row border, so the absolutely
+   * positioned full-cell link is 44 high on every row, not only the first. */
+  height: calc(var(--control-h-lg) + 1px);
+}
+.directory-page .data-table .actions-col,
+.directory-page .data-table td.key-cell-act {
+  width: calc(var(--control-h-xl) + var(--control-h-xl));
+  min-width: calc(var(--control-h-xl) + var(--control-h-xl));
+}
+.directory-page .data-table td.key-cell-act .row-actions {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+}
+.directory-page .data-table .address-link,
+.directory-page .data-table .private-key {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  padding: 0 var(--space-3);
+  line-height: normal;
+  white-space: nowrap;
+}
+
 .site-nav__links[hidden] { display: none; }
 
 @media (max-width: 1200px) {

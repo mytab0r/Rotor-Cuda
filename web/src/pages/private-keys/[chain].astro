@@ -1,0 +1,228 @@
+---
+/* Chain directory template, page 1 only. The coordinator keeps serving
+ * `/private-keys/<chain>` until the frontend-platform cutover; this build
+ * proves the static page and its SEO contract without changing the origin.
+ *
+ * Every row is derived at build time by the existing Rust/WASM core. The keys
+ * are the public small integers 1..60, so the data is deterministic and anyone
+ * can reproduce it; this is a directory of examples, not a wallet. */
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_ORIGIN, absoluteUrl } from '../../lib/site';
+import { KEYS_PER_PAGE, deriveDirectoryRows, formatsFor } from '../../lib/chain-directory';
+import { MAINNET_CHAINS, chainBySlug } from '../../lib/chains';
+
+type ChainEntry = CollectionEntry<'chains'>;
+
+export interface Props {
+  entry: ChainEntry;
+}
+
+export async function getStaticPaths() {
+  const entries: ChainEntry[] = await getCollection('chains');
+  const bySlug = new Map(MAINNET_CHAINS.map((chain) => [chain.slug, chain]));
+  for (const entry of entries) {
+    if (!bySlug.has(entry.data.chain)) {
+      throw new Error(`content/chains/${entry.id}.md names unknown mainnet chain "${entry.data.chain}"`);
+    }
+  }
+  const missing = MAINNET_CHAINS.filter(
+    (chain) => !entries.some((entry) => entry.data.chain === chain.slug),
+  );
+  if (missing.length > 0) {
+    throw new Error(`content/chains is missing: ${missing.map((chain) => chain.slug).join(', ')}`);
+  }
+  return entries.map((entry) => ({
+    params: { chain: entry.data.chain },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props as Props;
+const chain = chainBySlug(entry.data.chain);
+if (!chain) throw new Error(`unknown chain "${entry.data.chain}"`);
+const explorerTemplate = chain.explorer;
+
+const formats = formatsFor(chain.slug);
+const rows = await deriveDirectoryRows(chain.slug, KEYS_PER_PAGE);
+const { Content } = await render(entry);
+
+/* One table row per key; the address formats become columns. The derivation
+ * is key-major, so a group only starts when the key changes. */
+const keyRows: Array<{ keyHex: string; cells: Array<{ formatId: string; address: string }> }> = [];
+for (const row of rows) {
+  let current = keyRows.at(-1);
+  if (!current || current.keyHex !== row.keyHex) {
+    current = { keyHex: row.keyHex, cells: [] };
+    keyRows.push(current);
+  }
+  current.cells.push({ formatId: row.formatId, address: row.address });
+}
+
+const canonical = `/private-keys/${chain.slug}`;
+const canonicalUrl = absoluteUrl(canonical);
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+const formatNames = formats.map((format) => format.label).join('; ');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: entry.data.title,
+      description: entry.data.description,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: 'Crypto',
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        name: `${chain.name} example private keys`,
+        numberOfItems: rows.length,
+        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Private Keys',
+          item: `${SITE_ORIGIN}/private-keys`,
+        },
+        { '@type': 'ListItem', position: 3, name: chain.name, item: canonicalUrl },
+      ],
+    },
+  ],
+};
+
+function explorerUrl(address: string): string {
+  return explorerTemplate.replace('{address}', encodeURIComponent(address));
+}
+---
+
+<SiteLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`${chain.name} private keys — example keys and address formats | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="directory-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <a href="/private-keys">Private Keys</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">{chain.name}</span>
+  </nav>
+
+  <section class="browse-hero" style={`--chain: var(--chain-${chain.slug})`}>
+    <span class="browse-hero-icon">
+      <svg class="icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
+    </span>
+    <div class="browse-hero-title"><h1>{chain.name} private keys</h1></div>
+    <p>{entry.data.description}</p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose>
+    <Content />
+  </section>
+
+  <section class="card" aria-labelledby="example-keys">
+    <h2 id="example-keys">Example {chain.name} keys and addresses</h2>
+    <p class="muted">
+      {KEYS_PER_PAGE} deterministic example keys, each derived at build time in {formats.length}
+      address {formats.length === 1 ? 'format' : 'formats'}: {formatNames}. Balances are
+      placeholders in this static build; no key or address is sent anywhere by this page.
+    </p>
+    <div class="table-scroll">
+      <table class="data-table">
+        <caption class="visually-hidden">
+          Example {chain.name} private keys with derived addresses
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Private key</th>
+            {formats.map((format) => <th scope="col">{format.label}</th>)}
+            <th scope="col">Balance</th>
+            <th scope="col" class="actions-col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {keyRows.map((keyRow) => (
+            <tr data-key={keyRow.keyHex}>
+              <td class="mono"><span class="private-key">{keyRow.keyHex}</span></td>
+              {keyRow.cells.map((cell) => (
+                <td class="mono">
+                  <a
+                    class="address-link"
+                    href={explorerUrl(cell.address)}
+                    rel="noopener noreferrer"
+                    title={`Open ${cell.address} in the explorer`}
+                  >{cell.address}</a>
+                </td>
+              ))}
+              <td><span class="cell-skeleton">—</span></td>
+              <td class="key-cell-act">
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="icon-button icon-button--sm icon-button--quiet"
+                    data-copy={keyRow.keyHex}
+                    aria-label="Copy private key"
+                    data-tooltip="Copy private key"
+                  >
+                    <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+                  </button>
+                  <a
+                    class="icon-button icon-button--sm icon-button--quiet"
+                    href={`/key/${keyRow.keyHex}`}
+                    aria-label="Open this key in the calculator"
+                    data-tooltip="Open in calculator"
+                  >
+                    <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">
+      Page 1 is prerendered and indexable.
+      <a href={`/private-keys/${chain.slug}/2`} rel="nofollow">Next {KEYS_PER_PAGE} keys</a>
+      and later pages stay <code>noindex</code> and are served on demand, exactly as the
+      current directory does.
+    </p>
+  </section>
+
+  <section class="card" data-seo-shared aria-labelledby="safety">
+    <h2 id="safety">Safety and limits</h2>
+    <p>
+      These are deterministic example keys, not a wallet. Keys 1–60 are public small
+      integers, so every address here is reproducible by anyone; never send funds to
+      them. A private key controls every address derived from it: use this page offline
+      for real funds, and never paste a live key into a site you do not control. Only
+      inspect keys and funds you are authorized to use. This static build does not fetch
+      balances; the balance column is reserved for the client-side step the live page runs.
+    </p>
+  </section>
+</SiteLayout>
+
+<script>
+  import '../../scripts/chain-copy.ts';
+</script>

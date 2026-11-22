@@ -39,6 +39,27 @@ jobs:
         continue-on-error: true
         run: node scripts/affected-areas.mjs
 
+  web-seo:
+    name: web-seo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the Astro app
+        run: npm --prefix web ci
+      - name: Type-check the Astro app
+        run: npm --prefix web run check
+      - name: Unit tests
+        run: npm --prefix web test
+      - name: Build the static site
+        run: npm --prefix web run build
+      - name: SEO gate for the chain directory
+        run: node scripts/check-seo.mjs
+
   build:
     name: build-test-${{ matrix.os }}
     runs-on: ${{ matrix.os }}

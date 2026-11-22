@@ -1734,7 +1734,8 @@ function auditPage(args) {
   //     and relative-age labels are noise the donor does not render. The page
   //     total is a contract (`data-addresses-per-page`) and must equal the
   //     number of visible address lines and the visible counter.
-  if (route === "/private-keys/bitcoin") {
+  const staticDirectory = document.querySelector(".directory-page .data-table");
+  if (route === "/private-keys/bitcoin" && !staticDirectory) {
     const browseRoot = document.querySelector(".browse-page");
     const browseRows = [...document.querySelectorAll("#keys-container .key-row")];
     const addressIssues = [];
@@ -1926,6 +1927,96 @@ function auditPage(args) {
       if (spread > 2) {
         add("browse-stat-level", `browse stat cards end ${spread}px apart (expected <=2)`, metrics.browseStatCards);
       }
+    }
+  }
+
+  // 6a-2. Astro chain directory: the migrated page renders one table row per
+  //      key and one address column per supported format. The coordinator's
+  //      div-row model above does not apply; validate the static table.
+  if (staticDirectory && route.startsWith("/private-keys/")) {
+    const rows = [...staticDirectory.querySelectorAll("tbody tr[data-key]")];
+    const headers = [...staticDirectory.querySelectorAll("thead th")];
+    const formatCount = Math.max(0, headers.length - 3);
+    const addressIssues = [];
+    const copyIssues = [];
+    const heightIssues = [];
+    const heights = [];
+    let renderedAddresses = 0;
+    if (!staticDirectory.closest(".table-scroll")) {
+      addressIssues.push("table is not inside .table-scroll");
+    }
+    if (rows.length !== 60) addressIssues.push(`page renders ${rows.length} key rows, expected 60`);
+    if (formatCount < 1) addressIssues.push(`page declares ${formatCount} address columns`);
+    for (const row of rows) {
+      const key = row.getAttribute("data-key") || "(no key)";
+      const short = key.slice(0, 8);
+      const links = [...row.querySelectorAll("a.address-link")].filter(visible);
+      renderedAddresses += links.length;
+      if (links.length !== formatCount) {
+        addressIssues.push(`${short}: ${links.length} address link(s), expected ${formatCount}`);
+      }
+      for (const link of links) {
+        if (!link.getAttribute("title")) addressIssues.push(`${short}: address link has no title`);
+        if (!link.getAttribute("href")) addressIssues.push(`${short}: address link has no href`);
+      }
+      if (!row.querySelector("td .cell-skeleton")) addressIssues.push(`${short}: no reserved balance placeholder`);
+      const copy = row.querySelector(".row-actions button[data-copy]");
+      if (!copy) copyIssues.push(`${short}: key copy button missing`);
+      else {
+        const { box, hit } = hitBoxOf(copy);
+        const issues = [];
+        if (desktopDensity) {
+          if (Math.round(box.height) !== 28 && Math.round(box.height) !== 36) {
+            issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
+          }
+          if (hit.width < 43.5 || hit.height < 43.5) issues.push("hit area below 44");
+        } else if (box.width < 43.5 || box.height < 43.5) {
+          issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
+        }
+        if (!copy.getAttribute("aria-label")) issues.push("no aria-label");
+        if (!copy.getAttribute("data-tooltip")) issues.push("no data-tooltip");
+        if (copy.hasAttribute("title")) issues.push("native title beside data-tooltip");
+        if (issues.length) copyIssues.push(`${short}: ${issues.join(", ")}`);
+      }
+      const open = row.querySelector(".row-actions a.icon-button");
+      if (!open) copyIssues.push(`${short}: calculator link missing`);
+      else {
+        if (!open.getAttribute("aria-label")) copyIssues.push(`${short}: calculator link has no aria-label`);
+        if (!open.getAttribute("data-tooltip")) copyIssues.push(`${short}: calculator link has no data-tooltip`);
+      }
+      const height = Math.round(boxOf(row).height);
+      heights.push(height);
+      // The row keeps a 44px touch box plus the collapsed 1px row border; on
+      // a fine desktop pointer the shared table tier may use 40px.
+      const rowFloor = desktopDensity ? 40 : 43.5;
+      if (height < rowFloor || height > 46) {
+        heightIssues.push({ key: short, height });
+      }
+    }
+    const expectedTotal = rows.length * formatCount;
+    if (renderedAddresses !== expectedTotal) {
+      addressIssues.push(
+        `page renders ${renderedAddresses} addresses but ${rows.length} rows x ${formatCount} = ${expectedTotal}`,
+      );
+    }
+    metrics.browseRows = {
+      mode: "static",
+      rows: rows.length,
+      formatCount,
+      renderedAddresses,
+      heights: [...new Set(heights)].sort((a, b) => a - b),
+      addressIssues,
+      copyIssues,
+      heightIssues,
+    };
+    if (addressIssues.length) {
+      add("browse-row-address-count", `${addressIssues.length} static listing row(s) break the visible-address model`, addressIssues.slice(0, 8));
+    }
+    if (copyIssues.length) {
+      add("browse-row-key-copy", `${copyIssues.length} static listing row(s) ship a dead or malformed copy action`, copyIssues.slice(0, 8));
+    }
+    if (heightIssues.length) {
+      add("browse-row-height", `static listing rows are not one stable height`, heightIssues.slice(0, 8));
     }
   }
 
