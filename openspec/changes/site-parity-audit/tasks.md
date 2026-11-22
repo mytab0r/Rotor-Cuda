@@ -98,6 +98,16 @@
   (10,000 sat) is the inferred cut and is marked as such in `receivedText`.
   Evidence: `apps/site/mnemonic-seeds.js` (`ATOMIC_UNITS`, `receivedText`),
   `apps/site/mnemonic-seeds-test.mjs` (six cases).
+- [x] Mnemonic directory Solana balances (2026-11-22, code-only): the Solana
+  page previously rendered `—` for all 60 rows; it now uses one batched
+  keyless `getMultipleAccounts` POST per page (official RPC first, publicnode
+  fallback), parsed by `balance-cache.js`'s `parseSolanaAccounts`, and renders
+  through the existing `coin`/`receivedText` path with 9 decimals and SOL.
+  Evidence: `apps/site/mnemonic-seeds.js:39` (`SOLANA_RPC_URLS`), `:809`
+  (`providerMetaFor`), `:1102` (`solanaBatchBody`), `:1111`
+  (`solanaProvider`), `:1145` (dispatcher branch); tests at
+  `apps/site/mnemonic-seeds-test.mjs:193` and `:207`; defect
+  `mnemonic-solana-balances` in `docs/process/defects.json`.
 - [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
   still claimed "the interactive curve editor and signing entry remain". The
   donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
