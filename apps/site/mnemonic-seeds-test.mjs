@@ -300,6 +300,29 @@ test("mnemonic-bch-balances: a rejected batch is an error for every address, nev
   }
 });
 
+test("mnemonic-xrp-redirect: XRP Scan is called with redirect: error", async () => {
+  const calls = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ account_data: { Balance: "1234567", TransactionCount: 4 } })
+    };
+  };
+  try {
+    const result = await providers.fetchProvider({ provider: "xrpscan" }, ["rTest"]);
+    assertEqual(calls.length, 1, "one request per address");
+    assertEqual(calls[0].init && calls[0].init.redirect, "error", "a 302 must reject instead of being followed");
+    assertEqual(result.values.rTest.balance, "1234567", "a normal JSON response still yields a balance");
+    assertEqual(result.values.rTest.tx, 4, "the transaction count is kept");
+    assertEqual(Object.keys(result.errors).length, 0, "no error on a normal response");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("mnemonic-tron-xrp-sui-balances: the shared dispatcher covers every browse provider", async () => {
   const source = await readFile(browsePath, "utf8");
   const emitted = [...source.matchAll(/provider:\s*'([^']+)'/g)].map((match) => match[1]);

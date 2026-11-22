@@ -133,19 +133,25 @@
   address instead of showing zero. The provider code moved out of `browse.js`
   into the shared `balance-providers.js` so the two directories cannot drift.
   LTC/DOGE/ZEC/TON stay `—` on this page (per-address provider budget); the
-  ledger row stays `partial`. Audit coverage: `/mnemonic-seeds/bitcoin-cash` is
-  now in `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (one batched Haskoin request
-  per page, like Solana; TRON/XRP/SUI stay out because they fan out one request
-  per address). Evidence: `apps/site/balance-providers.js:377`
-  (`haskoinBatchUrl`), `:383` (`haskoinBchProvider`), `:408` (`FETCHERS`),
-  `:430` (`fetchProvider`); `apps/site/balance-cache.js:171`
+  ledger row stays `partial`. XRP is honest about its provider: XRPScan
+  redirects some accounts to `data.xrpscan.com/tx.json`, which has no CORS
+  header, so the XRP fetcher calls it with `{ redirect: 'error' }` and those
+  rows show the retry state instead of a filled balance (they are not claimed
+  as 60/60); BCH and SUI were verified at 60/60. Audit coverage:
+  `/mnemonic-seeds/bitcoin-cash` is now in `scripts/ui-audit.mjs`
+  `DEFAULT_ROUTES` (one batched Haskoin request per page, like Solana;
+  TRON/XRP/SUI stay out because they fan out one request per address).
+  Evidence: `apps/site/balance-providers.js:383` (`haskoinBatchUrl`), `:389`
+  (`haskoinBchProvider`), `:414` (`FETCHERS`), `:436` (`fetchProvider`),
+  `:214` (`accountJson` forwards fetch options), `:357` (`xrpBalance` passes
+  `redirect: 'error'`); `apps/site/balance-cache.js:171`
   (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:795` (`providerMetaFor`),
   `:1035` (delegating `fetchProvider`); `apps/site/browse.js:492` (delegating
   `fetchProvider`); tests `apps/site/mnemonic-seeds-test.mjs` (four metas, BCH
-  order/index mapping, batch rejection, browse-dispatch coverage),
-  `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row case);
-  defects `mnemonic-bch-balances` and `mnemonic-tron-xrp-sui-balances` in
-  `docs/process/defects.json`.
+  order/index mapping, batch rejection, XRP redirect, browse-dispatch
+  coverage), `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row
+  case); defects `mnemonic-bch-balances`, `mnemonic-tron-xrp-sui-balances` and
+  `mnemonic-xrp-redirect` in `docs/process/defects.json`.
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
