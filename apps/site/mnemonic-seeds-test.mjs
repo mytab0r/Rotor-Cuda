@@ -191,6 +191,34 @@ test("tiny received amounts use atomic units", () => {
   assertEqual(api.receivedText(0, 8, "BTC", "bitcoin"), "0", "zero received stays zero");
 });
 
+test("mnemonic-solana-balances: providerMetaFor maps only supported chains", () => {
+  const solana = api.providerMetaFor("solana");
+  assertEqual(solana.provider, "solana", "solana uses the Solana provider");
+  assertEqual(solana.chain, "solana", "cache chain is solana");
+  assertEqual(solana.decimals, 9, "lamports render with 9 decimals");
+  assertEqual(solana.symbol, "SOL", "rows show the SOL symbol");
+  assertEqual(api.providerMetaFor("zcash"), null, "zcash still has no batched provider");
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("bitcoin")),
+    JSON.stringify({ provider: "blockchain.info", chain: "bitcoin", decimals: 8, symbol: "BTC" }),
+    "bitcoin meta is unchanged"
+  );
+});
+
+test("mnemonic-solana-balances: one getMultipleAccounts body lists both addresses", () => {
+  const body = api.solanaBatchBody(["AddrOne", "AddrTwo"]);
+  assertEqual(body.jsonrpc, "2.0", "JSON-RPC envelope");
+  assertEqual(body.method, "getMultipleAccounts", "one batched method");
+  assertEqual(body.id, 1, "single request id");
+  assertEqual(
+    JSON.stringify(body.params[0]),
+    JSON.stringify(["AddrOne", "AddrTwo"]),
+    "both addresses in one params list"
+  );
+  assertEqual(body.params[1].encoding, "base64", "base64 account encoding");
+  assertEqual(body.params[1].commitment, "confirmed", "confirmed commitment");
+});
+
 test("copy wiring writes the exact value to the clipboard", async () => {
   clipboardWrites.length = 0;
   const target = button("Copy WIF private key");
