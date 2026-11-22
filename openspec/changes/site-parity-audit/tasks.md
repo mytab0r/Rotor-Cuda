@@ -114,6 +114,16 @@
   whose browser the public RPC refuses, which is the honest retryable error
   state). The other
   chain pages stay out because their providers fan out one request per address.
+- [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
+  still claimed "the interactive curve editor and signing entry remain". The
+  donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
+  and ours ships the curve selector plus the `/send` signing entry (previous
+  bullet). The notes now name the real remainder: ZEC balances have no keyless
+  provider (Blockchair 430 without a key; zcha.in unreachable, probed
+  2026-11-21), while BCH was later wired through Haskoin (bullet below), so only
+  the ZEC row shows `—` and the route status stays `partial` (superseded
+  2026-11-22: the ZEC provider landed in PR #237 and the row is now parity).
+  Evidence: `docs/site-map/site-map-data.js` (seven donor rows).
 - [x] Mnemonic directory BCH/TRON/XRP/SUI balances (2026-11-22, code-only): the
   BCH, TRON, XRP and SUI pages previously rendered `—` for every row although
   keyless providers already served the private-key directory. The four chains
@@ -126,23 +136,13 @@
   ledger row stays `partial`. Evidence: `apps/site/balance-providers.js:377`
   (`haskoinBatchUrl`), `:383` (`haskoinBchProvider`), `:408` (`FETCHERS`),
   `:430` (`fetchProvider`); `apps/site/balance-cache.js:171`
-  (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:808` (`providerMetaFor`),
-  `:1046` (delegating `fetchProvider`); `apps/site/browse.js:499` (delegating
+  (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:795` (`providerMetaFor`),
+  `:1035` (delegating `fetchProvider`); `apps/site/browse.js:492` (delegating
   `fetchProvider`); tests `apps/site/mnemonic-seeds-test.mjs` (four metas, BCH
   order/index mapping, batch rejection, browse-dispatch coverage),
   `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row case);
   defects `mnemonic-bch-balances` and `mnemonic-tron-xrp-sui-balances` in
   `docs/process/defects.json`.
-
-  still claimed "the interactive curve editor and signing entry remain". The
-  donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
-  and ours ships the curve selector plus the `/send` signing entry (previous
-  bullet). The notes now name the real remainder: ZEC balances have no keyless
-  provider (Blockchair 430 without a key; zcha.in unreachable, probed
-  2026-11-21), while BCH was later wired through Haskoin (bullet below), so only
-  the ZEC row shows `—` and the route status stays `partial` (superseded
-  2026-11-22: the ZEC provider landed in PR #237 and the row is now parity).
-  Evidence: `docs/site-map/site-map-data.js` (seven donor rows).
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
