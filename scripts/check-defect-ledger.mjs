@@ -1,4 +1,6 @@
 import fs from "node:fs";
+import { REPO_ROOT } from "./lib/area-map.mjs";
+import { validateDefectCoverage, validateRegistry } from "./lib/detectors.mjs";
 
 const ledgerPath = "docs/process/defects.json";
 const offenders = [];
@@ -35,9 +37,16 @@ for (const entry of ledger.defects || []) {
   }
 }
 
+const registry = validateRegistry(REPO_ROOT);
+offenders.push(...registry.errors);
+if (registry.ok) offenders.push(...validateDefectCoverage(REPO_ROOT, registry));
+
 if (offenders.length) {
   console.error(`defect-ledger: ${offenders.length} problem(s)`);
   for (const line of offenders) console.error(`  ${line}`);
   process.exit(1);
 }
-console.log(`defect-ledger: ${(ledger.defects || []).length} entries, all detectors present`);
+console.log(
+  `defect-ledger: ${(ledger.defects || []).length} entries, all detectors present in ` +
+    `data/detectors.json and in their implementation file`,
+);

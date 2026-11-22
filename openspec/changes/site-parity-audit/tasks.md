@@ -28,9 +28,18 @@
   Evidence: `render_puzzle_random` (`mod.rs:4419`),
   `puzzle-browser.js:367-432,864-886`.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
-  explorer. **Blocked: no dataset.** The repo has only gzip download mirrors
-  (`src/coordinator/wallets.rs:34-40`); top-100 ranks/labels/balances require a
-  licensed third-party dataset or API. Not faked.
+  explorer. **Blocked on an owner decision, not on "no API".** Live capture
+  2026-11-22: the donor serves seven chains (`bitcoin, ethereum, bnb, polygon,
+  arbitrum, tron, dogecoin`) with Rank/Address/Label/Type/Balance/Actions and
+  100 `Unknown` labels. A keyless ranked endpoint does exist:
+  `GET https://sochain.com/api/v3/rich_list/<ticker>?page_size=100` answered
+  200 with `access-control-allow-origin: *` and 100 ranked rows for BTC, DOGE,
+  LTC and ZEC (2500 lookups a day per IP). It ranks UTXO chains only, so it cannot
+  cover the donor's ethereum/bnb/polygon/arbitrum/tron lists, and the repo
+  still has no licensed dataset (only gzip mirrors,
+  `src/coordinator/wallets.rs:34-40`). The route stays absent rather than
+  shipping 2 of the donor's 7 chains. Open question for the owner: ship a
+  BTC/DOGE-only list, or supply a ranked dataset for the other five. Not faked.
 - [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
 - [x] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
   core; mainnet stays gated. Evidence: `apps/site/send.html` (one page on
@@ -214,6 +223,41 @@
   `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
   matrix row is now `parity` after the independent browser review and the PR #237
   merge.
+- [x] `/key` LTC/DOGE/ZEC through SoChain; directory providers (2026-11-22,
+  code-only): BlockCypher answered HTTP 429 `{"error":"Limits reached."}` for
+  LTC and DOGE, so those `/key` rows could not render a balance. Live probes
+  that day: `GET https://sochain.com/api/v3/balance/{LTC,DOGE,ZEC}/<addr>`
+  returned 200 with `access-control-allow-origin: *` and decimal coin strings
+  (`{"data":{"confirmed":"0.14201511","unconfirmed":"0.00000000"}}`), and
+  `GET https://litecoinspace.org/api/address/<ltc>` returned 200 with CORS `*`.
+  SoChain allows 2500 lookups a day per IP, so a 60-row page is 2.4% of the daily
+  budget (the old "per-address provider budget" premise was false). `sochain` is now the
+  first provider for litecoin/dogecoin/zcash in `data/providers.json`;
+  `fetchSochain` (`apps/site/key.js:2345`) builds the URL from the SSOT entry,
+  LTC/DOGE fall back to `fetchBlockcypher` (`:2372`) and ZEC is SoChain-only;
+  the render-time `data-balance-provider` carries the provider id (`:1257`), and
+  `key-utxo-provider` (`scripts/ui-audit.mjs:1414`) fails if an LTC/DOGE/ZEC
+  row names anything but `sochain`. The one decimal-string parser lives in
+  `apps/site/balance-cache.js:158` (`key-tools.js` delegates);
+  `providerMetaFor` (`apps/site/mnemonic-seeds.js:835`) and `providerMeta`
+  (`apps/site/browse.js:391`) map all three chains to the shared
+  `sochain` fetcher (`apps/site/balance-providers.js:458`). Evidence:
+  `apps/site/balance-cache-test.mjs`, `apps/site/mnemonic-seeds-test.mjs`,
+  `apps/site/key-tools-test.mjs`, defect `key-utxo-blockcypher-429`.
+- [x] SoChain 429 stops the directory fan-out (2026-11-22, code-only): the
+  provider's keyless allowance is 2500 lookups a **day** per IP (its 429 body
+  says so), not 2500 an hour as three comments and two ledger notes claimed.
+  Measured on an exhausted account: one 60-row mnemonic page fired **240**
+  SoChain requests (60 addresses x inner retry x outer retry), every one a 429,
+  so ten page loads would spend the whole daily budget. `sochainProvider`
+  (`apps/site/balance-providers.js:482`) now records the first 429 and rejects
+  the remaining addresses without a request; the rows keep the honest retry
+  state. Mutation-proven: with the guard disabled the new test sees 240
+  requests, with it <= 10. All hourly-quota claims are corrected in `key.js`,
+  `mnemonic-seeds.js`, `browse.js`, this matrix and the two site-map notes.
+  Defect `sochain-quota-storm`, detector `mnemonic-sochain-quota-storm`. The
+  matrix row stays `partial`: the live 60/60 measurement is still missing, and
+  the daily quota was already spent when this run probed it.
 - [x] `/private-keys/bitcoin-cash` balances (2026-11-22, code-only): the
   60-row directory returned no provider meta for BCH and rendered `—` for every
   row, although the shared batched Haskoin provider already existed and the
@@ -226,8 +270,9 @@
   in `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (one batched request per run like
   the BCH seed page). Evidence:
   `apps/site/browse.js` (`providerMeta`), `apps/site/mnemonic-seeds-test.mjs`
-  (the source lock), defect `bch-directory-balances`. ZEC stays `—` here
-  (per-address SoChain), as does LTC/DOGE (BlockCypher rate limit).
+  (the source lock), defect `bch-directory-balances`. ZEC/LTC/DOGE were still
+  unwired on that page at that point; the SoChain P0 bullet above wires all
+  three.
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:

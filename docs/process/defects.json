@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "rules": "Every defect the owner reports gets one entry here in the same PR as its detector. The detector id must exist in the audit script; check-defect-ledger.mjs fails otherwise.",
+  "rules": "Every defect the owner reports gets one entry here in the same PR as its detector. The detector id must exist in data/detectors.json, resolve to an implemented entry, and be present in the implementation file named by `where`; check-defect-ledger.mjs and check-ssot.mjs fail otherwise.",
   "defects": [
     {
       "id": "duplicate-preset-controls",
@@ -486,10 +486,45 @@
       "where": "scripts/density-parity.mjs"
     },
     {
+      "id": "unlocked-vendor-copies",
+      "reported": "2026-11-22",
+      "symptom": "web/public/site.css, site.js and theme.js drifted from apps/site while web/README.md and projects.json still described byte-identical copies; the committed hashes were stale and nothing failed CI.",
+      "detector": "vendor-lock-digest",
+      "where": "scripts/check-ssot.mjs"
+    },
+    {
+      "id": "split-detector-tables",
+      "reported": "2026-11-22",
+      "symptom": "Detector ids lived in three diverging markdown tables plus the audit: control-height-scale was {40,44,56} in plan batch 3 and {28,36,44,56} in the gate, table-grammar was absent from plan section 3, field-hero-height was absent from the skill table, and status-pill-geometry allowed 18px while the spec said 20.",
+      "detector": "detector-registry",
+      "where": "scripts/lib/detectors.mjs"
+    },
+    {
+      "id": "stale-detector-docs",
+      "reported": "2026-11-22",
+      "symptom": "A detector registry edit could leave the generated tables in SKILL.md, DESIGN-SYSTEM.md and plan.md stale, so the human docs described rules the gate no longer enforced.",
+      "detector": "detector-docs-fresh",
+      "where": "scripts/gen-detector-docs.mjs"
+    },
+    {
       "id": "bch-directory-balances",
       "reported": "2026-11-22",
       "symptom": "The 60-row /private-keys/bitcoin-cash directory rendered — for every balance although the shared batched Haskoin provider already existed and the mnemonic directory used it.",
-      "detector": "browse.js must use the batched Haskoin provider for BCH",
+      "detector": "bch-directory-provider",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "key-utxo-blockcypher-429",
+      "reported": "2026-11-22",
+      "symptom": "The /key Litecoin and Dogecoin rows showed no balance whenever BlockCypher answered HTTP 429 {\"error\":\"Limits reached.\"}; both chains had only that one provider although SoChain v3 serves LTC, DOGE and ZEC keyless with CORS. The row attribute recorded only that some provider existed, so the audit stayed green.",
+      "detector": "key-utxo-provider",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "sochain-quota-storm",
+      "reported": "2026-11-22",
+      "symptom": "SoChain's keyless allowance is 2500 lookups a day per IP (the provider's 429 body says so), not 2500 an hour as the ledger claimed. With the quota exhausted, one 60-row mnemonic page fired 240 SoChain requests (60 addresses x inner retry x outer retry) although every one answered 429, turning one exhausted quota into a self-inflicted storm; ten page loads would exhaust the daily budget for the whole IP.",
+      "detector": "mnemonic-sochain-quota-storm",
       "where": "apps/site/mnemonic-seeds-test.mjs"
     },
     {

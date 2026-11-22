@@ -115,8 +115,14 @@ Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdow
    (`col-mnemonic`/`mnemonic-text`: the full phrase in `textContent` and in
    `title`) plus a `Copy mnemonic` icon button.
 10. **Puzzle defaults/URL.** Done: default filter is Unsolved, `/bitcoin-puzzle/<n>` is the canonical detail URL (links, JSON-LD and sitemap updated), and `/bitcoin-puzzle/<n>/detail` permanently redirects (301) to it.
-11. **Add `/richest/<chain>`.** **Blocked:** the repo has no licensed ranked
-    top-100 dataset (only gzip download mirrors, `src/coordinator/wallets.rs`),
-    so the donor's ranks, 100 `Unknown` labels and balances cannot be
-    reproduced. Nothing is faked; the row stays open until a dataset/API is
-    chosen by the owner.
+11. **Add `/richest/<chain>`.** **Blocked on an owner decision.** Live capture
+    2026-11-22: the donor lists seven chains (`bitcoin, ethereum, bnb, polygon,
+    arbitrum, tron, dogecoin`) with Rank/Address/Label/Type/Balance/Actions and
+    100 `Unknown` labels. A keyless ranked endpoint exists — SoChain
+    `GET https://sochain.com/api/v3/rich_list/<ticker>?page_size=100` answered
+    200 with CORS `*` and 100 ranked rows for BTC, DOGE, LTC and ZEC — but it
+    ranks UTXO chains only, so it cannot cover the donor's
+    ethereum/bnb/polygon/arbitrum/tron lists. The repo still has no licensed
+    dataset (only gzip download mirrors, `src/coordinator/wallets.rs`). Owner
+    decision: ship a BTC/DOGE-only list, or supply a ranked dataset for the
+    other five. Nothing is faked.

@@ -122,14 +122,62 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
       `RotorChains.bySlug` / `RotorChains.order` references. Explorer template
       hosts were already covered by the provider-host gate.
 
-## Slice 4 - vendor hashes, detector manifest and SEO
+## Slice 4a - vendored copies and the detector manifest (this PR)
 
-- [ ] Generate the vendor/SRI hash list from one manifest consumed by the
-      coordinator, HTML and tests.
-- [ ] Single-source the defect-detector registry (`docs/process/defects.json`)
-      so a detector cannot exist in the audit without a ledger entry.
+- [x] Add `data/vendor.lock.json` with `{source, target, sha256}` for every
+      byte-identical pair between `apps/site/**` and `web/public/**`, plus the
+      intentional `nonCopies` (`walletconnect.js`, `ton.js` and its license)
+      with a reason. Regenerate the three diverged copies (`site.css`,
+      `site.js`, `theme.js`) from `apps/site`; add `chains.generated.js` and
+      `amount.js`, which the current `site.js` needs, and load them before it
+      in the Astro page.
+- [x] `scripts/check-ssot.mjs` verifies every lock digest against both files,
+      fails on a drifted copy or a stale digest, and fails when `web/public`
+      contains an unlocked file. Detector id `vendor-lock-digest`;
+      mutation-proven by changing one byte in a copy.
+- [x] Add `node scripts/gen-ssot.mjs --vendor-lock`: regenerate the chain
+      outputs, copy every locked pair from `apps/site` to `web/public` and
+      rewrite the digests in one command. Document in
+      `docs/process/self-checking.md`, `AGENTS.md` and `web/README.md` that it
+      runs after every merge, like the token and generated checks, so a stale
+      lock is refreshed instead of the gate weakened.
+- [x] Define vendored identity as content after EOL normalization (CRLF folded
+      to LF) in both the generator and the checker, for every entry, so a
+      Windows CRLF checkout and Linux CI compute one digest. Cover it with
+      `scripts/vendor-lock.test.mjs` (LF and CRLF fixtures, stale-digest heal)
+      and state the rule in the lock description and the docs.
+- [x] Regenerate the stale hashes in `web/README.md` and replace the duplicate
+      table with the lock reference; the web-area contract in `projects.json`
+      names the lock as the machine source.
+- [x] Add `data/detectors.json` (`id`, `rule`, `batch`, `implemented_in`,
+      `doc_anchor`, `status`) built from `scripts/ui-audit.mjs`, the other
+      gates and `docs/process/defects.json`; planned backlog ids stay `planned`.
+- [x] Add `scripts/gen-detector-docs.mjs` (`--check`) and generate the three
+      tables in `.claude/skills/ui-self-review/SKILL.md`,
+      `DESIGN-SYSTEM.md` §8 and `plan.md` §3 from the registry.
+- [x] `check-ssot` fails when a defect-ledger detector has no implemented
+      registry entry, when an id emitted by `ui-audit.mjs` is missing from the
+      registry, and when a generated table is stale. `check-defect-ledger.mjs`
+      consults the same registry.
+- [x] Reconcile the four known disagreements: `control-height-scale` is
+      {28,36,44,56} everywhere, `table-grammar` is in plan §3,
+      `field-hero-height` is in the skill table, and `status-pill-geometry`
+      enforces the documented 20px minimum in both spec and gate.
+- [x] Wire `gen-detector-docs --check` and the new checks into
+      `.github/workflows/ui.yml` and `.github/workflows/rust.yml`, and add the
+      commands to `projects.json`; defect-ledger entries cover the vendor and
+      registry gates.
+
+## Slice 4b - SEO route table (open)
+
+- [ ] Restore the per-detector "Fix at the right level" hints: add a `fix`
+      field to `data/detectors.json`, render it as an extra column in the
+      generated skill table, and regenerate the docs with
+      `scripts/gen-detector-docs.mjs`.
 - [ ] Single-source the SEO route table used by `render_sitemap`,
       `render_robots` and `docs/site-map`.
+- [ ] Generate the vendor/SRI hash list consumed by the coordinator, HTML and
+      tests from one manifest.
 - [ ] Extend `check-ssot` (or a sibling gate) to fail on hand-written copies of
       those facts.
 

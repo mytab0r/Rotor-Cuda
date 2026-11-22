@@ -20,10 +20,12 @@ jobs:
         with:
           node-version: 20
       - run: node scripts/check-projects.mjs
-      - name: Single source of truth (chains and providers)
+      - name: Single source of truth (chains, providers, vendor lock, detectors)
         run: |
           node scripts/gen-ssot.mjs --check
           node scripts/check-ssot.mjs
+          node scripts/gen-detector-docs.mjs --check
+          node scripts/check-defect-ledger.mjs
       - run: npm --prefix deploy/cloudflare test
       - name: Affected areas (report only)
         if: github.event_name == 'pull_request'

@@ -11,6 +11,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
 use serde_json::Value;
 
 /// At most this many TronScan calls may be in flight at once.
@@ -32,6 +33,22 @@ const BACKOFF_MS: [u64; MAX_RETRIES as usize] = [250, 750];
 struct LimiterState {
     in_flight: usize,
     waiting: usize,
+    /// Calls that had to wait for a slot.
+    waited: u64,
+    /// Calls rejected because the wait queue was full.
+    rejected: u64,
+}
+
+/// Limiter counters for the operator inventory. Process-local, reset on
+/// restart, never contains request data.
+#[derive(Clone, Debug, Serialize)]
+pub struct LimiterStats {
+    pub in_flight: usize,
+    pub waiting: usize,
+    pub max_in_flight: usize,
+    pub queue_capacity: usize,
+    pub waited: u64,
+    pub rejected: u64,
 }
 
 /// Bounded concurrency gate. Each [`Slot`] represents one upstream call; the
@@ -57,6 +74,8 @@ impl Limiter {
             state: Mutex::new(LimiterState {
                 in_flight: 0,
                 waiting: 0,
+                waited: 0,
+                rejected: 0,
             }),
             ready: Condvar::new(),
         }
@@ -76,9 +95,11 @@ impl Limiter {
             });
         }
         if state.waiting >= self.queue_capacity {
+            state.rejected = state.rejected.saturating_add(1);
             return None;
         }
         state.waiting += 1;
+        state.waited = state.waited.saturating_add(1);
         loop {
             state = self
                 .ready
@@ -91,6 +112,22 @@ impl Limiter {
                     limiter: Arc::clone(self),
                 });
             }
+        }
+    }
+
+    /// Snapshot of the gate counters. Does not block on waiters.
+    pub fn stats(&self) -> LimiterStats {
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        LimiterStats {
+            in_flight: state.in_flight,
+            waiting: state.waiting,
+            max_in_flight: self.max_in_flight,
+            queue_capacity: self.queue_capacity,
+            waited: state.waited,
+            rejected: state.rejected,
         }
     }
 
@@ -144,6 +181,32 @@ struct CacheState {
     entries: HashMap<String, Entry>,
     /// Insertion order for eviction; rebuilt only by `insert`.
     order: VecDeque<String>,
+    /// Successful lookups served from memory.
+    hits: u64,
+    /// Lookups with no live entry (absent or expired).
+    misses: u64,
+    /// Lookups answered with a cached provider error.
+    errors: u64,
+    /// Last provider error written to the cache, for the operator inventory.
+    last_error: Option<CacheErrorInfo>,
+}
+
+/// The most recent provider error class, never request data or headers.
+#[derive(Clone, Debug, Serialize)]
+pub struct CacheErrorInfo {
+    pub status: u16,
+    pub reason: String,
+}
+
+/// Cache counters for the operator inventory. Process-local.
+#[derive(Clone, Debug, Serialize)]
+pub struct CacheStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub errors: u64,
+    pub entries: usize,
+    pub capacity: usize,
+    pub last_error: Option<CacheErrorInfo>,
 }
 
 /// Address lookup cache. Successful JSON and provider errors live apart by
@@ -170,6 +233,10 @@ impl Cache {
             state: Mutex::new(CacheState {
                 entries: HashMap::new(),
                 order: VecDeque::new(),
+                hits: 0,
+                misses: 0,
+                errors: 0,
+                last_error: None,
             }),
         }
     }
@@ -184,7 +251,7 @@ impl Cache {
             .state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        match state.entries.get(&key) {
+        let hit = match state.entries.get(&key) {
             Some(Entry::Success { value, at }) if now.duration_since(*at) < self.success_ttl => {
                 Some(CacheHit::Success(value.clone()))
             }
@@ -201,7 +268,13 @@ impl Cache {
                 None
             }
             None => None,
+        };
+        match &hit {
+            Some(CacheHit::Success(_)) => state.hits = state.hits.saturating_add(1),
+            Some(CacheHit::Error { .. }) => state.errors = state.errors.saturating_add(1),
+            None => state.misses = state.misses.saturating_add(1),
         }
+        hit
     }
 
     pub fn put_success(&self, chain: &str, address: &str, value: Value) {
@@ -217,6 +290,16 @@ impl Cache {
     }
 
     fn put_error_at(&self, chain: &str, address: &str, status: u16, reason: &str, at: Instant) {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.last_error = Some(CacheErrorInfo {
+                status,
+                reason: reason.to_string(),
+            });
+        }
         self.insert(
             cache_key(chain, address),
             Entry::Error {
@@ -241,6 +324,22 @@ impl Cache {
                 break;
             };
             state.entries.remove(&oldest);
+        }
+    }
+
+    /// Snapshot of the cache counters and the last provider error class.
+    pub fn stats(&self) -> CacheStats {
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        CacheStats {
+            hits: state.hits,
+            misses: state.misses,
+            errors: state.errors,
+            entries: state.entries.len(),
+            capacity: self.capacity,
+            last_error: state.last_error.clone(),
         }
     }
 
@@ -333,6 +432,42 @@ mod tests {
         );
         drop(held);
         assert!(queued.join().expect("queued thread").is_some());
+    }
+
+    #[test]
+    fn counters_track_hits_misses_errors_and_rejections() {
+        let cache = Cache::new(Duration::from_secs(60), Duration::from_secs(10), 8);
+        let empty = cache.stats();
+        assert_eq!((empty.hits, empty.misses, empty.errors), (0, 0, 0));
+        assert!(cache.get("tron", "Tmissing").is_none());
+        cache.put_success("tron", "Taddr", json!({ "balance_sun": "7" }));
+        assert!(matches!(
+            cache.get("tron", "Taddr"),
+            Some(CacheHit::Success(_))
+        ));
+        cache.put_error("tron", "Tbad", 502, "provider unavailable");
+        assert!(matches!(
+            cache.get("tron", "Tbad"),
+            Some(CacheHit::Error { status: 502, .. })
+        ));
+        let stats = cache.stats();
+        assert_eq!(stats.hits, 1);
+        assert_eq!(stats.misses, 1);
+        assert_eq!(stats.errors, 1);
+        assert_eq!(stats.entries, 2);
+        let last = stats.last_error.expect("last error class");
+        assert_eq!(last.status, 502);
+        assert_eq!(last.reason, "provider unavailable");
+
+        let limiter = Arc::new(Limiter::new(1, 0));
+        let slot = limiter.acquire().expect("in-flight slot");
+        assert!(limiter.acquire().is_none());
+        let stats = limiter.stats();
+        assert_eq!(stats.in_flight, 1);
+        assert_eq!(stats.rejected, 1);
+        assert_eq!(stats.max_in_flight, 1);
+        drop(slot);
+        assert_eq!(limiter.stats().in_flight, 0);
     }
 
     #[test]
