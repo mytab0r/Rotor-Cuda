@@ -26,9 +26,29 @@
     return false;
   }
 
+  /* Map a pathname to the primary nav section. Pure so the node test can pin
+   * the highlight without a DOM. `/keystore-parser` is a tool, not `/key`
+   * with extra characters, so the Search item only matches `/key` itself or
+   * a `/key/` child. */
+  function sectionForPath(path) {
+    var section = 'home';
+    if (path === '/private-keys' || path.indexOf('/private-keys/') === 0 || path.indexOf('/keys/') === 0) section = 'directory';
+    else if (path === '/mnemonic-seeds' || path.indexOf('/mnemonic-seeds/') === 0) section = 'seeds';
+    else if (path.indexOf('/bitcoin-puzzle') === 0) section = 'puzzle';
+    else if (path.indexOf('/vanity') === 0) section = 'vanity';
+    else if (path.indexOf('/milk-sad') === 0) section = 'milk-sad';
+    else if (path.indexOf('/tools') === 0 || path.indexOf('/brainwallet') === 0 || path.indexOf('/keystore-parser') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0 || path === '/seed' || path === '/mnemonic-converter') section = 'tools';
+    else if (path.indexOf('/docs') === 0) section = 'docs';
+    else if (path === '/key' || path.indexOf('/key/') === 0) section = 'search';
+    else if (path.indexOf('/cabinet/wallet') === 0) section = 'wallet';
+    else if (path.indexOf('/cabinet') === 0 || path.indexOf('/monitor') === 0 || path.indexOf('/me') === 0) section = 'cabinet';
+    return section;
+  }
+
   (typeof globalThis !== 'undefined' ? globalThis : window).RotorSiteNav = {
     splitLinks: splitLinks,
     activeInTail: activeInTail,
+    sectionForPath: sectionForPath,
     INLINE_COUNT: NAV_INLINE_COUNT
   };
 
@@ -202,18 +222,7 @@
 
   /* Highlight the current section in the shared header. */
   function markNavigation() {
-    var path = window.location.pathname;
-    var section = 'home';
-    if (path === '/private-keys' || path.indexOf('/private-keys/') === 0 || path.indexOf('/keys/') === 0) section = 'directory';
-    else if (path === '/mnemonic-seeds' || path.indexOf('/mnemonic-seeds/') === 0) section = 'seeds';
-    else if (path.indexOf('/bitcoin-puzzle') === 0) section = 'puzzle';
-    else if (path.indexOf('/vanity') === 0) section = 'vanity';
-    else if (path.indexOf('/milk-sad') === 0) section = 'milk-sad';
-    else if (path.indexOf('/tools') === 0 || path.indexOf('/brainwallet') === 0 || path.indexOf('/faq') === 0 || path.indexOf('/disclaimer') === 0 || path.indexOf('/donate') === 0 || path === '/seed' || path === '/mnemonic-converter') section = 'tools';
-    else if (path.indexOf('/docs') === 0) section = 'docs';
-    else if (path.indexOf('/key') === 0) section = 'search';
-    else if (path.indexOf('/cabinet/wallet') === 0) section = 'wallet';
-    else if (path.indexOf('/cabinet') === 0 || path.indexOf('/monitor') === 0 || path.indexOf('/me') === 0) section = 'cabinet';
+    var section = sectionForPath(window.location.pathname);
     Array.prototype.forEach.call(document.querySelectorAll('.site-nav [data-nav]'), function (link) {
       var active = link.getAttribute('data-nav') === section;
       link.classList.toggle('active', active);
@@ -331,7 +340,9 @@
     rebuild();
   }
 
-  /* Directory search accepts a hex key; chain pages handle WIF and brainwallets. */
+  /* Directory search shares the key page's detector: an XRP secret opens
+   * /key/<secret>, a mnemonic opens /mnemonic-converter, and anything with a
+   * canonical hex key opens /key/<hex>. */
   function bindKeySearches() {
     Array.prototype.forEach.call(document.querySelectorAll('form[data-key-search]'), function (form) {
       form.addEventListener('submit', function (event) {
@@ -344,8 +355,17 @@
           if (hint) hint.textContent = 'Search is still loading. Try again.';
           return;
         }
-        window.RotorSearch.resolve(value).then(function (hex) {
-          window.location.href = '/key/' + hex;
+        window.RotorSearch.detect(value).then(function (result) {
+          if (result.kind === 'xrp-secret') {
+            window.location.href = '/key/' + encodeURIComponent(result.value);
+          } else if (result.kind === 'mnemonic') {
+            window.location.href = '/mnemonic-converter';
+          } else if (result.hex) {
+            window.location.href = '/key/' + result.hex;
+          } else if (hint) {
+            hint.textContent = 'Cannot read that key.';
+            hint.classList.add('err');
+          }
         }, function (err) {
           if (hint) {
             hint.textContent = err && err.message ? err.message : 'Cannot read that key.';

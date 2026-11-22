@@ -386,6 +386,27 @@
       "symptom": "The Received balance wrapped mid-value, so the three browse stat cards rendered 87px high instead of one 60px line and the value baseline no longer matched the other two cards.",
       "detector": "browse-stat-level",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "search-xrp-secret-routing",
+      "reported": "2026-11-22",
+      "symptom": "The directory search did not recognize a p-prefixed XRP secret or a 32-53 character s-secret, so it hashed the secret text as a brainwallet and opened /key/<sha256(secret)>: a different private key than the one pasted.",
+      "detector": "search-xrp-secret-routing",
+      "where": "apps/site/search-test.mjs"
+    },
+    {
+      "id": "search-short-hex-padding",
+      "reported": "2026-11-22",
+      "symptom": "The directory search padded any 1-64 hex string to a key (deadbeef became /key/000...deadbeef), while the key page and the donor table treat 1-63 hex characters as brainwallet text.",
+      "detector": "search-short-hex-padding",
+      "where": "apps/site/search-test.mjs"
+    },
+    {
+      "id": "nav-keystore-highlight",
+      "reported": "2026-11-22",
+      "symptom": "/keystore-parser matched the old path.indexOf('/key') === 0 test, so its page highlighted the Search nav item instead of Tools.",
+      "detector": "nav-keystore-highlight",
+      "where": "apps/site/site-nav-test.mjs"
     }
   ]
 }
