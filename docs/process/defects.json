@@ -451,6 +451,13 @@
       "where": "scripts/check-ssot.mjs"
     },
     {
+      "id": "seed-received-aggregate",
+      "reported": "2026-11-22",
+      "symptom": "The seed converter's aggregate line claimed public providers expose no lifetime totals and showed only Active/Sum, although blockchain.info returns total_received in the same balance response it already fetches.",
+      "detector": "aggregateText",
+      "where": "apps/site/seed-test.mjs"
+    },
+    {
       "id": "mnemonic-balance-state-row",
       "reported": "2026-11-22",
       "symptom": "The mnemonic-seeds rows never set data-balance-state/data-balance-at on the row element, so a verifier selecting [data-balance-state] reported 0 rows on a page rendering 60 (a silent-zero measurement).",
