@@ -86,14 +86,40 @@ assert.equal((await search.detect(abandoned, "auto")).kind, "mnemonic");
 assert.equal((await search.detect(abandoned, "brainwallet")).kind, "brainwallet");
 await assert.rejects(search.detect("not a mnemonic", "mnemonic"), /12, 15, 18, 21 or 24/);
 
-await assert.rejects(
-  search.detect("s" + "a".repeat(24), "xrp-secret"),
-  /XRP family seeds/,
+/* search-xrp-secret-routing: the directory search must detect an XRP secret
+ * and hand it to /key/<secret>, never hash the secret text as a brainwallet.
+ * Synthetic secret-shaped strings only, never a real seed. The 32-53 char
+ * lengths are the range the old short regex sent to the brainwallet branch. */
+const xrpSecrets = [
+  "s" + "a".repeat(28),   // 29 chars, s-prefixed family seed
+  "s" + "a".repeat(39),   // 40 chars, previously past the old {20,30} ceiling
+  "p" + "a".repeat(52),   // 53 chars, p-prefixed bare private key
+];
+for (const secret of xrpSecrets) {
+  const auto = await search.detect(secret, "auto");
+  assert.equal(auto.kind, "xrp-secret", `${secret[0]}-prefixed ${secret.length}-char secret detects as XRP, not brainwallet`);
+  assert.equal(auto.value, secret);
+  assert.equal((await search.detect(secret, "xrp-secret")).kind, "xrp-secret");
+}
+await assert.rejects(search.resolve(xrpSecrets[0]), /XRP secrets route to \/key\/<secret>/);
+await assert.rejects(search.detect("not-a-secret", "xrp-secret"), /Not an XRP secret/);
+
+/* search-short-hex-padding: only exactly 64 hex characters (after an optional
+ * 0x) are a key. A shorter hex string is brainwallet text, matching the key
+ * page and the donor table; the forced HEX chip still pads short input. */
+const shortHexBrainwallet = await search.detect("deadbeef", "auto");
+assert.equal(shortHexBrainwallet.kind, "brainwallet", "8 hex chars are text, not a padded key");
+assert.equal(
+  shortHexBrainwallet.hex,
+  createHash("sha256").update("deadbeef").digest("hex"),
+  "the brainwallet branch hashes the short hex text",
 );
-await assert.rejects(
-  search.detect("not-a-secret", "xrp-secret"),
-  /Not an XRP family secret/,
-);
+assert.equal((await search.detect("0", "auto")).kind, "brainwallet", "a lone digit is text");
+assert.equal((await search.detect("f".repeat(63), "auto")).kind, "brainwallet", "63 hex chars are text");
+assert.equal((await search.detect("0xdeadbeef", "auto")).kind, "brainwallet", "short 0x hex is text");
+assert.equal((await search.detect(KEY1_HEX, "auto")).hex, KEY1_HEX, "64 hex is a key");
+assert.equal((await search.detect("0x" + KEY1_HEX, "auto")).hex, KEY1_HEX, "0x + 64 hex is a key");
+assert.equal((await search.detect("deadbeef", "hex")).hex, "deadbeef".padStart(64, "0"), "the forced HEX chip pads short input");
 
 /* ------------------------------------------------------ input counter */
 
