@@ -27,6 +27,8 @@ jobs:
         run: node scripts/check-defect-ledger.mjs
       - name: Check the detector registry and generated tables
         run: node scripts/gen-detector-docs.mjs --check
+      - name: Check vendor-lock EOL normalization
+        run: node --test scripts/vendor-lock.test.mjs
       - name: Check the generated design tokens
         run: node scripts/build-tokens.mjs --check
       - name: Check the generated chain/provider data and vendor lock

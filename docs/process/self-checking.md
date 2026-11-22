@@ -137,6 +137,11 @@ Refresh the derived artifacts with the generators, never by hand:
   copies every `data/vendor.lock.json` pair from `apps/site` to `web/public`
   and rewrites the SHA-256 digests.
 
+Vendored identity is **content after EOL normalization** (CRLF folded to LF),
+not raw bytes: a Windows checkout writes CRLF while Linux CI reads the same
+committed LF blob. The generator and `check-ssot` both normalize, so one lock
+digest is correct on every platform; only a real content change moves it.
+
 Then re-run the gates. `check-ssot` failing with `vendor-lock-digest` means the
 lock lags a merge: run the command. The same applies to `gen-ssot --check`,
 `gen-detector-docs --check` and `build-tokens --check`. A stale generated

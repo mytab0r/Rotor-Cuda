@@ -1,26 +1,26 @@
 {
   "version": 1,
-  "description": "Files the Astro pilot serves from web/public/ as byte-identical copies of apps/site/. scripts/check-ssot.mjs verifies every digest against both files and fails when a forked copy drifts or a new file appears under web/public without a lock entry. Regenerate a copy from apps/site after editing the source; never edit the web/public copy.",
+  "description": "Files the Astro pilot serves from web/public/ as copies of apps/site/. Vendored identity is content after EOL normalization (CRLF folded to LF), not raw bytes: Windows checkouts write CRLF while Linux CI reads the committed LF blob. scripts/check-ssot.mjs verifies every normalized digest against both files and fails when a copy drifts or a new file appears under web/public without a lock entry. Regenerate with `node scripts/gen-ssot.mjs --vendor-lock` after editing apps/site or merging main; never edit the web/public copy.",
   "entries": [
     {
       "source": "apps/site/amount.js",
       "target": "web/public/amount.js",
-      "sha256": "992a59f556f43b9703adf3fe9ad2a1111399a2250911234cf3d9bbddbfb2c1ed"
+      "sha256": "c9fc73033f90cf0e9a29e0949d4c7406fe2b3a178354837dc80f3fefce1a6a20"
     },
     {
       "source": "apps/site/chains.generated.js",
       "target": "web/public/chains.generated.js",
-      "sha256": "88f6461b337b05afe4e5fdec2518a7fc8351c989378d14c19795aab240786fe8"
+      "sha256": "31915c65593efe36877862236ff9f397c88eea3f55c9d2133e214a7d51d1d913"
     },
     {
       "source": "apps/site/favicon.ico",
       "target": "web/public/favicon.ico",
-      "sha256": "9cee74d34f0cc31a02f61d7648a8969756ca39d3484a6570fb51487e06a6001e"
+      "sha256": "7e34af48d2fa24122e2d03a5f08e7e801b34d68279266e5af48bd75eb5fb4b19"
     },
     {
       "source": "apps/site/favicon.png",
       "target": "web/public/favicon.png",
-      "sha256": "424d9eda8056d1c77e3081a400e97efbdec474bba1503b98565c7d655fc898dd"
+      "sha256": "30b4de3efd79331e3517548f2c50c618904b7acf400d8b0a2df83990e248374c"
     },
     {
       "source": "apps/site/fonts/manrope-latin.woff2",
@@ -30,42 +30,42 @@
     {
       "source": "apps/site/icons.svg",
       "target": "web/public/icons.svg",
-      "sha256": "68184590c2a787aa8d3107cbdfe7aeada2e4b770850b61806444da2bdb092f4f"
+      "sha256": "5e46ee0b294fc02e72629b700ef55ce3671574a081da87b1b505995b359a5a7a"
     },
     {
       "source": "apps/site/rotor_wasm.wasm",
       "target": "web/public/rotor_wasm.wasm",
-      "sha256": "29ded2b585f4de53bff5298aff82d8c6560c20d6217532b47e5356ddf46dc779"
+      "sha256": "b707fc7821aa21168f42a273187bc2bda3694f2a101f66aa2b48562e3a91aad7"
     },
     {
       "source": "apps/site/seed-crypto.js",
       "target": "web/public/vendor/seed-crypto.js",
-      "sha256": "a1f569591af5b43fd16f4f86faccc7490d2f407cfbda648ba5f283831ee60d20"
+      "sha256": "eefdb2f394cd8040e2117cbb8f17512c0e1b19b2274c6c006c946f1b746dd7f0"
     },
     {
       "source": "apps/site/seed-studio.css",
       "target": "web/public/seed-studio.css",
-      "sha256": "f1417cb411fc90dbaba7f69a3cb2c01432e7f4c91eed190d27a1a20ab38f221f"
+      "sha256": "f776e8ce9e4a124abc789bf86c4e42faf56d2684a3077d1bf4802f50a5d9e5cc"
     },
     {
       "source": "apps/site/seed.js",
       "target": "web/public/vendor/seed.js",
-      "sha256": "01ef1d3a72ef293815b8922977277f5df1275c3a01f26d9da08895ae64d5b83c"
+      "sha256": "55af6b8ae205f7fb659d675453dcdb3f1c2de221b48ba3e5c0b1d9fe300d9d4b"
     },
     {
       "source": "apps/site/site.css",
       "target": "web/public/site.css",
-      "sha256": "2c5f00cb8a86792a61b6d36b23e01da0231e3fbf99ee2163ab8b8d31e9b18a73"
+      "sha256": "5b2a9b2e4cbed68b7610617d8ff4b80215ea1d57b8381981768b65ea95a3a4f6"
     },
     {
       "source": "apps/site/site.js",
       "target": "web/public/site.js",
-      "sha256": "4a87a1fb10fdda3cdc377e554939560f29002548f968549f5320dd413ec356a9"
+      "sha256": "21e9d0ba630839b007c40da936810dc72c0dacffe913ae8c4f7ff3c10585fb3c"
     },
     {
       "source": "apps/site/theme.js",
       "target": "web/public/theme.js",
-      "sha256": "b853911fdf0dcc502d9b53ddd0ef06b340e28a883f3c10cc12a477bfe3145ace"
+      "sha256": "53184e0302cd46b9ca736c92b6edcfdcd75a17d6fe5e17a5df668b50c0b7d4e4"
     }
   ],
   "nonCopies": [
