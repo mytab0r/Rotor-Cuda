@@ -89,6 +89,11 @@ const DEFAULT_ROUTES = [
   "/cabinet/admin/design",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
+/* The WalletConnect handoff is UA-driven, not width-driven: a narrow viewport
+ * alone never shows the mobile branch. The cabinet audit swaps to this agent
+ * for at least one run so the mobile chooser and auto-navigation are real. */
+const ANDROID_CHROME_UA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
 const DEFAULT_SETTLE_MS = 700;
 const NAV_TIMEOUT_MS = 20000;
 const SELECTOR_TIMEOUT_MS = 12000;
@@ -3416,17 +3421,31 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
  * display_uri. That exercises the code the page owns: the panel, QR, deep
  * links, copy action, expiry state and overflow. */
 async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
+  const mobile = viewport.width < 600;
+  const shotPrefix = mobile ? "walletconnect-mobile" : "walletconnect";
   const capture = async (name) => {
     const shot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true });
     const file = path.join(
       screenshotsDir,
-      `walletconnect-${name}-${viewport.width}-${theme}.png`,
+      `${shotPrefix}-${name}-${viewport.width}-${theme}.png`,
     );
     await writeFile(file, Buffer.from(shot.data, "base64"));
     return file;
   };
   const evidence = {};
   const problems = [];
+  /* The first URI expires in a few seconds so the expired state is real; the
+   * second one is what Regenerate must restore. */
+  const expiry = Math.floor(Date.now() / 1000) + 4;
+  const uri =
+    "wc:" + "a".repeat(16) + "@2?relay-protocol=irn&symKey=" + "b".repeat(64) +
+    "&expiryTimestamp=" + expiry;
+  const encoded = encodeURIComponent(uri);
+  const expiry2 = Math.floor(Date.now() / 1000) + 120;
+  const uri2 =
+    "wc:" + "c".repeat(16) + "@2?relay-protocol=irn&symKey=" + "d".repeat(64) +
+    "&expiryTimestamp=" + expiry2;
+  const encoded2 = encodeURIComponent(uri2);
 
   const ready = await evaluate(
     cdp,
@@ -3442,6 +3461,7 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
       };
       const problems = [];
       const evidence = {};
+      const mobile = ${mobile ? "true" : "false"};
       const panel = document.getElementById('monitor-wc-panel');
       const open = document.getElementById('monitor-connect-walletconnect');
       const linksApi = window.RotorWcLinks;
@@ -3452,11 +3472,22 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
         return { evidence, problems: ['/wc-links.js did not expose RotorWcLinks'] };
       }
 
-      const expiry = Math.floor(Date.now() / 1000) + 4;
-      const uri = 'wc:' + 'a'.repeat(16) + '@2?relay-protocol=irn&symKey=' +
-        'b'.repeat(64) + '&expiryTimestamp=' + expiry;
-      const encoded = encodeURIComponent(uri);
+      evidence.schemeGuard = {
+        genericRejected: linksApi.genericLink('javascript:alert(1)') === '',
+        deepLinkRejected: linksApi.deepLink('metamask', 'https://example.com/wc?uri=x') === ''
+      };
+      if (!evidence.schemeGuard.genericRejected || !evidence.schemeGuard.deepLinkRejected) {
+        problems.push('a non-wc: string produced a wallet link');
+      }
+
+      const expiry = ${JSON.stringify(expiry)};
+      const uri = ${JSON.stringify(uri)};
+      const encoded = ${JSON.stringify(encoded)};
+      const expiry2 = ${JSON.stringify(expiry2)};
+      const uri2 = ${JSON.stringify(uri2)};
+      const encoded2 = ${JSON.stringify(encoded2)};
       const listeners = {};
+      let connects = 0;
       const provider = {
         accounts: ['0x52908400098527886E0F7030069857D2E4169EE7'],
         on: function (name, callback) { listeners[name] = callback; },
@@ -3465,6 +3496,23 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
       };
       const realFetch = window.fetch;
       const realRotorWC = window.RotorWC;
+      const realDeepLink = linksApi.deepLink;
+      const realGenericLink = linksApi.genericLink;
+      /* On a phone the page assigns location.href. Returning a same-document
+       * hash keeps the audit on the page while recording the real deep link
+       * the page computed, so the handoff shape is still asserted. */
+      if (mobile) {
+        linksApi.deepLink = function (id, value) {
+          const href = realDeepLink.call(linksApi, id, value);
+          window.__wcAuditNav = { wallet: id, target: href };
+          return href ? '#wc-audit-handoff' : '';
+        };
+        linksApi.genericLink = function (value) {
+          const href = realGenericLink.call(linksApi, value);
+          window.__wcAuditNav = { wallet: 'generic', target: href };
+          return href ? '#wc-audit-handoff' : '';
+        };
+      }
       // Load the committed bundle only for its real QR renderer; create/connect
       // stay stubbed because a headless browser cannot approve a wallet. The
       // screenshot then shows a genuine QR, not a placeholder block.
@@ -3501,7 +3549,8 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
       window.RotorWC = {
         create: async function () { return provider; },
         connect: async function () {
-          if (listeners.display_uri) listeners.display_uri(uri);
+          connects += 1;
+          if (listeners.display_uri) listeners.display_uri(connects === 1 ? uri : uri2);
           return new Promise(() => {});
         },
         toCanvas: async function (canvas, text) {
@@ -3525,6 +3574,10 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
 
         const box = document.getElementById('monitor-wc-qr-box');
         const canvas = document.getElementById('monitor-wc-qr-canvas');
+        const linksBox = document.getElementById('monitor-wc-links');
+        const mobileBox = document.getElementById('monitor-wc-mobile');
+        const mobileSelect = document.getElementById('monitor-wc-wallet');
+        const mobileOpen = document.getElementById('monitor-wc-open-mobile');
         const qrRect = canvas ? canvas.getBoundingClientRect() : { width: 0, height: 0 };
         evidence.qr = {
           visible: Boolean(box && !box.hidden),
@@ -3532,37 +3585,70 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
           width: Math.round(qrRect.width),
           height: Math.round(qrRect.height)
         };
-        if (!evidence.qr.visible || !evidence.qr.painted) {
-          problems.push('the desktop QR code did not appear');
-        }
-        if (qrRect.width < 120 || qrRect.height < 120) {
-          problems.push('the QR canvas is too small: ' + qrRect.width + 'x' + qrRect.height);
-        }
-
-        const wallets = {
-          metamask: 'https://metamask.app.link/wc?uri=',
-          trust: 'https://link.trustwallet.com/wc?uri=',
-          rainbow: 'https://rainbow.me/wc?uri=',
-          coinbase: 'https://go.cb-w.com/wc?uri='
+        evidence.mobileChooser = {
+          visible: Boolean(mobileBox && !mobileBox.hidden),
+          selectHeight: mobileSelect ? Math.round(mobileSelect.getBoundingClientRect().height) : 0,
+          buttonHeight: mobileOpen ? Math.round(mobileOpen.getBoundingClientRect().height) : 0,
+          linksHidden: Boolean(linksBox && linksBox.hidden)
         };
-        const links = Array.from(document.querySelectorAll('#monitor-wc-links a'));
-        evidence.links = links.length;
-        for (const id of Object.keys(wallets)) {
-          const prefix = wallets[id];
-          const link = links.find((anchor) => (anchor.getAttribute('href') || '').indexOf(prefix) === 0);
-          if (!link) {
-            problems.push('missing the ' + id + ' deep link');
-            continue;
+        evidence.autoNavigation = window.__wcAuditNav || null;
+
+        if (mobile) {
+          if (evidence.qr.visible) problems.push('the mobile handoff kept the QR code visible');
+          if (!evidence.mobileChooser.visible) problems.push('the mobile wallet chooser is missing');
+          if (!evidence.mobileChooser.linksHidden) {
+            problems.push('the mobile handoff kept the desktop deep links visible');
           }
-          if (link.getAttribute('href') !== prefix + encoded) {
-            problems.push('the ' + id + ' deep link does not carry the encoded URI');
+          if (evidence.mobileChooser.selectHeight < 43.5) {
+            problems.push('the mobile wallet select is ' + evidence.mobileChooser.selectHeight + 'px high');
           }
-          const height = link.getBoundingClientRect().height;
-          if (height < 43.5) problems.push('the ' + id + ' deep link is ' + height + 'px high');
+          if (evidence.mobileChooser.buttonHeight < 43.5) {
+            problems.push('the Open wallet button is ' + evidence.mobileChooser.buttonHeight + 'px high');
+          }
+          const metaPrefix = 'https://metamask.app.link/wc?uri=';
+          if (!evidence.autoNavigation || String(evidence.autoNavigation.target).indexOf(metaPrefix) !== 0) {
+            problems.push('the mobile handoff did not compute a MetaMask deep link');
+          } else if (String(evidence.autoNavigation.target) !== metaPrefix + encoded) {
+            problems.push('the mobile deep link does not carry the encoded URI');
+          }
+          if (window.location.hash !== '#wc-audit-handoff') {
+            problems.push('the mobile handoff did not navigate to the wallet link');
+          }
+        } else {
+          if (!evidence.qr.visible || !evidence.qr.painted) {
+            problems.push('the desktop QR code did not appear');
+          }
+          if (qrRect.width < 120 || qrRect.height < 120) {
+            problems.push('the QR canvas is too small: ' + qrRect.width + 'x' + qrRect.height);
+          }
+          if (evidence.mobileChooser.visible) problems.push('the desktop panel showed the mobile chooser');
+          if (evidence.autoNavigation) problems.push('the desktop panel auto-navigated instead of showing the QR');
+
+          const wallets = {
+            metamask: 'https://metamask.app.link/wc?uri=',
+            trust: 'https://link.trustwallet.com/wc?uri=',
+            rainbow: 'https://rainbow.me/wc?uri=',
+            coinbase: 'https://go.cb-w.com/wc?uri='
+          };
+          const links = Array.from(document.querySelectorAll('#monitor-wc-links a'));
+          evidence.links = links.length;
+          for (const id of Object.keys(wallets)) {
+            const prefix = wallets[id];
+            const link = links.find((anchor) => (anchor.getAttribute('href') || '').indexOf(prefix) === 0);
+            if (!link) {
+              problems.push('missing the ' + id + ' deep link');
+              continue;
+            }
+            if (link.getAttribute('href') !== prefix + encoded) {
+              problems.push('the ' + id + ' deep link does not carry the encoded URI');
+            }
+            const height = link.getBoundingClientRect().height;
+            if (height < 43.5) problems.push('the ' + id + ' deep link is ' + height + 'px high');
+          }
+          const generic = links.find((anchor) => anchor.getAttribute('href') === uri);
+          evidence.genericLink = Boolean(generic);
+          if (!generic) problems.push('the generic wc: link is missing');
         }
-        const generic = links.find((anchor) => anchor.getAttribute('href') === uri);
-        evidence.genericLink = Boolean(generic);
-        if (!generic) problems.push('the generic wc: link is missing');
 
         const copy = document.getElementById('monitor-wc-copy');
         const copyRect = copy ? copy.getBoundingClientRect() : { width: 0, height: 0 };
@@ -3594,12 +3680,16 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
         const panelTop = panel.getBoundingClientRect().top + window.scrollY - 110;
         window.scrollTo({ top: panelTop, behavior: 'instant' });
         await sleep(80);
-        window.__wcAudit = { realFetch, realRotorWC };
+        window.__wcAudit = { realFetch, realRotorWC, realDeepLink, realGenericLink };
         return { evidence, problems };
       } catch (error) {
         window.fetch = realFetch;
         if (realRotorWC === undefined) delete window.RotorWC;
         else window.RotorWC = realRotorWC;
+        if (window.RotorWcLinks && realDeepLink) window.RotorWcLinks.deepLink = realDeepLink;
+        if (window.RotorWcLinks && realGenericLink) {
+          window.RotorWcLinks.genericLink = realGenericLink;
+        }
         throw error;
       }
     })()`,
@@ -3638,6 +3728,32 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
         if (!/expired/i.test(evidence.expiredState || '')) {
           problems.push('the expired state does not say the URI expired');
         }
+        const uriEl = document.getElementById('monitor-wc-uri');
+        const qrBox = document.getElementById('monitor-wc-qr-box');
+        const linksBox = document.getElementById('monitor-wc-links');
+        const mobileBox = document.getElementById('monitor-wc-mobile');
+        const copy = document.getElementById('monitor-wc-copy');
+        evidence.cleared = {
+          uri: uriEl ? uriEl.textContent.trim() === '' : false,
+          qrHidden: Boolean(qrBox && qrBox.hidden),
+          linksHidden: Boolean(linksBox && linksBox.hidden),
+          mobileHidden: Boolean(mobileBox && mobileBox.hidden)
+        };
+        if (!evidence.cleared.uri) problems.push('the expired state kept the dead URI');
+        if (!evidence.cleared.qrHidden) problems.push('the expired state kept the QR block visible');
+        if (!evidence.cleared.linksHidden) problems.push('the expired state kept the wallet link block visible');
+        if (!evidence.cleared.mobileHidden) problems.push('the expired state kept the mobile chooser visible');
+        if (copy) {
+          // The copy action only fires while wcFlow.uri is set; a disabled
+          // button after the click proves the dead URI was cleared.
+          copy.click();
+          await sleep(300);
+          evidence.copyAfterExpiry = {
+            disabled: Boolean(copy.disabled),
+            label: copy.getAttribute('aria-label')
+          };
+          if (copy.disabled) problems.push('the expired state still copied the dead URI');
+        }
         const regenRect = regenerate.getBoundingClientRect();
         evidence.regenerate = {
           width: Math.round(regenRect.width),
@@ -3663,6 +3779,73 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
   problems.push(...expired.problems);
   evidence.expiredScreenshot = await capture("expired");
 
+  const regenerated = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const mobile = ${mobile ? "true" : "false"};
+      const uri2 = ${JSON.stringify(uri2)};
+      const encoded2 = ${JSON.stringify(encoded2)};
+      const panel = document.getElementById('monitor-wc-panel');
+      const regenerate = document.getElementById('monitor-wc-regenerate');
+      window.__wcAuditNav = null;
+      if (regenerate) regenerate.click();
+      const restored = await waitFor(() => {
+        const ready = document.getElementById('monitor-wc-ready');
+        const value = (document.getElementById('monitor-wc-uri') || {}).textContent || '';
+        return Boolean(ready && !ready.hidden && value.trim() === uri2);
+      }, 8000);
+      evidence.restored = restored;
+      if (!restored) problems.push('Regenerate did not restore the ready state');
+      evidence.uri = ((document.getElementById('monitor-wc-uri') || {}).textContent || '').trim();
+      const qrBox = document.getElementById('monitor-wc-qr-box');
+      const linksBox = document.getElementById('monitor-wc-links');
+      const mobileBox = document.getElementById('monitor-wc-mobile');
+      const canvas = document.getElementById('monitor-wc-qr-canvas');
+      evidence.qrVisible = Boolean(qrBox && !qrBox.hidden);
+      evidence.mobileVisible = Boolean(mobileBox && !mobileBox.hidden);
+      evidence.linksHidden = Boolean(linksBox && linksBox.hidden);
+      evidence.autoNavigation = window.__wcAuditNav || null;
+      if (mobile) {
+        if (evidence.qrVisible) problems.push('Regenerate showed the QR on mobile');
+        if (!evidence.mobileVisible) problems.push('Regenerate did not restore the mobile chooser');
+        const prefix = 'https://metamask.app.link/wc?uri=';
+        if (!evidence.autoNavigation || String(evidence.autoNavigation.target) !== prefix + encoded2) {
+          problems.push('Regenerate did not hand the fresh URI to the wallet app');
+        }
+      } else {
+        if (!evidence.qrVisible || !canvas || canvas.dataset.auditPainted !== '1') {
+          problems.push('Regenerate did not repaint the desktop QR');
+        }
+        if (evidence.mobileVisible) problems.push('Regenerate showed the mobile chooser on desktop');
+        if (evidence.autoNavigation) problems.push('Regenerate navigated on desktop');
+      }
+      if (panel && panel.scrollWidth > panel.clientWidth + 2) {
+        problems.push('the regenerated panel overflows horizontally');
+      }
+      if (panel) {
+        const top = panel.getBoundingClientRect().top + window.scrollY - 110;
+        window.scrollTo({ top: top, behavior: 'instant' });
+        await sleep(80);
+      }
+      return { evidence, problems };
+    })()`,
+    15000,
+  );
+  evidence.regenerated = regenerated.evidence;
+  problems.push(...regenerated.problems);
+  evidence.regeneratedScreenshot = await capture("regenerated");
+
   const closed = await evaluate(
     cdp,
     `(async () => {
@@ -3678,13 +3861,102 @@ async function auditWalletConnect(cdp, screenshotsDir, viewport, theme) {
       if (saved.realFetch) window.fetch = saved.realFetch;
       if (saved.realRotorWC === undefined) delete window.RotorWC;
       else window.RotorWC = saved.realRotorWC;
+      if (window.RotorWcLinks && saved.realDeepLink) window.RotorWcLinks.deepLink = saved.realDeepLink;
+      if (window.RotorWcLinks && saved.realGenericLink) {
+        window.RotorWcLinks.genericLink = saved.realGenericLink;
+      }
       delete window.__wcAudit;
+      delete window.__wcAuditNav;
+      if (window.location.hash) {
+        window.history.replaceState({}, '', window.location.pathname + window.location.search);
+      }
       return { closed: Boolean(panel && panel.hidden), scrollY: window.scrollY };
     })()`,
     5000,
   );
   evidence.closed = closed.closed;
   if (!closed.closed) problems.push('the panel did not close');
+
+  /* Abort during create(): the provider exists but the run was invalidated
+   * before wcFlow.provider was assigned. Nothing else can reach it, so the
+   * finalizer must disconnect it or the relay socket leaks. */
+  const aborted = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(50);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const panel = document.getElementById('monitor-wc-panel');
+      const open = document.getElementById('monitor-connect-walletconnect');
+      const close = document.getElementById('monitor-wc-close');
+      if (!open || !close) return { evidence, problems: ['the WalletConnect controls are missing'] };
+      const realFetch = window.fetch;
+      const realRotorWC = window.RotorWC;
+      let resolveCreate = null;
+      const lateProvider = {
+        accounts: [],
+        on: function () {},
+        disconnect: function () {
+          evidence.disconnectCalls = (evidence.disconnectCalls || 0) + 1;
+          return Promise.resolve();
+        }
+      };
+      window.fetch = async function (input, init) {
+        const url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url.indexOf('/api/v1/monitor/config') !== -1) {
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({ walletconnect_project_id: 'audit-project' })
+          };
+        }
+        return realFetch(input, init);
+      };
+      window.RotorWC = {
+        create: function () {
+          return new Promise(function (resolve) { resolveCreate = resolve; });
+        },
+        connect: function () { return new Promise(function () {}); },
+        toCanvas: function () { return Promise.resolve(); }
+      };
+      try {
+        open.click();
+        const created = await waitFor(() => typeof resolveCreate === 'function', 5000);
+        evidence.createStarted = created;
+        if (!created) {
+          problems.push('the aborted attempt never reached create()');
+          return { evidence, problems };
+        }
+        close.click();
+        resolveCreate(lateProvider);
+        await sleep(250);
+        evidence.disconnectCalls = evidence.disconnectCalls || 0;
+        if (evidence.disconnectCalls !== 1) {
+          problems.push(
+            'an aborted attempt leaked its provider (disconnect calls: ' +
+              evidence.disconnectCalls + ')'
+          );
+        }
+      } finally {
+        window.fetch = realFetch;
+        if (realRotorWC === undefined) delete window.RotorWC;
+        else window.RotorWC = realRotorWC;
+        if (panel) panel.hidden = true;
+      }
+      return { evidence, problems };
+    })()`,
+    15000,
+  );
+  evidence.aborted = aborted.evidence;
+  problems.push(...aborted.problems);
 
   return { ok: problems.length === 0, evidence, problems };
 }
@@ -4265,6 +4537,11 @@ async function main() {
     await cdp.send("DOM.enable").catch(() => {});
     await cdp.send("CSS.enable").catch(() => {});
 
+    // The WalletConnect handoff is decided by navigator.userAgent. Capture the
+    // browser's own agent once so every non-mobile run can restore it after
+    // the one Android-emulated /cabinet run.
+    const defaultUserAgent = await evaluate(cdp, "navigator.userAgent", 5000).catch(() => "");
+
     if (options.routes.some((route) => route.startsWith("/cabinet/admin"))) {
       await loginAdmin(options, cdp);
     }
@@ -4375,6 +4652,20 @@ async function main() {
           };
 
           try {
+            // The WalletConnect handoff branches on the user agent, so a narrow
+            // viewport alone cannot exercise the mobile path. Run /cabinet at
+            // 375 as an Android Chrome client; every other run restores the
+            // browser's own agent.
+            const mobileHandoff = route === "/cabinet" && viewport.width < 600;
+            if (mobileHandoff) {
+              await cdp.send("Emulation.setUserAgentOverride", {
+                userAgent: ANDROID_CHROME_UA,
+              }).catch(() => {});
+            } else if (defaultUserAgent) {
+              await cdp.send("Emulation.setUserAgentOverride", {
+                userAgent: defaultUserAgent,
+              }).catch(() => {});
+            }
             await cdp.send("Emulation.setDeviceMetricsOverride", {
               width: viewport.width,
               height: viewport.height,

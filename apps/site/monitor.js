@@ -957,6 +957,20 @@
     expired: false,
     connected: false
   };
+  /* A provider can be abandoned from several paths (close, regenerate,
+   * expiry, a superseded attempt). Each of them funnels through this helper so
+   * the relay socket is closed exactly once and a provider created after the
+   * run was invalidated cannot leak. */
+  var wcClosedProviders = typeof WeakSet === 'function' ? new WeakSet() : null;
+
+  function wcDisconnect(provider) {
+    if (!provider || typeof provider.disconnect !== 'function') return;
+    if (wcClosedProviders) {
+      if (wcClosedProviders.has(provider)) return;
+      wcClosedProviders.add(provider);
+    }
+    Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+  }
 
   function wcIsMobile() {
     var api = window.RotorWcLinks;
@@ -1100,9 +1114,20 @@
       var provider = wcFlow.provider;
       wcFlow.provider = null;
       wcFlow.generation += 1;
-      if (provider && typeof provider.disconnect === 'function') {
-        Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
+      wcDisconnect(provider);
+      /* The URI is dead: clear it and every control built from it so the
+       * copy action cannot copy a stale string and the QR/chips do not stay
+       * on screen. Regenerate reopens the panel and repopulates them. */
+      wcFlow.uri = '';
+      if (els.wcUri) els.wcUri.textContent = '';
+      if (els.wcQrBox) els.wcQrBox.hidden = true;
+      if (els.wcQrFallback) els.wcQrFallback.hidden = true;
+      if (els.wcLinks) {
+        els.wcLinks.hidden = true;
+        els.wcLinks.textContent = '';
       }
+      if (els.wcMobile) els.wcMobile.hidden = true;
+      if (els.wcExpiry) els.wcExpiry.textContent = '';
       setConnectBusy(false);
       wcSetPhase('expired', 'The connection URI expired. Generate a new one to keep signing in.');
     }, delay);
@@ -1154,9 +1179,7 @@
     }
     var provider = wcFlow.provider;
     wcFlow.provider = null;
-    if (provider && typeof provider.disconnect === 'function') {
-      Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
-    }
+    wcDisconnect(provider);
     setConnectBusy(false);
   }
 
@@ -1810,11 +1833,15 @@
         }
         wcFlow.provider = null;
         /* Closing the WC session is best effort; never block the cabinet on it. */
-        if (provider && typeof provider.disconnect === 'function') {
-          Promise.resolve().then(function () { return provider.disconnect(); }).catch(function () {});
-        }
+        wcDisconnect(provider);
         if (els.wcClose) els.wcClose.disabled = false;
         setConnectBusy(false);
+      } else {
+        /* Close, regenerate or expiry already invalidated this attempt. At
+         * that moment wcFlow.provider was still null or pointed at an older
+         * provider, so the one just created is not reachable from anywhere
+         * else. Disconnect it here instead of leaking the relay socket. */
+        wcDisconnect(provider);
       }
     }
   }

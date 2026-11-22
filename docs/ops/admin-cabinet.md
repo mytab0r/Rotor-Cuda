@@ -94,8 +94,9 @@ The coordinator serves the Reown/WalletConnect project id as
 ### Manual test with a real wallet
 
 A headless browser cannot drive a real wallet, so the handoff and signature
-steps stay a human check. The automated audit covers the panel layout and the
-static sign-in card.
+steps stay a human check. The automated audit stubs the provider and
+`display_uri`, covers the desktop QR and links, the Android-Chrome mobile
+chooser and deep-link navigation, the expired state, and the abort path.
 
 1. **Desktop QR** - open `/cabinet`, click WalletConnect, scan the QR with
    MetaMask, Trust Wallet, Rainbow or Coinbase Wallet on a phone. The wallet
@@ -105,8 +106,9 @@ static sign-in card.
    copying the URI into the wallet's dapp browser. Return to the browser and
    approve the signature.
 3. **Expired URI** - leave the panel open for about five minutes without
-   approving. The panel must say the URI expired and offer Regenerate; a fresh
-   QR or deep link must appear.
+   approving. The panel must say the URI expired and offer Regenerate; the dead
+   URI, QR and wallet-link controls must disappear, and Regenerate must restore
+   a fresh QR or deep link.
 4. **Rejected signature** - approve the connection but reject the
    `personal_sign` request. The page must say the request was rejected and stay
    signed out.

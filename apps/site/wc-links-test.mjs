@@ -70,6 +70,29 @@ test("the generic link is the bare wc: URI", () => {
   assert.equal(links.genericLink(undefined), "");
 });
 
+test("every builder accepts only strings that start with wc:", () => {
+  const rejected = [
+    "javascript:alert(document.cookie)",
+    "data:text/html,<script>alert(1)</script>",
+    "https://example.com/wc?uri=" + encodeURIComponent(URI),
+    "//example.com/wc?uri=" + encodeURIComponent(URI),
+    "wc",
+    "WC:" + URI.slice(3),
+    " " + URI,
+    "http:" + URI,
+  ];
+  for (const value of rejected) {
+    assert.equal(links.genericLink(value), "", `genericLink rejects ${JSON.stringify(value)}`);
+    assert.equal(links.deepLink("metamask", value), "", `deepLink rejects ${JSON.stringify(value)}`);
+  }
+  assert.equal(links.genericLink(URI), URI, "a genuine wc: URI still passes");
+  assert.equal(
+    links.deepLink("metamask", URI),
+    "https://metamask.app.link/wc?uri=" + encodeURIComponent(URI),
+    "a genuine wc: URI still builds a deep link",
+  );
+});
+
 test("mobile detection covers Android, iPhone and iPad", () => {
   assert.equal(links.isMobile("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36"), true);
   assert.equal(links.isMobile("Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)"), true);

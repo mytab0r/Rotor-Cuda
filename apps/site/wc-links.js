@@ -21,8 +21,12 @@
     return null;
   }
 
+  /* One scheme guard for every builder. A WalletConnect URI always starts
+   * with `wc:`; accepting any other string would let a caller put
+   * `javascript:`, `data:` or an arbitrary URL into an anchor href or a
+   * location target. Empty and non-string inputs stay empty. */
   function uriText(uri) {
-    return typeof uri === 'string' ? uri : '';
+    return typeof uri === 'string' && uri.indexOf('wc:') === 0 ? uri : '';
   }
 
   /* A wallet deep link carries the whole `wc:` URI as one encoded query value. */
