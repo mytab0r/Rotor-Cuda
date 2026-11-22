@@ -458,7 +458,7 @@
     status: 'partial',
     priority: 'P2',
     donorIds: ['ss:/dashboard'],
-    note: 'Address monitor and account workspace. secretscan.org /dashboard is a calculator dashboard, not the same product.'
+    note: 'Address monitor and account workspace. secretscan.org /dashboard is a calculator dashboard, not the same product. Sign-in: injected EVM/Solana/TRON wallets sign a one-time SIWE challenge; WalletConnect builds its own panel instead of the built-in modal, exposing the connection URI, a QR code, a copy action and MetaMask/Trust Wallet/Rainbow/Coinbase Wallet deep links plus the generic wc: link, opens the selected wallet app directly on Android/iPhone/iPad, regenerates an expired URI, and keeps one EVM account across eight optional chains with Ethereum required.'
   });
 
   oursRoute({

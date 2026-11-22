@@ -43,6 +43,8 @@
         "node --check apps/site/wallet-evm.js",
         "node --check apps/site/wallet-btc.js",
         "node --check apps/site/wallet-history.js",
+        "node --check apps/site/monitor.js",
+        "node --check apps/site/wc-links.js",
         "node --check apps/site/send.js",
         "node --check apps/site/tx-decoders.js",
         "node --check apps/site/tx-page.js",
@@ -93,6 +95,7 @@
         "node apps/site/vanity-test.mjs",
         "node apps/site/qr-test.mjs",
         "node apps/site/site-nav-test.mjs",
+        "node apps/site/wc-links-test.mjs",
         "node apps/site/chains-test.mjs"
       ],
       "consumes": [

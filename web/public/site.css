@@ -277,6 +277,84 @@ p { text-wrap: pretty; }
 .monitor-provider-name { font-size: 13px; font-weight: 600; }
 .monitor-provider-desc { font-size: 12px; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
 .monitor-provider-hint { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* WalletConnect panel: own QR, wallet deep links, URI and the loading/error/
+ * expired states. Tokens only, same card grammar as the rest of the monitor. */
+.monitor-wc-panel {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--panel-2);
+}
+.monitor-wc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.monitor-wc-head h3 { margin: 0; font-size: var(--text-md); }
+.monitor-wc-panel .monitor-status { margin: var(--space-2) 0 0; }
+.monitor-wc-qr {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+/* QR codes need a light quiet zone to scan; the bundled QR renderer fills the
+ * canvas white, so the page only sizes it. */
+.monitor-wc-qr canvas {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  padding: var(--space-2);
+  border-radius: var(--radius-s);
+}
+.monitor-wc-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+.monitor-wc-mobile {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+.monitor-wc-mobile label {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.monitor-wc-uri-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+}
+.monitor-wc-uri-row code {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--panel);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.monitor-wc-accounts {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.monitor-wc-accounts code { overflow-wrap: anywhere; user-select: all; }
+.monitor-wc-panel button { min-height: var(--control-h); }
 .monitor-identities { list-style: none; margin: 8px 0 0; padding: 0; }
 .monitor-identity {
   display: flex;
