@@ -159,6 +159,8 @@
         derive: settings.derive,
         onProgress: settings.onProgress,
         yieldTo: settings.yieldTo
+      }).then(function (result) {
+        return Object.assign({ coverage: 'compressed-bip44' }, result);
       });
     }
     throw new Error('Unsupported checker kind: ' + checker.kind);

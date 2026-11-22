@@ -118,6 +118,36 @@ test("the renderer escapes every data string", () => {
   assert.match(page, /&lt;img src=x onerror=alert\(2\)&gt;/);
 });
 
+test("draft entries never reach the page; superseded stays visible", () => {
+  const copy = JSON.parse(JSON.stringify(real));
+  copy.advisories.push({
+    ...copy.advisories[0],
+    id: "draft-sentinel",
+    title: "DRAFT_SENTINEL",
+    review: { status: "draft" },
+  });
+  copy.advisories.push({
+    ...copy.advisories[0],
+    id: "superseded-sentinel",
+    title: "SUPERSEDED_SENTINEL",
+    review: { status: "superseded", reviewed_by: "r", reviewed_at: "2026-11-22" },
+  });
+  const page = renderSecurityPage(copy);
+  assert.equal(page.includes("DRAFT_SENTINEL"), false);
+  assert.equal(page.includes('id="draft-sentinel"'), false);
+  assert.equal(page.includes("SUPERSEDED_SENTINEL"), true);
+  assert.equal(page.includes('id="superseded-sentinel"'), true);
+});
+
+test("the JSON-LD date is validated before it enters the script element", () => {
+  const copy = JSON.parse(JSON.stringify(real));
+  copy.updated_at = "2026-11-22</script><script>alert(1)</script>";
+  assert.throws(() => renderSecurityPage(copy), /updated_at/);
+  copy.updated_at = "2026-11-22";
+  const page = renderSecurityPage(copy);
+  assert.equal(page.includes("</script><script>alert(1)</script>"), false);
+});
+
 test("the route is served, the generated page is fresh and carries the SEO shape", () => {
   const { ok, errors } = checkAdvisories(repoRoot);
   assert.deepEqual(errors, []);

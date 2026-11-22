@@ -989,6 +989,7 @@
       curve: 0,
       addressId: target.addressId,
       network: target.network || 0,
+      compressed: wif.compressed,
       key: wif.key
     };
   }
@@ -1016,7 +1017,8 @@
       chain: parsed.chain,
       id: parsed.addressId,
       label: row.label || parsed.addressId,
-      evmAddress: findEvmRow(rows)
+      evmAddress: findEvmRow(rows),
+      compressed: typeof parsed.compressed === 'boolean' ? parsed.compressed : null
     };
   }
 
@@ -1881,6 +1883,7 @@
     if (state.unlocked && btcEntrySelect && btcEntrySelect.value === entry.id) {
       updateBtcFrom();
     }
+    if (!securityRunning && securityCatalog && state.unlocked) renderSecurity();
   }
 
   /* ----------------------------------------------------------------- balances */
@@ -2626,11 +2629,18 @@
     return { address: address, mnemonic: mnemonic, wif: report.wif_compressed || '' };
   }
 
+  function severityTone(value) {
+    var tone = String(value || '').toLowerCase();
+    return ['critical', 'high', 'medium', 'low', 'info'].indexOf(tone) >= 0 ? tone : 'info';
+  }
+
   function securityRow(item, entry, times) {
     var advisory = item.advisory;
     var maxSeeds = item.checker && item.checker.limits && Number.isInteger(item.checker.limits.max_seeds_per_run)
       ? item.checker.limits.max_seeds_per_run
       : 2000;
+    var derived = state.derived[entry.id];
+    var uncompressedWif = entry.secret_type === 'wif' && derived && derived.compressed === false;
     var row = document.createElement('div');
     row.className = 'wallet-row';
     row.setAttribute('data-security-advisory', advisory.id);
@@ -2642,7 +2652,7 @@
     title.textContent = advisory.title;
     head.appendChild(title);
     var severity = document.createElement('span');
-    severity.className = 'status';
+    severity.className = 'status status--' + severityTone(advisory.severity);
     severity.textContent = advisory.severity;
     head.appendChild(severity);
     var subject = document.createElement('span');
@@ -2686,9 +2696,17 @@
       var toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'primary';
-      toggle.textContent = 'Check locally';
+      toggle.textContent = uncompressedWif ? 'Compressed derivations only' : 'Check locally';
+      toggle.disabled = Boolean(uncompressedWif);
       actionsRow.appendChild(toggle);
       row.appendChild(actionsRow);
+
+      if (uncompressedWif) {
+        var wifNote = document.createElement('p');
+        wifNote.className = 'muted';
+        wifNote.textContent = 'This entry is an uncompressed WIF. The Milk Sad scan reproduces compressed BIP44 wallets, so it cannot match this address. Check the seed that created the key or use the Milk Sad page; this panel will not claim a no-match for an uncompressed key.';
+        row.appendChild(wifNote);
+      }
 
       var form = document.createElement('form');
       form.className = 'wallet-row-actions';
@@ -2740,7 +2758,15 @@
       form.addEventListener('submit', async function (event) {
         event.preventDefault();
         if (securityRunning) return;
+        if (uncompressedWif) {
+          status.textContent = 'This entry is an uncompressed WIF; the local Milk Sad scan covers compressed BIP44 derivations only.';
+          return;
+        }
         var derived = state.derived[entry.id];
+        if (entry.secret_type === 'wif' && derived && derived.compressed === false) {
+          status.textContent = 'This entry is an uncompressed WIF; the local Milk Sad scan covers compressed BIP44 derivations only.';
+          return;
+        }
         if (!derived || !derived.address) {
           status.textContent = 'The address is not derived yet. Unlock the vault and wait for the address list to finish.';
           return;
@@ -2777,7 +2803,7 @@
               '. Treat the key as compromised and move the funds to a new wallet. Open the Milk Sad page for recovery details.';
           } else {
             status.textContent = 'No match in seeds ' + start + '…' + (start + result.checked - 1) +
-              '. This covers only that range; the weak set spans 2^32 seeds, so this is not a safety guarantee.';
+              '. This covers only that range and compressed BIP44 derivations; the weak set spans 2^32 seeds, so this is not a safety guarantee.';
           }
           var selection = securitySelection();
           if (securityChecks) securityChecks.textContent = String(securityApi.countChecks(nextTimes, selection.applicable));

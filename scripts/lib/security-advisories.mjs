@@ -327,13 +327,36 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+/* Only reviewed and superseded entries are public. A superseded entry stays
+ * visible with its history; a draft never reaches the page. */
+export function isPublishedReview(review) {
+  return isObject(review) && (review.status === "reviewed" || review.status === "superseded");
+}
+
+/* JSON-LD sits inside a <script> element, so a data string must not be able to
+ * close it. The gate already requires an ISO date; the renderer validates it
+ * again and escapes the serialized JSON. */
+function jsonLdSafeDate(value) {
+  if (!validIsoDate(value)) throw new Error("updated_at must be an ISO date for JSON-LD");
+  return value;
+}
+
+function serializeJsonLd(value) {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 function chip(text, className) {
   const extra = className ? ` class="${className}"` : "";
   return `<span${extra}>${escapeHtml(text)}</span>`;
 }
 
 function badgeText(entry) {
-  const badges = [chip(entry.severity.toUpperCase())];
+  const badges = [chip(entry.severity.toUpperCase(), `status--${entry.severity}`)];
   if (entry.kind === "vulnerability") {
     for (const cve of entry.cve || []) badges.push(chip(cve));
     badges.push(chip("Vulnerability"));
@@ -410,14 +433,14 @@ function renderJsonLd(data) {
     url: `${SITE_ORIGIN}${PAGE_ROUTE}`,
     description:
       "Published vulnerabilities and threat classes that affect wallet keys and addresses, with plain-language impact, actions and primary sources.",
-    dateModified: data.updated_at,
+    dateModified: jsonLdSafeDate(data.updated_at),
     isPartOf: {
       "@type": "WebSite",
       name: "Crypto",
       url: `${SITE_ORIGIN}/`,
     },
   };
-  return `<script type="application/ld+json">${JSON.stringify(value)}</script>`;
+  return `<script type="application/ld+json">${serializeJsonLd(value)}</script>`;
 }
 
 const NAV = `<header class="site-nav">
@@ -425,23 +448,23 @@ const NAV = `<header class="site-nav">
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
-    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-seed"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
-    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg><span>Vanity</span></a>
     <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
     <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
   <div class="nav-tools">
     <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
-    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-vault"></use></svg><span>Cabinet</span></a>
   </div>
 </header>`;
 
 export function renderSecurityPage(data) {
   const checkersById = new Map((data.checkers || []).map((checker) => [checker.id, checker]));
-  const advisories = data.advisories || [];
-  const threats = data.threats || [];
+  const advisories = (data.advisories || []).filter((entry) => isPublishedReview(entry.review));
+  const threats = (data.threats || []).filter((entry) => isPublishedReview(entry.review));
   const advisorySections = advisories.map((entry) => renderAdvisory(entry, checkersById)).join("\n");
   const threatSections = threats.map(renderThreat).join("\n");
   return `<!doctype html>

@@ -118,6 +118,13 @@ export function checkAdvisories(root = repoRoot) {
   }
   if (page) {
     checkPageShape(page, errors);
+    for (const group of ["advisories", "threats"]) {
+      for (const entry of data[group] || []) {
+        if (entry?.review?.status === "draft" && page.includes(`id="${entry.id}"`)) {
+          errors.push(`${PAGE_PATH}: draft entry ${entry.id} reached the public page`);
+        }
+      }
+    }
     const expected = renderSecurityPage(data);
     if (normalizeEol(page) !== expected) {
       errors.push(`${PAGE_PATH}: stale; run node scripts/gen-security-page.mjs`);

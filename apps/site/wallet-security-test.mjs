@@ -136,6 +136,7 @@ await test("runCheck passes only the user's address and the checker limit to the
     derive: () => null,
   });
   assert.equal(result.checked, 10);
+  assert.equal(result.coverage, "compressed-bip44");
   assert.equal(seen.address, "bc1quser");
   assert.equal(seen.maxSeeds, 2000);
   assert.equal(seen.start, 0);
