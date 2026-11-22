@@ -2118,13 +2118,19 @@
       return;
     }
 
-    var coverage = 'Scanned blocks ' + blockText(scan.scannedFromBlock) + '–' +
-      blockText(scan.scannedToBlock) + ' of the requested ' + blockText(scan.requestedWindow) +
-      ' on ' + scan.providerLabel + ' · ' + scan.logCount + ' Approval log' +
-      (scan.logCount === 1 ? '' : 's') + ' · ' + scan.uniqueSpenders + ' unique spender' +
-      (scan.uniqueSpenders === 1 ? '' : 's') + '.';
-    if (scan.truncated) {
-      coverage += ' The provider could not serve the whole window; older approvals need a larger window on an archive RPC or an indexer.';
+    var coverage;
+    if (scan.scannedFromBlock > scan.scannedToBlock) {
+      coverage = 'The provider refused every Approval log request in the requested window; ' +
+        'no blocks were scanned. Another RPC or an indexer is needed.';
+    } else {
+      coverage = 'Scanned blocks ' + blockText(scan.scannedFromBlock) + '–' +
+        blockText(scan.scannedToBlock) + ' of the requested ' + blockText(scan.requestedWindow) +
+        ' on ' + scan.providerLabel + ' · ' + scan.logCount + ' Approval log' +
+        (scan.logCount === 1 ? '' : 's') + ' · ' + scan.uniqueSpenders + ' unique spender' +
+        (scan.uniqueSpenders === 1 ? '' : 's') + '.';
+      if (scan.truncated) {
+        coverage += ' The provider could not serve the whole window; older approvals need a larger window on an archive RPC or an indexer.';
+      }
     }
     if (approvalsCoverage) {
       approvalsCoverage.textContent = coverage;

@@ -541,11 +541,20 @@
   }
 
   /* Deduplicate by spender, keeping the newest log (highest block, then log
-   * index). The displayed value still comes from a fresh allowance() read. */
+   * index). A log that matches the filter but is malformed is skipped and
+   * counted instead of killing the whole scan; the displayed value still comes
+   * from a fresh allowance() read. */
   function mergeApprovalLogs(target, logs, contract, owner) {
     var list = Array.isArray(logs) ? logs : [];
+    var malformed = 0;
     for (var i = 0; i < list.length; i += 1) {
-      var entry = parseApprovalLog(list[i], contract, owner);
+      var entry;
+      try {
+        entry = parseApprovalLog(list[i], contract, owner);
+      } catch (err) {
+        malformed += 1;
+        continue;
+      }
       if (!entry) continue;
       var current = target.get(entry.spender);
       if (!current || entry.blockNumber > current.blockNumber ||
@@ -553,7 +562,7 @@
         target.set(entry.spender, entry);
       }
     }
-    return target;
+    return { entries: target, malformed: malformed };
   }
 
   /* Translate an eth_getLogs failure into the recovery step: a range limit is
@@ -567,7 +576,7 @@
       return { kind: 'network', limit: null };
     }
     var match = /(\d+)\s*blocks/.exec(text);
-    if (/range|limit|too many|max/.test(text)) {
+    if (/range|limit|too many|max|results|more than/.test(text)) {
       return { kind: 'range', limit: match ? Number(match[1]) : null };
     }
     return { kind: 'other', limit: null };
@@ -1167,6 +1176,7 @@
     var chunk = LOG_CHUNK_BLOCKS;
     var requests = 0;
     var logCount = 0;
+    var malformedLogs = 0;
     var scannedFrom = cursor + 1n;
     var truncated = false;
     var warnings = [];
@@ -1230,7 +1240,7 @@
         throw new Error('eth_getLogs returned a non-array value.');
       }
       logCount += logs.length;
-      mergeApprovalLogs(entries, logs, contract, owner);
+      malformedLogs += mergeApprovalLogs(entries, logs, contract, owner).malformed;
       scannedFrom = plan.fromBlock;
       cursor = plan.fromBlock - 1n;
     }
@@ -1240,6 +1250,10 @@
         'window is larger than this provider can serve in one scan.');
     } else if (cursor >= bottom) {
       truncated = true;
+    }
+    if (malformedLogs > 0) {
+      warnings.push(malformedLogs + ' malformed log(s) skipped: the log matched the filter ' +
+        'but not the Approval ABI; the list uses the valid logs.');
     }
     var spenders = Array.from(entries.values()).sort(function (left, right) {
       if (left.blockNumber !== right.blockNumber) return right.blockNumber - left.blockNumber;

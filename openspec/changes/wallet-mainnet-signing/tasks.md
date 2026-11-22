@@ -98,6 +98,13 @@
   revoke vector against an independent encoding, token refusals, EOA labeling,
   the allowance-zero refusal, chain/arm/fee/unsigned-tamper and mutated
   spender/amount refusals.
+- [x] Cover a geth `query returned more than 10000 results` range error,
+  malformed matching logs (skipped, counted and surfaced in the warnings) and
+  the degenerate empty coverage range.
+- [x] Add a route-specific `ui-audit` scenario with a stubbed RPC for the
+  approvals table (shared `.data-table`/`.table-scroll`, 44px labelled actions,
+  `Unlimited`/`Contract`/`EOA` labels, truncated warning, no overflow) and a
+  defect-ledger entry for the previously unchecked surface.
 - [x] Register `node apps/site/wallet-approvals-test.mjs` in `projects.json`,
   update the `/cabinet/wallet` site-map note and the page help text (window
   limit, no indexer, no granting in this slice).
