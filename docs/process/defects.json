@@ -687,6 +687,20 @@
       "symptom": "Linking the local vault to the monitor account could sign in silently, render or log the session token, keep a stale signed-in chip after the vault locked, or leave the token behind after Sign out. The account identity could also be read as proving ownership of Bitcoin, TRON or Solana addresses, which only the EVM signature does not do.",
       "detector": "wallet-signin-surface",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "security-advisory-checker-route-drift",
+      "reported": "2026-11-22",
+      "symptom": "An advisory could name a local checker whose route or implementation was removed, leaving a 'check locally' action that 404s or a page that no longer matches its SSOT; nothing validated the advisory schema, the checker registry or the generated page.",
+      "detector": "security-advisory-integrity",
+      "where": "scripts/check-advisories.mjs"
+    },
+    {
+      "id": "wallet-security-severity-plain",
+      "reported": "2026-11-22",
+      "symptom": "The wallet Security status row put the severity in a span with class status, but no .status CSS rule existed and the status-pill detector did not select it, so the severity rendered as plain text. The shared pill block now includes .status and a static audit check guards the renderer.",
+      "detector": "wallet-security-severity-class",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
