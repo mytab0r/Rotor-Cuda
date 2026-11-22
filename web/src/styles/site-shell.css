@@ -115,11 +115,12 @@
   line-height: normal;
   white-space: nowrap;
 }
-/* The visible link is positioned, so it no longer sets the column width. A
- * zero-height, visibility-hidden copy of the full address keeps the column at
- * the address's content width; the table then scrolls inside its wrapper
- * instead of ellipsizing the address. */
-.directory-page .data-table .address-measure {
+/* The visible link and key are positioned, so they no longer set the column
+ * width. A zero-height, visibility-hidden copy of the full value keeps each
+ * column at the content width; the table then scrolls inside its wrapper
+ * instead of ellipsizing the key or address. */
+.directory-page .data-table .address-measure,
+.directory-page .data-table .key-measure {
   display: block;
   height: 0;
   overflow: hidden;
@@ -127,7 +128,9 @@
   white-space: nowrap;
 }
 .directory-page .data-table .address-link,
-.directory-page .data-table .address-measure {
+.directory-page .data-table .address-measure,
+.directory-page .data-table .private-key,
+.directory-page .data-table .key-measure {
   font-size: var(--text-sm);
 }
 

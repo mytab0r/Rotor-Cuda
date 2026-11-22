@@ -164,7 +164,10 @@ function explorerUrl(address: string): string {
         <tbody>
           {keyRows.map((keyRow) => (
             <tr data-key={keyRow.keyHex}>
-              <td class="mono"><span class="private-key">{keyRow.keyHex}</span></td>
+              <td class="mono">
+                <span class="key-measure" aria-hidden="true">{keyRow.keyHex}</span>
+                <span class="private-key">{keyRow.keyHex}</span>
+              </td>
               {keyRow.cells.map((cell) => (
                 <td class="mono">
                   <span class="address-measure" aria-hidden="true">{cell.address}</span>
