@@ -25,7 +25,10 @@ import {
   type WasmExports,
 } from '../lib/seed-core.js';
 
-const WASM_URL = '/rotor_wasm.wasm';
+/* The shared layout stamps the build id on <html>; the post-build step emits
+ * the same file under /a/<build>/. Fall back to the bare path in dev. */
+const BUILD_ID = document.documentElement.getAttribute('data-build');
+const WASM_URL = BUILD_ID ? `/a/${BUILD_ID}/rotor_wasm.wasm` : '/rotor_wasm.wasm';
 const BALANCE_TIMEOUT_MS = 12000;
 const EVM_RPC = 'https://ethereum-rpc.publicnode.com';
 

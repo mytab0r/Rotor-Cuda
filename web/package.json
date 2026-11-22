@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/build-prefix.mjs",
     "preview": "astro preview",
     "check": "astro check && tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js",

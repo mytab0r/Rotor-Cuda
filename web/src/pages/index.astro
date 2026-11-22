@@ -1,0 +1,277 @@
+---
+/* Landing page, content-equivalent to the coordinator's `/` but rebuilt as a
+ * presentation page: one H1 for the page intent, one primary route into the
+ * wallet, and honest security wording. Dynamic coordinator surfaces (live
+ * totals, leaderboard, registration) link to the pages that own them instead
+ * of rendering fake or stale numbers in static HTML. */
+import SiteLayout from '../layouts/SiteLayout.astro';
+import ogImage from '../assets/og-landing.png';
+import chainsData from '../../../data/chains.json';
+import { REPOSITORY_URL, SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../lib/site';
+
+interface ChainRow {
+  slug: string;
+  name: string;
+  symbol: string;
+  family: string;
+  order: number;
+  testnet?: boolean;
+}
+
+const TITLE = 'Private key explorer and Bitcoin puzzle search | Crypto';
+const DESCRIPTION =
+  'Derive addresses for 18 chains from a private key, WIF, brainwallet or seed phrase in your browser. Browse keys, run puzzle search, keep a local wallet.';
+
+const chains = (chainsData as { chains: ChainRow[] }).chains
+  .filter((chain) => !chain.testnet)
+  .sort((a, b) => a.order - b.order);
+
+/* The landing card count follows the chain family's address forms: Bitcoin
+ * exposes four, Litecoin three, every account-model chain one. Testnets are
+ * excluded above, so the count matches the 18 mainnet directories. */
+function addressTypeCount(family: string): number {
+  if (family === 'btc') return 4;
+  if (family === 'ltc') return 3;
+  return 1;
+}
+
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_ORIGIN}/#website`,
+      url: `${SITE_ORIGIN}/`,
+      name: SITE_NAME,
+      description: DESCRIPTION,
+      inLanguage: 'en',
+      publisher: { '@id': `${SITE_ORIGIN}/#organization` },
+    },
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_ORIGIN}/#organization`,
+      name: SITE_NAME,
+      url: `${SITE_ORIGIN}/`,
+      inLanguage: 'en',
+      logo: { '@type': 'ImageObject', url: absoluteUrl('/favicon.png') },
+      sameAs: [REPOSITORY_URL],
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical="/"
+  image={ogImageUrl}
+  imageAlt="Crypto — private key explorer and Bitcoin puzzle search"
+  imageWidth={1200}
+  imageHeight={630}
+  mainClass="landing-page"
+  jsonLd={jsonLd}
+>
+  <section class="landing-hero" aria-labelledby="landing-title">
+    <h1 id="landing-title">Private key explorer and Bitcoin puzzle search</h1>
+    <p>
+      Look up a private key, WIF or brainwallet and derive public addresses for
+      18 chains. The calculators derive in your browser and send no key or
+      phrase; the same coordinator runs the public Bitcoin puzzle search and a
+      consent-based address watchlist.
+    </p>
+    <div class="actions">
+      <a class="btn primary" href="/cabinet/wallet">Open the wallet</a>
+      <a class="btn" href="/private-keys">Browse the directory</a>
+      <a class="btn" href="/bitcoin-puzzle">Explore the puzzle board</a>
+    </div>
+    <p class="landing-note">
+      <strong>What the browser guarantee means.</strong> The calculators keep
+      the key in the tab and do not upload it. That is a confidentiality
+      property, not protection: a compromised device, a malicious extension, or
+      a phrase you share with someone else is outside the site's control. For
+      real funds, work offline and never paste a live phrase into a site you do
+      not control.
+    </p>
+  </section>
+
+  <section class="card landing-section" aria-labelledby="landing-chains">
+    <h2 id="landing-chains">Chains</h2>
+    <p class="muted landing-lead">
+      Deterministic example keys and address formats for every supported chain.
+      Prefer one key? <a href="/key">Open the key calculator</a>.
+    </p>
+    <div class="chain-grid">
+      {chains.map((chain) => (
+        <a
+          class="chain-card"
+          href={`/private-keys/${chain.slug}`}
+          style={`--chain: var(--chain-${chain.slug})`}
+        >
+          <span class="chain-icon-wrap">
+            <svg class="chain-card-icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
+          </span>
+          <span class="chain-name">{chain.name}</span>
+          <span class="chain-meta">
+            {chain.symbol} · {addressTypeCount(chain.family)} address {addressTypeCount(chain.family) === 1 ? 'type' : 'types'}
+          </span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="card landing-section address-db" aria-labelledby="landing-databases">
+    <h2 id="landing-databases">Address databases</h2>
+    <p class="muted landing-lead">
+      Mirrors of the MIT-licensed Rich-Address-Wallet dataset for Bitcoin,
+      Ethereum, Litecoin, Dogecoin, Bitcoin Cash and Dash, served from this site.
+    </p>
+    <div class="address-db-grid">
+      <a class="address-db-card" href="/wallets">
+        <span class="address-db-name">Bitcoin</span>
+        <span class="address-db-meta">P2PKH · P2SH · Bech32 · rich addresses</span>
+      </a>
+      <a class="address-db-card" href="/wallets">
+        <span class="address-db-name">Ethereum</span>
+        <span class="address-db-meta">Rich account list</span>
+      </a>
+      <a class="address-db-card" href="/wallets">
+        <span class="address-db-name">Litecoin</span>
+        <span class="address-db-meta">Rich addresses</span>
+      </a>
+      <a class="address-db-card" href="/wallets">
+        <span class="address-db-name">Dogecoin</span>
+        <span class="address-db-meta">Rich addresses</span>
+      </a>
+      <a class="address-db-card" href="/wallets">
+        <span class="address-db-name">Bitcoin Cash</span>
+        <span class="address-db-meta">Rich addresses</span>
+      </a>
+      <a class="address-db-card" href="/wallets">
+        <span class="address-db-name">Dash</span>
+        <span class="address-db-meta">Rich addresses</span>
+      </a>
+    </div>
+    <p class="muted landing-lead">
+      <a href="/wallets">Open the wallet database</a> to download a chain or request access.
+    </p>
+  </section>
+
+  <section class="card landing-section puzzle-card" aria-labelledby="landing-puzzles">
+    <h2 id="landing-puzzles">Puzzles</h2>
+    <p>
+      A public search over the Bitcoin puzzle ranges. A client leases a disjoint
+      key range, scans it, and reports verified completions; the coordinator
+      counts accepted work and ranks every contributor.
+    </p>
+    <div class="landing-actions">
+      <a class="btn primary" href="/bitcoin-puzzle">Open the puzzle board</a>
+      <a class="btn" href="/run">Run a client</a>
+    </div>
+    <p class="muted landing-lead">The puzzle board lists every range and the pooled team mode; the client page shows live job stats.</p>
+  </section>
+
+  <section class="card landing-section" aria-labelledby="landing-tools">
+    <h2 id="landing-tools">Tools</h2>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <h3><a href="/tools">All calculators</a></h3>
+        <p>Hex, WIF, decimal, brainwallet, seed phrase and vanity tools in one index.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/milk-sad">Milk Sad</a></h3>
+        <p>What the Libbitcoin <code>bx seed</code> weak-entropy issue means and how an owner should respond.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/seed">Seed phrase</a></h3>
+        <p>Derive the first key of the standard wallet paths from a BIP39 phrase, locally. Need another scheme? <a href="/mnemonic-converter">Open the mnemonic converter</a>.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/vanity">Vanity generator</a></h3>
+        <p>Generate a key whose address starts or ends with your text, locally in the browser.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/brainwallet">Brainwallet</a></h3>
+        <p>Browse 18,890 deterministic passphrases on 18 chains, 60 per page, or open the single-passphrase generator. Educational only; never use a memorable phrase for real funds.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/security">Security advisories</a></h3>
+        <p>Published wallet vulnerabilities and threat classes with plain-language impact and actions. Documentation, not a protection service.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/faq">FAQ</a></h3>
+        <p>Safety, derivation and puzzle questions answered.</p>
+      </div>
+      <div class="tool-card">
+        <h3><a href="/donate">Donate</a></h3>
+        <p>Support the coordinator and the puzzle research.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card landing-section" aria-labelledby="landing-totals">
+    <h2 id="landing-totals">Live totals</h2>
+    <ul class="landing-facts">
+      <li><span class="landing-facts__label">Keys scanned</span><a href="/app">Global totals in the operator console</a></li>
+      <li><span class="landing-facts__label">Active clients</span><a href="/app">Global totals in the operator console</a></li>
+      <li><span class="landing-facts__label">Results and jobs</span><a href="/app">Global totals in the operator console</a></li>
+    </ul>
+    <p class="muted landing-lead">The coordinator serves these counts; this static page renders no stale copy of them.</p>
+  </section>
+
+  <section class="card" aria-labelledby="landing-leaderboard">
+    <h2 id="landing-leaderboard">Leaderboard</h2>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="rank" scope="col">#</th>
+            <th scope="col">Contributor</th>
+            <th scope="col">Scanned</th>
+            <th scope="col">Chunks</th>
+            <th scope="col">Found</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="4" class="muted">Live rankings are shown in the operator console.</td>
+            <td>
+              <a
+                class="icon-button icon-button--quiet icon-button--sm"
+                href="/app"
+                aria-label="Open the live leaderboard"
+                data-tooltip="Open the live leaderboard"
+              >
+                <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg>
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="join" aria-labelledby="landing-join">
+    <h2 id="landing-join">Join</h2>
+    <p>
+      Registration is controlled by the coordinator: when it is open, the
+      cabinet creates the client account and shows the token once, at creation.
+    </p>
+    <ul class="landing-facts">
+      <li><span class="landing-facts__label">Get a token</span><a href="/cabinet">Create or manage it in the cabinet</a></li>
+      <li><span class="landing-facts__label">Store the token</span><a href="/run">Paste it on the client page</a></li>
+      <li><span class="landing-facts__label">Run the client</span><a href="/docs">CPU and GPU commands in the docs</a></li>
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="landing-how">
+    <h2 id="landing-how">How it works</h2>
+    <ol>
+      <li>Register when open, or ask the operator for a token.</li>
+      <li>Run <code class="mono">rotor</code> with <code class="mono">--coordinator</code> and <code class="mono">--token</code>; it leases a key range.</li>
+      <li>The client scans and sends heartbeats plus a verified completion sample.</li>
+      <li>The coordinator counts accepted work and ranks every contributor.</li>
+    </ol>
+    <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
+  </section>
+</SiteLayout>

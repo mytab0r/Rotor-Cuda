@@ -1,0 +1,166 @@
+/* Shared Astro shell: the static header/footer additions the design layer in
+ * /site.css does not own yet. Every value comes from the generated token
+ * blocks in /site.css (design/tokens/tokens.json); do not introduce a second
+ * scale or a literal control size here. */
+
+/* Skip link: the first focusable element, visible only while focused. */
+.skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: var(--z-modal);
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--signal);
+  color: var(--signal-ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  transform: translateY(calc(-100% - var(--space-6)));
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: none;
+  outline: 2px solid var(--ink-1);
+  outline-offset: 2px;
+  text-decoration: none;
+}
+
+/* Every standalone action keeps the shared button grammar. On a fine desktop
+ * pointer the standard action is 36px and the primary call to action stays
+ * 44px (the shared density tier); touch keeps 44 for both. The shared `.btn`
+ * block padding would render 39-41px even with a 36px min-height, so the
+ * secondary actions drop block padding and let the tier's min-height win. */
+@media (min-width: 1024px) and (pointer: fine) {
+  .landing-page .btn:not(.primary) { padding-block: 0; }
+}
+
+/* A flex row would stretch a 36px secondary action to the 44px primary
+ * action next to it; centre each control in its own tier instead. */
+.landing-page .actions,
+.landing-actions { align-items: center; }
+
+/* An action row outside the hero: same rhythm as .puzzle-actions without
+ * borrowing the puzzle-specific class. */
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+/* Tool cards are containers: the heading carries the short link and the
+ * description stays outside the anchor, so a card never wraps a paragraph in
+ * link text. The title link follows the shared density step: 36px on a fine
+ * desktop pointer, 44px on touch. */
+.tool-card h3 a {
+  display: inline-flex;
+  align-items: center;
+  min-width: var(--control-h);
+  min-height: var(--control-h);
+  color: var(--ink-1);
+}
+.tool-card h3 a:hover { color: var(--signal); }
+
+/* Balanced last rows at desktop: six database cards make two rows of three,
+ * eight tool cards two rows of four. Narrow widths keep the shared auto-fit
+ * rhythm from /site.css. */
+@media (min-width: 1121px) {
+  .landing-page .address-db-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .landing-page .tool-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Narrow header disclosure. The menu button exists only when scripts run
+ * (theme-init.js adds .js before paint); without scripts every primary link
+ * stays in the header and the row can scroll. */
+.site-nav__menu { display: none; }
+
+.site-nav__links[hidden] { display: none; }
+
+@media (max-width: 1200px) {
+  .js .site-nav .site-nav__links { display: none; }
+  .js .site-nav__menu { display: inline-flex; }
+  .site-nav[data-nav-open="true"] .site-nav__links {
+    position: absolute;
+    top: 100%;
+    right: var(--space-4);
+    left: var(--space-4);
+    z-index: var(--z-popover);
+    display: grid;
+    gap: var(--space-1);
+    max-height: calc(100dvh - var(--space-10));
+    margin-top: var(--space-1);
+    padding: var(--space-2);
+    overflow-y: auto;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-l);
+    background: var(--surface-1);
+    box-shadow: var(--elev-3);
+  }
+  .site-nav[data-nav-open="true"] .site-nav__links a {
+    min-height: var(--control-h-lg);
+    border-radius: var(--radius-control);
+    white-space: normal;
+  }
+
+  /* No-JS fallback between the desktop and the coordinator's 860px rule. */
+  html:not(.js) .site-nav {
+    flex-wrap: wrap;
+    padding-block: var(--space-1);
+  }
+  html:not(.js) .site-nav__links {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  html:not(.js) .site-nav__links::-webkit-scrollbar { display: none; }
+}
+
+/* The landing hero's honesty note sits under the actions; it is a note, not
+ * a second lead paragraph. */
+.landing-note {
+  max-width: 78ch;
+  margin: var(--space-4) 0 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+.landing-note strong { color: var(--ink-2); font-weight: var(--weight-semibold); }
+
+/* A plain fact list for the totals/join sections: label on the left, value
+ * or link on the right, ending level at every width. */
+.landing-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.landing-facts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+.landing-facts li:last-child { border-bottom: 0; }
+.landing-facts .landing-facts__label { color: var(--ink-3); }
+.landing-facts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  font-weight: var(--weight-semibold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-link { transition: none; }
+}
