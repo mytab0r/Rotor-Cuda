@@ -38,10 +38,12 @@ only deviation from the brief and is called out in the PR.
 
 ## Provenance of copied assets
 
-`web/public/` holds byte-identical copies of the current `apps/site/` assets.
+`web/public/` holds copies of the current `apps/site/` assets. Vendored
+identity is content after EOL normalization (CRLF folded to LF), not raw bytes,
+so the same lock digest is valid on a Windows CRLF checkout and on Linux CI.
 `data/vendor.lock.json` is the machine source for every pair: it records the
-source path, target path and SHA-256 of each copied file. Do not edit a
-`web/public/` copy: edit `apps/site/` first, then run
+source path, target path and normalized SHA-256 of each copied file. Do not edit
+a `web/public/` copy: edit `apps/site/` first, then run
 `node scripts/gen-ssot.mjs --vendor-lock`. It regenerates the chain/provider
 outputs, copies every locked pair into `web/public/` and rewrites the digests in
 one step. `node scripts/check-ssot.mjs` fails when a copy drifts, when a locked

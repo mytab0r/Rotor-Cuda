@@ -39,11 +39,10 @@
 //
 // Zero dependencies; Windows-safe. Exit: 0 = clean, 1 = violations.
 
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { REPO_ROOT, run } from "./gen-ssot.mjs";
+import { REPO_ROOT, run, sha256Vendored } from "./gen-ssot.mjs";
 import { validateAuditCoverage, validateDefectCoverage, validateRegistry } from "./lib/detectors.mjs";
 import { checkDetectorDocs } from "./gen-detector-docs.mjs";
 import { findGeneratedRegions } from "./generated-regions.mjs";
@@ -403,10 +402,6 @@ export function validateAmountFormatters(root, files, allow, wholeFile) {
   return { errors, checked };
 }
 
-function sha256File(full) {
-  return createHash("sha256").update(fs.readFileSync(full)).digest("hex");
-}
-
 function walkFiles(root, relative) {
   const files = [];
   const visit = (dirRelative) => {
@@ -485,8 +480,8 @@ export function validateVendorLock(root = REPO_ROOT) {
       errors.push(`vendor-lock-digest: ${where}.sha256 must be 64 lowercase hex characters`);
       continue;
     }
-    const sourceDigest = sha256File(path.join(root, entry.source));
-    const targetDigest = sha256File(path.join(root, entry.target));
+    const sourceDigest = sha256Vendored(path.join(root, entry.source));
+    const targetDigest = sha256Vendored(path.join(root, entry.target));
     if (entry.sha256 !== sourceDigest) {
       errors.push(
         `vendor-lock-digest: ${where}.sha256 does not match ${entry.source}: ` +

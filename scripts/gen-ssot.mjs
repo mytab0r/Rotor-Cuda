@@ -16,7 +16,8 @@
 //
 // `--vendor-lock` regenerates the outputs, then copies every pair in
 // data/vendor.lock.json from apps/site to web/public and rewrites the SHA-256
-// digests. Run it after every merge (or any apps/site edit) so the lock cannot
+// digests. Digests are over LF-normalized content, so CRLF and LF checkouts
+// agree. Run it after every merge (or any apps/site edit) so the lock cannot
 // stay stale; `scripts/check-ssot.mjs` still verifies the result.
 //
 // Node built-ins only; no dependencies, Windows-safe.
@@ -591,8 +592,24 @@ function writeIfChanged(root, relative, content) {
   return true;
 }
 
-function sha256File(full) {
-  return createHash("sha256").update(fs.readFileSync(full)).digest("hex");
+// Vendored identity is content after EOL normalization, not raw bytes: a
+// Windows checkout writes CRLF while Linux CI sees the same committed LF blob.
+// Normalize at the byte level so binary files (the wasm copy) are not decoded
+// as UTF-8; only CR in a CRLF pair is dropped.
+export function normalizeEolBytes(buffer) {
+  const out = Buffer.allocUnsafe(buffer.length);
+  let length = 0;
+  for (let index = 0; index < buffer.length; index += 1) {
+    const value = buffer[index];
+    if (value === 0x0d && buffer[index + 1] === 0x0a) continue;
+    out[length] = value;
+    length += 1;
+  }
+  return out.subarray(0, length);
+}
+
+export function sha256Vendored(full) {
+  return createHash("sha256").update(normalizeEolBytes(fs.readFileSync(full))).digest("hex");
 }
 
 // A merge that touches apps/site changes every copy in web/public and makes
@@ -622,7 +639,7 @@ export function regenerateVendorLock(root = REPO_ROOT) {
     if (!fs.existsSync(source)) fail(`${where}.source does not exist: ${entry.source}`);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(source, target);
-    const digest = sha256File(source);
+    const digest = sha256Vendored(source);
     if (entry.sha256 !== digest) {
       entry.sha256 = digest;
       updated.push(entry.target);

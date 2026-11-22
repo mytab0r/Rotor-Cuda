@@ -66,14 +66,16 @@ explorer URL or chain identity into a page script.
   detector `lossy-amount-formatter`. Reviewed exceptions (fee-cap constants, a
   chain-selector variable, fiat scaling) live in `data/ssot-allow.json` with
   `reason`, `owner` and `expires`.
-- `web/public/**` holds byte copies of `apps/site/**` for the Astro pilot.
-  `data/vendor.lock.json` records `{source, target, sha256}` for every pair and
-  the intentional `nonCopies` with a reason. After editing an `apps/site` source
-  or merging main, run `node scripts/gen-ssot.mjs --vendor-lock`: it regenerates
-  the chain/provider outputs, copies every locked pair and rewrites the digests.
+- `web/public/**` holds copies of `apps/site/**` for the Astro pilot.
+  Vendored identity is content after EOL normalization (CRLF folded to LF), so
+  a Windows checkout and Linux CI agree on one digest. `data/vendor.lock.json`
+  records `{source, target, sha256}` for every pair and the intentional
+  `nonCopies` with a reason. After editing an `apps/site` source or merging
+  main, run `node scripts/gen-ssot.mjs --vendor-lock`: it regenerates the
+  chain/provider outputs, copies every locked pair and rewrites the digests.
   `scripts/check-ssot.mjs` fails with detector `vendor-lock-digest` on a drifted
   copy, a stale digest or an unlocked file; fix it by running the command, never
-  by relaxing the check.
+  by relaxing the check or special-casing one file.
 - `data/detectors.json` is the one detector registry (`id`, `rule`, `batch`,
   `implemented_in`, `doc_anchor`, `status`). Its tables in
   `.claude/skills/ui-self-review/SKILL.md`, `DESIGN-SYSTEM.md` §8 and

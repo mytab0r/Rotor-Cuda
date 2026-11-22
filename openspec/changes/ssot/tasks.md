@@ -141,6 +141,11 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
       `docs/process/self-checking.md`, `AGENTS.md` and `web/README.md` that it
       runs after every merge, like the token and generated checks, so a stale
       lock is refreshed instead of the gate weakened.
+- [x] Define vendored identity as content after EOL normalization (CRLF folded
+      to LF) in both the generator and the checker, for every entry, so a
+      Windows CRLF checkout and Linux CI compute one digest. Cover it with
+      `scripts/vendor-lock.test.mjs` (LF and CRLF fixtures, stale-digest heal)
+      and state the rule in the lock description and the docs.
 - [x] Regenerate the stale hashes in `web/README.md` and replace the duplicate
       table with the lock reference; the web-area contract in `projects.json`
       names the lock as the machine source.
