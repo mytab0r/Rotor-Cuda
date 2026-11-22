@@ -212,14 +212,21 @@ Scope decision (2026-11-20): rename **user-visible brand text only**.
       search/page-header/gap micro-compaction). Evidence: PR #218; measured
       again in `docs/donor-parity/density-bitcoin.md` (after: chrome 746,
       rows 56-61 at 1440x900).
-- [x] Bitcoin listing row: one visible address line, the second
-      (uncompressed) address and its balance line kept in the DOM behind a
-      44px `aria-expanded` disclosure; expanding grows only that row. Evidence:
-      `apps/site/browse.js` (`addressCellModel`, `addr-extra-toggle`,
-      `balance-extra`), `apps/site/site.css`, `apps/site/search-test.mjs`
-      (both entries survive the split), `tests/coordinator_api.rs`, and the
-      ui-audit `browse-row-address-disclosure` / `browse-row-balance-split`
-      checks at 1440/1280/375.
+- [x] Bitcoin listing row (reworked 2026-11-22): both address forms of a
+      legacy key are visible immediately — two `.addr-line`s with `(c)`/`(u)`
+      labels, explorer links and 44px copy actions; no disclosure. The row
+      keeps 60 keys per page because the donor shows 60 key rows x 2 addresses
+      = 120 addresses per page (verified against the resolved donor DOM), so
+      the page total stays 120 instead of halving it. The balance cell renders
+      one line per address: balance plus separate `.badge` TX and received
+      pills with accessible names; the zero received amount and relative-age
+      label are gone. Evidence: `apps/site/browse.js` (`addressEntriesFor`,
+      `fillAddressCell`, `balanceLine`), `apps/site/site.css`,
+      `apps/site/search-test.mjs`, `tests/coordinator_api.rs`, static guard
+      `browse-row-address-count` in `scripts/check-token-usage.mjs`, rendered
+      checks `browse-row-address-count` / `browse-row-balance-lines` in
+      `scripts/ui-audit.mjs`, and `docs/donor-parity/density-bitcoin-row.md`.
+      Replaces the earlier one-line + disclosure model.
 - [x] Issue #220: the row key copy is a real 44px `.icon-button` with
       `aria-label`, `data-tooltip` and the copied state; the donor key cell has
       the same action (28px, revealed on row hover). Detector:
