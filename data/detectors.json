@@ -913,6 +913,14 @@
       "implemented_in": "src/coordinator/mod.rs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
       "status": "implemented"
+    },
+    {
+      "id": "puzzle-detail-tool-links",
+      "rule": "The puzzle detail action row lists the donor's three solver tools (BitCrack, Keyhunt, VanitySearch) on unsolved puzzles only.",
+      "batch": "phase 4",
+      "implemented_in": "src/coordinator/mod.rs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
     }
   ]
 }
