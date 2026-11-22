@@ -195,13 +195,16 @@ implemented and "reviewed", the review did not happen. The reviewer receives
 the diff, the spec/acceptance criteria and the evidence bundle — not the
 author's justification.
 
-### 5.2 Evidence bundle (required, attached to the PR/change)
+### 5.2 Evidence bundle (required, linked from the PR/change)
 
 1. **Machine report**: `node scripts/ui-audit.mjs --serve --json .claude/ui-audit/<change>.json`
    for every affected route, including routes outside `DEFAULT_ROUTES`.
 2. **Screenshots**: every audited route × `375`, `768`, `1280` × `dark`, `light`.
-   The audit writes them under its printed `screenshotsDir`; copy the relevant
-   ones into the PR or the OpenSpec change folder, plus a before/after pair.
+   The audit writes them under its printed `screenshotsDir`, and the `ui.yml`
+   run uploads them as the `ui-audit-report-<run id>` artifact. Link that
+   artifact from the PR; never commit the images (no `docs/**/screenshots/`,
+   no images under `docs/**/evidence/`). Add a before/after pair from the same
+   PR when the change is visual.
 3. **Computed geometry**, not prose. For each affected control, card and row:
    `getBoundingClientRect()` (x, y, width, height, right, bottom),
    `scrollWidth` vs `clientWidth`, `scrollHeight` vs `clientHeight`, and the
@@ -243,9 +246,9 @@ author's justification.
 ### 5.4 Where it hooks into existing gates
 
 - **`scripts/ui-audit.mjs`** stays the deterministic gate. Exit 0 is necessary,
-  never sufficient. The reviewer must attach the JSON + screenshots and the
-  geometry table.
-- **OpenSpec** (`openspec/changes/<id>/`): add the evidence bundle path to the
+  never sufficient. The reviewer must open the `ui-audit-report-<run id>`
+  CI artifact (JSON + screenshots) and the geometry table.
+- **OpenSpec** (`openspec/changes/<id>/`): add the evidence artifact link to the
   relevant `tasks.md` acceptance line. `tester` Gate #2 cannot PASS without it.
   `critic` Review-gate is a separate, read-only step after `tester`.
 - **`critic`** reviews the implementation against `proposal.md`, `design.md`
@@ -253,15 +256,17 @@ author's justification.
 - **`librarian`** archives the change only after: `ui-audit` green, `tester`
   PASS, `critic` approve, `spec-export` rerun. `node scripts/check-projects.mjs`
   must pass after archive.
-- **PR**: the description carries the reviewer's name, the evidence paths and
-  the checklist. A PR whose author and reviewer are the same agent is rejected.
+- **PR**: the description carries the reviewer's name, the evidence artifact
+  link and the checklist. A PR whose author and reviewer are the same agent is
+  rejected.
 
 ### 5.5 Definition of done
 
 A UI change is done when **all** of these are true:
 
 1. `ui-audit` exits 0 on the affected routes (including non-default routes).
-2. The evidence bundle exists and the reviewer signed off; reviewer ≠ author.
+2. The evidence bundle is linked from the PR and the reviewer signed off;
+   reviewer ≠ author.
 3. The geometry table shows no clipped control and no ragged column at
    375/768/1280, light and dark.
 4. `tester` reports PASS with real command output; `critic` approves.

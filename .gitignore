@@ -5,6 +5,16 @@
 /Rotor-Cuda_START.bat
 /Rotor-Cuda_Continue.bat
 
+# UI evidence lives in CI artifacts, never in the repo: the `ui-audit` workflow
+# uploads it and the PR links the artifact. scripts/check-screenshots.mjs
+# rejects tracked images under docs/.
+docs/**/screenshots/
+docs/**/evidence/**/*.png
+docs/**/evidence/**/*.jpg
+docs/**/evidence/**/*.jpeg
+docs/**/evidence/**/*.webp
+docs/**/evidence/**/*.gif
+
 # Local agent tooling (Impeccable skills, hooks, worktrees, scratch).
 # Shared project skills are tracked; everything else stays local.
 /.claude/*
