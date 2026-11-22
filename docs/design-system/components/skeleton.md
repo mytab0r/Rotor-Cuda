@@ -1,7 +1,7 @@
 # Skeleton
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/skeleton.json` · Gallery: `/design` (family
+Source of truth: `design/components/skeleton.json` · Gallery: `/cabinet/admin/design` (family
 `skeleton`).
 
 ## Purpose
@@ -29,7 +29,7 @@ is decorative.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default block | gradient `--surface-2` → `--surface-3`, 200% background, 1.2s shimmer | yes |
 | Cell placeholder | `.cell-skeleton` text at 12.5px | yes |

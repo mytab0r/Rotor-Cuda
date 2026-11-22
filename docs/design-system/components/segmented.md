@@ -1,7 +1,7 @@
 # Segmented control
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/segmented.json` · Gallery: `/design`
+Source of truth: `design/components/segmented.json` · Gallery: `/cabinet/admin/design`
 (family `segmented`).
 
 ## Purpose
@@ -28,7 +28,7 @@ owns the group role and the name; each item is a native button. The optional
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | transparent item on `--surface-0` track | yes |
 | Hover | `--surface-2` background, `--ink-1` text | live |
