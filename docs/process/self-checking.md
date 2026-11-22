@@ -24,8 +24,9 @@ pass. The missing capability is not detection machinery — it is **gating**,
 | pixelmatch | Zero-dependency pixel diff, anti-alias aware, OKLab/`windowSize` noise suppression [7]. | **Use now.** It consumes the PNGs `ui-audit` already writes. |
 
 **Decision:** add `pngjs` + `pixelmatch` as the only two devDependencies and
-compare inside `ui-audit.mjs`. Baselines live in `test/visual-baseline/` keyed
-`route-width-theme.png`; `--update-baselines` rewrites them; a normal run fails
+compare inside `ui-audit.mjs`. Baselines stay outside git (a release artifact or
+an object store), keyed `route-width-theme.png`;
+`--update-baselines` rewrites them; a normal run fails
 above 0.1% of pixels or a 16×16 window of ~28. Write `*-diff.png` and a small
 `report.html`, upload both as artifacts. Generate baselines **only on ubuntu** —
 Windows font rendering will make every run red.
@@ -107,8 +108,10 @@ hooks, licence and last commit.
    `scripts/ui-audit.allow.json` (external origins, known `501`), dedupe by
    URL+status. This turns "hundreds of red requests" into one failing line.
 3. **Screenshot baselines (M).** `pngjs`+`pixelmatch`; 6 routes × 3 widths,
-   dark first (18 baselines); gate at 0.1% / 16×16. Update through a manual
-   `workflow_dispatch` job that commits the PNGs, so changes are reviewable.
+   dark first (18 baselines); gate at 0.1% / 16×16. A manual `workflow_dispatch`
+   job publishes the regenerated PNGs as an artifact for review instead of
+   committing them; a persistent baseline store outside git is a prerequisite
+   for turning this into a gate.
 4. **Detectors for the owner's exact defects (S each).** Add to `auditPage`:
    `raw-url-label` (link text matches `^https?://`), `duplicate-control` (two
    visible controls with the same accessible name/href in one section),
@@ -182,6 +185,22 @@ Every UI defect gets three things in the **same PR**:
 
 The ledger is the agents' memory; the checker makes forgetting it a red build
 instead of a review comment.
+
+## 7. No screenshots or test evidence in the repo
+
+Screenshots and test evidence are **CI artifacts, never committed files**. The
+`ui.yml` workflow runs `scripts/ui-audit.mjs --serve` on every pull request and
+uploads the screenshots plus the JSON report on every run (not only on failure)
+as `ui-audit-report-<run id>`, retained for 14 days. The PR description links
+that artifact; a reviewer opens it from the check page. Do not commit
+`docs/**/screenshots/` or images under `docs/**/evidence/`; both are ignored by
+`.gitignore` and `scripts/check-screenshots.mjs` (detector
+`screenshots-in-repo`) fails when a tracked file under `docs/` has a
+png/jpg/jpeg/webp/gif extension. Run it before opening a PR:
+
+```sh
+node scripts/check-screenshots.mjs
+```
 
 ## Sources
 

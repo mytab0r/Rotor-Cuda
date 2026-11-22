@@ -236,6 +236,7 @@
         "node --check scripts/check-task-links.mjs",
         "node --check scripts/lib/task-tracking.mjs",
         "node --check scripts/density-parity.mjs",
+        "node --check scripts/check-screenshots.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/worker.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/upstreams.mjs",
         "node scripts/check-projects.mjs"
@@ -247,7 +248,8 @@
         "node scripts/density-parity.mjs --help",
         "node --test scripts/task-tracking.test.mjs",
         "node --test scripts/check-task-links.test.mjs",
-        "node scripts/check-projects.mjs"
+        "node scripts/check-projects.mjs",
+        "node scripts/check-screenshots.mjs"
       ],
       "consumes": [],
       "contracts": [
