@@ -573,6 +573,15 @@
     return { kind: 'other', limit: null };
   }
 
+  /* Retry one read after a transient connection failure. Writes (the signed
+   * broadcast) never go through this helper. */
+  function retryNetwork(worker) {
+    return Promise.resolve().then(worker).catch(function (err) {
+      if (classifyLogRangeError(errorText(err)).kind !== 'network') throw err;
+      return Promise.resolve().then(worker);
+    });
+  }
+
   function abiBody(hex, what) {
     if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]*$/.test(hex)) {
       throw new Error('The token ' + what + ' call returned non-hex data.');
@@ -1287,9 +1296,12 @@
     }
     var providerUrl = await chooseProvider(settings.fetchJson, providers, network.chainId,
       settings.networkName || network.name);
-    var header = await readTokenHeader(settings.fetchJson, providerUrl, network, contract);
-    var latestHex = await read(settings.fetchJson, providerUrl, 'eth_blockNumber', [],
-      'the latest block');
+    var header = await retryNetwork(function () {
+      return readTokenHeader(settings.fetchJson, providerUrl, network, contract);
+    });
+    var latestHex = await retryNetwork(function () {
+      return read(settings.fetchJson, providerUrl, 'eth_blockNumber', [], 'the latest block');
+    });
     var latest = quantity(latestHex, 'latest block');
     if (latest > U64_MAX) throw new Error('The latest block number is out of range.');
     var requestedFrom = latest >= BigInt(windowBlocks) - 1n
@@ -1306,12 +1318,25 @@
         ' spenders found in the scanned window.');
     }
     var spenders = await mapLimit(selected, LOG_READ_CONCURRENCY, async function (entry) {
-      var allowance = await readAllowance(settings.fetchJson, providerUrl, contract, owner,
-        entry.spender);
+      /* A transient reset on one spender must not throw away the whole list:
+       * retry once, then mark that row's live value unknown. The revoke
+       * prepare re-reads the allowance before it builds a review, so an
+       * unknown row cannot sign a stale value. */
+      var allowance = null;
+      try {
+        allowance = await retryNetwork(function () {
+          return readAllowance(settings.fetchJson, providerUrl, contract, owner, entry.spender);
+        });
+      } catch (err) {
+        warnings.push('Could not read the current allowance of ' + entry.spender + ': ' +
+          errorText(err));
+      }
       var isContract = null;
       try {
-        var code = await read(settings.fetchJson, providerUrl, 'eth_getCode',
-          [entry.spender, 'latest'], 'the spender code');
+        var code = await retryNetwork(function () {
+          return read(settings.fetchJson, providerUrl, 'eth_getCode',
+            [entry.spender, 'latest'], 'the spender code');
+        });
         if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) {
           throw new Error('eth_getCode returned a non-hex value.');
         }
@@ -1473,11 +1498,15 @@
         if (isRevoke) {
           /* Re-read the header and the current allowance at review time: a
            * stale row or an already-zero allowance must not produce a pointless
-           * transaction. */
-          return readTokenHeader(settings.fetchJson, chosen, network, values.token)
+           * transaction. A transient connection reset is retried once. */
+          return retryNetwork(function () {
+            return readTokenHeader(settings.fetchJson, chosen, network, values.token);
+          })
             .then(function (meta) {
               tokenMeta = meta;
-              return readAllowance(settings.fetchJson, chosen, values.token, from, spender);
+              return retryNetwork(function () {
+                return readAllowance(settings.fetchJson, chosen, values.token, from, spender);
+              });
             })
             .then(function (allowance) {
               currentAllowanceWei = allowance;

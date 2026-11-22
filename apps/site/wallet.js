@@ -2086,6 +2086,7 @@
   }
 
   function allowanceText(spender, scan) {
+    if (spender.allowance === null) return 'Unknown (read failed)';
     var text = evmSend.formatAllowance(spender.allowance, scan.decimals);
     return text === 'Unlimited' ? text : text + ' ' + scan.symbol;
   }
@@ -2178,7 +2179,9 @@
         revoke.disabled = true;
         revoke.setAttribute('data-tooltip', 'Allowance is already zero');
       } else {
-        revoke.setAttribute('data-tooltip', 'Revoke this approval (approve 0)');
+        revoke.setAttribute('data-tooltip', spender.allowance === null
+          ? 'Current allowance unknown; the revoke re-reads it'
+          : 'Revoke this approval (approve 0)');
         revoke.addEventListener('click', function () {
           startApprovalsRevoke(spender.address);
         });
