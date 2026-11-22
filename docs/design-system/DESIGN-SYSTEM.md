@@ -419,14 +419,19 @@ Component pages: [button](components/button.md),
   tokens.
 - Actions: one icon-button grammar at the trailing edge (44×44, radius
   `--radius-control`, labelled).
-- Listing rows (`.key-row`) show one 44px address line. A further address form
-  stays in the DOM in `.addr-extra` behind the 44px `.addr-extra-toggle`
-  (`aria-expanded` + `aria-controls`, chevron flips), and its balance line moves
-  to `.balance-extra`; expanding grows only that row. The key-cell copy is a
-  real 44px `.icon-button` with `aria-label`/`data-tooltip`, never a
-  `display:none` button. Enforced by `browse-row-address-disclosure`,
-  `browse-row-balance-split`, `browse-row-key-copy` and `browse-row-height`
-  (75px desktop ceiling).
+- Listing rows (`.key-row`) show every address form of a key immediately: a
+  legacy Bitcoin key is two 44px `.addr-line`s (`(c)`/`(u)`), each with its
+  explorer link (title carries the full address) and 44px copy action; there is
+  no disclosure or hidden line. The balance cell has one `.balance-info` per
+  address: the balance plus separate `.badge` TX and received pills with
+  accessible names; a zero received amount and relative-age labels are not
+  rendered. The key-cell copy is a real 44px `.icon-button` with
+  `aria-label`/`data-tooltip`, never a `display:none` button. The page declares
+  its total (`data-addresses-per-page`: 120 for legacy BTC, 60 for a
+  single-address chain) and the visible counter must match it. Enforced by
+  `browse-row-address-count`, `browse-row-balance-lines`,
+  `browse-row-key-copy` and `browse-row-height` (stable row height, <=120px
+  desktop).
 - Mobile: tables keep the horizontal scroll wrapper and all columns; they do
   not turn into cards. Directory/seed row lists may stack, but keep their
   labels. Enforced by `scripts/ui-audit.mjs` `table-grammar`,
@@ -652,7 +657,7 @@ adds `icon-button-scale` (box 28/36/44, icon 14/16/18, `aria-label` plus
 `stat-geometry`;
 batch 5 adds `table-grammar`, `table-header-style`, `table-row-height` and
 `row-action-geometry`; phase 4 adds the browse listing guards
-`browse-row-address-disclosure`, `browse-row-balance-split`,
+`browse-row-address-count`, `browse-row-balance-lines`,
 `browse-row-key-copy`, `browse-row-height` and `browse-stat-level`; batch 7
 adds `legacy-token` (one `:root` token block,
 light theme overrides only through `html[data-theme]`). Phase 2 adds the static

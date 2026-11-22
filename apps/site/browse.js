@@ -52,14 +52,6 @@
     return entries;
   }
 
-  /* A listing row shows one address line; any further form (the uncompressed
-   * P2PKH address) stays in the DOM behind the row disclosure, so the second
-   * address is still reachable and auditable without doubling every row. */
-  function addressCellModel(entries) {
-    var list = Array.isArray(entries) ? entries : [];
-    return { primary: list.length ? list[0] : null, extra: list.slice(1) };
-  }
-
   function metricFlags(value) {
     return {
       hasTx: Number(value && value.tx) > 0,
@@ -83,14 +75,13 @@
       return null;
     }
     if (value <= 0n || last < 1n) return null;
-    var page = (value - 1n) / 60n + 1n;
+    var page = (value - 1n) / PAGE_SIZE + 1n;
     return page > last ? last : page;
   }
 
   if (typeof window !== 'undefined') {
     window.RotorBrowse = {
       addressEntriesFor: addressEntriesFor,
-      addressCellModel: addressCellModel,
       metricFlags: metricFlags,
       pageForHexKey: pageForHexKey
     };
@@ -270,15 +261,19 @@
     link.textContent = entry.address;
     link.title = entry.address;
     line.appendChild(link);
-    line.appendChild(copyButton(entry.address, 'Copy address'));
+    var kind = entry.prefix === 'c' ? 'compressed ' : entry.prefix === 'u' ? 'uncompressed ' : '';
+    line.appendChild(copyButton(entry.address, 'Copy ' + kind + 'address'));
     return line;
   }
 
+  /* The donor shows every address form of a key at once: the compressed and
+   * uncompressed P2PKH addresses sit on their own `.addr-line`, each with its
+   * `(c)`/`(u)` label, explorer link and copy action. There is no disclosure:
+   * a legacy BTC row is two address lines, a single-address row is one. */
   function fillAddressCell(row, entries) {
     var cell = row.querySelector('.col-address');
     if (!cell) return;
     cell.textContent = '';
-    row.classList.remove('addr-expanded');
     if (!entries.length) {
       var empty = document.createElement('span');
       empty.className = 'cell-skeleton';
@@ -286,37 +281,9 @@
       cell.appendChild(empty);
       return;
     }
-    var model = addressCellModel(entries);
-    var primary = addressLine(model.primary);
-    cell.appendChild(primary);
-    if (!model.extra.length) return;
-
-    var id = 'addr-extra-' + row.getAttribute('data-key');
-    var toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'icon-button icon-button--quiet icon-button--lg addr-extra-toggle';
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-controls', id);
-    toggle.setAttribute('aria-label', 'Show uncompressed address');
-    toggle.setAttribute('data-tooltip', 'Show uncompressed address');
-    toggle.appendChild(iconUse('ui-chevron'));
-    primary.appendChild(toggle);
-
-    var extra = document.createElement('div');
-    extra.className = 'addr-extra';
-    extra.id = id;
-    model.extra.forEach(function (entry) {
-      extra.appendChild(addressLine(entry));
+    entries.forEach(function (entry) {
+      cell.appendChild(addressLine(entry));
     });
-    toggle.addEventListener('click', function () {
-      var expanded = toggle.getAttribute('aria-expanded') === 'true';
-      var label = expanded ? 'Show uncompressed address' : 'Hide uncompressed address';
-      toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-      toggle.setAttribute('aria-label', label);
-      toggle.setAttribute('data-tooltip', label);
-      row.classList.toggle('addr-expanded', !expanded);
-    });
-    cell.appendChild(extra);
   }
 
   function addressMap(report) {
@@ -326,6 +293,20 @@
       if (entry && entry.id) map[entry.id] = entry.address || '';
     });
     return map;
+  }
+
+  /* The page model is fixed: 60 keys per page. A legacy BTC key shows two
+   * addresses, so the page carries 120 address lines instead of 60. Keep the
+   * visible counter and the `data-addresses-per-page` contract in sync with
+   * what is actually rendered. */
+  function updateAddressCount() {
+    var total = 0;
+    rows.forEach(function (row) {
+      total += (state.addressSets[row.getAttribute('data-key')] || []).length;
+    });
+    var label = document.getElementById('page-address-count');
+    if (label) label.textContent = total + (total === 1 ? ' address' : ' addresses');
+    if (root) root.setAttribute('data-addresses-per-page', String(total));
   }
 
   function renderAddresses(type) {
@@ -339,6 +320,7 @@
       state.addressSets[hex] = entries;
       fillAddressCell(row, entries);
     });
+    updateAddressCount();
   }
 
   function attachRowEvents() {
@@ -390,12 +372,6 @@
   }
 
   /* -------------------------------------------------------------- balances */
-
-  function timeAgo(ms) {
-    return cacheApi && typeof cacheApi.relativeTime === 'function'
-      ? cacheApi.relativeTime(ms, Date.now())
-      : '';
-  }
 
   function setSummary(balance, received, tx, active) {
     if (totalBalance) totalBalance.textContent = balance;
@@ -494,9 +470,12 @@
     return balanceProviders.fetchProvider(meta, addresses);
   }
 
-  /* One `.balance-info` line per address, each with the balance, TX count and
-   * received amount, matching the donor's packed balance cell. */
-  function balanceLine(group, entry, cached, errors, meta, now) {
+  /* One `.balance-info` line per visible address, matching the donor's packed
+   * balance cell: the balance leads, the transaction count and the received
+   * amount are separate `.badge` pills with accessible names. The donor prints
+   * the received badge only when the amount is non-zero; a zero received
+   * figure plus a cache-age label was our own noise and is gone. */
+  function balanceLine(group, entry, cached, errors, meta) {
     var line = document.createElement('div');
     line.className = 'balance-info';
     if (errors && errors[entry.address]) {
@@ -511,35 +490,26 @@
       return { line: line, ok: false, failed: false };
     }
     var value = picked.value || {};
+    var flags = metricFlags(value);
     var balance = document.createElement('span');
-    balance.className = 'bal';
+    balance.className = 'bal' + (Number(value.balance) > 0 ? ' has-balance' : '');
     balance.textContent = AMOUNT.coin(value.balance, meta.decimals) + ' ' + meta.symbol;
     line.appendChild(balance);
     if (value.tx !== undefined && value.tx !== null) {
-      var flags = metricFlags(value);
       var tx = document.createElement('span');
-      tx.className = 'tx' + (flags.hasTx ? ' has-tx' : '');
+      tx.className = 'badge tx' + (flags.hasTx ? ' has-tx' : '');
+      tx.setAttribute('aria-label', value.tx + ' ' + (value.tx === 1 ? 'transaction' : 'transactions'));
       tx.textContent = value.tx + ' tx';
       line.appendChild(tx);
     }
-    if (value.received !== undefined && value.received !== null) {
+    if (flags.hasRecv) {
+      var received = AMOUNT.coin(value.received, meta.decimals) + ' ' + meta.symbol;
       var recv = document.createElement('span');
-      var recvFlags = metricFlags(value);
-      recv.className = 'recv' + (recvFlags.hasRecv ? ' has-recv' : '');
-      recv.textContent = '↓ ' + AMOUNT.coin(value.received, meta.decimals) + ' ' + meta.symbol;
+      recv.className = 'badge recv has-recv';
+      recv.setAttribute('aria-label', 'Received ' + received);
+      recv.textContent = '↓ ' + received;
       line.appendChild(recv);
     }
-    var lastAgo = value.lastTxAt !== undefined && value.lastTxAt !== null ? timeAgo(value.lastTxAt) : '';
-    if (lastAgo) {
-      var last = document.createElement('span');
-      last.className = 'age';
-      last.textContent = 'last ' + lastAgo;
-      line.appendChild(last);
-    }
-    var age = document.createElement('span');
-    age.className = 'balance-age';
-    age.textContent = cacheApi ? cacheApi.ageLabel(picked, now) : '';
-    if (age.textContent) line.appendChild(age);
     line.title = value.balance + ' ' + meta.symbol;
     return { line: line, ok: true, failed: false, positive: Number(value.balance) > 0 };
   }
@@ -552,25 +522,15 @@
     var positive = false;
     var failed = false;
     var fresh = true;
-    var extra = null;
-    group.entries.forEach(function (entry, index) {
-      var result = balanceLine(group, entry, cached, errors, meta, now);
+    group.entries.forEach(function (entry) {
+      var result = balanceLine(group, entry, cached, errors, meta);
+      cell.appendChild(result.line);
       if (result.ok) ok = true;
       if (result.positive) positive = true;
       if (result.failed) failed = true;
       var picked = cached[entry.key];
       if (!cacheApi || !cacheApi.isFresh(picked, meta.provider, now)) fresh = false;
-      if (index === 0) {
-        cell.appendChild(result.line);
-      } else {
-        if (!extra) {
-          extra = document.createElement('div');
-          extra.className = 'balance-extra';
-        }
-        extra.appendChild(result.line);
-      }
     });
-    if (extra) cell.appendChild(extra);
     cell.classList.toggle('has-balance', positive);
     cell.title = '';
     group.row.dataset.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';

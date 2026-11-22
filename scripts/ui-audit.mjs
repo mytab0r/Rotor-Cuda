@@ -1503,59 +1503,115 @@ function auditPage(args) {
     add("address-type-width-spread", `address-type cards differ by more than 15% inside a row`, spreadIssues);
   }
 
-  // 6a. Browse listing row model. The donor row is three cells at ~65px; a
-  //     BTC legacy key has a second address form. The row shows one 44px
-  //     address line and keeps the second in a disclosed block (still in the
-  //     DOM), so the row does not double and no information disappears. The
-  //     key cell carries a real 44px copy action (the donor has one); a
-  //     display:none button was the #220 defect.
+  // 6a. Browse listing row model. The donor shows 60 key rows and, for a
+  //     legacy Bitcoin key, both the compressed and uncompressed address
+  //     immediately: 120 address lines per page, no disclosure. The balance
+  //     cell carries one line per address, with the balance plus separate TX
+  //     and received pills that have accessible names; a zero received amount
+  //     and relative-age labels are noise the donor does not render. The page
+  //     total is a contract (`data-addresses-per-page`) and must equal the
+  //     number of visible address lines and the visible counter.
   if (route === "/private-keys/bitcoin") {
+    const browseRoot = document.querySelector(".browse-page");
     const browseRows = [...document.querySelectorAll("#keys-container .key-row")];
     const addressIssues = [];
-    const balanceSplitIssues = [];
+    const balanceIssues = [];
     const copyIssues = [];
-    const tallRows = [];
+    const heightIssues = [];
     const heights = [];
+    let renderedAddresses = 0;
+    const declaredPerKey = Number(browseRoot?.getAttribute("data-addresses-per-key") || 0);
+    const declaredTotal = Number(browseRoot?.getAttribute("data-addresses-per-page") || 0);
+    // This route is the legacy Bitcoin listing: the donor contract is 60 keys,
+    // two addresses per key, 120 addresses per page. Reading the attribute is
+    // not enough on its own, or a regression that lowers it would pass.
+    if (browseRows.length !== 60) {
+      addressIssues.push(`page renders ${browseRows.length} keys, expected 60`);
+    }
+    if (declaredPerKey !== 2) {
+      addressIssues.push(`legacy Bitcoin page declares ${declaredPerKey} addresses per key, expected 2`);
+    }
+    if (declaredTotal !== 120) {
+      addressIssues.push(`legacy Bitcoin page declares ${declaredTotal} addresses per page, expected 120`);
+    }
     for (const row of browseRows) {
       const key = row.getAttribute("data-key") || "(no key)";
+      const short = key.slice(0, 8);
       const cell = row.querySelector(".col-address");
-      const primary = cell ? cell.querySelector(":scope > .addr-line") : null;
-      const extra = cell ? cell.querySelector(":scope > .addr-extra") : null;
-      const toggle = row.querySelector(".addr-extra-toggle");
-      const links = cell ? [...cell.querySelectorAll("a.address-link")] : [];
-      if (!primary || !visible(primary)) {
-        addressIssues.push(`${key.slice(0, 8)}: no visible address line`);
+      const lines = cell ? [...cell.querySelectorAll(":scope > .addr-line")] : [];
+      renderedAddresses += lines.filter(visible).length;
+      if (lines.length !== declaredPerKey) {
+        addressIssues.push(`${short}: ${lines.length} address line(s), expected ${declaredPerKey}`);
       }
-      if (links.length < 2) {
-        addressIssues.push(`${key.slice(0, 8)}: ${links.length} address link(s), expected 2`);
+      const labels = lines.map((line) => (line.querySelector(".addr-label")?.textContent || "").trim());
+      if (declaredPerKey === 2 && (labels[0] !== "(c)" || labels[1] !== "(u)")) {
+        addressIssues.push(`${short}: labels ${JSON.stringify(labels)}, expected ["(c)","(u)"]`);
       }
-      if (!extra || !extra.querySelectorAll("a.address-link").length) {
-        addressIssues.push(`${key.slice(0, 8)}: the second address is missing from the DOM`);
-      }
-      if (!toggle) {
-        addressIssues.push(`${key.slice(0, 8)}: no address disclosure`);
-      } else {
-        const controls = toggle.getAttribute("aria-controls");
-        if (toggle.getAttribute("aria-expanded") !== "false") {
-          addressIssues.push(`${key.slice(0, 8)}: disclosure starts expanded`);
+      for (const line of lines) {
+        if (!visible(line)) addressIssues.push(`${short}: address line is hidden`);
+        const link = line.querySelector("a.address-link");
+        if (!link || !visible(link)) {
+          addressIssues.push(`${short}: address link missing or hidden`);
+        } else if (!link.getAttribute("title")) {
+          addressIssues.push(`${short}: address link has no title`);
         }
-        if (!controls || !document.getElementById(controls)) {
-          addressIssues.push(`${key.slice(0, 8)}: aria-controls points nowhere`);
+        const copy = line.querySelector(".icon-button");
+        if (!copy) {
+          copyIssues.push(`${short}: address copy button missing`);
+          continue;
         }
-        if (extra && visible(extra)) {
-          addressIssues.push(`${key.slice(0, 8)}: the second address is visible while collapsed`);
+        const box = boxOf(copy);
+        const issues = [];
+        if (!visible(copy)) issues.push("hidden");
+        if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
+          issues.push(`${Math.round(box.width)}x${Math.round(box.height)}px`);
         }
+        if (!copy.getAttribute("aria-label")) issues.push("no aria-label");
+        if (!copy.getAttribute("data-tooltip")) issues.push("no data-tooltip");
+        if (issues.length) copyIssues.push(`${short}: ${issues.join(", ")}`);
       }
-      if (extra && row.querySelector(".col-balance .balance-info")) {
-        const directLines = row.querySelectorAll(".col-balance > .balance-info").length;
-        const extraLines = row.querySelectorAll(".col-balance > .balance-extra .balance-info").length;
-        if (directLines !== 1 || extraLines < 1) {
-          balanceSplitIssues.push(`${key.slice(0, 8)}: ${directLines} visible + ${extraLines} disclosed balance line(s)`);
-        }
+      if (row.querySelector(".addr-extra-toggle, .addr-extra, [aria-expanded]")) {
+        addressIssues.push(`${short}: row still carries a disclosure`);
       }
+      const balanceLines = [...row.querySelectorAll(".col-balance > .balance-info")];
+      if (balanceLines.length !== lines.length) {
+        balanceIssues.push(`${short}: ${balanceLines.length} balance line(s) for ${lines.length} address line(s)`);
+      }
+      balanceLines.forEach((line, index) => {
+        const where = `${short}#${index + 1}`;
+        if (!visible(line)) {
+          balanceIssues.push(`${where}: balance line hidden`);
+          return;
+        }
+        // A provider failure or a cold cache renders the honest `-` /
+        // `unavailable` state; the metric shape is checked only when data is
+        // present, never invented by the audit.
+        if (line.classList.contains("err") || textOf(line).trim() === "-") return;
+        const balance = line.querySelector(".bal");
+        if (!balance || !textOf(balance).trim()) balanceIssues.push(`${where}: no balance`);
+        const tx = line.querySelector(".badge.tx");
+        if (!tx) {
+          balanceIssues.push(`${where}: no TX pill`);
+        } else if (!(tx.getAttribute("aria-label") || tx.getAttribute("aria-labelledby"))) {
+          balanceIssues.push(`${where}: TX pill has no accessible name`);
+        }
+        const recv = line.querySelector(".recv");
+        if (recv) {
+          const label = textOf(recv).trim();
+          if (/^↓?\s*0(?:\.0+)?\s*[A-Za-z]*$/.test(label)) {
+            balanceIssues.push(`${where}: zero received amount is rendered`);
+          }
+          if (!(recv.getAttribute("aria-label") || recv.getAttribute("aria-labelledby"))) {
+            balanceIssues.push(`${where}: received pill has no accessible name`);
+          }
+        }
+        if (line.querySelector(".age, .balance-age")) {
+          balanceIssues.push(`${where}: relative-age noise in the row`);
+        }
+      });
       const copy = row.querySelector(".col-key .copy-btn");
       if (!copy) {
-        copyIssues.push(`${key.slice(0, 8)}: key copy button missing`);
+        copyIssues.push(`${short}: key copy button missing`);
       } else {
         const box = boxOf(copy);
         const issues = [];
@@ -1565,32 +1621,59 @@ function auditPage(args) {
         }
         if (!copy.getAttribute("aria-label")) issues.push("no aria-label");
         if (!copy.getAttribute("data-tooltip")) issues.push("no data-tooltip");
-        if (issues.length) copyIssues.push(`${key.slice(0, 8)}: ${issues.join(", ")}`);
+        if (issues.length) copyIssues.push(`${short}: ${issues.join(", ")}`);
       }
-      const height = boxOf(row).height;
-      heights.push(Math.round(height));
-      if (window.innerWidth >= 1000 && height > 75) {
-        tallRows.push({ key: key.slice(0, 8), height: Math.round(height) });
+      heights.push(Math.round(boxOf(row).height));
+    }
+    const expectedTotal = browseRows.length * declaredPerKey;
+    if (declaredTotal !== expectedTotal) {
+      addressIssues.push(
+        `page declares ${declaredTotal} addresses but ${browseRows.length} rows x ${declaredPerKey} = ${expectedTotal}`,
+      );
+    }
+    if (renderedAddresses !== declaredTotal) {
+      addressIssues.push(`page renders ${renderedAddresses} visible addresses but declares ${declaredTotal}`);
+    }
+    const countLabel = document.querySelector("#page-address-count");
+    if (!countLabel) {
+      addressIssues.push("page has no #page-address-count counter");
+    } else {
+      const text = textOf(countLabel).trim();
+      const number = Number.parseInt(text, 10);
+      if (number !== declaredTotal) {
+        addressIssues.push(`counter says "${text}" but the page declares ${declaredTotal}`);
       }
+    }
+    if (window.innerWidth >= 1000 && heights.length) {
+      const spread = Math.max(...heights) - Math.min(...heights);
+      const tall = heights.filter((height) => height > 120);
+      if (spread > 2) {
+        heightIssues.push({ spread, heights: [...new Set(heights)].sort((a, b) => a - b) });
+      }
+      if (tall.length) heightIssues.push({ tall: tall.length, max: Math.max(...tall) });
     }
     metrics.browseRows = {
       rows: browseRows.length,
+      declaredPerKey,
+      declaredTotal,
+      renderedAddresses,
       heights: [...new Set(heights)].sort((a, b) => a - b),
       addressIssues,
-      balanceSplitIssues,
+      balanceIssues,
       copyIssues,
+      heightIssues,
     };
     if (addressIssues.length) {
-      add("browse-row-address-disclosure", `${addressIssues.length} listing row(s) break the address disclosure model`, addressIssues.slice(0, 8));
+      add("browse-row-address-count", `${addressIssues.length} listing row(s) break the visible-address model`, addressIssues.slice(0, 8));
     }
-    if (balanceSplitIssues.length) {
-      add("browse-row-balance-split", `${balanceSplitIssues.length} listing row(s) do not split the balance lines`, balanceSplitIssues.slice(0, 8));
+    if (balanceIssues.length) {
+      add("browse-row-balance-lines", `${balanceIssues.length} listing row(s) do not render one clear balance line per address`, balanceIssues.slice(0, 8));
     }
     if (copyIssues.length) {
-      add("browse-row-key-copy", `${copyIssues.length} listing row(s) ship a dead or malformed key copy action`, copyIssues.slice(0, 8));
+      add("browse-row-key-copy", `${copyIssues.length} listing row(s) ship a dead or malformed copy action`, copyIssues.slice(0, 8));
     }
-    if (tallRows.length) {
-      add("browse-row-height", `${tallRows.length} listing row(s) above the 75px desktop ceiling`, tallRows.slice(0, 8));
+    if (heightIssues.length) {
+      add("browse-row-height", `listing rows are not one stable height under the two-address ceiling`, heightIssues.slice(0, 8));
     }
 
     const statCards = [...document.querySelectorAll(".balance-summary .stat-card")].filter(visible);
