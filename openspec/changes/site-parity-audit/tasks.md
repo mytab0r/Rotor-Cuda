@@ -108,12 +108,12 @@
   (`solanaProvider`), `:1145` (dispatcher branch); tests at
   `apps/site/mnemonic-seeds-test.mjs:193` and `:207`; defect
   `mnemonic-solana-balances` in `docs/process/defects.json`.
-  Known gap: `scripts/ui-audit.mjs` still omits `/mnemonic-seeds/<chain>` routes
-  except `/mnemonic-seeds/bitcoin`; `/mnemonic-seeds/solana` was verified by
-  browser review (one POST for 60 addresses, 60/60 rows rendered) and by the unit
-  detector, and adding the chain pages to the audit route set is the next
-  gate-coverage step (it would add about five provider console warnings per audit
-  run on hosts where the public Solana RPC refuses the browser).
+  Audit coverage: `/mnemonic-seeds/solana` and `/mnemonic-seeds/ton` are now in
+  `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (18/18 page runs PASS, no violations;
+  the Solana runs record a single 403 console warning in 4 of 6 runs on hosts
+  whose browser the public RPC refuses, which is the honest retryable error
+  state). The other
+  chain pages stay out because their providers fan out one request per address.
 - [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
   still claimed "the interactive curve editor and signing entry remain". The
   donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
