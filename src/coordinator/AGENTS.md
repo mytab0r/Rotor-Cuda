@@ -17,6 +17,10 @@ cargo test --test coordinator_api --test coordinator_client
   error; site edits may require a coordinator rebuild.
 - The served route list in `src/coordinator/mod.rs` is a contract. Changing it
   requires a matching site change and a `PROJECTS.md` update.
+- Operator auth lives in `src/coordinator/admin.rs`: signed `rotor_admin` cookie
+  (12 h, `Path=/cabinet/admin`), CSRF bound to the cookie nonce and the shared
+  per-IP login limiter. `/cabinet/admin*` is gated in `handle` before SEO/static;
+  the design gallery is `/cabinet/admin/design` and `/design` is retired (404).
 - `/api/v1/*` and the state schema are covered by
   `tests/coordinator_api.rs`; update the spec under `openspec/specs/coordinator/`
   when they change.

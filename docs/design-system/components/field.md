@@ -1,7 +1,7 @@
 # Field
 
 Status: stable · Version: 0.1.1 · Owner: site-ui (design system).
-Source of truth: `design/components/field.json` · Gallery: `/design` (family
+Source of truth: `design/components/field.json` · Gallery: `/cabinet/admin/design` (family
 `field`).
 
 ## Purpose
@@ -34,7 +34,7 @@ uses the classes.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | `--surface-0`, `--line-strong`, radius `--radius-control` | yes (both sizes) |
 | Hover | border `--line-strong` | live |
