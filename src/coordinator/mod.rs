@@ -5916,12 +5916,8 @@ fn normalize_tron_transaction(
         "counterparty": counterparty,
         "confirmed": confirmed,
     });
-    if owner_is_self {
-        if let Some(fee) = tron_fee(item) {
-            if fee != "0" {
-                tx["fee"] = json!(fee);
-            }
-        }
+    if owner_is_self && let Some(fee) = tron_fee(item).filter(|fee| fee != "0") {
+        tx["fee"] = json!(fee);
     }
     Some(tx)
 }
