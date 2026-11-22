@@ -665,6 +665,9 @@
   function createRow(entry) {
     var row = document.createElement('div');
     row.className = 'key-row mnemonic-row';
+    /* Balance instrumentation lives on the row element, matching browse.js:
+     * a verifier can select [data-balance-state] on both directories. */
+    entry.row = row;
 
     var keyCell = document.createElement('div');
     keyCell.className = 'col-key';
@@ -867,6 +870,12 @@
     return { line: line, ok: true, failed: false };
   }
 
+  function setBalanceState(entry, stateName, cachedEntry) {
+    if (!entry.row) return;
+    entry.row.dataset.balanceState = stateName;
+    entry.row.dataset.balanceAt = String(cachedEntry && cachedEntry.fetchedAt ? cachedEntry.fetchedAt : '');
+  }
+
   function renderEntry(entry, cached, errors, meta) {
     var cell = entry.balanceCell;
     if (!cell) return;
@@ -874,18 +883,25 @@
     if (!entry.records || !entry.records.length) {
       cell.textContent = '-';
       entry.balanceState = 'missing';
+      setBalanceState(entry, 'missing', null);
       return;
     }
+    var now = Date.now();
     var ok = false;
     var failed = false;
+    var fresh = true;
     entry.records.forEach(function (record) {
       var result = balanceLine(record, cached, errors, meta);
       if (result.ok) ok = true;
       if (result.failed) failed = true;
+      var picked = cached[record.key];
+      if (!cacheApi || !cacheApi.isFresh(picked, meta.provider, now)) fresh = false;
       cell.appendChild(result.line);
     });
     cell.classList.toggle('has-balance', ok);
-    entry.balanceState = failed ? 'err' : ok ? 'ok' : 'missing';
+    entry.balanceState = failed ? 'err' : ok ? (fresh ? 'ok' : 'stale') : 'missing';
+    var first = entry.records.length ? cached[entry.records[0].key] : null;
+    setBalanceState(entry, entry.balanceState, first);
   }
 
   function errorMessage(err) {
@@ -1045,6 +1061,9 @@
     });
     if (!addresses.length) return;
     state.balanceBusy = true;
+    pending.forEach(function (record) {
+      if (record.entry && record.entry.row) record.entry.row.dataset.balanceState = 'loading';
+    });
     updateRefreshButton(records, meta);
     var result;
     try {
@@ -1085,6 +1104,7 @@
     if (state.disposed) return;
     var meta = providerMeta();
     if (!meta) {
+      state.entries.forEach(function (entry) { setBalanceState(entry, 'missing', null); });
       setSummary('—', '—', '—');
       setNote('Live balance lookup is not available for this chain here; each address links to its explorer.');
       updateRefreshButton([], null);
@@ -1092,6 +1112,7 @@
     }
     var records = balanceRecords(meta);
     if (!records.length) {
+      state.entries.forEach(function (entry) { setBalanceState(entry, 'missing', null); });
       setSummary('—', '—', '—');
       setNote('No derived public address to send; nothing was sent. Each address links to its explorer.');
       updateRefreshButton([], meta);
