@@ -71,7 +71,9 @@ openspec).
   the counterparty title, status pills, loading/empty/error and the EVM state,
   with a stubbed fetch; it is registered in `data/detectors.json` with a
   defect-ledger entry.
-- `node scripts/ui-audit.mjs --serve` passes; screenshots exist at 375/1280 in
-  both themes for BTC, TRON, EVM-unavailable, empty and error states.
+- `node scripts/ui-audit.mjs --serve` passes; the `ui-audit` CI run uploads
+  the screenshots at 375/1280 in both themes for BTC, TRON, EVM-unavailable,
+  empty and error states as the `ui-audit-report` artifact (nothing is
+  committed to the repo).
 - `cargo test --release`, `check-projects`, `check-defect-ledger`, `check-ssot`
   and `gen-detector-docs --check` pass.
