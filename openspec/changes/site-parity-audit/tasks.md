@@ -87,7 +87,7 @@
   `apps/site/send.js` (chain table, `prepareTronTransfer`,
   `signTronTransfer`), `apps/site/tron-tx.js` (Nile-only host/path
   gate), `crates/rotor-wasm/src/tron.rs` and
-  `crates/rotor-wasm/src/lib.rs` (`btc_sign_tx` / `btc_unsigned_tx`,
+  `crates/rotor-wasm/src/lib.rs` (`tron_sign_tx` / `tron_unsigned_tx`,
   sign/unsigned exports), `apps/site/send-test.mjs` (TRX->sun, prepare,
   sign/broadcast without a key leak), `src/coordinator/mod.rs` (the
   `/send/tron` route and the embedded `TRON_TX_JS` helper),
