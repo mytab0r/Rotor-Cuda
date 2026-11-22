@@ -104,6 +104,7 @@ Options:
   --serve               spawn target/release/rotor-coord on 127.0.0.1:7899 with temp state
   --admin-token TOKEN   coordinator token used to log in for /cabinet/admin routes
                         (with --serve the default is the harness token)
+  --seed-jobs           create one public job before auditing (implied by --serve)
   --json PATH           write the machine-readable summary
   -h, --help            show this help
 
@@ -117,6 +118,7 @@ function parseArgs(argv) {
     themes: ["dark", "light"],
     serve: false,
     adminToken: null,
+    seedJobs: false,
     json: null,
     help: false,
   };
@@ -161,6 +163,9 @@ function parseArgs(argv) {
         break;
       case "--admin-token":
         options.adminToken = value();
+        break;
+      case "--seed-jobs":
+        options.seedJobs = true;
         break;
       case "--json":
         options.json = value();
@@ -228,6 +233,53 @@ function legacyTokenViolations() {
     id: "legacy-token",
     message: `${duplicates.length} custom property(ies) declared in more than one :root block`,
     detail: duplicates.slice(0, 12).map(([token, where]) => `${token} (${where.join(", ")})`),
+  }];
+}
+
+// table-class: every table builder must emit `.data-table` inside
+// `.table-scroll`. The rendered audit only sees tables that a decode input
+// populates (tx-page.js) or that the job store fills (puzzle.js), so this
+// static half enforces the class in JS builders, HTML pages and the
+// Rust-embedded markup. The id stays `table-grammar`: one rule, one detector.
+function tableClassViolations() {
+  const issues = [];
+  const hasClass = (classes) => /(^|\s)data-table(\s|$)/.test(classes.trim());
+  const scanMarkup = (text, name) => {
+    for (const match of text.matchAll(/<table\b[^>]*>/g)) {
+      const classMatch = match[0].match(/\bclass\s*=\s*\\?["']([^"'\\]*)\\?["']/);
+      if (classMatch && hasClass(classMatch[1])) continue;
+      const line = text.slice(0, match.index).split("\n").length;
+      issues.push(`${name}:${line} <table> without .data-table`);
+    }
+  };
+  const siteDir = path.join(REPO_ROOT, "apps", "site");
+  for (const name of readdirSync(siteDir).filter((file) => file.endsWith(".js"))) {
+    const text = readFileSync(path.join(siteDir, name), "utf8");
+    const lines = text.split("\n");
+    for (const match of text.matchAll(/createElement\(\s*['"]table['"]\s*\)/g)) {
+      const line = text.slice(0, match.index).split("\n").length;
+      const windowText = lines.slice(line, line + 5).join("\n");
+      if (/\.className\s*=\s*['"][^'"]*\bdata-table\b/.test(windowText)) continue;
+      issues.push(`${name}:${line} createElement('table') without a .data-table className`);
+    }
+    for (const match of text.matchAll(/child\(\s*['"]table['"]\s*,\s*['"]([^'"]*)['"]\s*\)/g)) {
+      if (hasClass(match[1])) continue;
+      const line = text.slice(0, match.index).split("\n").length;
+      issues.push(`${name}:${line} child('table', '${match[1]}') without .data-table`);
+    }
+  }
+  for (const name of readdirSync(siteDir).filter((file) => file.endsWith(".html"))) {
+    scanMarkup(readFileSync(path.join(siteDir, name), "utf8"), `apps/site/${name}`);
+  }
+  scanMarkup(
+    readFileSync(path.join(REPO_ROOT, "src", "coordinator", "mod.rs"), "utf8"),
+    "src/coordinator/mod.rs",
+  );
+  if (!issues.length) return [];
+  return [{
+    id: "table-grammar",
+    message: `${issues.length} table definition(s) without the shared .data-table class`,
+    detail: issues.slice(0, 12),
   }];
 }
 
@@ -3327,12 +3379,18 @@ function viewportFor(width) {
   return { width, height };
 }
 
+// The harness token lives in one expression: the explicit --admin-token or the
+// one --serve starts the coordinator with.
+function auditToken(options) {
+  return options.adminToken || (options.serve ? "ui-audit-token" : null);
+}
+
 // admin-login: the cabinet is gated by a signed session cookie. The harness
 // never bypasses auth; it logs in with the token the server was started with
 // (or the explicit --admin-token) and installs the resulting cookie through
 // CDP before auditing admin routes. A missing token is a harness error.
 async function loginAdmin(options, cdp) {
-  const token = options.adminToken || (options.serve ? "ui-audit-token" : null);
+  const token = auditToken(options);
   if (!token) {
     throw new Error(
       "admin routes are selected but --admin-token is missing; pass the coordinator token or use --serve",
@@ -3492,6 +3550,35 @@ async function main() {
       });
     }
 
+    // The audit used to run against an empty job store, which hid the populated
+    // /bitcoin-puzzle jobs table (issue #261). Seed one public job so that
+    // state is audited. A plain --base run may point at production, so never
+    // seed unless --seed-jobs or --serve asked for it.
+    if (options.serve) options.seedJobs = true;
+    if (options.seedJobs) {
+      const response = await fetch(`${options.base}/api/v1/jobs`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${auditToken(options)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mode: "address",
+          coin: "btc",
+          comp_mode: "compressed",
+          target: "1BoatSLRHtKNngkdXEeobR76b53LETtpyT",
+          start: "1",
+          end: "ff",
+          chunk_width: 256,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.status !== 201) {
+        throw new Error(`seeding the public-job fixture failed: HTTP ${response.status}`);
+      }
+      log("seeded public-job fixture");
+    }
+
     const browserPath = findBrowser();
     if (!browserPath) {
       throw new Error(
@@ -3592,6 +3679,7 @@ async function main() {
     globalViolations.push(...legacyTokenViolations());
     globalViolations.push(...litecoinFallbackViolations());
     globalViolations.push(...emptyStateViolations());
+    globalViolations.push(...tableClassViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({
         id: "site-map-still-served",
