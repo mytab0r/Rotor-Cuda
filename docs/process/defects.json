@@ -533,6 +533,13 @@
       "symptom": "The new ERC-20 approvals table was not exercised by any detector: ui-audit ran with the vault locked, so 240/240 PASS said nothing about the shared table shell, 44px row actions, Unlimited/Contract/EOA labels or the archive-truncated warning.",
       "detector": "wallet-approvals-surface",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-approvals-grant-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "The allowance grant form was not exercised by any detector: the approvals scenario stopped at the table, so nothing checked its labelled 44px fields, its own visible Unlimited warning line, the zero-amount error state or the rendered unlimited review.",
+      "detector": "wallet-approvals-surface",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

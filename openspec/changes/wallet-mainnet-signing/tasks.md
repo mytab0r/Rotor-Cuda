@@ -117,8 +117,19 @@
   characters or non-printable, and a balance below the amount; local
   `transfer(address,uint256)` calldata with value 0; the same chain, arm, fee
   cap, gas estimate, review and single-broadcast gates.
-- [ ] ERC-20 approvals grant: an explicit allowance amount and a separate
-  review, reusing the same approval reader and signing gates.
+- [x] ERC-20 approvals grant: an explicit allowance amount or the
+  `Unlimited (2^256-1)` option; `approve(spender, amount)` built locally
+  (selector `0x095ea7b3`, spender and amount padded, unlimited is exactly
+  `2^256-1`); a separate review that shows the token, the spender type
+  (Contract/EOA), the amount or Unlimited, the gas limit and the maximum native
+  fee, plus a visible unlimited warning line; zero and values above `2^256-1`
+  refused, as are the zero spender and the token contract as its own spender,
+  while an EOA spender is allowed and labelled. The grant reuses the token
+  header/code read, chain-id-twice, mainnet arm, fee cap, `eth_estimateGas`,
+  nonce, unsigned-pin and single-broadcast gates and re-reads the allowance
+  after broadcast. Pinned by finite and unlimited calldata vectors and an
+  unlimited signed vector against ethers 6.17.0, with the extended
+  `wallet-approvals-surface` detector covering the grant form and review.
 - [ ] Bitcoin mainnet: UTXO/fee source, mainnet WIF policy, address type and
   broadcast provider, with its own fee cap.
 - [ ] TRON mainnet: requires a TRON provider API key; document the key source
