@@ -547,6 +547,14 @@
       "status": "implemented"
     },
     {
+      "id": "mnemonic-sochain-quota-storm",
+      "rule": "The first SoChain 429 stops the rest of a directory page instead of firing 60 retries.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
+      "status": "implemented"
+    },
+    {
       "id": "balance-state-attribute",
       "rule": "Every balance row sets data-balance-state and data-balance-at on the row.",
       "batch": "phase 4",

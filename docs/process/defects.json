@@ -519,6 +519,13 @@
       "symptom": "The /key Litecoin and Dogecoin rows showed no balance whenever BlockCypher answered HTTP 429 {\"error\":\"Limits reached.\"}; both chains had only that one provider although SoChain v3 serves LTC, DOGE and ZEC keyless with CORS. The row attribute recorded only that some provider existed, so the audit stayed green.",
       "detector": "key-utxo-provider",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "sochain-quota-storm",
+      "reported": "2026-11-22",
+      "symptom": "SoChain's keyless allowance is 2500 lookups a day per IP (the provider's 429 body says so), not 2500 an hour as the ledger claimed. With the quota exhausted, one 60-row mnemonic page fired 240 SoChain requests (60 addresses x inner retry x outer retry) although every one answered 429, turning one exhausted quota into a self-inflicted storm; ten page loads would exhaust the daily budget for the whole IP.",
+      "detector": "mnemonic-sochain-quota-storm",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
     }
   ]
 }
