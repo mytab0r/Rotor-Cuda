@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const tools = require("./key-tools.js");
 const wasmPath = process.argv[2] ?? fileURLToPath(new URL("./rotor_wasm.wasm", import.meta.url));
 
@@ -1076,8 +1077,39 @@ assert(
   "price timestamp is UTC",
 );
 
+// ZEC: SoChain v3 returns decimal coin strings, not satoshis. The parser must
+// convert without floats and reject anything that is not unsigned decimal.
+// The route-level detector for the wired row is `key-zec-provider` in
+// scripts/ui-audit.mjs; these assertions pin the amount conversion.
+const zecZero = tools.parseSochainBalance({
+  status: "success",
+  data: { confirmed: "0.00000000", unconfirmed: "0.00000000" },
+});
+assert(zecZero && zecZero.confirmed === 0n && zecZero.unconfirmed === 0n, "zero ZEC balance is 0 sat");
+const zecOne = tools.parseSochainBalance({
+  status: "success",
+  data: { confirmed: "1.23456789", unconfirmed: "0.00000000" },
+});
+assert(zecOne && zecOne.confirmed === 123456789n, `1.23456789 ZEC is 123456789 sat, got ${zecOne && zecOne.confirmed}`);
+assert(
+  tools.parseSochainBalance({ status: "success", data: { confirmed: "lots", unconfirmed: "0" } }) === null,
+  "non-numeric ZEC amount is rejected",
+);
+assert(tools.parseSochainBalance({ status: "fail", data: {} }) === null, "failed ZEC response is rejected");
+
+// Every chain row keeps an explorer link, including each shared-EVM network.
+for (const id of ["evm", "evm_bnb", "evm_arbitrum", "evm_optimism", "evm_base", "evm_polygon", "evm_avalanche", "evm_zksync"]) {
+  const url = tools.explorerFor(id);
+  assert(typeof url === "string" && url.startsWith("https://") && url.length > "https://".length, `EVM explorer for ${id}, got ${url}`);
+}
+for (const id of ["btc_legacy", "zcash_p2pkh", "tron"]) {
+  const url = tools.explorerFor(id);
+  assert(typeof url === "string" && url.startsWith("https://"), `explorer for ${id}, got ${url}`);
+}
+
 console.log(
   "key-tools ok: integer, fragments, pubkey report/add/subtract/multiply, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
     "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/Decimal/WIF/WIF-u/Keypair/XRP/PubKey/Page), " +
-    "row order/grouping/type labels, both-curve 30-row merge, chain-group counters, USD ticker math/cache",
+    "row order/grouping/type labels, both-curve 30-row merge, chain-group counters, USD ticker math/cache, " +
+    "ZEC SoChain amounts, explorer URLs",
 );

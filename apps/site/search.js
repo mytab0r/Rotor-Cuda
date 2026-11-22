@@ -26,9 +26,18 @@
   /* The donor WIF shape, shared with the key page and the key tools: 5/K/L
    * (Bitcoin), T/6 (Litecoin) or Q/6 (Dogecoin). */
   var WIF_RE = /^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$/;
-  var XRP_SECRET_RE = /^s[1-9A-HJ-NP-Za-km-z]{20,30}$/;
-  var XRP_UNSUPPORTED = 'XRP family seeds (s…) are not supported in this search. ' +
-    'Paste the 64-hex private key or export the hex key from your wallet.';
+  /* The XRP secret shape shared with the key page and the key tools: a
+   * Ripple-base58 string of 29-53 characters starting with "s" (family seed)
+   * or "p" (bare private key). Both route to /key/<secret>, never through the
+   * brainwallet hash. */
+  var XRP_SECRET_RE = /^[rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz]{29,53}$/;
+  var XRP_SECRET_ERROR = 'Not an XRP secret: expected a base58 string starting with "s" or "p".';
+
+  function looksLikeXrpSecret(value) {
+    if (!XRP_SECRET_RE.test(value)) return false;
+    var first = value.charAt(0);
+    return first === 's' || first === 'p';
+  }
 
   /* The explicit "Interpret as" choices. `auto` keeps the old detection
    * order; the rest force one format so an ambiguous value is never guessed. */
@@ -255,8 +264,9 @@
 
   /**
    * Auto-detect or force the input format without deriving anything.
-   * Returns { kind, hex?, curve?, phrase?, chain? } or throws a precise error
-   * for formats the search cannot consume (XRP family seeds, bad keypairs).
+   * Returns { kind, hex?, curve?, phrase?, chain? }, or { kind: 'xrp-secret',
+   * value } for an XRP secret (the caller routes it to /key/<secret>), and
+   * throws a precise error for bad keypairs or forced-format mismatches.
    * Never falls back to a brainwallet hash for a recognized non-text format.
    */
   async function detect(text, mode) {
@@ -267,8 +277,8 @@
     if (selected === 'mnemonic') return parseMnemonicInput(value);
     if (selected === 'brainwallet') return { kind: 'brainwallet', hex: await sha256Hex(value) };
     if (selected === 'xrp-secret') {
-      if (XRP_SECRET_RE.test(value)) throw new Error(XRP_UNSUPPORTED);
-      throw new Error('Not an XRP family secret: expected a base58 string starting with "s".');
+      if (looksLikeXrpSecret(value)) return { kind: 'xrp-secret', value: value };
+      throw new Error(XRP_SECRET_ERROR);
     }
     if (selected === 'keypair') return parseKeypairInput(value);
     if (selected === 'wif') return parseWifInput(value);
@@ -278,16 +288,22 @@
     if (isMnemonic(value)) {
       return { kind: 'mnemonic', phrase: value.split(/\s+/).join(' ') };
     }
-    if (XRP_SECRET_RE.test(value)) throw new Error(XRP_UNSUPPORTED);
+    if (looksLikeXrpSecret(value)) return { kind: 'xrp-secret', value: value };
     if (value.charAt(0) === '[') return parseKeypairInput(value);
 
+    /* Only exactly 64 hex characters (after an optional 0x) are a key. A
+     * shorter hex string is brainwallet text, matching the key page and the
+     * donor table; the forced HEX chip still pads short input. */
     var normalized = value;
-    if (/^0x[0-9a-fA-F]{1,64}$/.test(normalized)) normalized = normalized.slice(2);
+    if (/^0x[0-9a-fA-F]+$/i.test(normalized)) normalized = normalized.slice(2);
     if (/^[0-9a-fA-F]+$/.test(normalized)) {
       if (normalized.length > 64) {
         throw new Error('Hex keys are exactly 64 characters (you have ' + normalized.length + ').');
       }
-      return { kind: 'hex', hex: normalized.toLowerCase().padStart(64, '0') };
+      if (normalized.length === 64) {
+        return { kind: 'hex', hex: normalized.toLowerCase() };
+      }
+      return { kind: 'brainwallet', hex: await sha256Hex(value) };
     }
     if (WIF_RE.test(value)) return { kind: 'wif', hex: await decodeWif(value) };
 
@@ -299,7 +315,31 @@
     if (result.kind === 'mnemonic') {
       throw new Error('A mnemonic opens the seed tools; it is not a single private key.');
     }
+    if (result.kind === 'xrp-secret') {
+      throw new Error('XRP secrets route to /key/<secret>.');
+    }
     return result.hex;
+  }
+
+  /* Map any detected input to its destination. Every search form uses this so
+   * the routing rules live in one place: an XRP secret goes to /key/<secret>,
+   * a mnemonic to /mnemonic-converter, and any detected hex key to
+   * /key/<hex>. */
+  async function keyHref(text, mode) {
+    var result = await detect(text, mode);
+    if (result.kind === 'xrp-secret') return '/key/' + encodeURIComponent(result.value);
+    if (result.kind === 'mnemonic') {
+      /* Hand the phrase to the converter the same way the Ctrl+K modal does;
+       * seed-page.js reads and clears this key. */
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('rotor-seed-phrase', result.phrase);
+        }
+      } catch (err) { /* private mode: the converter still opens without the phrase */ }
+      return '/mnemonic-converter';
+    }
+    if (result.hex) return '/key/' + result.hex;
+    throw new Error('Cannot read that key.');
   }
 
   /* ------------------------------------------------------ wasm derivation */
@@ -593,6 +633,8 @@
   return {
     resolve: resolve,
     detect: detect,
+    keyHref: keyHref,
+    looksLikeXrpSecret: looksLikeXrpSecret,
     hexToBytes: hexToBytes,
     deriveReport: deriveReport,
     shapeReport: shapeReport,

@@ -354,9 +354,12 @@
       searchInput.focus();
       return;
     }
-    if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{20,60}$/.test(value) ||
+    /* An XRP secret shares the base58 address alphabet; let the detector
+     * route it to /key/<secret> instead of the address hint. */
+    var xrp = window.RotorSearch && RotorSearch.looksLikeXrpSecret && RotorSearch.looksLikeXrpSecret(value);
+    if (!xrp && (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{20,60}$/.test(value) ||
         /^0x[0-9a-fA-F]{40}$/.test(value) ||
-        /^[1-9A-HJ-NP-Za-km-z]{26,35}$/.test(value)) {
+        /^[1-9A-HJ-NP-Za-km-z]{26,35}$/.test(value))) {
       hint('That looks like an address. Browse example keys in the ', [
         { href: '/private-keys', text: 'chain directory' },
         { href: '/key', text: 'key calculator' }
@@ -370,8 +373,8 @@
       return;
     }
     searchHint.textContent = 'Reading the key in your browser…';
-    window.RotorSearch.resolve(value).then(function (hex) {
-      window.location.assign('/key/' + hex);
+    window.RotorSearch.keyHref(value).then(function (href) {
+      window.location.assign(href);
     }, function (err) {
       hint((err && err.message ? err.message + ' ' : '') + 'Use the ', [
         { href: '/key', text: 'key calculator' },

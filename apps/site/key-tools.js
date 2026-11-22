@@ -6,6 +6,9 @@
   var LIMIT = 1n << 256n;
   var SECP_ORDER = 115792089237316195423570985008687907852837564279074904382605163141518161494337n;
 
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+
   function clean(text) {
     return String(text == null ? '' : text).trim().replace(/[\s_]+/g, '');
   }
@@ -971,14 +974,98 @@
     return parts.join(' · ');
   }
 
+  /* One EVM account, eight networks: each row keeps its own chain explorer.
+   * The prefixes come from data/chains.json (chains.generated.js), the same
+   * source the key page and the directory use. */
+  var EVM_EXPLORER_SLUGS = {
+    evm: 'ethereum',
+    evm_bnb: 'bnb',
+    evm_arbitrum: 'arbitrum',
+    evm_optimism: 'optimism',
+    evm_base: 'base',
+    evm_polygon: 'polygon',
+    evm_avalanche: 'avalanche',
+    evm_zksync: 'zksync'
+  };
+
+  var ADDRESS_EXPLORER_SLUGS = {
+    tron: 'tron',
+    solana: 'solana',
+    sui: 'sui',
+    ton: 'ton',
+    ton_w5: 'ton'
+  };
+
+  var ADDRESS_PREFIXES = {
+    btc_: 'bitcoin',
+    ltc_: 'litecoin',
+    doge_: 'dogecoin',
+    bch_: 'bitcoin-cash',
+    zcash_: 'zcash',
+    xrp_: 'xrp'
+  };
+
+  function explorerPrefixFor(slug) {
+    var chain = SSOT_CHAINS.bySlug[slug];
+    return chain ? chain.explorerPrefix : '';
+  }
+
+  /* Public explorer for one address row. The caller appends the encoded
+   * address, so every prefix ends with "/address/" (or the chain's
+   * equivalent). */
+  function explorerFor(id) {
+    if (EVM_EXPLORER_SLUGS[id]) return explorerPrefixFor(EVM_EXPLORER_SLUGS[id]);
+    if (ADDRESS_EXPLORER_SLUGS[id]) return explorerPrefixFor(ADDRESS_EXPLORER_SLUGS[id]);
+    if (typeof id === 'string') {
+      for (var prefix in ADDRESS_PREFIXES) {
+        if (id.indexOf(prefix) === 0) return explorerPrefixFor(ADDRESS_PREFIXES[prefix]);
+      }
+    }
+    return '';
+  }
+
+  /* SoChain v3 `/balance/<ticker>/<address>` returns decimal coin strings, not
+   * atomic units. Convert to satoshis without floats: pad or truncate the
+   * fractional part to 8 digits and reject anything that is not unsigned
+   * decimal. Pinned by `key-tools-test.mjs`; the wired-row detector is
+   * `key-zec-provider` in `ui-audit.mjs`. */
+  function sochainSats(value) {
+    if (typeof value === 'number' && isFinite(value)) value = String(value);
+    if (typeof value !== 'string') return null;
+    var text = value.trim();
+    if (!/^\d+(\.\d+)?$/.test(text)) return null;
+    var parts = text.split('.');
+    var fraction = (parts[1] || '').slice(0, 8);
+    while (fraction.length < 8) fraction += '0';
+    try {
+      return BigInt(parts[0] + fraction);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function parseSochainBalance(data) {
+    if (!data || typeof data !== 'object' || data.status !== 'success') return null;
+    var info = data.data;
+    if (!info || typeof info !== 'object' || Array.isArray(info)) return null;
+    var confirmed = sochainSats(info.confirmed);
+    if (confirmed === null) return null;
+    var unconfirmed = sochainSats(info.unconfirmed);
+    return {
+      confirmed: confirmed,
+      unconfirmed: unconfirmed === null ? 0n : unconfirmed
+    };
+  }
+
   /* Counters over the visible address rows. `rows` entries:
    * { chain, state, amount, active, checkable, visible }.
    * - Has balance: unique chain groups with amount > 0 (not addresses).
    * - Active: unique chain groups with amount > 0 or a provider activity
    *   signal; chains without one count a balance only.
    * - Checked: chain groups whose visible rows are all done, out of the fixed
-   *   18. A checkable row is done at ok/err; a row without a provider (LTC/
-   *   DOGE/BCH/ZEC) is done immediately, so the counter can reach 18/18. */
+   *   18. A checkable row is done at ok/err. Every chain group now has a
+   *   balance provider, so the `!checkable` branch is only a safety net for a
+   *   row type that loses its provider. */
   function balanceCounters(rows, totalChains) {
     var groups = {};
     (Array.isArray(rows) ? rows : []).forEach(function (row) {
@@ -1264,6 +1351,8 @@
     addressTypeLabel: addressTypeLabel,
     counterChainKey: counterChainKey,
     balanceCounters: balanceCounters,
+    explorerFor: explorerFor,
+    parseSochainBalance: parseSochainBalance,
     formatAtomic: formatAtomic,
     balanceLine: balanceLine,
     tickerFor: tickerFor,

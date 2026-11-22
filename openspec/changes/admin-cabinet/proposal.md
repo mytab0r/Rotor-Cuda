@@ -120,8 +120,9 @@ registry keyed by page kind (`home`, `directory`, `directory-chain`, `key`,
 
 ## Risks
 
-- Stateless cookies cannot be revoked individually; 12 h TTL and token rotation
-  are the mitigation.
+- Stateless cookies have no server-side revocation: logout clears the browser
+  cookies only, and a copied cookie stays valid until its `exp` (12 h) or until
+  the admin token is rotated. Token rotation is the mitigation.
 - `Set-Cookie`/`Cookie` handling in tiny_http 0.12 is untested in this repo; the
   first phase closes it with a test.
 - `Secure` cookies on `http://127.0.0.1` in CI: run the harness with

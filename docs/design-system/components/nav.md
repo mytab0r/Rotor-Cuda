@@ -1,7 +1,7 @@
 # Navigation shell
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/nav.json` · Gallery: `/design` (family
+Source of truth: `design/components/nav.json` · Gallery: `/cabinet/admin/design` (family
 `nav`).
 
 ## Purpose
@@ -34,7 +34,7 @@ created by `site.js`, not a separately rendered manifest variant.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | `--nav-bg`, hairline bottom, 16px blur, `--z-nav` | yes (the live header) |
 | Hover | `--hover` background, `--ink-1` text | live |

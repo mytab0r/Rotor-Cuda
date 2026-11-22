@@ -5,6 +5,7 @@
 //! lives behind a single mutex. No async runtime, no TLS (terminate it in a
 //! reverse proxy).
 
+mod admin;
 pub mod chunk_loop;
 pub mod client;
 
@@ -43,6 +44,9 @@ const APP_PAGE: &str = include_str!("../../apps/site/app.html");
 const ME_PAGE: &str = include_str!("../../apps/site/me.html");
 const DOCS_PAGE: &str = include_str!("../../apps/site/docs.html");
 const DESIGN_PAGE: &str = include_str!("../../apps/site/design.html");
+const ADMIN_PAGE: &str = include_str!("../../apps/site/admin.html");
+const ADMIN_JS: &str = include_str!("../../apps/site/admin.js");
+const ADMIN_CSS: &str = include_str!("../../apps/site/admin.css");
 const SITE_CSS: &str = include_str!("../../apps/site/site.css");
 const SITE_JS: &str = include_str!("../../apps/site/site.js");
 const RUN_PAGE: &str = include_str!("../../apps/site/run.html");
@@ -133,6 +137,53 @@ const TRONSCAN_WRITE_TIMEOUT: Duration = Duration::from_secs(20);
 const TRONSCAN_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 /// Largest address list one batch lookup accepts.
 const TRON_BATCH_MAX: usize = 60;
+
+/// Optional Cloudflare Worker in front of provider APIs. When set, TRON
+/// lookups go through the worker instead of contacting TronScan directly, so
+/// the provider never sees the origin address. The shared secret is sent as
+/// `X-Edge-Secret`; it is never logged or exposed in a response.
+#[derive(Clone)]
+struct EdgeProxy {
+    base: String,
+    secret: Option<String>,
+}
+
+impl EdgeProxy {
+    /// `None` when `EDGE_PROXY_URL` is unset. A URL that is not HTTPS, or a
+    /// URL without a shared secret, is a startup error: silently falling back
+    /// to direct provider calls (or to an unauthenticated edge call) would undo
+    /// the privacy guarantee the operator asked for.
+    fn from_parts(url: Option<String>, secret: Option<String>) -> Result<Option<Self>, String> {
+        let Some(base) = url else {
+            return Ok(None);
+        };
+        let base = base.trim().trim_end_matches('/').to_string();
+        if base.is_empty() {
+            return Ok(None);
+        }
+        if !base.starts_with("https://") {
+            return Err("EDGE_PROXY_URL must start with https://".to_string());
+        }
+        let secret = secret
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "EDGE_PROXY_URL requires EDGE_PROXY_SECRET".to_string())?;
+        Ok(Some(Self {
+            base,
+            secret: Some(secret),
+        }))
+    }
+}
+
+impl std::fmt::Debug for EdgeProxy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EdgeProxy")
+            .field("base", &self.base)
+            .field("secret_configured", &self.secret.is_some())
+            .finish()
+    }
+}
+
 /// Number of request handlers currently running.
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
@@ -295,8 +346,13 @@ struct App {
     /// request input can only pick a chain from the allowlist, never a host.
     wallets_upstream: Option<String>,
     /// TronScan Pro API key from `TRONSCAN_API_KEY`. Never serialized or
-    /// logged; `None` makes `/api/v1/chain/tron/address` answer `501`.
+    /// logged; `None` makes `/api/v1/chain/tron/address` answer `501` unless an
+    /// edge proxy is configured.
     tronscan_api_key: Option<String>,
+    /// Optional provider proxy. When present, TRON lookups call the edge
+    /// worker instead of TronScan, and the provider sees the worker's egress
+    /// address rather than this origin.
+    edge_proxy: Option<EdgeProxy>,
     /// Shared TronScan HTTP client, in-flight limiter and lookup cache. The
     /// orders poller uses the same limiter, so provider calls stay bounded
     /// across every route.
@@ -308,6 +364,12 @@ struct App {
     orders: Option<Arc<orders::Orders>>,
     /// Telegram Bot API configuration for monitor alert linking/delivery.
     telegram: Arc<crate::monitor::notify::TelegramConfig>,
+    /// Operator cabinet session key and cookie flags.
+    admin_auth: admin::AdminAuth,
+    /// Failed login attempts per IP, shared with the monitor's limiter type.
+    admin_login: crate::monitor::api::IpRateLimiter,
+    /// Process start, reported as uptime by the admin dashboard.
+    started: Instant,
 }
 
 impl App {
@@ -439,6 +501,13 @@ pub struct ServerOptions {
     /// Optional TronScan Pro API key. `None` (the default) reads
     /// `TRONSCAN_API_KEY`; it is never exposed in responses or errors.
     pub tronscan_api_key: Option<String>,
+    /// Optional edge proxy base URL. `None` (the default) reads
+    /// `EDGE_PROXY_URL`; when set, TRON lookups go through the Cloudflare
+    /// Worker at this base instead of TronScan.
+    pub edge_proxy_url: Option<String>,
+    /// Shared secret for the edge proxy, sent as `X-Edge-Secret`. `None` (the
+    /// default) reads `EDGE_PROXY_SECRET`; it is never logged or exposed.
+    pub edge_proxy_secret: Option<String>,
     /// Preloaded paid-download configuration. `None` (the default) reads
     /// `ORDERS_CONFIG` / `ORDERS_HMAC_SECRET` at startup; tests inject a store
     /// here instead of touching the process environment.
@@ -456,6 +525,7 @@ impl std::fmt::Debug for ServerOptions {
                 "tronscan_api_key_configured",
                 &self.tronscan_api_key.is_some(),
             )
+            .field("edge_proxy_configured", &self.edge_proxy_url.is_some())
             .field("orders_configured", &self.orders.is_some())
             .finish()
     }
@@ -472,6 +542,8 @@ impl Default for ServerOptions {
                 .ok()
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty()),
+            edge_proxy_url: std::env::var("EDGE_PROXY_URL").ok(),
+            edge_proxy_secret: std::env::var("EDGE_PROXY_SECRET").ok(),
             orders: None,
         }
     }
@@ -560,6 +632,10 @@ fn spawn_inner(
         .clone()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let edge_proxy = EdgeProxy::from_parts(
+        options.edge_proxy_url.clone(),
+        options.edge_proxy_secret.clone(),
+    )?;
     let orders = match options.orders.clone() {
         Some(orders) => Some(orders),
         None => orders::Orders::from_env(state_path)?.map(Arc::new),
@@ -578,6 +654,8 @@ fn spawn_inner(
         .to_ip()
         .ok_or_else(|| format!("cannot resolve the bound address of {bind}"))?;
     let server = Arc::new(server);
+    let public_url = public_url_from_env();
+    let admin_auth = admin::AdminAuth::new(&token, &public_url);
     let app = Arc::new(App {
         state: Mutex::new(state),
         admin_token: token,
@@ -587,16 +665,20 @@ fn spawn_inner(
         monitor,
         monitor_domain,
         trust_proxy: options.trust_proxy,
-        public_url: public_url_from_env(),
+        public_url: public_url.clone(),
         walletconnect_project_id: std::env::var("ROTOR_WALLETCONNECT_PROJECT_ID")
             .unwrap_or_default(),
         wallets_upstream,
         tronscan_api_key,
+        edge_proxy,
         tronscan_agent: tronscan_agent(),
         tron_limiter: Arc::new(tron_cache::Limiter::default()),
         tron_cache: Arc::new(tron_cache::Cache::default()),
         orders,
         telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
+        admin_auth,
+        admin_login: crate::monitor::api::IpRateLimiter::new(5, Duration::from_secs(15 * 60)),
+        started: Instant::now(),
     });
     // The poller is detached and does nothing until an order exists.
     if let Some(orders) = app.orders.clone() {
@@ -683,6 +765,22 @@ fn handle(app: Arc<App>, request: Request) {
     let url = request.url().to_string();
     let (path, query) = url.split_once('?').unwrap_or((&url, ""));
 
+    // The operator cabinet is gated before SEO and static routes so no public
+    // helper can serve an admin surface. Admin JS/CSS stay public (the login
+    // page needs them) and carry the same no-store headers.
+    if is_admin_route(path) {
+        handle_admin(&app, request, &method, path);
+        return;
+    }
+    let admin_asset_entry = prefixed_asset_path(path)
+        .as_deref()
+        .and_then(admin_asset)
+        .or_else(|| admin_asset(path));
+    if let Some((body, content_type)) = admin_asset_entry {
+        respond_admin_asset(request, body, content_type);
+        return;
+    }
+
     // HEAD mirrors GET for public resources. tiny_http suppresses the body of
     // a HEAD response while keeping the headers, so entering the GET branch
     // yields the same status, `Cache-Control`, `ETag` and `Content-Type` for
@@ -724,7 +822,7 @@ fn handle(app: Arc<App>, request: Request) {
             let response = Response::from_string(fingerprint_assets(body, BUILD_ID))
                 .with_status_code(StatusCode(status))
                 .with_header(header("Content-Type", content_type));
-            let _ = request.respond(response);
+            respond_hidden(request, response);
             return;
         }
     }
@@ -883,6 +981,313 @@ fn handle(app: Arc<App>, request: Request) {
     }
 }
 
+/// Content-Security-Policy for every admin response. External `/admin.js` and
+/// `/admin.css` are the only script/style sources; there is no inline code.
+const ADMIN_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; \
+     img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; \
+     form-action 'self'; frame-ancestors 'none'";
+
+/// The login URL is the only unauthenticated cabinet HTML surface.
+fn is_admin_route(path: &str) -> bool {
+    path == "/cabinet/admin" || path.starts_with("/cabinet/admin/")
+}
+
+/// Admin assets stay reachable without a session (the login page loads them)
+/// but never cache and always carry the admin header set.
+fn admin_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
+    match path {
+        "/admin.js" => Some((ADMIN_JS.as_bytes(), "application/javascript; charset=utf-8")),
+        "/admin.css" => Some((ADMIN_CSS.as_bytes(), "text/css; charset=utf-8")),
+        _ => None,
+    }
+}
+
+/// Every admin response carries these headers. `Cache-Control` and the CSP are
+/// deliberately identical on HTML, JSON and assets: a missing header is a bug.
+fn apply_admin_headers<R: std::io::Read>(response: Response<R>) -> Response<R> {
+    response
+        .with_header(header("Cache-Control", "no-store, private"))
+        .with_header(header("Vary", "Cookie"))
+        .with_header(header("X-Robots-Tag", "noindex, nofollow, noarchive"))
+        .with_header(header("Referrer-Policy", "no-referrer"))
+        .with_header(header("X-Content-Type-Options", "nosniff"))
+        .with_header(header("Content-Security-Policy", ADMIN_CSP))
+}
+
+fn respond_admin_asset(request: Request, body: &'static [u8], content_type: &'static str) {
+    let response = Response::from_data(body)
+        .with_status_code(StatusCode(200))
+        .with_header(header("Content-Type", content_type));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn respond_admin_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
+    let body = serde_json::to_string(value)
+        .unwrap_or_else(|_| "{\"error\":\"serialization failed\"}".to_string());
+    let response = Response::from_string(body)
+        .with_status_code(StatusCode(status))
+        .with_header(header("Content-Type", "application/json"));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn respond_admin_json_retry<T: serde::Serialize>(
+    request: Request,
+    status: u16,
+    value: &T,
+    retry_after: u64,
+) {
+    let body = serde_json::to_string(value)
+        .unwrap_or_else(|_| "{\"error\":\"serialization failed\"}".to_string());
+    let response = Response::from_string(body)
+        .with_status_code(StatusCode(status))
+        .with_header(header("Content-Type", "application/json"))
+        .with_header(header("Retry-After", &retry_after.to_string()));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn respond_admin_redirect(request: Request, location: &str) {
+    let response = Response::empty(StatusCode(302)).with_header(header("Location", location));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn respond_admin_page(request: Request, path: &str, html: &str) {
+    let body = prepare_html_document(path, html.to_string()).into_bytes();
+    let response = Response::from_data(body)
+        .with_status_code(StatusCode(200))
+        .with_header(header("Content-Type", "text/html; charset=utf-8"));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn respond_admin_not_found(request: Request) {
+    let (body, content_type, status) = unknown_html_page();
+    let body = prepare_html_document("/cabinet/admin", body).into_bytes();
+    let response = Response::from_data(body)
+        .with_status_code(StatusCode(status))
+        .with_header(header("Content-Type", content_type));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn admin_session(app: &App, request: &Request) -> Option<admin::ValidSession> {
+    let cookie = header_value(request, "Cookie")?;
+    let value = admin::cookie_value(cookie, admin::SESSION_COOKIE)?;
+    app.admin_auth.validate(value)
+}
+
+/// Script clients may authenticate admin API calls with the coordinator token
+/// instead of a cookie; such calls need no CSRF token.
+fn admin_api_authorized(app: &App, request: &Request) -> bool {
+    admin_session(app, request).is_some()
+        || bearer(request)
+            .is_some_and(|token| constant_time_eq(token.as_bytes(), app.admin_token.as_bytes()))
+}
+
+/// Same-origin check for state-changing admin requests. A missing `Origin`
+/// (curl, scripts, CLI) is allowed; a present one must match the `Host`.
+fn admin_origin_allowed(request: &Request) -> bool {
+    let Some(origin) = header_value(request, "Origin") else {
+        return true;
+    };
+    let authority = origin
+        .strip_prefix("http://")
+        .or_else(|| origin.strip_prefix("https://"));
+    authority.is_some_and(|authority| {
+        header_value(request, "Host").is_some_and(|host| host.eq_ignore_ascii_case(authority))
+    })
+}
+
+fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str) {
+    if method == &Method::Post && path == "/cabinet/admin/login" {
+        return admin_login(app, request);
+    }
+    if method == &Method::Post && path == "/cabinet/admin/logout" {
+        return admin_logout(app, request);
+    }
+
+    if path.starts_with("/cabinet/admin/api") {
+        if !admin_api_authorized(app, &request) {
+            return respond_admin_json(request, 401, &json!({"error": "unauthorized"}));
+        }
+        return match (method, path) {
+            (Method::Get | Method::Head, "/cabinet/admin/api/overview") => {
+                admin_overview(app, request)
+            }
+            _ => respond_admin_json(request, 404, &json!({"error": "not found"})),
+        };
+    }
+
+    let session = admin_session(app, &request);
+    if path == "/cabinet/admin/login" {
+        if session.is_some() {
+            return respond_admin_redirect(request, "/cabinet/admin");
+        }
+        return respond_admin_page(request, path, ADMIN_PAGE);
+    }
+    if session.is_none() {
+        return respond_admin_redirect(request, "/cabinet/admin/login");
+    }
+
+    match (method, path) {
+        (Method::Get | Method::Head, "/cabinet/admin" | "/cabinet/admin/") => {
+            respond_admin_page(request, "/cabinet/admin", ADMIN_PAGE);
+        }
+        (Method::Get | Method::Head, "/cabinet/admin/design") => {
+            respond_admin_page(request, "/cabinet/admin/design", DESIGN_PAGE);
+        }
+        _ => respond_admin_not_found(request),
+    }
+}
+
+#[derive(Deserialize)]
+struct AdminLoginRequest {
+    token: String,
+}
+
+fn admin_login(app: &Arc<App>, mut request: Request) {
+    if !admin_origin_allowed(&request) {
+        return respond_admin_json(request, 403, &json!({"error": "forbidden"}));
+    }
+    let ip = client_ip(&request, app.trust_proxy);
+    if let Some(retry_after) = app.admin_login.retry_after(&ip) {
+        return respond_admin_json_retry(
+            request,
+            429,
+            &json!({"error": "rate limit exceeded"}),
+            retry_after,
+        );
+    }
+    let body = match read_body(&mut request) {
+        Ok(body) => body,
+        Err(BodyError::TooLarge) => {
+            return respond_admin_json(
+                request,
+                413,
+                &json!({"error": "request body exceeds 1 MiB"}),
+            );
+        }
+        Err(BodyError::Io(message)) => {
+            return respond_admin_json(request, 400, &json!({"error": message}));
+        }
+    };
+    let Ok(credentials) = serde_json::from_str::<AdminLoginRequest>(&body) else {
+        return respond_admin_json(request, 400, &json!({"error": "invalid JSON body"}));
+    };
+    if !constant_time_eq(credentials.token.as_bytes(), app.admin_token.as_bytes()) {
+        // Fixed delay, then record the failure. The fifth wrong token answers
+        // 429, and every later attempt stays locked for the rest of the window.
+        thread::sleep(Duration::from_millis(200));
+        let allowed = app.admin_login.allow(&ip);
+        if let Some(retry_after) = app.admin_login.retry_after(&ip) {
+            return respond_admin_json_retry(
+                request,
+                429,
+                &json!({"error": "rate limit exceeded"}),
+                retry_after,
+            );
+        }
+        if !allowed {
+            return respond_admin_json_retry(
+                request,
+                429,
+                &json!({"error": "rate limit exceeded"}),
+                admin::TTL_SECS,
+            );
+        }
+        return respond_admin_json(request, 401, &json!({"error": "unauthorized"}));
+    }
+    match app.admin_auth.mint() {
+        Ok(session) => {
+            let response = Response::from_string(
+                json!({
+                    "csrf_token": session.csrf_token,
+                    "expires_at": session.expires_at,
+                })
+                .to_string(),
+            )
+            .with_status_code(StatusCode(200))
+            .with_header(header("Content-Type", "application/json"))
+            .with_header(header(
+                "Set-Cookie",
+                &app.admin_auth.session_cookie(&session.cookie),
+            ))
+            .with_header(header(
+                "Set-Cookie",
+                &app.admin_auth.csrf_cookie(&session.csrf_token),
+            ));
+            let _ = request.respond(apply_admin_headers(response));
+        }
+        Err(message) => {
+            respond_admin_json(request, 500, &json!({ "error": message }));
+        }
+    }
+}
+
+/// Clear the browser cookies after a CSRF-checked logout.
+///
+/// Sessions are stateless, so this does not invalidate a cookie that was
+/// already copied elsewhere; that cookie stays valid until `exp` or token
+/// rotation. The clear headers are the whole logout contract.
+fn admin_logout(app: &Arc<App>, request: Request) {
+    let Some(session) = admin_session(app, &request) else {
+        return respond_admin_json(request, 401, &json!({"error": "unauthorized"}));
+    };
+    if !admin_origin_allowed(&request) {
+        return respond_admin_json(request, 403, &json!({"error": "forbidden"}));
+    }
+    let Some(provided) = header_value(&request, "X-CSRF-Token") else {
+        return respond_admin_json(request, 403, &json!({"error": "csrf token required"}));
+    };
+    let cookie_token = header_value(&request, "Cookie")
+        .and_then(|header| admin::cookie_value(header, admin::CSRF_COOKIE));
+    let double_submit =
+        cookie_token.is_some_and(|cookie| constant_time_eq(cookie.as_bytes(), provided.as_bytes()));
+    if !double_submit || !app.admin_auth.verify_csrf(&session.nonce, provided) {
+        return respond_admin_json(request, 403, &json!({"error": "csrf token invalid"}));
+    }
+    let response = Response::from_string(json!({"ok": true}).to_string())
+        .with_status_code(StatusCode(200))
+        .with_header(header("Content-Type", "application/json"))
+        .with_header(header("Set-Cookie", &app.admin_auth.clear_session_cookie()))
+        .with_header(header("Set-Cookie", &app.admin_auth.clear_csrf_cookie()));
+    let _ = request.respond(apply_admin_headers(response));
+}
+
+fn admin_overview(app: &Arc<App>, request: Request) {
+    let (status, registered) = {
+        let state = app.lock();
+        (state.status(state::now_secs()), state.list_clients().len())
+    };
+    let (mut running, mut queued, mut done, mut found) = (0usize, 0usize, 0usize, 0usize);
+    for job in &status.jobs {
+        if job.found {
+            found += 1;
+        } else if job.done {
+            done += 1;
+        } else if job.chunks_leased > 0 {
+            running += 1;
+        } else {
+            queued += 1;
+        }
+    }
+    respond_admin_json(
+        request,
+        200,
+        &json!({
+            "build_id": BUILD_ID,
+            "uptime_secs": app.started.elapsed().as_secs(),
+            "jobs": {
+                "total": status.jobs.len(),
+                "running": running,
+                "queued": queued,
+                "done": done,
+                "found": found,
+            },
+            "leases": { "active": status.clients.len() },
+            "clients": { "registered": registered },
+            "totals": status.totals,
+        }),
+    );
+}
+
 /// Serve a public asset. HTML is never reused (`no-store`); every other asset
 /// is either immutable (build-prefixed URL) or revalidated (`no-cache`), and
 /// answers `304` while its `ETag` still matches.
@@ -898,7 +1303,7 @@ fn respond_asset(
             .with_status_code(StatusCode(status))
             .with_header(header("Content-Type", content_type))
             .with_header(header("Cache-Control", "no-store"));
-        let _ = request.respond(response);
+        respond_hidden(request, response);
         return;
     }
 
@@ -912,7 +1317,7 @@ fn respond_asset(
         let response = Response::empty(StatusCode(304))
             .with_header(header("ETag", &etag))
             .with_header(header("Cache-Control", cache_control));
-        let _ = request.respond(response);
+        respond_hidden(request, response);
         return;
     }
 
@@ -921,7 +1326,7 @@ fn respond_asset(
         .with_header(header("Content-Type", content_type))
         .with_header(header("Cache-Control", cache_control))
         .with_header(header("ETag", &etag));
-    let _ = request.respond(response);
+    respond_hidden(request, response);
 }
 
 const ETAG_BYTES: usize = 8;
@@ -953,8 +1358,6 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/run" => Some((RUN_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/me" => Some((ME_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/docs" => Some((DOCS_PAGE.as_bytes(), "text/html; charset=utf-8")),
-        // Internal, noindex component gallery generated from design/components.
-        "/design" => Some((DESIGN_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key" => Some((KEY_PAGE.as_bytes(), "text/html; charset=utf-8")),
         "/key.js" => Some((KEY_JS.as_bytes(), "application/javascript; charset=utf-8")),
         "/address-codecs.js" => Some((
@@ -1176,7 +1579,7 @@ fn redirect_response(location: &str) -> Response<std::io::Empty> {
 }
 
 fn respond_redirect(request: Request, location: &str) {
-    let _ = request.respond(redirect_response(location));
+    respond_hidden(request, redirect_response(location));
 }
 
 /// Canonical origin for absolute SEO URLs. A trailing slash is trimmed so the
@@ -2089,7 +2492,14 @@ fn site_footer(build_id: &str) -> String {
 fn is_app_shell(path: &str) -> bool {
     matches!(
         path,
-        "/app" | "/run" | "/me" | "/cabinet" | "/cabinet/wallet"
+        "/app"
+            | "/run"
+            | "/me"
+            | "/cabinet"
+            | "/cabinet/wallet"
+            | "/cabinet/admin"
+            | "/cabinet/admin/"
+            | "/cabinet/admin/login"
     )
 }
 
@@ -2191,7 +2601,8 @@ fn is_fingerprintable_asset_url(value: &str) -> bool {
     ASSET_EXTENSIONS
         .iter()
         .any(|known| extension.eq_ignore_ascii_case(known))
-        && static_asset(&format!("/{path}")).is_some()
+        && (static_asset(&format!("/{path}")).is_some()
+            || admin_asset(&format!("/{path}")).is_some())
 }
 
 fn fingerprinted_url(value: &str, build_id: &str) -> String {
@@ -4768,9 +5179,10 @@ fn tron_address(app: &App, request: Request, query: &str) {
     if !valid_tron_address(address) {
         return respond_json(request, 400, &json!({ "error": "invalid tron address" }));
     }
-    let Some(key) = app.tronscan_api_key.as_deref() else {
+    if app.edge_proxy.is_none() && app.tronscan_api_key.is_none() {
         return respond_json(request, 501, &json!({ "error": "no_provider" }));
-    };
+    }
+    let key = app.tronscan_api_key.as_deref().unwrap_or("");
     match tron_lookup(app, key, address) {
         Ok(body) => respond_json(request, 200, &body),
         Err(error) => respond_tron_error(request, error),
@@ -4800,9 +5212,10 @@ fn tron_addresses(app: &App, mut request: Request) {
         Ok(addresses) => addresses,
         Err(message) => return respond_json(request, 400, &json!({ "error": message })),
     };
-    let Some(key) = app.tronscan_api_key.as_deref() else {
+    if app.edge_proxy.is_none() && app.tronscan_api_key.is_none() {
         return respond_json(request, 501, &json!({ "error": "no_provider" }));
-    };
+    }
+    let key = app.tronscan_api_key.as_deref().unwrap_or("");
     let mut results = serde_json::Map::with_capacity(addresses.len());
     for address in addresses {
         let value = match tron_lookup(app, key, &address) {
@@ -4889,12 +5302,13 @@ enum TronFetchError {
     Busy,
 }
 
-/// One TronScan GET through the shared limiter, with two retries on 429/5xx
-/// (250 ms, then 750 ms, both jittered). Errors never contain the API key or
+/// One provider GET through the shared limiter, with two retries on 429/5xx
+/// (250 ms, then 750 ms, both jittered). `headers` carries either the TronScan
+/// key or the edge secret, never both. Errors never contain a key, a secret or
 /// the request headers.
 fn tronscan_get(
     agent: &ureq::Agent,
-    key: &str,
+    headers: &[(&str, &str)],
     url: &str,
     limiter: &Arc<tron_cache::Limiter>,
 ) -> Result<serde_json::Value, TronFetchError> {
@@ -4903,7 +5317,11 @@ fn tronscan_get(
         let Some(slot) = limiter.acquire() else {
             return Err(TronFetchError::Busy);
         };
-        let status = match agent.get(url).set("TRON-PRO-API-KEY", key).call() {
+        let mut request = agent.get(url);
+        for (name, value) in headers {
+            request = request.set(name, value);
+        }
+        let status = match request.call() {
             Ok(response) => {
                 let mut body = String::new();
                 let read = response
@@ -4976,7 +5394,7 @@ fn respond_tron_error(request: Request, error: TronLookupError) {
     if error.status == 503 {
         response = response.with_header(header("Retry-After", "2"));
     }
-    let _ = request.respond(response);
+    respond_hidden(request, response);
 }
 
 fn tron_lookup(app: &App, key: &str, address: &str) -> Result<serde_json::Value, TronLookupError> {
@@ -4988,7 +5406,13 @@ fn tron_lookup(app: &App, key: &str, address: &str) -> Result<serde_json::Value,
             }
         };
     }
-    match tron_lookup_uncached(&app.tronscan_agent, key, address, &app.tron_limiter) {
+    match tron_lookup_uncached(
+        app.edge_proxy.as_ref(),
+        &app.tronscan_agent,
+        key,
+        address,
+        &app.tron_limiter,
+    ) {
         Ok(value) => {
             app.tron_cache.put_success("tron", address, value.clone());
             Ok(value)
@@ -5007,27 +5431,54 @@ fn tron_lookup(app: &App, key: &str, address: &str) -> Result<serde_json::Value,
 }
 
 fn tron_lookup_uncached(
+    edge: Option<&EdgeProxy>,
     agent: &ureq::Agent,
     key: &str,
     address: &str,
     limiter: &Arc<tron_cache::Limiter>,
 ) -> Result<serde_json::Value, TronFetchError> {
-    let account_url = format!("{TRONSCAN_API_BASE}/api/accountv2?address={address}");
-    let account = match tronscan_get(agent, key, &account_url, limiter) {
+    let (account_url, transaction_url) = match edge {
+        Some(proxy) => (
+            format!("{}/v1/tron/account?address={address}", proxy.base),
+            format!(
+                "{}/v1/tron/transactions?address={address}&limit=1",
+                proxy.base
+            ),
+        ),
+        None => (
+            format!("{TRONSCAN_API_BASE}/api/accountv2?address={address}"),
+            format!(
+                "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit=1&start=0&address={address}"
+            ),
+        ),
+    };
+    let headers = tron_auth_headers(edge, key);
+    let account = match tronscan_get(agent, &headers, &account_url, limiter) {
         Ok(value) => value,
         // An unknown account is an empty account, not an upstream failure.
         Err(TronFetchError::NotFound) => serde_json::Value::Null,
         Err(error) => return Err(error),
     };
-    let transaction_url = format!(
-        "{TRONSCAN_API_BASE}/api/transaction?sort=-timestamp&count=true&limit=1&start=0&address={address}"
-    );
-    let transaction = match tronscan_get(agent, key, &transaction_url, limiter) {
+    let transaction = match tronscan_get(agent, &headers, &transaction_url, limiter) {
         Ok(value) => value,
         Err(TronFetchError::NotFound) => serde_json::Value::Null,
         Err(error) => return Err(error),
     };
     tron_response(address, &account, &transaction).map_err(|_| TronFetchError::Body)
+}
+
+/// Direct mode authenticates with the TronScan key; edge mode authenticates to
+/// the worker with the shared secret. The coordinator never sends the provider
+/// key to the worker.
+fn tron_auth_headers<'a>(edge: Option<&'a EdgeProxy>, key: &'a str) -> Vec<(&'a str, &'a str)> {
+    match edge {
+        Some(proxy) => proxy
+            .secret
+            .as_deref()
+            .map(|secret| vec![("X-Edge-Secret", secret)])
+            .unwrap_or_default(),
+        None => vec![("TRON-PRO-API-KEY", key)],
+    }
 }
 
 /// TronScan reports the balance of very large accounts as a negative int64
@@ -5564,7 +6015,7 @@ fn parse_forwarded_ip(value: &str) -> Option<String> {
 }
 
 /// Constant-time equality over the byte strings (length is not secret).
-fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     if left.len() != right.len() {
         return false;
     }
@@ -5621,13 +6072,21 @@ fn header(name: &str, value: &str) -> Header {
     Header::from_bytes(name.as_bytes(), value.as_bytes()).expect("static header is ASCII")
 }
 
+/// Send a response without advertising the server stack. tiny_http injects
+/// `Server: tiny-http (Rust)` for every response that lacks a `Server` header,
+/// so an explicit (empty) header is the only way to suppress it at the origin.
+/// The edge also removes the header for clients.
+pub(crate) fn respond_hidden<R: std::io::Read>(request: Request, response: Response<R>) {
+    let _ = request.respond(response.with_header(header("Server", "")));
+}
+
 pub(crate) fn respond_json<T: serde::Serialize>(request: Request, status: u16, value: &T) {
     let body = serde_json::to_string(value)
         .unwrap_or_else(|_| "{\"error\":\"serialization failed\"}".to_string());
     let response = Response::from_string(body)
         .with_status_code(StatusCode(status))
         .with_header(header("Content-Type", "application/json"));
-    let _ = request.respond(response);
+    respond_hidden(request, response);
 }
 
 fn respond_rate_limited(request: Request) {
@@ -5636,11 +6095,11 @@ fn respond_rate_limited(request: Request) {
         .with_status_code(StatusCode(429))
         .with_header(header("Content-Type", "application/json"))
         .with_header(header("Retry-After", "1"));
-    let _ = request.respond(response);
+    respond_hidden(request, response);
 }
 
 fn respond_empty(request: Request, status: u16) {
-    let _ = request.respond(Response::empty(StatusCode(status)));
+    respond_hidden(request, Response::empty(StatusCode(status)));
 }
 
 #[cfg(test)]
@@ -6287,6 +6746,25 @@ mod tests {
         assert_eq!(prefixed_asset_path("/site.css"), None);
         assert_eq!(prefixed_asset_path("/a/site.css"), None);
         assert_eq!(prefixed_asset_path("/a//site.css"), None);
+    }
+
+    #[test]
+    fn admin_routes_and_assets_have_one_owner() {
+        assert!(is_admin_route("/cabinet/admin"));
+        assert!(is_admin_route("/cabinet/admin/login"));
+        assert!(is_admin_route("/cabinet/admin/api/overview"));
+        assert!(!is_admin_route("/cabinet/adminx"));
+        assert!(!is_admin_route("/design"));
+
+        // `/design` is retired; the gallery is served behind the cookie.
+        assert!(static_asset("/design").is_none());
+        assert!(admin_asset("/admin.js").is_some());
+        assert!(admin_asset("/admin.css").is_some());
+        // Both admin assets must receive the immutable build prefix.
+        assert!(is_fingerprintable_asset_url("/admin.js"));
+        assert!(is_fingerprintable_asset_url("/admin.css"));
+        assert!(is_fingerprintable_asset_url("/site.css"));
+        assert!(!is_fingerprintable_asset_url("/cabinet/admin"));
     }
 
     #[test]
@@ -7736,6 +8214,53 @@ mod tests {
         ] {
             assert!(!valid_tron_address(bad), "must reject {bad}");
         }
+    }
+
+    #[test]
+    fn edge_proxy_requires_an_https_base_and_a_shared_secret() {
+        assert!(EdgeProxy::from_parts(None, None).expect("off").is_none());
+        assert!(
+            EdgeProxy::from_parts(Some("  ".into()), None)
+                .expect("blank is off")
+                .is_none()
+        );
+        assert!(EdgeProxy::from_parts(Some("http://edge.example".into()), None).is_err());
+        // A URL without a secret would silently use the public bucket; refuse
+        // to start instead.
+        assert!(EdgeProxy::from_parts(Some("https://edge.example".into()), None).is_err());
+        assert!(
+            EdgeProxy::from_parts(Some("https://edge.example".into()), Some("   ".into())).is_err()
+        );
+        let proxy = EdgeProxy::from_parts(
+            Some("https://edge.example/".into()),
+            Some(" super-secret-value ".into()),
+        )
+        .expect("https")
+        .expect("configured");
+        assert_eq!(proxy.base, "https://edge.example");
+        assert_eq!(proxy.secret.as_deref(), Some("super-secret-value"));
+
+        let debug = format!("{proxy:?}");
+        assert!(
+            !debug.contains("super-secret-value"),
+            "debug leaked the secret: {debug}"
+        );
+    }
+
+    #[test]
+    fn edge_mode_uses_the_shared_secret_and_never_the_provider_key() {
+        let proxy = EdgeProxy {
+            base: "https://edge.example".into(),
+            secret: Some("edge-secret".into()),
+        };
+        assert_eq!(
+            tron_auth_headers(Some(&proxy), "tron-key"),
+            vec![("X-Edge-Secret", "edge-secret")]
+        );
+        assert_eq!(
+            tron_auth_headers(None, "tron-key"),
+            vec![("TRON-PRO-API-KEY", "tron-key")]
+        );
     }
 
     #[test]

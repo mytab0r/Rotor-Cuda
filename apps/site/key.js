@@ -1255,6 +1255,9 @@
     var row = document.createElement('tr');
     row.className = 'key-row';
     row.setAttribute('data-id', addr.id);
+    /* Provider wiring is known at render time; the audit reads this instead of
+     * the later balance-check state. */
+    row.setAttribute('data-balance-provider', rowHasProvider(addr.id) ? '1' : '0');
     row.setAttribute('data-address', addr.address);
     row.setAttribute('data-curve', addr.curve || '');
     row.setAttribute('data-group', rowGroup(addr.id));
@@ -1337,19 +1340,23 @@
     if (!addr.sharedEvm) {
       var details = buildRowDetails(addr, name);
       addrCell.appendChild(details);
+    }
 
-      var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
-      if (explorer) {
-        var ext = document.createElement('a');
-        ext.className = 'icon-button icon-button--quiet icon-button--lg';
-        ext.href = explorer + encodeURIComponent(addr.address);
-        ext.target = '_blank';
-        ext.rel = 'noopener noreferrer';
-        ext.setAttribute('data-tooltip', 'Open in explorer');
-        ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
-        ext.appendChild(svgUse('/icons.svg#ui-external'));
-        actions.appendChild(ext);
-      }
+    /* Every EVM network row links to its own chain explorer, including the
+     * eight shared-address sub-rows that keep copy/details suppressed. */
+    var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
+    if (explorer) {
+      var ext = document.createElement('a');
+      ext.className = 'icon-button icon-button--quiet icon-button--lg';
+      ext.href = explorer + encodeURIComponent(addr.address);
+      ext.target = '_blank';
+      ext.rel = 'noopener noreferrer';
+      ext.setAttribute('data-tooltip', 'Open in explorer');
+      ext.setAttribute('aria-label', 'Open ' + name + ' in explorer');
+      ext.appendChild(svgUse('/icons.svg#ui-external'));
+      actions.appendChild(ext);
+    }
+    if (!addr.sharedEvm) {
       var copy = document.createElement('button');
       copy.type = 'button';
       copy.className = 'icon-button icon-button--quiet icon-button--lg';
@@ -2152,6 +2159,9 @@
     var data = await response.json();
     if (data && data.error && data.error.message) throw new Error(data.error.message);
     var parser = cacheApi && typeof cacheApi[parserName] === 'function' ? cacheApi[parserName] : null;
+    if (!parser && typeof window !== 'undefined' && window.RotorKeyTools) {
+      parser = typeof window.RotorKeyTools[parserName] === 'function' ? window.RotorKeyTools[parserName] : null;
+    }
     var parsed = parser ? parser(data) : null;
     if (!parsed) throw new Error('unexpected response');
     return parsed;
@@ -2335,16 +2345,41 @@
     };
   }
 
+  /* SoChain v3's keyless ZEC balance endpoint answers CORS-friendly JSON with
+   * decimal coin strings; the parser converts them to satoshis without floats.
+   * The response carries no transaction count, so `active` is amount > 0 only. */
+  async function fetchSochainZec(address, signal) {
+    var response = await fetchWithTimeout(
+      'https://sochain.com/api/v3/balance/ZEC/' + encodeURIComponent(address),
+      null,
+      signal
+    );
+    var parsed = await parseProviderJson(response, 'parseSochainBalance');
+    var sats = BigInt(parsed.confirmed) + BigInt(parsed.unconfirmed);
+    if (sats < 0n) sats = 0n;
+    return {
+      text: sats.toLocaleString('en-US') + ' sats',
+      summary: {
+        amount: sats,
+        chain: 'zcash',
+        symbol: 'ZEC',
+        decimals: 8,
+        active: sats > 0n
+      }
+    };
+  }
+
   /* Rows whose identifiers have a working public provider. Kept in one place
-   * so the counters and the checks agree on what "N" means. ZEC still has no
-   * free keyless provider (Blockchair answers 430 without a key). */
+   * so the counters and the checks agree on what "N" means. Every chain group
+   * now has a keyless provider (ZEC via SoChain; Blockchair answers 430
+   * without a key and is not used). */
   function rowHasProvider(id) {
     if (!id) return false;
     if (id === 'solana' || id === 'sui' || id === 'ton' || id === 'ton_w5') return true;
     if (id.indexOf('xrp_') === 0) return true;
     if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return true;
     if (id.indexOf('bch_') === 0) return true;
-    if (id.indexOf('zcash_') === 0) return false;
+    if (id.indexOf('zcash_') === 0) return true;
     return id.indexOf('btc_') === 0 || !!EVM_CHAINS[id] || id === 'tron';
   }
 
@@ -2551,6 +2586,9 @@
     } else if (id.indexOf('bch_') === 0) {
       provider = 'haskoin';
       chain = 'bch';
+    } else if (id.indexOf('zcash_') === 0) {
+      provider = 'sochain';
+      chain = 'zcash';
     } else {
       return null;
     }
@@ -2707,6 +2745,7 @@
       if (id.indexOf('ltc_') === 0) return fetchBlockcypher(address, signal, 'ltc');
       if (id.indexOf('doge_') === 0) return fetchBlockcypher(address, signal, 'doge');
       if (id.indexOf('bch_') === 0) return fetchHaskoinBch(address, signal);
+      if (id.indexOf('zcash_') === 0) return fetchSochainZec(address, signal);
       throw new Error('no provider in v1');
     };
     try {
