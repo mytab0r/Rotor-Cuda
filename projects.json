@@ -42,6 +42,7 @@
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-evm.js",
         "node --check apps/site/wallet-btc.js",
+        "node --check apps/site/wallet-history.js",
         "node --check apps/site/send.js",
         "node --check apps/site/tx-decoders.js",
         "node --check apps/site/tx-page.js",
@@ -83,6 +84,7 @@
         "node apps/site/wallet-erc20-test.mjs",
         "node apps/site/wallet-approvals-test.mjs",
         "node apps/site/wallet-btc-test.mjs",
+        "node apps/site/wallet-history-test.mjs",
         "node apps/site/wallet-summary-test.mjs",
         "node apps/site/wallet-seed-test.mjs",
         "node apps/site/send-test.mjs",
@@ -232,6 +234,7 @@
         "node --check docs/site-map/theme.js",
         "node --check scripts/sync-board.mjs",
         "node --check scripts/density-parity.mjs",
+        "node --check scripts/check-screenshots.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/worker.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/upstreams.mjs",
         "node scripts/check-projects.mjs"
@@ -241,7 +244,8 @@
         "node --test deploy/cloudflare/provider-proxy/test/provider-proxy.test.mjs",
         "node docs/site-map/site-map-test.mjs",
         "node scripts/density-parity.mjs --help",
-        "node scripts/check-projects.mjs"
+        "node scripts/check-projects.mjs",
+        "node scripts/check-screenshots.mjs"
       ],
       "consumes": [],
       "contracts": [
