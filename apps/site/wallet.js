@@ -1528,13 +1528,25 @@
     sendArmedRow.hidden = !network || network.testnet;
   }
 
+  var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
+
   /* A token send builds its own calldata, so the free-form data field is
-   * disabled and cleared while a token contract is set. */
+   * disabled while a token contract is set. The typed data is kept: entering
+   * a token does not destroy it, and the error says why it must be cleared
+   * before review. */
   function updateSendTokenState() {
     if (!sendTokenInput || !sendDataInput) return;
     var hasToken = sendTokenInput.value.trim() !== '';
     sendDataInput.disabled = hasToken;
-    if (hasToken && sendDataInput.value.trim()) sendDataInput.value = '';
+    var box = byId('wallet-send-data-error');
+    var showingTokenDataError = !!(box && !box.hidden && box.textContent === TOKEN_DATA_ERROR);
+    if (hasToken && sendDataInput.value.trim() && TOKEN_DATA_ERROR) {
+      setError('wallet-send-data-error', TOKEN_DATA_ERROR);
+      sendDataInput.setAttribute('aria-invalid', 'true');
+    } else if (!hasToken && showingTokenDataError) {
+      setError('wallet-send-data-error', '');
+      sendDataInput.setAttribute('aria-invalid', 'false');
+    }
   }
 
   function renderSendNetworks() {
@@ -1899,6 +1911,9 @@
   if (sendTokenInput) {
     sendTokenInput.addEventListener('input', updateSendTokenState);
   }
+  if (sendDataInput) {
+    sendDataInput.addEventListener('input', updateSendTokenState);
+  }
   sendEntrySelect.addEventListener('change', function () {
     updateSendFrom();
     invalidateSendReview();
@@ -1953,6 +1968,7 @@
         review: review,
         fetchJson: rpcFetchJson,
         mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTx,
         sign: function (fields) { return signTxWithEntry(entry, fields); }
       });
       if (generation !== state.generation || !state.unlocked) return;

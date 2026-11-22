@@ -46,8 +46,10 @@ Out of scope (next slices):
 1. **Chain id allowlist.** `eth_chainId` is read before review and again before
    signing. A mismatch, or an id absent from `NETWORKS` in
    `apps/site/wallet-evm.js`, refuses the send.
-2. **EIP-55 recipient.** Mixed-case addresses must match the EIP-55 checksum;
-   the zero address is always refused.
+2. **EIP-55 recipient.** All-lowercase addresses are accepted without a
+   checksum; any uppercase letter makes the address checksummed, so mixed case
+   and all-uppercase must match the EIP-55 checksum exactly. The zero address
+   is always refused.
 3. **Balance.** On mainnet a native send's amount plus `gasLimit ×
    maxFeePerGas` must not exceed the native balance. A token send's amount must
    not exceed `balanceOf(owner)`, and its fee alone must fit the native
@@ -74,7 +76,10 @@ Out of scope (next slices):
    of at most 32 characters. Any other calldata, including an approval, is
    refused. Both shapes keep the arm, chain re-read, fee cap and balance gates.
 10. **One broadcast.** The signed raw transaction is sent exactly once; a
-    provider error is shown verbatim and not retried automatically. No key,
+    provider error is shown verbatim and not retried automatically. Before
+    signing, the unsigned transaction is rebuilt from the reviewed fields
+    (chain id, nonce, fees, gas limit, to, value, data) and compared
+    byte-for-byte with the reviewed unsigned hex; a mismatch refuses. No key,
     signature seed or signed transaction is logged or stored.
 
 ## Fee caps

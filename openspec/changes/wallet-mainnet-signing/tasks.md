@@ -9,8 +9,11 @@
 - [x] Refuse a chain id that is not in the table (`assertKnownNetwork`).
 - [x] Enforce the mainnet arm in the codec (`assertMainnetArmed`), not only in
   the DOM.
-- [x] Validate recipients with EIP-55; refuse a bad checksum and the zero
-  address.
+- [x] Validate recipients with EIP-55; all-lowercase is checksum-free, any
+  uppercase letter must match the checksum, and the zero address is refused.
+- [x] Pin the whole unsigned transaction at confirm: rebuild it from the
+  reviewed fields and compare byte-for-byte with the reviewed unsigned hex
+  before signing, so a mutated token contract, nonce or fee refuses.
 - [x] Require `eth_estimateGas` + 20% buffer for an automatic mainnet gas
   limit; keep the manual override explicit and reviewed.
 - [x] Refuse when `amount + gasLimit × maxFeePerGas` exceeds the balance.
@@ -46,7 +49,7 @@
 - [x] Add ERC-20 refusals: a contract address without code, decimals outside
   0–24, a symbol longer than 32 characters or non-printable, a balance below
   the amount, data supplied by the form, a chain switch, an unarmed mainnet
-  review and a mutated recipient/amount/value.
+  review and a mutated recipient/amount/value/contract/nonce/fee.
 - [x] Add stubbed-RPC refusals: wrong chain id, id outside the table, bad
   checksum, zero address, unarmed mainnet, fee cap, balance, calldata and
   zero amount.

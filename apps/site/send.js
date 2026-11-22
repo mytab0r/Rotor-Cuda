@@ -341,10 +341,26 @@
 
   /* ------------------------------------------------------ ERC-20 transfer */
 
+  /* Address validation is the wallet codec's: all-lowercase or a valid
+   * EIP-55 checksum, never a silent lowercase of an uppercase/mixed address. */
   function normalizeEvmAddress(text, field) {
-    var value = typeof text === 'string' ? text.trim().toLowerCase() : '';
-    if (!/^0x[0-9a-f]{40}$/.test(value)) {
+    var value = typeof text === 'string' ? text.trim() : '';
+    var wallet = root.RotorEvmSend;
+    if (wallet && typeof wallet.normalizeAddress === 'function') {
+      try {
+        return wallet.normalizeAddress(value, (field || 'address').toLowerCase());
+      } catch (err) {
+        throw new Error(field + ': ' + (err && err.message ? err.message : String(err)));
+      }
+    }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
       throw new Error(field + ' must be 0x followed by 40 hex characters.');
+    }
+    /* Without the shared codec there is no Keccak-256, so an uppercase form
+     * cannot be checksum-verified: fail closed instead of lowercasing it. */
+    if (/[A-F]/.test(value.slice(2))) {
+      throw new Error(field + ': The address fails the EIP-55 checksum. ' +
+        'Copy it again or use the all-lowercase form.');
     }
     return value;
   }
@@ -1281,6 +1297,7 @@
           result = await evm.confirmTransaction({
             review: state.review,
             fetchJson: fetchJson,
+            unsigned: unsignedEvm,
             sign: function () { return signed; }
           });
           if (config.explorerTx) result.explorerUrl = config.explorerTx + result.txHash;
