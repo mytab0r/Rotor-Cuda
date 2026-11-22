@@ -5,6 +5,8 @@
  *  - EIP-55 destination validation and the zero-address refusal;
  *  - the chain table, the chain-id guard and the mainnet arm/balance/fee-cap
  *    gates;
+ *  - ERC-20 token reads (decimals, symbol, balanceOf) and the fixed
+ *    transfer(address,uint256) calldata built locally;
  *  - review preparation over an injected public RPC and the explicit confirm
  *    step that signs and broadcasts.
  *
@@ -190,10 +192,21 @@
   var PROVIDERS = SEPOLIA.providers;
   var GAS_BUFFER_PERCENT = 20n;
 
+  /* ERC-20 reads and the one transfer method this slice signs. The selectors
+   * are the canonical function signatures; calldata is always built here and
+   * never accepted from the form. */
+  var ERC20_TRANSFER_SELECTOR = '0xa9059cbb';
+  var ERC20_DECIMALS_SELECTOR = '0x313ce567';
+  var ERC20_SYMBOL_SELECTOR = '0x95d89b41';
+  var ERC20_BALANCE_OF_SELECTOR = '0x70a08231';
+  var TOKEN_MAX_DECIMALS = 24;
+  var TOKEN_MAX_SYMBOL_CHARS = 32;
+
   /* EVM chains the vault can hold. */
   var EVM_CHAIN_SLUGS = SSOT_PROVIDERS.groups['evm-mainnet'].slice();
   var U64_MAX = (1n << 64n) - 1n;
   var U128_MAX = (1n << 128n) - 1n;
+  var U256_MAX = (1n << 256n) - 1n;
 
   function errorText(err) {
     return err && err.message ? err.message : String(err);
@@ -342,11 +355,15 @@
     return out;
   }
 
-  /* EIP-55 recipient validation. All-lowercase and all-uppercase input is
-   * accepted without a checksum (the convention); mixed case must match the
-   * EIP-55 checksum exactly. The zero address is always refused because value
-   * sent there is unrecoverable. */
-  function normalizeAddress(text) {
+  /* EIP-55 validation. All-lowercase input is accepted without a checksum (the
+   * convention) and, for a transfer recipient, so is all-uppercase; mixed case
+   * must match the EIP-55 checksum exactly. A token contract can set
+   * `requireChecksumCase` so only all-lowercase or a valid EIP-55 form passes.
+   * The zero address is always refused because value sent there is
+   * unrecoverable. `role` only changes that refusal's wording. */
+  function normalizeAddress(text, role, options) {
+    var what = role || 'transfer recipient';
+    var settings = options || {};
     if (typeof text !== 'string') throw new Error('Enter a 0x-prefixed 20-byte address.');
     var value = text.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
@@ -354,12 +371,14 @@
     }
     var lower = value.toLowerCase();
     if (/^0x0{40}$/.test(lower)) {
-      throw new Error('The zero address cannot be a transfer recipient; value sent there is not recoverable.');
+      throw new Error('The zero address cannot be a ' + what + '; value sent there is not recoverable.');
     }
     var body = value.slice(2);
     var hasLower = /[a-f]/.test(body);
     var hasUpper = /[A-F]/.test(body);
-    if (hasLower && hasUpper && checksumAddress(lower) !== value) {
+    var checked = (hasLower && hasUpper) ||
+      (hasUpper && settings.requireChecksumCase === true);
+    if (checked && checksumAddress(lower) !== value) {
       throw new Error('The address fails the EIP-55 checksum. Copy it again or use the all-lowercase form.');
     }
     return lower;
@@ -374,6 +393,92 @@
     var hex = value.slice(2).toLowerCase();
     if (hex.length % 2) throw new Error('Use an even number of hex digits.');
     return '0x' + hex;
+  }
+
+  /* ---------------------------------------------------------- ERC-20 ABI */
+
+  function padWord(hex) {
+    if (hex.length > 64) throw new Error('A 32-byte ABI word cannot hold that value.');
+    return hex.padStart(64, '0');
+  }
+
+  /* Canonical transfer(address,uint256): selector 0xa9059cbb, then the
+   * recipient and the raw token amount each left-padded to one 32-byte word.
+   * The amount is in the token's smallest unit, already scaled by decimals. */
+  function transferCalldata(recipient, amountWei) {
+    var to = normalizeAddress(recipient);
+    if (typeof amountWei !== 'bigint' || amountWei <= 0n) {
+      throw new Error('The token amount must be greater than zero.');
+    }
+    if (amountWei > U256_MAX) {
+      throw new Error('The token amount is too large for a uint256.');
+    }
+    return ERC20_TRANSFER_SELECTOR + padWord(to.slice(2)) + padWord(amountWei.toString(16));
+  }
+
+  function abiBody(hex, what) {
+    if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]*$/.test(hex)) {
+      throw new Error('The token ' + what + ' call returned non-hex data.');
+    }
+    return hex.slice(2).toLowerCase();
+  }
+
+  function decodeUint256(hex, what) {
+    var body = abiBody(hex, what);
+    if (body.length < 64) {
+      throw new Error('The token ' + what + ' call returned no uint256 value.');
+    }
+    return BigInt('0x' + body.slice(0, 64));
+  }
+
+  function utf8Text(bytes, what) {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (err) {
+      throw new Error('The token ' + what + ' is not valid UTF-8.');
+    }
+  }
+
+  /* ABI string symbols are [offset=32][length][data]; some older tokens
+   * return a fixed bytes32 instead. Both are accepted, then the same limits
+   * apply: at most 32 characters and printable ASCII only. */
+  function decodeTokenSymbol(result) {
+    var body = abiBody(result, 'symbol');
+    if (body.length < 64) {
+      throw new Error('The token symbol call returned no data.');
+    }
+    var text;
+    if (body.length >= 128 && /^0{62}20$/.test(body.slice(0, 64))) {
+      var length = BigInt('0x' + body.slice(64, 128));
+      if (length > BigInt(TOKEN_MAX_SYMBOL_CHARS)) {
+        throw new Error('The token symbol is longer than ' + TOKEN_MAX_SYMBOL_CHARS +
+          ' characters; refusing to sign an unfamiliar token.');
+      }
+      var size = Number(length);
+      var dataHex = body.slice(128, 128 + size * 2);
+      if (dataHex.length !== size * 2) {
+        throw new Error('The token symbol call returned a truncated string.');
+      }
+      text = utf8Text(hexToBytes(dataHex), 'symbol');
+    } else {
+      var bytes = hexToBytes(body.slice(0, 64));
+      var end = bytes.length;
+      for (var i = 0; i < bytes.length; i += 1) {
+        if (bytes[i] === 0) { end = i; break; }
+      }
+      text = utf8Text(bytes.slice(0, end), 'symbol');
+    }
+    if (!text) {
+      throw new Error('The token reports an empty symbol; refusing to sign an unfamiliar token.');
+    }
+    if (Array.from(text).length > TOKEN_MAX_SYMBOL_CHARS) {
+      throw new Error('The token symbol is longer than ' + TOKEN_MAX_SYMBOL_CHARS +
+        ' characters; refusing to sign an unfamiliar token.');
+    }
+    if (!/^[\x20-\x7e]+$/.test(text)) {
+      throw new Error('The token symbol contains non-printable characters; refusing to sign an unfamiliar token.');
+    }
+    return text;
   }
 
   function parseUint(text, max, field) {
@@ -393,18 +498,24 @@
 
   /* Validate the raw form strings. Returns { errors, values }; every value
    * that parsed is present even when another field failed, so the UI can show
-   * all field errors at once. */
+   * all field errors at once. A filled `token` switches the amount to token
+   * units (parsed later once the contract decimals are read) and keeps the
+   * native value at zero. */
   function validateForm(raw) {
     var input = raw || {};
     var errors = {};
     var values = {
       to: null,
+      token: null,
+      amountText: '',
       value: 0n,
       data: '0x',
       gasLimit: null,
       maxFee: null,
       priorityFee: null
     };
+    var tokenText = typeof input.token === 'string' ? input.token.trim() : '';
+    var tokenWanted = tokenText !== '';
 
     try {
       values.to = normalizeAddress(input.to);
@@ -412,10 +523,30 @@
       fieldError(errors, 'to', errorText(err));
     }
 
+    if (tokenWanted) {
+      try {
+        values.token = normalizeAddress(tokenText, 'token contract', { requireChecksumCase: true });
+      } catch (err) {
+        fieldError(errors, 'token', errorText(err));
+      }
+    }
+
     try {
       var valueText = typeof input.value === 'string' ? input.value.trim() : '';
-      values.value = valueText ? parseEthToWei(valueText) : 0n;
-      if (values.value > U128_MAX) throw new Error('Value is too large.');
+      if (tokenWanted) {
+        values.amountText = valueText;
+        if (!valueText) throw new Error('Enter the token amount.');
+        if (!/^\d+(?:\.\d+)?$/.test(valueText)) {
+          throw new Error('Use a plain decimal token amount like 1.5 (no exponent, sign or comma).');
+        }
+        if (!/[1-9]/.test(valueText)) {
+          throw new Error('The token amount must be greater than zero.');
+        }
+        values.value = 0n;
+      } else {
+        values.value = valueText ? parseEthToWei(valueText) : 0n;
+        if (values.value > U128_MAX) throw new Error('Value is too large.');
+      }
     } catch (err) {
       fieldError(errors, 'value', errorText(err));
     }
@@ -424,6 +555,10 @@
       values.data = normalizeData(input.data);
     } catch (err) {
       fieldError(errors, 'data', errorText(err));
+    }
+    if (tokenWanted && !errors.data && values.data !== '0x') {
+      fieldError(errors, 'data',
+        'Data is not allowed with a token transfer; the calldata is built from the fixed ERC-20 transfer ABI.');
     }
 
     try {
@@ -515,6 +650,35 @@
     }
   }
 
+  /* A token review is only signable when its calldata still matches the
+   * reviewed recipient and amount, and no native value rides along. This runs
+   * on every chain, testnet included. */
+  function assertReviewedTokenTransfer(review) {
+    var contract;
+    try {
+      contract = normalizeAddress(review.tokenContract, 'token contract', { requireChecksumCase: true });
+    } catch (err) {
+      throw new Error('The reviewed token contract is invalid: ' + errorText(err) +
+        ' Refusing to sign.');
+    }
+    var expected;
+    try {
+      expected = transferCalldata(review.to, review.tokenAmountWei);
+    } catch (err) {
+      throw new Error('The reviewed token transfer is invalid: ' + errorText(err) +
+        ' Refusing to sign.');
+    }
+    if (review.dataHex !== expected) {
+      throw new Error('The reviewed token calldata does not match the reviewed recipient ' +
+        'and amount. Refusing to sign.');
+    }
+    if (review.valueWei !== 0n) {
+      throw new Error('A token transfer must not send native value; the reviewed value is ' +
+        'not zero. Refusing to sign.');
+    }
+    return contract;
+  }
+
   function bufferedGasLimit(estimate) {
     var percent = 100n + GAS_BUFFER_PERCENT;
     var buffered = (estimate * percent + 99n) / 100n;
@@ -541,6 +705,16 @@
         AMOUNT.formatUnits(totalWei, ETH_DECIMALS) + ' ' + network.symbol +
         ') exceeds the balance of ' + AMOUNT.formatUnits(balance, ETH_DECIMALS) + ' ' +
         network.symbol + '; refusing to sign.');
+    }
+  }
+
+  /* A token send moves no native value; only the gas fee has to fit. */
+  function assertFeeBalance(network, balance, feeWei) {
+    if (feeWei > balance) {
+      throw new Error('The maximum network fee ' + AMOUNT.formatUnits(feeWei, ETH_DECIMALS) +
+        ' ' + network.symbol + ' exceeds the native balance of ' +
+        AMOUNT.formatUnits(balance, ETH_DECIMALS) + ' ' + network.symbol +
+        '; refusing to sign.');
     }
   }
 
@@ -667,6 +841,73 @@
     });
   }
 
+  function tokenFieldError(field, message) {
+    var err = new Error('Fix the highlighted fields before review.');
+    err.fieldErrors = {};
+    err.fieldErrors[field] = message;
+    return err;
+  }
+
+  /* Read one ERC-20 contract through the selected public RPC. The contract
+   * must have code on this chain; decimals, symbol and the sender's balance
+   * are read with plain eth_call and the amount is parsed exactly with the
+   * token's own decimals. The transfer calldata is built here from the
+   * recipient and the raw amount, never supplied by the form. */
+  async function readTokenMetadata(fetchJson, url, network, contract, owner, recipient, amountText) {
+    var code = await read(fetchJson, url, 'eth_getCode', [contract, 'latest'],
+      'the token contract code');
+    if (typeof code !== 'string' || !/^0x[0-9a-fA-F]*$/.test(code)) {
+      throw new Error('eth_getCode returned a non-hex value for the token contract.');
+    }
+    if (code.length <= 2) {
+      throw new Error('The token address ' + contract + ' has no contract code on ' +
+        network.name + '; it is an externally owned account or does not exist. ' +
+        'Refusing to sign.');
+    }
+    var decimalsHex = await read(fetchJson, url, 'eth_call',
+      [{ to: contract, data: ERC20_DECIMALS_SELECTOR }, 'latest'], 'the token decimals');
+    var decimalsValue = decodeUint256(decimalsHex, 'decimals');
+    if (decimalsValue > BigInt(TOKEN_MAX_DECIMALS)) {
+      throw new Error('The token reports ' + decimalsValue.toString() +
+        ' decimals; this wallet signs ERC-20 amounts with 0 to ' + TOKEN_MAX_DECIMALS +
+        ' decimals only. Refusing to sign.');
+    }
+    var symbolHex = await read(fetchJson, url, 'eth_call',
+      [{ to: contract, data: ERC20_SYMBOL_SELECTOR }, 'latest'], 'the token symbol');
+    var symbol = decodeTokenSymbol(symbolHex);
+    var decimals = Number(decimalsValue);
+    var balanceHex = await read(fetchJson, url, 'eth_call',
+      [{ to: contract, data: ERC20_BALANCE_OF_SELECTOR + padWord(owner.slice(2)) }, 'latest'],
+      'the token balance');
+    var balance = decodeUint256(balanceHex, 'balanceOf');
+    var amount;
+    try {
+      amount = AMOUNT.parseUnits(amountText, decimals);
+    } catch (err) {
+      throw tokenFieldError('value',
+        'The ' + symbol + ' amount has more than ' + decimals + ' decimals.');
+    }
+    if (amount <= 0n) {
+      throw tokenFieldError('value', 'The token amount must be greater than zero.');
+    }
+    if (amount > U256_MAX) {
+      throw new Error('The token amount is too large for a uint256.');
+    }
+    if (amount > balance) {
+      throw new Error('The amount ' + AMOUNT.formatUnits(amount, decimals) + ' ' + symbol +
+        ' exceeds the token balance of ' + AMOUNT.formatUnits(balance, decimals) + ' ' +
+        symbol + '; refusing to sign.');
+    }
+    return {
+      contract: contract,
+      symbol: symbol,
+      decimals: decimals,
+      balance: balance,
+      amount: amount,
+      data: transferCalldata(recipient, amount)
+    };
+  }
+
   /* --------------------------------------------------------------- prepare */
 
   /* Build the review. It never signs: `unsigned` is a local serializer and
@@ -682,9 +923,13 @@
     assertMainnetArmed(network, settings.mainnetArmed);
     var expectedChainId = network.chainId;
     var validated = validateForm(settings.form);
-    /* Mainnet in this slice is native-token transfers only: no calldata and
-     * no zero-value contract call. */
-    if (!network.testnet) {
+    var formInput = settings.form || {};
+    var tokenText = typeof formInput.token === 'string' ? formInput.token.trim() : '';
+    var tokenRequested = tokenText !== '';
+    /* A native mainnet transfer needs calldata to stay empty and the amount to
+     * be greater than zero. A token transfer carries locally built calldata
+     * and its native value is always zero. */
+    if (!network.testnet && !tokenRequested) {
       if (!validated.errors.data && validated.values.data !== '0x') {
         validated.errors.data = 'Mainnet signing here is native-token transfers only; clear the data field.';
       }
@@ -708,6 +953,15 @@
       throw new Error('The vault address is invalid: ' + errorText(err));
     }
     var values = validated.values;
+    var txTo = values.to;
+    var nativeValue = values.value;
+    var transferData = values.data;
+    if (values.token) {
+      txTo = values.token;
+      nativeValue = 0n;
+      transferData = '0x';
+    }
+    var tokenMeta = null;
     var providers = settings.providerUrl
       ? [settings.providerUrl]
       : (settings.providers || network.providers.map(function (provider) { return provider.url; }));
@@ -729,7 +983,15 @@
       settings.networkName || network.name)
       .then(function (chosen) {
         providerUrl = chosen;
-        return read(settings.fetchJson, chosen, 'eth_getTransactionCount', [from, 'pending'], 'the nonce');
+        if (!values.token) return null;
+        return readTokenMetadata(settings.fetchJson, chosen, network, values.token, from,
+          values.to, values.amountText).then(function (meta) {
+          tokenMeta = meta;
+          transferData = meta.data;
+        });
+      })
+      .then(function () {
+        return read(settings.fetchJson, providerUrl, 'eth_getTransactionCount', [from, 'pending'], 'the nonce');
       })
       .then(function (nonceHex) {
         nonce = quantity(nonceHex, 'nonce');
@@ -738,8 +1000,8 @@
       })
       .then(function (balanceHex) {
         balance = quantity(balanceHex, 'balance');
-        var call = { from: from, to: values.to, value: toQuantity(values.value) };
-        if (values.data !== '0x') call.data = values.data;
+        var call = { from: from, to: txTo, value: toQuantity(nativeValue) };
+        if (transferData !== '0x') call.data = transferData;
         /* Best-effort estimate: with a manual gas limit its failure is only a
          * warning, because the reviewed limit is what will be signed. Without
          * one the estimate is required, since there is no limit to send. */
@@ -797,11 +1059,15 @@
           ? (network.testnet ? estimate : bufferedGasLimit(estimate))
           : values.gasLimit;
         if (gasLimit > U64_MAX) throw new Error('The gas limit is too large.');
-        var totalMaxCost = values.value + gasLimit * maxFee;
+        var totalMaxCost = nativeValue + gasLimit * maxFee;
         var symbol = settings.nativeSymbol || network.symbol;
         if (!network.testnet) {
           assertFeeCap(network, gasLimit, maxFee);
-          assertSufficientBalance(network, balance, totalMaxCost);
+          if (values.token) {
+            assertFeeBalance(network, balance, gasLimit * maxFee);
+          } else {
+            assertSufficientBalance(network, balance, totalMaxCost);
+          }
         }
         var fields = {
           chain_id: String(expectedChainId),
@@ -809,9 +1075,9 @@
           max_priority_fee: priority.toString(),
           max_fee: maxFee.toString(),
           gas_limit: gasLimit.toString(),
-          to: values.to,
-          value: values.value.toString(),
-          data: values.data
+          to: txTo,
+          value: nativeValue.toString(),
+          data: transferData
         };
         return Promise.resolve(settings.unsigned(fields)).then(function (unsignedHex) {
           assertType2Hex(unsignedHex, 'unsigned transaction');
@@ -842,8 +1108,14 @@
             feeCapWei: network.feeCapWei,
             from: from,
             to: values.to,
-            valueWei: values.value,
-            dataHex: values.data,
+            isToken: values.token !== null,
+            tokenContract: tokenMeta ? tokenMeta.contract : null,
+            tokenSymbol: tokenMeta ? tokenMeta.symbol : null,
+            tokenDecimals: tokenMeta ? tokenMeta.decimals : null,
+            tokenAmountWei: tokenMeta ? tokenMeta.amount : null,
+            tokenBalanceWei: tokenMeta ? tokenMeta.balance : null,
+            valueWei: nativeValue,
+            dataHex: transferData,
             gasLimit: gasLimit,
             gasEstimate: estimate,
             gasLimitIsManual: values.gasLimit !== null,
@@ -882,10 +1154,19 @@
     if (typeof settings.fetchJson !== 'function' || !review.providerUrl) {
       throw new Error('The RPC provider is missing from the review.');
     }
-    if (!network.testnet) {
+    var signTo = review.to;
+    if (review.isToken) {
+      signTo = assertReviewedTokenTransfer(review);
+    } else if (!network.testnet) {
       assertMainnetNativeTransfer(network, review.dataHex, review.valueWei);
+    }
+    if (!network.testnet) {
       assertFeeCap(network, review.gasLimit, review.maxFeeWei);
-      assertSufficientBalance(network, review.balanceWei, review.totalMaxCostWei);
+      if (review.isToken) {
+        assertFeeBalance(network, review.balanceWei, review.gasLimit * review.maxFeeWei);
+      } else {
+        assertSufficientBalance(network, review.balanceWei, review.totalMaxCostWei);
+      }
     }
     assertType2Hex(review.unsignedHex, 'unsigned transaction');
 
@@ -898,7 +1179,7 @@
           max_priority_fee: String(review.priorityWei),
           max_fee: String(review.maxFeeWei),
           gas_limit: String(review.gasLimit),
-          to: review.to,
+          to: signTo,
           value: String(review.valueWei),
           data: review.dataHex
         };
@@ -946,6 +1227,8 @@
     checksumAddress: checksumAddress,
     normalizeAddress: normalizeAddress,
     normalizeData: normalizeData,
+    transferCalldata: transferCalldata,
+    decodeTokenSymbol: decodeTokenSymbol,
     parseChainId: parseChainId,
     assertChainId: assertChainId,
     assertKnownNetwork: assertKnownNetwork,
