@@ -126,14 +126,25 @@ function insideUrl(spans, index) {
 // Amount conversion has one implementation: apps/site/amount.js. A local copy
 // in a consumer is how the eleven formatters and three parsers drifted apart;
 // those copies used Number and lost precision above 2^53. Detector id:
-// lossy-amount-formatter.
+// lossy-amount-formatter. It catches declarations, function expressions and
+// `var x =` aliases, Number amount math and BigInt power-of-ten scaling.
 const AMOUNT_DEFINITIONS = [
-  { needle: "function formatUnits(", re: /^[ \t]*function\s+formatUnits\s*\(/gm },
-  { needle: "function formatUnits6(", re: /^[ \t]*function\s+formatUnits6\s*\(/gm },
-  { needle: "function parseUnits(", re: /^[ \t]*function\s+parseUnits\s*\(/gm },
-  { needle: "function coin(", re: /^[ \t]*function\s+coin\s*\(/gm },
-  { needle: "function formatEth(", re: /^[ \t]*function\s+formatEth\s*\(/gm },
-  { needle: "Math.pow(10,", re: /\bMath\.pow\(\s*10\s*,/g },
+  {
+    name: "a local amount function",
+    re: /\bfunction\s+(?:formatUnits|formatUnits6|parseUnits|coin|formatEth)\s*\(/g,
+  },
+  {
+    name: "a local amount function alias",
+    re: /\b(?:const|let|var)\s+(?:formatUnits|formatUnits6|parseUnits|coin|formatEth)\s*=/g,
+  },
+  {
+    name: "Number amount math",
+    re: /\bMath\.pow\(\s*10\s*,/g,
+  },
+  {
+    name: "BigInt decimal scaling",
+    re: /\b10n\s*\*\*\s*(?:BigInt\(|\d+n?)/g,
+  },
 ];
 
 const PROVIDER_CALLS = [
@@ -298,7 +309,29 @@ function allowSet(entries) {
   return set;
 }
 
-export function validateAmountFormatters(root, files, allowEntries, wholeFile) {
+function lineTextAt(text, index) {
+  const start = text.lastIndexOf("\n", index) + 1;
+  const end = text.indexOf("\n", index);
+  return text.slice(start, end === -1 ? text.length : end);
+}
+
+// Allowlist entries cover the exact reviewed line: a fee-cap constant or a
+// fiat conversion is not an amount formatter, and the entry still carries
+// reason/owner/expires through validateAllowlist above.
+function allowlistedAmount(allow, relative, text, match) {
+  if (!Array.isArray(allow)) return false;
+  const line = lineTextAt(text, match.index);
+  return allow.some(
+    (entry) =>
+      entry &&
+      entry.file === relative &&
+      entry.match !== "*" &&
+      typeof entry.match === "string" &&
+      line.includes(entry.match),
+  );
+}
+
+export function validateAmountFormatters(root, files, allow, wholeFile) {
   const errors = [];
   let checked = 0;
   for (const relative of files) {
@@ -307,9 +340,9 @@ export function validateAmountFormatters(root, files, allowEntries, wholeFile) {
     const text = fs.readFileSync(path.join(root, relative), "utf8");
     for (const definition of AMOUNT_DEFINITIONS) {
       for (const match of text.matchAll(definition.re)) {
-        if (allowEntries.has(`${relative}\0${definition.needle}`)) continue;
+        if (allowlistedAmount(allow, relative, text, match)) continue;
         errors.push(
-          `${relative}:${lineAt(text, match.index)} defines "${definition.needle}" (lossy-amount-formatter); ` +
+          `${relative}:${lineAt(text, match.index)} defines ${definition.name} (lossy-amount-formatter); ` +
             "use window.RotorAmount from apps/site/amount.js, or add a reviewed data/ssot-allow.json entry",
         );
       }
@@ -336,7 +369,7 @@ export function check(root = REPO_ROOT) {
   const files = listSiteFiles(root);
   const references = validateReferences(root, files, data);
   errors.push(...references.errors);
-  const amounts = validateAmountFormatters(root, files, allowEntries, wholeFile);
+  const amounts = validateAmountFormatters(root, files, allow, wholeFile);
   errors.push(...amounts.errors);
 
   let checked = 0;

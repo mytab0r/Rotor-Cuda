@@ -105,6 +105,34 @@
     "expires": "2027-06-30"
   },
   {
+    "file": "apps/site/key-tools.js",
+    "match": "10n ** BigInt(digits + 8)",
+    "reason": "ZEC fiat/USD scaling from the SoChain price string, not atomic-unit conversion; the amount formatter lives in RotorAmount.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/wallet-evm.js",
+    "match": "10n ** 16n",
+    "reason": "Per-chain fee-cap constants in the descriptor table, not amount conversion; the amount formatter lives in RotorAmount.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/puzzle.js",
+    "match": "var coin = job.coin",
+    "reason": "Puzzle job's chain selector string, not an amount formatter.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/rotor-worker.js",
+    "match": "var coin = String(entry.coin || 'btc').toLowerCase();",
+    "reason": "Worker job's chain selector string, not an amount formatter.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
     "file": "apps/site/walletconnect.js",
     "match": "*",
     "reason": "Vendored WalletConnect bundle (wallets.LICENSE.txt); it is not first-party site code and carries its own upstream endpoints.",

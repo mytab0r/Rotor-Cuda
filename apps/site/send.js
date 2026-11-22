@@ -363,6 +363,23 @@
     return hex.padStart(64, '0');
   }
 
+  /* Token amounts keep the send page's own actionable wording. The parser
+   * itself stays generic in RotorAmount; only the user-facing error text is
+   * localized here. */
+  function parseTokenAmount(text, decimals) {
+    var value = typeof text === 'string' ? text.trim() : '';
+    if (!value) throw new Error('Enter a token amount.');
+    try {
+      return AMOUNT.parseUnits(value, decimals);
+    } catch (err) {
+      var message = err && err.message ? err.message : '';
+      if (/at most/i.test(message)) {
+        throw new Error('At most ' + decimals + ' decimal places for this token.');
+      }
+      throw new Error('Use a plain decimal token amount like 1.5 (no exponent, sign or comma).');
+    }
+  }
+
   /* Canonical ERC-20 transfer(address,uint256): selector 0xa9059cbb, the
    * recipient and the raw amount each left-padded to one 32-byte word. The
    * contract address is never assumed; it is required from the user. */
@@ -371,7 +388,7 @@
     var contract = normalizeEvmAddress(input.contract, 'Token contract');
     var recipient = normalizeEvmAddress(input.recipient, 'Recipient');
     var decimals = tokenDecimals(input.decimals);
-    var rawAmount = AMOUNT.parseUnits(input.amount, decimals);
+    var rawAmount = parseTokenAmount(input.amount, decimals);
     if (rawAmount <= 0n) throw new Error('Token amount must be greater than zero.');
     if (rawAmount > U256_MAX) throw new Error('Token amount is too large for a uint256.');
     var data = ERC20_TRANSFER_SELECTOR + pad32(recipient.slice(2)) + pad32(rawAmount.toString(16));

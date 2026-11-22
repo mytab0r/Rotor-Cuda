@@ -83,10 +83,13 @@ follow-up work. Every slice ends with `node scripts/gen-ssot.mjs --check`,
       copies. `tron-tx.js` TRX conversion delegates too, keeping its donor error
       text.
 - [x] Add a detector to `scripts/check-ssot.mjs` that fails when a first-party
-      `apps/site/*.js` (except `amount.js`) defines `formatUnits`,
-      `formatUnits6`, `parseUnits` or `coin`, or keeps a `Math.pow(10,` amount
-      conversion. Allowlist entries keep the existing reason/owner/expires
-      schema; the detector id is `lossy-amount-formatter`.
+      `apps/site/*.js` (except `amount.js`) defines or aliases `formatUnits`,
+      `formatUnits6`, `parseUnits`, `coin` or `formatEth` (declaration,
+      `function` expression or `const/let/var` assignment), keeps a
+      `Math.pow(10,` conversion, or hard-codes a `10n ** ...` amount scale.
+      Allowlist entries keep the existing reason/owner/expires schema; the
+      detector id is `lossy-amount-formatter`. The three new shapes are
+      mutation-proven.
 - [x] Pin the existing atomic-unit vectors and add exact 0/8/9/18/24-decimal,
       above-2^53 and near-2^256 cases in `apps/site/amount-test.mjs`; add the
       suite to `projects.json` and require `amount.js` before every consumer in
