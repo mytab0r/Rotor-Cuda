@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "updated": "2026-11-22",
+  "rankSource": "CoinMarketCap global market-cap ranking, 2026-11-22 snapshot, restricted to assets with a balance path on a network this wallet supports. rank is the position in this top-10 list; marketCapRank is the global rank at the snapshot.",
+  "priceSource": "Binance spot ticker (the same six-hour-cached source as /key) for assets with a USDT pair. USDT has no USDT pair and is valued at its explicit $1.00 peg, never at an invented market price.",
+  "assets": [
+    {
+      "rank": 1,
+      "marketCapRank": 1,
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "chain": "bitcoin",
+      "contracts": {},
+      "decimals": 8,
+      "ticker": "BTC",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 2,
+      "marketCapRank": 2,
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "chain": "ethereum",
+      "contracts": {},
+      "decimals": 18,
+      "ticker": "ETH",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 3,
+      "marketCapRank": 3,
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "chain": "tron",
+      "contracts": {
+        "tron": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+      },
+      "decimals": 6,
+      "ticker": null,
+      "pegUsd": "1",
+      "balance": "token"
+    },
+    {
+      "rank": 4,
+      "marketCapRank": 4,
+      "symbol": "BNB",
+      "name": "BNB",
+      "chain": "bnb",
+      "contracts": {},
+      "decimals": 18,
+      "ticker": "BNB",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 5,
+      "marketCapRank": 5,
+      "symbol": "SOL",
+      "name": "Solana",
+      "chain": "solana",
+      "contracts": {},
+      "decimals": 9,
+      "ticker": "SOL",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 6,
+      "marketCapRank": 6,
+      "symbol": "XRP",
+      "name": "XRP",
+      "chain": "xrp",
+      "contracts": {},
+      "decimals": 6,
+      "ticker": "XRP",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 7,
+      "marketCapRank": 7,
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "chain": "evm",
+      "contracts": {
+        "ethereum": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "arbitrum": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "optimism": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+        "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "polygon": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+      },
+      "decimals": 6,
+      "ticker": "USDC",
+      "pegUsd": null,
+      "balance": "token"
+    },
+    {
+      "rank": 8,
+      "marketCapRank": 8,
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "chain": "dogecoin",
+      "contracts": {},
+      "decimals": 8,
+      "ticker": "DOGE",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 9,
+      "marketCapRank": 9,
+      "symbol": "TRX",
+      "name": "TRON",
+      "chain": "tron",
+      "contracts": {},
+      "decimals": 6,
+      "ticker": "TRX",
+      "pegUsd": null,
+      "balance": "native"
+    },
+    {
+      "rank": 10,
+      "marketCapRank": 16,
+      "symbol": "BCH",
+      "name": "Bitcoin Cash",
+      "chain": "bitcoin-cash",
+      "contracts": {},
+      "decimals": 8,
+      "ticker": "BCH",
+      "pegUsd": null,
+      "balance": "native"
+    }
+  ]
+}

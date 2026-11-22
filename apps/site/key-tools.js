@@ -1140,6 +1140,7 @@
     DOGE: 'DOGEUSDT',
     BCH: 'BCHUSDT',
     XRP: 'XRPUSDT',
+    USDC: 'USDCUSDT',
     ZEC: 'ZECUSDT',
     POL: 'POLUSDT',
     AVAX: 'AVAXUSDT',
