@@ -452,6 +452,36 @@
     return { values: values, errors: errors };
   }
 
+  /* The keyless LTC fallback declared in data/providers.json is an Esplora
+   * instance: `GET /address/<address>` answers one JSON object per address and
+   * the confirmed satoshi balance is decoded by the shared
+   * `parseLitecoinSpaceAddress`. The base URL comes from the SSOT entry, never
+   * from a literal in this file. */
+  function litecoinSpaceProvider(addresses) {
+    var entry = providers().find('litecoin', 'litecoinspace');
+    if (!entry) {
+      return Promise.resolve({
+        values: {},
+        errors: uniqueAddresses(addresses).reduce(function (errors, address) {
+          errors[address] = 'No Litecoin Space provider for litecoin.';
+          return errors;
+        }, {})
+      });
+    }
+    var base = entry.url;
+    return perAddressProvider(addresses, function (address) {
+      return requestJson(base + '/address/' + encodeURIComponent(address))
+        .then(function (data) {
+          var api = cacheApi();
+          var parsed = api && typeof api.parseLitecoinSpaceAddress === 'function'
+            ? api.parseLitecoinSpaceAddress(data)
+            : null;
+          if (!parsed) throw new Error('unexpected response');
+          return { balance: parsed.amount };
+        });
+    });
+  }
+
   /* SoChain v3 `GET /balance/<ticker>/<address>`: one request per address,
    * decimal coin strings converted by the shared `parseSochainBalance`. The
    * endpoint comes from the chain's provider list, never from this file. */
@@ -482,10 +512,12 @@
     /* SoChain's keyless budget is 2500 lookups a DAY per IP. Once it answers
      * 429 ("Limits reached") every further address would fail the same way, so
      * the first 429 stops the rest of the page: without this a 60-row page
-     * turns one exhausted quota into ~240 failing lookups. The rows keep the
-     * honest retry state. */
+     * turns one exhausted quota into ~240 failing lookups. DOGE and ZEC have no
+     * fallback, so their rows keep the honest retry state; Litecoin serves the
+     * whole page through the keyless `litecoinspace` Esplora provider that the
+     * SSOT already declares, like `/key` falls back to BlockCypher. */
     var exhausted = null;
-    return perAddressProvider(addresses, function (address) {
+    var sochain = perAddressProvider(addresses, function (address) {
       if (exhausted) return Promise.reject(exhausted);
       return requestJson(base + '/balance/' + encodeURIComponent(ticker) + '/' + encodeURIComponent(address))
         .then(function (data) {
@@ -502,6 +534,10 @@
           if (Number(err && err.status) === 429) exhausted = err;
           throw err;
         });
+    });
+    if (meta.chain !== 'litecoin') return sochain;
+    return sochain.then(function (result) {
+      return exhausted ? litecoinSpaceProvider(addresses) : result;
     });
   }
 
