@@ -215,7 +215,7 @@
     status: 'partial',
     priority: '-',
     donorIds: ['pkf:/bitcoin-puzzle/<n>'],
-    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. Missing the donor’s Discussion link (its target is not recorded in the capture) and its Solution field (blocked: `puzzles.rs` stores only `solved: bool`).'
+    note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link, the 1–160 picker, the Discussion link and the unsolved-only solver tool links (BitCrack / Keyhunt / VanitySearch). Missing only the donor’s Solution field (blocked: `puzzles.rs` stores only `solved: bool`).'
   });
 
   oursRoute({

@@ -5043,6 +5043,17 @@ fn render_puzzle_detail(
     } else {
         "Unsolved: the target address still holds the prize. Global search progress is not published; Random Keys shows the progress of your own local run."
     };
+    // The donor lists three solver tools on unsolved puzzles only.
+    let tool_links = if solved {
+        String::new()
+    } else {
+        concat!(
+            "<a class=\"btn\" href=\"https://github.com/brichard19/BitCrack\" target=\"_blank\" rel=\"noopener noreferrer\">BitCrack</a>",
+            "<a class=\"btn\" href=\"https://github.com/albertobsd/keyhunt\" target=\"_blank\" rel=\"noopener noreferrer\">Keyhunt</a>",
+            "<a class=\"btn\" href=\"https://github.com/JeanLucPons/VanitySearch\" target=\"_blank\" rel=\"noopener noreferrer\">VanitySearch</a>"
+        )
+        .to_string()
+    };
     let facts = format!(
         "{}{}{}{}{}{}{}{}",
         puzzle_fact(
@@ -5104,6 +5115,7 @@ fn render_puzzle_detail(
          <div class=\"pz-actions-row\">\
          <a class=\"btn primary\" href=\"/bitcoin-puzzle/{number}/random\">Open Random Keys</a>\
          <a class=\"btn\" href=\"/private-keys/bitcoin?key={start_hex}\">Derive start key</a>\
+         {tool_links}\
          <a class=\"btn\" href=\"https://bitcointalk.org/index.php?topic=1306983.0\" target=\"_blank\" rel=\"noopener noreferrer\">Discussion</a>\
          </div></section>\
          <section class=\"card\"><h2>How this range works</h2>\
@@ -5125,6 +5137,7 @@ fn render_puzzle_detail(
         facts = facts,
         solved_pct = solved_pct,
         status_progress = status_progress,
+        tool_links = tool_links,
         number = number,
         start_hex = start_hex,
     )
@@ -8602,6 +8615,35 @@ mod tests {
         assert!(detail.contains(
             "<a class=\"btn\" href=\"https://bitcointalk.org/index.php?topic=1306983.0\" target=\"_blank\" rel=\"noopener noreferrer\">Discussion</a>"
         ));
+        // detector: puzzle-detail-tool-links — unsolved puzzles list the donor's solver tools.
+        for (href, label) in [
+            ("https://github.com/brichard19/BitCrack", "BitCrack"),
+            ("https://github.com/albertobsd/keyhunt", "Keyhunt"),
+            (
+                "https://github.com/JeanLucPons/VanitySearch",
+                "VanitySearch",
+            ),
+        ] {
+            let anchor = format!(
+                "<a class=\"btn\" href=\"{href}\" target=\"_blank\" rel=\"noopener noreferrer\">{label}</a>"
+            );
+            assert!(
+                detail.contains(&anchor),
+                "unsolved detail is missing the {label} link"
+            );
+        }
+        let solved = puzzles::all()
+            .find(|item| item.solved)
+            .expect("the dataset has solved puzzles");
+        let (solved_detail, _, status) =
+            seo_asset(base, &format!("/bitcoin-puzzle/{}", solved.number), "")
+                .expect("solved detail");
+        assert_eq!(status, 200);
+        assert!(solved_detail.contains(&format!(
+            "The public dataset lists puzzle #{} as solved",
+            solved.number
+        )));
+        assert!(!solved_detail.contains("brichard19/BitCrack"));
         assert!(!detail.contains("data-puzzle-app"));
 
         let (short, _, status) =
