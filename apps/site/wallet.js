@@ -1973,6 +1973,7 @@
   }
 
   async function openHistory(entry) {
+    if (!state.lookup) return;
     if (!state.unlocked || !historyPanel) return;
     var info = historyApi.support(entry.chain);
     state.historyEntryId = entry.id;

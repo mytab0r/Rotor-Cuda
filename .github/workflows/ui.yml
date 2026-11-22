@@ -50,7 +50,7 @@ jobs:
       - name: Run the UI audit
         run: node scripts/ui-audit.mjs --serve
       - name: Upload screenshots and report
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ui-audit-report
