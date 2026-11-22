@@ -134,8 +134,9 @@ explorer URL or chain identity into a page script.
   summaries only.
 - Every icon-only action uses the shared `.icon-button` component with
   `aria-label` + `data-tooltip` (the tooltip primitive; no native `title` beside
-  it), a visible copied/active state and a 44px touch target (28 only in a
-  dense table row whose row is the target).
+  it), a visible copied/active state and a 44px touch target. On a >=1024px
+  fine pointer the compact tier applies: `--sm` is 28 visual with a 44px hit
+  area inside a dense row, `--md`/`--lg` are 36, and a primary CTA stays 44.
 - Run the `ui-checklist` and verify 375/768/1280, light/dark, keyboard,
   reduced-motion and no horizontal overflow before claiming a UI fix.
 - Run the automated gate before reporting done:
@@ -161,15 +162,22 @@ explorer URL or chain identity into a page script.
   12, 44px items, exactly one `aria-pressed="true"`) and one `.chip` (44px,
   pill, `aria-pressed`/`aria-current`). Audit IDs: `control-height-scale`,
   `field-geometry`, `segmented-geometry`; never add a page-local control size.
-- One card/stat grammar: cards pad 16/20/24, radius 12/16, no translateY hover;
-  stat labels are 12px sentence case with no tracking, values are 20/24/28 and
-  tabular. Audit IDs: `card-padding-scale`, `stat-geometry`; page-local card
-  overrides (`.key-page > .card`) are not allowed.
+- One card/stat grammar: cards pad 16 (data) / 20 (form, `.card--form`) / 24,
+  radius 12/16, no translateY hover; stat labels are 12px sentence case with no
+  tracking, values are 20/24/28 and tabular. Audit IDs: `card-padding-scale`,
+  `stat-geometry`; page-local card overrides (`.key-page > .card`) are not
+  allowed.
 - One table/row grammar: every table is `.data-table` inside `.table-scroll`,
-  header 12/600 sentence case, cell padding `8/12`, row min-height 44, row
-  actions at the trailing edge. Mobile keeps the scroll wrapper and all
-  columns. Audit IDs: `table-grammar`, `table-header-style`,
-  `table-row-height`, `row-action-geometry`.
+  header 12/600 sentence case, cell padding `8/12`, row actions at the trailing
+  edge. Desktop >=1024 fine pointer: key rows 40-44 (56 two-line), directory
+  rows <=96, row actions 28 visual / 44 hit and revealed on row
+  hover/focus-within; touch keeps rows and actions at 44. Mobile keeps the
+  scroll wrapper and all columns. Audit IDs: `table-grammar`,
+  `table-header-style`, `table-row-height`, `table-row-density`,
+  `row-action-geometry`, `row-action-reveal`.
+- One page inset: on /key and /private-keys the hero, data cards, stat strip,
+  table and first row share the card content edge within 1px. Audit ID:
+  `page-inset-parity`.
 - Do not add page-local `<style>` rules for a shared component. Move the rule
   into `apps/site/site.css` in the batch that owns the family
   (`docs/design-system/plan.md`); a new family needs an entry in

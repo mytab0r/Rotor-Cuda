@@ -299,6 +299,7 @@
   var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
   var btcPanel = byId('btc-panel');
   var balanceRefreshButton = byId('key-balance-refresh');
+  var balanceRetry = byId('key-balance-retry');
   var balanceRefreshCount = byId('key-balance-refresh-count');
   var balanceRefreshStatus = byId('key-balance-refresh-status');
   var exposureToggle = byId('exposure-toggle');
@@ -920,7 +921,7 @@
     } else {
       var copy = document.createElement('button');
       copy.type = 'button';
-      copy.className = 'key-copy key-copy-sm';
+      copy.className = 'key-copy key-copy-sm row-action';
       copy.textContent = 'Copy';
       copy.setAttribute('aria-label', 'Copy ' + fact.label + ' value');
       copy.addEventListener('click', function () {
@@ -1335,7 +1336,7 @@
     var actCell = document.createElement('td');
     actCell.className = 'key-cell-act';
     var actions = document.createElement('div');
-    actions.className = 'key-actions';
+    actions.className = 'key-actions row-actions';
     if (!addr.sharedEvm) {
       var details = buildRowDetails(addr, name);
       addrCell.appendChild(details);
@@ -1346,7 +1347,7 @@
     var explorer = explorerFor(addr.sharedParent ? 'evm' : addr.id);
     if (explorer) {
       var ext = document.createElement('a');
-      ext.className = 'icon-button icon-button--quiet icon-button--lg';
+      ext.className = 'icon-button icon-button--quiet icon-button--sm';
       ext.href = explorer + encodeURIComponent(addr.address);
       ext.target = '_blank';
       ext.rel = 'noopener noreferrer';
@@ -1358,7 +1359,7 @@
     if (!addr.sharedEvm) {
       var copy = document.createElement('button');
       copy.type = 'button';
-      copy.className = 'icon-button icon-button--quiet icon-button--lg';
+      copy.className = 'icon-button icon-button--quiet icon-button--sm';
       copy.setAttribute('data-tooltip', 'Copy address');
       copy.setAttribute('aria-label', 'Copy ' + name + ' address');
       copy.appendChild(svgUse('/icons.svg#ui-copy'));
@@ -1368,7 +1369,7 @@
       actions.appendChild(copy);
       var toggle = document.createElement('button');
       toggle.type = 'button';
-      toggle.className = 'icon-button icon-button--quiet icon-button--lg key-details-toggle';
+      toggle.className = 'icon-button icon-button--quiet icon-button--sm key-details-toggle';
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-controls', details.id);
       toggle.setAttribute('data-name', name);
@@ -1798,7 +1799,7 @@
     if (settings.onRetry) {
       var button = document.createElement('button');
       button.type = 'button';
-      button.className = 'icon-button icon-button--quiet icon-button--lg';
+      button.className = 'icon-button icon-button--quiet icon-button--sm';
       button.setAttribute('data-tooltip', 'Retry this balance');
       button.setAttribute('aria-label', 'Retry balance check for this address');
       button.appendChild(retryIcon());
@@ -2707,12 +2708,14 @@
 
   function updateKeyRefreshButton() {
     var count = keyPendingCount();
+    var hasFailures = count > 0;
     if (balanceRefreshCount) balanceRefreshCount.textContent = String(count);
+    if (balanceRetry) balanceRetry.hidden = !hasFailures;
     if (balanceRefreshButton) {
-      balanceRefreshButton.disabled = count === 0 || state.balanceBusy;
+      balanceRefreshButton.disabled = !hasFailures || state.balanceBusy;
       balanceRefreshButton.setAttribute(
         'aria-label',
-        'Refresh ' + count + ' failed or stale ' + (count === 1 ? 'balance' : 'balances')
+        'Retry ' + count + ' failed ' + (count === 1 ? 'balance' : 'balances')
       );
       balanceRefreshButton.classList.toggle('busy', Boolean(state.balanceBusy));
     }

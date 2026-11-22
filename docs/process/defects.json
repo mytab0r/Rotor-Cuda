@@ -682,6 +682,34 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "desktop-controls-stuck-at-44",
+      "reported": "2026-11-22",
+      "symptom": "Every desktop control was 44px high, so data pages read like a phone layout with no compact desktop tier.",
+      "detector": "desktop-control-height",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "dense-rows-too-tall",
+      "reported": "2026-11-22",
+      "symptom": "Key-page address rows rendered 61px and directory rows 110px on desktop while the donor uses 40-44 and at most 96.",
+      "detector": "table-row-density",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "permanent-row-copy-noise",
+      "reported": "2026-11-22",
+      "symptom": "46 copy actions on /key and 181 on the directory were permanently visible, turning every row into a toolbar.",
+      "detector": "row-action-reveal",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "page-inset-drift",
+      "reported": "2026-11-22",
+      "symptom": "Hero, card, stat, table and row content edges drifted 10-19px on /key and /private-keys, so the page had no single left rail.",
+      "detector": "page-inset-parity",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "wallet-signin-unchecked",
       "reported": "2026-11-22",
       "symptom": "Linking the local vault to the monitor account could sign in silently, render or log the session token, keep a stale signed-in chip after the vault locked, or leave the token behind after Sign out. The account identity could also be read as proving ownership of Bitcoin, TRON or Solana addresses, which only the EVM signature does not do.",
