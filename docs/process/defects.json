@@ -421,6 +421,20 @@
       "symptom": "the Solana mnemonic directory rendered — for all 60 rows although a batched getMultipleAccounts provider exists",
       "detector": "mnemonic-solana-balances",
       "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "mnemonic-bch-balances",
+      "reported": "2026-11-22",
+      "symptom": "the BCH mnemonic directory rendered — for all 60 rows although the keyless Haskoin batch endpoint answers 60 addresses per request",
+      "detector": "mnemonic-bch-balances",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
+    },
+    {
+      "id": "mnemonic-tron-xrp-sui-balances",
+      "reported": "2026-11-22",
+      "symptom": "the TRON, XRP and SUI mnemonic directories rendered — for every row although the pages already fetched those chains in the private-key directory",
+      "detector": "mnemonic-tron-xrp-sui-balances",
+      "where": "apps/site/mnemonic-seeds-test.mjs"
     }
   ]
 }

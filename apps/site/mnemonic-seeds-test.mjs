@@ -11,7 +11,11 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./balance-cache.js");
+require("./balance-providers.js");
+const providers = globalThis.RotorBalanceProviders;
 const scriptPath = fileURLToPath(new URL("./mnemonic-seeds.js", import.meta.url));
+const browsePath = fileURLToPath(new URL("./browse.js", import.meta.url));
 
 globalThis.window = globalThis;
 globalThis.document = { querySelector: () => null };
@@ -217,6 +221,92 @@ test("mnemonic-solana-balances: one getMultipleAccounts body lists both addresse
   );
   assertEqual(body.params[1].encoding, "base64", "base64 account encoding");
   assertEqual(body.params[1].commitment, "confirmed", "confirmed commitment");
+});
+
+test("mnemonic-tron-xrp-sui-balances: providerMetaFor maps TRON, XRP and SUI", () => {
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("bitcoin-cash")),
+    JSON.stringify({ provider: "haskoin-bch", chain: "bitcoin-cash", decimals: 8, symbol: "BCH" }),
+    "BCH uses the batched Haskoin provider"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("tron")),
+    JSON.stringify({ provider: "tronscan", chain: "tron", decimals: 6, symbol: "TRX" }),
+    "TRON uses Tronscan"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("xrp")),
+    JSON.stringify({ provider: "xrpscan", chain: "xrp", decimals: 6, symbol: "XRP" }),
+    "XRP uses XRP Scan"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("sui")),
+    JSON.stringify({ provider: "sui", chain: "sui", decimals: 9, symbol: "SUI" }),
+    "SUI uses the Sui GraphQL provider"
+  );
+  assertEqual(api.providerMetaFor("litecoin"), null, "LTC stays unsupported on this page");
+  assertEqual(api.providerMetaFor("dogecoin"), null, "DOGE stays unsupported on this page");
+  assertEqual(api.providerMetaFor("zcash"), null, "ZEC stays unsupported on this page");
+  assertEqual(api.providerMetaFor("ton"), null, "TON stays unsupported on this page");
+});
+
+test("mnemonic-bch-balances: one Haskoin request lists each address once in order", async () => {
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => [
+        { address: "bitcoincash:qqqaaa", confirmed: "1000", unconfirmed: "0", txs: 3 },
+        { address: "bitcoincash:qqqbbb", confirmed: "2000", unconfirmed: "500", txs: 0 }
+      ]
+    };
+  };
+  try {
+    const result = await providers.fetchProvider(
+      api.providerMetaFor("bitcoin-cash"),
+      ["legacyA", "legacyA", "legacyB"]
+    );
+    assertEqual(requests.length, 1, "one request for the whole page");
+    assert(
+      requests[0].endsWith("/address/balances?addresses=legacyA,legacyB"),
+      `the query lists each address once in input order, got ${requests[0]}`
+    );
+    assertEqual(result.values.legacyA.balance, "1000", "row 0 maps to the first address by index");
+    assertEqual(result.values.legacyB.balance, "2500", "confirmed + unconfirmed is the balance");
+    assertEqual(result.values.legacyB.tx, 0, "the tx count comes from the same row");
+    assertEqual(Object.keys(result.errors).length, 0, "no error when the provider answers");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-bch-balances: a rejected batch is an error for every address, never zero", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: "user-error" }) });
+  try {
+    await providers.fetchProvider(
+      api.providerMetaFor("bitcoin-cash"),
+      ["legacyA", "legacyB"]
+    );
+    throw new Error("a 400 response must reject, not return zero balances");
+  } catch (error) {
+    assertEqual(error.message, "HTTP 400", "the whole batch fails loud");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-tron-xrp-sui-balances: the shared dispatcher covers every browse provider", async () => {
+  const source = await readFile(browsePath, "utf8");
+  const emitted = [...source.matchAll(/provider:\s*'([^']+)'/g)].map((match) => match[1]);
+  assert(emitted.length >= 7, `browse.js must still declare its providers, found ${emitted.length}`);
+  emitted.forEach((provider) => {
+    assert(providers.supportsProvider(provider), `browse.js emits "${provider}" but the dispatcher lacks it`);
+  });
+  assertEqual(await providers.fetchProvider({ provider: "not-a-provider" }, ["a"]).then((r) => Object.keys(r.values).length), 0, "an unknown provider resolves empty");
 });
 
 test("copy wiring writes the exact value to the clipboard", async () => {

@@ -114,7 +114,26 @@
   whose browser the public RPC refuses, which is the honest retryable error
   state). The other
   chain pages stay out because their providers fan out one request per address.
-- [x] `/key` P0 ledger rows: the seven donor `/PrivateKey*` and `/Bech32` rows
+- [x] Mnemonic directory BCH/TRON/XRP/SUI balances (2026-11-22, code-only): the
+  BCH, TRON, XRP and SUI pages previously rendered `—` for every row although
+  keyless providers already served the private-key directory. The four chains
+  now map to `haskoin-bch`, `tronscan`, `xrpscan` and `sui` metas; BCH uses one
+  batched Haskoin GET per page (60 addresses, results mapped back by index
+  because the provider echoes CashAddr) and a rejected batch fails every
+  address instead of showing zero. The provider code moved out of `browse.js`
+  into the shared `balance-providers.js` so the two directories cannot drift.
+  LTC/DOGE/ZEC/TON stay `—` on this page (per-address provider budget); the
+  ledger row stays `partial`. Evidence: `apps/site/balance-providers.js:377`
+  (`haskoinBatchUrl`), `:383` (`haskoinBchProvider`), `:408` (`FETCHERS`),
+  `:430` (`fetchProvider`); `apps/site/balance-cache.js:171`
+  (`parseHaskoinBchBatch`); `apps/site/mnemonic-seeds.js:808` (`providerMetaFor`),
+  `:1046` (delegating `fetchProvider`); `apps/site/browse.js:499` (delegating
+  `fetchProvider`); tests `apps/site/mnemonic-seeds-test.mjs` (four metas, BCH
+  order/index mapping, batch rejection, browse-dispatch coverage),
+  `apps/site/balance-cache-test.mjs` (`parseHaskoinBchBatch` 60-row case);
+  defects `mnemonic-bch-balances` and `mnemonic-tron-xrp-sui-balances` in
+  `docs/process/defects.json`.
+
   still claimed "the interactive curve editor and signing entry remain". The
   donor key page has no derivation control (`docs/donor-parity/key-page.md` §3),
   and ours ships the curve selector plus the `/send` signing entry (previous
