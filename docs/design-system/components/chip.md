@@ -1,7 +1,7 @@
 # Chip
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/chip.json` · Gallery: `/design` (family
+Source of truth: `design/components/chip.json` · Gallery: `/cabinet/admin/design` (family
 `chip`).
 
 ## Purpose
@@ -28,7 +28,7 @@ for the cabinet navigation action.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | `--surface-2`, `--line-subtle`, pill radius | yes |
 | Hover | `--surface-3`, `--line-strong`, `--ink-1` | live |
