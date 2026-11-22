@@ -2551,8 +2551,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 /* Compact chain rows: explicit columns with one gap and a packed balance cell.
  * Key = 2.2fr, address = 1.9fr (wide enough for a 34-char base58 address plus
  * its label and 44px copy action), balance = minmax(240px, auto) like the
- * donor's minmax(180px, auto) once the balance and two pills are measured. Both
- * address forms of a legacy BTC key are visible, so the row is two 44px lines. */
+ * donor's minmax(200px, auto) on `.key-row` once the balance and two pills are
+ * measured. Both address forms of a legacy BTC key are visible, so the row is
+ * two 44px lines. */
 .keys-header,
 .key-row { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.9fr) minmax(240px, auto); gap: 16px; }
 .key-row { min-height: 54px; padding-top: 6px; padding-bottom: 6px; }
