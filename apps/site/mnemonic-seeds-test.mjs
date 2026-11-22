@@ -304,6 +304,27 @@ test("mnemonic-utxo-balances: SoChain serves LTC, DOGE and ZEC per address", asy
   }
 });
 
+test("mnemonic-sochain-quota-storm: the first 429 stops the rest of the page", async () => {
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    const addresses = Array.from({ length: 60 }, (_, index) => `ltc${index}`);
+    const result = await providers.fetchProvider(api.providerMetaFor("litecoin"), addresses);
+    assertEqual(Object.keys(result.values).length, 0, "a 429 never yields a balance");
+    assertEqual(Object.keys(result.errors).length, 60, "every row keeps the retry state");
+    assert(
+      requests.length <= providers.BALANCE_LIMIT * 2,
+      `the exhausted quota stops the fan-out, got ${requests.length} requests for 60 rows`
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("mnemonic-utxo-balances: no page claims LTC/DOGE/ZEC unprovidable", async () => {
   const mnemonicSource = await readFile(scriptPath, "utf8");
   const browseSource = await readFile(browsePath, "utf8");
