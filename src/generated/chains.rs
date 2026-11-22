@@ -367,6 +367,7 @@ pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[
         "ton",
         &[
             ("toncenter", "https://toncenter.com/api/v2", "TON Center"),
+            ("tonapi", "https://tonapi.io/v2", "TonAPI"),
         ],
     ),
     (

@@ -857,7 +857,7 @@
       return { provider: 'sui', chain: 'sui', decimals: 9, symbol: 'SUI' };
     }
     if (chainName === 'ton') {
-      return { provider: 'toncenter', chain: 'ton', decimals: 9, symbol: 'TON' };
+      return { provider: 'tonapi', chain: 'ton', decimals: 9, symbol: 'TON' };
     }
     return null;
   }

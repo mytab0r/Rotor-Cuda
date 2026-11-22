@@ -160,12 +160,23 @@
   Master/Tonkeeper), the ed25519 derive branch builds `entry.addressMap.ton`
   from `window.RotorTon.address(report.ed_pubkey)` loaded lazily from `/ton.js`
   (build-prefixed, TON page only) while `ton_w5` comes from the WASM report, and
-  `providerMetaFor('ton')` maps to `toncenter` with 9 decimals. Evidence:
+  `providerMetaFor('ton')` maps to the batched `tonapi` provider: one
+  `POST /v2/accounts/_bulk` per page, accounts mapped back by request index
+  (TonAPI echoes raw `0:hex` addresses), with a malformed/short body throwing
+  so rows show the retry state, never a zero. `browse.js` uses the same
+  `tonapi` batch, so `/private-keys/ton` no longer fans out; `toncenter` stays
+  for the single-address `/key` page. Measured: `/mnemonic-seeds/ton` and
+  `/private-keys/ton` each 60/60 rows `data-balance-state="ok"` at
+  375/768/1280 in dark and light (12 runs, one request each); the TON ui-audit
+  run is 6/6 PASS with zero console warnings and zero overflow. Evidence:
+  `data/providers.json` (`tonapi`), `apps/site/balance-providers.js`
+  (`tonApiBatchUrl`, `parseTonApiAccounts`, `tonApiProvider`, `FETCHERS`),
   `apps/site/mnemonic-seeds.js` (`ton:` config, `loadTon`, `deriveEntry`,
-  `providerMetaFor`), `apps/site/mnemonic-seeds-test.mjs` (config/derive and
-  Toncenter meta cases; `balance-state-attribute` stays green), donor source
-  `https://ref-site-a/mnemonic-seeds/ton` (`window.MNEMONIC_SEEDS_PRESETS`,
-  `PKF_CONFIG.type = null`). Deliberate derivation deviation, recorded rather
+  `providerMetaFor`), `apps/site/browse.js` (`providerMeta`),
+  `apps/site/mnemonic-seeds-test.mjs` (config/derive, one-POST mapping,
+  malformed-body and TonAPI meta cases; `balance-state-attribute` stays green),
+  donor source `https://ref-site-a/mnemonic-seeds/ton`
+  (`window.MNEMONIC_SEEDS_PRESETS`, `PKF_CONFIG.type = null`). Deliberate derivation deviation, recorded rather
   than copied: the donor takes the BIP32 secp256k1 master bytes and feeds them
   to the v4R2 builder (row 0 abandon…about, master preset: key
   `1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67`,
@@ -179,7 +190,7 @@
   address `EQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-U9d`), the standard
   real-wallet derivation the preset name implies. The donor has one v4R2 row
   per entry with static `0 TON` text and no address-type control; our v4R2/W5
-  cards and live Toncenter balances are a deliberate superset.
+  cards and live batched TonAPI balances are a deliberate superset.
   Ledger: `docs/site-map/site-map-data.js` (`/mnemonic-seeds/ton` now `parity`).
 - [x] `/key` BCH balances (2026-11-22, code-only): Haskoin's keyless
   `GET https://api.haskoin.com/bch/address/balances?addresses=<addr>` answers
