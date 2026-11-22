@@ -407,6 +407,13 @@
       "symptom": "/keystore-parser matched the old path.indexOf('/key') === 0 test, so its page highlighted the Search nav item instead of Tools.",
       "detector": "nav-keystore-highlight",
       "where": "apps/site/site-nav-test.mjs"
+    },
+    {
+      "id": "key-zec-no-provider",
+      "reported": "2026-11-22",
+      "symptom": "Every /key chain group except ZEC showed a live balance; the two Zcash rows rendered — because no keyless ZEC provider was wired.",
+      "detector": "key-zec-provider",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
