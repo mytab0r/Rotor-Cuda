@@ -45,13 +45,13 @@ const links = [
 
   <section class="card landing-section" aria-labelledby="not-found-links">
     <h2 id="not-found-links">Useful pages</h2>
-    <ul class="landing-facts">
+    <div class="tool-grid">
       {links.map((link) => (
-        <li>
-          <a href={link.href}>{link.label}</a>
-          <span class="landing-facts__label">{link.text}</span>
-        </li>
+        <div class="tool-card">
+          <h3><a href={link.href}>{link.label}</a></h3>
+          <p>{link.text}</p>
+        </div>
       ))}
-    </ul>
+    </div>
   </section>
 </SiteLayout>
