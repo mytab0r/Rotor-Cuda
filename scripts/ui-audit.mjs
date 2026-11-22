@@ -2471,7 +2471,7 @@ async function auditWalletApprovals(cdp) {
       const rpcResult = (value) => response({ jsonrpc: '2.0', id: 1, result: value });
       const rpcError = (message) => response({ jsonrpc: '2.0', id: 1, error: { code: 3, message } });
 
-      window.fetch = async (url, init) => {
+      const stubFetch = async (url, init) => {
         const body = JSON.parse(init.body);
         switch (body.method) {
           case 'eth_chainId':
@@ -2492,6 +2492,16 @@ async function auditWalletApprovals(cdp) {
           }
           case 'eth_blockNumber':
             return rpcResult('0x4e20');
+          case 'eth_getTransactionCount':
+            return rpcResult('0x0');
+          case 'eth_getBalance':
+            return rpcResult('0xde0b6b3a7640000');
+          case 'eth_estimateGas':
+            return rpcResult('0xc350');
+          case 'eth_feeHistory':
+            return rpcResult({ baseFeePerGas: ['0x3b9aca00', '0x77359400'] });
+          case 'eth_maxPriorityFeePerGas':
+            return rpcResult('0x3b9aca00');
           case 'eth_getLogs': {
             const from = Number.parseInt(body.params[0].fromBlock, 16);
             if (from < 15001) {
@@ -2503,6 +2513,7 @@ async function auditWalletApprovals(cdp) {
             return rpcError('method not mocked: ' + body.method);
         }
       };
+      window.fetch = stubFetch;
 
       const network = document.getElementById('wallet-send-network');
       const entry = document.getElementById('wallet-send-entry');
@@ -2591,6 +2602,112 @@ async function auditWalletApprovals(cdp) {
       evidence.warnings = warnings ? warnings.textContent.trim() : '';
       if (!warnings || warnings.hidden || !/archive|older approvals/.test(evidence.warnings)) {
         problems.push('the truncated warning is not visible');
+      }
+
+      /* Grant form: labelled 44px fields, its own Unlimited warning line, a
+       * visible error state for a zero amount, and a rendered unlimited review
+       * that names the spender type and the allowance. */
+      const grantForm = document.getElementById('wallet-approvals-grant-form');
+      const grantSpender = document.getElementById('wallet-approvals-grant-spender');
+      const grantAmount = document.getElementById('wallet-approvals-grant-amount');
+      const grantUnlimited = document.getElementById('wallet-approvals-grant-unlimited');
+      const grantWarning = document.getElementById('wallet-approvals-grant-unlimited-warning');
+      const grantPrepare = document.getElementById('wallet-approvals-grant-prepare');
+      evidence.grant = {};
+      if (!grantForm || !grantSpender || !grantAmount || !grantUnlimited || !grantWarning || !grantPrepare) {
+        problems.push('the grant form controls are missing');
+      } else {
+        for (const [name, input] of [['spender', grantSpender], ['amount', grantAmount]]) {
+          const label = input.closest('label');
+          const box = input.getBoundingClientRect();
+          evidence.grant[name] = {
+            height: Math.round(box.height),
+            label: label ? label.textContent.trim().slice(0, 70) : '',
+          };
+          if (!label) problems.push('grant ' + name + ' input has no label');
+          if (Math.round(box.height) !== 44) {
+            problems.push('grant ' + name + ' input is ' + Math.round(box.height) + 'px (expected 44)');
+          }
+        }
+        const unlimitedLabel = grantUnlimited.closest('label');
+        evidence.grant.unlimitedLabelHeight = unlimitedLabel
+          ? Math.round(unlimitedLabel.getBoundingClientRect().height)
+          : 0;
+        if (!unlimitedLabel) problems.push('the Unlimited checkbox has no label');
+        else if (evidence.grant.unlimitedLabelHeight < 44) {
+          problems.push('the Unlimited label is ' + evidence.grant.unlimitedLabelHeight + 'px (expected >=44)');
+        }
+        if (!grantWarning.hidden) problems.push('the unlimited warning is visible before Unlimited is checked');
+
+        grantSpender.value = eoaSpender;
+        grantSpender.dispatchEvent(new Event('input', { bubbles: true }));
+        grantAmount.value = '0';
+        grantAmount.dispatchEvent(new Event('input', { bubbles: true }));
+        grantForm.requestSubmit();
+        await sleep(0);
+        const amountError = document.getElementById('wallet-approvals-grant-amount-error');
+        evidence.grant.amountError = amountError ? amountError.textContent.trim() : '';
+        if (!amountError || amountError.hidden || !/greater than zero/.test(evidence.grant.amountError)) {
+          problems.push('the zero-amount error state is missing');
+        }
+        if (grantAmount.getAttribute('aria-invalid') !== 'true') {
+          problems.push('the zero-amount input is not aria-invalid');
+        }
+
+        grantUnlimited.checked = true;
+        grantUnlimited.dispatchEvent(new Event('change', { bubbles: true }));
+        await sleep(0);
+        evidence.grant.unlimitedWarning = grantWarning.hidden ? '' : grantWarning.textContent.trim();
+        if (grantWarning.hidden ||
+            !/every token of this contract until you revoke it/.test(evidence.grant.unlimitedWarning)) {
+          problems.push('the unlimited warning line is not visible');
+        }
+        if (!grantAmount.disabled) problems.push('the amount input stays enabled with Unlimited checked');
+
+        grantSpender.value = contractSpender;
+        grantSpender.dispatchEvent(new Event('input', { bubbles: true }));
+        /* The scan restored the real fetch; re-stub for the grant's RPC reads. */
+        window.fetch = stubFetch;
+        let reviewShown = false;
+        try {
+          grantForm.requestSubmit();
+          reviewShown = await waitFor(() => {
+            const box = document.getElementById('wallet-approvals-review');
+            return box && !box.hidden;
+          }, 20000);
+        } finally {
+          window.fetch = realFetch;
+        }
+        evidence.grant.reviewShown = reviewShown;
+        if (!reviewShown) {
+          problems.push('the grant review did not render: ' +
+            ((document.getElementById('wallet-approvals-error') || {}).textContent || '').trim());
+        } else {
+          const heading = document.getElementById('wallet-approvals-review-heading');
+          evidence.grant.reviewHeading = heading ? heading.textContent.trim() : '';
+          if (!/allowance grant/i.test(evidence.grant.reviewHeading)) {
+            problems.push('the grant review heading is missing');
+          }
+          const list = document.getElementById('wallet-approvals-review-list');
+          const rows = {};
+          for (let index = 0; list && index + 1 < list.children.length; index += 2) {
+            rows[list.children[index].textContent.trim()] = list.children[index + 1].textContent.trim();
+          }
+          evidence.grant.reviewRows = rows;
+          if (rows['Spender type'] !== 'Contract') {
+            problems.push('the grant review does not label the spender type: ' + rows['Spender type']);
+          }
+          if (rows['New allowance'] !== 'Unlimited') {
+            problems.push('the grant review does not show Unlimited: ' + rows['New allowance']);
+          }
+          const reviewWarnings = document.getElementById('wallet-approvals-review-warnings');
+          evidence.grant.reviewWarnings = reviewWarnings && !reviewWarnings.hidden
+            ? reviewWarnings.textContent.trim()
+            : '';
+          if (!/every USDT token of this contract until you revoke it/.test(evidence.grant.reviewWarnings)) {
+            problems.push('the grant review warning line is missing');
+          }
+        }
       }
 
       const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
