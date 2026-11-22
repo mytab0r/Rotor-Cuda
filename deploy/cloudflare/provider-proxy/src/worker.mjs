@@ -394,18 +394,26 @@ async function callerTrust(request, env) {
 
 async function enforceLimits(request, trusted) {
   const now = Date.now();
+  let key = null;
+  if (!trusted) {
+    // Every public request must be attributable to exactly one client bucket.
+    // Without the Cloudflare header we cannot separate callers, so refuse
+    // instead of merging every anonymous request into one shared bucket.
+    const address = (request.headers.get("cf-connecting-ip") ?? "").trim();
+    if (address.length === 0) {
+      return json({ error: "missing_client_ip" }, 400);
+    }
+    key = await clientKey(address);
+  }
   if (!globalLimiter.take(now)) return rateLimited();
-  if (trusted) return null;
-  const key = await clientKey(request);
-  if (!clientLimiter.take(key, now)) return rateLimited();
+  if (key !== null && !clientLimiter.take(key, now)) return rateLimited();
   return null;
 }
 
 // The raw client address is never stored: a per-isolate random salt plus
 // SHA-256 produces the only value the limiter sees. The digest is not logged
 // or persisted and changes whenever the isolate restarts.
-async function clientKey(request) {
-  const address = (request.headers.get("cf-connecting-ip") ?? "").trim() || "unknown";
+async function clientKey(address) {
   const digest = await sha256(`${clientSalt}:${address}`);
   return hex(digest);
 }

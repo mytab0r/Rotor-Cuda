@@ -89,7 +89,9 @@ To stop the provider from seeing the origin, set `EDGE_PROXY_URL`
 (for example `https://rotor.pxbt.app/edge`) and `EDGE_PROXY_SECRET` in the
 environment. TRON lookups then go through the `deploy/cloudflare/provider-proxy`
 Worker, which adds its own `TRONSCAN_API_KEY`; the coordinator sends only
-`X-Edge-Secret`. With both variables unset the direct path above is unchanged.
+`X-Edge-Secret`. `EDGE_PROXY_SECRET` is required when `EDGE_PROXY_URL` is set:
+a missing or blank secret is a startup error, not a silent fallback to direct
+provider calls. With both variables unset the direct path above is unchanged.
 See `docs/ops/privacy.md` for the tunnel, DNS, firewall, header and Logpush
 model. If TronScan reports
 a negative balance (its own 64-bit overflow for huge accounts), the route

@@ -12,6 +12,7 @@ import {
 import { handleRequest, resetRateLimits } from "../src/worker.mjs";
 
 const SITE = "https://rotor.pxbt.app";
+const CLIENT_IP = "203.0.113.9";
 const TRON_ADDR = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const TRON_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const EVM_ADDR = "0x52908400098527886E0F7030069857D2E4169EE7";
@@ -65,13 +66,15 @@ function providerJson(payload, status = 200, headers = {}) {
 }
 
 function get(path, headers) {
-  return new Request(`https://proxy.test${path}`, headers ? { headers } : undefined);
+  return new Request(`https://proxy.test${path}`, {
+    headers: { "cf-connecting-ip": CLIENT_IP, ...headers },
+  });
 }
 
 function post(path, body, headers) {
   return new Request(`https://proxy.test${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", ...headers },
+    headers: { "cf-connecting-ip": CLIENT_IP, "content-type": "application/json", ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
@@ -331,6 +334,47 @@ test("a client that exceeds the quota gets 429 with Retry-After", async (t) => {
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("retry-after"), "1");
   assert.deepEqual(await response.json(), { error: "rate_limited" });
+});
+
+test("a request without a client address is rejected instead of sharing a bucket", async (t) => {
+  const seen = [];
+  installRuntime(t, async (url) => {
+    seen.push(String(url));
+    return providerJson({ balance: 1 });
+  });
+
+  // Built without the helper so no CF-Connecting-IP is present. This can only
+  // happen off the Cloudflare route; refusing beats merging callers into one
+  // "unknown" bucket.
+  const response = await handleRequest(
+    new Request(`https://proxy.test/v1/tron/account?address=${TRON_ADDR}`),
+    { SITE_ORIGIN: SITE },
+  );
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: "missing_client_ip" });
+  assert.equal(seen.length, 0, "a rejected request must not call the provider");
+});
+
+test("different client addresses get independent buckets", async (t) => {
+  installRuntime(t, async () => providerJson({ balance: 1 }));
+  const env = { SITE_ORIGIN: SITE };
+  const first = { "cf-connecting-ip": "203.0.113.9" };
+  const second = { "cf-connecting-ip": "198.51.100.4" };
+
+  let response;
+  for (let index = 0; index < 61; index += 1) {
+    response = await handleRequest(
+      get(`/v1/tron/account?address=${TRON_ADDR}`, first),
+      env,
+    );
+  }
+  assert.equal(response.status, 429, "the first address exhausted its bucket");
+
+  response = await handleRequest(
+    get(`/v1/tron/account?address=${TRON_ADDR}`, second),
+    env,
+  );
+  assert.equal(response.status, 200, "a second address must not inherit the limit");
 });
 
 test("GET responses are cached without the caller's identity in the key", async (t) => {

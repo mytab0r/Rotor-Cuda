@@ -64,6 +64,11 @@ metadata host. Redirects from an upstream are refused, not followed.
 
 ## Client identity
 
+- A public request without `CF-Connecting-IP` is rejected with
+  `400 {error:"missing_client_ip"}`. Callers are never merged into a shared
+  "unknown" bucket; the worker must be reached through Cloudflare (it is not
+  exposed on `workers.dev`). A trusted call with a valid `X-Edge-Secret` is
+  exempt because it is already operator-controlled.
 - The per-client token bucket is keyed by `SHA-256(per-isolate random salt ||
   client IP)`. The raw address is not stored, logged or persisted; the digest
   changes when the isolate restarts.
@@ -74,7 +79,8 @@ metadata host. Redirects from an upstream are refused, not followed.
 
 ## Limits
 
-- Per-client: burst 60, refill 10/s (per isolate).
+- Per-client: burst 60, refill 10/s (per isolate); a request without
+  `CF-Connecting-IP` is `400` rather than a shared bucket.
 - Global provider calls: burst 120, refill 30/s (per isolate).
 - Upstream timeout: 5 s. Request body: 16 KiB. Upstream body: 2 MiB.
 - A request that presents `EDGE_PROXY_SECRET` bypasses the per-client bucket
