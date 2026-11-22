@@ -436,6 +436,14 @@ follow-ups were code-only.
   one-request, short-body, single-object and source-lock cases) and
   `apps/site/balance-cache-test.mjs` (parser vectors). Defect
   `mnemonic-doge-blockcypher-batch`.
+- [x] Puzzle detail Discussion link (2026-11-22, code-only, issue #380): the
+  donor action row prints `Discussion`; ours had no link and no recorded
+  target. `render_puzzle_detail` now renders
+  `Discussion` → https://bitcointalk.org/index.php?topic=1306983.0
+  (`target="_blank" rel="noopener noreferrer"`). Evidence:
+  `src/coordinator/mod.rs` (`render_puzzle_detail`); test
+  `coordinator::tests::bitcoin_puzzle_browser_routes_are_served`. The donor
+  `Solution` field (solved private key) stays out of scope by policy.
 
 ## P1 — shell and templates
 

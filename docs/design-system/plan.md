@@ -401,6 +401,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 | `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
 | `mnemonic-doge-blockcypher-batch` | Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index. | phase 4 | implemented |
+| `puzzle-detail-discussion-link` | The puzzle detail page renders the donor Discussion action with its recorded target. | phase 4 | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.
