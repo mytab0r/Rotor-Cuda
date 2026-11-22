@@ -162,6 +162,27 @@
     };
   }
 
+  /* Haskoin's batch form (`/bch/address/balances?addresses=<csv>`) answers one
+   * row per requested address in the same order, but echoes the address in
+   * CashAddr form even when a legacy address was sent. The caller therefore
+   * maps rows back to the request list by index. Returns one `{amount, tx}`
+   * per input address, null for a malformed row, or null for the whole body
+   * when the response is not an array or the length does not match. */
+  function parseHaskoinBchBatch(data, addresses) {
+    if (!Array.isArray(data) || !Array.isArray(addresses)) return null;
+    if (data.length !== addresses.length) return null;
+    return data.map(function (row) {
+      var parsed = parseHaskoinBch([row]);
+      if (!parsed) return null;
+      var amount = BigInt(parsed.confirmed) + BigInt(parsed.unconfirmed);
+      if (amount < 0n) amount = 0n;
+      return {
+        amount: amount.toString(),
+        tx: parsed.txs === null ? null : parsed.txs
+      };
+    });
+  }
+
   function hasAddress(address) {
     return typeof address === 'string' && address.trim().length > 0;
   }
@@ -395,6 +416,7 @@
     parseTonBalance: parseTonBalance,
     parseBlockcypherBalance: parseBlockcypherBalance,
     parseHaskoinBch: parseHaskoinBch,
+    parseHaskoinBchBatch: parseHaskoinBchBatch,
     hasAddress: hasAddress,
     isSuccess: isSuccess,
     isFresh: isFresh,

@@ -7,6 +7,13 @@
     "expires": "2027-06-30"
   },
   {
+    "file": "apps/site/balance-providers.js",
+    "match": "blockchain.info",
+    "reason": "Provider metadata name used as the balance-cache namespace and dispatcher key; the endpoint URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
     "file": "apps/site/browse.js",
     "match": "blockchain.info",
     "reason": "Provider metadata name used as the balance-cache namespace; the endpoint URL comes from window.RotorProviders.",
