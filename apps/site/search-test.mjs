@@ -121,6 +121,16 @@ assert.equal((await search.detect(KEY1_HEX, "auto")).hex, KEY1_HEX, "64 hex is a
 assert.equal((await search.detect("0x" + KEY1_HEX, "auto")).hex, KEY1_HEX, "0x + 64 hex is a key");
 assert.equal((await search.detect("deadbeef", "hex")).hex, "deadbeef".padStart(64, "0"), "the forced HEX chip pads short input");
 
+/* search-key-href: the shared routing helper every search form uses. */
+assert.equal(await search.keyHref(KEY1_HEX), "/key/" + KEY1_HEX, "a 64-hex key opens /key/<hex>");
+assert.equal(
+  await search.keyHref(xrpSecrets[0]),
+  "/key/" + encodeURIComponent(xrpSecrets[0]),
+  "an XRP secret opens /key/<secret>",
+);
+assert.equal(await search.keyHref(twelveWords), "/mnemonic-converter", "a mnemonic opens the converter");
+await assert.rejects(search.keyHref("", "auto"), /Paste a key/);
+
 /* ------------------------------------------------------ input counter */
 
 assert.deepEqual(search.countLabel(""), { value: 0, unit: "chars" });

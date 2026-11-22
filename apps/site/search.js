@@ -312,6 +312,18 @@
     return result.hex;
   }
 
+  /* Map any detected input to its destination. Every search form uses this so
+   * the routing rules live in one place: an XRP secret goes to /key/<secret>,
+   * a mnemonic to /mnemonic-converter, and any detected hex key to
+   * /key/<hex>. */
+  async function keyHref(text, mode) {
+    var result = await detect(text, mode);
+    if (result.kind === 'xrp-secret') return '/key/' + encodeURIComponent(result.value);
+    if (result.kind === 'mnemonic') return '/mnemonic-converter';
+    if (result.hex) return '/key/' + result.hex;
+    throw new Error('Cannot read that key.');
+  }
+
   /* ------------------------------------------------------ wasm derivation */
 
   function readWasmString(wasm, ptr, length) {
@@ -603,6 +615,7 @@
   return {
     resolve: resolve,
     detect: detect,
+    keyHref: keyHref,
     hexToBytes: hexToBytes,
     deriveReport: deriveReport,
     shapeReport: shapeReport,
