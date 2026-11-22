@@ -520,6 +520,60 @@ fn html_references_build_fingerprinted_assets() {
 }
 
 #[test]
+fn pages_load_generated_chain_data_before_consumers() {
+    let temp = TempState::new("ssot");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    // The generated chain/provider globals are embedded like every other asset
+    // and injected into <head>, so they run before the page scripts that read
+    // them. Both URLs must be build-fingerprinted.
+    let (status, _, page) = raw(addr, "GET", "/key", None, None);
+    assert_eq!(status, 200);
+    let build = page_build(&page);
+    let generated = format!("/a/{build}/chains.generated.js");
+    let consumer = format!("/a/{build}/key.js");
+    let generated_at = page
+        .find(&generated)
+        .unwrap_or_else(|| panic!("/key must load {generated}: {page}"));
+    let consumer_at = page
+        .find(&consumer)
+        .unwrap_or_else(|| panic!("/key must load {consumer}: {page}"));
+    assert!(
+        generated_at < consumer_at,
+        "/key must load {generated} before {consumer}"
+    );
+
+    let (status, headers, body) = raw(addr, "GET", &generated, None, None);
+    assert_eq!(status, 200);
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("application/javascript"),
+        "{generated}: {headers}"
+    );
+    assert!(
+        body.contains("RotorChains"),
+        "{generated} misses RotorChains"
+    );
+    assert!(
+        body.contains("RotorProviders"),
+        "{generated} misses RotorProviders"
+    );
+
+    // A page that does not need balances still gets the shared data, so a
+    // later script can read it without a page-local copy.
+    let (status, _, docs) = raw(addr, "GET", "/docs", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        docs.contains(&generated),
+        "/docs must load the fingerprinted shared data: {docs}"
+    );
+
+    handle.shutdown();
+}
+
+#[test]
 fn two_clients_lease_disjoint_chunks_and_heartbeat() {
     let temp = TempState::new("lease");
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
@@ -1852,11 +1906,17 @@ fn send_routes_are_served_with_testnet_only_copy() {
     // The mainnet gates are in the served script, not just in the tests.
     assert!(script.contains("assertTestnetChain"));
     assert!(script.contains("Mainnet sending is disabled"));
-    assert!(script.contains("mempool.space/testnet/api"));
+    assert!(script.contains("RotorProviders"));
     assert!(script.contains("Blocked an EVM RPC outside the testnet allowlist"));
-    assert!(script.contains("bsc-testnet-rpc.publicnode.com"));
     assert!(script.contains("a9059cbb"));
     assert!(script.contains("tron-nile"));
+
+    // The testnet endpoints live once, in the generated shared data.
+    let (status, _, generated) = raw(addr, "GET", "/chains.generated.js", None, None);
+    assert_eq!(status, 200);
+    assert!(generated.contains("mempool.space/testnet/api"));
+    assert!(generated.contains("bsc-testnet-rpc.publicnode.com"));
+    assert!(generated.contains("https://api.nileex.io"));
 
     let (status, headers, tron) = raw(addr, "GET", "/tron-tx.js", None, None);
     assert_eq!(status, 200);
@@ -1866,7 +1926,7 @@ fn send_routes_are_served_with_testnet_only_copy() {
             .contains("application/javascript"),
         "/tron-tx.js: {headers}"
     );
-    assert!(tron.contains("api.nileex.io"));
+    assert!(tron.contains("RotorProviders"));
     assert!(tron.contains("RotorTronSend"));
     assert!(!tron.contains("https://api.trongrid.io"));
 

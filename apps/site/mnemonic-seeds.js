@@ -4,6 +4,11 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
@@ -22,24 +27,17 @@
     zcash: 'zat'
   };
 
-  var RPC = {
-    ethereum: 'https://ethereum-rpc.publicnode.com',
-    bnb: 'https://bsc-rpc.publicnode.com',
-    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
-    optimism: 'https://optimism-rpc.publicnode.com',
-    base: 'https://base-rpc.publicnode.com',
-    polygon: 'https://polygon-bor-rpc.publicnode.com',
-    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
-    zksync: 'https://mainnet.era.zksync.io'
-  };
+  var RPC = {};
+  SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
+    RPC[slug] = SSOT_PROVIDERS.first(slug).url;
+  });
 
   /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
    * when the official host rejects the browser (it answers 403 to some
-   * origins). Same endpoints as the key directory (`browse.js`). */
-  var SOLANA_RPC_URLS = [
-    'https://api.mainnet-beta.solana.com',
-    'https://solana-rpc.publicnode.com'
-  ];
+   * origins). Order comes from data/providers.json, like every other page. */
+  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
+    return provider.url;
+  });
 
   function evmConfig() {
     return {
@@ -1049,7 +1047,7 @@
     var errors = {};
     var unique = Array.from(new Set(addresses.filter(Boolean)));
     if (!unique.length) return { values: values, errors: errors };
-    var url = 'https://blockchain.info/balance?cors=true&active=' + unique.map(encodeURIComponent).join('|');
+    var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url + unique.map(encodeURIComponent).join('|');
     var data = await requestJson(url);
     unique.forEach(function (address) {
       var info = data[address];

@@ -3,6 +3,11 @@
 (function () {
   'use strict';
 
+  /* Chain explorers come from data/chains.json through the generated globals
+   * in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+
   var byId = function (id) { return document.getElementById(id); };
   var form = byId('rebuild-form');
   if (!form) return;
@@ -130,11 +135,11 @@
       report.addresses.forEach(function (entry) { byIdMap[entry.id] = entry.address; });
       facts.appendChild(factRow('WIF (compressed)', report.wif_compressed));
       facts.appendChild(factRow('Bitcoin P2PKH', byIdMap.btc_p2pkh,
-        byIdMap.btc_p2pkh ? 'https://mempool.space/address/' + byIdMap.btc_p2pkh : ''));
+        byIdMap.btc_p2pkh ? SSOT_CHAINS.bySlug.bitcoin.explorerPrefix + byIdMap.btc_p2pkh : ''));
       facts.appendChild(factRow('Ethereum', byIdMap.evm,
-        byIdMap.evm ? 'https://etherscan.io/address/' + byIdMap.evm : ''));
+        byIdMap.evm ? SSOT_CHAINS.bySlug.ethereum.explorerPrefix + byIdMap.evm : ''));
       facts.appendChild(factRow('TRON', byIdMap.tron,
-        byIdMap.tron ? 'https://tronscan.org/#/address/' + byIdMap.tron : ''));
+        byIdMap.tron ? SSOT_CHAINS.bySlug.tron.explorerPrefix + byIdMap.tron : ''));
       status.textContent += ' Valid secp256k1 private key: the derived addresses are shown below.';
     } catch (err) {
       status.textContent += ' The calculation core could not be loaded, so only the raw value is shown: ' +

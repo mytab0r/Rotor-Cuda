@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runInThisContext } from "node:vm";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 
 const source = readFileSync(fileURLToPath(new URL("./site.js", import.meta.url)), "utf8");
 

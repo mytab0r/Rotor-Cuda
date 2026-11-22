@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const send = require("./send.js");
 const btc = require("./wallet-btc.js");
 const evm = require("./wallet-evm.js");

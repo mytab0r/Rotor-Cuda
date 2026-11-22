@@ -3,6 +3,12 @@
 (function () {
   'use strict';
 
+  /* Chain identity and public providers come from data/*.json through the
+   * generated globals in chains.generated.js (loaded before this script). */
+  var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
+  var SSOT_CHAINS = SSOT_ROOT.RotorChains;
+  var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
     : '/rotor_wasm.wasm';
@@ -24,24 +30,17 @@
       taproot: 'ltc_p2tr'
     }
   };
-  var RPC = {
-    ethereum: 'https://ethereum-rpc.publicnode.com',
-    bnb: 'https://bsc-rpc.publicnode.com',
-    arbitrum: 'https://arbitrum-one-rpc.publicnode.com',
-    optimism: 'https://optimism-rpc.publicnode.com',
-    base: 'https://base-rpc.publicnode.com',
-    polygon: 'https://polygon-bor-rpc.publicnode.com',
-    avalanche: 'https://avalanche-c-chain-rpc.publicnode.com',
-    zksync: 'https://mainnet.era.zksync.io'
-  };
-  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
-   * when the official host rejects the browser (it answers 403 to some
-   * origins). */
-  var SOLANA_RPC_URLS = [
-    'https://api.mainnet-beta.solana.com',
-    'https://solana-rpc.publicnode.com'
-  ];
-  var SUI_GRAPHQL = 'https://graphql.mainnet.sui.io/graphql';
+  var RPC = {};
+  SSOT_PROVIDERS.groups['evm-mainnet'].forEach(function (slug) {
+    RPC[slug] = SSOT_PROVIDERS.first(slug).url;
+  });
+  /* The official RPC is primary; a public fallback serves the same mainnet
+   * JSON-RPC when the official host rejects the browser (it answers 403 to
+   * some origins). */
+  var SOLANA_RPC_URLS = SSOT_PROVIDERS.byChain.solana.map(function (provider) {
+    return provider.url;
+  });
+  var SUI_GRAPHQL = SSOT_PROVIDERS.find('sui', 'graphql').url;
   var PAGE_SIZE = 60n;
 
   /* ------------------------------------------------------- pure helpers */
@@ -540,7 +539,7 @@
     var errors = {};
     var unique = uniqueAddresses(addresses);
     if (!unique.length) return { values: values, errors: errors };
-    var url = 'https://blockchain.info/balance?cors=true&active=' + unique.map(encodeURIComponent).join('|');
+    var url = SSOT_PROVIDERS.find('bitcoin', 'blockchain-info').url + unique.map(encodeURIComponent).join('|');
     var data = await requestJson(url);
     unique.forEach(function (address) {
       var info = data[address];
@@ -705,7 +704,7 @@
   }
 
   function tonCenterBalance(address) {
-    return fetchJson('https://toncenter.com/api/v2/getAddressBalance?address=' + encodeURIComponent(address))
+    return fetchJson(SSOT_PROVIDERS.find('ton', 'toncenter').url + '/getAddressBalance?address=' + encodeURIComponent(address))
       .then(function (data) {
         var parsed = cacheApi && typeof cacheApi.parseTonBalance === 'function'
           ? cacheApi.parseTonBalance(data)
@@ -716,7 +715,7 @@
   }
 
   function tronBalanceDirect(address) {
-    return accountJson('https://apilist.tronscanapi.com/api/account?address=' + encodeURIComponent(address))
+    return accountJson(SSOT_PROVIDERS.find('tron', 'tronscan').url + '/account?address=' + encodeURIComponent(address))
       .then(function (data) { return { balance: String(Number(data.balance || 0)) }; });
   }
 
@@ -810,7 +809,7 @@
   }
 
   function xrpBalance(address) {
-    return accountJson('https://api.xrpscan.com/api/v1/account/' + encodeURIComponent(address))
+    return accountJson(SSOT_PROVIDERS.find('xrp', 'xrpscan').url + '/account/' + encodeURIComponent(address))
       .then(function (data) {
         /* 404 (unactivated account) comes back as {}: a real zero balance. */
         if (!data || typeof data !== 'object' || !Object.keys(data).length) return '0';

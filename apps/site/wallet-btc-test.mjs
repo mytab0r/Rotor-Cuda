@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+require("./chains.generated.js");
 const btc = require("./wallet-btc.js");
 
 const FROM = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";

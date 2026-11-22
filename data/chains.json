@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "chains": [
+    {
+      "slug": "bitcoin",
+      "name": "Bitcoin",
+      "symbol": "BTC",
+      "family": "btc",
+      "explorer": "https://mempool.space/address/{address}",
+      "explorerTx": "https://mempool.space/tx/{tx}"
+    },
+    {
+      "slug": "ethereum",
+      "name": "Ethereum",
+      "symbol": "ETH",
+      "family": "evm",
+      "explorer": "https://etherscan.io/address/{address}",
+      "explorerTx": "https://etherscan.io/tx/{tx}"
+    },
+    {
+      "slug": "bnb",
+      "name": "BNB Chain",
+      "symbol": "BNB",
+      "family": "evm",
+      "explorer": "https://bscscan.com/address/{address}",
+      "explorerTx": "https://bscscan.com/tx/{tx}"
+    },
+    {
+      "slug": "arbitrum",
+      "name": "Arbitrum",
+      "symbol": "ETH",
+      "family": "evm",
+      "explorer": "https://arbiscan.io/address/{address}",
+      "explorerTx": "https://arbiscan.io/tx/{tx}"
+    },
+    {
+      "slug": "optimism",
+      "name": "Optimism",
+      "symbol": "ETH",
+      "family": "evm",
+      "explorer": "https://optimistic.etherscan.io/address/{address}",
+      "explorerTx": "https://optimistic.etherscan.io/tx/{tx}"
+    },
+    {
+      "slug": "base",
+      "name": "Base",
+      "symbol": "ETH",
+      "family": "evm",
+      "explorer": "https://basescan.org/address/{address}",
+      "explorerTx": "https://basescan.org/tx/{tx}"
+    },
+    {
+      "slug": "polygon",
+      "name": "Polygon",
+      "symbol": "POL",
+      "family": "evm",
+      "explorer": "https://polygonscan.com/address/{address}",
+      "explorerTx": "https://polygonscan.com/tx/{tx}"
+    },
+    {
+      "slug": "avalanche",
+      "name": "Avalanche",
+      "symbol": "AVAX",
+      "family": "evm",
+      "explorer": "https://snowtrace.io/address/{address}",
+      "explorerTx": "https://snowtrace.io/tx/{tx}"
+    },
+    {
+      "slug": "zksync",
+      "name": "zkSync Era",
+      "symbol": "ETH",
+      "family": "evm",
+      "explorer": "https://explorer.zksync.io/address/{address}",
+      "explorerTx": "https://explorer.zksync.io/tx/{tx}"
+    },
+    {
+      "slug": "solana",
+      "name": "Solana",
+      "symbol": "SOL",
+      "family": "solana",
+      "explorer": "https://solscan.io/account/{address}"
+    },
+    {
+      "slug": "tron",
+      "name": "TRON",
+      "symbol": "TRX",
+      "family": "tron",
+      "explorer": "https://tronscan.org/#/address/{address}"
+    },
+    {
+      "slug": "ton",
+      "name": "TON",
+      "symbol": "TON",
+      "family": "ton",
+      "explorer": "https://tonviewer.com/{address}"
+    },
+    {
+      "slug": "sui",
+      "name": "Sui",
+      "symbol": "SUI",
+      "family": "sui",
+      "explorer": "https://suiscan.xyz/mainnet/account/{address}"
+    },
+    {
+      "slug": "xrp",
+      "name": "XRP",
+      "symbol": "XRP",
+      "family": "xrp",
+      "explorer": "https://xrpscan.com/account/{address}"
+    },
+    {
+      "slug": "litecoin",
+      "name": "Litecoin",
+      "symbol": "LTC",
+      "family": "ltc",
+      "explorer": "https://blockchair.com/litecoin/address/{address}"
+    },
+    {
+      "slug": "bitcoin-cash",
+      "name": "Bitcoin Cash",
+      "symbol": "BCH",
+      "family": "bch",
+      "explorer": "https://blockchair.com/bitcoin-cash/address/{address}"
+    },
+    {
+      "slug": "dogecoin",
+      "name": "Dogecoin",
+      "symbol": "DOGE",
+      "family": "doge",
+      "explorer": "https://blockchair.com/dogecoin/address/{address}"
+    },
+    {
+      "slug": "zcash",
+      "name": "Zcash",
+      "symbol": "ZEC",
+      "family": "zcash",
+      "explorer": "https://blockchair.com/zcash/address/{address}"
+    },
+    {
+      "slug": "bitcoin-testnet",
+      "name": "Bitcoin testnet",
+      "symbol": "BTC",
+      "family": "btc",
+      "testnet": true,
+      "explorer": "https://mempool.space/testnet/address/{address}",
+      "explorerTx": "https://mempool.space/testnet/tx/{tx}"
+    },
+    {
+      "slug": "sepolia",
+      "name": "Ethereum Sepolia",
+      "symbol": "ETH",
+      "family": "evm",
+      "testnet": true,
+      "explorer": "https://sepolia.etherscan.io/address/{address}",
+      "explorerTx": "https://sepolia.etherscan.io/tx/{tx}"
+    },
+    {
+      "slug": "bnb-testnet",
+      "name": "BNB Smart Chain testnet",
+      "symbol": "tBNB",
+      "family": "evm",
+      "testnet": true,
+      "explorer": "https://testnet.bscscan.com/address/{address}",
+      "explorerTx": "https://testnet.bscscan.com/tx/{tx}"
+    },
+    {
+      "slug": "tron-nile",
+      "name": "TRON Nile testnet",
+      "symbol": "TRX",
+      "family": "tron",
+      "testnet": true,
+      "explorer": "https://nile.tronscan.org/#/address/{address}",
+      "explorerTx": "https://nile.tronscan.org/#/transaction/{tx}"
+    }
+  ]
+}

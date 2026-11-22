@@ -1,0 +1,114 @@
+[
+  {
+    "file": "apps/site/balance-cache.js",
+    "match": "blockchain.info",
+    "reason": "Cache namespace key compared in ttlFor; this is not a URL. Renaming it would invalidate stored entries and is slice 3 chain-identity work.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/browse.js",
+    "match": "blockchain.info",
+    "reason": "Provider metadata name used as the balance-cache namespace; the endpoint URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/browse.js",
+    "match": "tronscan",
+    "reason": "Provider metadata name used as the balance-cache namespace; the endpoint URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/key.js",
+    "match": "tronscan",
+    "reason": "Provider id selected from the canonical table and used as the balance-cache namespace; not a URL literal.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/mnemonic-seeds.js",
+    "match": "blockchain.info",
+    "reason": "Provider metadata name used as the balance-cache namespace; the endpoint URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/puzzle-browser.js",
+    "match": "mempool.space",
+    "reason": "Comment and user-facing status text naming the public provider; the API URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/seed-page.js",
+    "match": "blockchain.info",
+    "reason": "User-facing note naming the BTC provider; no endpoint literal remains.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/send.js",
+    "match": "api.nileex.io",
+    "reason": "Explanatory comment and a review warning that name the TRON Nile host; the endpoint comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/send.js",
+    "match": "mempool.space",
+    "reason": "Comment, fee help and error text naming the public provider; the endpoint comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/site.js",
+    "match": "publicnode",
+    "reason": "Explicit provider-id selection for the Solana fallback; the URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/site.js",
+    "match": "tronscan",
+    "reason": "Provider metadata name used as the balance-cache namespace; the endpoint URL comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/ton.js",
+    "match": "*",
+    "reason": "Vendored TON bundle (ton.LICENSE.txt); it is not first-party site code and carries its own upstream endpoints.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/wallet-btc.js",
+    "match": "mempool.space",
+    "reason": "Comment, review source text and error messages naming the public provider; the endpoint comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/wallet.js",
+    "match": "mempool.space",
+    "reason": "Status and comment text naming the public provider; the endpoint comes from window.RotorProviders.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/wallet.js",
+    "match": "tronscan",
+    "reason": "Provider id selected from the canonical table and used as the balance-cache namespace; not a URL literal.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  },
+  {
+    "file": "apps/site/walletconnect.js",
+    "match": "*",
+    "reason": "Vendored WalletConnect bundle (wallets.LICENSE.txt); it is not first-party site code and carries its own upstream endpoints.",
+    "owner": "site-ui",
+    "expires": "2027-06-30"
+  }
+]
