@@ -22,6 +22,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  archiveStalePullRequestItems,
   closingIssueNumbers,
   epicBody,
   linkSubIssueToEpic,
@@ -159,6 +160,8 @@ function readChanges() {
     throw new Error(`missing ${path.relative(REPO_ROOT, CHANGES_DIR)}`);
   }
   const changes = [];
+  const skipped = [];
+  const empty = [];
   const ids = fs
     .readdirSync(CHANGES_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -167,7 +170,10 @@ function readChanges() {
 
   for (const id of ids) {
     const tasksPath = path.join(CHANGES_DIR, id, "tasks.md");
-    if (!fs.existsSync(tasksPath)) continue;
+    if (!fs.existsSync(tasksPath)) {
+      skipped.push(id);
+      continue;
+    }
 
     const parsed = parseTasksMarkdown(fs.readFileSync(tasksPath, "utf8"));
     const taskSections = parsed.sections.filter(
@@ -175,7 +181,10 @@ function readChanges() {
     );
     const total = taskSections.reduce((sum, section) => sum + section.total, 0);
     const done = taskSections.reduce((sum, section) => sum + section.done, 0);
-    if (total === 0) continue;
+    if (total === 0) {
+      empty.push(id);
+      continue;
+    }
 
     const idText = `${id} ${titleFor(id)}`;
     const inferred = areaFromText(idText);
@@ -191,7 +200,7 @@ function readChanges() {
       defaultArea: inferred === null,
     });
   }
-  return changes;
+  return { changes, skipped, empty };
 }
 
 function provisionalEpicBody(change) {
@@ -466,7 +475,17 @@ function main() {
     gh(args);
   }
 
-  const changes = readChanges();
+  const { changes, skipped, empty } = readChanges();
+  if (skipped.length > 0) {
+    console.log(
+      `warning: OpenSpec changes without tasks.md are not synced: ${skipped.join(", ")}`,
+    );
+  }
+  if (empty.length > 0) {
+    console.log(
+      `warning: OpenSpec changes with no checkbox tasks are not synced: ${empty.join(", ")}`,
+    );
+  }
   const issuesEnabled = repoInfo.hasIssuesEnabled;
   const issues = issuesEnabled
     ? ghJson([
@@ -770,6 +789,16 @@ function main() {
       }
     }
 
+    const archive = archiveStalePullRequestItems({
+      items,
+      openPullRequestNumbers: new Set(prs.map((pr) => pr.number)),
+      projectId: project.id,
+      ghJson,
+      repo: REPO,
+      dryRun: DRY_RUN,
+      log: (line) => console.log(line),
+    });
+
     const projectItems =
       DRY_RUN
         ? items.length
@@ -794,6 +823,9 @@ function main() {
       `sub-issue tasks created: ${tasksCreated}, updated: ${tasksUpdated}, unchanged: ${tasksUnchanged}`,
     );
     console.log(`open PRs seen: ${prs.length}; new PR items: ${prsAdded}; PR links added: ${prLinksAdded}`);
+    console.log(`stale PR items archived: ${archive.archived}`);
+    if (skipped.length > 0) console.log(`changes without tasks.md: ${skipped.join(", ")}`);
+    if (empty.length > 0) console.log(`changes without checkbox tasks: ${empty.join(", ")}`);
     if (prsWithoutTask.length > 0) {
       console.log(`PRs without a Task line: ${prsWithoutTask.join(", ")}`);
     }

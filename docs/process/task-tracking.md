@@ -147,7 +147,9 @@ and needs no rewrite.
 4. Review and merge. The provider closes the issue. When the work lands without
    a PR, the agent closes the sub-issue it finished.
 5. The next sync recomputes the epic progress from the closed sub-issues and
-   reports PRs that still lack a Task line or cannot be linked.
+   reports PRs that still lack a Task line or cannot be linked. It also archives
+   merged/closed PR project items so only open PR cards remain. The daily
+   `board-sync` workflow runs this without a manual step.
 
 ## Commands
 
@@ -179,10 +181,14 @@ context; the text convention does not change.
 
 - Keep GitHub Issues enabled in `mytab0r/Rotor-Cuda`; the sync and the check
   rely on them.
-- Run the first `node scripts/sync-board.mjs` after this mechanics change lands.
-  That run creates the `change:*` labels, the epics and the sub-issues, and
-  populates the board. Existing fully checked sections are not retroactively
-  opened.
+- Add the repository secret `BOARD_SYNC_TOKEN`: a personal token with `repo`
+  and `project` scopes (classic) or issues/pull-requests write plus user-project
+  access (fine-grained). `.github/workflows/board-sync.yml` runs the sync daily
+  at 03:17 UTC and on demand. The value is never stored in the repository.
+- Run the first `node scripts/sync-board.mjs` after this mechanics change lands
+  (the daily workflow does the same on its next run). That run creates the
+  `change:*` labels, the epics and the sub-issues, and populates the board.
+  Existing fully checked sections are not retroactively opened.
 - Make the `task-links` check a required status check in the branch protection
   for `main` after the first sync exists; until then it reports without
   blocking.

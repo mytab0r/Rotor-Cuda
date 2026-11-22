@@ -32,6 +32,12 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
   `Task: ROT-<n>` gets `Closes #<n>` appended when the body lacks a closing
   reference and the branch follows `<type>/<change-id>-<slug>` (or the diff
   touches the change folder). An ambiguous PR is reported, not edited.
+- **Merged and closed PR items are archived** (`archiveProjectV2Item` over
+  GraphQL), so the board keeps only open PR cards and the epics carry the
+  history. Issue items are never archived. A PR-state read failure is reported
+  and leaves that item in place for the next run.
+- **Changes without `tasks.md`, or with no checkbox tasks, are printed as a
+  warning** instead of being skipped silently.
 - **Project fields**:
   - `Area` (single select): `site`, `coordinator`, `desktop`, `infra`,
     `design`, `docs`. Sub-issues carry the same field.
@@ -81,6 +87,14 @@ uses Node 20 built-ins only and no npm dependency.
 
 `.github/workflows/task-links.yml` runs `scripts/check-task-links.mjs` on every
 `pull_request` event with the default `GITHUB_TOKEN` (read-only `issues` and
-`pull-requests`) and no secret. The board sync itself still runs locally: a
-user-owned Project v2 needs a personal token with `project` scope, and no such
-secret is added. See `docs/process/task-tracking.md` for the PR rules.
+`pull-requests`) and no secret. See `docs/process/task-tracking.md` for the PR
+rules.
+
+`.github/workflows/board-sync.yml` runs `scripts/sync-board.mjs` daily at 03:17
+UTC and on `workflow_dispatch`, so the board cannot lag behind merged PRs. A
+user-owned Project v2 cannot be edited by the default `GITHUB_TOKEN`, so the
+workflow reads the repository secret `BOARD_SYNC_TOKEN`: a personal token with
+`repo` and `project` scopes (classic) or issues/pull-requests write plus
+user-project access (fine-grained). The secret value is never stored in the
+repository; the job fails with an explicit error when it is missing. The same
+sync still runs locally with the owner's `gh` login for `--dry-run` plans.

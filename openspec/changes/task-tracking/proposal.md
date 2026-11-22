@@ -38,8 +38,15 @@ In scope:
   `Closes #<n>` in PRs that name a key.
 - `scripts/check-task-links.mjs` and `.github/workflows/task-links.yml`: the
   PR gate with a docs/process-only escape hatch.
-- Unit tests for parsing, blockers, idempotent creation with a fake `gh`, and
-  the gate's pass/fail cases.
+- `.github/workflows/board-sync.yml`: a daily off-peak sync with the owner
+  token, plus `workflow_dispatch`, so the board cannot lag behind merged PRs.
+- Stale PR project items (merged/closed) are archived; only open PR cards
+  remain. Changes without `tasks.md` are reported loudly, and
+  `openspec/changes/frontend-platform/tasks.md` is added so that change is
+  tracked.
+- Unit tests for parsing, blockers (including the real `key-leak-monitor` and
+  `tx-sign-broadcast` edges), idempotent creation with a fake `gh`, stale-PR
+  archiving and the gate's pass/fail cases.
 - `AGENTS.md`, `PROJECTS.md`, `projects.json`, `docs/process/board.md`.
 
 Out of scope:
@@ -70,7 +77,11 @@ Out of scope:
    missing issue, a wrong/missing closing reference, an invalid key and a
    `Task: none` without a reason or on a product PR. It passes a valid keyed PR
    and a docs/process-only `Task: none` PR.
-5. `node scripts/check-projects.mjs`, `node scripts/check-defect-ledger.mjs`,
+5. The dry-run plan shows the blocker edges for the real
+   `key-leak-monitor` and `tx-sign-broadcast` changes; a second non-dry run is
+   idempotent. Merged/closed PR items are archived, changes without tasks are
+   reported, and `frontend-platform` has a tracked `tasks.md`.
+6. `node scripts/check-projects.mjs`, `node scripts/check-defect-ledger.mjs`,
    `node scripts/check-ssot.mjs`, `node scripts/gen-detector-docs.mjs --check`
    and the new unit tests pass.
 

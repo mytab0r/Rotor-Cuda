@@ -5,10 +5,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  archiveStalePullRequestItems,
   closingIssueNumbers,
   epicBody,
   evaluateTaskLinks,
@@ -416,7 +418,7 @@ test("syncChangeTasks --dry-run prints the plan and performs no mutation", () =>
     assert.deepEqual(planned.map((entry) => entry.slug), ["first", "second"]);
     const text = lines.join("\n");
     assert.match(text, /\[dry-run\] create sub-issue demo\/first/);
-    assert.match(text, /\[dry-run\] set blockers on demo\/second: §1/);
+    assert.match(text, /\[dry-run\] blockers demo\/second: §2 <- §1/);
   }));
 
 test("syncChangeTasks keeps an existing sub-issue when its section is fully checked", () =>
@@ -536,4 +538,152 @@ test("linkSubIssueToEpic skips an existing link and links once over GraphQL", ()
     false,
   );
   assert.match(lines[0], /\[dry-run\] link sub-issue #7 under epic #42/);
+});
+
+function repoFile(relative) {
+  return fileURLToPath(new URL(`../${relative}`, import.meta.url));
+}
+
+function sectionEdges(relative) {
+  const { sections } = parseTasksMarkdown(fs.readFileSync(repoFile(relative), "utf8"));
+  const map = new Map();
+  for (const section of sections) {
+    if (section.number) map.set(section.number, section.blockers.sectionNumbers);
+  }
+  return map;
+}
+
+test("real key-leak-monitor blockers match its blocked-by lines", () => {
+  const edges = sectionEdges("openspec/changes/key-leak-monitor/tasks.md");
+  assert.deepEqual(edges.get("2"), ["1"]);
+  assert.deepEqual(edges.get("3"), ["1"]);
+  assert.deepEqual(edges.get("4"), ["2"]);
+  assert.deepEqual(edges.get("5"), ["4"]);
+  assert.deepEqual(edges.get("6"), ["3", "5"]);
+  assert.deepEqual(edges.get("7"), ["3"]);
+  assert.deepEqual(edges.get("8"), ["6", "7"]);
+  assert.deepEqual(edges.get("9"), ["1", "2", "3", "4", "5", "6", "7", "8"]);
+});
+
+test("real tx-sign-broadcast blockers match its blocked-by lines", () => {
+  const edges = sectionEdges("openspec/changes/tx-sign-broadcast/tasks.md");
+  assert.deepEqual(edges.get("1"), ["0"]);
+  assert.deepEqual(edges.get("2"), ["0"]);
+  assert.deepEqual(edges.get("3"), ["0"]);
+  assert.deepEqual(edges.get("4"), ["3"]);
+  assert.deepEqual(edges.get("5"), ["1", "4"]);
+  assert.deepEqual(edges.get("6"), ["1", "5"]);
+  assert.deepEqual(edges.get("7"), ["1", "4"]);
+  assert.deepEqual(edges.get("8"), ["5"]);
+  assert.deepEqual(edges.get("9"), ["1", "2", "3", "4", "5", "6", "7", "8"]);
+  assert.deepEqual(edges.get("10"), ["9"]);
+});
+
+test("dry-run resolves real section blockers to ROT keys when the issues exist", () =>
+  withTempDir((tempDir) => {
+    const { sections } = parseTasksMarkdown(
+      fs.readFileSync(repoFile("openspec/changes/key-leak-monitor/tasks.md"), "utf8"),
+    );
+    const numbered = sections.filter((section) => section.number);
+    const existing = numbered.map((section, index) => ({
+      number: 300 + index,
+      id: `I_${300 + index}`,
+      title: section.title,
+      body: `<!-- openspec-task: key-leak-monitor/${section.slug} -->\n`,
+      url: `https://github.com/o/r/issues/${300 + index}`,
+      state: "OPEN",
+      labels: ["change:key-leak-monitor"],
+    }));
+
+    const lines = [];
+    syncChangeTasks({
+      changeId: "key-leak-monitor",
+      epicNumber: 88,
+      tasks: sections,
+      existingIssues: existing,
+      gh: () => {
+        throw new Error("dry run must not call gh");
+      },
+      repo: "o/r",
+      dryRun: true,
+      tempDir,
+      log: (line) => lines.push(line),
+      areaForTask: () => "site",
+    });
+
+    const text = lines.join("\n");
+    assert.match(
+      text,
+      /\[dry-run\] blockers key-leak-monitor\/providers-and-watcher: §2 <- ROT-300 \(#300\)/,
+    );
+    assert.match(
+      text,
+      /\[dry-run\] blockers key-leak-monitor\/cabinet-ui: §6 <- ROT-302 \(#302\), ROT-304 \(#304\)/,
+    );
+    assert.match(
+      text,
+      /\[dry-run\] blockers key-leak-monitor\/acceptance-and-rollout: §9 <- ROT-300 \(#300\), ROT-301 \(#301\), ROT-302 \(#302\), ROT-303 \(#303\), ROT-304 \(#304\), ROT-305 \(#305\), ROT-306 \(#306\), ROT-307 \(#307\)/,
+    );
+  }));
+
+test("archiveStalePullRequestItems archives non-open PR items and leaves issues alone", () => {
+  const items = [
+    { id: "item-1", content: { url: "https://github.com/o/r/pull/1" } },
+    { id: "item-2", content: { url: "https://github.com/o/r/pull/2" } },
+    { id: "item-3", content: { url: "https://github.com/o/r/pull/3" } },
+    { id: "item-4", content: { url: "https://github.com/o/r/issues/4" } },
+  ];
+  const calls = [];
+  const ghJson = (args) => {
+    calls.push(args);
+    const joined = args.join(" ");
+    if (joined.includes("archiveProjectV2Item")) {
+      return { data: { archiveProjectV2Item: { item: { id: "ok" } } } };
+    }
+    if (args[0] === "pr" && args[1] === "view") {
+      const number = Number(args[2]);
+      if (number === 1) return { state: "MERGED" };
+      if (number === 3) return { state: "CLOSED" };
+      return { state: "OPEN" };
+    }
+    throw new Error(`unexpected call ${joined}`);
+  };
+
+  const result = archiveStalePullRequestItems({
+    items,
+    openPullRequestNumbers: new Set([2]),
+    projectId: "P_1",
+    ghJson,
+    repo: "o/r",
+  });
+  assert.equal(result.archived, 2);
+
+  const mutations = calls.filter((args) => args.join(" ").includes("archiveProjectV2Item"));
+  assert.equal(mutations.length, 2);
+  assert.match(mutations[0].join(" "), /itemId=item-1/);
+  assert.match(mutations[1].join(" "), /itemId=item-3/);
+  assert.equal(
+    calls.some((args) => args.join(" ").includes("itemId=item-4")),
+    false,
+    "issue items are never archived",
+  );
+});
+
+test("archiveStalePullRequestItems --dry-run prints the plan without a mutation", () => {
+  const lines = [];
+  const result = archiveStalePullRequestItems({
+    items: [{ id: "item-1", content: { url: "https://github.com/o/r/pull/1" } }],
+    openPullRequestNumbers: new Set(),
+    projectId: "P_1",
+    ghJson: (args) => {
+      const joined = args.join(" ");
+      if (args[0] === "pr" && args[1] === "view") return { state: "MERGED" };
+      throw new Error(`dry run must not call ${joined}`);
+    },
+    repo: "o/r",
+    dryRun: true,
+    log: (line) => lines.push(line),
+  });
+  assert.equal(result.archived, 1);
+  assert.match(lines[0], /\[dry-run\] archive project item for PR #1 \(MERGED\)/);
 });
