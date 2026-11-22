@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'All chains except TON: rows, pager, word counts, phrase/key copy, path and address types are present (the donor row has no WIF links, and neither do ours). Balance checks run for BTC and the EVM chains only (mnemonic-seeds providerMeta); TON is an explicit unsupported state.'
+    note: 'All chains except TON: rows, pager, word counts, phrase/key copy, path and address types are present (the donor row has no WIF links, and neither do ours). Balance checks run for BTC, the EVM chains and Solana (one batched getMultipleAccounts POST per page); other chains render `—` with an explorer link; TON is an explicit unsupported state. The audit route set covers bitcoin, solana and ton; the other chain pages stay out because their providers fan out one request per address.'
   });
 
   feature({

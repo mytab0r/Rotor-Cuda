@@ -35,6 +35,10 @@ const DEFAULT_ROUTES = [
   "/private-keys/ethereum",
   "/seed",
   "/mnemonic-seeds/bitcoin",
+  // Solana renders through one batched getMultipleAccounts POST per page (60 addresses); a 403 from the public RPC on hosts that refuse the browser is a console warning, not a violation.
+  "/mnemonic-seeds/solana",
+  // TON is the explicit unsupported-chain state (message, no rows).
+  "/mnemonic-seeds/ton",
   "/brainwallet",
   "/brainwallet/bitcoin",
   "/bitcoin-puzzle",
