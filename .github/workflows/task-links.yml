@@ -1,0 +1,29 @@
+name: task-links
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  task-links:
+    name: task-links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests for the task-tracking mechanics
+        run: node --test scripts/task-tracking.test.mjs scripts/check-task-links.test.mjs
+      # The convention is docs/process/task-tracking.md. A docs/process-only PR
+      # may use `Task: none — <reason>`; product PRs need `Task: ROT-<n>` and a
+      # closing reference to that issue.
+      - name: Check the PR task key and closing reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-task-links.mjs --pr "${{ github.event.pull_request.number }}"
