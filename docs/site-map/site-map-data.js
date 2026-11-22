@@ -945,11 +945,11 @@
     area: 'seeds',
     capability: 'Mnemonic converter: word counter, 20 addresses, Copy All, aggregates, hardened, breadcrumbs',
     donor: 'present',
-    rotor: 'partial',
-    status: 'partial',
+    rotor: 'present',
+    status: 'parity',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Word counter, 20 addresses, Load next 5, Copy All and Active/Sum aggregates are present, as are breadcrumbs. There is no separate hardened checkbox, and the lifetime Received total is not shown because the public providers do not return it.'
+    note: 'Word counter, 20 addresses, Load next 5, Copy All and Active/Sum aggregates are present, as are breadcrumbs. There is no separate hardened checkbox. The lifetime Received total is shown for BTC from the same blockchain.info balance response, so it costs no extra request; other assets have no lifetime total to show.'
   });
 
   feature({
@@ -1213,7 +1213,7 @@
     status: 'parity',
     priority: 'P0',
     sources: ['privatekeyfinder.io'],
-    note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. A live N chars/N words counter sits under the input, and a detected mnemonic is labelled with its Electrum SegWit/Legacy sub-type. Mnemonics hand off to /mnemonic-converter; keys never enter the URL or storage. WIF auto-detection accepts Bitcoin (5/K/L), Litecoin (T/6) and Dogecoin (Q/6) mainnet keys.'
+    note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. A live N chars/N words counter sits under the input, and a detected mnemonic is labelled with its Electrum SegWit/Legacy sub-type. Mnemonics hand off to /mnemonic-converter through sessionStorage (the phrase is removed as soon as the converter reads it); keys never enter the URL. WIF auto-detection accepts Bitcoin (5/K/L), Litecoin (T/6) and Dogecoin (Q/6) mainnet keys.'
   });
 
   feature({
