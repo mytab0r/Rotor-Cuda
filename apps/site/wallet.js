@@ -211,6 +211,20 @@
   var onboardKey = byId('wallet-onboard-key');
   var onboardHint = byId('wallet-onboard-hint');
 
+  /* Security status: reviewed advisories that touch a chain in this vault.
+   * The card reads only vault entries and local check history. */
+  var securityApi = window.RotorWalletSecurity;
+  var securityCard = byId('wallet-security');
+  var securityCount = byId('wallet-security-count');
+  var securityChecks = byId('wallet-security-checks');
+  var securityLast = byId('wallet-security-last');
+  var securityEmpty = byId('wallet-security-empty');
+  var securityList = byId('wallet-security-list');
+  var securityStatus = byId('wallet-security-status');
+  var securityCatalog = null;
+  var securityPromise = null;
+  var securityRunning = false;
+
   /* Seed-phrase block: phrase generation and one-chain derivation. */
   var seedPhrase = byId('wallet-seed-phrase');
   var seedStrength = byId('wallet-seed-strength');
@@ -1311,6 +1325,8 @@
     setError('wallet-signin-error', '');
     if (entriesEl) entriesEl.textContent = '';
     if (summaryBlock) summaryBlock.hidden = true;
+    if (securityCard) securityCard.hidden = true;
+    if (securityList) securityList.textContent = '';
     if (panel) panel.hidden = true;
     if (setupCard) setupCard.hidden = !!state.record;
     if (unlockCard) unlockCard.hidden = !state.record;
@@ -1336,6 +1352,7 @@
     if (state.onboardChoice) applyOnboardChoice(state.onboardChoice);
     restoreSession();
     renderSignIn();
+    refreshSecurity();
     if (stateEl) stateEl.textContent = 'unlocked · auto-locks after 10 minutes idle';
     setError('wallet-unlock-error', '');
     refreshSeedStrength().catch(function () {});
@@ -1801,8 +1818,12 @@
     if (!state.entries.length) {
       emptyEl.hidden = false;
       renderSummary();
-      if (state.unlocked) renderSend();
-      if (state.unlocked) renderSignIn();
+      if (state.unlocked) {
+        if (securityCatalog) renderSecurity();
+        else refreshSecurity();
+        renderSend();
+        renderSignIn();
+      }
       return;
     }
     emptyEl.hidden = true;
@@ -1830,8 +1851,12 @@
       if (!state.derived[entry.id]) deriveEntry(entry, generation);
     });
     renderSummary();
-    if (state.unlocked) renderSend();
-    if (state.unlocked) renderSignIn();
+    if (state.unlocked) {
+      if (securityCatalog) renderSecurity();
+      else refreshSecurity();
+      renderSend();
+      renderSignIn();
+    }
   }
 
   async function deriveEntry(entry, generation) {
@@ -2488,6 +2513,310 @@
       if (generation === state.generation) {
         state.assetsRefreshing = false;
         renderAssets();
+      }
+    });
+  }
+
+  /* --------------------------------------------------------------- security */
+
+  function securitySelection() {
+    if (!securityCatalog || !securityApi) return { applicable: [], uncheckable: [] };
+    return securityApi.selectForEntries(securityCatalog, state.entries);
+  }
+
+  function securityFetchCatalog() {
+    if (securityCatalog) return Promise.resolve(securityCatalog);
+    if (securityPromise) return securityPromise;
+    securityPromise = fetchWithTimeout(assetUrl('/security-advisories.json'), { cache: 'no-cache' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data || !Array.isArray(data.advisories) || !Array.isArray(data.checkers)) {
+          throw new Error('the advisory feed is malformed');
+        }
+        securityCatalog = data;
+        return data;
+      })
+      .catch(function (err) {
+        securityPromise = null;
+        throw err;
+      });
+    return securityPromise;
+  }
+
+  function renderSecurityError(message) {
+    if (!securityCard) return;
+    securityCard.hidden = false;
+    if (securityCount) securityCount.textContent = '—';
+    if (securityChecks) securityChecks.textContent = '0';
+    if (securityLast) securityLast.textContent = '—';
+    if (securityList) securityList.textContent = '';
+    if (securityEmpty) {
+      securityEmpty.hidden = false;
+      securityEmpty.textContent = 'The advisory feed is unavailable (' + message + '). The published list is on the security page.';
+    }
+    if (securityStatus) securityStatus.textContent = '';
+  }
+
+  function renderSecurity() {
+    if (!securityCard) return;
+    if (!state.unlocked) {
+      securityCard.hidden = true;
+      return;
+    }
+    securityCard.hidden = false;
+    if (!securityApi) {
+      renderSecurityError('the security helper did not load');
+      return;
+    }
+    if (!securityCatalog) {
+      if (securityEmpty) {
+        securityEmpty.hidden = false;
+        securityEmpty.textContent = 'Loading reviewed advisories…';
+      }
+      return;
+    }
+    var selection = securitySelection();
+    var times = securityApi.readCheckTimes(window.localStorage);
+    var all = selection.applicable.concat(selection.uncheckable);
+    if (securityCount) securityCount.textContent = String(all.length);
+    if (securityChecks) securityChecks.textContent = String(securityApi.countChecks(times, selection.applicable));
+    if (securityLast) {
+      securityLast.textContent = securityApi.formatTime(securityApi.latestCheck(times, selection.applicable));
+    }
+    if (securityEmpty) {
+      securityEmpty.hidden = all.length > 0;
+      securityEmpty.textContent = state.entries.length
+        ? 'No reviewed advisory applies to the entries in this vault.'
+        : 'No entries in this vault yet. Add a key to see whether a published advisory applies.';
+    }
+    if (!securityList) return;
+    securityList.textContent = '';
+    selection.applicable.forEach(function (item) {
+      item.entries.forEach(function (entry) {
+        securityList.appendChild(securityRow(item, entry, times));
+      });
+    });
+    selection.uncheckable.forEach(function (item) {
+      item.entries.forEach(function (entry) {
+        securityList.appendChild(securityRow(item, entry, times));
+      });
+    });
+    if (securityStatus) securityStatus.textContent = '';
+  }
+
+  async function securityDerive(entropy, profile) {
+    await ensureSeedLibraries();
+    if (!window.RotorSeed) throw new Error('The seed library did not load.');
+    var mnemonic = window.RotorSeed.entropyToMnemonic(entropy);
+    var keyHex = window.RotorSeed.derive(mnemonic, '', profile.path);
+    var wasm = await loadWasm();
+    var report = deriveReport(wasm, hexToBytes(keyHex), 0, 0);
+    var rows = Array.isArray(report.addresses) ? report.addresses : [];
+    var address = '';
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i] && rows[i].id === profile.id) {
+        address = rows[i].address || '';
+        break;
+      }
+    }
+    if (!address) throw new Error('The derivation core returned no ' + profile.id + ' address.');
+    return { address: address, mnemonic: mnemonic, wif: report.wif_compressed || '' };
+  }
+
+  function securityRow(item, entry, times) {
+    var advisory = item.advisory;
+    var maxSeeds = item.checker && item.checker.limits && Number.isInteger(item.checker.limits.max_seeds_per_run)
+      ? item.checker.limits.max_seeds_per_run
+      : 2000;
+    var row = document.createElement('div');
+    row.className = 'wallet-row';
+    row.setAttribute('data-security-advisory', advisory.id);
+    row.setAttribute('data-security-entry', entry.id);
+
+    var head = document.createElement('div');
+    head.className = 'wallet-row-head';
+    var title = document.createElement('strong');
+    title.textContent = advisory.title;
+    head.appendChild(title);
+    var severity = document.createElement('span');
+    severity.className = 'status';
+    severity.textContent = advisory.severity;
+    head.appendChild(severity);
+    var subject = document.createElement('span');
+    subject.className = 'muted';
+    subject.textContent = entry.label || chainLabel(entry.chain);
+    head.appendChild(subject);
+    row.appendChild(head);
+
+    var summary = document.createElement('p');
+    summary.className = 'muted';
+    summary.textContent = advisory.summary;
+    row.appendChild(summary);
+
+    var actions = document.createElement('ol');
+    actions.className = 'muted';
+    (advisory.actions || []).forEach(function (action) {
+      var line = document.createElement('li');
+      line.textContent = action;
+      actions.appendChild(line);
+    });
+    row.appendChild(actions);
+
+    var last = document.createElement('p');
+    last.className = 'muted';
+    var checkedAt = times[securityApi.checkKey(advisory.id, entry.id)];
+    last.textContent = checkedAt
+      ? 'Last local check: ' + securityApi.formatTime(checkedAt) + '.'
+      : 'Not checked locally yet.';
+    row.appendChild(last);
+
+    var actionsRow = document.createElement('div');
+    actionsRow.className = 'wallet-row-actions';
+
+    var details = document.createElement('a');
+    details.className = 'chip';
+    details.href = '/security#' + encodeURIComponent(advisory.id);
+    details.textContent = 'Details and sources';
+    actionsRow.appendChild(details);
+
+    if (item.checker) {
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'primary';
+      toggle.textContent = 'Check locally';
+      actionsRow.appendChild(toggle);
+      row.appendChild(actionsRow);
+
+      var form = document.createElement('form');
+      form.className = 'wallet-row-actions';
+      form.hidden = true;
+      form.autocomplete = 'off';
+
+      var startLabel = document.createElement('label');
+      startLabel.textContent = 'Start seed';
+      var startInput = document.createElement('input');
+      startInput.type = 'number';
+      startInput.min = '0';
+      startInput.max = '4294967295';
+      startInput.step = '1';
+      startInput.value = '0';
+      startInput.required = true;
+      startLabel.appendChild(startInput);
+      form.appendChild(startLabel);
+
+      var countLabel = document.createElement('label');
+      countLabel.textContent = 'Seeds (max ' + maxSeeds + ')';
+      var countInput = document.createElement('input');
+      countInput.type = 'number';
+      countInput.min = '1';
+      countInput.max = String(maxSeeds);
+      countInput.step = '1';
+      countInput.value = '200';
+      countInput.required = true;
+      countLabel.appendChild(countInput);
+      form.appendChild(countLabel);
+
+      var run = document.createElement('button');
+      run.type = 'submit';
+      run.className = 'primary';
+      run.textContent = 'Run local scan';
+      form.appendChild(run);
+      row.appendChild(form);
+
+      var status = document.createElement('p');
+      status.className = 'muted stat__meta';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      row.appendChild(status);
+
+      toggle.addEventListener('click', function () {
+        form.hidden = !form.hidden;
+        if (!form.hidden) startInput.focus();
+      });
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (securityRunning) return;
+        var derived = state.derived[entry.id];
+        if (!derived || !derived.address) {
+          status.textContent = 'The address is not derived yet. Unlock the vault and wait for the address list to finish.';
+          return;
+        }
+        var start = Number(startInput.value);
+        var count = Number(countInput.value);
+        if (!Number.isInteger(start) || start < 0 || start > 0xffffffff ||
+            !Number.isInteger(count) || count < 1 || count > maxSeeds) {
+          status.textContent = 'Use a seed in 0…4294967295 and a count of 1…' + maxSeeds + '.';
+          return;
+        }
+        securityRunning = true;
+        run.disabled = true;
+        var generation = state.generation;
+        try {
+          var result = await securityApi.runCheck(item, entry, derived.address, {
+            start: start,
+            count: count,
+            scanRange: window.RotorMilkSad && window.RotorMilkSad.scanRange,
+            derive: securityDerive,
+            onProgress: function (checked, total) {
+              status.textContent = 'Checked ' + checked + ' of ' + total + ' seeds…';
+            },
+            yieldTo: function () {
+              return new Promise(function (resolve) { window.setTimeout(resolve, 0); });
+            }
+          });
+          if (generation !== state.generation || !state.unlocked) return;
+          var iso = new Date().toISOString();
+          var nextTimes = securityApi.writeCheckTime(window.localStorage, advisory.id, entry.id, iso);
+          last.textContent = 'Last local check: ' + securityApi.formatTime(iso) + '.';
+          if (result.matched) {
+            status.textContent = 'Match: this address is reproduced by seed ' + result.seed +
+              '. Treat the key as compromised and move the funds to a new wallet. Open the Milk Sad page for recovery details.';
+          } else {
+            status.textContent = 'No match in seeds ' + start + '…' + (start + result.checked - 1) +
+              '. This covers only that range; the weak set spans 2^32 seeds, so this is not a safety guarantee.';
+          }
+          var selection = securitySelection();
+          if (securityChecks) securityChecks.textContent = String(securityApi.countChecks(nextTimes, selection.applicable));
+          if (securityLast) {
+            securityLast.textContent = securityApi.formatTime(securityApi.latestCheck(nextTimes, selection.applicable));
+          }
+        } catch (err) {
+          status.textContent = errorText(err);
+        } finally {
+          securityRunning = false;
+          run.disabled = false;
+        }
+      });
+    } else {
+      row.appendChild(actionsRow);
+      var noCheck = document.createElement('p');
+      noCheck.className = 'muted';
+      noCheck.textContent = 'No local check: an address alone cannot show which random-number generator or device produced its key.';
+      row.appendChild(noCheck);
+    }
+
+    return row;
+  }
+
+  function refreshSecurity() {
+    if (!state.unlocked) {
+      renderSecurity();
+      return Promise.resolve();
+    }
+    if (!securityApi) {
+      renderSecurity();
+      return Promise.resolve();
+    }
+    var generation = state.generation;
+    return securityFetchCatalog().then(function () {
+      if (generation === state.generation && state.unlocked) renderSecurity();
+    }).catch(function (err) {
+      if (generation === state.generation && state.unlocked) {
+        renderSecurityError(errorText(err));
       }
     });
   }

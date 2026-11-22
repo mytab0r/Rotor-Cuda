@@ -149,6 +149,7 @@ page-local override.
 | `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 | `screenshots-in-repo` | No tracked image under docs/: UI evidence is uploaded by the ui-audit CI run as an artifact and linked from the PR. | 4a | implemented |
 | `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
+| `security-advisory-integrity` | Every advisory cites an https primary source, carries actions and review provenance, and its local checker names a live coordinator route and implementation; the generated /security page is current. | security | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a

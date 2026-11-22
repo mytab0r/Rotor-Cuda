@@ -65,6 +65,7 @@ const DEFAULT_ROUTES = [
   "/mnemonic-converter",
   "/mnemonic-seeds",
   "/milk-sad",
+  "/security",
   "/hex-dec-bin",
   "/public-key",
   "/pubkey-add",

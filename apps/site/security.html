@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security advisories: published wallet vulnerabilities and what to do | Crypto</title>
+<meta name="description" content="Published vulnerabilities and threat classes that affect wallet keys and addresses, with plain-language impact, actions, primary sources and local checks. Documentation, not a protection service.">
+<link rel="canonical" href="https://rotor.pxbt.app/security">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"Security advisories","url":"https://rotor.pxbt.app/security","description":"Published vulnerabilities and threat classes that affect wallet keys and addresses, with plain-language impact, actions and primary sources.","dateModified":"2026-11-22","isPartOf":{"@type":"WebSite","name":"Crypto","url":"https://rotor.pxbt.app/"}}</script>
+<link rel="stylesheet" href="/site.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
+  <nav aria-label="Main">
+    <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
+    <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
+    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
+    <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
+    <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
+  </nav>
+  <div class="nav-tools">
+    <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+  </div>
+</header>
+
+<main class="key-page">
+  <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span aria-current="page">Security advisories</span></nav>
+  <section class="hero key-hero">
+    <div class="key-hero-head">
+      <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg></span>
+      <div>
+        <h1>Security advisories</h1>
+        <p class="key-tagline">Published vulnerabilities and threat classes that affect wallet keys and addresses. Each entry explains the impact in plain language, names primary sources and says whether a local check exists.</p>
+        <div class="key-badges"><span>2 advisories</span><span>1 threat class</span><span>Updated 2026-11-22</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>How to read this page</h2>
+    <p>This page is documentation, not a protection service. It cannot stop a theft, recover funds or prove that a key is safe. It lists only publicly documented issues, and every entry cites a primary source. An entry ships only after a reviewer checks its facts and records the review date.</p>
+    <p class="muted">A local check reads only the address you enter in this browser. It never sends an address to this site or to a third party. A bounded local scan covers only the range you choose, so a no-match result is not a safety guarantee.</p>
+  </section>
+
+  <h2 class="security-section-title">Advisories</h2>
+<section class="card security-entry" id="milk-sad-2023">
+    <h2>Milk Sad: weak entropy in libbitcoin-explorer bx seed</h2>
+    <div class="key-badges"><span>CRITICAL</span><span>CVE-2023-39910</span><span>Vulnerability</span><span>Reviewed 2026-11-22</span></div>
+    <p>libbitcoin-explorer 3.x generated the seed material behind its bx seed command with a Mersenne Twister PRNG seeded by 32 bits of system time. Instead of a 256-bit key space, a wallet made from that output has about 2^32 possible seeds. Anyone who guesses the generation time can reproduce the same wallet.</p>
+    <h3>What it means for you</h3>
+    <p>A Bitcoin wallet whose seed came from an affected bx seed version can be regenerated by someone else and its funds can be swept. A key created with a proper operating-system CSPRNG is not affected by this bug, and an idle vulnerable key cannot be protected by watching it.</p>
+    <h3>Affected</h3>
+    <ul><li>libbitcoin-explorer 3.x (bx seed)</li><li>wallets or services that generated keys from bx seed output</li></ul>
+    <h3>What to do</h3>
+    <ol><li>If a wallet was created with libbitcoin-explorer 3.x or a service that used its bx seed output, create a new wallet with a reputable CSPRNG and a fresh seed phrase.</li><li>Move the funds to the new wallet as soon as possible, starting with the highest-value addresses.</li><li>Do not reuse the old seed phrase after moving the funds; treat the old key as public.</li><li>Use the official Milk Sad research and its checker for the exact affected versions and test vectors.</li><li>Use the local seed-range scan on this site only for an address you control; it reproduces keys in this tab and sends nothing.</li></ol>
+    <div class="security-checker">
+    <h3>Local check on this site</h3>
+    <p>Reproduces bx-seed wallets from a 32-bit MT19937 seed in this tab and compares only the public Bitcoin address the user supplies. The scan makes no network request.</p>
+    <p><a class="chip chip--primary" href="/milk-sad#address-audit">Open the local checker</a></p>
+    <p class="muted">A no-match result covers only the seed range entered. The weak set spans 2^32 seeds, so a bounded scan cannot prove a key is safe.</p>
+  </div>
+    <h3>Primary sources</h3>
+    <ul class="security-sources"><li><a href="https://milksad.info/" target="_blank" rel="noopener noreferrer">Milk Sad research</a> <span class="muted">(primary)</span></li><li><a href="https://nvd.nist.gov/vuln/detail/CVE-2023-39910" target="_blank" rel="noopener noreferrer">NVD: CVE-2023-39910</a> <span class="muted">(primary)</span></li></ul>
+  </section>
+<section class="card security-entry" id="android-securerandom-2013">
+    <h2>Android SecureRandom weakness in wallets created in 2013</h2>
+    <div class="key-badges"><span>HIGH</span><span>CVE-2013-7372</span><span>Vulnerability</span><span>Reviewed 2026-11-22</span></div>
+    <p>Android builds before 4.4 (API 19) could return predictable output from the platform SecureRandom implementation. Bitcoin wallet apps that generated keys on an affected device could therefore produce keys that another device could also produce. The failure is in the platform random-number generator, not in secp256k1 or in a correctly seeded wallet.</p>
+    <h3>What it means for you</h3>
+    <p>A wallet created on an affected Android device in 2013 may share its key with someone else. The risk depends on the device, the Android version and the wallet app; an address alone does not reveal how its key was generated, so this site cannot run a local check for it.</p>
+    <h3>Affected</h3>
+    <ul><li>Android apps using the platform SecureRandom before Android 4.4 (API 19)</li><li>Bitcoin wallet apps that generated keys on those devices in 2013</li></ul>
+    <h3>What to do</h3>
+    <ol><li>If a wallet was created on an Android device before Android 4.4 in 2013, create a new wallet on a device with a current, patched operating system.</li><li>Move the funds to the new wallet; do not keep relying on the old key.</li><li>Update the device or wallet app if it is still in use, and read the original bitcoin.org alert for the affected wallet versions.</li><li>Treat this entry as history for old wallets; a wallet created today with a current OS and a proper CSPRNG is not affected by this 2013 platform bug.</li></ol>
+    <div class="security-checker">
+    <h3>No local check</h3>
+    <p class="muted">This site does not ship a local check for this entry. An address alone cannot show which random-number generator or device produced its key, so a check here would be a guess. Use the primary sources and the wallet's own creation history.</p>
+  </div>
+    <h3>Primary sources</h3>
+    <ul class="security-sources"><li><a href="https://nvd.nist.gov/vuln/detail/CVE-2013-7372" target="_blank" rel="noopener noreferrer">NVD: CVE-2013-7372</a> <span class="muted">(primary)</span></li><li><a href="https://bitcoin.org/en/alert/2013-08-11-android" target="_blank" rel="noopener noreferrer">bitcoin.org alert: Android SecureRandom bug</a> <span class="muted">(primary)</span></li></ul>
+  </section>
+
+  <h2 class="security-section-title">Threat classes</h2>
+  <p class="muted">These are scam techniques, not software bugs: there is no affected version and no patch. They are kept separate so a version update is never presented as a fix for them.</p>
+<section class="card security-entry" id="address-poisoning">
+    <h2>Address poisoning and dusting</h2>
+    <div class="key-badges"><span>HIGH</span><span>Threat class</span><span>Reviewed 2026-11-22</span></div>
+    <p>An attacker sends a tiny amount of a token or coin from an address chosen to look like one the victim already uses: the same first and last characters, often the same length. The fake address then appears in the victim&#39;s transaction history. When the victim later copies an address from history instead of checking it, the transfer goes to the attacker.</p>
+    <h3>What it means for you</h3>
+    <p>Funds sent to the lookalike address are lost to the attacker. This is a social-engineering trick, not a break of the wallet software or of the key: no patch fixes it, and a wallet cannot prove that an address is the one the user intended.</p>
+    <h3>What to do</h3>
+    <ol><li>Verify the whole address before sending, not only the first and last four characters.</li><li>Use an address book or a saved contact for repeat payments; never copy a counterparty from transaction history.</li><li>Treat unexpected tiny incoming transfers as untrusted data and ignore them.</li><li>Check the destination on a block explorer and confirm it matches the address you intended to pay.</li><li>Do not interact with tokens or approvals that arrive from addresses you do not recognise.</li></ol>
+    <h3>Primary sources</h3>
+    <ul class="security-sources"><li><a href="https://info.etherscan.com/what-is-address-poisoning/" target="_blank" rel="noopener noreferrer">Etherscan Information Center: address poisoning attacks</a> <span class="muted">(primary)</span></li></ul>
+  </section>
+
+  <section class="card">
+    <h2>Why this page does not list vulnerable keys</h2>
+    <p>A searchable directory of every weak key and its balance is a target list, not a safety tool. It helps someone take funds from wallets they do not own. The owner of an affected wallet already has the public research and the official checker; publishing the whole enumeration adds no protection for that owner.</p>
+  </section>
+
+  <section class="card">
+    <h2>How entries are reviewed</h2>
+    <p>An advisory stays in <strong>draft</strong> until a human or agent reviewer checks the summary, the affected tools and versions, and the actions against the primary sources. The reviewer records their identifier and the review date in the data file. A superseded entry stays visible with its history instead of disappearing.</p>
+  </section>
+
+  <section class="directory-links" aria-label="Related pages">
+    <a href="/milk-sad">Milk Sad local checker</a>
+    <a href="/cabinet/wallet">Cabinet wallet</a>
+    <a href="/docs">Documentation</a>
+    <a href="https://milksad.info/" target="_blank" rel="noopener noreferrer">Milk Sad research</a>
+    <a href="https://nvd.nist.gov/" target="_blank" rel="noopener noreferrer">NVD</a>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

@@ -29,6 +29,12 @@ jobs:
         run: node scripts/check-screenshots.mjs
       - name: Check the detector registry and generated tables
         run: node scripts/gen-detector-docs.mjs --check
+      - name: Check the security advisory SSOT and generated page
+        run: |
+          node scripts/check-advisories.mjs
+          node --test scripts/check-advisories.test.mjs
+          node apps/site/milk-sad-scan-test.mjs
+          node apps/site/wallet-security-test.mjs
       - name: Check vendor-lock EOL normalization
         run: node --test scripts/vendor-lock.test.mjs
       - name: Check the generated design tokens

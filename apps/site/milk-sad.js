@@ -15,6 +15,7 @@
   var wifEl = document.getElementById('milk-wif');
   var keyLink = document.getElementById('milk-key-link');
   var state = { wasm: null, promise: null };
+  var scanner = window.RotorMilkSad;
 
   function fail(message) {
     errorBox.textContent = message || '';
@@ -39,47 +40,6 @@
     })();
     state.promise.catch(function () { state.promise = null; });
     return state.promise;
-  }
-
-  function mt19937(seed) {
-    var state = new Uint32Array(624);
-    state[0] = seed >>> 0;
-    for (var i = 1; i < 624; i += 1) {
-      var previous = state[i - 1] ^ (state[i - 1] >>> 30);
-      state[i] = (Math.imul(1812433253, previous) + i) >>> 0;
-    }
-    var index = 624;
-    function twist() {
-      for (var i = 0; i < 624; i += 1) {
-        var y = (state[i] & 0x80000000) | (state[(i + 1) % 624] & 0x7fffffff);
-        state[i] = state[(i + 397) % 624] ^ (y >>> 1) ^ (y & 1 ? 0x9908b0df : 0);
-      }
-      index = 0;
-    }
-    return function next() {
-      if (index >= 624) twist();
-      var y = state[index++];
-      y ^= y >>> 11;
-      y ^= (y << 7) & 0x9d2c5680;
-      y ^= (y << 15) & 0xefc60000;
-      y ^= y >>> 18;
-      return y >>> 0;
-    };
-  }
-
-  function bxSeed(seed) {
-    var next = mt19937(seed >>> 0);
-    var scaling = Math.floor(0xffffffff / 256);
-    var past = 256 * scaling;
-    var bytes = new Uint8Array(32);
-    for (var i = 0; i < 32; i += 1) {
-      var value;
-      do { value = next(); } while (value >= past);
-      bytes[i] = Math.floor(value / scaling);
-    }
-    return Array.prototype.map.call(bytes, function (byte) {
-      return byte.toString(16).padStart(2, '0');
-    }).join('');
   }
 
   function readString(wasm, ptr, length) {
@@ -121,11 +81,15 @@
       fail('The seed library did not load. Reload the page.');
       return;
     }
+    if (!scanner) {
+      fail('The scan library did not load. Reload the page.');
+      return;
+    }
     button.disabled = true;
     button.textContent = 'Deriving…';
     try {
       var wasm = await loadWasm();
-      var entropy = bxSeed(seed);
+      var entropy = scanner.bxSeed(seed);
       var mnemonic = window.RotorSeed.entropyToMnemonic(entropy);
       var keyHex = window.RotorSeed.derive(mnemonic, '', "m/44'/0'/0'/0/0");
       var report = deriveReport(wasm, keyHex);
@@ -153,13 +117,6 @@
   var scanError = document.getElementById('milk-scan-error');
   var scanResult = document.getElementById('milk-scan-result');
 
-  function addressProfile(address) {
-    if (/^bc1p/i.test(address)) return { path: "m/86'/0'/0'/0/0", id: 'btc_p2tr' };
-    if (/^bc1/i.test(address)) return { path: "m/84'/0'/0'/0/0", id: 'btc_p2wpkh' };
-    if (/^3/.test(address)) return { path: "m/49'/0'/0'/0/0", id: 'btc_p2sh_p2wpkh' };
-    return { path: "m/44'/0'/0'/0/0", id: 'btc_p2pkh' };
-  }
-
   if (scanForm) {
     scanForm.addEventListener('submit', async function (event) {
       event.preventDefault();
@@ -177,12 +134,15 @@
         scanError.hidden = false;
         return;
       }
+      if (!scanner) {
+        scanError.textContent = 'The scan library did not load. Reload the page.';
+        scanError.hidden = false;
+        return;
+      }
       scanError.hidden = true;
       scanResult.hidden = true;
       scanButton.disabled = true;
       scanButton.textContent = 'Scanning…';
-      var profile = addressProfile(address);
-      var target = address.toLowerCase();
       var wasm;
       try {
         wasm = await loadWasm();
@@ -193,30 +153,43 @@
         scanButton.textContent = 'Scan range';
         return;
       }
-      var found = false;
-      for (var offset = 0; offset < count; offset += 1) {
-        var seed = (start + offset) >>> 0;
-        if (start + offset > 0xffffffff) break;
-        var entropy = bxSeed(seed);
-        var mnemonic = window.RotorSeed.entropyToMnemonic(entropy);
-        var keyHex = window.RotorSeed.derive(mnemonic, '', profile.path);
-        var report = deriveReport(wasm, keyHex);
-        var derived = addressOf(report, profile.id);
-        if (derived && derived.toLowerCase() === target) {
-          document.getElementById('milk-scan-seed').textContent = String(seed);
-          document.getElementById('milk-scan-mnemonic').textContent = mnemonic;
-          document.getElementById('milk-scan-wif').textContent = report && report.wif_compressed ? report.wif_compressed : '';
-          scanResult.hidden = false;
-          scanStatus.textContent = 'Match found after ' + (offset + 1) + ' seeds.';
-          found = true;
-          break;
-        }
-        if (offset % 10 === 9) {
-          scanStatus.textContent = 'Checked ' + (offset + 1) + ' of ' + count + ' seeds…';
-          await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
-        }
+      var outcome;
+      try {
+        outcome = await scanner.scanRange({
+          address: address,
+          start: start,
+          count: count,
+          derive: function (entropy, profile) {
+            var mnemonic = window.RotorSeed.entropyToMnemonic(entropy);
+            var keyHex = window.RotorSeed.derive(mnemonic, '', profile.path);
+            var report = deriveReport(wasm, keyHex);
+            return {
+              address: addressOf(report, profile.id),
+              mnemonic: mnemonic,
+              wif: report && report.wif_compressed ? report.wif_compressed : ''
+            };
+          },
+          onProgress: function (checked, total) {
+            scanStatus.textContent = 'Checked ' + checked + ' of ' + total + ' seeds…';
+          },
+          yieldTo: function () {
+            return new Promise(function (resolve) { window.setTimeout(resolve, 0); });
+          }
+        });
+      } catch (err) {
+        scanError.textContent = err && err.message ? err.message : 'The scan failed.';
+        scanError.hidden = false;
+        outcome = null;
       }
-      if (!found) scanStatus.textContent = 'No match in seeds ' + start + '…' + (start + count - 1) + '.';
+      if (outcome && outcome.matched) {
+        document.getElementById('milk-scan-seed').textContent = String(outcome.seed);
+        document.getElementById('milk-scan-mnemonic').textContent = outcome.mnemonic;
+        document.getElementById('milk-scan-wif').textContent = outcome.wif;
+        scanResult.hidden = false;
+        scanStatus.textContent = 'Match found after ' + outcome.checked + ' seeds.';
+      } else if (outcome) {
+        scanStatus.textContent = 'No match in seeds ' + start + '…' + (start + outcome.checked - 1) + '.';
+      }
       scanButton.disabled = false;
       scanButton.textContent = 'Scan range';
     });
@@ -243,7 +216,7 @@
     for (var offset = 0; offset < 60; offset += 1) {
       var seed = browseStart + offset;
       if (seed > 0xffffffff) break;
-      var entropy = bxSeed(seed);
+      var entropy = scanner.bxSeed(seed);
       var mnemonic = window.RotorSeed.entropyToMnemonic(entropy);
       var keyHex = window.RotorSeed.derive(mnemonic, '', "m/44'/0'/0'/0/0");
       var report = deriveReport(wasm, keyHex);
