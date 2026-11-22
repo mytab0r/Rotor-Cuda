@@ -167,6 +167,7 @@ function explorerUrl(address: string): string {
               <td class="mono"><span class="private-key">{keyRow.keyHex}</span></td>
               {keyRow.cells.map((cell) => (
                 <td class="mono">
+                  <span class="address-measure" aria-hidden="true">{cell.address}</span>
                   <a
                     class="address-link"
                     href={explorerUrl(cell.address)}

@@ -115,6 +115,21 @@
   line-height: normal;
   white-space: nowrap;
 }
+/* The visible link is positioned, so it no longer sets the column width. A
+ * zero-height, visibility-hidden copy of the full address keeps the column at
+ * the address's content width; the table then scrolls inside its wrapper
+ * instead of ellipsizing the address. */
+.directory-page .data-table .address-measure {
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: nowrap;
+}
+.directory-page .data-table .address-link,
+.directory-page .data-table .address-measure {
+  font-size: var(--text-sm);
+}
 
 .site-nav__links[hidden] { display: none; }
 
