@@ -33,15 +33,16 @@ jobs:
           node scripts/check-ssot.mjs
       - name: Check token usage and drift detectors
         run: node scripts/check-token-usage.mjs
-      # Phase 3: the component manifests, the generated /design gallery and the
-      # page-local-style rule. build-gallery --check also proves the committed
-      # page matches the manifests.
+      # Phase 3: the component manifests, the generated /cabinet/admin/design
+      # gallery and the page-local-style rule. build-gallery --check also proves
+      # the committed page matches the manifests.
       - name: Phase 3 - component contracts and the gallery
         run: |
           node scripts/build-gallery.mjs --check
           node scripts/check-components.mjs
       # ui-audit.mjs also enforces the component grammar in
-      # docs/design-system/DESIGN-SYSTEM.md and audits the /design gallery.
+      # docs/design-system/DESIGN-SYSTEM.md and audits the /cabinet/admin/design
+      # gallery; --serve logs in with the token it starts the coordinator with.
       - name: Run the UI audit
         run: node scripts/ui-audit.mjs --serve
       - name: Upload screenshots and report

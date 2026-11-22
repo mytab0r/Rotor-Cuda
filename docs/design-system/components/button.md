@@ -1,7 +1,7 @@
 # Button
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/button.json` · Gallery: `/design` (family
+Source of truth: `design/components/button.json` · Gallery: `/cabinet/admin/design` (family
 `button`).
 
 ## Purpose
@@ -33,7 +33,7 @@ The `.btn` class is the future contract, `button`/`a.button` remain aliases.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | `--panel-2` surface, `--border-strong` border, radius `--radius-sm` | yes |
 | Hover | `--panel-3` surface; `.primary` uses the brighter accent gradient | live (hover the example) |

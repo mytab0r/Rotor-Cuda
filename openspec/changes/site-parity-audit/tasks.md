@@ -52,6 +52,13 @@
   `Detected: Electrum SegWit|Legacy|Mnemonic` label from the lazily loaded
   `seed-crypto.js` `electrumSeedType`), and their assertions in
   `apps/site/search-test.mjs`.
+  Directory-search detector parity: `apps/site/site.js:344` (`bindKeySearches`
+  uses `RotorSearch.keyHref`, shared with the landing handler) and
+  `apps/site/search.js:319` (`keyHref`) over `apps/site/search.js:27`
+  (`looksLikeXrpSecret`; only 64 hex is a key; the landing address guard
+  defers to it for base58 secrets). Nav highlight:
+  `apps/site/site.js:33` (`sectionForPath`, `/keystore-parser` -> Tools),
+  covered by `apps/site/site-nav-test.mjs`.
 - [x] BNB Smart Chain testnet builder (`/send/bnb`, PR #97). Evidence:
   `apps/site/send.js:72` (chain table, chapel chain id 97), `:55` and `:163`
   (BSC-testnet provider allowlist), `apps/site/send-test.mjs:671` (chain-id
@@ -105,8 +112,21 @@
   200 with CORS `*` and satoshi balances (live probe 2026-11-22), so BCH rows no
   longer show `—`. `fetchHaskoinBch` + the pure `parseHaskoinBch`, `bch_`
   allowed in `rowHasProvider`/`rowCacheInfo`, and the `checkRow` dispatch; ZEC
-  stays excluded. Evidence: `apps/site/key.js`, `apps/site/balance-cache.js`,
+  followed in the next bullet. Evidence: `apps/site/key.js`, `apps/site/balance-cache.js`,
   `apps/site/balance-cache-test.mjs`, PR #228.
+- [x] `/key` ZEC balances + per-chain EVM explorer links (2026-11-22,
+  code-only): SoChain v3 `GET https://sochain.com/api/v3/balance/ZEC/<addr>`
+  answers 200 with CORS `*` and decimal ZEC strings (live probe 2026-11-22;
+  Blockchair stays 430 without a key). `fetchSochainZec`
+  (`apps/site/key.js:2317`) calls the pure `parseSochainBalance`
+  (`apps/site/key-tools.js:1027`, satoshis without floats), `zcash_` is in
+  `rowHasProvider` (`apps/site/key.js:2348`), `rowCacheInfo` (`:2555`) and the
+  `checkRow` dispatch (`:2714`), so no chain group lacks a provider. The eight
+  shared-EVM sub-rows now build their explorer anchor outside the
+  `!sharedEvm` guard (`apps/site/key.js:1314`) from `explorerFor` in
+  `apps/site/key-tools.js:988`, while copy/details/toggle stay suppressed.
+  Evidence: `apps/site/key.js`, `apps/site/key-tools.js`,
+  `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`).
 - [x] `/key/<WIF>` accepts uncompressed LTC/DOGE WIFs (2026-11-22, code-only):
   both start with `6` (version 0xb0/0x9e, 33-byte form) and were rejected by
   the first-byte prefilter although the decoder already handled them. Evidence:
