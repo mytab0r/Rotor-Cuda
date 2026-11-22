@@ -556,6 +556,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "wallet-history-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "The wallet had no transaction history. An EVM address without an indexer would have shown an empty list pretending there was no history, and a new table could have shipped without a detector for its shared shell, 44px action, truncated counterparty title, status pills, loading/empty/error states or the honest EVM-unavailable message.",
+      "detector": "wallet-history-surface",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "error-message-light-contrast",
       "reported": "2026-11-22",
       "symptom": "The .error component hardcoded #ffb3b3 for its text in both themes; on the light theme that is about 1.7:1, so every field error (now load-bearing for the allowance grant) was unreadable. The same literal was copied into .balance-note.err, .directory-hint.err, .global-search-error and .balance-info.err.",
