@@ -2864,7 +2864,11 @@ fn admin_gate_headers_and_moved_design_gallery() {
     let addr = handle.addr;
 
     // No session: HTML redirects, API answers 401, and `/design` is gone.
-    for path in ["/cabinet/admin", "/cabinet/admin/design"] {
+    for path in [
+        "/cabinet/admin",
+        "/cabinet/admin/design",
+        "/cabinet/admin/site-map",
+    ] {
         let (status, head, _) = raw(addr, "GET", path, None, None);
         assert_eq!(status, 302, "{path}");
         assert_eq!(
@@ -2957,6 +2961,54 @@ fn admin_gate_headers_and_moved_design_gallery() {
     assert_admin_headers(&head);
     let (status, _, _) = raw(addr, "GET", "/admin.css", None, None);
     assert_eq!(status, 200);
+
+    // The routing map page renders data/routes.json and keeps the admin rules.
+    let (status, head, body) = raw_with_headers(
+        addr,
+        "GET",
+        "/cabinet/admin/site-map",
+        None,
+        None,
+        &[("Cookie", cookie.as_str())],
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_admin_headers(&head);
+    assert!(!body.contains(TOKEN));
+    assert!(!body.contains("<style"), "route map must not inline CSS");
+    assert!(
+        !body.contains("<script>"),
+        "route map must not inline JavaScript"
+    );
+    assert!(body.contains("Route map"), "{body}");
+    assert!(body.contains("site-map-admin.js"), "{body}");
+    assert!(body.contains("map-family"), "{body}");
+
+    // The map JSON is session/bearer gated and carries the route families.
+    let (status, head, body) = raw(addr, "GET", "/cabinet/admin/api/site-map", None, None);
+    assert_eq!(status, 401, "{body}");
+    assert_admin_headers(&head);
+    let (status, head, body) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/site-map",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_admin_headers(&head);
+    assert!(!body.contains(TOKEN));
+    let map: serde_json::Value = serde_json::from_str(&body).expect("route map JSON");
+    let routes = map["routes"].as_array().expect("routes array");
+    assert!(routes.len() >= 80, "only {} route families", routes.len());
+    assert!(
+        routes.iter().any(|route| route["pattern"] == "/key/:hex"),
+        "the map must list /key/:hex"
+    );
+
+    // The page script is an admin asset: no session needed, no-store headers.
+    let (status, head, _) = raw(addr, "GET", "/site-map-admin.js", None, None);
+    assert_eq!(status, 200);
+    assert_admin_headers(&head);
 
     handle.shutdown();
 }

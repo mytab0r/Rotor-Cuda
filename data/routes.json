@@ -1,0 +1,914 @@
+{
+  "version": 1,
+  "scope": "One entry per route family, not per concrete URL. Static assets (js, css, wasm, svg, fonts, images, licence text) are embedded files served by static_asset() and are deliberately not enumerated here; the gate ignores asset literals. The coordinator route table in src/coordinator/mod.rs must be a subset of these patterns.",
+  "status_meaning": {
+    "live": "Served today and staying on this renderer after the frontend-platform cutover.",
+    "planned": "Served today (or named in openspec/changes/frontend-platform) but scheduled to move to another renderer; notes name the target phase.",
+    "legacy": "Redirect or compatibility shim kept only for old links."
+  },
+  "auth_meaning": "public = anonymous. admin = requires the operator session (admin pages/API) or the coordinator client credential; notes name the credential class.",
+  "renderers": ["astro-static", "worker-inject", "coordinator", "client-only", "api"],
+  "verified_by": "scripts/check-ssot.mjs detector site-route-map",
+  "routes": [
+    {
+      "pattern": "/",
+      "family": "landing",
+      "template": "apps/site/landing.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.js", "apps/site/search.js", "apps/site/puzzle.js", "apps/site/theme.js", "apps/site/chains.generated.js", "apps/site/assets.generated.js", "data/chains.json", "data/assets.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Frontend-platform phase 2: prerender on Astro. The coordinator serves the embedded landing.html until the origin switch."
+    },
+    {
+      "pattern": "/app",
+      "family": "app-shell",
+      "template": "apps/site/app.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/site.js", "/api/v1/jobs", "/api/v1/status"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Static shell; jobs and status render in the browser from /api/v1. Phase 5 moves the shell to Astro."
+    },
+    {
+      "pattern": "/run",
+      "family": "app-shell",
+      "template": "apps/site/run.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/site.js", "/api/v1/me", "/api/v1/lease", "/api/v1/heartbeat", "/api/v1/result"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Worker client shell; the coordinator credential is entered in the browser. Phase 5."
+    },
+    {
+      "pattern": "/me",
+      "family": "app-shell",
+      "template": "apps/site/me.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/site.js", "/api/v1/me", "/api/v1/status"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Client account view; the page shell is public and the data call needs the client token. Phase 5."
+    },
+    {
+      "pattern": "/docs",
+      "family": "docs",
+      "template": "apps/site/docs.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.js", "data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2 prerender."
+    },
+    {
+      "pattern": "/key",
+      "family": "key",
+      "template": "apps/site/key.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/key.js", "apps/site/key-tools.js", "apps/site/address-codecs.js", "apps/site/balance-cache.js", "apps/site/rotor_wasm.wasm", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Derivation runs in the browser through the WASM core. Phase 3 moves the page to Astro and the fragment key contract."
+    },
+    {
+      "pattern": "/key/:hex",
+      "family": "key",
+      "template": "src/coordinator/mod.rs#render_key_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/key.html", "apps/site/key.js", "apps/site/rotor_wasm.wasm", "data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Also answers WIF/decimal/value forms. Phase 3: 64 curated keys become Astro static, other values 301 to /key#<hex> so the key never enters the request path."
+    },
+    {
+      "pattern": "/vanity",
+      "family": "vanity",
+      "template": "apps/site/vanity.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/vanity.js", "apps/site/vanity-worker.js", "apps/site/qr.js", "apps/site/rotor_wasm.wasm", "data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2 prerender; generation stays client-side."
+    },
+    {
+      "pattern": "/seed",
+      "family": "seeds",
+      "template": "apps/site/seed.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/seed.js", "apps/site/seed-page.js", "apps/site/seed-crypto.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 4."
+    },
+    {
+      "pattern": "/mnemonic-converter",
+      "family": "converters",
+      "template": "apps/site/mnemonic-converter.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/seed.js", "apps/site/seed-page.js", "apps/site/seed-crypto.js", "apps/site/site.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Astro pilot page exists in web/src/pages; the coordinator still serves the embedded copy until the origin switch (phase 1/6)."
+    },
+    {
+      "pattern": "/mnemonic-seeds",
+      "family": "seeds",
+      "template": "apps/site/mnemonic-seeds.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/mnemonic-seeds.js", "apps/site/seed.js", "apps/site/balance-cache.js", "apps/site/balance-providers.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Hub of the per-chain seed directory. A trailing slash 301s here. Phase 4."
+    },
+    {
+      "pattern": "/milk-sad",
+      "family": "milk-sad",
+      "template": "apps/site/milk-sad.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/milk-sad.js", "apps/site/milk-sad-scan.js", "apps/site/seed.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Milk Sad weak-entropy scanner. Phase 2."
+    },
+    {
+      "pattern": "/security",
+      "family": "security",
+      "template": "apps/site/security.html",
+      "renderer": "coordinator",
+      "data_sources": ["data/security-advisories.json", "apps/site/site.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Generated by scripts/gen-security-page.mjs --check. Move with the presentation pages; it is not in the phase-2 table by name."
+    },
+    {
+      "pattern": "/tools",
+      "family": "tools",
+      "template": "apps/site/tools.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/hex-dec-bin",
+      "family": "converters",
+      "template": "apps/site/hex-dec-bin.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/hex-dec-bin.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/public-key",
+      "family": "converters",
+      "template": "apps/site/public-key.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/public-key.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/pubkey-add",
+      "family": "converters",
+      "template": "apps/site/pubkey-add.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/pubkey-add.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/keystore-parser",
+      "family": "converters",
+      "template": "apps/site/keystore-parser.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/keystore-parser.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/reconstruction",
+      "family": "converters",
+      "template": "apps/site/reconstruction.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/reconstruction.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/tx",
+      "family": "tx",
+      "template": "apps/site/tx.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/tx.html", "apps/site/site.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Transaction decoder hub; decoding runs in the browser. Phase 2."
+    },
+    {
+      "pattern": "/tx/bitcoin",
+      "family": "tx",
+      "template": "apps/site/tx-bitcoin.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/tx-page.js", "apps/site/tx-decoders.js", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/tx/ethereum",
+      "family": "tx",
+      "template": "apps/site/tx-ethereum.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/tx-page.js", "apps/site/tx-decoders.js", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/cabinet",
+      "family": "monitor",
+      "template": "apps/site/monitor.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/monitor.js", "apps/site/wc-links.js", "/api/v1/monitor/*"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Public address monitor shell; sessions live in the monitor API. Phase 5 moves the shell to Astro."
+    },
+    {
+      "pattern": "/cabinet/wallet",
+      "family": "wallet",
+      "template": "apps/site/wallet.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/wallet.js", "apps/site/wallet-*.js", "apps/site/walletconnect.js", "/api/v1/*", "data/chains.json", "data/providers.json", "data/assets.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Wallet shell; keys and signing stay in the browser. Phase 5."
+    },
+    {
+      "pattern": "/send",
+      "family": "send",
+      "template": "apps/site/send.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/send.js", "apps/site/tron-tx.js", "apps/site/wallet-btc.js", "apps/site/wallet-evm.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Chain defaults to Bitcoin. Phase 5."
+    },
+    {
+      "pattern": "/send/:chain",
+      "family": "send",
+      "template": "apps/site/send.html",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/send.js", "apps/site/tron-tx.js", "apps/site/wallet-btc.js", "apps/site/wallet-evm.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Served chain slugs: bitcoin, ethereum, bnb, usdt, tron. Phase 5."
+    },
+    {
+      "pattern": "/robots.txt",
+      "family": "meta",
+      "template": "src/coordinator/mod.rs#render_robots",
+      "renderer": "coordinator",
+      "data_sources": ["data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 6: Astro endpoint."
+    },
+    {
+      "pattern": "/sitemap.xml",
+      "family": "meta",
+      "template": "src/coordinator/mod.rs#render_sitemap",
+      "renderer": "coordinator",
+      "data_sources": ["data/chains.json", "src/coordinator/puzzles.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 6: Astro endpoint; counts must match 18 chains."
+    },
+    {
+      "pattern": "/faq",
+      "family": "docs",
+      "template": "src/coordinator/mod.rs#render_faq",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/disclaimer",
+      "family": "docs",
+      "template": "src/coordinator/mod.rs#render_disclaimer",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.js"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/donate",
+      "family": "docs",
+      "template": "src/coordinator/mod.rs#render_donate",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.js", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 2."
+    },
+    {
+      "pattern": "/brainwallet",
+      "family": "brainwallet",
+      "template": "src/coordinator/mod.rs#render_brainwallet_index",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/brainwallet.js", "apps/site/brainwallet-directory.js", "data/chains.json", "src/coordinator/mod.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "A trailing slash 301s here. Phase 4."
+    },
+    {
+      "pattern": "/brainwallet-generator",
+      "family": "brainwallet",
+      "template": "src/coordinator/mod.rs#render_brainwallet_generator",
+      "renderer": "client-only",
+      "data_sources": ["apps/site/brainwallet.js", "apps/site/brainwallet-engine.js", "apps/site/rotor_wasm.wasm"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 4."
+    },
+    {
+      "pattern": "/brainwallet/:chain",
+      "family": "brainwallet",
+      "template": "src/coordinator/mod.rs#render_brainwallet_directory",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/brainwallet.js", "apps/site/brainwallet-directory.js", "data/chains.json", "src/coordinator/mod.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Chain slugs come from data/chains.json. Page 1 of the directory. Phase 4."
+    },
+    {
+      "pattern": "/brainwallet/:chain/:page",
+      "family": "brainwallet",
+      "template": "src/coordinator/mod.rs#render_brainwallet_directory",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/brainwallet.js", "apps/site/brainwallet-directory.js", "data/chains.json", "src/coordinator/mod.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Numeric page only; rows are built in the browser. Phase 4."
+    },
+    {
+      "pattern": "/private-keys",
+      "family": "directory",
+      "template": "src/coordinator/mod.rs#render_keys_hub",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/browse.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Also answers /keys (301). Phase 3: page 1 static, later pages on the edge."
+    },
+    {
+      "pattern": "/private-keys/:chain",
+      "family": "directory",
+      "template": "src/coordinator/mod.rs#render_browse_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/browse.js", "apps/site/balance-cache.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Address-type query type=legacy|segwit|bech32 etc. Page 1. Phase 3."
+    },
+    {
+      "pattern": "/private-keys/:chain/:page",
+      "family": "directory",
+      "template": "src/coordinator/mod.rs#render_browse_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/browse.js", "apps/site/balance-cache.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Listings >= 2 are noindex. Phase 3."
+    },
+    {
+      "pattern": "/bitcoin-puzzle",
+      "family": "puzzle",
+      "template": "src/coordinator/mod.rs#render_puzzle_home",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/puzzle.js", "src/coordinator/puzzles.rs", "data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 4."
+    },
+    {
+      "pattern": "/bitcoin-puzzle/unsolved",
+      "family": "puzzle",
+      "template": "src/coordinator/mod.rs#render_puzzle_unsolved",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/puzzle.js", "apps/site/puzzle-browser.js", "src/coordinator/puzzles.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 4."
+    },
+    {
+      "pattern": "/bitcoin-puzzle/:number",
+      "family": "puzzle",
+      "template": "src/coordinator/mod.rs#render_puzzle_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/puzzle.js", "apps/site/puzzle-browser.js", "src/coordinator/puzzles.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Number must exist in src/coordinator/puzzles.rs or the route is a hard 404. Phase 4."
+    },
+    {
+      "pattern": "/bitcoin-puzzle/:number/random",
+      "family": "puzzle",
+      "template": "src/coordinator/mod.rs#render_puzzle_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/puzzle.js", "apps/site/puzzle-browser.js", "src/coordinator/puzzles.rs"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 4."
+    },
+    {
+      "pattern": "/mnemonic-seeds/:chain",
+      "family": "seeds",
+      "template": "src/coordinator/mod.rs#render_mnemonic_seeds_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/mnemonic-seeds.js", "apps/site/seed.js", "apps/site/balance-cache.js", "apps/site/balance-providers.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Page 1. Phase 4."
+    },
+    {
+      "pattern": "/mnemonic-seeds/:chain/:page",
+      "family": "seeds",
+      "template": "src/coordinator/mod.rs#render_mnemonic_seeds_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/mnemonic-seeds.js", "apps/site/seed.js", "apps/site/balance-cache.js", "apps/site/balance-providers.js", "data/chains.json", "data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Phase 4."
+    },
+    {
+      "pattern": "/wallets",
+      "family": "wallet-db",
+      "template": "src/coordinator/wallets.rs#render_page",
+      "renderer": "coordinator",
+      "data_sources": ["src/coordinator/wallets.rs", "apps/site/wallets.LICENSE.txt", "/api/v1/wallets"],
+      "auth": "public",
+      "status": "live",
+      "notes": "Dataset catalogue backed by hardcoded mirrors; download/API paths stay on the coordinator because they stream data."
+    },
+    {
+      "pattern": "/keys/:chain/:range",
+      "family": "directory",
+      "template": "src/coordinator/mod.rs#render_range_page",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/range.js", "apps/site/rotor_wasm.wasm", "data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Curated 1-64 key ranges; phase 3 prerenders them."
+    },
+    {
+      "pattern": "/keys",
+      "family": "legacy",
+      "template": "src/coordinator/mod.rs#redirect_target",
+      "renderer": "coordinator",
+      "data_sources": [],
+      "auth": "public",
+      "status": "legacy",
+      "notes": "301 to /private-keys; kept for old links."
+    },
+    {
+      "pattern": "/keys/:chain",
+      "family": "legacy",
+      "template": "src/coordinator/mod.rs#redirect_target",
+      "renderer": "coordinator",
+      "data_sources": [],
+      "auth": "public",
+      "status": "legacy",
+      "notes": "301 to /private-keys/:chain."
+    },
+    {
+      "pattern": "/monitor",
+      "family": "legacy",
+      "template": "src/coordinator/mod.rs#redirect_target",
+      "renderer": "coordinator",
+      "data_sources": [],
+      "auth": "public",
+      "status": "legacy",
+      "notes": "301 to /cabinet."
+    },
+    {
+      "pattern": "/vanity-generator",
+      "family": "legacy",
+      "template": "src/coordinator/mod.rs#redirect_target",
+      "renderer": "coordinator",
+      "data_sources": [],
+      "auth": "public",
+      "status": "legacy",
+      "notes": "301 to /vanity; donor path kept."
+    },
+    {
+      "pattern": "/downloads",
+      "family": "legacy",
+      "template": "src/coordinator/mod.rs#redirect_target",
+      "renderer": "coordinator",
+      "data_sources": [],
+      "auth": "public",
+      "status": "legacy",
+      "notes": "301 to /wallets."
+    },
+    {
+      "pattern": "/bitcoin-puzzle/:number/detail",
+      "family": "legacy",
+      "template": "src/coordinator/mod.rs#redirect_target",
+      "renderer": "coordinator",
+      "data_sources": [],
+      "auth": "public",
+      "status": "legacy",
+      "notes": "301 to /bitcoin-puzzle/:number; donor path kept."
+    },
+    {
+      "pattern": "/tx/bitcoin/:txid",
+      "family": "tx",
+      "template": "apps/site/tx-bitcoin.html",
+      "renderer": "worker-inject",
+      "data_sources": ["data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Planned Worker-injected detail route; not implemented yet. The template names today's decoder page, which exists."
+    },
+    {
+      "pattern": "/tx/ethereum/:hash",
+      "family": "tx",
+      "template": "apps/site/tx-ethereum.html",
+      "renderer": "worker-inject",
+      "data_sources": ["data/providers.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Planned Worker-injected detail route; not implemented yet. The template names today's decoder page, which exists."
+    },
+    {
+      "pattern": "/block/:chain/:height",
+      "family": "blocks",
+      "template": "apps/site/tx.html",
+      "renderer": "worker-inject",
+      "data_sources": ["data/providers.json", "data/chains.json"],
+      "auth": "public",
+      "status": "planned",
+      "notes": "Planned Worker-injected block detail route; not implemented yet. The template names the existing tx hub, which exists."
+    },
+    {
+      "pattern": "/cabinet/admin",
+      "family": "admin",
+      "template": "apps/site/admin.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/admin.js", "apps/site/admin.css", "/cabinet/admin/api/overview"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "Operator dashboard shell. Admin pages are gated before SEO/static and carry no-store, noindex and the admin CSP."
+    },
+    {
+      "pattern": "/cabinet/admin/login",
+      "family": "admin",
+      "template": "apps/site/admin.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/admin.js"],
+      "auth": "public",
+      "status": "live",
+      "notes": "The only unauthenticated cabinet HTML surface; signed cookie and CSRF are minted by /cabinet/admin/login POST."
+    },
+    {
+      "pattern": "/cabinet/admin/logout",
+      "family": "admin",
+      "template": "src/coordinator/mod.rs#admin_logout",
+      "renderer": "coordinator",
+      "data_sources": ["src/coordinator/admin.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST only; CSRF and same-origin checked, cookies cleared."
+    },
+    {
+      "pattern": "/cabinet/admin/design",
+      "family": "admin",
+      "template": "apps/site/design.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/site.css", "apps/site/admin.css", "design/generated/tokens.ts"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "Design-system gallery; the old /design route answers 404."
+    },
+    {
+      "pattern": "/cabinet/admin/site-map",
+      "family": "admin",
+      "template": "apps/site/site-map-admin.html",
+      "renderer": "coordinator",
+      "data_sources": ["data/routes.json", "apps/site/site-map-admin.js", "/cabinet/admin/api/site-map"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "This routing map. Reads the embedded data/routes.json through the admin API; no inline script or style."
+    },
+    {
+      "pattern": "/cabinet/admin/:panel",
+      "family": "admin",
+      "template": "apps/site/admin.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/admin.js", "/cabinet/admin/api/*"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "Panels: clients, monitor, jobs, orders, providers, integrations, audit. Same shell; admin.js selects the section from the pathname."
+    },
+    {
+      "pattern": "/cabinet/admin/api/*",
+      "family": "admin-api",
+      "template": "src/coordinator/mod.rs#handle_admin",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs", "src/coordinator/orders.rs", "src/monitor/api.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "Read-only inventory JSON. Session cookie or bearer; lists use {items,page,page_size,total,has_more}. Never carries token hashes or secrets."
+    },
+    {
+      "pattern": "/api/v1/monitor/config",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["ROTOR_WALLETCONNECT_PROJECT_ID"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET; exposes the WalletConnect project id to the browser."
+    },
+    {
+      "pattern": "/api/v1/telegram/webhook",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/monitor/api.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "POST; Telegram authenticates with its own secret header."
+    },
+    {
+      "pattern": "/api/v1/monitor/*",
+      "family": "monitor-api",
+      "template": "src/monitor/api.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/monitor/api.rs", "src/coordinator/tron_cache.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "challenge/login/logout are anonymous; the rest need the monitor session cookie. Has its own rate limits and never enters the coordinator token matrix."
+    },
+    {
+      "pattern": "/api/v1/wallets",
+      "family": "wallet-db-api",
+      "template": "src/coordinator/wallets.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/wallets.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET catalogue; per-IP rate limited."
+    },
+    {
+      "pattern": "/api/v1/wallets/:slug",
+      "family": "wallet-db-api",
+      "template": "src/coordinator/wallets.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/wallets.rs", "data/providers.json"],
+      "auth": "public",
+      "status": "live",
+      "notes": "Dataset metadata; unknown slugs are 404 and still throttled."
+    },
+    {
+      "pattern": "/api/v1/wallets/:slug/download",
+      "family": "wallet-db-api",
+      "template": "src/coordinator/wallets.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/wallets.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "Streams a mirrored dataset; separate download rate limit."
+    },
+    {
+      "pattern": "/api/v1/orders",
+      "family": "orders-api",
+      "template": "src/coordinator/orders.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/orders.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "POST creates an order. 503 when ORDERS_CONFIG is absent rather than accepting an order."
+    },
+    {
+      "pattern": "/api/v1/orders/:id",
+      "family": "orders-api",
+      "template": "src/coordinator/orders.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/orders.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET status; order token in query or bearer."
+    },
+    {
+      "pattern": "/api/v1/orders/:id/download",
+      "family": "orders-api",
+      "template": "src/coordinator/orders.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/orders.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "Paid dataset download; order token check plus its own rate limit."
+    },
+    {
+      "pattern": "/api/v1/orders/:id/licence",
+      "family": "orders-api",
+      "template": "src/coordinator/orders.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/orders.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "Licence text for a paid order; order token check."
+    },
+    {
+      "pattern": "/api/v1/admin/orders/:id/revoke",
+      "family": "orders-api",
+      "template": "src/coordinator/orders.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/orders.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST; coordinator admin token."
+    },
+    {
+      "pattern": "/api/v1/admin/payments/reconcile",
+      "family": "orders-api",
+      "template": "src/coordinator/orders.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/orders.rs", "src/coordinator/tron_cache.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST; polls payments once with the operator's TronScan key."
+    },
+    {
+      "pattern": "/api/v1/summary",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET totals and leaderboard; no token."
+    },
+    {
+      "pattern": "/api/v1/jobs/public",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET public job snapshot; lightly rate limited per IP."
+    },
+    {
+      "pattern": "/api/v1/workers/public",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET public worker snapshot."
+    },
+    {
+      "pattern": "/api/v1/chain/tron/addresses",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/tron_cache.rs", "ROTOR_TRONSCAN_API_KEY"],
+      "auth": "public",
+      "status": "live",
+      "notes": "POST lookup; TronScan is called server-side with the operator key."
+    },
+    {
+      "pattern": "/api/v1/chain/tron/address",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/tron_cache.rs", "ROTOR_TRONSCAN_API_KEY"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET one address."
+    },
+    {
+      "pattern": "/api/v1/chain/tron/transactions",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/tron_cache.rs", "ROTOR_TRONSCAN_API_KEY"],
+      "auth": "public",
+      "status": "live",
+      "notes": "GET transactions."
+    },
+    {
+      "pattern": "/api/v1/register",
+      "family": "public-api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs", "ROTOR_OPEN_REGISTRATION"],
+      "auth": "public",
+      "status": "live",
+      "notes": "POST self-service registration; the flag decides 403 vs 201."
+    },
+    {
+      "pattern": "/api/v1/jobs",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "GET list and POST create both require the coordinator admin identity in the token matrix."
+    },
+    {
+      "pattern": "/api/v1/lease",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST; coordinator client token."
+    },
+    {
+      "pattern": "/api/v1/heartbeat",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST; coordinator client token."
+    },
+    {
+      "pattern": "/api/v1/result",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST; coordinator client token."
+    },
+    {
+      "pattern": "/api/v1/status",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "GET; admin identity in the token matrix."
+    },
+    {
+      "pattern": "/api/v1/me",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "GET; coordinator client token."
+    },
+    {
+      "pattern": "/api/v1/clients",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "GET list and POST create; admin identity."
+    },
+    {
+      "pattern": "/api/v1/clients/:id/disable",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "POST; admin identity."
+    },
+    {
+      "pattern": "/api/v1/bsgs/state",
+      "family": "api",
+      "template": "src/coordinator/mod.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "GET/POST; coordinator client token."
+    }
+  ]
+}

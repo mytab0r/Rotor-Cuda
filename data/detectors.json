@@ -977,6 +977,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"
+    },
+    {
+      "id": "site-route-map",
+      "rule": "Every route family the coordinator dispatches is present in data/routes.json, every mapped template file exists, every live row is dispatched by the coordinator, and renderer/auth/status use the allowed values.",
+      "batch": "routing-map",
+      "implemented_in": "scripts/lib/site-routes.mjs",
+      "doc_anchor": "docs/site-map/index.html",
+      "status": "implemented"
     }
   ]
 }
