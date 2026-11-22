@@ -30,7 +30,7 @@
     {
       "source": "apps/site/icons.svg",
       "target": "web/public/icons.svg",
-      "sha256": "5e46ee0b294fc02e72629b700ef55ce3671574a081da87b1b505995b359a5a7a"
+      "sha256": "40d2c1e479579231cabebb86333fd22a67456504aa328dbfff73e0617234d230"
     },
     {
       "source": "apps/site/rotor_wasm.wasm",
@@ -55,7 +55,7 @@
     {
       "source": "apps/site/site.css",
       "target": "web/public/site.css",
-      "sha256": "77de59da7bd2bf175b769a44b6ca54e20e755f0d0ad5140ddc167fe302fa366c"
+      "sha256": "63cf6459940501433dcaf49ec0e7644d37ae2f4ee9382b2314a0c312266f0400"
     },
     {
       "source": "apps/site/site.js",

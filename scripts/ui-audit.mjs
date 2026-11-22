@@ -2947,6 +2947,421 @@ async function auditWalletPortfolio(cdp) {
   return { ok: result.problems.length === 0, ...result };
 }
 
+/* /cabinet/wallet transaction history. The seed/arm/approvals/portfolio
+ * audits leave an EVM key in the unlocked vault; import a Bitcoin and a TRON
+ * key, enable the opt-in lookup toggle and stub fetch so the panel is
+ * deterministic:
+ *  - Bitcoin answers use the mempool.space `/txs` shape, TRON answers the
+ *    coordinator's normalized shape, and the EVM click must make no provider
+ *    call at all;
+ *  - the rendered table is checked for the shared shell, the 44px labelled
+ *    action, the exact header set, a truncated counterparty with a full title,
+ *    status pills and no overflow;
+ *  - loading, empty, error and EVM-unavailable states are exercised, and one
+ *    screenshot per state is written to the audit screenshots directory.
+ * The Bitcoin table is left visible for the resting page checks. */
+async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
+  const capture = async (name) => {
+    const shot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true });
+    const file = path.join(
+      screenshotsDir,
+      `wallet-history-${name}-${viewport.width}-${theme}.png`,
+    );
+    await writeFile(file, Buffer.from(shot.data, "base64"));
+    return file;
+  };
+  const evidence = {};
+  const problems = [];
+
+  const prepared = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const form = document.getElementById('wallet-import-form');
+      const secret = document.getElementById('wallet-secret');
+      const chain = document.getElementById('wallet-chain');
+      const label = document.getElementById('wallet-label');
+      const toggle = document.getElementById('wallet-lookup-toggle');
+      if (!form || !secret || !chain || !label || !toggle) {
+        return { ok: false, problems: ['the wallet import controls are missing'] };
+      }
+      const importKey = async (hex, slug, text) => {
+        secret.value = hex;
+        chain.value = slug;
+        label.value = text;
+        form.requestSubmit();
+        return waitFor(() => {
+          const row = document.querySelector('[data-chain="' + slug + '"]');
+          if (!row) return false;
+          const code = row.querySelector('.wallet-address-line code');
+          return Boolean(code && code.textContent && code.textContent !== 'deriving…');
+        }, 15000);
+      };
+      const hex = (n) => '0'.repeat(63) + n;
+      const btcOk = await importKey(hex('1'), 'bitcoin', 'audit btc');
+      const tronOk = await importKey(hex('2'), 'tron', 'audit tron');
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change', { bubbles: true }));
+      const enabled = await waitFor(() => {
+        const b = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+        const t = document.querySelector('[data-chain="tron"] [data-history-button]');
+        return Boolean(b && !b.disabled && t && !t.disabled);
+      }, 5000);
+
+      const jsonResponse = (payload, status) => ({
+        ok: (status || 200) < 400,
+        status: status || 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload)
+      });
+      const btcAddress = (document.querySelector('[data-chain="bitcoin"] .wallet-address-line code') || {}).textContent || '';
+      const tronAddress = (document.querySelector('[data-chain="tron"] .wallet-address-line code') || {}).textContent || '';
+      window.__historyRealFetch = window.__historyRealFetch || window.fetch;
+      window.__historyCalls = [];
+      window.__historyMode = 'data';
+      window.__historyBtc = [
+        {
+          txid: 'a'.repeat(64),
+          vin: [{ prevout: { scriptpubkey_address: 'bc1qsender0000000000000000000000000000000000', value: 120000 } }],
+          vout: [
+            { scriptpubkey_address: btcAddress, value: 50000 },
+            { scriptpubkey_address: 'bc1qsender0000000000000000000000000000000000', value: 69000 }
+          ],
+          fee: 1000,
+          status: { confirmed: true, block_time: 1700000000 }
+        },
+        {
+          txid: 'b'.repeat(64),
+          vin: [{ prevout: { scriptpubkey_address: btcAddress, value: 100000 } }],
+          vout: [
+            { scriptpubkey_address: 'bc1qrecipient000000000000000000000000000000000', value: 60000 },
+            { scriptpubkey_address: btcAddress, value: 30000 }
+          ],
+          fee: 10000,
+          status: { confirmed: true, block_time: 1700000100 }
+        }
+      ];
+      window.__historyTron = {
+        chain: 'tron',
+        address: tronAddress,
+        source: 'tronscan',
+        transactions: [
+          { txid: 't1', timestamp: 1795348446000, direction: 'in', amountSun: '2000000', counterparty: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', confirmed: true },
+          { txid: 't2', timestamp: 1795348000000, direction: 'out', amountSun: '1500000', counterparty: 'TGzrB1LxU6e3H8767tpDw8nFmj4UrnV4iB', confirmed: true, fee: '100000' },
+          { txid: 't3', timestamp: null, direction: 'out', amountSun: '0', counterparty: '', confirmed: false }
+        ]
+      };
+      window.fetch = async (url, init) => {
+        const href = String(url);
+        window.__historyCalls.push(href);
+        if (href.indexOf('/txs') >= 0) {
+          if (window.__historyMode === 'empty') return jsonResponse([]);
+          if (window.__historyMode === 'error') return jsonResponse({ error: 'upstream failed' }, 500);
+          return jsonResponse(window.__historyBtc);
+        }
+        if (href.indexOf('/api/v1/chain/tron/transactions') >= 0) {
+          return jsonResponse(window.__historyTron);
+        }
+        return window.__historyRealFetch(url, init);
+      };
+
+      window.__historyScrollPanel = async () => {
+        const panel = document.getElementById('wallet-history');
+        if (!panel) return null;
+        // Center the panel so its heading clears the sticky nav at every
+        // viewport height; instant behavior keeps the screenshot deterministic.
+        document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
+        document.body.style.setProperty('scroll-behavior', 'auto', 'important');
+        panel.scrollIntoView({ block: 'center', behavior: 'instant' });
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        document.documentElement.style.removeProperty('scroll-behavior');
+        document.body.style.removeProperty('scroll-behavior');
+        return Math.round(panel.getBoundingClientRect().top);
+      };
+
+      const chains = [...document.querySelectorAll('.wallet-row')].map((row) => row.getAttribute('data-chain'));
+      const problems = [];
+      if (!btcOk) problems.push('the Bitcoin key did not derive');
+      if (!tronOk) problems.push('the TRON key did not derive');
+      if (!enabled) problems.push('the history buttons stayed disabled after enabling lookups');
+      return { ok: problems.length === 0, problems, chains, btcAddress, tronAddress, enabled };
+    })()`,
+    40000,
+  );
+  evidence.prepared = prepared;
+  if (!prepared.ok) {
+    return { ok: false, evidence, problems: [...problems, ...prepared.problems] };
+  }
+
+  const btc = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const panel = document.getElementById('wallet-history');
+      if (!button || !panel) return { evidence, problems: ['the Bitcoin history action or panel is missing'] };
+      const box = button.getBoundingClientRect();
+      evidence.actionBox = Math.round(box.width) + 'x' + Math.round(box.height);
+      evidence.ariaLabel = button.getAttribute('aria-label');
+      evidence.tooltip = button.getAttribute('data-tooltip');
+      if (box.width < 44 || box.height < 44) problems.push('the history action is ' + evidence.actionBox + ' (expected >=44x44)');
+      if (!evidence.ariaLabel || !evidence.tooltip) problems.push('the history action is missing aria-label or tooltip');
+      window.__historyMode = 'data';
+      button.click();
+      const loaded = await waitFor(() => document.querySelectorAll('#wallet-history-rows tr').length === 2, 10000);
+      evidence.loaded = loaded;
+      if (!loaded) problems.push('the Bitcoin history did not render two rows');
+      const wrap = document.getElementById('wallet-history-table-wrap');
+      const table = wrap && wrap.querySelector('table.data-table');
+      evidence.shell = Boolean(wrap && wrap.classList.contains('table-scroll') && table);
+      if (!evidence.shell) problems.push('the history table is not .data-table inside .table-scroll');
+      evidence.headers = table ? [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim()) : [];
+      const expected = ['Time', 'Direction', 'Amount', 'Counterparty', 'Status'];
+      if (evidence.headers.join('|') !== expected.join('|')) problems.push('unexpected headers: ' + evidence.headers.join(','));
+      const rows = [...document.querySelectorAll('#wallet-history-rows tr')];
+      evidence.rowCount = rows.length;
+      evidence.directions = rows.map((tr) => tr.children[1].textContent.trim());
+      if (evidence.directions.join('|') !== 'In|Out') problems.push('unexpected directions: ' + evidence.directions.join(','));
+      evidence.amounts = rows.map((tr) => tr.children[2].textContent.trim());
+      if (!/BTC/.test(evidence.amounts[0]) || !/fee/.test(evidence.amounts[1])) problems.push('BTC amounts/fee are wrong: ' + evidence.amounts.join(' / '));
+      const codes = rows.map((tr) => tr.children[3].querySelector('code'));
+      evidence.titles = codes.map((code) => (code ? code.getAttribute('title') : null));
+      evidence.counterparties = codes.map((code) => (code ? code.textContent.trim() : ''));
+      if (!codes[0] || !codes[0].getAttribute('title') || codes[0].textContent.trim() === codes[0].getAttribute('title')) {
+        problems.push('the counterparty is not truncated with a full title');
+      }
+      const pills = rows.map((tr) => tr.children[4].querySelector('.status'));
+      evidence.statuses = pills.map((pill) => (pill ? pill.textContent.trim() : ''));
+      if (pills.some((pill) => !pill)) problems.push('a status cell is missing its .status pill');
+      evidence.panelVisible = Boolean(panel && !panel.hidden);
+      if (!evidence.panelVisible) problems.push('the history panel is hidden after loading');
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      evidence.overflow = overflow;
+      if (overflow > 1) problems.push('page overflows by ' + overflow + 'px');
+      evidence.calls = window.__historyCalls.slice();
+      evidence.panelTopAfter = await window.__historyScrollPanel();
+      return { evidence, problems };
+    })()`,
+    30000,
+  );
+  evidence.btc = btc.evidence;
+  problems.push(...btc.problems);
+  evidence.btcScreenshot = await capture("btc");
+
+  const tron = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const button = document.querySelector('[data-chain="tron"] [data-history-button]');
+      if (!button) return { evidence, problems: ['the TRON history action is missing'] };
+      const before = window.__historyCalls.length;
+      button.click();
+      const loaded = await waitFor(() => document.querySelectorAll('#wallet-history-rows tr').length === 3, 10000);
+      evidence.loaded = loaded;
+      if (!loaded) problems.push('the TRON history did not render three rows');
+      const rows = [...document.querySelectorAll('#wallet-history-rows tr')];
+      evidence.directions = rows.map((tr) => tr.children[1].textContent.trim());
+      if (evidence.directions.join('|') !== 'In|Out|Out') problems.push('unexpected TRON directions: ' + evidence.directions.join(','));
+      evidence.amounts = rows.map((tr) => tr.children[2].textContent.trim());
+      if (!rows.every((tr) => /TRX/.test(tr.children[2].textContent))) problems.push('TRON amounts are not in TRX: ' + evidence.amounts.join(' / '));
+      evidence.statuses = rows.map((tr) => tr.children[4].textContent.trim());
+      if (evidence.statuses.join('|') !== 'Confirmed|Confirmed|Pending') problems.push('unexpected TRON statuses: ' + evidence.statuses.join(','));
+      evidence.newCalls = window.__historyCalls.slice(before);
+      if (!evidence.newCalls.some((url) => url.indexOf('/api/v1/chain/tron/transactions') >= 0)) {
+        problems.push('the TRON history did not call the coordinator endpoint');
+      }
+      if (evidence.newCalls.some((url) => url.indexOf('mempool.space') >= 0)) {
+        problems.push('the TRON history called mempool.space');
+      }
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      evidence.overflow = overflow;
+      if (overflow > 1) problems.push('page overflows by ' + overflow + 'px');
+      await window.__historyScrollPanel();
+      return { evidence, problems };
+    })()`,
+    30000,
+  );
+  evidence.tron = tron.evidence;
+  problems.push(...tron.problems);
+  evidence.tronScreenshot = await capture("tron");
+
+  const evm = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const button = document.querySelector('[data-chain="ethereum"] [data-history-button]');
+      const unavailable = document.getElementById('wallet-history-unavailable');
+      if (!button || !unavailable) return { evidence, problems: ['the EVM history action or unavailable note is missing'] };
+      const before = window.__historyCalls.length;
+      button.click();
+      const shown = await waitFor(() => unavailable && !unavailable.hidden, 5000);
+      evidence.shown = shown;
+      if (!shown) problems.push('the EVM unavailable state did not appear');
+      evidence.message = unavailable.textContent.trim();
+      const link = unavailable.querySelector('a');
+      evidence.href = link ? link.getAttribute('href') : null;
+      if (!/needs an indexer or an API key/.test(evidence.message) || !/does not ship one/.test(evidence.message)) {
+        problems.push('the EVM message is not the honest unavailable text: ' + evidence.message);
+      }
+      if (evidence.href !== '/docs') problems.push('the EVM note does not link to the docs: ' + evidence.href);
+      evidence.newCalls = window.__historyCalls.slice(before);
+      if (evidence.newCalls.length) problems.push('the EVM history made provider call(s): ' + evidence.newCalls.join(', '));
+      const tableWrap = document.getElementById('wallet-history-table-wrap');
+      if (tableWrap && !tableWrap.hidden) problems.push('the EVM state still shows a table');
+      await window.__historyScrollPanel();
+      return { evidence, problems };
+    })()`,
+    20000,
+  );
+  evidence.evm = evm.evidence;
+  problems.push(...evm.problems);
+  evidence.evmScreenshot = await capture("evm");
+
+  const empty = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      window.__historyMode = 'empty';
+      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const emptyEl = document.getElementById('wallet-history-empty');
+      button.click();
+      const shown = await waitFor(() => emptyEl && !emptyEl.hidden, 10000);
+      evidence.shown = shown;
+      if (!shown) problems.push('the empty history state did not appear');
+      evidence.text = emptyEl ? emptyEl.textContent.trim() : '';
+      const tableWrap = document.getElementById('wallet-history-table-wrap');
+      if (tableWrap && !tableWrap.hidden) problems.push('the empty state still shows a table');
+      const errorEl = document.getElementById('wallet-history-error');
+      if (errorEl && !errorEl.hidden) problems.push('the empty state shows an error');
+      await window.__historyScrollPanel();
+      return { evidence, problems };
+    })()`,
+    20000,
+  );
+  evidence.empty = empty.evidence;
+  problems.push(...empty.problems);
+  evidence.emptyScreenshot = await capture("empty");
+
+  const error = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      window.__historyMode = 'error';
+      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      const errorEl = document.getElementById('wallet-history-error');
+      button.click();
+      const shown = await waitFor(() => errorEl && !errorEl.hidden, 10000);
+      evidence.shown = shown;
+      if (!shown) problems.push('the history error state did not appear');
+      evidence.text = errorEl ? errorEl.textContent.trim() : '';
+      if (!/Cannot load transactions/.test(evidence.text)) problems.push('the error text is not explicit: ' + evidence.text);
+      const tableWrap = document.getElementById('wallet-history-table-wrap');
+      if (tableWrap && !tableWrap.hidden) problems.push('the error state still shows a table');
+      await window.__historyScrollPanel();
+      return { evidence, problems };
+    })()`,
+    20000,
+  );
+  evidence.error = error.evidence;
+  problems.push(...error.problems);
+  evidence.errorScreenshot = await capture("error");
+
+  // Leave a populated table visible for the resting page checks and the main
+  // route screenshot, then restore the real fetch.
+  const restored = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      window.__historyMode = 'data';
+      const button = document.querySelector('[data-chain="bitcoin"] [data-history-button]');
+      button.click();
+      const loaded = await waitFor(() => document.querySelectorAll('#wallet-history-rows tr').length === 2, 10000);
+      window.fetch = window.__historyRealFetch;
+      // The page sets scroll-behavior: smooth; the resting auditPage checks
+      // (seed block, mostly-empty blocks) assume the page is at the top, so
+      // reset every scroll root with behavior disabled and let it settle.
+      document.documentElement.style.scrollBehavior = 'auto';
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      window.scrollTo(0, 0);
+      await sleep(120);
+      document.documentElement.style.scrollBehavior = '';
+      return { loaded, scrollY: window.scrollY };
+    })()`,
+    20000,
+  );
+  evidence.restored = restored;
+  if (!restored.loaded) problems.push('the Bitcoin table did not return after the state sweep');
+
+  return { ok: problems.length === 0, evidence, problems };
+}
+
 async function auditKeyAutoDerive(cdp) {
   return evaluate(
     cdp,
@@ -3715,6 +4130,15 @@ async function main() {
                   id: "wallet-portfolio-summary",
                   message: `/cabinet/wallet portfolio summary failed: ${(portfolio.problems || []).join("; ")}`,
                   detail: portfolio,
+                });
+              }
+              const history = await auditWalletHistory(cdp, screenshotsDir, viewport, theme);
+              run.metrics.walletHistory = history.evidence;
+              if (!history.ok) {
+                run.violations.push({
+                  id: "wallet-history-surface",
+                  message: `/cabinet/wallet history panel failed: ${(history.problems || []).join("; ")}`,
+                  detail: history,
                 });
               }
             }
