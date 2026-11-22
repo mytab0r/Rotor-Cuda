@@ -20,6 +20,8 @@ jobs:
         with:
           node-version: 20
       - run: node scripts/check-projects.mjs
+      - name: No screenshots or test evidence committed under docs/
+        run: node scripts/check-screenshots.mjs
       - name: Single source of truth (chains, providers, vendor lock, detectors)
         run: |
           node scripts/gen-ssot.mjs --check
