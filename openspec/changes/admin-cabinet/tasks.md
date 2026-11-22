@@ -28,19 +28,20 @@
 
 ## 2. Read-only inventory
 
-- [ ] Missing store accessors: monitor user list/detail, sessions, events tail;
+- [x] Missing store accessors: monitor user list/detail, sessions, events tail;
       order list and payments; provider counters (cache hit/miss/error, limiter
       wait/reject, last error).
-- [ ] Admin API endpoints for clients, monitor, jobs, orders, providers,
+- [x] Admin API endpoints for clients, monitor, jobs, orders, providers,
       integrations, audit tail; pagination; `no-store`.
-- [ ] DTOs with no `token_hash`, no secret values; a test serializes responses
+- [x] DTOs with no `token_hash`, no secret values; a test serializes responses
       with test secrets set and asserts they are absent.
-- [ ] Panels with real data or explicit empty states; no fake placeholders.
-- [ ] Delta spec under `openspec/specs/coordinator/` for the admin cabinet:
-      `/cabinet/admin` cookie/CSRF auth, admin response headers, the
-      `/cabinet/admin/design` move and the `/design` 404 (phase 1 shipped
-      without one).
-- [ ] Runbook/trade-off notes: the admin cookies' `Secure` flag follows
+- [x] Panels with real data or explicit empty states; no fake placeholders.
+- [x] Delta spec at `openspec/changes/admin-cabinet/specs/coordinator/spec.md`
+      for the admin cabinet: `/cabinet/admin` cookie/CSRF auth, admin response
+      headers, the `/cabinet/admin/design` move and the `/design` 404 (phase 1
+      shipped without one). The source spec stays untouched; the delta merges
+      at archive.
+- [x] Runbook/trade-off notes: the admin cookies' `Secure` flag follows
       `ROTOR_PUBLIC_URL` (an `http://` origin drops it); the per-IP login lock
       can be held by one attacker behind a shared proxy IP (deliberate
       availability trade-off, not a bypass).

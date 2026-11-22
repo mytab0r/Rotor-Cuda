@@ -590,6 +590,21 @@ impl State {
         records.into_iter().map(ClientRecord::view).collect()
     }
 
+    /// One page of the admin client list plus the total count. Only the page
+    /// is projected, so a large history is never cloned for a short request.
+    pub fn clients_page(&self, offset: usize, limit: usize) -> (Vec<ClientRecordView>, usize) {
+        let mut records: Vec<&ClientRecord> = self.data.clients.iter().collect();
+        records.sort_by(|left, right| left.id.cmp(&right.id));
+        let total = records.len();
+        let page = records
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(ClientRecord::view)
+            .collect();
+        (page, total)
+    }
+
     /// Disable a client; its token stops working immediately and any active
     /// leases are released so other clients can pick the chunks up.
     pub fn disable_client(&mut self, id: &str) -> Result<(), String> {
@@ -718,6 +733,48 @@ impl State {
             .iter()
             .map(|job| self.job_view(job, now))
             .collect()
+    }
+
+    /// One page of the admin job list plus the total count.
+    pub fn jobs_page(&self, offset: usize, limit: usize) -> (Vec<JobView>, usize) {
+        let now = now_secs();
+        let total = self.data.jobs.len();
+        let page = self
+            .data
+            .jobs
+            .iter()
+            .skip(offset)
+            .take(limit)
+            .map(|job| self.job_view(job, now))
+            .collect();
+        (page, total)
+    }
+
+    /// One page of live leases plus the total count.
+    pub fn leases_page(&self, now: u64, offset: usize, limit: usize) -> (Vec<ClientView>, usize) {
+        let total = self
+            .data
+            .leases
+            .iter()
+            .filter(|lease| lease.expires_at > now)
+            .count();
+        let page = self
+            .data
+            .leases
+            .iter()
+            .filter(|lease| lease.expires_at > now)
+            .skip(offset)
+            .take(limit)
+            .map(|lease| ClientView {
+                client_id: lease.client_id.clone(),
+                job_id: lease.job_id.clone(),
+                chunk_index: lease.chunk_index,
+                scanned: lease.scanned,
+                rate: lease.rate,
+                expires_at: lease.expires_at,
+            })
+            .collect();
+        (page, total)
     }
 
     /// Grant the first free chunk of the requested (or first matching) job.
@@ -1094,6 +1151,54 @@ impl State {
             .collect();
         workers.sort_by_key(|worker| std::cmp::Reverse(worker.scanned));
         workers
+    }
+
+    /// One page of the admin worker list plus the total count. Only the page
+    /// is projected; the ordering scan holds references, not clones.
+    pub fn workers_page(
+        &self,
+        now: u64,
+        offset: usize,
+        limit: usize,
+    ) -> (Vec<PublicWorkerView>, usize) {
+        let mut workers: Vec<&ClientRecord> = self
+            .data
+            .clients
+            .iter()
+            .filter(|client| !client.disabled)
+            .collect();
+        workers.sort_by_key(|client| std::cmp::Reverse(client.scanned_total));
+        let total = workers.len();
+        let page = workers
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|client| {
+                let lease = self
+                    .data
+                    .leases
+                    .iter()
+                    .filter(|lease| lease.client_id == client.id && lease.expires_at > now)
+                    .max_by_key(|lease| lease.expires_at)
+                    .map(|lease| PublicLeaseView {
+                        job_id: lease.job_id.clone(),
+                        chunk_index: lease.chunk_index,
+                        scanned: lease.scanned,
+                        expires_at: lease.expires_at,
+                    });
+                PublicWorkerView {
+                    id: client.id.clone(),
+                    name: client.name.clone(),
+                    scanned: client.scanned_total,
+                    chunks_done: client.chunks_done,
+                    found: client.found,
+                    last_seen: client.last_seen,
+                    rate: client.rate,
+                    lease,
+                }
+            })
+            .collect();
+        (page, total)
     }
 
     /// Public aggregates: no job targets, client ids with results or keys.
