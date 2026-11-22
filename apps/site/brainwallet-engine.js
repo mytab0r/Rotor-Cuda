@@ -72,32 +72,7 @@
     return SSOT_CHAINS.bySlug[slug].explorerPrefix;
   }
 
-  function evmChain(slug, name, symbol, color) {
-    return {
-      slug: slug,
-      name: name,
-      symbol: symbol,
-      color: color,
-      icon: 'chain-' + slug,
-      curve: 0,
-      field: 'evm',
-      explorer: EXPLORERS.evmPrefix[slug] || EXPLORERS.evmPrefix.ethereum,
-      balance: 'evm',
-      rpc: EVM_RPC[slug]
-    };
-  }
-
   var EXPLORERS = {
-    evmPrefix: {
-      ethereum: explorerPrefix('ethereum'),
-      bnb: explorerPrefix('bnb'),
-      arbitrum: explorerPrefix('arbitrum'),
-      optimism: explorerPrefix('optimism'),
-      base: explorerPrefix('base'),
-      polygon: explorerPrefix('polygon'),
-      avalanche: explorerPrefix('avalanche'),
-      zksync: explorerPrefix('zksync')
-    },
     btc_p2pkh: explorerPrefix('bitcoin'),
     btc_p2pkh_uncompressed: explorerPrefix('bitcoin'),
     btc_p2sh_p2wpkh: explorerPrefix('bitcoin'),
@@ -106,61 +81,47 @@
     evm: explorerPrefix('ethereum')
   };
 
-  var CHAIN_LIST = [
-    {
-      slug: 'bitcoin', name: 'Bitcoin', symbol: 'BTC', color: '#f7931a', icon: 'chain-bitcoin',
-      curve: 0, field: 'btc_p2pkh', types: BTC_TYPES, wif: true,
-      explorer: explorerPrefix('bitcoin'), balance: 'btc'
-    },
-    evmChain('ethereum', 'Ethereum', 'ETH', '#8a9cf5'),
-    evmChain('bnb', 'BNB Chain', 'BNB', '#f3ba2f'),
-    evmChain('arbitrum', 'Arbitrum', 'ETH', '#28a0f0'),
-    evmChain('optimism', 'Optimism', 'ETH', '#ff0420'),
-    evmChain('base', 'Base', 'ETH', '#0052ff'),
-    evmChain('polygon', 'Polygon', 'POL', '#a06ee8'),
-    evmChain('avalanche', 'Avalanche', 'AVAX', '#e84142'),
-    evmChain('zksync', 'zkSync Era', 'ETH', '#8c8dfc'),
-    {
-      slug: 'solana', name: 'Solana', symbol: 'SOL', color: '#14f195', icon: 'chain-solana',
-      curve: 1, field: 'solana', explorer: explorerPrefix('solana'), balance: null
-    },
-    {
-      slug: 'tron', name: 'TRON', symbol: 'TRX', color: '#ff4d4d', icon: 'chain-tron',
-      curve: 0, field: 'tron', explorer: explorerPrefix('tron'), balance: null
-    },
-    {
-      slug: 'xrp', name: 'XRP', symbol: 'XRP', color: '#7fa8d9', icon: 'chain-xrp',
-      curve: 0, field: 'xrp_classic', explorer: explorerPrefix('xrp'), balance: null
-    },
-    {
-      slug: 'litecoin', name: 'Litecoin', symbol: 'LTC', color: '#b8c2d6', icon: 'chain-litecoin',
-      curve: 0, field: 'ltc_p2pkh', types: LTC_TYPES, wif: true,
-      explorer: explorerPrefix('litecoin'), balance: null
-    },
-    {
-      slug: 'bitcoin-cash', name: 'Bitcoin Cash', symbol: 'BCH', color: '#8dc351',
-      icon: 'chain-bitcoin-cash', curve: 0, field: 'bch_legacy', wif: true,
-      explorer: explorerPrefix('bitcoin-cash'), balance: null
-    },
-    {
-      slug: 'dogecoin', name: 'Dogecoin', symbol: 'DOGE', color: '#c2a633', icon: 'chain-dogecoin',
-      curve: 0, field: 'doge_p2pkh', wif: true, explorer: explorerPrefix('dogecoin'),
-      balance: null
-    },
-    {
-      slug: 'zcash', name: 'Zcash', symbol: 'ZEC', color: '#ecb244', icon: 'chain-zcash',
-      curve: 0, field: 'zcash_p2pkh', explorer: explorerPrefix('zcash'),
-      balance: null
-    },
-    {
-      slug: 'sui', name: 'Sui', symbol: 'SUI', color: '#6fbcf0', icon: 'chain-sui',
-      curve: 1, field: 'sui', explorer: explorerPrefix('sui'), balance: null
-    },
-    {
-      slug: 'ton', name: 'TON', symbol: 'TON', color: '#0098ea', icon: 'chain-ton',
-      curve: 1, field: 'ton', explorer: explorerPrefix('ton'), balance: null, ton: true
-    }
-  ];
+  /* Per-chain behaviour only. Identity (name, symbol, color, icon, explorer)
+   * and order come from data/chains.json. */
+  var CHAIN_BEHAVIOR = {
+    bitcoin: { curve: 0, field: 'btc_p2pkh', types: BTC_TYPES, wif: true, balance: 'btc' },
+    ethereum: { curve: 0, field: 'evm', balance: 'evm' },
+    bnb: { curve: 0, field: 'evm', balance: 'evm' },
+    arbitrum: { curve: 0, field: 'evm', balance: 'evm' },
+    optimism: { curve: 0, field: 'evm', balance: 'evm' },
+    base: { curve: 0, field: 'evm', balance: 'evm' },
+    polygon: { curve: 0, field: 'evm', balance: 'evm' },
+    avalanche: { curve: 0, field: 'evm', balance: 'evm' },
+    zksync: { curve: 0, field: 'evm', balance: 'evm' },
+    solana: { curve: 1, field: 'solana', balance: null },
+    tron: { curve: 0, field: 'tron', balance: null },
+    xrp: { curve: 0, field: 'xrp_classic', balance: null },
+    litecoin: { curve: 0, field: 'ltc_p2pkh', types: LTC_TYPES, wif: true, balance: null },
+    'bitcoin-cash': { curve: 0, field: 'bch_legacy', wif: true, balance: null },
+    dogecoin: { curve: 0, field: 'doge_p2pkh', wif: true, balance: null },
+    zcash: { curve: 0, field: 'zcash_p2pkh', balance: null },
+    sui: { curve: 1, field: 'sui', balance: null },
+    ton: { curve: 1, field: 'ton', balance: null, ton: true }
+  };
+
+  function chainFromSlug(slug) {
+    var meta = SSOT_CHAINS.bySlug[slug];
+    var behavior = CHAIN_BEHAVIOR[slug];
+    var entry = {
+      slug: slug,
+      name: meta.name,
+      symbol: meta.symbol,
+      color: meta.color,
+      icon: meta.icon,
+      decimals: meta.decimals,
+      explorer: meta.explorerPrefix
+    };
+    Object.keys(behavior).forEach(function (key) { entry[key] = behavior[key]; });
+    if (behavior.balance === 'evm') entry.rpc = EVM_RPC[slug];
+    return entry;
+  }
+
+  var CHAIN_LIST = SSOT_CHAINS.order.map(chainFromSlug);
 
   var CHAINS = {};
   CHAIN_LIST.forEach(function (chain) { CHAINS[chain.slug] = chain; });

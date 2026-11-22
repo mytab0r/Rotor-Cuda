@@ -606,6 +606,10 @@ fn a_chain_without_an_implemented_path_cannot_write_a_hit() {
     let unsupported = chain::ChainDescriptor {
         id: "synthetic",
         name: "Synthetic",
+        symbol: "SYN",
+        color: "#000000",
+        order: 0,
+        decimals: 0,
         family: chain::Family::SecpHash160,
         curve: chain::Curve::Secp256k1,
         encoding: chain::AddressEncoding::EvmHex,
