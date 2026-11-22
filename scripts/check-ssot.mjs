@@ -31,6 +31,7 @@ import { REPO_ROOT, run } from "./gen-ssot.mjs";
 
 const SITE_DIR = "apps/site";
 const GENERATED_JS = "chains.generated.js";
+const AMOUNT_JS = "amount.js";
 const ALLOW_PATH = "data/ssot-allow.json";
 const EXEMPT_GENERATED = new Set([GENERATED_JS]);
 const OWNERS = new Set([
@@ -121,6 +122,19 @@ function urlSpans(text) {
 function insideUrl(spans, index) {
   return spans.some((span) => index >= span.start && index < span.end);
 }
+
+// Amount conversion has one implementation: apps/site/amount.js. A local copy
+// in a consumer is how the eleven formatters and three parsers drifted apart;
+// those copies used Number and lost precision above 2^53. Detector id:
+// lossy-amount-formatter.
+const AMOUNT_DEFINITIONS = [
+  { needle: "function formatUnits(", re: /^[ \t]*function\s+formatUnits\s*\(/gm },
+  { needle: "function formatUnits6(", re: /^[ \t]*function\s+formatUnits6\s*\(/gm },
+  { needle: "function parseUnits(", re: /^[ \t]*function\s+parseUnits\s*\(/gm },
+  { needle: "function coin(", re: /^[ \t]*function\s+coin\s*\(/gm },
+  { needle: "function formatEth(", re: /^[ \t]*function\s+formatEth\s*\(/gm },
+  { needle: "Math.pow(10,", re: /\bMath\.pow\(\s*10\s*,/g },
+];
 
 const PROVIDER_CALLS = [
   {
@@ -284,6 +298,26 @@ function allowSet(entries) {
   return set;
 }
 
+export function validateAmountFormatters(root, files, allowEntries, wholeFile) {
+  const errors = [];
+  let checked = 0;
+  for (const relative of files) {
+    if (relative === `${SITE_DIR}/${AMOUNT_JS}` || wholeFile.has(relative)) continue;
+    checked += 1;
+    const text = fs.readFileSync(path.join(root, relative), "utf8");
+    for (const definition of AMOUNT_DEFINITIONS) {
+      for (const match of text.matchAll(definition.re)) {
+        if (allowEntries.has(`${relative}\0${definition.needle}`)) continue;
+        errors.push(
+          `${relative}:${lineAt(text, match.index)} defines "${definition.needle}" (lossy-amount-formatter); ` +
+            "use window.RotorAmount from apps/site/amount.js, or add a reviewed data/ssot-allow.json entry",
+        );
+      }
+    }
+  }
+  return { errors, checked };
+}
+
 export function check(root = REPO_ROOT) {
   const errors = [];
   const freshness = run({ root, check: true });
@@ -302,6 +336,8 @@ export function check(root = REPO_ROOT) {
   const files = listSiteFiles(root);
   const references = validateReferences(root, files, data);
   errors.push(...references.errors);
+  const amounts = validateAmountFormatters(root, files, allowEntries, wholeFile);
+  errors.push(...amounts.errors);
 
   let checked = 0;
   let allowlisted = 0;
@@ -342,6 +378,7 @@ export function check(root = REPO_ROOT) {
     checked,
     allowlisted,
     references: references.references,
+    amountFormatters: amounts.checked,
   };
 }
 
@@ -355,7 +392,8 @@ export function main() {
     }
     console.log(
       `ssot:check OK (${result.needles.length} canonical hosts, ${result.checked} site scripts, ` +
-        `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider reference(s))`,
+        `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider reference(s), ` +
+        `${result.amountFormatters} amount-checked script(s))`,
     );
     return 0;
   } catch (error) {

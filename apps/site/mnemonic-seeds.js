@@ -8,6 +8,7 @@
    * generated globals in chains.generated.js (loaded before this script). */
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   var WASM_URL = typeof window !== 'undefined' && window.RotorAssets
     ? window.RotorAssets.url('/rotor_wasm.wasm')
@@ -780,26 +781,12 @@
 
   /* ------------------------------------------------------------- balances */
 
-  function coin(value, decimals) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number)) return '0';
-    if (number === 0) return '0';
-    if (number < 0.00000001) return '<0.00000001';
-    return number.toLocaleString('en-US', { maximumFractionDigits: decimals > 8 ? 6 : 8 });
-  }
-
   /* The donor shows a tiny Received amount in atomic units (`sat`, `zat` for
    * Zcash); Balance always stays in the native unit. The donor doc records only
    * "small", not the constant: 0.0001 coin (10,000 sat) is the cut used here,
    * above which the native unit stays readable. */
   function receivedText(value, decimals, symbol, chainName) {
-    var number = Number(value) / Math.pow(10, decimals);
-    if (!isFinite(number) || number === 0) return '0';
-    var unit = ATOMIC_UNITS[chainName];
-    if (unit && number > 0 && number < 0.0001) {
-      return String(Math.round(number * Math.pow(10, decimals))) + ' ' + unit;
-    }
-    return coin(value, decimals) + ' ' + symbol;
+    return AMOUNT.receivedText(value, decimals, symbol, ATOMIC_UNITS[chainName]);
   }
 
   /* Balance provider for a chain name. Pure (no captured page state) so the
@@ -849,7 +836,7 @@
     var value = picked.value || {};
     var balance = document.createElement('span');
     balance.className = 'bal';
-    balance.textContent = coin(value.balance, meta.decimals) + ' ' + meta.symbol;
+    balance.textContent = AMOUNT.coin(value.balance, meta.decimals) + ' ' + meta.symbol;
     line.appendChild(balance);
     if (value.tx !== undefined && value.tx !== null) {
       var tx = document.createElement('span');
@@ -957,6 +944,7 @@
     var big = meta.provider === 'evm' || meta.provider === 'solana';
     var sumBig = 0n;
     var sumNum = 0;
+    var receivedBig = 0n;
     var received = 0;
     var tx = 0;
     var any = false;
@@ -970,7 +958,8 @@
       if (big) sumBig += BigInt(value.balance || 0);
       else sumNum += Number(value.balance || 0);
       if (value.received !== undefined) {
-        received += Number(value.received);
+        if (big) receivedBig += BigInt(value.received || 0);
+        else received += Number(value.received);
         hasReceived = true;
       }
       if (value.tx !== undefined) {
@@ -983,8 +972,8 @@
       return;
     }
     setSummary(
-      coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
-      hasReceived ? receivedText(received, meta.decimals, meta.symbol, chain) : '—',
+      AMOUNT.coin(big ? sumBig : sumNum, meta.decimals) + ' ' + meta.symbol,
+      hasReceived ? receivedText(big ? receivedBig : received, meta.decimals, meta.symbol, chain) : '—',
       hasTx ? String(tx) : '—'
     );
   }

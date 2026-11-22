@@ -22,6 +22,7 @@
   var BECH32 = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
   var MAX_ITEMS = 100000;
   var MAX_RLP_DEPTH = 64;
+  var AMOUNT = (typeof globalThis !== 'undefined' ? globalThis : this).RotorAmount;
 
   function errorText(err) {
     return err && err.message ? err.message : String(err);
@@ -70,13 +71,6 @@
 
   function hexQuantity(value) {
     return '0x' + value.toString(16);
-  }
-
-  function formatUnits(value, decimals) {
-    var unit = 10n ** BigInt(decimals);
-    var whole = value / unit;
-    var fraction = (value % unit).toString().padStart(decimals, '0').replace(/0+$/, '');
-    return fraction ? whole.toString() + '.' + fraction : whole.toString();
   }
 
   function readUIntLE(bytes) {
@@ -456,7 +450,7 @@
       outputs.push({
         index: outputIndex,
         valueSats: value.toString(10),
-        valueBtc: formatUnits(value, 8),
+        valueBtc: AMOUNT.formatUnits(value, 8),
         scriptType: info.type,
         scriptTypeLabel: info.label,
         address: info.address || null,
@@ -522,9 +516,9 @@
       weight: weight,
       vsize: vsize,
       totalOutSats: totalOut.toString(10),
-      totalOutBtc: formatUnits(totalOut, 8),
+      totalOutBtc: AMOUNT.formatUnits(totalOut, 8),
       feeSats: fee === null ? null : fee.toString(10),
-      feeBtc: fee === null ? null : formatUnits(fee, 8),
+      feeBtc: fee === null ? null : AMOUNT.formatUnits(fee, 8),
       feeNote: feeNote,
       rawHex: hex,
       inputs: inputs,
@@ -783,7 +777,7 @@
       report.contractCreation = to === null;
       report.valueWei = value.toString(10);
       report.valueWeiHex = hexQuantity(value);
-      report.valueEth = formatUnits(value, 18);
+      report.valueEth = AMOUNT.formatUnits(value, 18);
       report.dataLength = data.length;
       report.selector = data.selector;
       report.firstBytes = data.firstBytes;
@@ -814,7 +808,7 @@
       var value1 = rlpInteger(root.items[5], 'value');
       report.valueWei = value1.toString(10);
       report.valueWeiHex = hexQuantity(value1);
-      report.valueEth = formatUnits(value1, 18);
+      report.valueEth = AMOUNT.formatUnits(value1, 18);
       var data1 = dataReport(rlpBytes(root.items[6], 'data'));
       report.dataLength = data1.length;
       report.selector = data1.selector;
@@ -849,7 +843,7 @@
     var value2 = rlpInteger(root.items[6], 'value');
     report.valueWei = value2.toString(10);
     report.valueWeiHex = hexQuantity(value2);
-    report.valueEth = formatUnits(value2, 18);
+    report.valueEth = AMOUNT.formatUnits(value2, 18);
     var data2 = dataReport(rlpBytes(root.items[7], 'data'));
     report.dataLength = data2.length;
     report.selector = data2.selector;

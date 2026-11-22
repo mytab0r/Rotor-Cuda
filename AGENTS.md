@@ -56,6 +56,13 @@ explorer URL or chain identity into a page script.
 - The coordinator embeds and fingerprints `/chains.generated.js` and injects it
   into every served document before the page scripts. Node tests that load a
   migrated consumer call `require("./chains.generated.js")` first.
+- Amount parsing and display have one implementation: `apps/site/amount.js`
+  (`window.RotorAmount`: `formatUnits`, `parseUnits`, `coin`, `receivedText`).
+  It is BigInt-only, is injected into every served document before the page
+  scripts, and is loaded before its consumers in the Node tests. Do not add a
+  local `formatUnits`/`formatUnits6`/`parseUnits`/`coin` or a
+  `Math.pow(10, ...)` amount conversion to a consumer; `scripts/check-ssot.mjs`
+  fails with detector `lossy-amount-formatter`.
 - Never hand-edit either generated file.
 
 ## Security alerts
