@@ -75,6 +75,7 @@
         "node apps/site/wallet-vault-test.mjs",
         "node apps/site/wallet-evm-test.mjs",
         "node apps/site/wallet-mainnet-test.mjs",
+        "node apps/site/wallet-erc20-test.mjs",
         "node apps/site/wallet-btc-test.mjs",
         "node apps/site/wallet-seed-test.mjs",
         "node apps/site/send-test.mjs",
