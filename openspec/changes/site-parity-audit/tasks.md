@@ -182,7 +182,9 @@
   request fills all 60 rows (8 decimals, BCH). Rendered live: 60/60
   `data-balance-state="ok"`, first row `0.00001 BCH 59 tx`, matching the
   provider probe (`confirmed: 1000`, `txs: 59`); targeted audit 6/6 PASS with 0
-  warnings at 375/768/1280 in both themes. Evidence:
+  warnings at 375/768/1280 in both themes. `/private-keys/bitcoin-cash` is now
+  in `scripts/ui-audit.mjs` `DEFAULT_ROUTES` (one batched request per run like
+  the BCH seed page). Evidence:
   `apps/site/browse.js` (`providerMeta`), `apps/site/mnemonic-seeds-test.mjs`
   (the source lock), defect `bch-directory-balances`. ZEC stays `—` here
   (per-address SoChain), as does LTC/DOGE (BlockCypher rate limit).
