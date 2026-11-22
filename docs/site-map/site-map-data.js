@@ -1273,7 +1273,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['ref-site-a'],
-    note: 'Address copy, explorer and details actions use the shared 44 px `.icon-button--lg` with `aria-label` + `data-tooltip` and an `.is-copied` state (`key.js`, `site.css`). Addresses still truncate with a CSS end ellipsis; a middle ellipsis is not implemented, and the donor audit does not record which one privatekeyfinder uses.'
+    note: 'Address copy, explorer and details actions use the shared 44 px `.icon-button--lg` with `aria-label` + `data-tooltip` and an `.is-copied` state (`key.js`, `site.css`). Addresses truncate with a CSS end ellipsis (the full value stays in `title`); the captured donor `key-details.css` uses `word-break: break-all` on `.kd-addr code` and wraps the full address instead. The truncation is a deliberate density choice, not a missing control.'
   });
 
   feature({
