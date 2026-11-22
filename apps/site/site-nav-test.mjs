@@ -188,6 +188,25 @@ test("every static page gives each header control its own icon and name", () => 
   assert.ok(checked >= 20, `expected at least 20 static headers, checked ${checked}`);
 });
 
+/* The wallet is a child of the cabinet area: the header keeps one Cabinet
+ * entry and reaches /cabinet/wallet from there. A second wallet chip consumed
+ * the desktop row and made two 44px controls look identical on mobile. */
+test("the static header exposes one cabinet entry and no wallet chip", () => {
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  let checked = 0;
+  for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".html"))) {
+    const source = readFileSync(dir + name, "utf8");
+    const header = source.match(/<header class="site-nav">([\s\S]*?)<\/header>/);
+    if (!header || !header[1].includes('data-nav="home"')) continue;
+    assert.ok(!header[1].includes('data-nav="wallet"'), `${name} has a separate wallet chip`);
+    assert.ok(!header[1].includes('href="/cabinet/wallet"'), `${name} links the wallet from the header`);
+    const cabinet = [...header[1].matchAll(/data-nav="cabinet"/g)].length;
+    assert.equal(cabinet, 1, `${name} has ${cabinet} cabinet entries`);
+    checked += 1;
+  }
+  assert.ok(checked >= 20, `expected at least 20 static headers, checked ${checked}`);
+});
+
 if (failed) {
   console.error(`${failed} test(s) failed`);
   process.exit(1);
