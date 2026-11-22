@@ -384,10 +384,10 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `gallery-missing` | The generated /cabinet/admin/design gallery exists and is current. | phase 3 | implemented |
 | `required-attribute` | Every gallery example carries its declared required attributes. | phase 3 | implemented |
 | `page-local-family` | A page <style> block does not restyle a shared component family. | phase 3 | implemented |
-| `browse-row-address-count` | A BTC legacy listing row renders both address forms without a disclosure. | phase 4 | implemented |
+| `browse-row-address-count` | A directory listing renders every declared address for each key: the coordinator's legacy pair model and the Astro static table's one-column-per-format model. | phase 4 | implemented |
 | `browse-row-balance-lines` | One balance line per address, received only when non-zero, and a named TX pill. | phase 4 | implemented |
-| `browse-row-key-copy` | Each listing row has one visible, labelled key copy action. | phase 4 | implemented |
-| `browse-row-height` | Listing rows keep one stable height under the two-address ceiling. | phase 4 | implemented |
+| `browse-row-key-copy` | Each listing row has one visible, labelled key copy action with a 28 visual/44 hit area on a fine desktop pointer and 44 on touch. | phase 4 | implemented |
+| `browse-row-height` | Directory listing rows keep one stable height: 40-44 on a fine desktop pointer and 44 on touch, plus the collapsed row border for the static table. | phase 4 | implemented |
 | `browse-stat-level` | Browse stat cards end within 2px of each other. | phase 4 | implemented |
 | `browse-row-wif` | A listing row is HEX plus copy, address and balance; the WIF stays on /key. | phase 4 | implemented |
 | `balance-consistency` | A balance row text agrees with its title amount and TX count. | phase 4 | implemented |
@@ -451,6 +451,15 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `security-advisory-integrity` | Every advisory cites an https primary source, carries actions and review provenance, and its local checker names a live coordinator route and implementation; the generated /security page is current. | security | implemented |
 | `wallet-security-severity-class` | The wallet Security status severity is rendered with the shared .status pill class, not as a bare text node. | security | implemented |
 | `site-route-map` | Every route family the coordinator dispatches is present in data/routes.json, every mapped template file exists, every live row is dispatched by the coordinator, and renderer/auth/status use the allowed values. | routing-map | implemented |
+| `seo-page-set` | web/dist contains exactly the 18 mainnet chain directory pages from data/chains.json, with no missing or extra slug. | seo | implemented |
+| `seo-metadata-bounds` | Chain page title is 50-60 characters with the chain name first and the brand last; description is 120-160 characters with at least one digit. | seo | implemented |
+| `seo-canonical-robots` | Chain page canonical is its own https://rotor.pxbt.app/private-keys/<slug> URL and robots is index,follow. | seo | implemented |
+| `seo-duplicate-metadata` | No two chain pages share a title or a meta description. | seo | implemented |
+| `seo-hidden-heading` | One visible H1 reading '<Chain> private keys', no visually-hidden H1, and at least two visible content H2s in the unique prose section. | seo | implemented |
+| `seo-rendered-rows` | The first chain page ships at least 40 key/address rows as <tr data-key> in the initial HTML, not only as a JavaScript skeleton. | seo | implemented |
+| `seo-prose-uniqueness` | Each chain page has at least 120 unique prose words and every pair of pages stays below 0.50 5-gram Jaccard similarity; the shared safety block is excluded. | seo | implemented |
+| `seo-structured-data` | Chain page JSON-LD contains both CollectionPage and BreadcrumbList. | seo | implemented |
+| `seo-og-image-alt` | og:image is present and og:image:alt plus twitter:image:alt name the chain, so one family image still tells crawlers which page it represents. | seo | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.

@@ -729,6 +729,27 @@
       "symptom": "The wallet Security status row put the severity in a span with class status, but no .status CSS rule existed and the status-pill detector did not select it, so the severity rendered as plain text. The shared pill block now includes .status and a static audit check guards the renderer.",
       "detector": "wallet-security-severity-class",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "directory-hidden-h1",
+      "reported": "2026-11-23",
+      "symptom": "The live /private-keys/<chain> page rendered a visually-hidden H1 and no content H2s, so the document had no visible outline and most of its text was drawn by client JavaScript.",
+      "detector": "seo-hidden-heading",
+      "where": "scripts/check-seo.mjs"
+    },
+    {
+      "id": "directory-js-only-rows",
+      "reported": "2026-11-23",
+      "symptom": "Only a 'Calculating…' skeleton was present in the first HTML response; the 60 key and address rows appeared after JavaScript ran, so a crawler saw no directory data.",
+      "detector": "seo-rendered-rows",
+      "where": "scripts/check-seo.mjs"
+    },
+    {
+      "id": "directory-duplicate-prose",
+      "reported": "2026-11-23",
+      "symptom": "Three of the four prose paragraphs on a chain page were identical across chains and the donor directory had no H1 or H2 at all, so the pages competed on the same text instead of explaining their own chain.",
+      "detector": "seo-prose-uniqueness",
+      "where": "scripts/check-seo.mjs"
     }
   ]
 }
