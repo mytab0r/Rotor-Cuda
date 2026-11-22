@@ -1625,7 +1625,10 @@
               }
             }
             transferData = approveCalldata(spender, grantAmountWei);
-            if (grantUnlimited) {
+            /* A finite input can parse to exactly 2^256-1; the signed
+             * calldata is then identical to the Unlimited option, so the same
+             * warning must appear whichever way the value was entered. */
+            if (grantAmountWei === U256_MAX) {
               preWarnings.push('Unlimited allowance: this lets the spender move every ' +
                 meta.symbol + ' token of this contract until you revoke it.');
             }

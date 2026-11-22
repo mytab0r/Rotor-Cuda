@@ -2644,7 +2644,9 @@ async function auditWalletApprovals(cdp) {
         grantAmount.value = '0';
         grantAmount.dispatchEvent(new Event('input', { bubbles: true }));
         grantForm.requestSubmit();
-        await sleep(0);
+        /* The border-colour transition must finish before the computed color
+         * is read, or the start value (the normal border) is returned. */
+        await sleep(250);
         const amountError = document.getElementById('wallet-approvals-grant-amount-error');
         evidence.grant.amountError = amountError ? amountError.textContent.trim() : '';
         if (!amountError || amountError.hidden || !/greater than zero/.test(evidence.grant.amountError)) {
@@ -2652,6 +2654,20 @@ async function auditWalletApprovals(cdp) {
         }
         if (grantAmount.getAttribute('aria-invalid') !== 'true') {
           problems.push('the zero-amount input is not aria-invalid');
+        }
+        {
+          const probe = document.createElement('span');
+          probe.setAttribute('aria-hidden', 'true');
+          probe.style.color = 'var(--state-err)';
+          document.body.appendChild(probe);
+          const semantic = getComputedStyle(probe).color;
+          probe.remove();
+          const invalidBorder = getComputedStyle(grantAmount).borderTopColor;
+          evidence.grant.invalidBorder = invalidBorder;
+          if (invalidBorder !== semantic) {
+            problems.push('the zero-amount field border is ' + invalidBorder +
+              ', not --state-err (' + semantic + ')');
+          }
         }
 
         grantUnlimited.checked = true;
@@ -2894,6 +2910,115 @@ async function auditKeyTooltips(cdp) {
 // the pseudo-state through CDP and read the real computed style. Transitions are
 // suppressed for the measurement so the hover value is read immediately instead
 // of racing the --duration-fast animation.
+/* Every visible error message must use the semantic --state-err colour and
+ * keep WCAG AA contrast (4.5:1) against its effective background. The class
+ * defect this guards: .error shipped a hardcoded #ffb3b3, which is about
+ * 1.7:1 on the light theme and was copied into four other error variants.
+ * The probe resolves the theme's --state-err (an alias of --err), so dark and
+ * light are checked with the value they actually render. */
+async function auditErrorMessages(cdp) {
+  return evaluate(
+    cdp,
+    `(() => {
+      const violations = [];
+      const evidence = {
+        checked: 0,
+        invalidFields: 0,
+        theme: document.documentElement.getAttribute('data-theme') || '',
+      };
+      const parse = (value) => {
+        const match = /rgba?\\(([^)]+)\\)/.exec(value || '');
+        if (!match) return null;
+        const parts = match[1].split(/[\\s,\\/]+/).filter(Boolean).map(Number);
+        return [parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : 1];
+      };
+      const over = (top, bottom) => {
+        const alpha = top[3];
+        return [
+          top[0] * alpha + bottom[0] * (1 - alpha),
+          top[1] * alpha + bottom[1] * (1 - alpha),
+          top[2] * alpha + bottom[2] * (1 - alpha),
+          1,
+        ];
+      };
+      const effectiveBackground = (element) => {
+        const layers = [];
+        for (let node = element; node; node = node.parentElement) {
+          layers.push(parse(getComputedStyle(node).backgroundColor));
+        }
+        let base = [255, 255, 255, 1];
+        for (let index = layers.length - 1; index >= 0; index -= 1) {
+          const layer = layers[index];
+          if (!layer || layer[3] === 0) continue;
+          base = layer[3] === 1 ? layer : over(layer, base);
+        }
+        return base;
+      };
+      const channel = (value) => {
+        const ratio = value / 255;
+        return ratio <= 0.04045 ? ratio / 12.92 : Math.pow((ratio + 0.055) / 1.055, 2.4);
+      };
+      const luminance = (color) =>
+        0.2126 * channel(color[0]) + 0.7152 * channel(color[1]) + 0.0722 * channel(color[2]);
+      const contrast = (a, b) => {
+        const first = luminance(a);
+        const second = luminance(b);
+        return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+      };
+      const probe = document.createElement('span');
+      probe.setAttribute('aria-hidden', 'true');
+      probe.style.color = 'var(--state-err)';
+      document.body.appendChild(probe);
+      const semantic = getComputedStyle(probe).color;
+      probe.remove();
+      evidence.semantic = semantic;
+
+      const selector = '.error, .key-error, .range-error, .monitor-status.err, ' +
+        '.wallet-warnings, .balance-note.err, .balance-info.err, .directory-hint.err, ' +
+        '.global-search-error';
+      const seen = new Set();
+      for (const node of document.querySelectorAll(selector)) {
+        if (seen.has(node)) continue;
+        seen.add(node);
+        if (!node.getClientRects().length || !node.textContent.trim()) continue;
+        const style = getComputedStyle(node);
+        evidence.checked += 1;
+        if (style.color !== semantic) {
+          violations.push({
+            id: 'error-message-contrast',
+            message: 'visible error text "' + node.textContent.trim().slice(0, 60) +
+              '" uses ' + style.color + ', not --state-err (' + semantic + ')',
+          });
+          continue;
+        }
+        const color = parse(style.color);
+        const ratio = color ? contrast(color, effectiveBackground(node)) : 0;
+        if (ratio < 4.5) {
+          violations.push({
+            id: 'error-message-contrast',
+            message: 'visible error text "' + node.textContent.trim().slice(0, 60) +
+              '" has ' + ratio.toFixed(2) + ':1 contrast (minimum 4.5:1)',
+            detail: { color: style.color, ratio: Number(ratio.toFixed(2)) },
+          });
+        }
+      }
+      for (const field of document.querySelectorAll('[aria-invalid="true"]')) {
+        if (!field.getClientRects().length) continue;
+        evidence.invalidFields += 1;
+        const border = getComputedStyle(field).borderTopColor;
+        if (border !== semantic) {
+          violations.push({
+            id: 'error-message-contrast',
+            message: 'invalid field border uses ' + border + ', not --state-err (' + semantic + ')',
+          });
+        }
+      }
+      return { ok: violations.length === 0, violations, evidence };
+    })()`,
+    20000,
+  );
+}
+
 async function auditQuietIconHover(cdp) {
   const buttons = await evaluate(
     cdp,
@@ -3400,6 +3525,9 @@ async function main() {
             const quietHover = await auditQuietIconHover(cdp);
             run.metrics.quietIconHover = quietHover.evidence;
             if (!quietHover.ok) run.violations.push(...quietHover.violations);
+            const errorMessages = await auditErrorMessages(cdp);
+            run.metrics.errorMessageContrast = errorMessages.evidence;
+            if (!errorMessages.ok) run.violations.push(...errorMessages.violations);
           } catch (error) {
             run.status = "error";
             run.violations.push({

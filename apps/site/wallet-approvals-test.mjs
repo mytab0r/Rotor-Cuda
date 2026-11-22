@@ -949,6 +949,20 @@ test("prepareGrant for Unlimited pins 2^256-1 and carries the warning line", asy
       .test(warning)));
 });
 
+test("a finite amount that parses to exactly 2^256-1 also carries the Unlimited warning", async () => {
+  const mock = rpcMock({ decimals: 0 });
+  const review = await evm.prepareGrant(grantOptions({
+    amountText: U256_MAX.toString(),
+    fetchJson: mock.fetchJson,
+  }));
+  assert.equal(review.approvalAmountWei, U256_MAX);
+  assert.equal(review.dataHex, UNLIMITED_CALLDATA);
+  assert.equal(evm.formatAllowance(review.approvalAmountWei, review.tokenDecimals), "Unlimited");
+  assert.ok(review.warnings.some((warning) =>
+    /Unlimited allowance: this lets the spender move every USDT token of this contract until you revoke it\./
+      .test(warning)));
+});
+
 test("prepareGrant refuses zero, an amount above uint256 and a missing amount", async () => {
   const mock = rpcMock();
   await assert.rejects(

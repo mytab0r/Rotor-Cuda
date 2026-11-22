@@ -46,7 +46,7 @@ Pairs computed from the current root (`site.css:998-1031`):
 
 Conclusion: contrast is not the primary defect. The defect is that the same role
 is spelled with different tokens and raw hex values (`#e3b341` in the legacy
-notice, `#ffb3b3` in errors, `#8494a9` in placeholders, chain colours in
+notice, `var(--state-err)` in errors, `#8494a9` in placeholders, chain colours in
 `site.css:910-916` and inline `style="--chain:#..."`).
 
 ## 2. Component families
@@ -118,7 +118,7 @@ Each row cites the declaration that defines the look and a representative usage.
 |---|---|---|---|
 | `.notice` (current) | pad 11/14, radius 12, amber tint, `#f2cf8f` (`site.css:1273-1280`) | `run.html:38,45`, `mnemonic-seeds.html:188`, 11 files | 11px padding is off the 4px grid. |
 | `.notice` (legacy) | pad 10/14, radius 8, `#e3b341` (`site.css:164-170`) | Leftover cascade | Duplicate definition with different radius/colour. |
-| `.error` | pad 11/14, radius 12, red tint, `#ffb3b3` (`site.css:1282-1291`) | Wallet/send/monitor error slots | Same 11px padding; raw hex text. |
+| `.error` | pad 11/14, radius 12, red tint, `var(--state-err)` (`site.css:1272-1280`) | Wallet/send/monitor error slots | Same 11px padding; token-level text (light mode now AA). |
 | `.edu-note` | pad 15/18, radius 12, amber tint, `#e8cf9f`, font 13.5 (`site.css:1409-1417`) | Educational callouts | A third amber message style. |
 | `.monitor-status` | margin 10/0/0, font 12; `.ok`/`.err` (`site.css:541-543`) | `monitor.html:41,83,101,124` | Margin 10. |
 | `.range-status` | margin 8/0/0, font 12 muted (`site.css:706`) | `range.html` | Margin 8. |
@@ -126,7 +126,7 @@ Each row cites the declaration that defines the look and a representative usage.
 | `.key-exposure-status` | font 12, line-height 1.25, max-w 34ch, ellipsis (`site.css:3941-3954`) | `key.html:76` | Different line-height and truncation. |
 | `.send-status` | min-h 20, margin 12/0/0, font 12.5 (`send.html:108`) | `send.html:233` | Page-local style, 12.5px. |
 | `.wallet-status` | margin 8/0/0, font 13 (`wallet.html:25`) | `wallet.html:115` | Page-local style, 13px. |
-| `.global-search-hint` / `.global-search-error` | font 12, muted / `#ffb3b3` (`site.css:2578-2579`) | Global search dialog | No `role` on the hint; error has `role="alert"` in markup. |
+| `.global-search-hint` / `.global-search-error` | font 12, muted / `var(--state-err)` (`site.css:2578-2579`) | Global search dialog | No `role` on the hint; error has `role="alert"` in markup. |
 
 ### 2.7 Inputs, selects and fields
 

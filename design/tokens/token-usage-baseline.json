@@ -128,7 +128,7 @@
       ]
     },
     "raw-hex-outside-root": {
-      "count": 43,
+      "count": 38,
       "entries": [
         {
           "file": "apps/site/brainwallet.css",
@@ -318,12 +318,6 @@
         },
         {
           "file": "apps/site/site.css",
-          "line": 1289,
-          "match": "#ffb3b3",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
           "line": 1404,
           "match": "#0b1018",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
@@ -342,12 +336,6 @@
         },
         {
           "file": "apps/site/site.css",
-          "line": 1534,
-          "match": "#ffb3b3",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
           "line": 1657,
           "match": "#c8d8ea",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
@@ -356,24 +344,6 @@
           "file": "apps/site/site.css",
           "line": 1661,
           "match": "#6f7e92",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 1931,
-          "match": "#ffb3b3",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2343,
-          "match": "#ffb3b3",
-          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
-        },
-        {
-          "file": "apps/site/site.css",
-          "line": 2595,
-          "match": "#ffb3b3",
           "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
         },
         {
