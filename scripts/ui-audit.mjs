@@ -61,8 +61,11 @@ const DEFAULT_ROUTES = [
   "/tx/bitcoin",
   "/tx/ethereum",
   "/docs",
-  // Internal design-system gallery: every component family, both themes.
-  "/design",
+  // Operator cabinet: authenticated dashboard and the design-system gallery.
+  // The run logs in with the token the harness started the server with and
+  // installs the session cookie through CDP before these routes.
+  "/cabinet/admin",
+  "/cabinet/admin/design",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
 const DEFAULT_SETTLE_MS = 700;
@@ -79,6 +82,8 @@ Options:
   --viewports 375,768,1280   widths to test; heights are preset (default 375,768,1280)
   --themes dark,light   colour schemes to test (default dark,light)
   --serve               spawn target/release/rotor-coord on 127.0.0.1:7899 with temp state
+  --admin-token TOKEN   coordinator token used to log in for /cabinet/admin routes
+                        (with --serve the default is the harness token)
   --json PATH           write the machine-readable summary
   -h, --help            show this help
 
@@ -91,6 +96,7 @@ function parseArgs(argv) {
     viewports: [375, 768, 1280],
     themes: ["dark", "light"],
     serve: false,
+    adminToken: null,
     json: null,
     help: false,
   };
@@ -132,6 +138,9 @@ function parseArgs(argv) {
         break;
       case "--serve":
         options.serve = true;
+        break;
+      case "--admin-token":
+        options.adminToken = value();
         break;
       case "--json":
         options.json = value();
@@ -1880,7 +1889,16 @@ function auditPage(args) {
   // 8. Breadcrumbs: one grammar (current marker + separators) and one trail
   //    on every public content page. The app and cabinet shells and the
   //    landing page intentionally have none.
-  const shellRoutes = new Set(["/app", "/me", "/run", "/cabinet", "/cabinet/wallet"]);
+  const shellRoutes = new Set([
+    "/app",
+    "/me",
+    "/run",
+    "/cabinet",
+    "/cabinet/wallet",
+    "/cabinet/admin",
+    "/cabinet/admin/",
+    "/cabinet/admin/login",
+  ]);
   const shellPage = shellRoutes.has(route);
   const needsBreadcrumbs = route !== "/" && !shellPage;
   const crumbNavs = [...document.querySelectorAll("nav.breadcrumbs")].filter(visible);
@@ -2504,6 +2522,56 @@ function viewportFor(width) {
   return { width, height };
 }
 
+// admin-login: the cabinet is gated by a signed session cookie. The harness
+// never bypasses auth; it logs in with the token the server was started with
+// (or the explicit --admin-token) and installs the resulting cookie through
+// CDP before auditing admin routes. A missing token is a harness error.
+async function loginAdmin(options, cdp) {
+  const token = options.adminToken || (options.serve ? "ui-audit-token" : null);
+  if (!token) {
+    throw new Error(
+      "admin routes are selected but --admin-token is missing; pass the coordinator token or use --serve",
+    );
+  }
+  const response = await fetch(`${options.base}/cabinet/admin/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+    redirect: "manual",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (response.status !== 200) {
+    throw new Error(
+      `admin login failed with ${response.status}; --admin-token does not match the running coordinator`,
+    );
+  }
+  const setCookies = typeof response.headers.getSetCookie === "function"
+    ? response.headers.getSetCookie()
+    : [response.headers.get("set-cookie")].filter(Boolean);
+  if (setCookies.length === 0) {
+    throw new Error("admin login returned no Set-Cookie header");
+  }
+  for (const raw of setCookies) {
+    const [pair] = raw.split(";");
+    const separator = pair.indexOf("=");
+    if (separator <= 0) continue;
+    const name = pair.slice(0, separator);
+    const value = pair.slice(separator + 1);
+    const result = await cdp.send("Network.setCookie", {
+      name,
+      value,
+      url: options.base,
+      path: "/cabinet/admin",
+      secure: false,
+      httpOnly: name === "rotor_admin",
+      sameSite: "Strict",
+    });
+    if (result && result.success === false) {
+      throw new Error(`CDP rejected the admin cookie ${name}`);
+    }
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const uncovered = missingPublicRoutes(DEFAULT_ROUTES);
@@ -2598,7 +2666,7 @@ async function main() {
           "--monitor-btc-rpc",
           "http://127.0.0.1:1",
         ],
-        { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] },
+        { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ROTOR_PUBLIC_URL: options.base } },
       );
       let serverLog = "";
       server.stdout.on("data", (chunk) => {
@@ -2642,6 +2710,10 @@ async function main() {
     // agents; enabling them once keeps the per-run measurement short.
     await cdp.send("DOM.enable").catch(() => {});
     await cdp.send("CSS.enable").catch(() => {});
+
+    if (options.routes.some((route) => route.startsWith("/cabinet/admin"))) {
+      await loginAdmin(options, cdp);
+    }
 
     let consoleErrors = [];
     let networkErrors = [];

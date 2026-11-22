@@ -241,17 +241,6 @@ function breadcrumbTrail(manifest, suffix) {
   );
 }
 
-const LAYOUT_CSS = `/* Gallery layout only. Component appearance comes from site.css. */
-.design-gallery__family { display: grid; gap: var(--space-4); padding-top: var(--space-6); border-top: 1px solid var(--line-subtle); }
-.design-gallery__examples { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
-.design-gallery__examples--stack { display: grid; grid-template-columns: minmax(0, 1fr); }
-.design-gallery__example { display: grid; gap: var(--space-2); margin: 0; min-width: 0; }
-.design-gallery__label { color: var(--ink-3); font-size: var(--text-xs); font-weight: var(--weight-regular); }
-.design-gallery__stage { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
-.design-gallery__stage--block { display: block; }
-.design-gallery__note { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
-`;
-
 export function renderGallery(root = REPO_ROOT) {
   const manifests = loadManifests(root);
   const byName = new Map(manifests.map((manifest) => [manifest.name, manifest]));
@@ -322,9 +311,8 @@ export function renderGallery(root = REPO_ROOT) {
 <meta name="robots" content="noindex">
 <title>Crypto - design gallery</title>
 <link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/admin.css">
 <script src="/theme.js"></script>
-<style>
-${LAYOUT_CSS}</style>
 </head>
 <body>
 ${header}
@@ -335,8 +323,9 @@ ${header}
   <p class="muted">
     Every normalized component family, rendered from
     <code>design/components/*.json</code> with the production classes from
-    <code>apps/site/site.css</code>. The page is internal, noindex and not linked
-    from the navigation; <code>/design</code> is the only address.
+    <code>apps/site/site.css</code>. The page is internal, noindex, requires the
+    operator cookie and is not linked from the public navigation;
+    <code>/cabinet/admin/design</code> is the only address.
   </p>
 
 ${examples}</main>

@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Cloudflare Worker: shared edge cache for public balance providers",
   "scripts": {
-    "test": "node --test test/worker.test.mjs",
-    "check": "node --check src/worker.mjs && node --check src/chains.mjs && node --check src/cache.mjs && node --check src/hint.mjs && node --check src/limiters.mjs && node --check src/providers.mjs && node --check src/security.mjs && node --check test/worker.test.mjs"
+    "test": "node --test test/worker.test.mjs provider-proxy/test/provider-proxy.test.mjs",
+    "check": "node --check src/worker.mjs && node --check src/chains.mjs && node --check src/cache.mjs && node --check src/hint.mjs && node --check src/limiters.mjs && node --check src/providers.mjs && node --check src/security.mjs && node --check test/worker.test.mjs && npm --prefix provider-proxy run check"
   }
 }

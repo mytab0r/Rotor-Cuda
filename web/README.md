@@ -49,7 +49,7 @@ again (or the asset must move to a single shared source in a later phase).
 | `vendor/seed-crypto.js` | `apps/site/seed-crypto.js` | `a1f569591af5b43fd16f4f86faccc7490d2f407cfbda648ba5f283831ee60d20` |
 | `site.css` | `apps/site/site.css` | `892be9a101f0b4dc68b2dc197a6ac39469214b3a8387a0c95acdb92a799bd030` |
 | `seed-studio.css` | `apps/site/seed-studio.css` | `f1417cb411fc90dbaba7f69a3cb2c01432e7f4c91eed190d27a1a20ab38f221f` |
-| `site.js` | `apps/site/site.js` | `d18660f6ba76251bc7c6acd3275b98efb806d06037dfd6516dda48ca6058a38a` |
+| `site.js` | `apps/site/site.js` | `d6da9a4394b6e1962c6b137eb69934e7e432a41fc711e9cef86d1c8ac9abbbfc` |
 | `theme.js` | `apps/site/theme.js` | `b7e582965c67d3102af9da1fba28536ec4ef9e9359a3d35704856c65263d92d5` |
 | `icons.svg` | `apps/site/icons.svg` | `68184590c2a787aa8d3107cbdfe7aeada2e4b770850b61806444da2bdb092f4f` |
 | `fonts/manrope-latin.woff2` | `apps/site/fonts/manrope-latin.woff2` | `8c2def024c1bf31aacf3624ae3c4d701269b4ec3dc765c04830839f0d36b2d9e` |

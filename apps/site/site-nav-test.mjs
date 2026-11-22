@@ -38,6 +38,18 @@ function links(count) {
 
 const ids = (list) => list.map((link) => link.id);
 
+/* nav-keystore-highlight: /keystore-parser shares only the text prefix with
+ * /key, so the Search item must match `/key` itself or a `/key/` child. The
+ * tool pages highlight Tools, never Search. */
+test("the section mapping keeps /keystore-parser on Tools", () => {
+  assert.equal(nav.sectionForPath("/keystore-parser"), "tools");
+  assert.equal(nav.sectionForPath("/keystore-parser/anything"), "tools");
+  assert.equal(nav.sectionForPath("/key"), "search");
+  assert.equal(nav.sectionForPath("/key/" + "0".repeat(64)), "search");
+  assert.equal(nav.sectionForPath("/tools"), "tools");
+  assert.equal(nav.sectionForPath("/"), "home");
+});
+
 test("seven primary links split into four inline and three in the tail", () => {
   assert.equal(nav.INLINE_COUNT, 4);
   const parts = nav.splitLinks(links(7), nav.INLINE_COUNT);

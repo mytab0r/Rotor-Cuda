@@ -44,7 +44,12 @@ owned by exactly one area; the most-specific glob wins.
   Bitcoin testnet send flow: bech32 validation, coin selection, dust/change,
   review and confirm over injected UTXO/broadcast callbacks) and `wallet.js`
   (page logic);
-  the coordinator never receives a key, WIF or passphrase. The seed studio is served
+  the coordinator never receives a key, WIF or passphrase. The operator cabinet
+  lives at `/cabinet/admin` behind a signed session cookie (login at
+  `/cabinet/admin/login`, dashboard data at `/cabinet/admin/api/overview`, both
+  scoped to `Path=/cabinet/admin`); the design gallery moved to
+  `/cabinet/admin/design` and the old `/design` route answers 404. The cabinet
+  assets are `/admin.js` and `/admin.css`. The seed studio is served
   on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
   `seed-page.js` and `seed-studio.css`; the directory remains on
   `/mnemonic-seeds`. Brainwallet pages share `brainwallet-engine.js`
