@@ -5849,7 +5849,10 @@ fn normalize_tron_transactions(address: &str, raw: &serde_json::Value) -> serde_
     })
 }
 
-fn normalize_tron_transaction(address: &str, item: &serde_json::Value) -> Option<serde_json::Value> {
+fn normalize_tron_transaction(
+    address: &str,
+    item: &serde_json::Value,
+) -> Option<serde_json::Value> {
     let txid = item.get("hash")?.as_str()?;
     if txid.is_empty() {
         return None;
@@ -5928,10 +5931,7 @@ fn normalize_tron_transaction(address: &str, item: &serde_json::Value) -> Option
 /// methods name no human counterparty, so the caller falls back to the
 /// contract address.
 fn tron_contract_recipient(item: &serde_json::Value) -> Option<String> {
-    let data = item
-        .get("contractData")?
-        .get("data")?
-        .as_str()?;
+    let data = item.get("contractData")?.get("data")?.as_str()?;
     let hex = data.strip_prefix("0x").unwrap_or(data);
     if hex.len() < 8 + 64 {
         return None;
@@ -9022,29 +9022,20 @@ mod tests {
         assert_eq!(txs[0]["txid"], "out-native");
         assert_eq!(txs[0]["direction"], "out");
         assert_eq!(txs[0]["amountSun"], "1859292432");
-        assert_eq!(
-            txs[0]["counterparty"],
-            "TG2CMGxnTPgQ6V58kiKd7wbyN8ewtAmY76"
-        );
+        assert_eq!(txs[0]["counterparty"], "TG2CMGxnTPgQ6V58kiKd7wbyN8ewtAmY76");
         assert_eq!(txs[0]["confirmed"], true);
         assert_eq!(txs[0]["fee"], "1000000");
         assert_eq!(txs[0]["timestamp"], 1795341405000u64);
 
         assert_eq!(txs[1]["direction"], "in");
         assert_eq!(txs[1]["amountSun"], "1");
-        assert_eq!(
-            txs[1]["counterparty"],
-            "TS2vvHWh1uQXyCoLUM8ekz1e4wtrPkH1j6"
-        );
+        assert_eq!(txs[1]["counterparty"], "TS2vvHWh1uQXyCoLUM8ekz1e4wtrPkH1j6");
         assert!(txs[1].get("fee").is_none());
 
         // A TRC-20 transfer to this address is incoming, with no native value.
         assert_eq!(txs[2]["direction"], "in");
         assert_eq!(txs[2]["amountSun"], "0");
-        assert_eq!(
-            txs[2]["counterparty"],
-            "TRKQpQFtKGkKi77qaZbot9Aew7ckJ4WW5P"
-        );
+        assert_eq!(txs[2]["counterparty"], "TRKQpQFtKGkKi77qaZbot9Aew7ckJ4WW5P");
         assert_eq!(txs[2]["confirmed"], false);
         assert!(txs[2].get("fee").is_none());
     }
