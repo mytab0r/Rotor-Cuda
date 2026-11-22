@@ -3678,7 +3678,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     // compressed and uncompressed P2PKH address, so the page carries 120
     // address lines instead of 60; every other type/chain carries one per key.
     let keys_per_page = 60u32;
-    let addresses_per_key = if chain.slug == "bitcoin" && active_type.value == "legacy" {
+    let addresses_per_key = if chain.id == "bitcoin" && active_type.value == "legacy" {
         2u32
     } else {
         1u32
