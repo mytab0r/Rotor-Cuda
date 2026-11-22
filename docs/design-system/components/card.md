@@ -1,7 +1,7 @@
 # Card
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/card.json` · Gallery: `/design` (family
+Source of truth: `design/components/card.json` · Gallery: `/cabinet/admin/design` (family
 `card`).
 
 ## Purpose
@@ -30,7 +30,7 @@ them; they are reserved and not in the manifest.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | `--surface-1`, `--line-subtle`, radius `--radius-xl`, `--elev-1` | yes |
 | Hover | none on the card itself; a card link may use the shared focus/hover ring | n/a |

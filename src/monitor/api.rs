@@ -85,6 +85,29 @@ impl IpRateLimiter {
         queue.push_back(now);
         true
     }
+
+    /// Seconds until `key` may try again, or `None` while it is under the
+    /// limit. Read-only: unlike [`Self::allow`], this records nothing.
+    pub fn retry_after(&self, key: &str) -> Option<u64> {
+        let now = Instant::now();
+        let mut hits = self
+            .hits
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let queue = hits.get_mut(key)?;
+        while queue
+            .front()
+            .is_some_and(|first| now.duration_since(*first) >= self.window)
+        {
+            queue.pop_front();
+        }
+        if queue.len() < self.limit {
+            return None;
+        }
+        let oldest = *queue.front()?;
+        let remaining = self.window.saturating_sub(now.duration_since(oldest));
+        Some(remaining.as_secs().max(1))
+    }
 }
 
 /// Shared request context for the monitor routes.
