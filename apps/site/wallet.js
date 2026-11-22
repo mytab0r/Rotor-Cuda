@@ -2349,6 +2349,11 @@
         unsigned: unsignedTx
       });
       if (generation !== state.generation || !state.unlocked) return;
+      /* The review is only valid for the scan and the key it was prepared
+       * from; a change during the RPC reads must not leave a stale review. */
+      var stillSelected = selectedSendEntry();
+      if (state.approvalsScan !== scan || state.approvalsScanEntryId !== entry.id) return;
+      if (!stillSelected || stillSelected.id !== entry.id) return;
       state.approvalsReview = review;
       state.approvalsReviewEntryId = entry.id;
       state.approvalsReviewSpender = spender;
@@ -2452,6 +2457,14 @@
         networkName: selectedNetwork().name
       });
       if (generation !== state.generation || !state.unlocked) return;
+      /* A selection, network, provider or form change while the scan was in
+       * flight makes this result stale: do not show it over the new selection. */
+      var stillSelected = selectedSendEntry();
+      if (!stillSelected || stillSelected.id !== entry.id) return;
+      if (Number(sendNetworkSelect.value) !== Number(scan.chainId)) return;
+      var chosenProvider = sendProviderSelect.value;
+      if (chosenProvider && chosenProvider !== scan.providerUrl) return;
+      if (approvalsTokenInput.value !== tokenText || approvalsWindowInput.value !== windowText) return;
       state.approvalsScan = scan;
       state.approvalsScanEntryId = entry.id;
       renderApprovalsTable();
@@ -2497,8 +2510,17 @@
       setError('wallet-approvals-confirm-error', 'Prepare a new revoke review first.');
       return;
     }
+    var selected = selectedSendEntry();
+    if (!selected || selected.id !== entry.id) {
+      setError('wallet-approvals-confirm-error', 'The selected key changed; prepare a new revoke review.');
+      return;
+    }
     var scan = state.approvalsScan;
     var spender = state.approvalsReviewSpender;
+    if (!scan || state.approvalsScanEntryId !== entry.id) {
+      setError('wallet-approvals-confirm-error', 'The scanned key changed; run "Find approvals" and prepare a new review.');
+      return;
+    }
 
     state.approvalsSending = true;
     var generation = state.generation;
