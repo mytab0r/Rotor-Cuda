@@ -178,7 +178,7 @@
       <label class="wallet-check" id="wallet-send-armed-row" hidden><input type="checkbox" id="wallet-send-armed"> I understand that a mainnet transaction spends real funds and cannot be reversed; arm mainnet signing for this session.</label>
       <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. Approvals and other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other chains.</p>
 
-      <label>To (0x address, EIP-55 checksum enforced)
+      <label>To (0x address; EIP-55 mixed case or all-lowercase)
         <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-send-to-error" aria-invalid="false">
       </label>
       <p class="error wallet-field-error" id="wallet-send-to-error" role="alert" hidden></p>

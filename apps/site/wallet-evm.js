@@ -201,6 +201,7 @@
   var ERC20_BALANCE_OF_SELECTOR = '0x70a08231';
   var TOKEN_MAX_DECIMALS = 24;
   var TOKEN_MAX_SYMBOL_CHARS = 32;
+  var TOKEN_DATA_ERROR = 'Data is not allowed with a token transfer; the calldata is built from the fixed ERC-20 transfer ABI.';
 
   /* EVM chains the vault can hold. */
   var EVM_CHAIN_SLUGS = SSOT_PROVIDERS.groups['evm-mainnet'].slice();
@@ -355,15 +356,13 @@
     return out;
   }
 
-  /* EIP-55 validation. All-lowercase input is accepted without a checksum (the
-   * convention) and, for a transfer recipient, so is all-uppercase; mixed case
-   * must match the EIP-55 checksum exactly. A token contract can set
-   * `requireChecksumCase` so only all-lowercase or a valid EIP-55 form passes.
+  /* EIP-55 validation. All-lowercase input is accepted without a checksum
+   * (the convention); any uppercase letter makes the address checksummed, so
+   * mixed case and all-uppercase must both match the EIP-55 checksum exactly.
    * The zero address is always refused because value sent there is
    * unrecoverable. `role` only changes that refusal's wording. */
-  function normalizeAddress(text, role, options) {
+  function normalizeAddress(text, role) {
     var what = role || 'transfer recipient';
-    var settings = options || {};
     if (typeof text !== 'string') throw new Error('Enter a 0x-prefixed 20-byte address.');
     var value = text.trim();
     if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
@@ -373,12 +372,7 @@
     if (/^0x0{40}$/.test(lower)) {
       throw new Error('The zero address cannot be a ' + what + '; value sent there is not recoverable.');
     }
-    var body = value.slice(2);
-    var hasLower = /[a-f]/.test(body);
-    var hasUpper = /[A-F]/.test(body);
-    var checked = (hasLower && hasUpper) ||
-      (hasUpper && settings.requireChecksumCase === true);
-    if (checked && checksumAddress(lower) !== value) {
+    if (/[A-F]/.test(value.slice(2)) && checksumAddress(lower) !== value) {
       throw new Error('The address fails the EIP-55 checksum. Copy it again or use the all-lowercase form.');
     }
     return lower;
@@ -525,7 +519,7 @@
 
     if (tokenWanted) {
       try {
-        values.token = normalizeAddress(tokenText, 'token contract', { requireChecksumCase: true });
+        values.token = normalizeAddress(tokenText, 'token contract');
       } catch (err) {
         fieldError(errors, 'token', errorText(err));
       }
@@ -557,8 +551,7 @@
       fieldError(errors, 'data', errorText(err));
     }
     if (tokenWanted && !errors.data && values.data !== '0x') {
-      fieldError(errors, 'data',
-        'Data is not allowed with a token transfer; the calldata is built from the fixed ERC-20 transfer ABI.');
+      fieldError(errors, 'data', TOKEN_DATA_ERROR);
     }
 
     try {
@@ -656,7 +649,7 @@
   function assertReviewedTokenTransfer(review) {
     var contract;
     try {
-      contract = normalizeAddress(review.tokenContract, 'token contract', { requireChecksumCase: true });
+      contract = normalizeAddress(review.tokenContract, 'token contract');
     } catch (err) {
       throw new Error('The reviewed token contract is invalid: ' + errorText(err) +
         ' Refusing to sign.');
@@ -1154,6 +1147,9 @@
     if (typeof settings.fetchJson !== 'function' || !review.providerUrl) {
       throw new Error('The RPC provider is missing from the review.');
     }
+    if (typeof settings.unsigned !== 'function') {
+      throw new Error('The local unsigned-transaction builder is unavailable.');
+    }
     var signTo = review.to;
     if (review.isToken) {
       signTo = assertReviewedTokenTransfer(review);
@@ -1170,19 +1166,36 @@
     }
     assertType2Hex(review.unsignedHex, 'unsigned transaction');
 
+    /* Pin the whole unsigned transaction: rebuild it from the reviewed fields
+     * and compare byte-for-byte before signing. This covers the token
+     * contract address, nonce, fees and gas too, so a review mutated after
+     * preparation cannot sign a different transaction. */
+    var fields = {
+      chain_id: String(review.chainId),
+      nonce: String(review.nonce),
+      max_priority_fee: String(review.priorityWei),
+      max_fee: String(review.maxFeeWei),
+      gas_limit: String(review.gasLimit),
+      to: signTo,
+      value: String(review.valueWei),
+      data: review.dataHex
+    };
+    var rebuilt;
+    try {
+      rebuilt = await Promise.resolve(settings.unsigned(fields));
+    } catch (err) {
+      throw new Error('Rebuilding the reviewed unsigned transaction failed: ' +
+        errorText(err) + ' Refusing to sign.');
+    }
+    assertType2Hex(rebuilt, 'rebuilt unsigned transaction');
+    if (rebuilt !== review.unsignedHex) {
+      throw new Error('The reviewed unsigned transaction does not match the reviewed ' +
+        'fields (chain id, nonce, fees, gas, to, value or data). Refusing to sign.');
+    }
+
     return read(settings.fetchJson, review.providerUrl, 'eth_chainId', [], 'the chain id')
       .then(function (chainHex) {
         assertChainId(chainHex, review.chainId);
-        var fields = {
-          chain_id: String(review.chainId),
-          nonce: String(review.nonce),
-          max_priority_fee: String(review.priorityWei),
-          max_fee: String(review.maxFeeWei),
-          gas_limit: String(review.gasLimit),
-          to: signTo,
-          value: String(review.valueWei),
-          data: review.dataHex
-        };
         return Promise.resolve(settings.sign(fields));
       })
       .then(function (signedHex) {
@@ -1229,6 +1242,7 @@
     normalizeData: normalizeData,
     transferCalldata: transferCalldata,
     decodeTokenSymbol: decodeTokenSymbol,
+    TOKEN_DATA_ERROR: TOKEN_DATA_ERROR,
     parseChainId: parseChainId,
     assertChainId: assertChainId,
     assertKnownNetwork: assertKnownNetwork,

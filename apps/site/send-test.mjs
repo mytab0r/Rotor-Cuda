@@ -21,6 +21,10 @@ require("./amount.js");
 const send = require("./send.js");
 const btc = require("./wallet-btc.js");
 const evm = require("./wallet-evm.js");
+/* The browser loads wallet-evm.js as a classic script, so send.js sees it as
+ * a global. Mirror that load order here so the shared address validator is
+ * the one under test, not send.js's emergency fallback. */
+globalThis.RotorEvmSend = evm;
 const tron = require("./tron-tx.js");
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -487,6 +491,15 @@ add("ERC-20 builder rejects absent/fabricated contracts and bad fields", () => {
   assert.throws(
     () => send.buildErc20Transfer({
       contract: USDT_CONTRACT,
+      recipient: "0x7E5F4552091A69125D5DFCB7B8C2659029395BDF",
+      amount: "1",
+    }),
+    /Recipient: The address fails the EIP-55 checksum/,
+    "an all-uppercase recipient is not silently lowercased",
+  );
+  assert.throws(
+    () => send.buildErc20Transfer({
+      contract: USDT_CONTRACT,
       recipient: USDT_RECIPIENT,
       decimals: "37",
       amount: "1",
@@ -810,6 +823,7 @@ add("Ethereum Sepolia prepare/confirm never sends the key", async () => {
   const result = await evm.confirmTransaction({
     review,
     fetchJson,
+    unsigned: () => "0x02f8",
     sign: () => EVM_SIGNED,
   });
   assert.equal(result.txHash, EVM_TX_HASH);

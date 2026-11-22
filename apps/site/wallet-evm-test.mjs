@@ -23,6 +23,12 @@ const SIGNED =
   "0x02f87483aa36a780843b9aca00847735940082520894353535353535353535353535353535353535353587038d7ea4c6800080c080a0d02b933531d628f5d2251fbf58903a4d720f9bd6c7c51f7578f7cf301f761263a012a7d571860bb8d7e71bcb6c63d265bc6fc57b250b9381cbc18c1543c282b147";
 const TX_HASH = "0x" + "ab".repeat(32);
 
+/* Deterministic stand-in for the local unsigned-transaction builder: confirm
+ * rebuilds this from the reviewed fields and compares bytes. */
+function fakeUnsigned(fields) {
+  return "0x02" + Buffer.from(JSON.stringify(fields), "utf8").toString("hex");
+}
+
 const BASE_ANSWERS = {
   eth_chainId: CHAIN,
   eth_getTransactionCount: "0x0",
@@ -96,7 +102,10 @@ test("gwei parsing uses 9 decimals and rejects malformed numbers", () => {
 });
 
 test("address and data validation are field-specific", () => {
-  assert.equal(evm.normalizeAddress(TO.toUpperCase().replace("0X", "0x")), TO);
+  assert.throws(
+    () => evm.normalizeAddress(FROM.toUpperCase().replace("0X", "0x")),
+    /EIP-55 checksum/
+  );
   assert.equal(
     evm.normalizeAddress("0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"),
     FROM
@@ -362,6 +371,7 @@ test("confirm re-checks the chain, signs the reviewed values once and broadcasts
   const result = await evm.confirmTransaction({
     review,
     fetchJson: sendMock.fetchJson,
+    unsigned: () => UNSIGNED,
     sign(fields) {
       signCalls.push(fields);
       return SIGNED;
@@ -394,6 +404,38 @@ test("confirm re-checks the chain, signs the reviewed values once and broadcasts
   }
 });
 
+test("confirm refuses a native review mutated after preparation", async () => {
+  const prepareMock = rpcMock(BASE_ANSWERS);
+  const review = await evm.prepareTransaction({
+    form: baseForm(),
+    from: FROM,
+    fetchJson: prepareMock.fetchJson,
+    unsigned: fakeUnsigned
+  });
+  const sendMock = rpcMock({ eth_chainId: CHAIN, eth_sendRawTransaction: TX_HASH });
+  let signCalls = 0;
+  for (const mutation of [
+    { nonce: review.nonce + 1n },
+    { maxFeeWei: review.maxFeeWei + 1n },
+    { to: "0x" + "35".repeat(19) + "36" }
+  ]) {
+    await assert.rejects(
+      () => evm.confirmTransaction({
+        review: { ...review, ...mutation },
+        fetchJson: sendMock.fetchJson,
+        unsigned: fakeUnsigned,
+        sign() {
+          signCalls += 1;
+          return SIGNED;
+        }
+      }),
+      /does not match the reviewed fields/
+    );
+  }
+  assert.equal(signCalls, 0);
+  assert.equal(sendMock.calls.length, 0);
+});
+
 test("confirm refuses to sign if the provider switched chains after review", async () => {
   const prepareMock = rpcMock(BASE_ANSWERS);
   const review = await evm.prepareTransaction({
@@ -409,6 +451,7 @@ test("confirm refuses to sign if the provider switched chains after review", asy
       evm.confirmTransaction({
         review,
         fetchJson: sendMock.fetchJson,
+        unsigned: () => UNSIGNED,
         sign() {
           signCalls += 1;
           return SIGNED;
@@ -455,6 +498,7 @@ test("an RPC error during broadcast is reported with its provider", async () => 
       evm.confirmTransaction({
         review,
         fetchJson: sendMock.fetchJson,
+        unsigned: () => UNSIGNED,
         sign: () => SIGNED
       }),
     /Broadcasting to publicnode\.com failed: insufficient funds for gas \* price \+ value/

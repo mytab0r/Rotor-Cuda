@@ -79,6 +79,12 @@ function abiBytes32(text) {
   return "0x" + Buffer.from(text, "utf8").toString("hex").padEnd(64, "0");
 }
 
+/* Deterministic stand-in for the local unsigned-transaction builder: the
+ * confirm step rebuilds this from the reviewed fields and compares bytes. */
+function fakeUnsigned(fields) {
+  return "0x02" + Buffer.from(JSON.stringify(fields), "utf8").toString("hex");
+}
+
 /* Stub RPC: eth_getCode and the three eth_call selectors answer from the
  * options; everything else is the fixed mainnet baseline. */
 function rpcMock(options = {}) {
@@ -148,7 +154,7 @@ function tokenOptions(overrides = {}) {
     from: FROM,
     expectedChainId: 1,
     mainnetArmed: true,
-    unsigned: () => "0x02f8",
+    unsigned: fakeUnsigned,
     ...overrides
   };
 }
@@ -166,8 +172,10 @@ test("transfer calldata matches an independent encoding and the ethers vector", 
     (1000000n).toString(16).padStart(64, "0");
   assert.equal(independent, CALLDATA);
   assert.equal(evm.transferCalldata(RECIPIENT, 1000000n), CALLDATA);
-  assert.equal(evm.transferCalldata(RECIPIENT.toUpperCase().replace("0X", "0x"), 1n),
-    "0xa9059cbb" + RECIPIENT.slice(2).padStart(64, "0") + word(1));
+  assert.throws(
+    () => evm.transferCalldata(FROM.toUpperCase().replace("0X", "0x"), 1n),
+    /EIP-55 checksum/
+  );
 });
 
 test("transfer calldata refuses a zero recipient, a zero amount and a uint256 overflow", () => {
@@ -193,10 +201,16 @@ test("a token form validates the contract and keeps data empty", () => {
   assert.equal(lower.values.token, "0x" + "ab".repeat(20));
 
   const withData = evm.validateForm(tokenForm({ data: "0xabcd" }));
+  assert.equal(withData.errors.data, evm.TOKEN_DATA_ERROR);
   assert.match(withData.errors.data, /Data is not allowed with a token transfer/);
 
   const zero = evm.validateForm(tokenForm({ value: "0" }));
   assert.match(zero.errors.value, /must be greater than zero/);
+
+  const upperRecipient = evm.validateForm(tokenForm({
+    to: FROM.toUpperCase().replace("0X", "0x")
+  }));
+  assert.match(upperRecipient.errors.to, /fails the EIP-55 checksum/);
 
   const bad = evm.validateForm(tokenForm({ value: "1e3" }));
   assert.match(bad.errors.value, /plain decimal token amount/);
@@ -387,7 +401,7 @@ test("confirm re-reads the chain, signs the token fields once and broadcasts onc
   const prepareMock = rpcMock();
   const review = await evm.prepareTransaction(tokenOptions({
     fetchJson: prepareMock.fetchJson,
-    unsigned: () => "0x02f8"
+    unsigned: fakeUnsigned
   }));
 
   const sendMock = rpcMock({ chainId: "0x1" });
@@ -396,6 +410,7 @@ test("confirm re-reads the chain, signs the token fields once and broadcasts onc
     review,
     fetchJson: sendMock.fetchJson,
     mainnetArmed: true,
+    unsigned: fakeUnsigned,
     sign(fields) {
       signCalls.push(fields);
       return VECTOR_RAW;
@@ -432,7 +447,7 @@ test("confirm refuses a chain switch after review and does not sign", async () =
   const prepareMock = rpcMock();
   const review = await evm.prepareTransaction(tokenOptions({
     fetchJson: prepareMock.fetchJson,
-    unsigned: () => "0x02f8"
+    unsigned: fakeUnsigned
   }));
   const sendMock = rpcMock({ chainId: SEPOLIA_CHAIN });
   let signCalls = 0;
@@ -441,6 +456,7 @@ test("confirm refuses a chain switch after review and does not sign", async () =
       review,
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: fakeUnsigned,
       sign() {
         signCalls += 1;
         return VECTOR_RAW;
@@ -456,7 +472,7 @@ test("a mutated token review cannot change the recipient, amount or native value
   const prepareMock = rpcMock();
   const review = await evm.prepareTransaction(tokenOptions({
     fetchJson: prepareMock.fetchJson,
-    unsigned: () => "0x02f8"
+    unsigned: fakeUnsigned
   }));
   const sendMock = rpcMock({ chainId: "0x1" });
   let signCalls = 0;
@@ -470,6 +486,7 @@ test("a mutated token review cannot change the recipient, amount or native value
       review: { ...review, to: "0x" + "35".repeat(19) + "36" },
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: fakeUnsigned,
       sign
     }),
     /The reviewed token calldata does not match the reviewed recipient and amount\. Refusing to sign\./
@@ -479,6 +496,7 @@ test("a mutated token review cannot change the recipient, amount or native value
       review: { ...review, tokenAmountWei: review.tokenAmountWei + 1n },
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: fakeUnsigned,
       sign
     }),
     /The reviewed token calldata does not match the reviewed recipient and amount\. Refusing to sign\./
@@ -488,9 +506,58 @@ test("a mutated token review cannot change the recipient, amount or native value
       review: { ...review, valueWei: 1n },
       fetchJson: sendMock.fetchJson,
       mainnetArmed: true,
+      unsigned: fakeUnsigned,
       sign
     }),
     /A token transfer must not send native value; the reviewed value is not zero\. Refusing to sign\./
+  );
+  assert.equal(signCalls, 0);
+  assert.equal(sendMock.calls.length, 0);
+});
+
+test("a mutated token contract, nonce or fee is refused by the unsigned pin", async () => {
+  const prepareMock = rpcMock();
+  const review = await evm.prepareTransaction(tokenOptions({
+    fetchJson: prepareMock.fetchJson,
+    unsigned: fakeUnsigned
+  }));
+  const sendMock = rpcMock({ chainId: "0x1" });
+  let signCalls = 0;
+  const sign = () => {
+    signCalls += 1;
+    return VECTOR_RAW;
+  };
+  const otherToken = "0x" + "22".repeat(20);
+
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review: { ...review, tokenContract: otherToken },
+      fetchJson: sendMock.fetchJson,
+      mainnetArmed: true,
+      unsigned: fakeUnsigned,
+      sign
+    }),
+    /The reviewed unsigned transaction does not match the reviewed fields \(chain id, nonce, fees, gas, to, value or data\)\. Refusing to sign\./
+  );
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review: { ...review, nonce: review.nonce + 1n },
+      fetchJson: sendMock.fetchJson,
+      mainnetArmed: true,
+      unsigned: fakeUnsigned,
+      sign
+    }),
+    /does not match the reviewed fields/
+  );
+  await assert.rejects(
+    () => evm.confirmTransaction({
+      review: { ...review, maxFeeWei: review.maxFeeWei + 1n },
+      fetchJson: sendMock.fetchJson,
+      mainnetArmed: true,
+      unsigned: fakeUnsigned,
+      sign
+    }),
+    /does not match the reviewed fields/
   );
   assert.equal(signCalls, 0);
   assert.equal(sendMock.calls.length, 0);
@@ -500,7 +567,7 @@ test("a prepared token review cannot be confirmed after the arm is removed", asy
   const prepareMock = rpcMock();
   const review = await evm.prepareTransaction(tokenOptions({
     fetchJson: prepareMock.fetchJson,
-    unsigned: () => "0x02f8"
+    unsigned: fakeUnsigned
   }));
   const sendMock = rpcMock({ chainId: "0x1" });
   await assert.rejects(
@@ -508,6 +575,7 @@ test("a prepared token review cannot be confirmed after the arm is removed", asy
       review,
       fetchJson: sendMock.fetchJson,
       mainnetArmed: false,
+      unsigned: fakeUnsigned,
       sign: () => VECTOR_RAW
     }),
     /Mainnet signing is not armed/
