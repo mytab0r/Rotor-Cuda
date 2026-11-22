@@ -809,6 +809,14 @@
       "implemented_in": null,
       "doc_anchor": "docs/design-system/plan.md#3-detector-backlog",
       "status": "planned"
+    },
+    {
+      "id": "error-message-contrast",
+      "rule": "Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err.",
+      "batch": "phase 4",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
     }
   ]
 }

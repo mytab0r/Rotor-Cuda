@@ -761,6 +761,7 @@ standalone freshness gate.
 | `tooltip-naming` | The accessible name is independent of the tooltip and aria-describedby resolves. | 2 | planned |
 | `tooltip-timing` | Tooltip shows after a 400ms delay and Escape dismisses it. | 2 | planned |
 | `status-line-margin` | Text-only status lines use a top margin in {8,12}. | 1/3 | planned |
+| `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in
