@@ -83,6 +83,15 @@
         ],
         "createdAt": "2026-11-21T19:42:45.444Z",
         "reason": "Gallery renders production component geometry: .badge/.monitor-chain/.pz-pill keep the DESIGN-SYSTEM 3.5 2px vertical inset (20px pill), and .table-scroll is the mandated wrapper with padding 0 whose .data-table cells carry the 8/12px text inset (same exception as range/me/app/key pages)"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/admin.html"
+        ],
+        "createdAt": "2026-11-22T01:11:19.852Z",
+        "reason": "Only finding is the mandated .table-scroll wrapper: padding 0 by the table grammar, .data-table cells carry the 8/12 inset. Same sanctioned exception as range/me/app/key/design."
       }
     ]
   }
