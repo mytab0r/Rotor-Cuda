@@ -563,6 +563,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "puzzle-jobs-table-grammar",
+      "reported": "2026-11-22",
+      "symptom": "The public puzzle jobs table rendered only when the job store was non-empty, and that state was never audited, so table.puzzle-table shipped without .data-table and the shared 8/12 cell padding and 12px/600 header style; the empty --serve store hid it (issue #261).",
+      "detector": "table-grammar",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "wallet-history-unchecked",
       "reported": "2026-11-22",
       "symptom": "The wallet had no transaction history. An EVM address without an indexer would have shown an empty list pretending there was no history, and a new table could have shipped without a detector for its shared shell, 44px action, truncated counterparty title, status pills, loading/empty/error states or the honest EVM-unavailable message.",

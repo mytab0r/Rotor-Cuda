@@ -1,29 +1,45 @@
 #!/usr/bin/env node
 // Mirror OpenSpec changes and open pull requests into the "Rotor" GitHub
-// Project (owner mytab0r, number 3). Node 20 built-ins only; the script uses
-// the local `gh` login and needs no extra token or secret.
+// Project (owner mytab0r, number 3), and keep the task-tracking issues in
+// sync: one epic issue per change, one sub-issue per task section in
+// `tasks.md`, `Blocked by: ROT-<n>` edges, and a `Closes #<n>` reference in
+// every PR that names a task key.
+//
+// Node 20 built-ins only; the script uses the local `gh` login and needs no
+// extra token or secret. The convention is docs/process/task-tracking.md.
 //
 // Usage:
 //   node scripts/sync-board.mjs --dry-run   # print the plan, change nothing
 //   node scripts/sync-board.mjs             # apply
 //
-// Idempotency: one issue per change, found by the body marker
-// `<!-- openspec-change: <id> -->`. Project items are matched by URL.
+// Idempotency: epics are found by `<!-- openspec-change: <id> -->`, tasks by
+// `<!-- openspec-task: <change>/<slug> -->`. Project items are matched by URL.
+// This script creates and updates issues; it never closes or deletes one.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  archiveStalePullRequestItems,
+  branchMatchesChange,
+  closingIssueNumbers,
+  epicBody,
+  filesBelongToChange,
+  linkSubIssueToEpic,
+  parseTaskDirective,
+  parseTasksMarkdown,
+  syncChangeTasks,
+} from "./lib/task-tracking.mjs";
 
 const REPO = "mytab0r/Rotor-Cuda";
 const OWNER = "mytab0r";
 const PROJECT_NUMBER = 3;
 const REPO_URL = `https://github.com/${REPO}`;
 const PROJECT_URL = `https://github.com/users/${OWNER}/projects/${PROJECT_NUMBER}`;
-const MAX_TASKS_IN_BODY = 100;
 const AREA_OPTIONS = ["site", "coordinator", "desktop", "infra", "design", "docs"];
-const MARKER_RE = /<!--\s*openspec-change:\s*([^\s>]+)\s*-->/;
+const EPIC_MARKER_RE = /<!--\s*openspec-change:\s*([^\s>]+)\s*-->/;
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CHANGES_DIR = path.join(REPO_ROOT, "openspec", "changes");
@@ -146,6 +162,8 @@ function readChanges() {
     throw new Error(`missing ${path.relative(REPO_ROOT, CHANGES_DIR)}`);
   }
   const changes = [];
+  const skipped = [];
+  const empty = [];
   const ids = fs
     .readdirSync(CHANGES_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
@@ -154,70 +172,63 @@ function readChanges() {
 
   for (const id of ids) {
     const tasksPath = path.join(CHANGES_DIR, id, "tasks.md");
-    if (!fs.existsSync(tasksPath)) continue;
-
-    const remaining = [];
-    let done = 0;
-    let total = 0;
-    for (const line of fs.readFileSync(tasksPath, "utf8").split(/\r?\n/)) {
-      const match = line.match(/^\s*-\s*\[([ xX])\]/);
-      if (!match) continue;
-      total += 1;
-      if (match[1] === " ") remaining.push(line.trimEnd());
-      else done += 1;
+    if (!fs.existsSync(tasksPath)) {
+      skipped.push(id);
+      continue;
     }
-    if (total === 0) continue;
+
+    const parsed = parseTasksMarkdown(fs.readFileSync(tasksPath, "utf8"));
+    const taskSections = parsed.sections.filter(
+      (section) => section.total > 0 && !section.excluded,
+    );
+    const total = taskSections.reduce((sum, section) => sum + section.total, 0);
+    const done = taskSections.reduce((sum, section) => sum + section.done, 0);
+    if (total === 0) {
+      empty.push(id);
+      continue;
+    }
 
     const idText = `${id} ${titleFor(id)}`;
     const inferred = areaFromText(idText);
     changes.push({
       id,
       folder: `openspec/changes/${id}`,
+      title: titleFor(id),
+      sections: parsed.sections,
       done,
       total,
       percent: Math.round((done / total) * 100),
-      remaining,
-      title: titleFor(id),
       area: inferred ?? "site",
       defaultArea: inferred === null,
     });
   }
-  return changes;
+  return { changes, skipped, empty, allIds: ids };
 }
 
-function issueBody(change) {
+function provisionalEpicBody(change) {
   const lines = [
     `Folder: [\`${change.folder}/\`](${REPO_URL}/tree/main/${change.folder})`,
     "",
-    `Progress: ${change.done}/${change.total} tasks (${change.percent}%)`,
+    "Progress: pending sub-issue sync",
     "",
+    `Source of truth: \`${change.folder}/tasks.md\``,
+    "",
+    `<!-- openspec-change: ${change.id} -->`,
   ];
-  if (change.remaining.length === 0) {
-    lines.push("No remaining tasks.");
-  } else {
-    lines.push("Remaining tasks:");
-    for (const task of change.remaining.slice(0, MAX_TASKS_IN_BODY)) lines.push(task);
-    const hidden = change.remaining.length - MAX_TASKS_IN_BODY;
-    if (hidden > 0) {
-      lines.push("", `- ... and ${hidden} more tasks not shown; see the tasks file.`);
-    }
-  }
-  lines.push("", `Source of truth: \`${change.folder}/tasks.md\``);
   if (change.defaultArea) lines.push("", "<!-- area-default: site -->");
-  lines.push("", `<!-- openspec-change: ${change.id} -->`);
   return `${lines.join("\n")}\n`;
-}
-
-function labelsOf(issue) {
-  return (issue.labels ?? []).map((label) =>
-    typeof label === "string" ? label : label.name,
-  );
 }
 
 function issueNumberFromUrl(url) {
   const match = /\/issues\/(\d+)$/.exec(url);
   if (!match) throw new Error(`cannot parse issue number from ${url}`);
   return Number(match[1]);
+}
+
+function labelsOf(issue) {
+  return (issue.labels ?? []).map((label) =>
+    typeof label === "string" ? label : label.name,
+  );
 }
 
 function itemUrl(item) {
@@ -228,6 +239,37 @@ function statusName(percent) {
   if (percent === 0) return "todo";
   if (percent === 100) return "done";
   return "in progress";
+}
+
+function epicPercent(change, sync) {
+  const total = sync.subIssues.length + sync.planned;
+  if (total > 0) {
+    const closed = sync.subIssues.filter((issue) => issue.state === "CLOSED").length;
+    return Math.round((closed / total) * 100);
+  }
+  return change.percent;
+}
+
+// A PR belongs to a change when its head branch follows the branch convention
+// `<type>/<change-id>-<slug>` and no longer registered change id makes that
+// ambiguous, or when its diff touches the change folder. Any other match is
+// reported instead of editing the body.
+function prBelongsToChange(pr, changeId, changeIds) {
+  if (branchMatchesChange(pr.headRefName, changeId, changeIds) === "match") {
+    return true;
+  }
+  try {
+    const files =
+      ghJson(["pr", "view", String(pr.number), "--repo", REPO, "--json", "files"])
+        ?.files ?? [];
+    return filesBelongToChange(
+      files.map((file) => file.path),
+      changeId,
+    );
+  } catch (error) {
+    console.log(`warning: cannot read files of PR #${pr.number}: ${error.message}`);
+    return false;
+  }
 }
 
 function main() {
@@ -254,6 +296,28 @@ function main() {
     if (!labelNames.has(required)) {
       throw new Error(`missing label "${required}" in ${REPO}; create it before syncing`);
     }
+  }
+
+  function ensureLabel(name) {
+    if (labelNames.has(name)) return;
+    if (DRY_RUN) {
+      console.log(`[dry-run] create label ${name}`);
+      labelNames.add(name);
+      return;
+    }
+    gh([
+      "label",
+      "create",
+      name,
+      "--repo",
+      REPO,
+      "--color",
+      "5319E7",
+      "--description",
+      `OpenSpec change ${name.replace(/^change:/, "")}`,
+    ]);
+    labelNames.add(name);
+    console.log(`created label ${name}`);
   }
 
   const project = ghJson([
@@ -412,7 +476,17 @@ function main() {
     gh(args);
   }
 
-  const changes = readChanges();
+  const { changes, skipped, empty, allIds } = readChanges();
+  if (skipped.length > 0) {
+    console.log(
+      `warning: OpenSpec changes without tasks.md are not synced: ${skipped.join(", ")}`,
+    );
+  }
+  if (empty.length > 0) {
+    console.log(
+      `warning: OpenSpec changes with no checkbox tasks are not synced: ${empty.join(", ")}`,
+    );
+  }
   const issuesEnabled = repoInfo.hasIssuesEnabled;
   const issues = issuesEnabled
     ? ghJson([
@@ -423,129 +497,201 @@ function main() {
         "--state",
         "all",
         "--limit",
-        "500",
+        "1000",
         "--json",
-        "number,title,body,url,labels,state",
+        "number,id,title,body,url,labels,state",
       ]) ?? []
     : [];
   if (!issuesEnabled) {
     console.log("warning: GitHub Issues are disabled; dry run assumes no existing issues");
   }
 
-  const issueByChange = new Map();
+  const epicByChange = new Map();
   for (const issue of issues) {
-    const match = MARKER_RE.exec(issue.body ?? "");
-    if (match) issueByChange.set(match[1], issue);
+    const match = EPIC_MARKER_RE.exec(issue.body ?? "");
+    if (match && !epicByChange.has(match[1])) epicByChange.set(match[1], issue);
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "rotor-board-"));
-  let created = 0;
-  let updated = 0;
-  let unchanged = 0;
+  let epicsCreated = 0;
+  let epicsUpdated = 0;
+  let epicsUnchanged = 0;
+  let tasksCreated = 0;
+  let tasksUpdated = 0;
+  let tasksUnchanged = 0;
+  const subIssueByNumber = new Map();
 
   try {
     for (const change of changes) {
-      const body = issueBody(change);
-      const desiredLabels = ["epic", `area:${change.area}`];
-      const existing = issueByChange.get(change.id);
+      let epic = epicByChange.get(change.id) ?? null;
 
-      if (!existing) {
-        const status = statusOption(change.percent).name;
+      if (!epic) {
+        epicsCreated += 1;
         if (DRY_RUN) {
           console.log(
-            `[dry-run] create issue ${change.title} ` +
-              `[${desiredLabels.join(", ")}] progress ${change.done}/${change.total}`,
+            `[dry-run] create epic issue ${change.title} ` +
+              `[epic, area:${change.area}]`,
           );
-          console.log(
-            `[dry-run] project fields for ${change.id}: ` +
-              `Area=${change.area}, Progress=${change.percent}, Status=${status}`,
-          );
-          continue;
-        }
-        const bodyPath = path.join(tempDir, `${change.id}.md`);
-        fs.writeFileSync(bodyPath, body);
-        const url = gh([
-          "issue",
-          "create",
-          "--repo",
-          REPO,
-          "--title",
-          change.title,
-          "--body-file",
-          bodyPath,
-          "--label",
-          "epic",
-          "--label",
-          `area:${change.area}`,
-        ]);
-        if (!url) throw new Error(`gh issue create returned no URL for ${change.id}`);
-        created += 1;
-        console.log(`created issue ${url} (${change.done}/${change.total})`);
-        const number = issueNumberFromUrl(url);
-        const item = ensureItem(url, `issue #${number}`);
-        setField(item, areaField, change.area, change.area);
-        setField(item, progressField, String(change.percent), `${change.percent}%`);
-        setField(item, statusField, status, status);
-        continue;
-      }
-
-      const currentLabels = labelsOf(existing);
-      const areaToRemove = currentLabels.filter(
-        (name) => name.startsWith("area:") && name !== `area:${change.area}`,
-      );
-      const needsEdit =
-        existing.title !== change.title ||
-        (existing.body ?? "").trim() !== body.trim() ||
-        !currentLabels.includes("epic") ||
-        !currentLabels.includes(`area:${change.area}`) ||
-        areaToRemove.length > 0;
-
-      if (needsEdit) {
-        if (DRY_RUN) {
-          console.log(`[dry-run] update issue #${existing.number}: ${change.title}`);
         } else {
-          const bodyPath = path.join(tempDir, `${change.id}.md`);
-          fs.writeFileSync(bodyPath, body);
-          const args = [
+          const bodyPath = path.join(tempDir, `epic-${change.id}.md`);
+          fs.writeFileSync(bodyPath, provisionalEpicBody(change));
+          const url = gh([
             "issue",
-            "edit",
-            String(existing.number),
+            "create",
             "--repo",
             REPO,
             "--title",
             change.title,
             "--body-file",
             bodyPath,
-            "--add-label",
+            "--label",
             "epic",
-            "--add-label",
+            "--label",
             `area:${change.area}`,
-          ];
-          for (const label of areaToRemove) args.push("--remove-label", label);
-          gh(args);
-          updated += 1;
-          console.log(`updated issue #${existing.number} (${change.done}/${change.total})`);
+          ]);
+          if (!url) throw new Error(`gh issue create returned no URL for ${change.id}`);
+          const number = issueNumberFromUrl(url);
+          const viewed = ghJson([
+            "issue",
+            "view",
+            String(number),
+            "--repo",
+            REPO,
+            "--json",
+            "id,number",
+          ]);
+          epic = {
+            number,
+            id: viewed?.id ?? null,
+            url,
+            title: change.title,
+            body: provisionalEpicBody(change),
+            state: "OPEN",
+            labels: ["epic", `area:${change.area}`],
+          };
+          console.log(`created epic issue ${url}`);
         }
-      } else {
-        unchanged += 1;
-        console.log(`issue #${existing.number} is current (${change.done}/${change.total})`);
       }
 
-      // The project's "Auto-close issue" workflow closes an issue when Status
-      // becomes Done. If tasks regress, put the issue back on the board.
-      if (existing.state === "CLOSED" && change.percent < 100) {
-        if (DRY_RUN) {
-          console.log(`[dry-run] reopen issue #${existing.number} (${change.percent}%)`);
+      const sync = syncChangeTasks({
+        changeId: change.id,
+        epicNumber: epic?.number ?? null,
+        tasks: change.sections,
+        existingIssues: issues,
+        gh,
+        ghJson,
+        repo: REPO,
+        dryRun: DRY_RUN,
+        tempDir,
+        log: (line) => console.log(line),
+        areaForTask: (task) => areaFromText(`${change.id} ${task.title}`) ?? change.area,
+        ensureLabel,
+        onPlanned: (planned) => {
+          console.log(
+            `[dry-run] planned sub-issue ${planned.changeId}/${planned.slug}: ${planned.title}`,
+          );
+        },
+      });
+      tasksCreated += sync.created;
+      tasksUpdated += sync.updated;
+      tasksUnchanged += sync.unchanged;
+      for (const issue of sync.subIssues) {
+        subIssueByNumber.set(issue.number, { ...issue, changeId: change.id });
+      }
+
+      const percent = epicPercent(change, sync);
+
+      if (epic) {
+        const body = epicBody({
+          change,
+          subIssues: sync.subIssues,
+          planned: sync.planned,
+          percent,
+          repoUrl: REPO_URL,
+        });
+        const currentLabels = labelsOf(epic);
+        const areaToRemove = currentLabels.filter(
+          (name) => name.startsWith("area:") && name !== `area:${change.area}`,
+        );
+        const needsEdit =
+          epic.title !== change.title ||
+          (epic.body ?? "").trim() !== body.trim() ||
+          !currentLabels.includes("epic") ||
+          !currentLabels.includes(`area:${change.area}`) ||
+          areaToRemove.length > 0;
+
+        if (needsEdit) {
+          if (DRY_RUN) {
+            console.log(`[dry-run] update epic issue #${epic.number}: ${change.title}`);
+          } else {
+            const bodyPath = path.join(tempDir, `epic-${change.id}.md`);
+            fs.writeFileSync(bodyPath, body);
+            const args = [
+              "issue",
+              "edit",
+              String(epic.number),
+              "--repo",
+              REPO,
+              "--title",
+              change.title,
+              "--body-file",
+              bodyPath,
+              "--add-label",
+              "epic",
+              "--add-label",
+              `area:${change.area}`,
+            ];
+            for (const label of areaToRemove) args.push("--remove-label", label);
+            gh(args);
+            epicsUpdated += 1;
+            console.log(`updated epic issue #${epic.number} (${percent}%)`);
+          }
         } else {
-          gh(["issue", "reopen", String(existing.number), "--repo", REPO]);
-          console.log(`reopened issue #${existing.number} (${change.percent}%)`);
+          epicsUnchanged += 1;
+          console.log(`epic issue #${epic.number} is current (${percent}%)`);
         }
+
+        // The project's "Auto-close issue" workflow closes an issue when Status
+        // becomes Done. If tasks regress, put the epic back on the board.
+        if (epic.state === "CLOSED" && percent < 100) {
+          if (DRY_RUN) {
+            console.log(`[dry-run] reopen epic issue #${epic.number} (${percent}%)`);
+          } else {
+            gh(["issue", "reopen", String(epic.number), "--repo", REPO]);
+            console.log(`reopened epic issue #${epic.number} (${percent}%)`);
+          }
+        }
+
+        const epicItem = ensureItem(epic.url, `epic #${epic.number}`);
+        setField(epicItem, areaField, change.area, change.area);
+        setField(epicItem, progressField, String(percent), `${percent}%`);
+        setField(epicItem, statusField, statusOption(percent).name, statusOption(percent).name);
       }
 
-      const item = ensureItem(existing.url, `issue #${existing.number}`);
-      setField(item, areaField, change.area, change.area);
-      setField(item, progressField, String(change.percent), `${change.percent}%`);
-      setField(item, statusField, statusOption(change.percent).name, statusOption(change.percent).name);
+      for (const issue of sync.subIssues) {
+        const item = ensureItem(issue.url, `sub-issue #${issue.number}`);
+        setField(item, areaField, issue.area ?? change.area, issue.area ?? change.area);
+      }
+
+      if (epic) {
+        for (const issue of sync.subIssues) {
+          linkSubIssueToEpic({
+            ghJson,
+            repo: REPO,
+            epicNumber: epic.number,
+            epicId: epic.id ?? null,
+            subIssueNumber: issue.number,
+            dryRun: DRY_RUN,
+            log: (line) => console.log(line),
+          });
+        }
+      } else if (DRY_RUN) {
+        for (const issue of sync.subIssues) {
+          console.log(
+            `[dry-run] link sub-issue #${issue.number} under a new epic for ${change.id}`,
+          );
+        }
+      }
     }
 
     const prs = ghJson([
@@ -558,10 +704,14 @@ function main() {
       "--limit",
       "100",
       "--json",
-      "number,title,url,headRefName",
+      "number,title,url,headRefName,body",
     ]) ?? [];
 
     let prsAdded = 0;
+    let prLinksAdded = 0;
+    const prsWithoutTask = [];
+    const prReports = [];
+
     for (const pr of prs) {
       let area = areaFromText(`${pr.headRefName} ${pr.title}`);
       if (!area) {
@@ -585,7 +735,70 @@ function main() {
       if (DRY_RUN && !existed) {
         console.log(`[dry-run] project fields for PR #${pr.number}: Area=${area}`);
       }
+
+      const directive = parseTaskDirective(pr.body ?? "");
+      if (directive.kind === "missing") {
+        prsWithoutTask.push(pr.number);
+      } else if (directive.kind === "invalid") {
+        prReports.push(
+          `PR #${pr.number}: \`Task:\` line is not a ROT key: ${directive.raw}`,
+        );
+      } else if (directive.kind === "key") {
+        const record = subIssueByNumber.get(directive.number);
+        if (!record) {
+          prReports.push(
+            `PR #${pr.number}: ${directive.key} does not match a synced sub-issue (issue #${directive.number}).`,
+          );
+          continue;
+        }
+        const closes = closingIssueNumbers(pr.body ?? "");
+        if (closes.includes(directive.number)) continue;
+        const other = closes.filter((number) => number !== directive.number);
+        if (other.length > 0) {
+          prReports.push(
+            `PR #${pr.number}: closes #${other[0]}, expected #${directive.number}; body left unchanged.`,
+          );
+          continue;
+        }
+        if (!prBelongsToChange(pr, record.changeId, allIds)) {
+          prReports.push(
+            `PR #${pr.number}: cannot prove the diff belongs to ${record.changeId}; ` +
+              `add \`Closes #${directive.number}\` manually.`,
+          );
+          continue;
+        }
+        if (DRY_RUN) {
+          console.log(
+            `[dry-run] append \`Closes #${directive.number}\` to PR #${pr.number} (${directive.key})`,
+          );
+        } else {
+          const bodyPath = path.join(tempDir, `pr-${pr.number}.md`);
+          const nextBody = `${(pr.body ?? "").trimEnd()}\n\nCloses #${directive.number}\n`;
+          fs.writeFileSync(bodyPath, nextBody);
+          gh([
+            "pr",
+            "edit",
+            String(pr.number),
+            "--repo",
+            REPO,
+            "--body-file",
+            bodyPath,
+          ]);
+          prLinksAdded += 1;
+          console.log(`linked PR #${pr.number} to #${directive.number} (${directive.key})`);
+        }
+      }
     }
+
+    const archive = archiveStalePullRequestItems({
+      items,
+      openPullRequestNumbers: new Set(prs.map((pr) => pr.number)),
+      projectId: project.id,
+      ghJson,
+      repo: REPO,
+      dryRun: DRY_RUN,
+      log: (line) => console.log(line),
+    });
 
     const projectItems =
       DRY_RUN
@@ -604,8 +817,20 @@ function main() {
 
     console.log("");
     console.log(`changes: ${changes.length}`);
-    console.log(`issues created: ${created}, updated: ${updated}, unchanged: ${unchanged}`);
-    console.log(`open PRs seen: ${prs.length}; new PR items: ${prsAdded}`);
+    console.log(
+      `epics created: ${epicsCreated}, updated: ${epicsUpdated}, unchanged: ${epicsUnchanged}`,
+    );
+    console.log(
+      `sub-issue tasks created: ${tasksCreated}, updated: ${tasksUpdated}, unchanged: ${tasksUnchanged}`,
+    );
+    console.log(`open PRs seen: ${prs.length}; new PR items: ${prsAdded}; PR links added: ${prLinksAdded}`);
+    console.log(`stale PR items archived: ${archive.archived}`);
+    if (skipped.length > 0) console.log(`changes without tasks.md: ${skipped.join(", ")}`);
+    if (empty.length > 0) console.log(`changes without checkbox tasks: ${empty.join(", ")}`);
+    if (prsWithoutTask.length > 0) {
+      console.log(`PRs without a Task line: ${prsWithoutTask.join(", ")}`);
+    }
+    for (const report of prReports) console.log(`report: ${report}`);
     console.log(`project items: ${projectItems}`);
     console.log(`project: ${PROJECT_URL}`);
     if (DRY_RUN) console.log("dry run: no changes were made");
