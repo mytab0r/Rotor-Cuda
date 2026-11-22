@@ -28,7 +28,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 use num_bigint::BigUint;
@@ -773,7 +773,7 @@ fn handle(app: Arc<App>, request: Request) {
     // helper can serve an admin surface. Admin JS/CSS stay public (the login
     // page needs them) and carry the same no-store headers.
     if is_admin_route(path) {
-        handle_admin(&app, request, &method, path);
+        handle_admin(&app, request, &method, path, query);
         return;
     }
     let admin_asset_entry = prefixed_asset_path(path)
@@ -1099,7 +1099,7 @@ fn admin_origin_allowed(request: &Request) -> bool {
     })
 }
 
-fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str) {
+fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str, query: &str) {
     if method == &Method::Post && path == "/cabinet/admin/login" {
         return admin_login(app, request);
     }
@@ -1114,6 +1114,42 @@ fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str) {
         return match (method, path) {
             (Method::Get | Method::Head, "/cabinet/admin/api/overview") => {
                 admin_overview(app, request)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/clients") => {
+                admin_clients(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/monitor/users") => {
+                admin_monitor_users(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/monitor/events") => {
+                admin_monitor_events(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/jobs") => {
+                admin_jobs(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/workers") => {
+                admin_workers(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/leases") => {
+                admin_leases(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/orders") => {
+                admin_orders(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/payments") => {
+                admin_payments(app, request, query)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/providers") => {
+                admin_providers(app, request)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/integrations") => {
+                admin_integrations(app, request)
+            }
+            (Method::Get | Method::Head, "/cabinet/admin/api/audit") => admin_audit(request, query),
+            (Method::Get | Method::Head, _)
+                if path.starts_with("/cabinet/admin/api/monitor/users/") =>
+            {
+                admin_monitor_user(app, request, path, query)
             }
             _ => respond_admin_json(request, 404, &json!({"error": "not found"})),
         };
@@ -1137,9 +1173,24 @@ fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str) {
         (Method::Get | Method::Head, "/cabinet/admin/design") => {
             respond_admin_page(request, "/cabinet/admin/design", DESIGN_PAGE);
         }
+        (Method::Get | Method::Head, panel) if ADMIN_PANEL_ROUTES.contains(&panel) => {
+            respond_admin_page(request, panel, ADMIN_PAGE);
+        }
         _ => respond_admin_not_found(request),
     }
 }
+
+/// Read-only cabinet panels served by the same shell; `admin.js` selects the
+/// section from the pathname.
+const ADMIN_PANEL_ROUTES: [&str; 7] = [
+    "/cabinet/admin/clients",
+    "/cabinet/admin/monitor",
+    "/cabinet/admin/jobs",
+    "/cabinet/admin/orders",
+    "/cabinet/admin/providers",
+    "/cabinet/admin/integrations",
+    "/cabinet/admin/audit",
+];
 
 #[derive(Deserialize)]
 struct AdminLoginRequest {
@@ -1290,6 +1341,272 @@ fn admin_overview(app: &Arc<App>, request: Request) {
             "totals": status.totals,
         }),
     );
+}
+
+/// Bounded pagination for the read-only admin inventory. `page` is 1-based;
+/// `page_size` defaults to 50 and never exceeds 200.
+#[derive(Clone, Copy, Debug)]
+struct PageQuery {
+    page: usize,
+    page_size: usize,
+}
+
+impl PageQuery {
+    fn offset(self) -> usize {
+        self.page.saturating_sub(1).saturating_mul(self.page_size)
+    }
+}
+
+fn page_query(query: &str) -> PageQuery {
+    let page = query_param(query, "page")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(1)
+        .max(1);
+    let page_size = query_param(query, "page_size")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(50)
+        .clamp(1, 200);
+    PageQuery { page, page_size }
+}
+
+fn page_body<T: serde::Serialize>(items: Vec<T>, page: PageQuery, total: usize) -> Value {
+    let has_more = page.offset().saturating_add(items.len()) < total;
+    json!({
+        "items": items,
+        "page": page.page,
+        "page_size": page.page_size,
+        "total": total,
+        "has_more": has_more,
+    })
+}
+
+fn admin_clients(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let (items, total) = {
+        let state = app.lock();
+        state.clients_page(page.offset(), page.page_size)
+    };
+    respond_admin_json(request, 200, &page_body(items, page, total));
+}
+
+fn admin_jobs(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let (items, total) = {
+        let state = app.lock();
+        state.jobs_page(page.offset(), page.page_size)
+    };
+    respond_admin_json(request, 200, &page_body(items, page, total));
+}
+
+fn admin_workers(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let (items, total) = {
+        let state = app.lock();
+        state.workers_page(state::now_secs(), page.offset(), page.page_size)
+    };
+    respond_admin_json(request, 200, &page_body(items, page, total));
+}
+
+fn admin_leases(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let (items, total) = {
+        let state = app.lock();
+        state.leases_page(state::now_secs(), page.offset(), page.page_size)
+    };
+    respond_admin_json(request, 200, &page_body(items, page, total));
+}
+
+fn admin_monitor_users(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let Some(store) = app.monitor.as_ref() else {
+        let mut body = page_body(
+            Vec::<crate::monitor::store::AdminUserSummary>::new(),
+            page,
+            0,
+        );
+        body["available"] = json!(false);
+        body["detail"] = json!("monitor store is not configured");
+        return respond_admin_json(request, 200, &body);
+    };
+    let (items, total) = store.admin_users(page.offset(), page.page_size);
+    let mut body = page_body(items, page, total);
+    body["available"] = json!(true);
+    respond_admin_json(request, 200, &body);
+}
+
+fn admin_monitor_user(app: &Arc<App>, request: Request, path: &str, query: &str) {
+    const PREFIX: &str = "/cabinet/admin/api/monitor/users/";
+    let Some(user_id) = path.strip_prefix(PREFIX) else {
+        return respond_admin_json(request, 404, &json!({"error": "not found"}));
+    };
+    if user_id.is_empty() || user_id.contains('/') {
+        return respond_admin_json(request, 404, &json!({"error": "not found"}));
+    }
+    let page = page_query(query);
+    let Some(store) = app.monitor.as_ref() else {
+        return respond_admin_json(request, 404, &json!({"error": "monitor not configured"}));
+    };
+    match store.admin_user(user_id, page.page_size) {
+        Some(detail) => respond_admin_json(request, 200, &detail),
+        None => respond_admin_json(request, 404, &json!({"error": "not found"})),
+    }
+}
+
+fn admin_monitor_events(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let Some(store) = app.monitor.as_ref() else {
+        let mut body = page_body(Vec::<crate::monitor::store::Event>::new(), page, 0);
+        body["available"] = json!(false);
+        body["detail"] = json!("monitor store is not configured");
+        return respond_admin_json(request, 200, &body);
+    };
+    let user = query_param(query, "user");
+    let (items, total) = store.admin_events(user, page.offset(), page.page_size);
+    let mut body = page_body(items, page, total);
+    body["available"] = json!(true);
+    respond_admin_json(request, 200, &body);
+}
+
+fn admin_orders(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let body = match app.orders.as_ref() {
+        Some(orders) => {
+            let (items, total) = orders.admin_orders(page.offset(), page.page_size);
+            let mut body = page_body(items, page, total);
+            body["configured"] = json!(true);
+            body["summary"] = json!(orders.admin_summary());
+            body
+        }
+        None => {
+            let mut body = page_body(Vec::<orders::AdminOrder>::new(), page, 0);
+            body["configured"] = json!(false);
+            body
+        }
+    };
+    respond_admin_json(request, 200, &body);
+}
+
+fn admin_payments(app: &Arc<App>, request: Request, query: &str) {
+    let page = page_query(query);
+    let body = match app.orders.as_ref() {
+        Some(orders) => {
+            let (items, total) = orders.admin_payments(page.offset(), page.page_size);
+            let mut body = page_body(items, page, total);
+            body["configured"] = json!(true);
+            body
+        }
+        None => {
+            let mut body = page_body(Vec::<orders::AdminPayment>::new(), page, 0);
+            body["configured"] = json!(false);
+            body
+        }
+    };
+    respond_admin_json(request, 200, &body);
+}
+
+fn admin_providers(app: &Arc<App>, request: Request) {
+    let mode = if app.edge_proxy.is_some() {
+        "edge_proxy"
+    } else if app.tronscan_api_key.is_some() {
+        "tronscan"
+    } else {
+        "disabled"
+    };
+    let watcher = match app.monitor.as_ref() {
+        Some(store) => {
+            let (last_ok_at, last_error_at, last_error) = store.watcher_health();
+            json!({
+                "last_ok_at": last_ok_at,
+                "last_error_at": last_error_at,
+                "last_error": last_error,
+            })
+        }
+        None => json!(null),
+    };
+    respond_admin_json(
+        request,
+        200,
+        &json!({
+            "tron": {
+                "configured": mode != "disabled",
+                "mode": mode,
+                "cache": app.tron_cache.stats(),
+                "limiter": app.tron_limiter.stats(),
+            },
+            "watcher": watcher,
+        }),
+    );
+}
+
+fn admin_integrations(app: &Arc<App>, request: Request) {
+    let telegram = &app.telegram;
+    let telegram_enabled = telegram.is_enabled();
+    let webhook_secret_stored = app.monitor.as_ref().map(|store| store.has_webhook_secret());
+    let tron_mode = if app.edge_proxy.is_some() {
+        "edge_proxy"
+    } else if app.tronscan_api_key.is_some() {
+        "tronscan"
+    } else {
+        "disabled"
+    };
+    let orders_summary = app
+        .orders
+        .as_ref()
+        .map(|orders| orders.admin_summary())
+        .unwrap_or(orders::AdminOrdersSummary {
+            configured: false,
+            lists: 0,
+            active_lists: 0,
+            poll_interval_secs: 0,
+        });
+    respond_admin_json(
+        request,
+        200,
+        &json!({
+            "integrations": {
+                "telegram": {
+                    "configured": telegram_enabled,
+                    "env_var_names": ["ROTOR_TELEGRAM_BOT_TOKEN", "ROTOR_TELEGRAM_BOT_USERNAME"],
+                    // Public account name only; the bot token never appears.
+                    "public_value": if telegram_enabled { json!(format!("@{}", telegram.bot_username)) } else { json!(null) },
+                    "webhook_url": if telegram_enabled { json!(telegram.webhook_url(&app.public_url)) } else { json!(null) },
+                    // Registration happens at startup and is only logged, not
+                    // persisted. The stored flag only says the store holds a
+                    // webhook secret; the result is explicitly unknown.
+                    "webhook_secret_stored": webhook_secret_stored,
+                    "webhook_result": json!(null),
+                },
+                "tronscan": {
+                    "configured": tron_mode != "disabled",
+                    "mode": tron_mode,
+                    "env_var_names": ["TRONSCAN_API_KEY", "EDGE_PROXY_URL", "EDGE_PROXY_SECRET"],
+                    "counters": {
+                        "cache": app.tron_cache.stats(),
+                        "limiter": app.tron_limiter.stats(),
+                    },
+                },
+                "orders": {
+                    "configured": orders_summary.configured,
+                    "env_var_names": ["ORDERS_CONFIG", "ORDERS_HMAC_SECRET"],
+                    "summary": orders_summary,
+                },
+                "walletconnect": {
+                    "configured": !app.walletconnect_project_id.is_empty(),
+                    "env_var_names": ["ROTOR_WALLETCONNECT_PROJECT_ID"],
+                },
+            },
+        }),
+    );
+}
+
+/// The audit store ships with phase 3. Until then the endpoint answers an
+/// explicit empty page; it never invents entries.
+fn admin_audit(request: Request, query: &str) {
+    let page = page_query(query);
+    let mut body = page_body(Vec::<Value>::new(), page, 0);
+    body["available"] = json!(false);
+    body["detail"] = json!("the audit store ships in phase 3; no entries exist yet");
+    respond_admin_json(request, 200, &body);
 }
 
 /// Serve a public asset. HTML is never reused (`no-store`); every other asset
@@ -2398,7 +2715,7 @@ fn is_app_shell(path: &str) -> bool {
             | "/cabinet/admin"
             | "/cabinet/admin/"
             | "/cabinet/admin/login"
-    )
+    ) || ADMIN_PANEL_ROUTES.contains(&path)
 }
 
 /// Add the shared footer to a served HTML document unless it is an app shell

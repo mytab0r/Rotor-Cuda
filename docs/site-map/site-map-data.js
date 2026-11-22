@@ -119,7 +119,7 @@
       'ss:/PrivateKey_wif_to_hex',
       'ss:/Bech32'
     ],
-    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC and DOGE (BlockCypher), BCH (Haskoin) and ZEC (SoChain) from free public providers, so no chain group shows —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
+    note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC, DOGE and ZEC (SoChain; LTC/DOGE fall back to BlockCypher) and BCH (Haskoin) from free public providers, so no chain group shows —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
   });
 
   oursRoute({
@@ -159,7 +159,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/mnemonic-seeds'],
-    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI and TON. BCH and SUI fill all 60 rows; XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. LTC/DOGE/ZEC show — (a per-address keyless provider would exceed the page budget). Rows carry no WIF links, matching the donor.'
+    note: '60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI, TON, LTC, DOGE and ZEC. BCH and SUI fill all 60 rows; LTC/DOGE/ZEC use the shared per-address SoChain provider (2500 lookups a day per IP keyless, so a page is 2.4% of the daily budget, and the first 429 stops the rest of the page); XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. Rows carry no WIF links, matching the donor.'
   });
 
   CHAINS.forEach(function (item) {
@@ -173,7 +173,7 @@
       donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
       note: ton
         ? 'Derives BIP39 seeds with SLIP-0010 ed25519 at the donor path m/44\'/607\'/0\'; the Wallet v4R2 row is built by /ton.js and Wallet W5 comes from the WASM report, with one batched TonAPI /accounts/_bulk request per page (measured 60/60 `ok` at 375/768/1280 in both themes on /mnemonic-seeds/ton and /private-keys/ton; the single-address /key page keeps Toncenter). Deliberate deviation: the donor feeds its BIP32 secp256k1 master bytes to the v4R2 builder (row 0, abandon…about: key 1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67, EQD5BSqbqr-TBe8BHVx26V85ly7o5lkYFU0MKAJWVUwlkPZG; Tonkeeper key 2d1b84ab366915a9b58d64ea6d3a8766e490479ac2ab8aea635603afe3ad6153, EQBuAV_45fTfgLs-CqOtQnNP5rh-Z3xv0jVCL_Nz8C1fe-), while we ship the standard SLIP-0010 ed25519 derivation (master key 560f9f3c94558b6551928bb781cf6092c6b8800b4fc544af2c9444ed126d51aa, EQBql5EyfHFHHq0eULGOI7xdUWgk62w-HzLBlEcAyqYM79AN; Tonkeeper key b477ef5ed17fb8a2b8faddd7a9835a227243a82c70b190c7af4896155aa7df9f, EQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-U9d), which is what real TON wallets use. The donor renders one v4R2 address per row with static 0 TON text; our v4R2/W5 type cards and live TonAPI balances are a deliberate superset. Master/Tonkeeper preset ids, labels and paths match the donor; no WIF links, matching the donor.'
-        : 'Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI and TON; XRP accounts that XRPScan redirects to its bulk dataset show the retry state; LTC/DOGE/ZEC show — (per-address provider budget); no WIF links, matching the donor.'
+        : 'Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI, TON, LTC, DOGE and ZEC; XRP accounts that XRPScan redirects to its bulk dataset show the retry state; LTC/DOGE/ZEC use the shared per-address SoChain provider; no WIF links, matching the donor.'
     });
   });
 
@@ -877,7 +877,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, BCH, TRON, XRP, SOL, SUI and TON have directory providers. BCH uses one batched Haskoin request per page, the same provider the mnemonic directory uses. LTC/DOGE do have a keyless BlockCypher provider on the single-key page, but a 60-row directory lookup would exceed its keyless rate limit, so their cells stay —; ZEC’s SoChain provider is per-address, so it stays — here too, instead of a fake zero.'
+    note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, BCH, TRON, XRP, SOL, SUI, TON, LTC, DOGE and ZEC have directory providers. BCH uses one batched Haskoin request per page, the same provider the mnemonic directory uses. LTC/DOGE/ZEC use the shared per-address SoChain provider (2500 lookups a day per IP keyless, so a 60-row page is 2.4% of the daily budget, and the first 429 stops the rest of the page), the same wiring as the mnemonic directory; a provider failure stays a retry state, never a fake zero.'
   });
 
   feature({
@@ -913,7 +913,7 @@
     status: 'partial',
     priority: 'P1',
     sources: ['privatekeyfinder.io'],
-    note: 'Rows, pager, word counts, phrase/key copy, path and address types are present for every chain; TON derives v4R2/W5 at the donor path m/44\'/607\'/0\'. Balance checks run for BTC, the eight EVM chains, Solana (one batched getMultipleAccounts POST per page), BCH, SUI, TRON, XRP and TON (one batched TonAPI /accounts/_bulk POST per page, 60/60 rows); LTC/DOGE/ZEC render `—` with an explorer link (per-address provider budget). The audit route set covers bitcoin, solana, bitcoin-cash and ton; the other chain pages stay out because their providers fan out one request per address.'
+    note: 'Rows, pager, word counts, phrase/key copy, path and address types are present for every chain; TON derives v4R2/W5 at the donor path m/44\'/607\'/0\'. Balance checks run for BTC, the eight EVM chains, Solana (one batched getMultipleAccounts POST per page), BCH, SUI, TRON, XRP, TON (one batched TonAPI /accounts/_bulk POST per page, 60/60 rows) and LTC/DOGE/ZEC (shared per-address SoChain provider, 2.4% of the hourly budget per page). The audit route set covers bitcoin, solana, bitcoin-cash and ton; the other chain pages stay out because their providers fan out one request per address.'
   });
 
   feature({
@@ -1129,7 +1129,7 @@
     status: 'missing',
     priority: 'P0',
     sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Crypto only has dataset dumps under /wallets; privatekeyfinder.io has top-100 tables per chain.'
+    note: 'Crypto only has dataset dumps under /wallets; privatekeyfinder.io has top-100 tables for seven chains (bitcoin, ethereum, bnb, polygon, arbitrum, tron, dogecoin). The keyless SoChain rich_list ranks BTC, DOGE, LTC and ZEC only and so cannot cover the five EVM/Tron lists; the route stays absent until the owner chooses between a BTC/DOGE-only list and a ranked dataset.'
   });
 
   feature({

@@ -202,7 +202,11 @@ test("mnemonic-solana-balances: providerMetaFor maps only supported chains", () 
   assertEqual(solana.chain, "solana", "cache chain is solana");
   assertEqual(solana.decimals, 9, "lamports render with 9 decimals");
   assertEqual(solana.symbol, "SOL", "rows show the SOL symbol");
-  assertEqual(api.providerMetaFor("zcash"), null, "zcash still has no batched provider");
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("zcash")),
+    JSON.stringify({ provider: "sochain", chain: "zcash", decimals: 8, symbol: "ZEC" }),
+    "zcash reads SoChain"
+  );
   assertEqual(
     JSON.stringify(api.providerMetaFor("bitcoin")),
     JSON.stringify({ provider: "blockchain.info", chain: "bitcoin", decimals: 8, symbol: "BTC" }),
@@ -245,13 +249,96 @@ test("mnemonic-tron-xrp-sui-balances: providerMetaFor maps TRON, XRP and SUI", (
     JSON.stringify({ provider: "sui", chain: "sui", decimals: 9, symbol: "SUI" }),
     "SUI uses the Sui GraphQL provider"
   );
-  assertEqual(api.providerMetaFor("litecoin"), null, "LTC stays unsupported on this page");
-  assertEqual(api.providerMetaFor("dogecoin"), null, "DOGE stays unsupported on this page");
-  assertEqual(api.providerMetaFor("zcash"), null, "ZEC stays unsupported on this page");
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("litecoin")),
+    JSON.stringify({ provider: "sochain", chain: "litecoin", decimals: 8, symbol: "LTC" }),
+    "LTC reads SoChain per address"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("dogecoin")),
+    JSON.stringify({ provider: "sochain", chain: "dogecoin", decimals: 8, symbol: "DOGE" }),
+    "DOGE reads SoChain per address"
+  );
+  assertEqual(
+    JSON.stringify(api.providerMetaFor("zcash")),
+    JSON.stringify({ provider: "sochain", chain: "zcash", decimals: 8, symbol: "ZEC" }),
+    "ZEC reads SoChain per address"
+  );
   assertEqual(
     JSON.stringify(api.providerMetaFor("ton")),
     JSON.stringify({ provider: "tonapi", chain: "ton", decimals: 9, symbol: "TON" }),
     "TON uses the batched TonAPI directory provider"
+  );
+});
+
+test("mnemonic-utxo-balances: SoChain serves LTC, DOGE and ZEC per address", async () => {
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "success",
+        data: { confirmed: "1.23456789", unconfirmed: "0.00000001" }
+      })
+    };
+  };
+  try {
+    const ltc = await providers.fetchProvider(api.providerMetaFor("litecoin"), ["ltcAddr"]);
+    assertEqual(ltc.values.ltcAddr.balance, "123456790", "LTC decimal strings sum to satoshis");
+    assertEqual(ltc.errors.ltcAddr, undefined, "a good response has no error");
+    assertEqual(requests.length, 1, "one request per address");
+    assert(requests[0].includes("/balance/LTC/ltcAddr"), `LTC ticker in URL, got ${requests[0]}`);
+
+    const doge = await providers.fetchProvider(api.providerMetaFor("dogecoin"), ["dogeAddr"]);
+    assertEqual(doge.values.dogeAddr.balance, "123456790", "DOGE uses the same parser");
+    assert(requests[1].includes("/balance/DOGE/dogeAddr"), `DOGE ticker in URL, got ${requests[1]}`);
+
+    const zec = await providers.fetchProvider(api.providerMetaFor("zcash"), ["zecAddr"]);
+    assertEqual(zec.values.zecAddr.balance, "123456790", "ZEC uses the same parser");
+    assert(requests[2].includes("/balance/ZEC/zecAddr"), `ZEC ticker in URL, got ${requests[2]}`);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-sochain-quota-storm: the first 429 stops the rest of the page", async () => {
+  const requests = [];
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    return { ok: false, status: 429, json: async () => ({}) };
+  };
+  try {
+    const addresses = Array.from({ length: 60 }, (_, index) => `ltc${index}`);
+    const result = await providers.fetchProvider(api.providerMetaFor("litecoin"), addresses);
+    assertEqual(Object.keys(result.values).length, 0, "a 429 never yields a balance");
+    assertEqual(Object.keys(result.errors).length, 60, "every row keeps the retry state");
+    assert(
+      requests.length <= providers.BALANCE_LIMIT * 2,
+      `the exhausted quota stops the fan-out, got ${requests.length} requests for 60 rows`
+    );
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("mnemonic-utxo-balances: no page claims LTC/DOGE/ZEC unprovidable", async () => {
+  const mnemonicSource = await readFile(scriptPath, "utf8");
+  const browseSource = await readFile(browsePath, "utf8");
+  assert(
+    !mnemonicSource.includes("LTC/DOGE/ZEC stay unsupported"),
+    "the old unsupported comment must be gone"
+  );
+  assert(
+    !browseSource.includes("would exceed the keyless rate limit"),
+    "the old private-key directory comment must be gone"
+  );
+  assert(
+    mnemonicSource.includes("provider: 'sochain'") && browseSource.includes("provider: 'sochain'"),
+    "both directories map the chains to SoChain"
   );
 });
 
@@ -447,7 +534,7 @@ test("mnemonic-tron-xrp-sui-balances: the shared dispatcher covers every browse 
     assert(providers.supportsProvider(provider), `browse.js emits "${provider}" but the dispatcher lacks it`);
   });
   assert(source.includes("config.chain === 'bitcoin-cash'"), "browse.js must wire Bitcoin Cash balances");
-  assert(source.includes("provider: 'haskoin-bch'"), "browse.js must use the batched Haskoin provider for BCH");
+  assert(source.includes("provider: 'haskoin-bch'"), "bch-directory-provider: browse.js must use the batched Haskoin provider for BCH");
   assertEqual(await providers.fetchProvider({ provider: "not-a-provider" }, ["a"]).then((r) => Object.keys(r.values).length), 0, "an unknown provider resolves empty");
 });
 

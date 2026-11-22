@@ -830,8 +830,8 @@
 
   /* Balance provider for a chain name. Pure (no captured page state) so the
    * Node test can assert it without a DOM; `providerMeta` binds the page.
-   * LTC/DOGE/ZEC stay unsupported here on purpose (per-address provider
-   * budget); each row keeps an honest "—" and its explorer link. */
+   * LTC, DOGE and ZEC read SoChain per address (2500 lookups a day per IP,
+   * keyless, CORS), so a 60-row page uses ~2.4% of the daily budget. */
   function providerMetaFor(chainName, evmSymbol) {
     var meta = SSOT_CHAINS.bySlug[chainName];
     if (!meta) return null;
@@ -846,6 +846,9 @@
     }
     if (chainName === 'bitcoin-cash') {
       return { provider: 'haskoin-bch', chain: 'bitcoin-cash', decimals: 8, symbol: 'BCH' };
+    }
+    if (chainName === 'litecoin' || chainName === 'dogecoin' || chainName === 'zcash') {
+      return { provider: 'sochain', chain: chainName, decimals: meta.decimals, symbol: meta.symbol };
     }
     if (chainName === 'tron') {
       return { provider: 'tronscan', chain: 'tron', decimals: 6, symbol: 'TRX' };
