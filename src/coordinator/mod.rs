@@ -38,6 +38,8 @@ use state::{
     ERR_MANIFEST_MISMATCH,
 };
 
+use crate::chain::{self, ChainDescriptor};
+
 /// The public site is embedded so the binary stays a single file.
 const LANDING: &str = include_str!("../../apps/site/landing.html");
 const APP_PAGE: &str = include_str!("../../apps/site/app.html");
@@ -1768,222 +1770,99 @@ impl AddressKind {
     }
 }
 
-struct ChainHub {
-    slug: &'static str,
-    name: &'static str,
-    symbol: &'static str,
-    description: &'static str,
-    /// Solana key pages derive on ed25519; the others default to secp256k1.
-    curve_suffix: &'static str,
-    kind: AddressKind,
-    color: &'static str,
-    icon: &'static str,
-    explorer: &'static str,
-}
+/// Hub pages consume the same descriptor as the engine. Only the page copy
+/// and the address-type family mapping stay local to the coordinator; id,
+/// name, symbol, color, order and explorer come from `data/chains.json`
+/// through [`crate::chain`].
+type ChainHub = ChainDescriptor;
 
-const CHAINS: [ChainHub; 18] = [
-    ChainHub {
-        slug: "bitcoin",
-        name: "Bitcoin",
-        symbol: "BTC",
-        description: "Legacy P2PKH, SegWit, Nested SegWit and Taproot addresses derived from one key.",
-        curve_suffix: "",
-        kind: AddressKind::Bitcoin,
-        color: "#f7931a",
-        icon: "chain-bitcoin",
-        explorer: "https://mempool.space/address/",
-    },
-    ChainHub {
-        slug: "ethereum",
-        name: "Ethereum",
-        symbol: "ETH",
-        description: "EIP-55 checksummed Ethereum addresses on the secp256k1 curve.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#8a9cf5",
-        icon: "chain-ethereum",
-        explorer: "https://etherscan.io/address/",
-    },
-    ChainHub {
-        slug: "bnb",
-        name: "BNB Chain",
-        symbol: "BNB",
-        description: "BNB Smart Chain addresses shared with every EVM network.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#f3ba2f",
-        icon: "chain-bnb",
-        explorer: "https://bscscan.com/address/",
-    },
-    ChainHub {
-        slug: "arbitrum",
-        name: "Arbitrum",
-        symbol: "ETH",
-        description: "Arbitrum One addresses derived on secp256k1.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#28a0f0",
-        icon: "chain-arbitrum",
-        explorer: "https://arbiscan.io/address/",
-    },
-    ChainHub {
-        slug: "optimism",
-        name: "Optimism",
-        symbol: "ETH",
-        description: "OP Mainnet addresses derived on secp256k1.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#ff0420",
-        icon: "chain-optimism",
-        explorer: "https://optimistic.etherscan.io/address/",
-    },
-    ChainHub {
-        slug: "base",
-        name: "Base",
-        symbol: "ETH",
-        description: "Base addresses derived on secp256k1.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#0052ff",
-        icon: "chain-base",
-        explorer: "https://basescan.org/address/",
-    },
-    ChainHub {
-        slug: "polygon",
-        name: "Polygon",
-        symbol: "POL",
-        description: "Polygon PoS addresses derived on secp256k1.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#a06ee8",
-        icon: "chain-polygon",
-        explorer: "https://polygonscan.com/address/",
-    },
-    ChainHub {
-        slug: "avalanche",
-        name: "Avalanche",
-        symbol: "AVAX",
-        description: "Avalanche C-Chain addresses on secp256k1.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#e84142",
-        icon: "chain-avalanche",
-        explorer: "https://snowtrace.io/address/",
-    },
-    ChainHub {
-        slug: "zksync",
-        name: "zkSync Era",
-        symbol: "ETH",
-        description: "zkSync Era addresses derived on secp256k1.",
-        curve_suffix: "",
-        kind: AddressKind::Evm,
-        color: "#8c8dfc",
-        icon: "chain-zksync",
-        explorer: "https://explorer.zksync.io/address/",
-    },
-    ChainHub {
-        slug: "solana",
-        name: "Solana",
-        symbol: "SOL",
-        description: "ed25519 accounts encoded as base58 public keys.",
-        curve_suffix: "?curve=ed25519",
-        kind: AddressKind::Solana,
-        color: "#14f195",
-        icon: "chain-solana",
-        explorer: "https://solscan.io/account/",
-    },
-    ChainHub {
-        slug: "tron",
-        name: "TRON",
-        symbol: "TRX",
-        description: "Base58Check TRON addresses with the 0x41 version byte.",
-        curve_suffix: "",
-        kind: AddressKind::Tron,
-        color: "#ff4d4d",
-        icon: "chain-tron",
-        explorer: "https://tronscan.org/#/address/",
-    },
-    ChainHub {
-        slug: "ton",
-        name: "TON",
-        symbol: "TON",
-        description: "TON Wallet v4R2 addresses derived from the ed25519 public key.",
-        curve_suffix: "?curve=ed25519",
-        kind: AddressKind::Ton,
-        color: "#0098ea",
-        icon: "chain-ton",
-        explorer: "https://tonviewer.com/",
-    },
-    ChainHub {
-        slug: "sui",
-        name: "Sui",
-        symbol: "SUI",
-        description: "Sui ed25519 accounts hashed with BLAKE2b-256.",
-        curve_suffix: "?curve=ed25519",
-        kind: AddressKind::Sui,
-        color: "#6fbcf0",
-        icon: "chain-sui",
-        explorer: "https://suiscan.xyz/mainnet/account/",
-    },
-    ChainHub {
-        slug: "xrp",
-        name: "XRP",
-        symbol: "XRP",
-        description: "Classic r-addresses with the Ripple Base58 alphabet.",
-        curve_suffix: "",
-        kind: AddressKind::Xrp,
-        color: "#7fa8d9",
-        icon: "chain-xrp",
-        explorer: "https://xrpscan.com/account/",
-    },
-    ChainHub {
-        slug: "litecoin",
-        name: "Litecoin",
-        symbol: "LTC",
-        description: "Legacy, Nested SegWit and native SegWit Litecoin addresses.",
-        curve_suffix: "",
-        kind: AddressKind::Litecoin,
-        color: "#b8c2d6",
-        icon: "chain-litecoin",
-        explorer: "https://blockchair.com/litecoin/address/",
-    },
-    ChainHub {
-        slug: "bitcoin-cash",
-        name: "Bitcoin Cash",
-        symbol: "BCH",
-        description: "Legacy P2PKH addresses and the BCH derivation path.",
-        curve_suffix: "",
-        kind: AddressKind::BitcoinCash,
-        color: "#8dc351",
-        icon: "chain-bitcoin-cash",
-        explorer: "https://blockchair.com/bitcoin-cash/address/",
-    },
-    ChainHub {
-        slug: "dogecoin",
-        name: "Dogecoin",
-        symbol: "DOGE",
-        description: "Legacy Dogecoin addresses with the 0x1e version byte.",
-        curve_suffix: "",
-        kind: AddressKind::Dogecoin,
-        color: "#c2a633",
-        icon: "chain-dogecoin",
-        explorer: "https://blockchair.com/dogecoin/address/",
-    },
-    ChainHub {
-        slug: "zcash",
-        name: "Zcash",
-        symbol: "ZEC",
-        description: "Transparent Zcash t-addresses with the two-byte 0x1cb8 prefix.",
-        curve_suffix: "",
-        kind: AddressKind::Zcash,
-        color: "#ecb244",
-        icon: "chain-zcash",
-        explorer: "https://blockchair.com/zcash/address/",
-    },
+const CHAIN_DESCRIPTIONS: &[(&str, &str)] = &[
+    (
+        "bitcoin",
+        "Legacy P2PKH, SegWit, Nested SegWit and Taproot addresses derived from one key.",
+    ),
+    (
+        "ethereum",
+        "EIP-55 checksummed Ethereum addresses on the secp256k1 curve.",
+    ),
+    (
+        "bnb",
+        "BNB Smart Chain addresses shared with every EVM network.",
+    ),
+    ("arbitrum", "Arbitrum One addresses derived on secp256k1."),
+    ("optimism", "OP Mainnet addresses derived on secp256k1."),
+    ("base", "Base addresses derived on secp256k1."),
+    ("polygon", "Polygon PoS addresses derived on secp256k1."),
+    ("avalanche", "Avalanche C-Chain addresses on secp256k1."),
+    ("zksync", "zkSync Era addresses derived on secp256k1."),
+    ("solana", "ed25519 accounts encoded as base58 public keys."),
+    (
+        "tron",
+        "Base58Check TRON addresses with the 0x41 version byte.",
+    ),
+    (
+        "ton",
+        "TON Wallet v4R2 addresses derived from the ed25519 public key.",
+    ),
+    ("sui", "Sui ed25519 accounts hashed with BLAKE2b-256."),
+    (
+        "xrp",
+        "Classic r-addresses with the Ripple Base58 alphabet.",
+    ),
+    (
+        "litecoin",
+        "Legacy, Nested SegWit and native SegWit Litecoin addresses.",
+    ),
+    (
+        "bitcoin-cash",
+        "Legacy P2PKH addresses and the BCH derivation path.",
+    ),
+    (
+        "dogecoin",
+        "Legacy Dogecoin addresses with the 0x1e version byte.",
+    ),
+    (
+        "zcash",
+        "Transparent Zcash t-addresses with the two-byte 0x1cb8 prefix.",
+    ),
 ];
 
+fn chain_description(chain: &ChainDescriptor) -> &'static str {
+    CHAIN_DESCRIPTIONS
+        .iter()
+        .find(|(slug, _)| *slug == chain.id)
+        .map(|(_, text)| *text)
+        .unwrap_or("")
+}
+
+fn chain_curve_suffix(chain: &ChainDescriptor) -> &'static str {
+    if matches!(chain.family, chain::Family::Ed25519 | chain::Family::Ton) {
+        "?curve=ed25519"
+    } else {
+        ""
+    }
+}
+
+fn chain_kind(chain: &ChainDescriptor) -> AddressKind {
+    match chain.id {
+        "bitcoin" => AddressKind::Bitcoin,
+        "ethereum" | "bnb" | "arbitrum" | "optimism" | "base" | "polygon" | "avalanche"
+        | "zksync" => AddressKind::Evm,
+        "solana" => AddressKind::Solana,
+        "tron" => AddressKind::Tron,
+        "ton" => AddressKind::Ton,
+        "sui" => AddressKind::Sui,
+        "xrp" => AddressKind::Xrp,
+        "litecoin" => AddressKind::Litecoin,
+        "bitcoin-cash" => AddressKind::BitcoinCash,
+        "dogecoin" => AddressKind::Dogecoin,
+        "zcash" => AddressKind::Zcash,
+        _ => AddressKind::Bitcoin,
+    }
+}
+
 fn chain_by_slug(slug: &str) -> Option<&'static ChainHub> {
-    CHAINS.iter().find(|chain| chain.slug == slug)
+    chain::by_id(slug)
 }
 
 /// Resolve a dynamic SEO route. `None` means the path is not part of this
@@ -2840,7 +2719,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
     let start_short = &range.start[..8];
     let end_short = &range.end[56..];
     let label = format!("0x{start_short}…–0x{end_short}…");
-    let canonical = format!("{base}/keys/{}/{}-{}", chain.slug, range.start, range.end);
+    let canonical = format!("{base}/keys/{}/{}-{}", chain.id, range.start, range.end);
     let title = format!(
         "{} keys {label} — {} keys | Crypto",
         chain.name, range.count
@@ -2866,7 +2745,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
         "itemListElement": [
             { "@type": "ListItem", "position": 1, "name": "Home", "item": format!("{base}/") },
             { "@type": "ListItem", "position": 2, "name": "Chains", "item": format!("{base}/private-keys") },
-            { "@type": "ListItem", "position": 3, "name": chain.name, "item": format!("{base}/private-keys/{}", chain.slug) },
+            { "@type": "ListItem", "position": 3, "name": chain.name, "item": format!("{base}/private-keys/{}", chain.id) },
             { "@type": "ListItem", "position": 4, "name": label, "item": canonical },
         ],
     });
@@ -2876,7 +2755,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
         entries.push(json!({
             "@type": "ListItem",
             "position": position,
-            "url": format!("{base}/key/{}{}", hex_from_32(&current), chain.curve_suffix),
+            "url": format!("{base}/key/{}{}", hex_from_32(&current), chain_curve_suffix(chain)),
         }));
         increment_32(&mut current);
     }
@@ -2914,7 +2793,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
         json_ld(&ld_items),
     );
 
-    let chain_href = format!("/private-keys/{}", chain.slug);
+    let chain_href = format!("/private-keys/{}", chain.id);
     let crumbs = breadcrumb_nav(&[
         ("Home", Some("/")),
         ("Chains", Some("/private-keys")),
@@ -2923,7 +2802,7 @@ fn render_range_page(base: &str, chain: &ChainHub, range: &KeyRange) -> String {
     ]);
     let payload = format!(
         "<script>window.__ROTOR_RANGE__={{chain:\"{}\",start:\"{}\",end:\"{}\"}};</script>\n",
-        chain.slug, range.start, range.end
+        chain.id, range.start, range.end
     );
 
     let mut html = RANGE_PAGE.replacen(
@@ -2966,7 +2845,7 @@ fn render_keys_hub(base: &str) -> String {
             { "@type": "ListItem", "position": 2, "name": "Chains", "item": canonical },
         ],
     });
-    let entries: Vec<_> = CHAINS
+    let entries: Vec<_> = chain::all()
         .iter()
         .enumerate()
         .map(|(index, chain)| {
@@ -2974,7 +2853,7 @@ fn render_keys_hub(base: &str) -> String {
                 "@type": "ListItem",
                 "position": index + 1,
                 "name": format!("{} private keys", chain.name),
-                "url": format!("{base}/private-keys/{}", chain.slug),
+                "url": format!("{base}/private-keys/{}", chain.id),
             })
         })
         .collect();
@@ -2982,7 +2861,7 @@ fn render_keys_hub(base: &str) -> String {
         "@context": "https://schema.org",
         "@type": "ItemList",
         "name": "Private key hubs",
-        "numberOfItems": CHAINS.len(),
+        "numberOfItems": chain::all().len(),
         "itemListElement": entries,
     });
     let head = hub_head(
@@ -2993,17 +2872,17 @@ fn render_keys_hub(base: &str) -> String {
     );
 
     let mut cards = String::new();
-    for chain in &CHAINS {
-        let type_count = chain.kind.types().len();
+    for chain in chain::all() {
+        let type_count = chain_kind(chain).types().len();
         cards.push_str(&format!(
             "<a class=\"chain-card directory-card\" href=\"/private-keys/{}\" style=\"--chain:{}\" title=\"{}\">\
              <span class=\"chain-icon-wrap\">{}</span>\
              <span class=\"chain-name\">{}</span>\
              <span class=\"chain-meta\">{} · {} address {}</span>\
              </a>",
-            chain.slug,
+            chain.id,
             chain.color,
-            escape_attr(chain.description),
+            escape_attr(chain_description(chain)),
             chain_icon(chain, "chain-card-icon"),
             chain.name,
             chain.symbol,
@@ -3136,10 +3015,10 @@ fn render_faq(base: &str) -> String {
         ));
     }
     let mut hub_links = String::from("<li><a href=\"/keys\">All key hubs</a></li>");
-    for chain in &CHAINS {
+    for chain in chain::all() {
         hub_links.push_str(&format!(
             "<li><a href=\"/keys/{}\">{} private keys</a></li>",
-            chain.slug, chain.name
+            chain.id, chain.name
         ));
     }
     let body = format!(
@@ -3248,12 +3127,12 @@ fn brainwallet_chain_tabs(active: Option<&str>) -> String {
     let mut out = String::from(
         "<div class=\"chain-tabs\" id=\"brainwallet-chain-tabs\" role=\"navigation\" aria-label=\"Chains\">",
     );
-    for chain in &CHAINS {
-        let is_active = active == Some(chain.slug);
+    for chain in chain::all() {
+        let is_active = active == Some(chain.id);
         out.push_str(&format!(
             "<a class=\"chain-tab chip{}\" href=\"/brainwallet/{}\" style=\"--chain:{}\"{}>{}{}</a>",
             if is_active { " active" } else { "" },
-            chain.slug,
+            chain.id,
             chain.color,
             if is_active {
                 " aria-current=\"page\""
@@ -3322,7 +3201,7 @@ fn brainwallet_warning() -> String {
 }
 
 fn brainwallet_address_types(chain: &ChainHub) -> String {
-    let types = chain.kind.types();
+    let types = chain_kind(chain).types();
     if types.len() <= 1 {
         return String::new();
     }
@@ -3368,14 +3247,14 @@ fn render_brainwallet_index(base: &str) -> String {
         ("Brainwallet", None),
     ]);
     let mut cards = String::new();
-    for chain in &CHAINS {
+    for chain in chain::all() {
         cards.push_str(&format!(
             "<a class=\"chain-card directory-card\" href=\"/brainwallet/{}\" style=\"--chain:{}\" title=\"{} brainwallet directory\">\
              <span class=\"chain-icon-wrap\">{}</span>\
              <span class=\"chain-name\">{}</span>\
              <span class=\"chain-meta\">{} · 18,890 passphrases</span>\
              </a>",
-            chain.slug,
+            chain.id,
             chain.color,
             escape_attr(chain.name),
             chain_icon(chain, "chain-card-icon"),
@@ -3417,7 +3296,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
         .and_then(|value| value.to_u32())
         .unwrap_or(1)
         .clamp(1, BRAINWALLET_TOTAL_PAGES);
-    let self_url = format!("{base}{}", brainwallet_page_href(chain.slug, page));
+    let self_url = format!("{base}{}", brainwallet_page_href(chain.id, page));
     let title = if page == 1 {
         format!(
             "{} brainwallet directory — 60 passphrases per page | Crypto",
@@ -3438,9 +3317,8 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
     } else {
         "noindex,follow"
     };
-    let curve = chain.kind.curve();
-    let initial_type = chain
-        .kind
+    let curve = chain_kind(chain).curve();
+    let initial_type = chain_kind(chain)
         .types()
         .first()
         .map(|kind| kind.value)
@@ -3456,7 +3334,7 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "description": description,
     });
-    let chain_path = format!("/brainwallet/{}", chain.slug);
+    let chain_path = format!("/brainwallet/{}", chain.id);
     let ld_crumbs = breadcrumb_ld(
         base,
         &[
@@ -3536,9 +3414,9 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
          <script src=\"/brainwallet-engine.js\" defer></script>\
          <script src=\"/brainwallet-directory.js\" defer></script>",
         site_header(),
-        escape_attr(chain.slug),
+        escape_attr(chain.id),
         escape_attr(chain.symbol),
-        escape_attr(chain.explorer),
+        escape_attr(chain.explorer_prefix()),
         curve,
         page,
         escape_attr(initial_type),
@@ -3546,10 +3424,10 @@ fn render_brainwallet_directory(base: &str, chain: &ChainHub, requested: &str) -
         chain.name,
         chain.name,
         warning = brainwallet_warning(),
-        tabs = brainwallet_chain_tabs(Some(chain.slug)),
-        pager_top = brainwallet_pager_block(chain.slug, page, "top"),
+        tabs = brainwallet_chain_tabs(Some(chain.id)),
+        pager_top = brainwallet_pager_block(chain.id, page, "top"),
         types = brainwallet_address_types(chain),
-        pager_bottom = brainwallet_pager_block(chain.slug, page, "bottom"),
+        pager_bottom = brainwallet_pager_block(chain.id, page, "bottom"),
         icon = chain_icon(chain, "browse-hero-icon"),
         total_pages = BRAINWALLET_TOTAL_PAGES,
     );
@@ -3579,10 +3457,10 @@ fn render_brainwallet_generator(base: &str) -> String {
         ("Generator", None),
     ]);
     let mut options = String::new();
-    for chain in &CHAINS {
+    for chain in chain::all() {
         options.push_str(&format!(
             "<option value=\"{}\">{} ({})</option>",
-            escape_attr(chain.slug),
+            escape_attr(chain.id),
             escape_attr(chain.name),
             escape_attr(chain.symbol),
         ));
@@ -3634,7 +3512,7 @@ fn render_brainwallet_generator(base: &str) -> String {
 fn chain_icon(chain: &ChainHub, class: &str) -> String {
     format!(
         "<svg class=\"{class}\" aria-hidden=\"true\"><use href=\"/icons.svg#{}\"/></svg>",
-        chain.icon
+        chain.icon()
     )
 }
 
@@ -3650,7 +3528,7 @@ const ED25519_SPACE_DEC: &str =
     "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 
 fn chain_key_space(chain: &ChainHub) -> BigUint {
-    let decimal = if chain.kind.curve() == 1 {
+    let decimal = if chain_kind(chain).curve() == 1 {
         ED25519_SPACE_DEC
     } else {
         SECP_ORDER_DEC
@@ -3697,9 +3575,9 @@ fn page_percent(page: &BigUint, total: &BigUint) -> String {
 
 fn browse_page_href(chain: &ChainHub, page: &BigUint, address_type: &str) -> String {
     let base = if page <= &BigUint::from(1u8) {
-        format!("/private-keys/{}", chain.slug)
+        format!("/private-keys/{}", chain.id)
     } else {
-        format!("/private-keys/{}/{}", chain.slug, page)
+        format!("/private-keys/{}/{}", chain.id, page)
     };
     if address_type == "legacy" {
         base
@@ -3749,11 +3627,10 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     if page > total {
         page = total.clone();
     }
-    let active_type = chain
-        .kind
+    let active_type = chain_kind(chain)
         .type_by_value(address_type)
-        .unwrap_or(&chain.kind.types()[0]);
-    let canonical = format!("{base}/private-keys/{}", chain.slug);
+        .unwrap_or(&chain_kind(chain).types()[0]);
+    let canonical = format!("{base}/private-keys/{}", chain.id);
     let self_url = format!("{base}{}", browse_page_href(chain, &page, "legacy"));
     let page_text = page.to_string();
     let total_text = format_page_count(&total);
@@ -3804,7 +3681,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     });
     let curated_start = format!("{:064x}", 1u8);
     let curated_end = format!("{:064x}", 64u8);
-    let curated_url = format!("{base}/keys/{}/{curated_start}-{curated_end}", chain.slug);
+    let curated_url = format!("{base}/keys/{}/{curated_start}-{curated_end}", chain.id);
     let ld_range = json!({
         "@context": "https://schema.org",
         "@type": "WebPage",
@@ -3830,18 +3707,14 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     );
 
     let mut tabs = String::new();
-    for other in &CHAINS {
-        let active = if other.slug == chain.slug {
-            " active"
-        } else {
-            ""
-        };
+    for other in chain::all() {
+        let active = if other.id == chain.id { " active" } else { "" };
         // The donor's chain tabs default TON and Bitcoin Cash to the legacy
         // address type with an explicit `?type=legacy`; the other 16 chains
         // link to the bare slug.
-        let href = match other.slug {
-            "ton" | "bitcoin-cash" => format!("/private-keys/{}?type=legacy", other.slug),
-            _ => format!("/private-keys/{}", other.slug),
+        let href = match other.id {
+            "ton" | "bitcoin-cash" => format!("/private-keys/{}?type=legacy", other.id),
+            _ => format!("/private-keys/{}", other.id),
         };
         tabs.push_str(&format!(
             "<a class=\"chain-tab chip{active}\" href=\"{href}\" style=\"--chain:{}\">{}<span>{}</span></a>",
@@ -3860,7 +3733,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
             break;
         }
         let hex = format!("{value:064x}");
-        let curve_suffix = chain.curve_suffix;
+        let curve_suffix = chain_curve_suffix(chain);
         rows.push_str(&format!(
             "<div class=\"key-row\" data-key=\"{hex}\">\
              <div class=\"col-key\">\
@@ -3875,8 +3748,8 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     }
 
     let mut type_cards = String::new();
-    if chain.kind.types().len() > 1 {
-        for kind in chain.kind.types() {
+    if chain_kind(chain).types().len() > 1 {
+        for kind in chain_kind(chain).types() {
             let active = if kind.value == active_type.value {
                 " active"
             } else {
@@ -3901,9 +3774,9 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     };
 
     let mut search_options = String::new();
-    for kind in chain.kind.types() {
+    for kind in chain_kind(chain).types() {
         // The donor's Bitcoin search select spells the address prefix out.
-        let label = match (chain.slug, kind.value) {
+        let label = match (chain.id, kind.value) {
             ("bitcoin", "legacy") => "Legacy (1...)",
             ("bitcoin", "segwit") => "SegWit (bc1q...)",
             ("bitcoin", "script") => "Nested (3...)",
@@ -3921,7 +3794,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
             label
         ));
     }
-    let search_select = if chain.kind.types().len() > 1 {
+    let search_select = if chain_kind(chain).types().len() > 1 {
         format!(
             "<select id=\"browse-search-type\" aria-label=\"Address type\">{search_options}</select>"
         )
@@ -3945,10 +3818,10 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     let next_disabled = page >= total;
     let last_disabled = next_disabled;
     let random = random_page(chain);
-    let curve_data = chain.kind.curve();
+    let curve_data = chain_kind(chain).curve();
     let retry_icon = ui_icon("ui-retry", "icon");
     // The donor labels the balance column with the coin, not the chain.
-    let balance_label = if chain.slug == "bitcoin" {
+    let balance_label = if chain.id == "bitcoin" {
         "BTC"
     } else {
         chain.name
@@ -3960,7 +3833,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     ]);
     // UTXO chains keep the donor's Balance / Received / TX row; account-model
     // chains show Balance / Active instead.
-    let (summary_class, summary_cards) = if chain.kind.is_utxo() {
+    let (summary_class, summary_cards) = if chain_kind(chain).is_utxo() {
         (
             "balance-summary balance-summary--browse",
             "<div class=\"stat-card\"><span class=\"stat-label\">Balance</span><span class=\"stat-value\" id=\"total-balance\">—</span></div>\
@@ -4025,9 +3898,9 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         site_header(),
         "",
         chain.color,
-        chain.slug,
+        chain.id,
         chain.symbol,
-        chain.explorer,
+        chain.explorer_prefix(),
         active_type.value,
         active_type.field,
         curve_data,
@@ -4048,11 +3921,11 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         prev_disabled,
         ui_icon("ui-prev", "icon"),
         if active_type.value == "legacy" {
-            format!("/private-keys/{}/{}", chain.slug, random)
+            format!("/private-keys/{}/{}", chain.id, random)
         } else {
             format!(
                 "/private-keys/{}/{}?type={}",
-                chain.slug, random, active_type.value
+                chain.id, random, active_type.value
             )
         },
         ui_icon("ui-random", "icon"),
@@ -4069,9 +3942,9 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         ui_icon("ui-key", "icon"),
         ui_icon("ui-wallet", "icon"),
         chain_icon(chain, "keys-header-icon"),
-        chain.slug,
-        browse_placeholder = browse_search_placeholder(chain.slug),
-        browse_hint = browse_search_hint(chain.slug),
+        chain.id,
+        browse_placeholder = browse_search_placeholder(chain.id),
+        browse_hint = browse_search_hint(chain.id),
     );
     html_document(&title, &head, &body)
 }
@@ -4333,7 +4206,7 @@ const MNEMONIC_SEEDS_DEFAULT_TITLE: &str =
     "Mnemonic seeds directory — browse BIP39 phrases by chain | Crypto";
 const MNEMONIC_SEEDS_DEFAULT_DESCRIPTION: &str = "Browse deterministic BIP39 mnemonic seeds chain by chain: 60 phrases per page, 12/18/24 words, BIP32 paths, Bitcoin address types and balance checks. Everything is derived in your browser.";
 const MNEMONIC_SEEDS_DEFAULT_CANONICAL: &str = "https://rotor.pxbt.app/mnemonic-seeds";
-const MNEMONIC_SEEDS_DEFAULT_MAIN: &str = "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"\" data-symbol=\"\" data-explorer=\"\" data-curve=\"0\" data-page=\"1\" style=\"--chain:#f7931a\">";
+const MNEMONIC_SEEDS_DEFAULT_MAIN: &str = "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"\" data-symbol=\"\" data-explorer=\"\" data-curve=\"0\" data-page=\"1\" style=\"--chain:var(--chain-bitcoin)\">";
 const MNEMONIC_SEEDS_DEFAULT_INTRO: &str = "<span data-chain-intro>Browse deterministic seed phrases: enumerate English BIP39 phrases across the entropy space, 60 per page, and derive the matching addresses locally.</span>";
 
 /// One `/mnemonic-seeds/<chain>[/<page>]` page. The shell is static; the
@@ -4345,9 +4218,9 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
     }
     let page_text = page.to_string();
     let self_url = if page == BigUint::from(1u8) {
-        format!("{base}/mnemonic-seeds/{}", chain.slug)
+        format!("{base}/mnemonic-seeds/{}", chain.id)
     } else {
-        format!("{base}/mnemonic-seeds/{}/{}", chain.slug, page_text)
+        format!("{base}/mnemonic-seeds/{}/{}", chain.id, page_text)
     };
     let title = if page == BigUint::from(1u8) {
         format!(
@@ -4384,7 +4257,7 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "description": description,
     });
-    let chain_path = format!("/mnemonic-seeds/{}", chain.slug);
+    let chain_path = format!("/mnemonic-seeds/{}", chain.id);
     let chain_name = chain.name;
     let ld_crumbs = breadcrumb_ld(
         base,
@@ -4440,10 +4313,10 @@ fn render_mnemonic_seeds_page(base: &str, chain: &ChainHub, requested: &str) -> 
         MNEMONIC_SEEDS_DEFAULT_MAIN,
         &format!(
             "<main class=\"browse-page mnemonic-seeds-page\" data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-curve=\"{}\" data-page=\"{}\" style=\"--chain:{}\">",
-            escape_attr(chain.slug),
+            escape_attr(chain.id),
             escape_attr(chain.symbol),
-            escape_attr(chain.explorer),
-            chain.kind.curve(),
+            escape_attr(chain.explorer_prefix()),
+            chain_kind(chain).curve(),
             page_text,
             escape_attr(chain.color),
         ),
@@ -5006,22 +4879,22 @@ fn render_sitemap(base: &str) -> String {
         "  <url><loc>{}/private-keys</loc></url>\n",
         escape_attr(base)
     ));
-    for chain in &CHAINS {
+    for chain in chain::all() {
         urls.push_str(&format!(
             "  <url><loc>{}/private-keys/{}</loc></url>\n",
             escape_attr(base),
-            chain.slug
+            chain.id
         ));
     }
     urls.push_str(&format!(
         "  <url><loc>{}/mnemonic-seeds</loc></url>\n",
         escape_attr(base)
     ));
-    for chain in &CHAINS {
+    for chain in chain::all() {
         urls.push_str(&format!(
             "  <url><loc>{}/mnemonic-seeds/{}</loc></url>\n",
             escape_attr(base),
-            chain.slug
+            chain.id
         ));
     }
     urls.push_str(&format!(
@@ -5032,11 +4905,11 @@ fn render_sitemap(base: &str) -> String {
         "  <url><loc>{}/brainwallet-generator</loc></url>\n",
         escape_attr(base)
     ));
-    for chain in &CHAINS {
+    for chain in chain::all() {
         urls.push_str(&format!(
             "  <url><loc>{}/brainwallet/{}</loc></url>\n",
             escape_attr(base),
-            chain.slug
+            chain.id
         ));
     }
     urls.push_str(&format!(
@@ -6813,6 +6686,110 @@ mod tests {
     }
 
     #[test]
+    fn chain_hub_and_descriptor_agree_on_identity() {
+        let descriptors = crate::chain::all();
+        assert_eq!(descriptors.len(), 18, "one hub per production chain");
+
+        let mut seen = Vec::new();
+        for descriptor in descriptors {
+            let hub = chain_by_slug(descriptor.id)
+                .unwrap_or_else(|| panic!("hub missing for {}", descriptor.id));
+            assert_eq!(hub.id, descriptor.id);
+            assert_eq!(hub.name, descriptor.name);
+            assert_eq!(hub.symbol, descriptor.symbol);
+            assert_eq!(hub.color, descriptor.color);
+            assert_eq!(hub.order, descriptor.order);
+            assert_eq!(hub.decimals, descriptor.decimals);
+            assert_eq!(hub.explorer_prefix(), descriptor.explorer_prefix());
+            assert_eq!(hub.icon(), descriptor.icon());
+            assert!(
+                !chain_description(hub).is_empty(),
+                "{} has no hub description",
+                hub.id
+            );
+            let expected_suffix = if matches!(
+                hub.family,
+                crate::chain::Family::Ed25519 | crate::chain::Family::Ton
+            ) {
+                "?curve=ed25519"
+            } else {
+                ""
+            };
+            assert_eq!(chain_curve_suffix(hub), expected_suffix, "{}", hub.id);
+            seen.push(hub.id);
+        }
+        assert_eq!(
+            seen,
+            crate::generated::chains::CHAINS_MAINNET,
+            "the coordinator must expose the same canonical order as crate::chain"
+        );
+    }
+
+    #[test]
+    fn chain_tabs_and_sitemap_follow_the_canonical_order() {
+        let canonical: Vec<&str> = crate::generated::chains::CHAINS_MAINNET.to_vec();
+
+        let tabs = brainwallet_chain_tabs(None);
+        let tab_order: Vec<&str> = tabs
+            .split("href=\"/brainwallet/")
+            .skip(1)
+            .map(|part| part.split('"').next().expect("tab slug"))
+            .collect();
+        assert_eq!(tab_order, canonical, "brainwallet tabs");
+
+        let base = "https://rotor.pxbt.app";
+        let (body, _, _) =
+            seo_asset(base, "/private-keys/bitcoin", "").expect("/private-keys/bitcoin");
+        let start = body.find("class=\"chain-tabs\"").expect("browse tabs");
+        let block = &body[start..];
+        let end = block.find("</div>").expect("tabs close");
+        let browse_order: Vec<&str> = block[..end]
+            .split("href=\"/private-keys/")
+            .skip(1)
+            .map(|part| part.split(['"', '?']).next().expect("browse tab slug"))
+            .collect();
+        assert_eq!(browse_order, canonical, "private-key browse tabs");
+
+        let sitemap = render_sitemap(base);
+        let mut sitemap_order = Vec::new();
+        let mut rest = sitemap.as_str();
+        while let Some(position) = rest.find("/private-keys/") {
+            let after = &rest[position + "/private-keys/".len()..];
+            if after.starts_with('<') {
+                rest = after;
+                continue;
+            }
+            let slug = after.split(['<', '?']).next().expect("sitemap slug");
+            if canonical.contains(&slug) && sitemap_order.last() != Some(&slug) {
+                sitemap_order.push(slug);
+            }
+            rest = after;
+        }
+        assert_eq!(sitemap_order, canonical, "sitemap private-key order");
+    }
+
+    #[test]
+    fn rendered_pages_use_the_canonical_symbol_for_every_chain() {
+        let base = "https://rotor.pxbt.app";
+        let (body, _, _) =
+            seo_asset(base, "/brainwallet-generator", "").expect("/brainwallet-generator");
+        for chain in crate::chain::all() {
+            let marker = format!("<option value=\"{}\">", chain.id);
+            let start = body
+                .find(&marker)
+                .unwrap_or_else(|| panic!("missing option for {}", chain.id));
+            let end = body[start..].find("</option>").expect("option close");
+            let option = &body[start..start + end];
+            assert!(
+                option.contains(&format!("({})", chain.symbol)),
+                "{} option must print {}: {option}",
+                chain.id,
+                chain.symbol
+            );
+        }
+    }
+
+    #[test]
     fn brainwallet_index_lists_18_chains_and_links_the_generator() {
         let base = "https://rotor.pxbt.app";
         let (body, content_type, status) =
@@ -6826,16 +6803,16 @@ mod tests {
         assert!(body.contains("href=\"/brainwallet-generator\""));
         assert!(body.contains("brainwallet.css"));
         assert!(body.contains("<span>Tools</span>"));
-        for chain in &CHAINS {
+        for chain in chain::all() {
             assert!(
-                body.contains(&format!("href=\"/brainwallet/{}\"", chain.slug)),
+                body.contains(&format!("href=\"/brainwallet/{}\"", chain.id)),
                 "missing chain tile {}",
-                chain.slug
+                chain.id
             );
         }
         assert_eq!(
             body.matches("class=\"chain-card directory-card\"").count(),
-            CHAINS.len()
+            chain::all().len()
         );
         // The index is a directory, not the calculator.
         assert!(!body.contains("id=\"brainwallet-form\""));
@@ -6926,11 +6903,11 @@ mod tests {
         )));
         assert!(body.contains("robots\" content=\"index,follow\""));
         assert!(body.contains("id=\"brainwallet-network\""));
-        for chain in &CHAINS {
+        for chain in chain::all() {
             assert!(
-                body.contains(&format!("<option value=\"{}\">", chain.slug)),
+                body.contains(&format!("<option value=\"{}\">", chain.id)),
                 "missing network option {}",
-                chain.slug
+                chain.id
             );
         }
         assert!(body.contains("id=\"brainwallet-count\""));
@@ -6968,11 +6945,11 @@ mod tests {
                 "sitemap missing {path}"
             );
         }
-        for chain in &CHAINS {
+        for chain in chain::all() {
             assert!(
-                sitemap.contains(&format!("<loc>{base}/brainwallet/{}</loc>", chain.slug)),
+                sitemap.contains(&format!("<loc>{base}/brainwallet/{}</loc>", chain.id)),
                 "sitemap missing /brainwallet/{}",
-                chain.slug
+                chain.id
             );
         }
     }
@@ -7298,11 +7275,11 @@ mod tests {
         assert!(page_two.contains("data-page=\"2\""));
         assert!(page_two.contains("<meta name=\"robots\" content=\"noindex,follow\">"));
 
-        for chain in &CHAINS {
-            let path = format!("/mnemonic-seeds/{}", chain.slug);
+        for chain in chain::all() {
+            let path = format!("/mnemonic-seeds/{}", chain.id);
             let (body, _, status) = seo_asset(base, &path, "").expect("chain route");
             assert_eq!(status, 200, "{path}");
-            assert!(body.contains(&format!("data-chain=\"{}\"", chain.slug)));
+            assert!(body.contains(&format!("data-chain=\"{}\"", chain.id)));
         }
 
         for path in [

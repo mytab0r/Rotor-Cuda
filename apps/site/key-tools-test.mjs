@@ -792,6 +792,19 @@ assert(tools.rowGroup("evm") === "evm" && tools.rowGroup("evm_bnb") === "evm_bnb
 assert(tools.rowGroup("evm_parent") === "evm_parent", "the shared parent is its own group");
 assert(tools.rowFamily("evm_bnb") === "evm" && tools.rowFamily("evm_parent") === "evm", "EVM family for ordering");
 
+// Key rows print the canonical native unit: the four L2s settle in ETH, not
+// in a network short name, and the decimals come from data/chains.json.
+for (const id of ["evm", "evm_arbitrum", "evm_optimism", "evm_base", "evm_zksync"]) {
+  assert(tools.chainMeta(id).ticker === "ETH", `${id} key row prints ETH`);
+  assert(tools.chainMeta(id).decimals === 18, `${id} key row uses 18 decimals`);
+}
+assert(tools.chainMeta("evm_bnb").ticker === "BNB", "BNB key row prints BNB");
+assert(tools.chainMeta("evm_polygon").ticker === "POL", "Polygon key row prints POL");
+assert(tools.chainMeta("tron").ticker === "TRX" && tools.chainMeta("tron").decimals === 6, "TRON unit");
+assert(tools.chainMeta("ton_w5").icon === "chain-ton", "the W5 row keeps the TON icon");
+assert(tools.chainUnit("bitcoin").symbol === "BTC" && tools.chainUnit("bitcoin").decimals === 8, "BTC unit");
+assert(tools.chainSlug("evm_arbitrum") === "arbitrum" && tools.chainSlug("btc_p2tr") === "bitcoin", "row id -> slug");
+
 // Donor order: BTC, EVM, TRX, SOL, TON, SUI, XRP, LTC, BCH, DOGE, ZEC.
 const ORDER_IDS = ["zcash_p2pkh", "btc_p2wpkh", "doge_p2pkh", "evm", "tron", "ltc_p2pkh", "sui", "xrp_classic", "solana", "bch_legacy", "ton", "btc_p2pkh"];
 const ordered = tools.orderAddressRows(ORDER_IDS.map((id) => ({ id }))).map((row) => row.id);

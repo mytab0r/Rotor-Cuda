@@ -15,7 +15,15 @@
 //   provider-id      every `SSOT_PROVIDERS.find('chain', 'id')`,
 //                    `.first('chain')` and static `.byChain` / `.bySlug`
 //                    reference names a chain and provider id that exist in
-//                    data/providers.json / data/chains.json.
+//                    data/providers.json / data/chains.json. `RotorChains.order`
+//                    membership checks are validated the same way.
+//   chain-color      no first-party apps/site/*.js or *.css file carries a
+//                    canonical chain color outside the generated globals and
+//                    the marked `chains:start` CSS region.
+//   chain-order      no first-party apps/site/*.js file declares its own
+//                    chain-order array starting with 'bitcoin'. Consumers must
+//                    read `window.RotorChains.order`; reviewed exceptions carry
+//                    an allowlist entry.
 //
 // data/ssot-allow.json records the known exceptions. The list is shrink-only:
 // a new literal fails, an entry whose match no longer occurs fails as stale,
@@ -33,6 +41,8 @@ const SITE_DIR = "apps/site";
 const GENERATED_JS = "chains.generated.js";
 const ALLOW_PATH = "data/ssot-allow.json";
 const EXEMPT_GENERATED = new Set([GENERATED_JS]);
+const CSS_START = "/* chains:start */";
+const CSS_END = "/* chains:end */";
 const OWNERS = new Set([
   "site-ui",
   "coordinator",
@@ -92,6 +102,24 @@ function listSiteFiles(root) {
     .filter((name) => name.endsWith(".js") && !EXEMPT_GENERATED.has(name))
     .sort()
     .map((name) => `${SITE_DIR}/${name}`);
+}
+
+function listCssFiles(root) {
+  return fs
+    .readdirSync(path.join(root, SITE_DIR))
+    .filter((name) => name.endsWith(".css"))
+    .sort()
+    .map((name) => `${SITE_DIR}/${name}`);
+}
+
+// The marked region is generated from data/chains.json; everything outside it
+// must read the generated custom properties instead of repeating a color.
+function outsideGeneratedRegion(relative, text) {
+  if (relative !== "apps/site/site.css") return text;
+  const start = text.indexOf(CSS_START);
+  const end = text.indexOf(CSS_END);
+  if (start === -1 || end === -1 || end < start) return text;
+  return text.slice(0, start) + text.slice(end + CSS_END.length);
 }
 
 function lineAt(text, index) {
@@ -160,6 +188,11 @@ const CHAIN_ACCESS = [
     re: /\b(?:SSOT_CHAINS|RotorChains)\.bySlug\[\s*(['"])([a-z0-9-]+)\1\s*\]/g,
     group: 2,
   },
+  {
+    kind: "order",
+    re: /\b(?:SSOT_CHAINS|RotorChains)\.order\.(?:indexOf|includes|lastIndexOf)\(\s*(['"])([a-z0-9-]+)\1\s*\)/g,
+    group: 2,
+  },
 ];
 
 // The generated globals are the runtime contract. A typo in a chain slug or a
@@ -167,6 +200,9 @@ const CHAIN_ACCESS = [
 // the page on `find(...).url`; validate every static reference here.
 export function validateReferences(root, files, data) {
   const errors = [];
+  const mainnet = new Set(
+    data.chains.filter((chain) => !chain.testnet).map((chain) => chain.slug),
+  );
   let references = 0;
   for (const relative of files) {
     const text = fs.readFileSync(path.join(root, relative), "utf8");
@@ -210,9 +246,11 @@ export function validateReferences(root, files, data) {
         references += 1;
         const slug = match[access.group];
         const line = lineAt(text, match.index);
-        if (!data.slugs.has(slug)) {
+        const known = access.kind === "order" ? mainnet.has(slug) : data.slugs.has(slug);
+        if (!known) {
           errors.push(
-            `${relative}:${line} ${access.kind}.${slug} names a chain absent from data/chains.json`,
+            `${relative}:${line} ${access.kind} reference names ${slug}, absent from ` +
+              (access.kind === "order" ? "the canonical production order" : "data/chains.json"),
           );
         }
       }
@@ -335,6 +373,51 @@ export function check(root = REPO_ROOT) {
     }
   }
 
+  // Canonical chain colors must live only in the generated outputs. A color in
+  // a first-party CSS rule or JS table is a copied fact.
+  const colors = new Set(data.chains.map((chain) => chain.color.toLowerCase()));
+  const cssFiles = listCssFiles(root);
+  let colorOccurrences = 0;
+  for (const relative of [...files, ...cssFiles]) {
+    const text = outsideGeneratedRegion(
+      relative,
+      fs.readFileSync(path.join(root, relative), "utf8"),
+    );
+    const lines = text.split("\n");
+    for (const color of colors) {
+      for (const hit of occurrences(text, color)) {
+        colorOccurrences += 1;
+        const lineText = (lines[hit.line - 1] ?? "").trim();
+        if (!allowEntries.has(`${relative}\0${lineText}`)) {
+          errors.push(
+            `${relative}:${hit.line} repeats the canonical chain color ${color}; ` +
+              "read var(--chain-<slug>) / window.RotorChains.bySlug[slug].color instead",
+          );
+        }
+      }
+    }
+  }
+
+  // A local chain-order array drifts from data/chains.json. The canonical
+  // order is window.RotorChains.order (and chain::all() in Rust).
+  const orderArray = /\bvar\s+[A-Za-z_$][\w$]*\s*=\s*\[\s*(['"])bitcoin\1/g;
+  let orderArrays = 0;
+  for (const relative of files) {
+    const text = fs.readFileSync(path.join(root, relative), "utf8");
+    const lines = text.split("\n");
+    for (const match of text.matchAll(orderArray)) {
+      orderArrays += 1;
+      const line = lineAt(text, match.index);
+      const lineText = (lines[line - 1] ?? "").trim();
+      if (!allowEntries.has(`${relative}\0${lineText}`)) {
+        errors.push(
+          `${relative}:${line} declares a local chain-order array; ` +
+            "read window.RotorChains.order instead, or add a reviewed data/ssot-allow.json entry",
+        );
+      }
+    }
+  }
+
   return {
     ok: errors.length === 0,
     errors,
@@ -342,6 +425,8 @@ export function check(root = REPO_ROOT) {
     checked,
     allowlisted,
     references: references.references,
+    colorOccurrences,
+    orderArrays,
   };
 }
 
@@ -355,7 +440,9 @@ export function main() {
     }
     console.log(
       `ssot:check OK (${result.needles.length} canonical hosts, ${result.checked} site scripts, ` +
-        `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider reference(s))`,
+        `${result.allowlisted} allowlisted occurrence(s), ${result.references} provider/chain reference(s), ` +
+        `${result.colorOccurrences} chain color literal(s) outside the generated output, ` +
+        `${result.orderArrays} local order array(s))`,
     );
     return 0;
   } catch (error) {

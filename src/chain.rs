@@ -1,10 +1,16 @@
 //! Chain descriptor registry and family-based address derivation.
 //!
-//! One table is the single source of truth for the 18 networks the site
-//! exposes. The engine calls [`ChainDescriptor::derive`] on a found key; the
-//! address encoders live in [`crate::address`].
+//! Identity (id, name, symbol, color, decimals, display order, explorer) comes
+//! from `data/chains.json` through the generated tables in
+//! [`crate::generated::chains`]. This module adds only the derivation
+//! behaviour (family, curve, address encoding, HD path, WIF version) keyed by
+//! the same slugs. The engine calls [`ChainDescriptor::derive`] on a found
+//! key; the address encoders live in [`crate::address`].
+
+use std::sync::LazyLock;
 
 use crate::address;
+use crate::generated::chains as generated;
 
 pub use crate::address::{DerivedAddress, KeyMaterial};
 
@@ -79,6 +85,14 @@ pub struct ChainDescriptor {
     pub id: &'static str,
     /// Human-readable name.
     pub name: &'static str,
+    /// Native unit ticker shown by the site and CLI.
+    pub symbol: &'static str,
+    /// Canonical `#rrggbb` accent color.
+    pub color: &'static str,
+    /// Canonical display position from `data/chains.json`.
+    pub order: u16,
+    /// Decimal places of the chain's native unit.
+    pub decimals: u8,
     pub family: Family,
     pub curve: Curve,
     pub encoding: AddressEncoding,
@@ -90,189 +104,216 @@ pub struct ChainDescriptor {
     pub explorer: &'static str,
 }
 
-/// All 18 chains, ordered as on the site.
-pub const CHAINS: [ChainDescriptor; 18] = [
-    ChainDescriptor {
+/// Derivation-only metadata keyed by the canonical slug. Identity fields are
+/// looked up from the generated tables instead of being repeated here.
+struct Derivation {
+    id: &'static str,
+    family: Family,
+    curve: Curve,
+    encoding: AddressEncoding,
+    hd_path: Option<&'static str>,
+    wif_version: Option<u8>,
+}
+
+/// Derivation metadata for all 18 production chains. The order here is not
+/// significant; `chain::all()` iterates the canonical generated order.
+const DERIVATIONS: &[Derivation] = &[
+    Derivation {
         id: "bitcoin",
-        name: "Bitcoin",
         family: Family::SecpHash160,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::Base58Check(&[0x00]),
         hd_path: Some("m/44'/0'/0'/0/0"),
         wif_version: Some(0x80),
-        explorer: "https://mempool.space/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "ethereum",
-        name: "Ethereum",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://etherscan.io/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "bnb",
-        name: "BNB Chain",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://bscscan.com/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "arbitrum",
-        name: "Arbitrum",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://arbiscan.io/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "optimism",
-        name: "Optimism",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://optimistic.etherscan.io/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "base",
-        name: "Base",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://basescan.org/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "polygon",
-        name: "Polygon",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://polygonscan.com/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "avalanche",
-        name: "Avalanche",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://snowtrace.io/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "zksync",
-        name: "zkSync Era",
         family: Family::EvmKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::EvmHex,
         hd_path: Some("m/44'/60'/0'/0/0"),
         wif_version: None,
-        explorer: "https://explorer.zksync.io/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "solana",
-        name: "Solana",
         family: Family::Ed25519,
         curve: Curve::Ed25519,
         encoding: AddressEncoding::SolanaBase58,
         hd_path: Some("m/44'/501'/0'/0'"),
         wif_version: None,
-        explorer: "https://solscan.io/account/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "tron",
-        name: "TRON",
         family: Family::TronKeccak,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::TronBase58,
         hd_path: Some("m/44'/195'/0'/0/0"),
         wif_version: None,
-        explorer: "https://tronscan.org/#/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "xrp",
-        name: "XRP",
         family: Family::SecpHash160,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::RippleBase58,
         hd_path: Some("m/44'/144'/0'/0/0"),
         wif_version: None,
-        explorer: "https://xrpscan.com/account/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "litecoin",
-        name: "Litecoin",
         family: Family::SecpHash160,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::Base58Check(&[0x30]),
         hd_path: Some("m/44'/2'/0'/0/0"),
         wif_version: Some(0xb0),
-        explorer: "https://blockchair.com/litecoin/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "bitcoin-cash",
-        name: "Bitcoin Cash",
         family: Family::SecpHash160,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::Base58Check(&[0x00]),
         hd_path: Some("m/44'/145'/0'/0/0"),
         wif_version: Some(0x80),
-        explorer: "https://blockchair.com/bitcoin-cash/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "dogecoin",
-        name: "Dogecoin",
         family: Family::SecpHash160,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::Base58Check(&[0x1e]),
         hd_path: Some("m/44'/3'/0'/0/0"),
         wif_version: Some(0x9e),
-        explorer: "https://blockchair.com/dogecoin/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "zcash",
-        name: "Zcash",
         family: Family::SecpHash160,
         curve: Curve::Secp256k1,
         encoding: AddressEncoding::Base58Check(&[0x1c, 0xb8]),
         hd_path: Some("m/44'/133'/0'/0/0"),
         wif_version: Some(0x80),
-        explorer: "https://blockchair.com/zcash/address/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "sui",
-        name: "Sui",
         family: Family::Ed25519,
         curve: Curve::Ed25519,
         encoding: AddressEncoding::SuiHex,
         hd_path: Some("m/44'/784'/0'/0'/0'"),
         wif_version: None,
-        explorer: "https://suiscan.xyz/mainnet/account/{address}",
     },
-    ChainDescriptor {
+    Derivation {
         id: "ton",
-        name: "TON",
         family: Family::Ton,
         curve: Curve::Ed25519,
         encoding: AddressEncoding::TonUserFriendly,
         hd_path: Some("m/44'/607'/0'/0/0"),
         wif_version: None,
-        explorer: "https://tonviewer.com/{address}",
     },
 ];
+
+fn text(table: &'static [(&'static str, &'static str)], id: &str) -> &'static str {
+    table
+        .iter()
+        .find(|(slug, _)| *slug == id)
+        .map(|(_, value)| *value)
+        .unwrap_or_else(|| panic!("generated chain table is missing {id}"))
+}
+
+fn number<T>(table: &'static [(&'static str, T)], id: &str) -> T
+where
+    T: Copy,
+{
+    table
+        .iter()
+        .find(|(slug, _)| *slug == id)
+        .map(|(_, value)| *value)
+        .unwrap_or_else(|| panic!("generated chain table is missing {id}"))
+}
+
+fn descriptor(derivation: &Derivation) -> ChainDescriptor {
+    let id = derivation.id;
+    ChainDescriptor {
+        id,
+        name: text(generated::CHAIN_NAMES, id),
+        symbol: text(generated::CHAIN_SYMBOLS, id),
+        color: text(generated::CHAIN_COLORS, id),
+        order: number(generated::CHAIN_ORDERS, id),
+        decimals: number(generated::CHAIN_DECIMALS, id),
+        family: derivation.family,
+        curve: derivation.curve,
+        encoding: derivation.encoding,
+        hd_path: derivation.hd_path,
+        wif_version: derivation.wif_version,
+        explorer: text(generated::CHAIN_EXPLORERS, id),
+    }
+}
+
+/// All 18 production chains, in the canonical order from `data/chains.json`.
+static CHAINS: LazyLock<Vec<ChainDescriptor>> = LazyLock::new(|| {
+    generated::CHAINS_MAINNET
+        .iter()
+        .map(|id| {
+            let derivation = DERIVATIONS
+                .iter()
+                .find(|derivation| derivation.id == *id)
+                .unwrap_or_else(|| panic!("no derivation metadata for chain {id}"));
+            descriptor(derivation)
+        })
+        .collect()
+});
 
 /// Ticker aliases accepted by `--chain` besides the site slug itself.
 ///
@@ -298,9 +339,9 @@ pub const ALIASES: &[(&str, &str)] = &[
     ("ton", "ton"),
 ];
 
-/// Every descriptor, in site order.
+/// Every descriptor, in canonical order.
 pub fn all() -> &'static [ChainDescriptor] {
-    &CHAINS
+    CHAINS.as_slice()
 }
 
 /// Look up a descriptor by site slug.
@@ -332,6 +373,19 @@ impl ChainDescriptor {
     /// Explorer link for a derived address.
     pub fn explorer_url(&self, address: &str) -> String {
         self.explorer.replace("{address}", address)
+    }
+
+    /// Explorer link prefix before the address, as the coordinator used to
+    /// keep in its own table.
+    pub fn explorer_prefix(&self) -> &'static str {
+        self.explorer
+            .strip_suffix("{address}")
+            .unwrap_or(self.explorer)
+    }
+
+    /// Icon id in `/icons.svg` for this chain.
+    pub fn icon(&self) -> &'static str {
+        text(generated::CHAIN_ICONS, self.id)
     }
 
     /// True when the chain's target is the keccak account (EVM and TRON).
