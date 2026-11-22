@@ -49,6 +49,7 @@
         "node --check scripts/build-gallery.mjs",
         "node --check scripts/check-components.mjs",
         "node --check scripts/gen-ssot.mjs",
+        "node --check scripts/generated-regions.mjs",
         "node --check scripts/check-ssot.mjs",
         "node scripts/gen-ssot.mjs --check",
         "node scripts/check-ssot.mjs",
