@@ -28,9 +28,18 @@
   Evidence: `render_puzzle_random` (`mod.rs:4419`),
   `puzzle-browser.js:367-432,864-886`.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
-  explorer. **Blocked: no dataset.** The repo has only gzip download mirrors
-  (`src/coordinator/wallets.rs:34-40`); top-100 ranks/labels/balances require a
-  licensed third-party dataset or API. Not faked.
+  explorer. **Blocked on an owner decision, not on "no API".** Live capture
+  2026-11-22: the donor serves seven chains (`bitcoin, ethereum, bnb, polygon,
+  arbitrum, tron, dogecoin`) with Rank/Address/Label/Type/Balance/Actions and
+  100 `Unknown` labels. A keyless ranked endpoint does exist:
+  `GET https://sochain.com/api/v3/rich_list/<ticker>?page_size=100` answered
+  200 with `access-control-allow-origin: *` and 100 ranked rows for BTC, DOGE,
+  LTC and ZEC (2500 requests/hour). It ranks UTXO chains only, so it cannot
+  cover the donor's ethereum/bnb/polygon/arbitrum/tron lists, and the repo
+  still has no licensed dataset (only gzip mirrors,
+  `src/coordinator/wallets.rs:34-40`). The route stays absent rather than
+  shipping 2 of the donor's 7 chains. Open question for the owner: ship a
+  BTC/DOGE-only list, or supply a ranked dataset for the other five. Not faked.
 - [x] BTC/EVM transaction decoders (`/tx/bitcoin`, `/tx/ethereum`).
 - [x] Top-level `/send/<chain>` for BTC/ETH testnet, reusing the cabinet signing
   core; mainnet stays gated. Evidence: `apps/site/send.html` (one page on
