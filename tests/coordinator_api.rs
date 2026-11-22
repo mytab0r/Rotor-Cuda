@@ -171,7 +171,16 @@ fn now_secs() -> u64 {
 
 /// Mint a cookie exactly as the documented wire format says, so the test owns
 /// the contract instead of calling a helper that could drift with the server.
-fn test_admin_cookie(token: &str, expires_at: u64, nonce: &str) -> String {
+/// The nonce comes from the OS RNG, like production: a fixed literal here would
+/// be a hard-coded cryptographic value even though the test is deterministic
+/// in every other respect.
+fn test_admin_cookie(token: &str, expires_at: u64) -> String {
+    let mut nonce_bytes = [0u8; 16];
+    getrandom::getrandom(&mut nonce_bytes).expect("OS random");
+    let mut nonce = String::with_capacity(32);
+    for byte in nonce_bytes {
+        nonce.push_str(&format!("{byte:02x}"));
+    }
     let mut hasher = Sha256::new();
     hasher.update(b"rotor-admin-cookie-v1\0");
     hasher.update(token.as_bytes());
@@ -2431,10 +2440,9 @@ fn admin_rejects_tampered_expired_and_rotated_cookies() {
     let temp = TempState::new("admin-cookie");
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
-    let nonce = "000102030405060708090a0b0c0d0e0f";
     let now = now_secs();
 
-    let valid = test_admin_cookie(TOKEN, now + 3600, nonce);
+    let valid = test_admin_cookie(TOKEN, now + 3600);
     let cookie_header = format!("rotor_admin={valid}");
     let (status, _, body) = raw_with_headers(
         addr,
@@ -2449,10 +2457,10 @@ fn admin_rejects_tampered_expired_and_rotated_cookies() {
     let mut tampered = valid.clone();
     tampered.pop();
     tampered.push(if tampered.ends_with('0') { '1' } else { '0' });
-    let expired = test_admin_cookie(TOKEN, now.saturating_sub(1), nonce);
-    let rotated = test_admin_cookie("different-admin-token", now + 3600, nonce);
+    let expired = test_admin_cookie(TOKEN, now.saturating_sub(1));
+    let rotated = test_admin_cookie("different-admin-token", now + 3600);
     // A correctly signed cookie may not outlive the documented 12 h TTL.
-    let overlong = test_admin_cookie(TOKEN, now + 12 * 60 * 60 + 3600, nonce);
+    let overlong = test_admin_cookie(TOKEN, now + 12 * 60 * 60 + 3600);
 
     for (label, cookie) in [
         ("tampered MAC", tampered),
