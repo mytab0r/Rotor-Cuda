@@ -369,8 +369,15 @@
     {
       "id": "browse-row-second-address",
       "reported": "2026-11-22",
-      "symptom": "Bitcoin legacy listing rows rendered both the compressed and uncompressed address (and both balance lines), so every row was 131-163px and only two reached the 1440x900 fold; the donor row model is one address line.",
-      "detector": "browse-row-address-disclosure",
+      "symptom": "Bitcoin legacy listing rows hid the uncompressed address behind a disclosure, so the row showed one address and needed a click for the second; the donor renders both address forms immediately.",
+      "detector": "browse-row-address-count",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "browse-row-noisy-received",
+      "reported": "2026-11-22",
+      "symptom": "Every balance line printed a zero received amount and a relative-age label, and the figures were plain text with no accessible names; the donor only prints the received pill when it is non-zero and emphasises the TX count.",
+      "detector": "browse-row-balance-lines",
       "where": "scripts/ui-audit.mjs"
     },
     {

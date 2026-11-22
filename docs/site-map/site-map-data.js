@@ -99,7 +99,7 @@
       status: 'parity',
       priority: '-',
       donorIds: ['pkf:/private-keys/' + item[0]],
-      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; the search placeholder and hint name the chain’s own WIF shape (BTC/BCH/ZEC 5/K/L, LTC 6/T, DOGE Q/6, account chains “HEX or Brainwallet”), as the donor does; BTC and LTC expose four address-type cards, other chains one row set as the donor. Listing rows show the hex key with a real 44px copy action, one address line and the balance; a BTC legacy key keeps its second (uncompressed) address and balance in a disclosure, and the WIF stays key-level on /key/<hex>. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
+      note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; the search placeholder and hint name the chain’s own WIF shape (BTC/BCH/ZEC 5/K/L, LTC 6/T, DOGE Q/6, account chains “HEX or Brainwallet”), as the donor does; BTC and LTC expose four address-type cards, other chains one row set as the donor. Listing rows show the hex key with a real 44px copy action; a BTC legacy key shows both the compressed and uncompressed address at once (60 keys x 2 = 120 addresses per page) with one balance line per address, and the WIF stays key-level on /key/<hex>. Each balance line shows the bold balance, a TX `.badge` and a received `.badge` only when non-zero. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
     });
   });
 
@@ -1274,6 +1274,18 @@
     priority: 'P1',
     sources: ['ref-site-a'],
     note: 'Address copy, explorer and details actions use the shared 44 px `.icon-button--lg` with `aria-label` + `data-tooltip` and an `.is-copied` state (`key.js`, `site.css`). Addresses still truncate with a CSS end ellipsis; a middle ellipsis is not implemented, and the donor audit does not record which one privatekeyfinder uses.'
+  });
+
+  feature({
+    id: 'browse-row-model',
+    area: 'private-keys',
+    capability: 'Directory row shows both legacy addresses; donor balance/TX badges',
+    donor: 'present',
+    rotor: 'present',
+    status: 'parity',
+    priority: '-',
+    sources: ['ref-site-a'],
+    note: 'The donor renders 60 key rows and, for a legacy Bitcoin key, two address items `(c)`/`(u)` immediately (120 addresses per page); there is no disclosure. Rotor matches that and keeps the page total at 120 (`data-addresses-per-page`); a single-address chain stays at 60. Each balance line shows the balance, a `.badge` TX count and a received `.badge` only when non-zero; the zero received figure and relative-age label were removed. Measured in `docs/donor-parity/density-bitcoin-row.md`; detectors `browse-row-address-count`, `browse-row-balance-lines`, `browse-row-key-copy`, `browse-row-height`.'
   });
 
   feature({
