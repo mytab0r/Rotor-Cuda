@@ -50,6 +50,9 @@ ship two renderers for the same route.
 - [ ] Cutover gate: every rewritten pattern in `data/routes.json` is served by
       its target renderer and no `live` row still points at the coordinator for
       a migrated route family.
+- [ ] Pages serves the whole `web/dist` tree, including `a/<sha>/`; the
+      prerendered HTML, sitemap and `og:image` URLs depend on those immutable
+      asset paths.
 - [ ] Origin switch: Pages/Functions serve HTML, Rust serves `/api/v1/*` only.
 - [ ] Rust HTML routes return 410; `include_str!` HTML removed.
 

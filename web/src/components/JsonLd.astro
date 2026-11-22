@@ -1,0 +1,13 @@
+---
+/* The only place JSON-LD is written. Astro escapes nothing inside
+ * set:html, so `<` is escaped to keep a payload from closing the script tag.
+ * The data is build-time content authored in the page, never user input. */
+interface Props {
+  data: Record<string, unknown> | Array<Record<string, unknown>>;
+}
+
+const { data } = Astro.props;
+const json = JSON.stringify(data).replace(/</g, '\\u003c');
+---
+
+<script type="application/ld+json" set:html={json}></script>

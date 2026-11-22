@@ -1,0 +1,176 @@
+---
+/* Shared static shell for every Astro page.
+ *
+ * The header, nav and footer are rendered markup, not JS-built DOM: the live
+ * coordinator's `site_header`/`site_footer` structure and glyphs, with the
+ * active section decided here at build time. Only the theme toggle and the
+ * narrow-screen disclosure are hydrated (src/scripts/site-shell.ts). */
+import '../styles/site-shell.css';
+import themeInitUrl from '../scripts/theme-init.js?url';
+import JsonLd from '../components/JsonLd.astro';
+import { getBuildId } from '../lib/build-id';
+import {
+  PRIMARY_NAV,
+  REPOSITORY_URL,
+  SITE_NAME,
+  THEME_STORAGE_KEY,
+  absoluteUrl,
+  sectionForPath,
+} from '../lib/site';
+
+export interface Props {
+  title: string;
+  description: string;
+  /** Path or absolute URL; defaults to the current route. */
+  canonical?: string;
+  /** Absolute URL of a real image; defaults to the favicon. */
+  image?: string;
+  imageAlt?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  robots?: string;
+  bodyClass?: string;
+  mainClass?: string;
+  jsonLd?: Record<string, unknown> | Array<Record<string, unknown>>;
+}
+
+const {
+  title,
+  description,
+  canonical = Astro.url.pathname,
+  image = absoluteUrl('/favicon.png'),
+  imageAlt = title,
+  imageWidth,
+  imageHeight,
+  robots = 'index,follow',
+  bodyClass = '',
+  mainClass = '',
+  jsonLd,
+} = Astro.props;
+
+const active = sectionForPath(Astro.url.pathname);
+const canonicalUrl = canonical.startsWith('http') ? canonical : absoluteUrl(canonical);
+const buildId = getBuildId();
+---
+
+<!doctype html>
+<html lang="en" data-build={buildId} data-theme-key={THEME_STORAGE_KEY}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <meta name="description" content={description}>
+  <meta name="robots" content={robots}>
+  <link rel="canonical" href={canonicalUrl}>
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <meta name="theme-color" content="#07090e">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content={SITE_NAME}>
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content={title}>
+  <meta property="og:description" content={description}>
+  <meta property="og:url" content={canonicalUrl}>
+  <meta property="og:image" content={image}>
+  <meta property="og:image:alt" content={imageAlt}>
+  {imageWidth && <meta property="og:image:width" content={String(imageWidth)}>}
+  {imageHeight && <meta property="og:image:height" content={String(imageHeight)}>}
+  <meta name="twitter:card" content={imageWidth ? 'summary_large_image' : 'summary'}>
+  <meta name="twitter:title" content={title}>
+  <meta name="twitter:description" content={description}>
+  <meta name="twitter:image" content={image}>
+  <meta name="twitter:image:alt" content={imageAlt}>
+  {jsonLd && <JsonLd data={jsonLd} />}
+  <link rel="stylesheet" href="/site.css">
+  <script is:inline src={themeInitUrl}></script>
+  <slot name="head" />
+</head>
+<body class={bodyClass}>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-nav" data-site-header>
+    <a class="brand" href="/">
+      <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span>
+      <span class="brand-name">Crypto<span>.</span></span>
+    </a>
+    <nav id="site-nav-main" class="site-nav__links" aria-label="Main">
+      {PRIMARY_NAV.map((item) => (
+        <a
+          href={item.href}
+          data-nav={item.section}
+          class:list={{ active: active === item.section }}
+          aria-current={active === item.section ? 'page' : undefined}
+        >
+          <svg class="icon" aria-hidden="true"><use href={`/icons.svg#${item.icon}`}></use></svg>
+          <span>{item.label}</span>
+        </a>
+      ))}
+    </nav>
+    <div class="nav-tools">
+      <a
+        class="icon-button icon-button--quiet icon-button--lg"
+        href="/key"
+        data-nav="search"
+        aria-label="Search wallet"
+        data-tooltip="Search wallet"
+        aria-current={active === 'search' ? 'page' : undefined}
+      >
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg>
+      </a>
+      <button
+        type="button"
+        class="icon-button icon-button--quiet icon-button--lg theme-toggle"
+        data-theme-toggle
+        aria-label="Switch to light theme"
+        data-tooltip="Switch to light theme"
+        aria-pressed="false"
+      >
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-sun"></use></svg>
+      </button>
+      <a
+        class="chip chip--primary"
+        href="/cabinet"
+        data-nav="cabinet"
+        aria-label="Cabinet"
+        aria-current={active === 'cabinet' ? 'page' : undefined}
+      >
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-vault"></use></svg><span>Cabinet</span>
+      </a>
+      <button
+        type="button"
+        class="icon-button icon-button--quiet icon-button--lg site-nav__menu"
+        data-nav-toggle
+        aria-label="Open navigation"
+        data-tooltip="Open navigation"
+        aria-controls="site-nav-main"
+        aria-expanded="false"
+      >
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-menu"></use></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content" class={mainClass}>
+    <slot />
+  </main>
+
+  <footer class="site-footer">
+    <nav aria-label="Footer">
+      <a href="/faq">FAQ</a>
+      <a href="/disclaimer">Disclaimer</a>
+      <a href="/donate">Donate</a>
+      <a href="/docs">Docs</a>
+      <a href={REPOSITORY_URL} rel="noopener noreferrer">GitHub</a>
+    </nav>
+    <div class="site-footer__meta">
+      <span>© 2026 Crypto</span>
+      <span>build {buildId}</span>
+    </div>
+  </footer>
+
+  <slot name="scripts" />
+  <script>
+    import '../scripts/site-shell.ts';
+  </script>
+</body>
+</html>
