@@ -588,7 +588,7 @@
     },
     {
       "id": "mnemonic-ltc-sochain-fallback",
-      "rule": "A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider; DOGE and ZEC stay SoChain-only.",
+      "rule": "A SoChain 429 serves the whole Litecoin directory page from the SSOT litecoinspace Esplora provider and the whole Dogecoin page from one SSOT BlockCypher batch; ZEC stays SoChain-only with no fallback.",
       "batch": "phase 4",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/table.md#detectors",
@@ -856,6 +856,14 @@
       "batch": "4a",
       "implemented_in": "scripts/check-screenshots.mjs",
       "doc_anchor": "docs/process/self-checking.md#7-no-screenshots-or-test-evidence-in-the-repo",
+      "status": "implemented"
+    },
+    {
+      "id": "mnemonic-doge-blockcypher-batch",
+      "rule": "Both DOGE directories fetch all addresses in one batched BlockCypher request and map the reply by index.",
+      "batch": "phase 4",
+      "implemented_in": "apps/site/mnemonic-seeds-test.mjs",
+      "doc_anchor": "docs/design-system/components/table.md#detectors",
       "status": "implemented"
     },
     {

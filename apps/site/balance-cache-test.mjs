@@ -186,6 +186,51 @@ const tests = [
     );
   }),
 
+  test("blockcypher doge batch maps rows by index and keeps the probe values", () => {
+    const addresses = Array.from({ length: 60 }, (_, i) => `doge${i}`);
+    // The echoed address is ignored; the row position is the key.
+    const rows = addresses.map((_, i) => ({
+      address: `D-echo-${59 - i}`,
+      balance: String(1000 + i),
+      total_received: String(5000 + i),
+      n_tx: i,
+    }));
+    const parsed = cache.parseBlockcypherDogeBatch(addresses, rows);
+    assert.equal(parsed.length, 60);
+    assert.deepEqual(parsed[0], { amount: "1000", received: "5000", tx: 0 });
+    assert.deepEqual(parsed[1], { amount: "1001", received: "5001", tx: 1 });
+    assert.deepEqual(parsed[59], { amount: "1059", received: "5059", tx: 59 });
+
+    // Single-address probe (live 2026-11-22): BlockCypher answers a bare object.
+    const probeAddress = "DH5yaieqoZN36fDVciNyRueRGvGLR3mr7L";
+    const probe = cache.parseBlockcypherDogeBatch([probeAddress], {
+      address: probeAddress,
+      balance: "6223536467666",
+      total_received: "4385334473843834264",
+      n_tx: 1487,
+    });
+    assert.deepEqual(probe, [{
+      amount: "6223536467666",
+      received: "4385334473843834264",
+      tx: 1487,
+    }], "the single-object form is wrapped into a one-row array");
+
+    assert.deepEqual(
+      cache.parseBlockcypherDogeBatch(["a"], [{}]),
+      [{ amount: "0", received: "0", tx: 0 }],
+      "missing fields are zero, never NaN"
+    );
+    assert.deepEqual(
+      cache.parseBlockcypherDogeBatch(["a"], [{ balance: "-5", total_received: "-7", n_tx: 0 }]),
+      [{ amount: "0", received: "0", tx: 0 }],
+      "a negative total clamps to zero instead of going negative"
+    );
+    assert.deepEqual(cache.parseBlockcypherDogeBatch(["a"], [null]), [null], "a malformed row is null");
+    assert.equal(cache.parseBlockcypherDogeBatch(["a", "b"], [{ balance: "1" }]), null, "length mismatch");
+    assert.equal(cache.parseBlockcypherDogeBatch(["a", "b"], { balance: "1" }), null, "an object for two addresses is rejected");
+    assert.equal(cache.parseBlockcypherDogeBatch(undefined, [{ balance: "1" }]), null, "missing request list");
+  }),
+
   test("free-provider bodies decode to atomic amounts", () => {
     // XRPScan: drops in account_data.Balance, transaction count alongside.
     assert.deepEqual(
