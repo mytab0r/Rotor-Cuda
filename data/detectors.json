@@ -211,6 +211,30 @@
       "status": "implemented"
     },
     {
+      "id": "header-icon-unique",
+      "rule": "Every header destination has its own sprite icon and no two header controls share an accessible name.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/nav.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "header-row-parity",
+      "rule": "From 1024px up the header is one row and at most 60px high.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/nav.md#detectors",
+      "status": "implemented"
+    },
+    {
+      "id": "mobile-header-budget",
+      "rule": "At 375px the header exposes at most six controls and is at most 96px high.",
+      "batch": "6",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/nav.md#detectors",
+      "status": "implemented"
+    },
+    {
       "id": "nav-keystore-highlight",
       "rule": "/keystore-parser highlights Tools, not Search.",
       "batch": "6",
@@ -926,6 +950,14 @@
       "id": "page-inset-parity",
       "rule": "The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280.",
       "batch": "density",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "wallet-signin-surface",
+      "rule": "The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out.",
+      "batch": "wallet-account-link",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"

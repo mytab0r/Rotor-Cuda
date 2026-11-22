@@ -220,6 +220,27 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "duplicate-nav-icons",
+      "reported": "2026-11-22",
+      "symptom": "The served header reused one sprite icon for two different destinations: Directory/Seeds both used ui-key, Vanity/Tools both used ui-tools, and the Wallet/Cabinet chips both used ui-wallet, so mobile showed pairs of identical-looking actions.",
+      "detector": "header-icon-unique",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "header-wrapped-second-row",
+      "reported": "2026-11-22",
+      "symptom": "The desktop header wrapped the primary nav onto a second row on /cabinet and /cabinet/wallet (97px instead of 70px) because the extra Wallet chip consumed the row, so the same shell had two heights at 1280px.",
+      "detector": "header-row-parity",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "mobile-header-crowding",
+      "reported": "2026-11-22",
+      "symptom": "At 375px the header stacked a second nav row and exposed 9-10 controls in a 118px bar, so the phone header was neither one row nor within the 56-60px target.",
+      "detector": "mobile-header-budget",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "manual-cache-token",
       "reported": "2026-11-21",
       "symptom": "Cache busting relied on hand-bumped ?v= tokens in 24 pages, coordinator templates and tests, so one forgotten bump served stale CSS or JS after a deploy.",
@@ -686,6 +707,13 @@
       "reported": "2026-11-22",
       "symptom": "Hero, card, stat, table and row content edges drifted 10-19px on /key and /private-keys, so the page had no single left rail.",
       "detector": "page-inset-parity",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "wallet-signin-unchecked",
+      "reported": "2026-11-22",
+      "symptom": "Linking the local vault to the monitor account could sign in silently, render or log the session token, keep a stale signed-in chip after the vault locked, or leave the token behind after Sign out. The account identity could also be read as proving ownership of Bitcoin, TRON or Solana addresses, which only the EVM signature does not do.",
+      "detector": "wallet-signin-surface",
       "where": "scripts/ui-audit.mjs"
     }
   ]

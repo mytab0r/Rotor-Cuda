@@ -82,6 +82,9 @@ page-local override.
 | `row-action-geometry` | Row actions are 44x44, radius 10, with an accessible name. | 5 | implemented |
 | `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
 | `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
+| `header-icon-unique` | Every header destination has its own sprite icon and no two header controls share an accessible name. | 6 | implemented |
+| `header-row-parity` | From 1024px up the header is one row and at most 60px high. | 6 | implemented |
+| `mobile-header-budget` | At 375px the header exposes at most six controls and is at most 96px high. | 6 | implemented |
 | `chain-tab-color` | Directory chain tabs read --chain from data/chains.json, not a page-local colour table. | phase 4 | implemented |
 | `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
 | `breadcrumb-current` | Exactly one aria-current crumb and never a raw path label. | 6 | implemented |
@@ -149,6 +152,7 @@ page-local override.
 | `table-row-density` | On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor. | density | implemented |
 | `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
 | `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
+| `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a

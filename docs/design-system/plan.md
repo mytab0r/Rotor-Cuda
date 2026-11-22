@@ -52,7 +52,7 @@ Definition of done for a batch:
 | 3 | Forms, fields, segmented controls, chips | `developer` | `critic` | batch 1 tokens | `control-height-scale`, `field-geometry`, `segmented-geometry` |
 | 4 | Cards and stat blocks | `developer` | `critic` | batch 1 tokens | `stat-geometry`, `card-padding-scale` |
 | 5 | Tables and rows | `developer` | `critic` | batch 1 tokens | `table-header-style`, `table-row-height`, `row-action-geometry` |
-| 6 | Navigation, breadcrumbs, pagination, footer | `developer` | `critic` | batches 2–5 (shared link/button grammar) | `nav-link-height`, `breadcrumb-grammar`, `breadcrumb-current`, `pager-grammar`, `pager-geometry`, `footer-presence` |
+| 6 | Navigation, breadcrumbs, pagination, footer | `developer` | `critic` | batches 2–5 (shared link/button grammar) | `nav-link-height`, `header-icon-unique`, `header-row-parity`, `mobile-header-budget`, `breadcrumb-grammar`, `breadcrumb-current`, `pager-grammar`, `pager-geometry`, `footer-presence` |
 | 7 | Cleanup and final sweep | design-system lead + `developer` | `critic` | batches 1–6 | `radius-scale`, `raw-hex-outside-root`, `legacy-selector` |
 
 Ordering rationale: tokens first; then the smallest self-contained family
@@ -231,7 +231,7 @@ Files: `apps/site/site.css` (nav/breadcrumb/pager sections), `apps/site/site.js`
 (drawer), `apps/site/theme.js` (toggle markup), all `apps/site/*.html` header
 blocks, `apps/site/mnemonic-seeds.html`/`.js` (pager).
 
-Work: delete the legacy nav at `site.css:31-62`; one 70px shell, 44px links,
+Work: delete the legacy nav at `site.css:31-62`; one 60px shell, 44px links,
 pill active state; `.nav-icon-pill` sized 44 explicitly (not via min-width
 coincidence); one breadcrumb grammar with separator and current page; one pager
 with range status. The brand mark keeps the single gradient.
@@ -239,6 +239,10 @@ with range status. The brand mark keeps the single gradient.
 Detectors:
 
 - `nav-link-height`: every nav/breadcrumb link ≥44×44.
+- `header-icon-unique`: every nav destination has a distinct sprite icon and
+  every header control a distinct accessible name.
+- `header-row-parity`: from 1024px up the header is one row and ≤60px.
+- `mobile-header-budget`: at 375px the header exposes ≤6 controls and ≤96px.
 - `breadcrumb-current`: exactly one `aria-current="page"`; no raw path as the
   visible label.
 - `pager-geometry`: buttons 44, radius 10, `aria-disabled` for unavailable
@@ -353,6 +357,9 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `row-action-geometry` | Row actions are 44x44, radius 10, with an accessible name. | 5 | implemented |
 | `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
 | `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
+| `header-icon-unique` | Every header destination has its own sprite icon and no two header controls share an accessible name. | 6 | implemented |
+| `header-row-parity` | From 1024px up the header is one row and at most 60px high. | 6 | implemented |
+| `mobile-header-budget` | At 375px the header exposes at most six controls and is at most 96px high. | 6 | implemented |
 | `nav-keystore-highlight` | /keystore-parser highlights Tools, not Search. | 6 | implemented |
 | `chain-tab-color` | Directory chain tabs read --chain from data/chains.json, not a page-local colour table. | phase 4 | implemented |
 | `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
@@ -440,6 +447,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `table-row-density` | On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor. | density | implemented |
 | `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
 | `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
+| `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.

@@ -49,6 +49,10 @@ test("the section mapping keeps /keystore-parser on Tools", () => {
   assert.equal(nav.sectionForPath("/key/" + "0".repeat(64)), "search");
   assert.equal(nav.sectionForPath("/tools"), "tools");
   assert.equal(nav.sectionForPath("/"), "home");
+  /* The wallet is a child of the cabinet area and shares its one header
+   * entry, so the cabinet chip highlights there too. */
+  assert.equal(nav.sectionForPath("/cabinet/wallet"), "cabinet");
+  assert.equal(nav.sectionForPath("/monitor"), "cabinet");
 });
 
 test("seven primary links split into four inline and three in the tail", () => {
@@ -68,6 +72,12 @@ test("a keep count beyond the link count is clamped", () => {
   const parts = nav.splitLinks(links(2), 9);
   assert.deepEqual(ids(parts.inline), ["link-0", "link-1"]);
   assert.deepEqual(parts.tail, []);
+});
+
+test("zero inline moves every link into the drawer", () => {
+  const parts = nav.splitLinks(links(8), 0);
+  assert.deepEqual(parts.inline, []);
+  assert.deepEqual(ids(parts.tail), ids(links(8)));
 });
 
 test("an active tail link is detected", () => {
@@ -134,6 +144,78 @@ test("every static page ships the same main-nav link set", () => {
     checked += 1;
   }
   assert.ok(checked >= 20, `expected at least 20 static pages, checked ${checked}`);
+});
+
+/* The header is copied into every static page, so a route can keep a stale
+ * icon after the others move. Pin the identity contract here as well as in the
+ * browser audit: one sprite icon per destination and one accessible name per
+ * control, or two different actions look identical at mobile widths. */
+test("every static page gives each header control its own icon and name", () => {
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  let checked = 0;
+  for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".html"))) {
+    const source = readFileSync(dir + name, "utf8");
+    const header = source.match(/<header class="site-nav">([\s\S]*?)<\/header>/);
+    if (!header) continue;
+    const destinations = new Map();
+    const names = new Map();
+    for (const match of header[1].matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)) {
+      const attrs = match[1];
+      const destination = (attrs.match(/data-nav="([a-z-]+)"/) || [])[1];
+      if (!destination) continue;
+      const icon = (match[2].match(/icons\.svg#([a-z-]+)/) || [])[1] || "";
+      if (icon) {
+        assert.ok(
+          !destinations.has(icon) || destinations.get(icon) === destination,
+          `${name}: ${icon} is shared by ${destinations.get(icon)} and ${destination}`,
+        );
+        destinations.set(icon, destination);
+      }
+      const label = (
+        (attrs.match(/aria-label="([^"]+)"/) || [])[1] ||
+        match[2].replace(/<[^>]*>/g, " ")
+      ).replace(/\s+/g, " ").trim();
+      if (label) {
+        assert.ok(
+          !names.has(label) || names.get(label) === destination,
+          `${name}: accessible name "${label}" is shared by ${names.get(label)} and ${destination}`,
+        );
+        names.set(label, destination);
+      }
+    }
+    checked += 1;
+  }
+  assert.ok(checked >= 20, `expected at least 20 static headers, checked ${checked}`);
+});
+
+/* The wallet is a child of the cabinet area: the header keeps one Cabinet
+ * entry and reaches /cabinet/wallet from there. A second wallet chip consumed
+ * the desktop row and made two 44px controls look identical on mobile. */
+test("the static header exposes one cabinet entry and no wallet chip", () => {
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  let checked = 0;
+  for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".html"))) {
+    const source = readFileSync(dir + name, "utf8");
+    const header = source.match(/<header class="site-nav">([\s\S]*?)<\/header>/);
+    if (!header || !header[1].includes('data-nav="home"')) continue;
+    assert.ok(!header[1].includes('data-nav="wallet"'), `${name} has a separate wallet chip`);
+    assert.ok(!header[1].includes('href="/cabinet/wallet"'), `${name} links the wallet from the header`);
+    const cabinet = [...header[1].matchAll(/data-nav="cabinet"/g)].length;
+    assert.equal(cabinet, 1, `${name} has ${cabinet} cabinet entries`);
+    checked += 1;
+  }
+  assert.ok(checked >= 20, `expected at least 20 static headers, checked ${checked}`);
+});
+
+/* The header keeps one cabinet entry, so the cabinet page must link its
+ * encrypted-wallet child itself; otherwise the destination disappears. */
+test("the cabinet page links the encrypted wallet", () => {
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  const source = readFileSync(dir + "monitor.html", "utf8");
+  assert.ok(
+    source.includes('href="/cabinet/wallet"'),
+    "monitor.html must link /cabinet/wallet",
+  );
 });
 
 if (failed) {

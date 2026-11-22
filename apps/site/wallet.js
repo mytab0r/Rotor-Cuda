@@ -64,6 +64,11 @@
    * key-tools.js; only ticker symbols leave the browser. */
   var PRICE_CACHE_KEY = (window.RotorKeyTools && window.RotorKeyTools.PRICE_CACHE_KEY) || 'rotor.prices.v1';
   var PRICE_TTL_MS = (window.RotorKeyTools && window.RotorKeyTools.PRICE_TTL_MS) || 6 * 60 * 60 * 1000;
+  /* The monitor page's session token. The same key means signing in here also
+   * signs this browser in on /cabinet; the token is never rendered or logged. */
+  var MONITOR_TOKEN_KEY = 'rotor-monitor-token';
+  var MONITOR_ADDRESS_KEY = 'rotor-wallet-monitor-address';
+  var MONITOR_API = '/api/v1/monitor';
 
   /* Address rows come from the wasm derive_report report; explorer, label,
    * symbol and decimals come from data/chains.json. */
@@ -146,13 +151,19 @@
     seedWordCount: 12,
     onboardChoice: '',
     assets: {},
-    assetsRefreshing: false
+    assetsRefreshing: false,
+    evmAddresses: {},
+    signInEntryId: null,
+    signInToken: '',
+    signInAddress: '',
+    signInBusy: false
   };
 
   var vault = window.RotorWalletVault;
   var evmSend = window.RotorEvmSend;
   var btcSend = window.RotorBtcSend;
   var historyApi = window.RotorWalletHistory;
+  var signApi = window.RotorWalletSign;
   var byId = function (id) { return document.getElementById(id); };
   var createForm = byId('wallet-create-form');
   var unlockForm = byId('wallet-unlock-form');
@@ -283,6 +294,17 @@
   var historyUnavailable = byId('wallet-history-unavailable');
   var historyTableWrap = byId('wallet-history-table-wrap');
   var historyRows = byId('wallet-history-rows');
+
+  /* Monitor account sign-in (EVM address derived from a vault key). */
+  var signCard = byId('wallet-signin');
+  var signEntrySelect = byId('wallet-signin-entry');
+  var signAccountLine = byId('wallet-signin-account');
+  var signAuto = byId('wallet-signin-auto');
+  var signStart = byId('wallet-signin-start');
+  var signOut = byId('wallet-signin-out');
+  var signSettings = byId('wallet-signin-settings');
+  var signChip = byId('wallet-signin-chip');
+  var signStatus = byId('wallet-signin-status');
 
   /* Bitcoin testnet send form. Nothing in this block holds a private key. */
   var btcCard = byId('wallet-btc-send');
@@ -493,7 +515,7 @@
       var wasm = module.instance ? module.instance.exports : module.exports;
       var required = ['alloc', 'dealloc', 'derive_report', 'derive_report_network',
         'result_ptr', 'result_len', 'error_ptr', 'error_len', 'clear_result',
-        'evm_unsigned_tx', 'evm_sign_tx', 'btc_unsigned_tx', 'btc_sign_tx'];
+        'evm_unsigned_tx', 'evm_sign_tx', 'evm_sign_message', 'btc_unsigned_tx', 'btc_sign_tx'];
       for (var i = 0; i < required.length; i += 1) {
         if (typeof wasm[required[i]] !== 'function') {
           throw new Error('The wasm core has no "' + required[i] + '" export.');
@@ -780,6 +802,7 @@
     }
     var spec = chainSpec(chainSlug);
     seedAdd.disabled = true;
+    var addedEntry = null;
     try {
       var seed = await window.RotorSeedCrypto.bip39Seed(info.phrase, '');
       var keyHex = await window.RotorSeedCrypto.bip32PrivateKey(seed, path, seedPubkeyFor);
@@ -800,7 +823,7 @@
         seedAdd.disabled = false;
         return;
       }
-      await addParsedEntry(parsed, derived, importLabel.value);
+      addedEntry = await addParsedEntry(parsed, derived, importLabel.value);
     } catch (err) {
       setError('wallet-add-error', err.duplicate ? err.message : 'Cannot save the vault: ' + errorText(err));
       seedAdd.disabled = false;
@@ -809,6 +832,7 @@
     importLabel.value = '';
     resetSeedPhrase();
     renderEntries();
+    if (addedEntry) offerSignInForEntry(addedEntry);
   }
 
   /* ------------------------------------------------------------- key parsing */
@@ -973,7 +997,273 @@
     if (!row || typeof row.address !== 'string' || !row.address) {
       throw new Error('The derivation core returned no "' + parsed.addressId + '" address.');
     }
-    return { address: row.address, chain: parsed.chain, id: parsed.addressId, label: row.label || parsed.addressId };
+    return {
+      address: row.address,
+      chain: parsed.chain,
+      id: parsed.addressId,
+      label: row.label || parsed.addressId,
+      evmAddress: findEvmRow(rows)
+    };
+  }
+
+  function findEvmRow(rows) {
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i] && rows[i].id === 'evm' &&
+        typeof rows[i].address === 'string' &&
+        /^0x[0-9a-fA-F]{40}$/.test(rows[i].address)) {
+        return rows[i].address;
+      }
+    }
+    return '';
+  }
+
+  /* ------------------------------------------------- monitor account sign-in */
+
+  var monitorRequest = signApi
+    ? signApi.createRequest(MONITOR_API, function (url, init) { return window.fetch(url, init); })
+    : null;
+
+  function readStored(key) {
+    try { return window.localStorage.getItem(key) || ''; } catch (err) { return ''; }
+  }
+
+  function writeStored(key, value) {
+    try {
+      if (value) window.localStorage.setItem(key, value);
+      else window.localStorage.removeItem(key);
+    } catch (err) {
+      /* private mode: the session stays in memory only */
+    }
+  }
+
+  function evmCapableEntries() {
+    return state.entries.filter(function (entry) {
+      var spec = chainSpec(entry.chain);
+      return spec && spec.curve === 0;
+    });
+  }
+
+  function selectedSignEntry() {
+    var entries = evmCapableEntries();
+    for (var i = 0; i < entries.length; i += 1) {
+      if (entries[i].id === state.signInEntryId) return entries[i];
+    }
+    return entries.length ? entries[0] : null;
+  }
+
+  /* The EVM address of a vault key. The same wasm report that derived the
+   * entry's address carries the `evm` row, so imports usually find it cached;
+   * older entries derive it once and only the public address is kept. */
+  async function evmAddressForEntry(entry) {
+    if (state.evmAddresses[entry.id]) return state.evmAddresses[entry.id];
+    var spec = chainSpec(entry.chain);
+    if (!spec || spec.curve !== 0) return '';
+    var parsed = await parseEntry(entry);
+    try {
+      var wasm = await loadWasm();
+      var report = deriveReport(wasm, parsed.key, 0, 0);
+      var address = findEvmRow(Array.isArray(report.addresses) ? report.addresses : []);
+      if (address) state.evmAddresses[entry.id] = address;
+      return address;
+    } finally {
+      parsed.key.fill(0);
+    }
+  }
+
+  function signSessionMessage(entry, message) {
+    return parseEntry(entry).then(function (parsed) {
+      return loadWasm().then(function (wasm) {
+        try {
+          return signApi.signMessage(wasm, parsed.key, message);
+        } finally {
+          parsed.key.fill(0);
+        }
+      }, function (err) {
+        parsed.key.fill(0);
+        throw err;
+      });
+    });
+  }
+
+  function clearSession() {
+    state.signInToken = '';
+    state.signInAddress = '';
+    writeStored(MONITOR_TOKEN_KEY, '');
+    writeStored(MONITOR_ADDRESS_KEY, '');
+  }
+
+  function renderSignIn() {
+    if (!signCard) return;
+    var available = !!signApi && !!monitorRequest;
+    signCard.hidden = !state.unlocked || !available;
+    if (!available || !state.unlocked) return;
+
+    var entries = evmCapableEntries();
+    var selected = selectedSignEntry();
+    if (selected) state.signInEntryId = selected.id;
+
+    signEntrySelect.textContent = '';
+    entries.forEach(function (entry) {
+      var option = document.createElement('option');
+      option.value = entry.id;
+      option.textContent = entry.label;
+      if (selected && entry.id === selected.id) option.selected = true;
+      signEntrySelect.appendChild(option);
+    });
+    signEntrySelect.hidden = !entries.length;
+
+    var signedIn = !!state.signInToken;
+    signEntrySelect.disabled = signedIn || state.signInBusy;
+    signStart.hidden = signedIn;
+    signStart.disabled = signedIn || state.signInBusy || !selected;
+    signOut.hidden = !signedIn;
+    signOut.disabled = state.signInBusy;
+    signSettings.hidden = !signedIn;
+    if (signChip) {
+      signChip.hidden = !signedIn;
+      signChip.textContent = signedIn && state.signInAddress
+        ? 'Account ' + state.signInAddress.slice(0, 6) + '…' + state.signInAddress.slice(-4)
+        : (signedIn ? 'Account signed in' : '');
+    }
+
+    if (signedIn) {
+      signAccountLine.textContent = state.signInAddress
+        ? 'Signed in to the monitor account as ' + state.signInAddress + ' (EVM identity).'
+        : 'Signed in to the monitor account.';
+      return;
+    }
+    if (!entries.length) {
+      signAccountLine.textContent = state.entries.length
+        ? 'No EVM-capable key in this vault. ed25519-only keys (Solana, Sui, TON) cannot sign in with an EVM identity.'
+        : 'No EVM-capable key in this vault yet. Add or derive a secp256k1 key first.';
+      return;
+    }
+    updateSignAccount(selected);
+  }
+
+  var signAccountSeq = 0;
+
+  function updateSignAccount(entry) {
+    if (!entry) return;
+    var seq = (signAccountSeq += 1);
+    var cached = state.evmAddresses[entry.id];
+    if (cached) {
+      signAccountLine.textContent = 'Account identity: ' + cached + ' (EVM address derived from this key).';
+      return;
+    }
+    signAccountLine.textContent = 'Deriving the EVM address…';
+    evmAddressForEntry(entry).then(function (address) {
+      if (seq !== signAccountSeq || !state.unlocked || state.signInToken) return;
+      signAccountLine.textContent = address
+        ? 'Account identity: ' + address + ' (EVM address derived from this key).'
+        : 'This key has no EVM derivation, so it cannot sign in to the monitor account.';
+      signStart.disabled = !address || state.signInBusy;
+    }, function (err) {
+      if (seq !== signAccountSeq || !state.unlocked || state.signInToken) return;
+      signAccountLine.textContent = 'Cannot derive the EVM address: ' + errorText(err);
+      signStart.disabled = true;
+    });
+  }
+
+  async function startSignIn() {
+    if (!state.unlocked || state.signInBusy || state.signInToken) return;
+    var entry = selectedSignEntry();
+    setError('wallet-signin-error', '');
+    if (!entry) {
+      setError('wallet-signin-error', 'There is no EVM-capable key to sign in with.');
+      return;
+    }
+    var generation = state.generation;
+    state.signInBusy = true;
+    if (signStatus) signStatus.textContent = 'Requesting a sign-in challenge…';
+    renderSignIn();
+    try {
+      var address = await evmAddressForEntry(entry);
+      if (!address) {
+        throw new Error('This key has no EVM derivation, so it cannot sign in to the monitor account.');
+      }
+      if (generation !== state.generation || !state.unlocked) return;
+      if (signStatus) signStatus.textContent = 'Waiting for the local signature…';
+      var login = await signApi.signIn({
+        request: monitorRequest,
+        address: address,
+        sign: function (message) { return signSessionMessage(entry, message); }
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      /* Store the token; never render it. */
+      state.signInToken = login.token;
+      state.signInAddress = login.user && login.user.address ? String(login.user.address) : address;
+      writeStored(MONITOR_TOKEN_KEY, state.signInToken);
+      writeStored(MONITOR_ADDRESS_KEY, state.signInAddress);
+      if (signStatus) signStatus.textContent = 'Signed in.';
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      setError('wallet-signin-error', 'Cannot sign in: ' + errorText(err));
+      if (signStatus) signStatus.textContent = 'Not signed in.';
+    } finally {
+      state.signInBusy = false;
+      renderSignIn();
+    }
+  }
+
+  async function signOutNow() {
+    if (state.signInBusy) return;
+    var token = state.signInToken;
+    state.signInBusy = true;
+    setError('wallet-signin-error', '');
+    if (signStatus) signStatus.textContent = 'Signing out…';
+    renderSignIn();
+    try {
+      if (token) await monitorRequest('/logout', { method: 'POST', token: token });
+    } catch (err) {
+      /* Signing out locally must work even when the coordinator is unreachable. */
+    } finally {
+      clearSession();
+      state.signInBusy = false;
+      renderSignIn();
+      if (signStatus) signStatus.textContent = 'Signed out.';
+    }
+  }
+
+  /* Offer the explicit action after a key lands in the vault; trigger it
+   * automatically only when the user opted in. */
+  function offerSignInForEntry(entry) {
+    setError('wallet-signin-error', '');
+    var spec = chainSpec(entry.chain);
+    if (!spec || spec.curve !== 0) {
+      if (signStatus) {
+        signStatus.textContent = 'Key added. It has no EVM derivation, so it cannot sign in to the monitor account.';
+      }
+      renderSignIn();
+      return;
+    }
+    state.signInEntryId = entry.id;
+    renderSignIn();
+    if (state.signInToken) return;
+    if (signAuto && signAuto.checked) startSignIn();
+    else if (signStatus) {
+      signStatus.textContent = 'Key added. Use “Sign in with this wallet” to sign in to the monitor account.';
+    }
+  }
+
+  function restoreSession() {
+    state.signInToken = readStored(MONITOR_TOKEN_KEY);
+    state.signInAddress = readStored(MONITOR_ADDRESS_KEY);
+    var token = state.signInToken;
+    if (!token || !monitorRequest) return;
+    var generation = state.generation;
+    /* Validate the stored token once on unlock. A rejected token (expired TTL
+     * or a logout on /cabinet) drops the local session silently; a network
+     * failure keeps the optimistic state so an offline unlock is not a logout. */
+    signApi.validateSession({ request: monitorRequest, token: token }).then(function (valid) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (state.signInToken !== token) return;
+      if (valid) return;
+      clearSession();
+      renderSignIn();
+    }, function () {
+      /* Unknown state: no banner, no local sign-out. */
+    });
   }
 
   /* ------------------------------------------------------------------ views */
@@ -1006,6 +1296,19 @@
     state.assetsRefreshing = false;
     state.generation += 1;
     resetHistory();
+    /* The vault lock drops the in-memory session and the sign-in UI. The
+     * stored token is the monitor page's own session (same localStorage key),
+     * so it is restored on unlock and removed only by Sign out. */
+    state.evmAddresses = {};
+    state.signInEntryId = null;
+    state.signInToken = '';
+    state.signInAddress = '';
+    state.signInBusy = false;
+    signAccountSeq += 1;
+    if (signCard) signCard.hidden = true;
+    if (signAuto) signAuto.checked = false;
+    if (signStatus) signStatus.textContent = '';
+    setError('wallet-signin-error', '');
     if (entriesEl) entriesEl.textContent = '';
     if (summaryBlock) summaryBlock.hidden = true;
     if (panel) panel.hidden = true;
@@ -1031,6 +1334,8 @@
     renderSend();
     renderAssets();
     if (state.onboardChoice) applyOnboardChoice(state.onboardChoice);
+    restoreSession();
+    renderSignIn();
     if (stateEl) stateEl.textContent = 'unlocked · auto-locks after 10 minutes idle';
     setError('wallet-unlock-error', '');
     refreshSeedStrength().catch(function () {});
@@ -1101,6 +1406,16 @@
 
   if (onboardSeed) onboardSeed.addEventListener('click', function () { chooseOnboard('seed'); });
   if (onboardKey) onboardKey.addEventListener('click', function () { chooseOnboard('key'); });
+
+  if (signStart) signStart.addEventListener('click', function () { startSignIn(); });
+  if (signOut) signOut.addEventListener('click', function () { signOutNow(); });
+  if (signEntrySelect) {
+    signEntrySelect.addEventListener('change', function () {
+      state.signInEntryId = signEntrySelect.value;
+      setError('wallet-signin-error', '');
+      renderSignIn();
+    });
+  }
 
   /* ---------------------------------------------------------- create/unlock */
 
@@ -1199,6 +1514,7 @@
     var nextDerived = {};
     Object.keys(state.derived).forEach(function (id) { nextDerived[id] = state.derived[id]; });
     nextDerived[entry.id] = derived;
+    if (derived.evmAddress) state.evmAddresses[entry.id] = derived.evmAddress;
     await saveEntries(nextEntries, nextDerived);
     return entry;
   }
@@ -1227,8 +1543,9 @@
       setError('wallet-add-error', 'Address derivation failed, so the key was not stored: ' + errorText(err));
       return;
     }
+    var addedEntry;
     try {
-      await addParsedEntry(parsed, derived, label);
+      addedEntry = await addParsedEntry(parsed, derived, label);
     } catch (err) {
       setError('wallet-add-error', err.duplicate ? err.message : 'Cannot save the vault: ' + errorText(err));
       return;
@@ -1237,6 +1554,7 @@
     importLabel.value = '';
     importChain.value = '';
     renderEntries();
+    offerSignInForEntry(addedEntry);
   });
 
   /* ------------------------------------------------------- seed phrase actions */
@@ -1297,9 +1615,12 @@
       if (id !== entry.id) nextDerived[id] = state.derived[id];
     });
     delete state.balances[entry.id];
+    delete state.evmAddresses[entry.id];
+    if (state.signInEntryId === entry.id) state.signInEntryId = null;
     try {
       await saveEntries(nextEntries, nextDerived);
       renderEntries();
+      renderSignIn();
     } catch (err) {
       setError('wallet-add-error', 'Cannot save the vault: ' + errorText(err));
     }
@@ -1481,6 +1802,7 @@
       emptyEl.hidden = false;
       renderSummary();
       if (state.unlocked) renderSend();
+      if (state.unlocked) renderSignIn();
       return;
     }
     emptyEl.hidden = true;
@@ -1509,6 +1831,7 @@
     });
     renderSummary();
     if (state.unlocked) renderSend();
+    if (state.unlocked) renderSignIn();
   }
 
   async function deriveEntry(entry, generation) {

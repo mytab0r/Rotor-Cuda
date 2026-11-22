@@ -30,12 +30,12 @@
     {
       "source": "apps/site/icons.svg",
       "target": "web/public/icons.svg",
-      "sha256": "40d2c1e479579231cabebb86333fd22a67456504aa328dbfff73e0617234d230"
+      "sha256": "e5f3cd07395ef1562adc66eeb25eb0f273f584f039500ed2c42012d739fee2ee"
     },
     {
       "source": "apps/site/rotor_wasm.wasm",
       "target": "web/public/rotor_wasm.wasm",
-      "sha256": "b707fc7821aa21168f42a273187bc2bda3694f2a101f66aa2b48562e3a91aad7"
+      "sha256": "ca930076bd7b552b992bcff8f7a12c5f28c4a2bb797bed294e8800a419a09a6c"
     },
     {
       "source": "apps/site/seed-crypto.js",
@@ -55,12 +55,12 @@
     {
       "source": "apps/site/site.css",
       "target": "web/public/site.css",
-      "sha256": "a802fefaee50a4fe1b8f9b5058dfb66018b2bfd7639ec8c4a4f1042520786372"
+      "sha256": "5286207acfd30b3988c08543629943e24c57f8f27e50e57faa0be42278fbcf61"
     },
     {
       "source": "apps/site/site.js",
       "target": "web/public/site.js",
-      "sha256": "21e9d0ba630839b007c40da936810dc72c0dacffe913ae8c4f7ff3c10585fb3c"
+      "sha256": "df091cf7c5b39a70fae9ba98319412164805dc66e1d19be0c66029adff31a225"
     },
     {
       "source": "apps/site/theme.js",

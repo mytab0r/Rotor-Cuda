@@ -2191,7 +2191,7 @@ function auditPage(args) {
 
   // 7b. The Seeds nav item is a destination, not a label: it must resolve to
   //     the browsable directory, never the /seed converter studio.
-  const seedsNav = document.querySelector('.site-nav nav a[data-nav="seeds"]');
+  const seedsNav = document.querySelector('.site-nav [data-nav="seeds"]');
   if (seedsNav) {
     const rawHref = seedsNav.getAttribute("href") || "";
     let destination = rawHref;
@@ -2209,6 +2209,121 @@ function auditPage(args) {
       add("nav-destination", `Seeds nav is not marked active on ${location.pathname}`, {
         href: rawHref,
       });
+    }
+  }
+
+  // 7c. Header control identity: every destination gets its own sprite icon,
+  //     and no two header controls share an accessible name. Every static page
+  //     carries its own header copy, so a duplicate can land on one route and
+  //     stay invisible on the others; mobile shows the utility cluster at once,
+  //     which is where two identical-looking controls become ambiguous.
+  const destinationIcons = new Map();
+  for (const link of document.querySelectorAll(".site-nav a[data-nav]")) {
+    const destination = link.getAttribute("data-nav") || "";
+    if (!destination) continue;
+    const use = link.querySelector("use");
+    const ref = use ? use.getAttribute("href") || use.getAttribute("xlink:href") || "" : "";
+    const hash = ref.lastIndexOf("#");
+    const icon = hash >= 0 ? ref.slice(hash + 1) : "";
+    if (!icon) continue;
+    if (!destinationIcons.has(icon)) destinationIcons.set(icon, []);
+    destinationIcons.get(icon).push({ destination, selector: selectorOf(link) });
+  }
+  const iconCollisions = [];
+  for (const [icon, uses] of destinationIcons) {
+    const destinations = [...new Set(uses.map((use) => use.destination))];
+    if (destinations.length < 2) continue;
+    iconCollisions.push({ icon, destinations, selectors: uses.map((use) => use.selector).slice(0, 8) });
+  }
+  const namedControls = new Map();
+  for (const control of document.querySelectorAll(".site-nav a[data-nav], .site-nav button")) {
+    const name = (
+      control.getAttribute("aria-label") ||
+      textOf(control) ||
+      control.getAttribute("data-tooltip") ||
+      ""
+    ).trim();
+    if (!name) continue;
+    if (!namedControls.has(name)) namedControls.set(name, []);
+    namedControls.get(name).push(selectorOf(control));
+  }
+  const nameCollisions = [];
+  for (const [name, selectors] of namedControls) {
+    if (selectors.length < 2) continue;
+    nameCollisions.push({ name, selectors: selectors.slice(0, 8) });
+  }
+  metrics.navIdentity = {
+    destinations: [...new Set([...destinationIcons.values()].flat().map((use) => use.destination))].length,
+    icons: destinationIcons.size,
+    iconCollisions,
+    nameCollisions,
+  };
+  if (iconCollisions.length) {
+    add(
+      "header-icon-unique",
+      `${iconCollisions.length} header icon(s) shared by different destinations`,
+      iconCollisions.slice(0, 8),
+    );
+  }
+  if (nameCollisions.length) {
+    add(
+      "header-icon-unique",
+      `${nameCollisions.length} accessible name(s) used by more than one header control`,
+      nameCollisions.slice(0, 8),
+    );
+  }
+
+  // 7d. Header structure: one row and a 60px bar from 1024px up, and a single
+  //     56-60px bar with at most six controls at 375px. The narrow header used
+  //     to wrap the primary nav onto a second row (97px) and expose 9-10
+  //     controls on a phone.
+  const header = document.querySelector(".site-nav");
+  if (header) {
+    const headerControls = [
+      ...header.querySelectorAll(
+        ".brand, nav a[data-nav], .nav-tools a, .nav-tools button, .nav-more-btn",
+      ),
+    ].filter(visible);
+    const headerBox = boxOf(header);
+    const tops = headerControls.map((control) => boxOf(control).top);
+    const rowSpread = tops.length ? Math.max(...tops) - Math.min(...tops) : 0;
+    metrics.headerStructure = {
+      width: window.innerWidth,
+      height: Math.round(headerBox.height),
+      controls: headerControls.length,
+      rowSpread: Math.round(rowSpread),
+    };
+    if (window.innerWidth >= 1024) {
+      if (headerBox.height > 60.5) {
+        add(
+          "header-row-parity",
+          `header is ${Math.round(headerBox.height)}px high at ${window.innerWidth}px (expected <=60)`,
+          metrics.headerStructure,
+        );
+      }
+      if (rowSpread > 2) {
+        add(
+          "header-row-parity",
+          `header controls span ${Math.round(rowSpread)}px vertically at ${window.innerWidth}px (expected one row)`,
+          metrics.headerStructure,
+        );
+      }
+    }
+    if (window.innerWidth <= 520) {
+      if (headerBox.height > 96) {
+        add(
+          "mobile-header-budget",
+          `mobile header is ${Math.round(headerBox.height)}px high at ${window.innerWidth}px (expected <=96)`,
+          metrics.headerStructure,
+        );
+      }
+      if (headerControls.length > 6) {
+        add(
+          "mobile-header-budget",
+          `${headerControls.length} header controls visible at ${window.innerWidth}px (expected <=6)`,
+          metrics.headerStructure,
+        );
+      }
     }
   }
 
@@ -4097,6 +4212,146 @@ async function auditWalletHistory(cdp, screenshotsDir, viewport, theme) {
   return { ok: problems.length === 0, evidence, problems };
 }
 
+/* /cabinet/wallet monitor sign-in. auditWalletMainnetArm() leaves key 1 in the
+ * unlocked vault, so the explicit action is available. Sign in against the
+ * served coordinator, then prove that locking hides the session and that Sign
+ * out removes the stored token. The token value never enters the evidence. */
+async function auditWalletSignIn(cdp) {
+  const passphrase = "ui-audit-passphrase";
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const shown = (el) => Boolean(el) && !el.hidden && el.getClientRects().length > 0;
+      const problems = [];
+      const evidence = {};
+      const card = document.getElementById('wallet-signin');
+      const auto = document.getElementById('wallet-signin-auto');
+      const start = document.getElementById('wallet-signin-start');
+      const out = document.getElementById('wallet-signin-out');
+      const chip = document.getElementById('wallet-signin-chip');
+      const settings = document.getElementById('wallet-signin-settings');
+      const select = document.getElementById('wallet-signin-entry');
+      const status = document.getElementById('wallet-signin-status');
+      if (!card || !auto || !start || !out || !chip || !settings || !select) {
+        return { evidence, problems: ['the sign-in controls are missing'] };
+      }
+      if (!shown(card)) return { evidence, problems: ['the sign-in card is hidden in an unlocked vault'] };
+      evidence.autoChecked = auto.checked;
+      evidence.optionCount = select.options.length;
+      evidence.button = start.textContent.trim();
+      evidence.startHeight = Math.round(start.getBoundingClientRect().height);
+      if (auto.checked) problems.push('auto sign-in is checked by default');
+      if (!shown(start)) problems.push('the explicit sign-in action is hidden before signing in');
+      if (shown(chip)) problems.push('the account chip is visible before signing in');
+      if (evidence.optionCount < 1) problems.push('no EVM-capable key is offered');
+      if (evidence.startHeight < 44) problems.push('the sign-in action is ' + evidence.startHeight + 'px high');
+      if (evidence.button !== 'Sign in with this wallet') problems.push('unexpected action label: ' + evidence.button);
+
+      // The address is derived lazily on a reload, so the action is disabled
+      // for a moment after unlock; wait for it before clicking.
+      const ready = await waitFor(() => shown(start) && !start.disabled, 15000);
+      evidence.actionReady = ready;
+      if (!ready) problems.push('the sign-in action stays disabled');
+
+      start.click();
+      const signedIn = await waitFor(() => shown(chip) && !shown(start), 25000);
+      evidence.signedIn = signedIn;
+      evidence.chip = shown(chip) ? chip.textContent.trim() : '';
+      evidence.account = (document.getElementById('wallet-signin-account') || {}).textContent || '';
+      evidence.settingsVisible = shown(settings) && settings.getAttribute('href') === '/cabinet';
+      evidence.tokenStored = Boolean(localStorage.getItem('rotor-monitor-token'));
+      if (!signedIn) problems.push('sign-in did not finish: ' + (status ? status.textContent : ''));
+      if (!evidence.tokenStored) problems.push('no session token under the monitor key');
+      if (!evidence.settingsVisible) problems.push('the account settings link is hidden after sign-in');
+
+      document.getElementById('wallet-lock').click();
+      const locked = await waitFor(() => !shown(card) && !shown(chip), 8000);
+      evidence.lockedHidden = locked;
+      if (!locked) problems.push('locking the vault leaves the sign-in card or chip visible');
+
+      document.getElementById('wallet-unlock-pass').value = ${JSON.stringify(passphrase)};
+      document.getElementById('wallet-unlock-form').requestSubmit();
+      const unlocked = await waitFor(() => shown(card) && shown(chip), 15000);
+      evidence.unlockedSession = unlocked;
+      if (!unlocked) problems.push('the stored session is not shown after unlocking');
+
+      if (shown(out)) out.click();
+      const signedOut = await waitFor(() => !shown(chip) && !localStorage.getItem('rotor-monitor-token'), 15000);
+      evidence.signedOut = signedOut;
+      evidence.tokenRemoved = !localStorage.getItem('rotor-monitor-token');
+      if (!signedOut) problems.push('Sign out does not clear the session or the stored token');
+      if (!shown(start)) problems.push('the explicit sign-in action does not return after Sign out');
+
+      // The opt-in box is the only path that may sign in without a click: a
+      // later key import must sign in by itself once it is checked.
+      auto.checked = true;
+      const secret = document.getElementById('wallet-secret');
+      const chain = document.getElementById('wallet-chain');
+      const form = document.getElementById('wallet-import-form');
+      if (!secret || !chain || !form) {
+        problems.push('the import form is missing for the opt-in check');
+      } else {
+        // A fresh key per run: the audit profile is reused across viewports,
+        // so a fixed fixture would be rejected as a duplicate on a rerun.
+        const randomKey = crypto.getRandomValues(new Uint8Array(32));
+        randomKey[31] |= 1;
+        secret.value = Array.from(randomKey, (byte) => byte.toString(16).padStart(2, '0')).join('');
+        chain.value = 'ethereum';
+        form.requestSubmit();
+        const autoSigned = await waitFor(() => shown(chip), 25000);
+        evidence.autoSignedIn = autoSigned;
+        if (!autoSigned) problems.push('the opt-in box did not sign in after a key import');
+        if (shown(out)) out.click();
+        const autoSignedOut = await waitFor(() => !localStorage.getItem('rotor-monitor-token'), 15000);
+        evidence.autoSignedOut = autoSignedOut;
+        if (!autoSignedOut) problems.push('the automatic session did not clear on Sign out');
+        auto.checked = false;
+
+        // Leave the vault as the later portfolio/totals checks expect it: the
+        // imported fixture key is removed again (the row's Remove asks for a
+        // confirmation, which this audit approves).
+        const rows = document.querySelectorAll('#wallet-entries .wallet-row[data-chain="ethereum"]');
+        const lastRow = rows[rows.length - 1];
+        const remove = lastRow
+          ? Array.from(lastRow.querySelectorAll('button')).find((button) => button.textContent.trim() === 'Remove')
+          : null;
+        if (!remove) {
+          const buttons = lastRow ? Array.from(lastRow.querySelectorAll('button')).map((button) => button.textContent.trim()) : [];
+          problems.push('the imported key has no Remove action for cleanup: rows=' + rows.length + ' buttons=' + buttons.join('|'));
+        } else {
+          window.confirm = () => true;
+          remove.click();
+          const removed = await waitFor(
+            () => document.querySelectorAll('#wallet-entries .wallet-row[data-chain="ethereum"]').length < rows.length,
+            15000
+          );
+          delete window.confirm;
+          evidence.autoKeyRemoved = removed;
+          if (!removed) problems.push('the imported key was not removed after the opt-in check');
+        }
+      }
+
+      document.documentElement.style.scrollBehavior = 'auto';
+      document.documentElement.scrollTop = 0;
+      window.scrollTo(0, 0);
+      await sleep(120);
+      document.documentElement.style.scrollBehavior = '';
+      return { evidence, problems };
+    })()`,
+    90000,
+  );
+  return { ok: result.problems.length === 0, ...result };
+}
+
 /* /cabinet WalletConnect panel. A headless browser cannot approve a real
  * WalletConnect session, so the bundle is replaced with a stub that emits one
  * display_uri. That exercises the code the page owns: the panel, QR, deep
@@ -5487,6 +5742,15 @@ async function main() {
                   id: "wallet-top-assets-surface",
                   message: `/cabinet/wallet top-assets table failed: ${(topAssets.problems || []).join("; ")}`,
                   detail: topAssets,
+                });
+              }
+              const signIn = await auditWalletSignIn(cdp);
+              run.metrics.walletSignIn = signIn.evidence;
+              if (!signIn.ok) {
+                run.violations.push({
+                  id: "wallet-signin-surface",
+                  message: `/cabinet/wallet sign-in flow failed: ${(signIn.problems || []).join("; ")}`,
+                  detail: signIn,
                 });
               }
             }

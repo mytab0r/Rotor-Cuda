@@ -513,7 +513,7 @@ Component pages: [button](components/button.md),
 
 ### 3.15 Navigation shell
 
-- `.site-nav`: sticky, min-height 70, horizontal padding
+- `.site-nav`: sticky, min-height 60, horizontal padding
   `max(--space-5, (100vw - var(--maxw)) / 2)`, background `--nav-bg`, 16px
   blur, hairline bottom, z-index `--z-nav`.
 - Links: min-height 44, padding `0 --space-3`, radius `--radius-pill`, font
@@ -524,11 +524,15 @@ Component pages: [button](components/button.md),
   .icon-button--quiet .icon-button--lg` with `aria-label` + `data-tooltip`),
   theme (the same icon-button, injected by `theme.js`) and cabinet
   (`.chip .chip--primary`). No `.nav-pill` or one-off icon wrapper.
-- Below 860px the primary links collapse into one More chip; the remaining
-  links keep 44px targets and their accessible names. The brand mark is the
-  only gradient.
+- Below 1200px the tail links move into one More drawer; at 860px and below
+  every primary link moves there, so the bar stays one 60px row with brand,
+  search, theme, cabinet and More. The remaining links keep 44px targets and
+  their accessible names. The brand mark is the only gradient.
 - Enforced by `scripts/ui-audit.mjs` `nav-link-height` (44px box, 18px icon,
-  44px utility controls).
+  44px utility controls), `header-icon-unique` (one sprite icon per
+  destination, one accessible name per control), `header-row-parity`
+  (≥1024: one row, ≤60px) and `mobile-header-budget` (375: ≤6 controls,
+  ≤96px).
 
 ### 3.16 Dropzone
 
@@ -719,6 +723,9 @@ standalone freshness gate.
 | `row-action-geometry` | Row actions are 44x44, radius 10, with an accessible name. | 5 | implemented |
 | `nav-link-height` | Nav links are at least 44x44 with 18px icons. | 6 | implemented |
 | `nav-destination` | The Seeds nav points at /mnemonic-seeds and is active there. | 6 | implemented |
+| `header-icon-unique` | Every header destination has its own sprite icon and no two header controls share an accessible name. | 6 | implemented |
+| `header-row-parity` | From 1024px up the header is one row and at most 60px high. | 6 | implemented |
+| `mobile-header-budget` | At 375px the header exposes at most six controls and is at most 96px high. | 6 | implemented |
 | `nav-keystore-highlight` | /keystore-parser highlights Tools, not Search. | 6 | implemented |
 | `chain-tab-color` | Directory chain tabs read --chain from data/chains.json, not a page-local colour table. | phase 4 | implemented |
 | `breadcrumb-grammar` | One labelled breadcrumb trail with shared separators and a sensible depth. | 6 | implemented |
@@ -806,6 +813,7 @@ standalone freshness gate.
 | `table-row-density` | On a >=1024px fine pointer key-page rows are 40-44 high (56 when expanded) and directory rows are 40-96; touch keeps the 44px floor. | density | implemented |
 | `row-action-reveal` | On a >=1024px fine pointer row actions are hidden at rest (effective opacity 0) and reveal on row hover/focus-within; touch keeps them visible at 44px. | density | implemented |
 | `page-inset-parity` | The /key and /private-keys/bitcoin hero, card, stat, table and row content edges share one inset within 1px at 375 and 1280. | density | implemented |
+| `wallet-signin-surface` | The vault monitor sign-in offers one explicit action, is never auto-checked by default, completes the coordinator challenge locally, hides the session on lock and removes the stored token on Sign out. | wallet-account-link | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in

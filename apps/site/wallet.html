@@ -15,17 +15,16 @@
   <nav aria-label="Main">
     <a href="/" data-nav="home"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Home</span></a>
     <a href="/private-keys" data-nav="directory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Directory</span></a>
-    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg><span>Seeds</span></a>
+    <a href="/mnemonic-seeds" data-nav="seeds"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-seed"></use></svg><span>Seeds</span></a>
     <a href="/bitcoin-puzzle" data-nav="puzzle"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg><span>Puzzle</span></a>
-    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Vanity</span></a>
+    <a href="/vanity" data-nav="vanity"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-random"></use></svg><span>Vanity</span></a>
     <a href="/milk-sad" data-nav="milk-sad"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-shield"></use></svg><span>Milk Sad</span></a>
     <a href="/tools" data-nav="tools"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Tools</span></a>
     <a href="/docs" data-nav="docs"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Docs</span></a>
   </nav>
   <div class="nav-tools">
     <a class="icon-button icon-button--quiet icon-button--lg" href="/key" data-nav="search" aria-label="Search wallet" data-tooltip="Search wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-search"></use></svg></a>
-    <a class="chip" href="/cabinet/wallet" data-nav="wallet" aria-label="Cabinet wallet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Wallet</span></a>
-    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-wallet"></use></svg><span>Cabinet</span></a>
+    <a class="chip chip--primary" href="/cabinet" data-nav="cabinet" aria-label="Cabinet"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-vault"></use></svg><span>Cabinet</span></a>
   </div>
 </header>
 
@@ -232,6 +231,24 @@
       </div>
       <p class="muted" id="wallet-history-help">Shows the latest 50 transactions. Bitcoin is read from mempool.space directly; TRON is read through this site's coordinator (TronScan). EVM chains need an indexer or an API key, which this build does not ship, so no provider is called for them. Amounts are in each chain's native unit; a token transfer that moves no native value shows 0. Bitcoin rows are an observer view of one address: a transaction that mixes inputs from several owners shows the full value sent to other outputs, which can be more than this address contributed.</p>
     </section>
+  </section>
+
+  <section class="card" id="wallet-signin" hidden>
+    <h2>Sign in to the monitor account</h2>
+    <p class="muted" id="wallet-signin-help">Signing in proves that you control the EVM address derived from a key in this vault. The local WASM core signs the coordinator's one-time challenge in this tab and only the EVM address, the challenge and its signature leave it: the key never does. The account identity is that EVM address. Bitcoin, TRON and Solana addresses in this vault stay wallet-derived addresses; this sign-in does not prove control of them. Keys stored only on ed25519 (Solana, Sui, TON) have no EVM derivation and are not listed here.</p>
+    <label>Key to sign in with
+      <select id="wallet-signin-entry"></select>
+    </label>
+    <p class="muted wallet-signin-account" id="wallet-signin-account">No EVM-capable key in this vault yet.</p>
+    <label class="wallet-check"><input type="checkbox" id="wallet-signin-auto"> Sign me in after creating this wallet (applies when you add a key)</label>
+    <div class="wallet-row-actions">
+      <button type="button" class="primary" id="wallet-signin-start" disabled>Sign in with this wallet</button>
+      <button type="button" id="wallet-signin-out" hidden>Sign out</button>
+      <a href="/cabinet" id="wallet-signin-settings" hidden>Account settings</a>
+      <span class="status" id="wallet-signin-chip" hidden></span>
+    </div>
+    <p class="muted status-line" id="wallet-signin-status" role="status"></p>
+    <p id="wallet-signin-error" class="error" role="alert" hidden></p>
   </section>
 
   <section class="card" id="wallet-send" hidden>
@@ -485,6 +502,7 @@
 <script src="/wallet-summary.js"></script>
 <script src="/wallet-assets.js"></script>
 <script src="/wallet-vault.js"></script>
+<script src="/wallet-sign.js"></script>
 <script src="/wallet-evm.js"></script>
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-history.js"></script>
