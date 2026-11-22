@@ -2419,6 +2419,190 @@ async function auditWalletMainnetArm(cdp) {
   return { ok: result.problems.length === 0, ...result };
 }
 
+/* /cabinet/wallet approvals panel. auditWalletMainnetArm() leaves an EVM key in
+ * the unlocked vault and Sepolia selected. Stub the JSON-RPC reads so the scan
+ * is offline and deterministic, drive the real form, then inspect the rendered
+ * table: shared shell, 44px labelled icon actions, Unlimited/Contract/EOA
+ * labels, the archive-truncated warning and no page overflow. The table stays
+ * visible afterwards so the generic table/icon/overflow detectors also see it. */
+async function auditWalletApprovals(cdp) {
+  const result = await evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const waitFor = async (test, timeout) => {
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          if (test()) return true;
+          await sleep(100);
+        }
+        return false;
+      };
+      const problems = [];
+      const evidence = {};
+      const token = '0x1111111111111111111111111111111111111111';
+      const owner = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf';
+      const contractSpender = '0x3535353535353535353535353535353535353535';
+      const eoaSpender = '0x2222222222222222222222222222222222222222';
+      const approvalTopic = '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925';
+      const word = (value) => BigInt(value).toString(16).padStart(64, '0');
+      const abiString = (text) => {
+        const bytes = new TextEncoder().encode(text);
+        let hex = '';
+        for (let i = 0; i < bytes.length; i += 1) hex += bytes[i].toString(16).padStart(2, '0');
+        while (hex.length % 64) hex += '0';
+        return '0x' + word(32) + word(bytes.length) + hex;
+      };
+      const logFor = (spender, blockNumber) => ({
+        address: token,
+        topics: [approvalTopic, '0x' + word(owner), '0x' + word(spender)],
+        data: '0x' + word(1),
+        blockNumber: '0x' + blockNumber.toString(16),
+        logIndex: '0x0',
+        removed: false,
+      });
+      const realFetch = window.fetch;
+      const response = (payload) => ({
+        ok: true,
+        status: 200,
+        json: async () => payload,
+        text: async () => JSON.stringify(payload),
+      });
+      const rpcResult = (value) => response({ jsonrpc: '2.0', id: 1, result: value });
+      const rpcError = (message) => response({ jsonrpc: '2.0', id: 1, error: { code: 3, message } });
+
+      window.fetch = async (url, init) => {
+        const body = JSON.parse(init.body);
+        switch (body.method) {
+          case 'eth_chainId':
+            return rpcResult('0xaa36a7');
+          case 'eth_getCode': {
+            const address = String(body.params[0]).toLowerCase();
+            return rpcResult(address === token || address === contractSpender ? '0x6080' : '0x');
+          }
+          case 'eth_call': {
+            const data = body.params[0].data;
+            if (data === '0x313ce567') return rpcResult('0x' + word(6));
+            if (data === '0x95d89b41') return rpcResult(abiString('USDT'));
+            if (data.startsWith('0xdd62ed3e') && data.length === 10 + 128) {
+              const spender = '0x' + data.slice(74, 138).slice(-40);
+              return rpcResult('0x' + word(spender === contractSpender ? (1n << 256n) - 1n : 1234500n));
+            }
+            return rpcError('method not mocked: eth_call');
+          }
+          case 'eth_blockNumber':
+            return rpcResult('0x4e20');
+          case 'eth_getLogs': {
+            const from = Number.parseInt(body.params[0].fromBlock, 16);
+            if (from < 15001) {
+              return rpcError('Archive requests require a personal token. Get one at: https://example.invalid');
+            }
+            return rpcResult([logFor(contractSpender, 19900), logFor(eoaSpender, 19800)]);
+          }
+          default:
+            return rpcError('method not mocked: ' + body.method);
+        }
+      };
+
+      const network = document.getElementById('wallet-send-network');
+      const entry = document.getElementById('wallet-send-entry');
+      const tokenInput = document.getElementById('wallet-approvals-token');
+      const windowInput = document.getElementById('wallet-approvals-window');
+      const form = document.getElementById('wallet-approvals-form');
+      const tableWrap = document.getElementById('wallet-approvals-table-wrap');
+      if (!network || !entry || !tokenInput || !windowInput || !form || !tableWrap) {
+        window.fetch = realFetch;
+        return { evidence, problems: ['the approvals form controls are missing'] };
+      }
+      if (entry.options.length && !entry.value) entry.value = entry.options[0].value;
+      network.value = '11155111';
+      network.dispatchEvent(new Event('change', { bubbles: true }));
+      tokenInput.value = token;
+      windowInput.value = '10000';
+      tokenInput.dispatchEvent(new Event('input', { bubbles: true }));
+      windowInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      let scanned = false;
+      try {
+        form.requestSubmit();
+        scanned = await waitFor(() => {
+          return tableWrap && !tableWrap.hidden &&
+            document.querySelectorAll('#wallet-approvals-rows tr').length === 2;
+        }, 20000);
+      } finally {
+        window.fetch = realFetch;
+      }
+      evidence.scanned = scanned;
+      evidence.error = (document.getElementById('wallet-approvals-error') || {}).textContent || '';
+      evidence.status = (document.getElementById('wallet-approvals-status') || {}).textContent || '';
+      evidence.entry = entry.value;
+      evidence.network = network.value;
+      evidence.sendCard = Boolean(document.getElementById('wallet-send')) &&
+        !document.getElementById('wallet-send').hidden;
+      evidence.approvalsCard = Boolean(document.getElementById('wallet-approvals')) &&
+        !document.getElementById('wallet-approvals').hidden;
+      if (!scanned) problems.push('the approvals scan did not render two rows');
+
+      const table = tableWrap.querySelector('table.data-table');
+      if (!tableWrap.classList.contains('table-scroll')) {
+        problems.push('the table wrapper is not .table-scroll');
+      }
+      if (!table) problems.push('the approvals table is not .data-table');
+      const rows = [...document.querySelectorAll('#wallet-approvals-rows tr')];
+      evidence.rows = rows.map((row) => [...row.children].map((cell) => cell.textContent.trim()));
+      if (rows.length !== 2) problems.push('row count ' + rows.length + ' (expected 2)');
+      if (!evidence.rows.some((cells) => cells[1] === 'Contract')) problems.push('no Contract label');
+      if (!evidence.rows.some((cells) => cells[1] === 'EOA')) problems.push('no EOA label');
+      if (!evidence.rows.some((cells) => cells[2] === 'Unlimited')) problems.push('no Unlimited allowance');
+      if (!evidence.rows.some((cells) => cells[2] === '1.2345 USDT')) {
+        problems.push('no formatted finite allowance');
+      }
+
+      const icons = table ? [...table.querySelectorAll('.icon-button')] : [];
+      evidence.icons = icons.map((icon) => {
+        const box = icon.getBoundingClientRect();
+        return {
+          label: icon.getAttribute('aria-label') || '',
+          tooltip: icon.getAttribute('data-tooltip') || '',
+          box: Math.round(box.width) + 'x' + Math.round(box.height),
+          radius: getComputedStyle(icon).borderTopLeftRadius,
+        };
+      });
+      if (icons.length !== 4) problems.push('icon action count ' + icons.length + ' (expected 4)');
+      for (const icon of icons) {
+        const box = icon.getBoundingClientRect();
+        if (Math.round(box.width) !== 44 || Math.round(box.height) !== 44) {
+          problems.push('icon action is ' + Math.round(box.width) + 'x' + Math.round(box.height) + 'px');
+        }
+        if (!(icon.getAttribute('aria-label') || '').trim()) problems.push('icon action without aria-label');
+        if (!(icon.getAttribute('data-tooltip') || '').trim()) problems.push('icon action without data-tooltip');
+        const radius = Number.parseFloat(getComputedStyle(icon).borderTopLeftRadius);
+        if (Math.abs(radius - 10) > 0.5) problems.push('icon action radius ' + radius + 'px');
+      }
+
+      const coverage = document.getElementById('wallet-approvals-coverage');
+      evidence.coverage = coverage ? coverage.textContent.trim() : '';
+      if (!coverage || coverage.hidden || !/Scanned blocks/.test(evidence.coverage)) {
+        problems.push('the coverage line is missing');
+      } else if (!/could not serve the whole window|older approvals/.test(evidence.coverage)) {
+        problems.push('the coverage line does not state the truncation');
+      }
+      const warnings = document.getElementById('wallet-approvals-warnings');
+      evidence.warnings = warnings ? warnings.textContent.trim() : '';
+      if (!warnings || warnings.hidden || !/archive|older approvals/.test(evidence.warnings)) {
+        problems.push('the truncated warning is not visible');
+      }
+
+      const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      evidence.overflow = overflow;
+      if (overflow > 1) problems.push('page overflows by ' + overflow + 'px');
+      return { evidence, problems };
+    })()`,
+    40000,
+  );
+  return { ok: result.problems.length === 0, ...result };
+}
+
 async function auditKeyAutoDerive(cdp) {
   return evaluate(
     cdp,
@@ -3059,6 +3243,15 @@ async function main() {
                   id: "wallet-mainnet-arm",
                   message: `/cabinet/wallet mainnet arm control failed: ${(arm.problems || []).join("; ")}`,
                   detail: arm,
+                });
+              }
+              const approvals = await auditWalletApprovals(cdp);
+              run.metrics.walletApprovals = approvals.evidence;
+              if (!approvals.ok) {
+                run.violations.push({
+                  id: "wallet-approvals-surface",
+                  message: `/cabinet/wallet approvals table failed: ${(approvals.problems || []).join("; ")}`,
+                  detail: approvals,
                 });
               }
             }
