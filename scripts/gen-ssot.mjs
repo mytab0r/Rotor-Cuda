@@ -137,6 +137,9 @@ export function loadData(root = REPO_ROOT) {
       if (!isNonEmptyString(chain[field])) fail(`${where}.${field} must be a non-empty string`);
     }
     if (!FAMILIES.has(chain.family)) fail(`${where}.family is unknown: ${chain.family}`);
+    if (chain.testnet !== undefined && typeof chain.testnet !== "boolean") {
+      fail(`${where}.testnet must be a boolean`);
+    }
     assertTemplate(`${where}.explorer`, chain.explorer, "address");
     if (chain.explorerTx !== undefined) assertTemplate(`${where}.explorerTx`, chain.explorerTx, "tx");
     chains.push({
@@ -144,6 +147,7 @@ export function loadData(root = REPO_ROOT) {
       name: chain.name,
       symbol: chain.symbol,
       family: chain.family,
+      testnet: chain.testnet === true,
       explorer: chain.explorer,
       explorerTx: chain.explorerTx ?? null,
     });
@@ -165,8 +169,16 @@ export function loadData(root = REPO_ROOT) {
       }
       if (!SLUG_RE.test(provider.id)) fail(`${where}.id must match ${SLUG_RE}`);
       assertHttpsUrl(`${where}.url`, provider.url);
+      if (provider.testnet !== undefined && typeof provider.testnet !== "boolean") {
+        fail(`${where}.testnet must be a boolean`);
+      }
       ids.push(provider.id);
-      entries.push({ id: provider.id, url: provider.url, label: provider.label });
+      entries.push({
+        id: provider.id,
+        url: provider.url,
+        label: provider.label,
+        testnet: provider.testnet === true,
+      });
     }
     unique(ids, `${PROVIDERS_PATH}.chains.${slug}`);
     providers.set(slug, entries);
@@ -185,7 +197,70 @@ export function loadData(root = REPO_ROOT) {
     groups.set(name, list.slice());
   }
 
+  validateTestnets(chains, providers);
   return { chains, providers, groups, slugs };
+}
+
+// The TRON flow admits no chain-id check, and Sepolia/BNB testnet/Bitcoin
+// testnet have the same risk: a provider URL edit must not silently point a
+// testnet page at a mainnet endpoint. Testnet chains and every one of their
+// provider entries carry `testnet: true`; the URL must also carry a testnet
+// host or path token. The one shared host (`mempool.space`) is accepted only
+// because its path starts with `/testnet/`.
+const TESTNET_TOKENS = ["nile", "sepolia", "prebsc", "testnet"];
+
+function testnetEndpoint(value) {
+  const url = new URL(value);
+  const host = url.hostname.toLowerCase();
+  const path = `${url.pathname}${url.search}`.toLowerCase();
+  return TESTNET_TOKENS.some((token) => host.includes(token) || path.includes(token));
+}
+
+function validateTestnets(chains, providers) {
+  const mainnetUrls = new Set();
+  const mainnetHosts = new Set();
+  for (const chain of chains) {
+    if (chain.testnet) continue;
+    for (const provider of providers.get(chain.slug) || []) {
+      mainnetUrls.add(provider.url);
+      mainnetHosts.add(new URL(provider.url).hostname.toLowerCase());
+    }
+  }
+
+  for (const chain of chains) {
+    const list = providers.get(chain.slug) || [];
+    for (const [index, provider] of list.entries()) {
+      const where = `${PROVIDERS_PATH}.chains.${chain.slug}[${index}]`;
+      const url = new URL(provider.url);
+      const host = url.hostname.toLowerCase();
+      const path = `${url.pathname}${url.search}`.toLowerCase();
+      if (chain.testnet) {
+        if (!provider.testnet) {
+          fail(`${where}.testnet must be true because ${chain.slug} is marked testnet`);
+        }
+        if (!testnetEndpoint(provider.url)) {
+          fail(
+            `${where} has no testnet marker in host or path (${TESTNET_TOKENS.join(", ")}): ${provider.url}`,
+          );
+        }
+        if (mainnetUrls.has(provider.url)) {
+          fail(`${where} reuses a mainnet provider URL: ${provider.url}`);
+        }
+        if (mainnetHosts.has(host) && !TESTNET_TOKENS.some((token) => path.includes(token))) {
+          fail(
+            `${where} shares mainnet host ${host} without a testnet path marker: ${provider.url}`,
+          );
+        }
+      } else {
+        if (provider.testnet) {
+          fail(`${where}.testnet is true on mainnet chain ${chain.slug}`);
+        }
+        if (testnetEndpoint(provider.url)) {
+          fail(`${where} points a mainnet chain at a testnet endpoint: ${provider.url}`);
+        }
+      }
+    }
+  }
 }
 
 // Preserve the checkout's line endings: Git may hand us CRLF on Windows and LF
@@ -219,7 +294,13 @@ function renderJs(data, eol = "\n") {
     };
   }
   const byChain = {};
-  for (const [slug, list] of data.providers) byChain[slug] = list;
+  for (const [slug, list] of data.providers) {
+    byChain[slug] = list.map((provider) => ({
+      id: provider.id,
+      url: provider.url,
+      label: provider.label,
+    }));
+  }
   const groups = {};
   for (const [name, list] of data.groups) groups[name] = list;
 
