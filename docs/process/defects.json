@@ -334,7 +334,7 @@
     {
       "id": "component-gallery-drift",
       "reported": "2026-11-21",
-      "symptom": "The generated /design gallery could miss a variant, size or state declared in a manifest, so a state shipped in the contract without rendered evidence.",
+      "symptom": "The generated /cabinet/admin/design gallery could miss a variant, size or state declared in a manifest, so a state shipped in the contract without rendered evidence.",
       "detector": "gallery-variant",
       "where": "scripts/check-components.mjs"
     },

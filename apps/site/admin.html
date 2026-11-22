@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Crypto - operator cabinet</title>
+<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/admin.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
+  <nav aria-label="Admin">
+    <a href="/cabinet/admin" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Admin</span></a>
+    <a href="/cabinet/admin/design"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Design</span></a>
+  </nav>
+  <div class="nav-tools">
+    <button class="btn" type="button" id="admin-logout" hidden>Sign out</button>
+  </div>
+</header>
+
+<main class="admin-main">
+  <section class="card admin-login" id="login-card">
+    <h1>Operator sign in</h1>
+    <p class="muted">The admin token is the coordinator token from <code>--token</code> or <code>ROTOR_COORD_TOKEN</code>. It is sent once and never written into this page.</p>
+    <form id="login-form" novalidate>
+      <label class="field">
+        <span class="field__label">Admin token</span>
+        <input class="field__control" id="admin-token" name="token" type="password" autocomplete="current-password" required aria-describedby="login-hint">
+        <span class="field__hint" id="login-hint">Five wrong attempts lock this address for 15 minutes.</span>
+      </label>
+      <p class="error" id="login-error" role="alert" hidden></p>
+      <button class="btn primary" type="submit" id="login-submit">Sign in</button>
+    </form>
+  </section>
+
+  <section id="dashboard" hidden>
+    <h1>Operator dashboard</h1>
+    <p class="muted" id="dashboard-updated" role="status"></p>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">Build</span><span class="stat-value" id="stat-build">-</span></div>
+      <div class="stat"><span class="stat-label">Uptime</span><span class="stat-value" id="stat-uptime">-</span></div>
+      <div class="stat"><span class="stat-label">Clients</span><span class="stat-value" id="stat-clients">-</span></div>
+      <div class="stat"><span class="stat-label">Live leases</span><span class="stat-value" id="stat-leases">-</span></div>
+    </div>
+    <section class="card">
+      <h2>Jobs by state</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr><th>State</th><th>Jobs</th></tr></thead>
+          <tbody id="job-states">
+            <tr><td colspan="2" class="muted">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <p class="error" id="dashboard-error" role="alert" hidden></p>
+  </section>
+</main>
+
+<script src="/admin.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 # Error
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
-Source of truth: `design/components/error.json` · Gallery: `/design` (family
+Source of truth: `design/components/error.json` · Gallery: `/cabinet/admin/design` (family
 `error`).
 
 ## Purpose
@@ -27,7 +27,7 @@ of their own; the top margin is 12px (8px for a field-level error).
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default | 1px failure border, 10% failure surface, failure text, radius 12, padding 11/14 | yes |
 | Progress → error | progress uses `role="status"`; only a failure uses `role="alert"` | composition |

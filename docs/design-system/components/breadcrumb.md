@@ -2,7 +2,7 @@
 
 Status: stable · Version: 0.1.0 · Owner: site-ui (design system), coordinator
 (server-rendered trails).
-Source of truth: `design/components/breadcrumb.json` · Gallery: `/design`
+Source of truth: `design/components/breadcrumb.json` · Gallery: `/cabinet/admin/design`
 (family `breadcrumb`).
 
 ## Purpose
@@ -34,7 +34,7 @@ exactly one trail per content page.
 
 ## State matrix
 
-| State | Evidence in `site.css` | Rendered in `/design` |
+| State | Evidence in `site.css` | Rendered in `/cabinet/admin/design` |
 |---|---|---|
 | Default link | `--ink-3`, 44px box, radius `--radius-s` | yes (the page trail) |
 | Hover | `--ink-1` | live |
