@@ -61,9 +61,11 @@ owned by exactly one area; the most-specific glob wins.
   the coordinator never receives a key, WIF or passphrase. The operator cabinet
   lives at `/cabinet/admin` behind a signed session cookie (login at
   `/cabinet/admin/login`, dashboard data at `/cabinet/admin/api/overview`, both
-  scoped to `Path=/cabinet/admin`); the design gallery moved to
-  `/cabinet/admin/design` and the old `/design` route answers 404. The cabinet
-  assets are `/admin.js` and `/admin.css`. The seed studio is served
+  scoped to `Path=/cabinet/admin`); its read-only inventory panels
+  (`/cabinet/admin/{clients,monitor,jobs,orders,providers,integrations,audit}`)
+  read `/cabinet/admin/api/*` with bounded pagination. The design gallery moved
+  to `/cabinet/admin/design` and the old `/design` route answers 404. The
+  cabinet assets are `/admin.js` and `/admin.css`. The seed studio is served
   on `/seed` and `/mnemonic-converter`, sharing `seed.js`, `seed-crypto.js`,
   `seed-page.js` and `seed-studio.css`; the directory remains on
   `/mnemonic-seeds`. Brainwallet pages share `brainwallet-engine.js`

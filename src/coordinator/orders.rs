@@ -852,6 +852,108 @@ impl Orders {
             500u16
         })
     }
+
+    // -- admin inventory ----------------------------------------------------
+
+    /// Configuration footprint without any credential or HMAC material.
+    pub fn admin_summary(&self) -> AdminOrdersSummary {
+        AdminOrdersSummary {
+            configured: true,
+            lists: self.config.lists.len(),
+            active_lists: self.config.lists.iter().filter(|list| list.active).count(),
+            poll_interval_secs: self.config.poll_interval_secs,
+        }
+    }
+
+    /// One page of orders, newest first. The order token hash never leaves the
+    /// store.
+    pub fn admin_orders(&self, offset: usize, limit: usize) -> (Vec<AdminOrder>, usize) {
+        let data = self.lock();
+        let total = data.orders.len();
+        let page = data
+            .orders
+            .iter()
+            .rev()
+            .skip(offset)
+            .take(limit)
+            .map(|order| AdminOrder {
+                id: order.id.clone(),
+                list: order.list.clone(),
+                chain: order.chain.clone(),
+                asset: order.asset.clone(),
+                amount: order.amount.clone(),
+                deposit_address: order.deposit_address.clone(),
+                contact: order.contact.clone(),
+                status: order.status.as_str(),
+                created_at: order.created_at,
+                expires_at: order.expires_at,
+                paid_at: order.paid_at,
+            })
+            .collect();
+        (page, total)
+    }
+
+    /// One page of recorded payments, newest first.
+    pub fn admin_payments(&self, offset: usize, limit: usize) -> (Vec<AdminPayment>, usize) {
+        let data = self.lock();
+        let total = data.payments.len();
+        let page = data
+            .payments
+            .iter()
+            .rev()
+            .skip(offset)
+            .take(limit)
+            .map(|payment| AdminPayment {
+                order_id: payment.order_id.clone(),
+                chain: payment.chain.clone(),
+                txid: payment.txid.clone(),
+                vout: payment.vout,
+                amount: payment.amount.clone(),
+                confirmations: payment.confirmations,
+                seen_at: payment.seen_at,
+                confirmed_at: payment.confirmed_at,
+            })
+            .collect();
+        (page, total)
+    }
+}
+
+/// Operator-facing order row. No token hash, no entitlement nonce.
+#[derive(Clone, Debug, Serialize)]
+pub struct AdminOrder {
+    pub id: String,
+    pub list: String,
+    pub chain: String,
+    pub asset: String,
+    pub amount: String,
+    pub deposit_address: String,
+    pub contact: Option<String>,
+    pub status: &'static str,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub paid_at: Option<u64>,
+}
+
+/// Operator-facing payment row.
+#[derive(Clone, Debug, Serialize)]
+pub struct AdminPayment {
+    pub order_id: String,
+    pub chain: String,
+    pub txid: String,
+    pub vout: u64,
+    pub amount: String,
+    pub confirmations: u32,
+    pub seen_at: u64,
+    pub confirmed_at: Option<u64>,
+}
+
+/// Orders configuration footprint for the integrations panel.
+#[derive(Clone, Debug, Serialize)]
+pub struct AdminOrdersSummary {
+    pub configured: bool,
+    pub lists: usize,
+    pub active_lists: usize,
+    pub poll_interval_secs: u64,
 }
 
 // ---------------------------------------------------------------------------
