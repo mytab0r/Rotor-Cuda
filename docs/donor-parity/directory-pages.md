@@ -48,7 +48,7 @@ Inline results (key 1, ~12 s): 18 `.ws-chain-card[data-chain]`, 29 `.ws-address-
 
 List: `#puzzleTable.puzzle-table` with 160 `tr.puzzle-row[data-status][data-puzzle]`, all in DOM, no pagination. Columns `# | Status | Address | Range | Balance | TX | Actions`; range `2^0 → 2^1`. Filters `All 160 / Solved 83 / Unsolved 77`, **Unsolved active by default** (77 visible). `#puzzleSearch` "Search #, address..." filters client-side. Actions: Detail → `/bitcoin-puzzle/<n>`, Random → `/bitcoin-puzzle/<n>/random`; balances lazy (`data-address`).
 
-Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdown #1–#160 with solved badges. `.puzzle-info-section`: Range Start, Range End, Target, Blockchain (Mempool), Solution (solved only). Actions: Browse Keys in Range → `/private-keys/bitcoin?key=<range start>`, Random Keys → `/bitcoin-puzzle/66/random`, Discussion. `/random` is a page (`<h1>Random Keys Solved</h1>`) with `#rangeStartInput`/`#rangeEndInput` prefilled.
+Detail #66: `<h1>Bitcoin Puzzle Solved</h1>`; prev #65 + "Select Puzzle" dropdown #1–#160 with solved badges. `.puzzle-info-section`: Range Start, Range End, Target, Blockchain (Mempool), Solution (solved only). Actions: Browse Keys in Range → `/private-keys/bitcoin?key=<range start>`, Random Keys → `/bitcoin-puzzle/66/random`, Discussion → https://bitcointalk.org/index.php?topic=1306983.0 (live capture 2026-11-22). `/random` is a page (`<h1>Random Keys Solved</h1>`) with `#rangeStartInput`/`#rangeEndInput` prefilled.
 
 ## 5. `/richest/<chain>` and `/brainwallet/<chain>`
 
