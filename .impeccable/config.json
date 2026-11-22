@@ -92,6 +92,15 @@
         ],
         "createdAt": "2026-11-22T01:11:19.852Z",
         "reason": "Only finding is the mandated .table-scroll wrapper: padding 0 by the table grammar, .data-table cells carry the 8/12 inset. Same sanctioned exception as range/me/app/key/design."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "apps/site/wallet.html"
+        ],
+        "createdAt": "2026-11-22T10:43:38.505Z",
+        "reason": "Agent: the only finding is the DESIGN-SYSTEM-mandated .table-scroll wrapper (padding 0); the 8/12px text inset is on .data-table th/td, so the wrapper heuristic cannot see child padding. Same sanctioned class as range/me/app/key/design/admin."
       }
     ]
   }
