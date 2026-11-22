@@ -55,7 +55,7 @@
     {
       "source": "apps/site/site.css",
       "target": "web/public/site.css",
-      "sha256": "04f6d71925a67036a15d19e2ef1cf9c1754c9868e00fd5e153e9936207dfb2fd"
+      "sha256": "77de59da7bd2bf175b769a44b6ca54e20e755f0d0ad5140ddc167fe302fa366c"
     },
     {
       "source": "apps/site/site.js",

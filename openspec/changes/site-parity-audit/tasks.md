@@ -5,11 +5,14 @@
 - [x] Brainwallet directory: `/brainwallet` index + 18 chain listings, 60 rows
   × 315 pages, auto addresses/balances, two copy icons per row, BTC type tabs,
   First/Prev/Random/Next/Last + Jump. Evidence: `render_brainwallet_directory`
-  (`mod.rs:2979`; the 60×315 counts at `:2956`), `brainwallet-directory.js:36`
-  (type tabs), `:209-219` (copy icons), `:351-470` (balances).
+  and the 60×315 index counts (`BRAINWALLET_TOTAL_PAGES`) in
+  `src/coordinator/mod.rs`; `brainwallet-directory.js` (`.bw-type-btn` type
+  tabs, `copyButton` per row, `setBalance`). Line numbers are omitted for that
+  Rust file on purpose: it is large and every insertion shifts them.
 - [x] Brainwallet single calculator on `/brainwallet-generator` with network,
   passphrase, 1/3/5/10 addresses, Copy All/CSV. Evidence:
-  `render_brainwallet_generator` (`mod.rs:3123`), `brainwallet.js:457-503`.
+  `render_brainwallet_generator` (`src/coordinator/mod.rs`),
+  `brainwallet.js:457-503`.
 - [x] Seed rows: private key + copy icons; full phrase in the donor layout.
   The donor prints the whole mnemonic, so the earlier compact first-two/last-word
   reveal was dropped and each row shows the full phrase (mono, ellipsis with the
@@ -22,10 +25,10 @@
   `src/coordinator/mod.rs` (directory assertions),
   `apps/site/mnemonic-seeds-test.mjs`.
 - [x] Puzzle home: 160-row table, All/Solved/Unsolved filters, search,
-  Balance/TX/Actions. Evidence: `render_puzzle_home` (`mod.rs:4041`),
+  Balance/TX/Actions. Evidence: `render_puzzle_home` (`src/coordinator/mod.rs`),
   `puzzle-browser.js:236-365`.
 - [x] Puzzle random: Community Hunt counters and a live result table.
-  Evidence: `render_puzzle_random` (`mod.rs:4419`),
+  Evidence: `render_puzzle_random` (`src/coordinator/mod.rs`),
   `puzzle-browser.js:367-432,864-886`.
 - [ ] `/richest` + `/richest/<chain>` top-100 with type filter, search, copy and
   explorer. **Blocked on an owner decision, not on "no API".** Live capture
@@ -50,10 +53,11 @@
   proof), `tests/coordinator_api.rs` (three routes return 200 with TESTNET
   copy).
 - [x] `/key` debounced auto-derive, icon-only utility actions, full formats and
-  counters. Evidence: `key.js:563-569` (`scheduleDerive`), `key.html:78`
+  counters. Evidence: `key.js:592-598` (`scheduleDerive`), `key.html:78`
   (`#key-info-btn` icon action), `key-tools.js:218` (key-fact format summary).
-- [x] Global search results in place: interpret-as, 1/3/5/10 addresses, table,
-  Copy All/CSV. Evidence: `apps/site/search-test.mjs` (detect modes, row
+- [x] Global search results in place: interpret-as, 1/3/5/10 addresses, result
+  cards (`ws-chain-card`), Copy All/CSV. Evidence:
+  `apps/site/search-test.mjs` (detect modes, row
   shaping per chain, public-only CSV), `node --check` for `site.js`/`search.js`,
   and the `key` route UI audit at 375/1280 in both themes. Donor counter and
   sub-type label: `apps/site/search.js` (`countLabel`, `mnemonicSubtype`),
@@ -85,9 +89,10 @@
   gate), `crates/rotor-wasm/src/tron.rs:89` / `:101` and
   `crates/rotor-wasm/src/lib.rs:547` / `:567` (sign/unsigned exports),
   `apps/site/send-test.mjs:417` (TRX->sun), `:431` (prepare) and `:499`
-  (sign/broadcast without a key leak), `src/coordinator/mod.rs:1109` / `:1112`
-  (route and embedded helper), `tests/coordinator_api.rs:1139` / `:1186`
-  (six routes and the served helper). Nile testnet only: mainnet TRON hosts
+  (sign/broadcast without a key leak), `src/coordinator/mod.rs` (the
+  `/send/tron` route and the embedded `TRON_TX_JS` helper),
+  `tests/coordinator_api.rs` (the `/send/tron` route and the served helper).
+  Nile testnet only: mainnet TRON hosts
   and the mainnet `tron` route are rejected, and no live broadcast was
   executed (no funded Nile key).
 - [x] `/key` signing entry: the key page links to the testnet-only `/send`
@@ -211,14 +216,14 @@
 - [x] `/key` ZEC balances + per-chain EVM explorer links (2026-11-22,
   code-only): SoChain v3 `GET https://sochain.com/api/v3/balance/ZEC/<addr>`
   answers 200 with CORS `*` and decimal ZEC strings (live probe 2026-11-22;
-  Blockchair stays 430 without a key). `fetchSochainZec`
-  (`apps/site/key.js:2317`) calls the pure `parseSochainBalance`
+  Blockchair stays 430 without a key). `fetchSochain`
+  (`apps/site/key.js:2345`) calls the pure `parseSochainBalance`
   (`apps/site/key-tools.js:1027`, satoshis without floats), `zcash_` is in
-  `rowHasProvider` (`apps/site/key.js:2348`), `rowCacheInfo` (`:2555`) and the
-  `checkRow` dispatch (`:2714`), so no chain group lacks a provider. The eight
+  `rowHasProvider` (`apps/site/key.js:2401`), `rowCacheInfo` (`:2590`) and the
+  `checkRow` dispatch (`:2724`), so no chain group lacks a provider. The eight
   shared-EVM sub-rows now build their explorer anchor outside the
-  `!sharedEvm` guard (`apps/site/key.js:1314`) from `explorerFor` in
-  `apps/site/key-tools.js:988`, while copy/details/toggle stay suppressed.
+  `!sharedEvm` guard (`apps/site/key.js:1342-1355`) from `explorerFor` in
+  `apps/site/key-tools.js:1055`, while copy/details/toggle stay suppressed.
   Evidence: `apps/site/key.js`, `apps/site/key-tools.js`,
   `apps/site/key-tools-test.mjs`, `scripts/ui-audit.mjs` (`key-zec-provider`). The
   matrix row is now `parity` after the independent browser review and the PR #237
@@ -344,10 +349,10 @@ follow-ups were code-only.
 - [x] WIF detection parity (2026-11-22, code-only): all three input contexts use
   the donor shape `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$` and the global search
   decodes Litecoin (0xb0) and Dogecoin (0x9e) WIFs, not just Bitcoin (0x80) and
-  BCH. Evidence: `apps/site/key.js:291` (`WIF_RE`/`WIF_PARTIAL_RE`),
-  `apps/site/key-tools.js:381` (`SEARCH_WIF_SHAPE`, also used by
+  BCH. Evidence: `apps/site/key.js:320` (`WIF_RE`/`WIF_PARTIAL_RE`),
+  `apps/site/key-tools.js:388` (`SEARCH_WIF_SHAPE`, also used by
   `routeKeyInput` and `resolveKeyInput`; error text at `:459`),
-  `apps/site/search.js:19` (`WIF_RE`) and `:157-158` (`decodeWif` versions),
+  `apps/site/search.js:24` (`WIF_RE`) and `:156` (`decodeWif` versions),
   `docs/donor-parity/directory-pages.md:29`, `docs/donor-parity/directories.md:82`.
   Tests: `apps/site/key-tools-test.mjs` ("Litecoin (version 0xb0) and Dogecoin
   (0x9e) WIFs" round-trip block, "Litecoin/Dogecoin WIF" routing block) and
@@ -361,7 +366,8 @@ follow-ups were code-only.
   `fillKey`/`wifsFor`/`clearKeyLinks`), `apps/site/brainwallet.css`
   (`.bw-key-link`, `.bw-key-wif`), `docs/donor-parity/directory-pages.md:57`.
   The index copy now states that a HEX/WIF click puts the key in the browser URL
-  (`src/coordinator/mod.rs:2969`). Test: `apps/site/brainwallet-test.mjs`
+  (the brainwallet directory copy in `src/coordinator/mod.rs`). Test:
+  `apps/site/brainwallet-test.mjs`
   ("BTC key cell links hex + both WIFs", "BCH shares the 0x80 WIFs", LTC/DOGE
   network-prefix blocks, "ETH/TON keep only the hex link").
 - [x] Per-chain WIF encoding (2026-11-22, code-only): `derive_report` always
@@ -574,11 +580,13 @@ and not deployed**.
   Evidence: send rows now point at `/send/bitcoin` and `/send/ethereum`
   (partial, testnet-only), the six key rows and `key-page-flow` describe the
   shipped counters/Copy All/CSV instead of claiming they are absent;
-  `site-map-test.mjs` passes (93 ours, 118 donors, 40 features).
+  `site-map-test.mjs` passes (93 ours, 118 donors, 41 features).
 - [x] UI gate 375/768/1280, light/dark, keyboard, reduced motion.
-  Evidence: `node scripts/ui-audit.mjs --serve` PASS 192/192 page runs across 32
-  routes after PR #139 added every public `text/html` route (tools, tx, docs,
-  `/send/bitcoin`, `/send/ethereum`). The `route-coverage` check now fails with
+  Evidence: `node scripts/ui-audit.mjs --serve` PASS 192/192 page runs across the
+  32 routes that existed when PR #139 added every public `text/html` route (tools,
+  tx, docs, `/send/bitcoin`, `/send/ethereum`). The current suite is 282/282
+  page runs across 47 routes (2026-11-22). The `route-coverage` check now fails
+  with
   exit 2 when a public page route is missing from `DEFAULT_ROUTES`; `/milk-sad`
   (the first page it caught) had two sub-12px exponents, fixed in the same PR.
   `/brainwallet` and the chain routes went from four 22px links to >=44px after

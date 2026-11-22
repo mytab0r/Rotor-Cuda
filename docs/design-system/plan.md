@@ -358,7 +358,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `key-utxo-provider` | Every /key LTC and DOGE row names sochain as its balance provider, not a rate-limited fallback. | phase 4 | implemented |
 | `wallet-seed-strength` | The wallet seed block shows computed strength and uses shared 44px controls. | phase 4 | implemented |
 | `wallet-mainnet-arm` | A mainnet send requires an explicit 44px risk arm with the full warning. | phase 4 | implemented |
-| `wallet-approvals-surface` | The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow. | phase 4 | implemented |
+| `wallet-approvals-surface` | The approvals table uses the shared table shell, 44px labelled icon actions, Unlimited/Contract/EOA labels and the truncated warning without overflow; the grant form has labelled 44px fields, its own unlimited warning line, a visible zero-amount error state and a rendered unlimited review. | phase 4 | implemented |
 | `wallet-portfolio-summary` | The wallet summary counts only loaded balances, shows an explicit empty state instead of $0.00, names unpriced chains, hides stale/offline fiat, and keeps a 44px refresh control with the shared stat grammar. | phase 4 | implemented |
 | `search-xrp-secret-routing` | XRP family seeds and secrets route to /key instead of a brainwallet hash. | phase 4 | implemented |
 | `search-short-hex-padding` | 1-63 hex characters stay brainwallet text; exactly 64 hex is a key. | phase 4 | implemented |
@@ -396,6 +396,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `tooltip-naming` | The accessible name is independent of the tooltip and aria-describedby resolves. | 2 | planned |
 | `tooltip-timing` | Tooltip shows after a 400ms delay and Escape dismisses it. | 2 | planned |
 | `status-line-margin` | Text-only status lines use a top margin in {8,12}. | 1/3 | planned |
+| `error-message-contrast` | Every visible error message uses the semantic --state-err text colour and keeps at least 4.5:1 contrast against its effective background; an invalid field's border uses --state-err. | phase 4 | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.
