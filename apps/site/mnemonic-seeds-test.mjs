@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 const scriptPath = fileURLToPath(new URL("./mnemonic-seeds.js", import.meta.url));
 
 globalThis.window = globalThis;

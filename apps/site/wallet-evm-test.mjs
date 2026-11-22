@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 require("./chains.generated.js");
+require("./amount.js");
 const evm = require("./wallet-evm.js");
 
 const TO = "0x3535353535353535353535353535353535353535";
@@ -81,8 +82,8 @@ test("ETH is parsed to wei exactly, without float rounding", () => {
   assert.equal(evm.parseEthToWei("1.230000000000000000"), 123n * 10n ** 16n);
   assert.equal(evm.parseEthToWei("0.30000000000000004"), 300000000000000040n);
   assert.equal(evm.parseEthToWei("12.345678901234567890"), 12345678901234567890n);
-  assert.equal(evm.formatUnits(11050000000000000n, 18), "0.01105");
-  assert.equal(evm.formatUnits(0n, 18), "0");
+  assert.equal(globalThis.RotorAmount.formatUnits(11050000000000000n, 18), "0.01105");
+  assert.equal(globalThis.RotorAmount.formatUnits(0n, 18), "0");
 });
 
 test("gwei parsing uses 9 decimals and rejects malformed numbers", () => {

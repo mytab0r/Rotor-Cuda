@@ -7,6 +7,7 @@
   var SSOT_ROOT = typeof window !== 'undefined' ? window : globalThis;
   var SSOT_CHAINS = SSOT_ROOT.RotorChains;
   var SSOT_PROVIDERS = SSOT_ROOT.RotorProviders;
+  var AMOUNT = SSOT_ROOT.RotorAmount;
 
   /* Narrow-header split: four primary links stay inline and the rest move into
    * a "More" disclosure. These helpers are pure and exported before the DOM
@@ -404,17 +405,6 @@
       if (SEARCH_CHIPS[index][0] === mode) return SEARCH_CHIPS[index][1];
     }
     return 'that format';
-  }
-
-  function formatUnits(amount, decimals) {
-    var value = BigInt(amount);
-    var places = Number.isInteger(decimals) && decimals >= 0 ? decimals : 0;
-    var unit = 1n;
-    for (var index = 0; index < places; index += 1) unit *= 10n;
-    var whole = value / unit;
-    var fraction = value % unit;
-    var text = fraction ? whole.toString() + '.' + fraction.toString().padStart(places, '0').replace(/0+$/, '') : whole.toString();
-    return text;
   }
 
   function installGlobalSearch() {
@@ -1017,8 +1007,11 @@
       } catch (err) {
         amount = 0n;
       }
-      var text = formatUnits(amount, Number.isInteger(value.decimals) ? value.decimals : 0) +
-        (value.symbol ? ' ' + value.symbol : '');
+      var text = AMOUNT.formatUnits(
+        amount,
+        Number.isInteger(value.decimals) ? value.decimals : 0,
+        { symbol: value.symbol }
+      );
       view.balance.textContent = text;
       view.balance.title = text;
       var active = value.active === true || amount > 0n;
@@ -1337,8 +1330,11 @@
         if (card.balance) {
           var amount;
           try { amount = BigInt(String(card.balance.amount)); } catch (err) { amount = 0n; }
-          out[card.slug] = formatUnits(amount, Number.isInteger(card.balance.decimals) ? card.balance.decimals : 0) +
-            (card.balance.symbol ? ' ' + card.balance.symbol : '');
+          out[card.slug] = AMOUNT.formatUnits(
+            amount,
+            Number.isInteger(card.balance.decimals) ? card.balance.decimals : 0,
+            { symbol: card.balance.symbol }
+          );
         } else {
           out[card.slug] = '—';
         }
