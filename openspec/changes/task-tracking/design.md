@@ -146,10 +146,10 @@ next run, so one inaccessible PR cannot abort the whole sync.
 ### 8. Silent skips are forbidden
 
 A change with no `tasks.md` (today `frontend-platform`) or with no checkbox
-tasks is printed as a warning and named in the summary. The same change adds
-`openspec/changes/frontend-platform/tasks.md` with phases 0-7 from its proposal
-so it is tracked rather than skipped. A future change that adds specs without
-tasks is visible in the sync output instead of disappearing.
+tasks is printed as a warning and named in the summary. `frontend-platform`
+now carries `tasks.md` with phases 0-7 on main; the merge adopts it, so the
+sync tracks it rather than skipping it. A future change that adds specs
+without tasks is visible in the sync output instead of disappearing.
 
 ## Failure paths
 

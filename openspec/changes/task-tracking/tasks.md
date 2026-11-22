@@ -29,8 +29,9 @@
       `archiveProjectV2Item` mutation; issue items are never touched and only
       open PRs remain as cards.
 - [x] Report changes without `tasks.md` (or without checkbox tasks) loudly
-      instead of skipping them; add `openspec/changes/frontend-platform/tasks.md`
-      for phases 0-7 so that change is tracked too.
+      instead of skipping them; `openspec/changes/frontend-platform/tasks.md`
+      (phases 0-7, already on main) is adopted by the merge, so the sync tracks
+      it instead of silently skipping the change.
 - [x] `--dry-run` prints the whole plan (including `§2 <- §1` /
       `§2 <- ROT-<n>` blocker edges) and performs no mutation; unit tests inject
       a fake `gh`.
