@@ -23,8 +23,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   archiveStalePullRequestItems,
+  branchMatchesChange,
   closingIssueNumbers,
   epicBody,
+  filesBelongToChange,
   linkSubIssueToEpic,
   parseTaskDirective,
   parseTasksMarkdown,
@@ -200,7 +202,7 @@ function readChanges() {
       defaultArea: inferred === null,
     });
   }
-  return { changes, skipped, empty };
+  return { changes, skipped, empty, allIds: ids };
 }
 
 function provisionalEpicBody(change) {
@@ -248,22 +250,21 @@ function epicPercent(change, sync) {
   return change.percent;
 }
 
-function escapeRegExp(value) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // A PR belongs to a change when its head branch follows the branch convention
-// `<type>/<change-id>-<slug>` or when its diff touches the change folder. Any
-// other match is ambiguous: the sync reports it instead of editing the body.
-function prBelongsToChange(pr, changeId) {
-  const pattern = new RegExp(`(^|/)${escapeRegExp(changeId)}([-/]|$)`);
-  if (pattern.test(pr.headRefName ?? "")) return true;
+// `<type>/<change-id>-<slug>` and no longer registered change id makes that
+// ambiguous, or when its diff touches the change folder. Any other match is
+// reported instead of editing the body.
+function prBelongsToChange(pr, changeId, changeIds) {
+  if (branchMatchesChange(pr.headRefName, changeId, changeIds) === "match") {
+    return true;
+  }
   try {
     const files =
       ghJson(["pr", "view", String(pr.number), "--repo", REPO, "--json", "files"])
         ?.files ?? [];
-    return files.some((file) =>
-      file.path.replace(/\\/g, "/").startsWith(`openspec/changes/${changeId}/`),
+    return filesBelongToChange(
+      files.map((file) => file.path),
+      changeId,
     );
   } catch (error) {
     console.log(`warning: cannot read files of PR #${pr.number}: ${error.message}`);
@@ -475,7 +476,7 @@ function main() {
     gh(args);
   }
 
-  const { changes, skipped, empty } = readChanges();
+  const { changes, skipped, empty, allIds } = readChanges();
   if (skipped.length > 0) {
     console.log(
       `warning: OpenSpec changes without tasks.md are not synced: ${skipped.join(", ")}`,
@@ -759,7 +760,7 @@ function main() {
           );
           continue;
         }
-        if (!prBelongsToChange(pr, record.changeId)) {
+        if (!prBelongsToChange(pr, record.changeId, allIds)) {
           prReports.push(
             `PR #${pr.number}: cannot prove the diff belongs to ${record.changeId}; ` +
               `add \`Closes #${directive.number}\` manually.`,
