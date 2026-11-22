@@ -3779,6 +3779,25 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     let page_text = page.to_string();
     let total_text = format_page_count(&total);
     let percent = page_percent(&page, &total);
+    let start = (&page - BigUint::from(1u8)) * BigUint::from(60u32) + BigUint::from(1u8);
+    let max_key = chain_key_space(chain) - BigUint::from(1u8);
+    let mut row_count = 0u32;
+    for offset in 0u32..60u32 {
+        if &start + BigUint::from(offset) > max_key {
+            break;
+        }
+        row_count += 1;
+    }
+    // 60 keys per page, as the donor. A legacy Bitcoin key renders both the
+    // compressed and uncompressed P2PKH address, so the page carries 120
+    // address lines instead of 60; every other type/chain carries one per key.
+    let keys_per_page = 60u32;
+    let addresses_per_key = if chain.slug == "bitcoin" && active_type.value == "legacy" {
+        2u32
+    } else {
+        1u32
+    };
+    let addresses_per_page = row_count * addresses_per_key;
     let title = if page == BigUint::from(1u8) {
         format!(
             "{} private keys — browse addresses and balances | Crypto",
@@ -3795,7 +3814,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     let description = format!(
         "Browse {} private keys 60 at a time, derive {} addresses locally in your browser and check their on-chain balances. Page {} of {}.",
         chain.name,
-        chain.name,
+        addresses_per_page,
         format_page_count(&page),
         total_text
     );
@@ -3872,14 +3891,9 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         ));
     }
 
-    let start = (&page - BigUint::from(1u8)) * BigUint::from(60u32) + BigUint::from(1u8);
-    let max_key = chain_key_space(chain) - BigUint::from(1u8);
     let mut rows = String::new();
-    for offset in 0u32..60u32 {
+    for offset in 0u32..row_count {
         let value = &start + BigUint::from(offset);
-        if value > max_key {
-            break;
-        }
         let hex = format!("{value:064x}");
         let curve_suffix = chain.curve_suffix;
         rows.push_str(&format!(
@@ -3997,12 +4011,12 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
     };
 
     let body = format!(
-        "{}{}<main class=\"browse-page\" style=\"--chain:{}\" data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-type=\"{}\" data-field=\"{}\" data-curve=\"{}\" data-pages=\"{}\" data-page=\"{}\">\
+        "{}{}<main class=\"browse-page\" style=\"--chain:{}\" data-chain=\"{}\" data-symbol=\"{}\" data-explorer=\"{}\" data-type=\"{}\" data-field=\"{}\" data-curve=\"{}\" data-pages=\"{}\" data-page=\"{}\" data-keys-per-page=\"{}\" data-addresses-per-key=\"{}\" data-addresses-per-page=\"{}\">\
          {crumbs}\
          <h1 class=\"visually-hidden\">{} private keys</h1>\
          <div class=\"chain-tabs\" role=\"navigation\" aria-label=\"Chains\">{tabs}</div>\
          <section class=\"page-info\">\
-           <div class=\"page-info-text\">{}<span>{} keys page <strong>#{}</strong> out of <strong>#{}</strong></span><span class=\"page-percent\">{}</span></div>\
+           <div class=\"page-info-text\">{}<span>{} keys page <strong>#{}</strong> out of <strong>#{}</strong></span><span class=\"page-address-count\" id=\"page-address-count\">{} addresses</span><span class=\"page-percent\">{}</span></div>\
            <div class=\"progress-track\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"{}\"><span style=\"width:{}\"></span></div>\
          </section>\
          <section class=\"browse-controls\">\
@@ -4054,11 +4068,15 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         curve_data,
         total,
         page_text,
+        keys_per_page,
+        addresses_per_key,
+        addresses_per_page,
         chain.name,
         chain_icon(chain, "page-info-icon"),
         chain.name,
         page_text,
         total_text,
+        addresses_per_page,
         percent,
         percent,
         percent,
