@@ -1388,13 +1388,13 @@ function auditPage(args) {
       add("balance-consistency", `${balanceIssues.length} balance row(s) disagree with their title`, balanceIssues.slice(0, 8));
     }
 
-    // Every chain group has a balance provider. rowHasProvider sets the row
-    // state to "off" synchronously when a group has none, so this needs no
-    // network success and cannot flake on the provider itself. key-zec-provider.
-    const zecRow = document.querySelector('.key-row[data-id^="zcash_"]');
-    metrics.keyZecProvider = zecRow ? zecRow.dataset.balanceState || "" : "absent";
-    if (zecRow && zecRow.dataset.balanceState === "off") {
-      add("key-zec-provider", `${selectorOf(zecRow)} has no balance provider (balanceState=off)`);
+    // Every chain group has a balance provider. The row carries the wiring as
+    // a render-time attribute, so this needs no balance check (and no network)
+    // to have run. key-zec-provider.
+    const zecRow = document.querySelector('.key-row[data-id="zcash_p2pkh"]');
+    metrics.keyZecProvider = zecRow ? zecRow.dataset.balanceProvider || "" : "absent";
+    if (zecRow && zecRow.dataset.balanceProvider !== "1") {
+      add("key-zec-provider", `${selectorOf(zecRow)} has no balance provider (data-balance-provider=${zecRow.dataset.balanceProvider || "missing"})`);
     }
   }
 
