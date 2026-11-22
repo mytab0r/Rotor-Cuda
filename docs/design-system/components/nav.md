@@ -6,19 +6,22 @@ Source of truth: `design/components/nav.json` · Gallery: `/cabinet/admin/design
 
 ## Purpose
 
-The sticky site header: brand, primary destinations, and exactly three utility
-controls (search icon-button, theme icon-button injected by `theme.js`, cabinet
-chip). Use one header per public page. Do not add a second navigation toolbar
-for the same destinations.
+The sticky site header: brand, primary destinations, and exactly three
+persistent utility controls (search icon-button, theme icon-button injected by
+`theme.js`, cabinet chip). A runtime More disclosure is added when the primary
+links do not fit. Use one header per public page. Do not add a second
+navigation toolbar for the same destinations.
 
 ## Anatomy and slots
 
 `<header class="site-nav">` with `.brand`, `<nav aria-label="Main">` links, and
-`.nav-tools`. Links are 44px high with 18px icons and 12px horizontal padding;
-the active item uses `aria-current="page"` (or the legacy `.active` alias) with
+`.nav-tools`. The bar is one 60px row with 44px links and 18px icons. The
+active item uses `aria-current="page"` (or the legacy `.active` alias) with
 `--signal-soft` + signal text. The brand mark is the one permitted gradient.
-Below 860px `site.js` moves the overflow links into a `.nav-drawer` under one
-More control; without JS every link stays visible.
+Below 1200px `site.js` moves the tail links into a `.nav-drawer` under one More
+control; at 860px and below every primary link moves there, leaving brand,
+search, theme, cabinet and More in one row. Without JS every link stays
+visible.
 
 The gallery renders the real header from `apps/site/docs.html` as the live
 `site` specimen; there is no hand-written copy. The drawer is a runtime surface
@@ -27,7 +30,7 @@ created by `site.js`, not a separately rendered manifest variant.
 ## API
 
 - Element: `header.site-nav`.
-- Variants: `site` (the header shell). Sizes: default (min-height 70).
+- Variants: `site` (the header shell). Sizes: default (min-height 60).
 - No required attributes on the header; the `nav` child needs
   `aria-label="Main"`.
 - Utility controls are the shared `.icon-button` and `.chip` components.
@@ -40,7 +43,7 @@ created by `site.js`, not a separately rendered manifest variant.
 | Hover | `--hover` background, `--ink-1` text | live |
 | Focus-visible | 2px `--signal` outline, offset 2 | live (tab) |
 | Current page | `aria-current="page"` / `.active`: `--signal-soft`, signal text and hairline | live on routes where a destination is active |
-| More drawer | `.nav-drawer` under 860px with the same link grammar | runtime; open the header More control |
+| More drawer | `.nav-drawer` under 1200px with the same link grammar | runtime; open the header More control |
 | Disabled/loading | n/a | n/a |
 
 ## Motion and reduced motion
@@ -56,6 +59,10 @@ block removes the animation. The header itself does not animate.
   `/seed` studio; `nav-destination` enforces it.
 - The theme control is injected by `theme.js` as the shared icon-button with an
   `aria-label` and `data-tooltip`.
+- Every destination has its own sprite icon and its own accessible name. Two
+  different destinations never share an icon, and two header controls never
+  share a name; mobile shows the utility cluster at once, so a duplicate reads
+  as the same action twice.
 - The drawer closes on Escape and outside click; focus returns to the trigger.
 - Reflow: the header wraps to its own row below 860px; no horizontal overflow at
   375px.
@@ -69,17 +76,23 @@ block removes the animation. The header itself does not animate.
 
 ## Do / don't
 
-- Do keep exactly three utility controls.
+- Do keep exactly three persistent utility controls; the runtime More
+  disclosure is allowed when the primary links do not fit.
 - Do use the shared icon-button and chip components.
 - Don't add `.nav-pill` or a page-local one-off icon wrapper.
 - Don't hide a destination without keeping it reachable in the More drawer.
+- Don't wrap the primary links onto a second row; move the overflow into the
+  drawer instead.
 - Don't add a second header or a second nav toolbar.
 
 ## Detectors
 
 `nav-link-height` (44px box, 18px icon, 44px utility controls),
 `nav-destination` (Seeds → `/mnemonic-seeds`, active state),
-`small-touch-target`, `icon-button-scale` for the utility controls.
+`header-icon-unique` (one icon per destination, one accessible name per
+control), `header-row-parity` (≥1024: one row, ≤60px),
+`mobile-header-budget` (375: ≤6 controls, ≤96px), `small-touch-target`,
+`icon-button-scale` for the utility controls.
 
 ## Owner and changelog
 

@@ -220,6 +220,27 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "duplicate-nav-icons",
+      "reported": "2026-11-22",
+      "symptom": "The served header reused one sprite icon for two different destinations: Directory/Seeds both used ui-key, Vanity/Tools both used ui-tools, and the Wallet/Cabinet chips both used ui-wallet, so mobile showed pairs of identical-looking actions.",
+      "detector": "header-icon-unique",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "header-wrapped-second-row",
+      "reported": "2026-11-22",
+      "symptom": "The desktop header wrapped the primary nav onto a second row on /cabinet and /cabinet/wallet (97px instead of 70px) because the extra Wallet chip consumed the row, so the same shell had two heights at 1280px.",
+      "detector": "header-row-parity",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "mobile-header-crowding",
+      "reported": "2026-11-22",
+      "symptom": "At 375px the header stacked a second nav row and exposed 9-10 controls in a 118px bar, so the phone header was neither one row nor within the 56-60px target.",
+      "detector": "mobile-header-budget",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "manual-cache-token",
       "reported": "2026-11-21",
       "symptom": "Cache busting relied on hand-bumped ?v= tokens in 24 pages, coordinator templates and tests, so one forgotten bump served stale CSS or JS after a deploy.",
