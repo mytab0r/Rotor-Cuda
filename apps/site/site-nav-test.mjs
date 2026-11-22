@@ -207,6 +207,17 @@ test("the static header exposes one cabinet entry and no wallet chip", () => {
   assert.ok(checked >= 20, `expected at least 20 static headers, checked ${checked}`);
 });
 
+/* The header keeps one cabinet entry, so the cabinet page must link its
+ * encrypted-wallet child itself; otherwise the destination disappears. */
+test("the cabinet page links the encrypted wallet", () => {
+  const dir = fileURLToPath(new URL(".", import.meta.url));
+  const source = readFileSync(dir + "monitor.html", "utf8");
+  assert.ok(
+    source.includes('href="/cabinet/wallet"'),
+    "monitor.html must link /cabinet/wallet",
+  );
+});
+
 if (failed) {
   console.error(`${failed} test(s) failed`);
   process.exit(1);
