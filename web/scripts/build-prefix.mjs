@@ -58,7 +58,7 @@ for (const rel of htmlFiles) {
   const file = path.join(DIST, rel);
   const html = readFileSync(file, 'utf8');
   let rewritten = html.replace(
-    /(<(?:script|link)\b[^>]*?\b(?:src|href)=")(\/(?!a\/)[^"]+)(")/g,
+    /(<(?:script|link|use)\b[^>]*?\b(?:src|href)=")(\/(?!a\/)[^"]+)(")/g,
     (match, before, ref, after) => (ASSET.test(ref) ? `${before}/${prefix}${ref}${after}` : match),
   );
   // Absolute first-party assets in metadata and JSON-LD (og:image, logo) use

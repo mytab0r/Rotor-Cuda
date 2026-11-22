@@ -38,6 +38,11 @@ function effectiveTheme(): Theme {
   return readChoice() || systemTheme();
 }
 
+function assetUrl(path: string): string {
+  const build = document.documentElement.getAttribute('data-build');
+  return build ? `/a/${build}${path}` : path;
+}
+
 function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   root.setAttribute('data-theme', theme);
@@ -47,7 +52,7 @@ function applyTheme(theme: Theme): void {
   if (!button) return;
   const use = button.querySelector('use');
   const toLight = theme !== 'light';
-  if (use) use.setAttribute('href', toLight ? '/icons.svg#ui-sun' : '/icons.svg#ui-moon');
+  if (use) use.setAttribute('href', assetUrl(toLight ? '/icons.svg#ui-sun' : '/icons.svg#ui-moon'));
   const label = toLight ? 'Switch to light theme' : 'Switch to dark theme';
   button.setAttribute('aria-label', label);
   button.setAttribute('data-tooltip', label);
