@@ -628,6 +628,12 @@ and not deployed**.
   `cargo clippy --all-targets -D warnings` and `cargo fmt --check` clean.
   `node --test deploy/cloudflare/test/worker.test.mjs` 41/41, now wired into the
   `ops` test list and the `projects` CI job (PR #138).
+- [x] ui-audit's `--serve` now seeds one public job so the /bitcoin-puzzle jobs
+      table is audited in its populated state (issue #261); the board uses
+      `.data-table` in `.table-scroll`; detector `table-grammar`/`table-header-style`;
+      defect `puzzle-jobs-table-grammar`. The class sweep fixed tx-page.js
+      `buildTable` too and added a static `table-grammar` scan for every table
+      builder (JS, HTML, Rust-embedded); defect `tx-page-table-grammar`.
 
 ## Relocation to internal docs (done)
 

@@ -128,7 +128,7 @@
     }
 
     var wrap = child('div', 'table-scroll');
-    var table = child('table', 'puzzle-table');
+    var table = child('table', 'data-table puzzle-table');
     var thead = child('thead');
     var headRow = child('tr');
     ['Job', 'Coin / mode', 'Progress', 'Scanned', 'Status'].forEach(function (label) {
