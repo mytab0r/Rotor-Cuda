@@ -2451,11 +2451,14 @@ fn admin_rejects_tampered_expired_and_rotated_cookies() {
     tampered.push(if tampered.ends_with('0') { '1' } else { '0' });
     let expired = test_admin_cookie(TOKEN, now.saturating_sub(1), nonce);
     let rotated = test_admin_cookie("different-admin-token", now + 3600, nonce);
+    // A correctly signed cookie may not outlive the documented 12 h TTL.
+    let overlong = test_admin_cookie(TOKEN, now + 12 * 60 * 60 + 3600, nonce);
 
     for (label, cookie) in [
         ("tampered MAC", tampered),
         ("expired exp", expired),
         ("different token", rotated),
+        ("exp beyond the TTL", overlong),
     ] {
         let header = format!("rotor_admin={cookie}");
         let (status, head, _) = raw_with_headers(
@@ -2511,6 +2514,9 @@ fn admin_login_locks_out_after_five_failures() {
 
 #[test]
 fn admin_logout_needs_csrf_and_origin_and_clears_cookies() {
+    // Logout is client-side by design: this proves the clear `Set-Cookie`
+    // headers, not server-side invalidation of a copied cookie (the stateless
+    // trade-off documented in the proposal).
     let temp = TempState::new("admin-logout");
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;

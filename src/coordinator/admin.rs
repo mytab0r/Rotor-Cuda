@@ -103,7 +103,11 @@ impl AdminAuth {
             return None;
         }
         let expires_at = exp.parse::<u64>().ok()?;
-        if expires_at <= now_secs() {
+        // Reject expired cookies and cookies that outlive the documented TTL
+        // (plus a 60 s clock-skew allowance). A valid MAC is not enough: the
+        // 12 h lifetime is part of the contract, not just a Set-Cookie hint.
+        let now = now_secs();
+        if expires_at <= now || expires_at > now.saturating_add(TTL_SECS + 60) {
             return None;
         }
         let payload = format!("{VERSION}.{expires_at}.{nonce}");
@@ -282,6 +286,20 @@ mod tests {
         tampered.pop();
         tampered.push(if tampered.ends_with('0') { '1' } else { '0' });
         assert!(auth.validate(&tampered).is_none());
+    }
+
+    #[test]
+    fn expiry_outside_the_ttl_is_rejected_even_with_a_valid_mac() {
+        let auth = AdminAuth::new("token", "https://example.test");
+        let nonce = "000102030405060708090a0b0c0d0e0f";
+        let expires_at = now_secs().saturating_add(TTL_SECS + 120);
+        let payload = format!("v1.{expires_at}.{nonce}");
+        let mac = hex(&hmac_sha256(&auth.key, payload.as_bytes()));
+        let cookie = format!("{payload}.{mac}");
+        assert!(
+            auth.validate(&cookie).is_none(),
+            "a valid MAC must not extend the 12 h lifetime"
+        );
     }
 
     #[test]
