@@ -21,6 +21,12 @@ cargo test --test coordinator_api --test coordinator_client
   (12 h, `Path=/cabinet/admin`), CSRF bound to the cookie nonce and the shared
   per-IP login limiter. `/cabinet/admin*` is gated in `handle` before SEO/static;
   the design gallery is `/cabinet/admin/design` and `/design` is retired (404).
+- Read-only inventory lives under `/cabinet/admin/api/*` (clients, monitor
+  users/events, jobs, workers, leases, orders, payments, providers,
+  integrations, audit). Lists use `{items, page, page_size, total, has_more}`,
+  `page_size` defaults to 50 and is capped at 200. Payloads never carry token
+  hashes or secret values; `tests/coordinator_api.rs` proves it. The audit
+  endpoint is an explicit empty page until phase 3.
 - `/api/v1/*` and the state schema are covered by
   `tests/coordinator_api.rs`; update the spec under `openspec/specs/coordinator/`
   when they change.

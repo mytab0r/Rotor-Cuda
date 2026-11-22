@@ -287,6 +287,51 @@ pub struct MeView {
     pub events: Vec<Event>,
 }
 
+/// Read-only admin projection of one monitor account in a list. Bearer
+/// session token hashes and Telegram link codes are never part of it.
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminUserSummary {
+    pub id: String,
+    pub address: String,
+    pub created_at: u64,
+    pub settings: Settings,
+    pub identities: usize,
+    pub watches: usize,
+    /// Unexpired bearer sessions.
+    pub sessions: usize,
+    pub last_session_at: Option<u64>,
+    pub last_event_at: Option<u64>,
+    /// Newest of the last session and the last event, as a cheap activity
+    /// signal. The store keeps no per-request timestamp.
+    pub last_seen_at: Option<u64>,
+    pub telegram_linked: bool,
+    pub telegram_linked_at: Option<u64>,
+}
+
+/// One account's admin detail. `events` is a bounded tail, newest last.
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminUserDetail {
+    pub id: String,
+    pub address: String,
+    pub created_at: u64,
+    pub settings: Settings,
+    pub identities: Vec<Identity>,
+    pub watches: usize,
+    pub sessions: usize,
+    pub last_seen_at: Option<u64>,
+    pub telegram: AdminTelegramLink,
+    pub events: Vec<Event>,
+}
+
+/// The Telegram binding of one account. The chat id is account metadata, not
+/// a credential; no link code or webhook secret appears here.
+#[derive(Debug, Clone, Serialize)]
+pub struct AdminTelegramLink {
+    pub linked: bool,
+    pub chat_id: Option<i64>,
+    pub linked_at: Option<u64>,
+}
+
 /// One event waiting for Telegram delivery.
 #[derive(Debug, Clone)]
 pub struct Alert {
@@ -539,6 +584,147 @@ impl MonitorStore {
         data.users.get(user_id).cloned()
     }
 
+    /// One page of monitor accounts for the operator inventory, newest first.
+    /// Sessions, watches and events are aggregated in one pass each, so the
+    /// cost does not grow with the page size. The store has no index, so the
+    /// listing itself is O(accounts) with a bounded response.
+    pub fn admin_users(&self, offset: usize, limit: usize) -> (Vec<AdminUserSummary>, usize) {
+        let now = now_secs();
+        let data = self.lock();
+        let mut sessions: HashMap<&str, (usize, u64)> = HashMap::new();
+        for session in data.sessions.values() {
+            if now.saturating_sub(session.created_at) > SESSION_TTL_SECS {
+                continue;
+            }
+            let entry = sessions
+                .entry(session.user_id.as_str())
+                .or_insert((0, session.created_at));
+            entry.0 += 1;
+            entry.1 = entry.1.max(session.created_at);
+        }
+        let mut watches: HashMap<&str, usize> = HashMap::new();
+        for watch in &data.watches {
+            *watches.entry(watch.user_id.as_str()).or_insert(0) += 1;
+        }
+        let mut last_event: HashMap<&str, u64> = HashMap::new();
+        for event in &data.events {
+            let slot = last_event.entry(event.user_id.as_str()).or_insert(event.at);
+            *slot = (*slot).max(event.at);
+        }
+        let mut users: Vec<&User> = data.users.values().collect();
+        users.sort_by(|left, right| {
+            right
+                .created_at
+                .cmp(&left.created_at)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        let total = users.len();
+        let page = users
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|user| {
+                let session_info = sessions.get(user.id.as_str()).copied();
+                let last_session_at = session_info.map(|(_, at)| at);
+                let last_event_at = last_event.get(user.id.as_str()).copied();
+                AdminUserSummary {
+                    id: user.id.clone(),
+                    address: user.address.clone(),
+                    created_at: user.created_at,
+                    settings: user.settings.clone(),
+                    identities: user.identities.len(),
+                    watches: watches.get(user.id.as_str()).copied().unwrap_or(0),
+                    sessions: session_info.map(|(count, _)| count).unwrap_or(0),
+                    last_session_at,
+                    last_event_at,
+                    last_seen_at: last_session_at.max(last_event_at),
+                    telegram_linked: user.telegram_chat_id.is_some(),
+                    telegram_linked_at: user.telegram_linked_at,
+                }
+            })
+            .collect();
+        (page, total)
+    }
+
+    /// One account with settings, identities, the Telegram binding and a
+    /// bounded event tail (newest last). `event_limit` is clamped to 1..=200.
+    pub fn admin_user(&self, user_id: &str, event_limit: usize) -> Option<AdminUserDetail> {
+        let now = now_secs();
+        let event_limit = event_limit.clamp(1, 200);
+        let data = self.lock();
+        let user = data.users.get(user_id)?;
+        let sessions = data
+            .sessions
+            .values()
+            .filter(|session| {
+                session.user_id == user_id
+                    && now.saturating_sub(session.created_at) <= SESSION_TTL_SECS
+            })
+            .count();
+        let last_session_at = data
+            .sessions
+            .values()
+            .filter(|session| {
+                session.user_id == user_id
+                    && now.saturating_sub(session.created_at) <= SESSION_TTL_SECS
+            })
+            .map(|session| session.created_at)
+            .max();
+        let watches = data
+            .watches
+            .iter()
+            .filter(|watch| watch.user_id == user_id)
+            .count();
+        let mut events: Vec<Event> = data
+            .events
+            .iter()
+            .filter(|event| event.user_id == user_id)
+            .cloned()
+            .collect();
+        let start = events.len().saturating_sub(event_limit);
+        events.drain(..start);
+        let last_event_at = events.last().map(|event| event.at);
+        Some(AdminUserDetail {
+            id: user.id.clone(),
+            address: user.address.clone(),
+            created_at: user.created_at,
+            settings: user.settings.clone(),
+            identities: user.identities.clone(),
+            watches,
+            sessions,
+            last_seen_at: last_session_at.max(last_event_at),
+            telegram: AdminTelegramLink {
+                linked: user.telegram_chat_id.is_some(),
+                chat_id: user.telegram_chat_id,
+                linked_at: user.telegram_linked_at,
+            },
+            events,
+        })
+    }
+
+    /// One page of the global event tail, newest first, optionally scoped to
+    /// one account. Bounded: only the page is cloned.
+    pub fn admin_events(
+        &self,
+        user_id: Option<&str>,
+        offset: usize,
+        limit: usize,
+    ) -> (Vec<Event>, usize) {
+        let data = self.lock();
+        let mut items = Vec::with_capacity(limit.min(64));
+        let mut total = 0usize;
+        for event in data.events.iter().rev() {
+            if user_id.is_some_and(|wanted| event.user_id != wanted) {
+                continue;
+            }
+            if total >= offset && items.len() < limit {
+                items.push(event.clone());
+            }
+            total += 1;
+        }
+        (items, total)
+    }
+
     /// Add watches for one user; existing `(chain, address)` pairs are kept
     /// and only their label/verification state is refreshed.
     pub fn add_watches(&self, user_id: &str, watches: Vec<NewWatch>) -> Result<Vec<Watch>, String> {
@@ -754,6 +940,12 @@ impl MonitorStore {
     pub fn webhook_secret(&self) -> Option<String> {
         let data = self.lock();
         data.telegram_webhook_secret.clone()
+    }
+
+    /// Whether the webhook secret is persisted, without copying the value.
+    pub fn has_webhook_secret(&self) -> bool {
+        let data = self.lock();
+        data.telegram_webhook_secret.is_some()
     }
 
     /// Generate and persist the webhook secret on first call.
