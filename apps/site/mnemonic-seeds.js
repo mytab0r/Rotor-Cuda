@@ -33,6 +33,14 @@
     zksync: 'https://mainnet.era.zksync.io'
   };
 
+  /* The official RPC is primary; publicnode serves the same mainnet JSON-RPC
+   * when the official host rejects the browser (it answers 403 to some
+   * origins). Same endpoints as the key directory (`browse.js`). */
+  var SOLANA_RPC_URLS = [
+    'https://api.mainnet-beta.solana.com',
+    'https://solana-rpc.publicnode.com'
+  ];
+
   function evmConfig() {
     return {
       types: [
@@ -249,7 +257,9 @@
     directoryQuery: directoryQuery,
     addressEntriesFor: addressEntriesFor,
     compactPhrase: compactPhrase,
-    receivedText: receivedText
+    receivedText: receivedText,
+    providerMetaFor: providerMetaFor,
+    solanaBatchBody: solanaBatchBody
   };
 
   var root = document.querySelector('.mnemonic-seeds-page');
@@ -794,14 +804,23 @@
     return coin(value, decimals) + ' ' + symbol;
   }
 
-  function providerMeta() {
-    if (chain === 'bitcoin') {
+  /* Balance provider for a chain name. Pure (no captured page state) so the
+   * Node test can assert it without a DOM; `providerMeta` binds the page. */
+  function providerMetaFor(chainName, evmSymbol) {
+    if (chainName === 'bitcoin') {
       return { provider: 'blockchain.info', chain: 'bitcoin', decimals: 8, symbol: 'BTC' };
     }
-    if (RPC[chain]) {
-      return { provider: 'evm', chain: chain, decimals: 18, symbol: root.getAttribute('data-symbol') || '' };
+    if (RPC[chainName]) {
+      return { provider: 'evm', chain: chainName, decimals: 18, symbol: evmSymbol || '' };
+    }
+    if (chainName === 'solana') {
+      return { provider: 'solana', chain: 'solana', decimals: 9, symbol: 'SOL' };
     }
     return null;
+  }
+
+  function providerMeta() {
+    return providerMetaFor(chain, root.getAttribute('data-symbol') || '');
   }
 
   /* One `.balance-info` line per derived address, packed with the balance,
@@ -936,7 +955,8 @@
   }
 
   function renderSummary(records, cached, meta) {
-    var big = meta.provider === 'evm';
+    // Lamport totals stay exact for Solana, as EVM wei does.
+    var big = meta.provider === 'evm' || meta.provider === 'solana';
     var sumBig = 0n;
     var sumNum = 0;
     var received = 0;
@@ -1078,9 +1098,51 @@
     return { values: values, errors: errors };
   }
 
+  /* One request for every address on the page, as the key directory does. */
+  function solanaBatchBody(addresses) {
+    return {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'getMultipleAccounts',
+      params: [addresses, { encoding: 'base64', commitment: 'confirmed' }]
+    };
+  }
+
+  async function solanaProvider(addresses) {
+    var values = {};
+    var errors = {};
+    var unique = Array.from(new Set(addresses.filter(Boolean)));
+    if (!unique.length) return { values: values, errors: errors };
+    var body = solanaBatchBody(unique);
+    var amounts = null;
+    var lastError = null;
+    for (var i = 0; i < SOLANA_RPC_URLS.length; i += 1) {
+      try {
+        var data = await requestJson(SOLANA_RPC_URLS[i], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        amounts = cacheApi && typeof cacheApi.parseSolanaAccounts === 'function'
+          ? cacheApi.parseSolanaAccounts(data)
+          : null;
+        if (amounts) break;
+        lastError = new Error('bad response');
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!amounts) throw lastError || new Error('bad response');
+    unique.forEach(function (address, index) {
+      values[address] = { balance: amounts[index] || '0' };
+    });
+    return { values: values, errors: errors };
+  }
+
   function fetchProvider(meta, addresses) {
     if (meta.provider === 'blockchain.info') return btcProvider(addresses);
     if (meta.provider === 'evm') return evmProvider(addresses);
+    if (meta.provider === 'solana') return solanaProvider(addresses);
     return Promise.resolve({ values: {}, errors: {} });
   }
 
