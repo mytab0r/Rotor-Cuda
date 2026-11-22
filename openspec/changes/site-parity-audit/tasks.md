@@ -55,7 +55,8 @@
   Directory-search detector parity: `apps/site/site.js:344` (`bindKeySearches`
   uses `RotorSearch.keyHref`, shared with the landing handler) and
   `apps/site/search.js:319` (`keyHref`) over `apps/site/search.js:27`
-  (`looksLikeXrpSecret`; only 64 hex is a key). Nav highlight:
+  (`looksLikeXrpSecret`; only 64 hex is a key; the landing address guard
+  defers to it for base58 secrets). Nav highlight:
   `apps/site/site.js:33` (`sectionForPath`, `/keystore-parser` -> Tools),
   covered by `apps/site/site-nav-test.mjs`.
 - [x] BNB Smart Chain testnet builder (`/send/bnb`, PR #97). Evidence:

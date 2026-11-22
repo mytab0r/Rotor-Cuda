@@ -319,7 +319,16 @@
   async function keyHref(text, mode) {
     var result = await detect(text, mode);
     if (result.kind === 'xrp-secret') return '/key/' + encodeURIComponent(result.value);
-    if (result.kind === 'mnemonic') return '/mnemonic-converter';
+    if (result.kind === 'mnemonic') {
+      /* Hand the phrase to the converter the same way the Ctrl+K modal does;
+       * seed-page.js reads and clears this key. */
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('rotor-seed-phrase', result.phrase);
+        }
+      } catch (err) { /* private mode: the converter still opens without the phrase */ }
+      return '/mnemonic-converter';
+    }
     if (result.hex) return '/key/' + result.hex;
     throw new Error('Cannot read that key.');
   }
@@ -616,6 +625,7 @@
     resolve: resolve,
     detect: detect,
     keyHref: keyHref,
+    looksLikeXrpSecret: looksLikeXrpSecret,
     hexToBytes: hexToBytes,
     deriveReport: deriveReport,
     shapeReport: shapeReport,
