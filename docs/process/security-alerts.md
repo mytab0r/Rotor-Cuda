@@ -78,9 +78,10 @@ low). Dependabot uses `security_advisory.severity`. Secret scanning has no
 severity field in the API, so an exposed credential is treated as `critical`
 (`P0`) until a human records a resolution.
 
-The sync also writes Start date, Target date and Actual start so the daily
-`check-task-links.mjs --board` gate does not see a half-populated card. On
-close it writes Actual end from the dismissal/fix/resolution timestamp.
+The sync also writes the project `Area`, Start date, Target date and Actual
+start so the daily `check-task-links.mjs --board` gate does not see a
+half-populated card. On close it writes Actual end from the
+dismissal/fix/resolution timestamp.
 
 ## Lifecycle
 
