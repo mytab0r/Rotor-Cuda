@@ -228,6 +228,23 @@
     return slug && SSOT_CHAINS.bySlug[slug] ? SSOT_CHAINS.bySlug[slug].name : '';
   }
 
+  /* The format selector is scoped to a chain that offers more than one address
+   * format; `all` and single-format chains get no options. The decision lives
+   * in key-tools.js so the site test suite can pin it without a DOM. */
+  function formatOptions(chain) {
+    var helper = window.RotorKeyTools;
+    return helper && typeof helper.chainFormatOptions === 'function'
+      ? helper.chainFormatOptions(chain)
+      : [];
+  }
+
+  function resolveFormatSelection(current, chain) {
+    var helper = window.RotorKeyTools;
+    return helper && typeof helper.resolveChainFormat === 'function'
+      ? helper.resolveChainFormat(current, chain)
+      : current;
+  }
+
   var state = {
     wasm: null,
     wasmPromise: null,
@@ -296,8 +313,8 @@
   var presetButtons = Array.prototype.slice.call(document.querySelectorAll('.key-preset-chips button'));
   var chainButtons = Array.prototype.slice.call(document.querySelectorAll('.key-chain'));
   var pathChips = Array.prototype.slice.call(document.querySelectorAll('.key-path-chip'));
-  var typeTiles = Array.prototype.slice.call(document.querySelectorAll('.address-type-card'));
-  var btcPanel = byId('btc-panel');
+  var formatCardsEl = byId('format-cards');
+  var formatPanel = byId('format-panel');
   var balanceRefreshButton = byId('key-balance-refresh');
   var balanceRetry = byId('key-balance-retry');
   var balanceRefreshCount = byId('key-balance-refresh-count');
@@ -649,7 +666,7 @@
     rowsPlaceholder();
     updateChainAvailability([], null);
     syncSelection(false, false);
-    syncBitcoinPanel();
+    syncFormatPanel();
     syncStepGroup(false);
     presetEmpty.hidden = true;
   }
@@ -1010,7 +1027,7 @@
       rowsPlaceholder();
       presetEmpty.hidden = true;
       syncSelection(false, false);
-      syncBitcoinPanel();
+      syncFormatPanel();
       return;
     }
     addresses.forEach(function (addr) {
@@ -1024,9 +1041,10 @@
     resetBalanceBadges();
     updateChainAvailability(addresses, state.report ? state.report.curve : null);
     ensureBtcFocus();
+    state.focusId = resolveFormatSelection(state.focusId, state.chain);
     applyFilters();
     syncSelection(false, false);
-    syncBitcoinPanel();
+    syncFormatPanel();
   }
 
   function orderedSteps(id, steps) {
@@ -1685,16 +1703,20 @@
     });
     setDerivationPath(state.preset);
     applyFilters();
-    syncBitcoinPanel();
+    syncFormatPanel();
   }
 
   function selectChain(button) {
     state.chain = button.getAttribute('data-chain');
+    /* A format belongs to one chain: keep it only when the new chain offers
+     * it, otherwise fall back to no format filter. */
+    state.focusId = resolveFormatSelection(state.focusId, state.chain);
     chainButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
     applyFilters();
-    syncBitcoinPanel();
+    syncSelection(false, false);
+    syncFormatPanel();
   }
 
   function scrollBehavior() {
@@ -1702,15 +1724,76 @@
     return 'smooth';
   }
 
-  function syncSelection(open, scroll) {
-    pathChips.forEach(function (chip) {
-      chip.setAttribute('aria-pressed', String(chip.getAttribute('data-row') === state.focusId));
-    });
-    typeTiles.forEach(function (tile) {
+  function currentFormatTiles() {
+    return formatCardsEl
+      ? Array.prototype.slice.call(formatCardsEl.querySelectorAll('.address-type-card'))
+      : [];
+  }
+
+  function syncFormatPressed() {
+    currentFormatTiles().forEach(function (tile) {
       var active = tile.getAttribute('data-row') === state.focusId;
       tile.setAttribute('aria-pressed', String(active));
       tile.classList.toggle('active', active);
     });
+  }
+
+  var renderedFormatKey = '';
+
+  function renderFormatCards(options) {
+    if (!formatCardsEl) return;
+    var chainName = chainDisplayName(state.chain) || 'Address';
+    formatCardsEl.setAttribute('aria-label', chainName + ' address format');
+    formatCardsEl.setAttribute('data-count', String(options.length || 4));
+    var key = options.map(function (option) { return option.id; }).join(',');
+    if (key === renderedFormatKey) {
+      syncFormatPressed();
+      return;
+    }
+    renderedFormatKey = key;
+    formatCardsEl.textContent = '';
+    options.forEach(function (option) {
+      var card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'address-type-card';
+      card.setAttribute('data-row', option.id);
+      card.setAttribute('aria-pressed', String(option.id === state.focusId));
+      var name = document.createElement('span');
+      name.className = 'type-name';
+      name.textContent = option.label;
+      card.appendChild(name);
+      formatCardsEl.appendChild(card);
+    });
+  }
+
+  function chainHasVisibleRows(chain) {
+    var prefixes = CHAIN_PREFIXES[chain];
+    if (!prefixes) return false;
+    return rowList().some(function (row) {
+      var id = row.getAttribute('data-id');
+      if (!id || row.classList.contains('hidden')) return false;
+      return prefixes.some(function (prefix) {
+        return id === prefix || id.indexOf(prefix) === 0;
+      });
+    });
+  }
+
+  /* The selector is scoped to the selected chain: it renders only for a chain
+   * that offers more than one format and still has a visible row. `all` and
+   * single-format chains keep it out of the filter bar, so the control never
+   * implies a format choice that does not exist. */
+  function syncFormatPanel() {
+    if (!formatPanel) return;
+    var options = formatOptions(state.chain);
+    renderFormatCards(options);
+    formatPanel.hidden = options.length <= 1 || !chainHasVisibleRows(state.chain);
+  }
+
+  function syncSelection(open, scroll) {
+    pathChips.forEach(function (chip) {
+      chip.setAttribute('aria-pressed', String(chip.getAttribute('data-row') === state.focusId));
+    });
+    syncFormatPressed();
     rowList().forEach(function (row) {
       row.classList.toggle('key-row-focus', !!state.focusId && row.getAttribute('data-id') === state.focusId);
     });
@@ -1746,16 +1829,7 @@
       applyFilters();
     }
     syncSelection(true, true);
-    syncBitcoinPanel();
-  }
-
-  function syncBitcoinPanel() {
-    if (!btcPanel) return;
-    var hasVisibleBtc = rowList().some(function (row) {
-      var id = row.getAttribute('data-id');
-      return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
-    });
-    btcPanel.hidden = !hasVisibleBtc;
+    syncFormatPanel();
   }
 
   /* --------------------------------------------------------------- balances */
@@ -3165,6 +3239,7 @@
    * legacy ?type=<row>) preselects the chain filter and, for ed25519 chains,
    * the curve. The derivation itself is unchanged. */
   var CHAIN_PRESETS = {
+    all: 'all',
     bitcoin: 'btc', btc: 'btc',
     ethereum: 'evm', evm: 'evm', bnb: 'evm', arbitrum: 'evm', optimism: 'evm',
     base: 'evm', polygon: 'evm', avalanche: 'evm', zksync: 'evm',
@@ -3203,6 +3278,9 @@
       ? (CHAIN_PRESETS[chainParam] || (CHAIN_PREFIXES[chainParam] ? chainParam : null))
       : null;
     var row = typeParam ? TYPE_ROWS[typeParam] : null;
+    /* A type from another chain is invalid URL state: keep the explicit chain
+     * and fall back to no format filter instead of switching chains. */
+    if (row && chainId && row[0] !== chainId) row = null;
     if (row && !chainId) chainId = row[0];
     var wantsEd25519 = curveParam === 'ed25519' ||
       (chainId && ED25519_CHAINS[chainId]) ||
@@ -3222,9 +3300,18 @@
     chip.addEventListener('click', function () { focusTarget(chip.getAttribute('data-row')); });
   });
 
-  typeTiles.forEach(function (tile) {
-    tile.addEventListener('click', function () { focusTarget(tile.getAttribute('data-row')); });
-  });
+  /* The format cards are re-rendered per chain, so the click handler lives on
+   * the stable container instead of on each button. */
+  if (formatCardsEl) {
+    formatCardsEl.addEventListener('click', function (event) {
+      var target = event.target;
+      while (target && target !== formatCardsEl && !target.classList.contains('address-type-card')) {
+        target = target.parentNode;
+      }
+      if (!target || target === formatCardsEl) return;
+      focusTarget(target.getAttribute('data-row'));
+    });
+  }
 
   if (exposureToggle) {
     exposureToggle.addEventListener('change', function () {
