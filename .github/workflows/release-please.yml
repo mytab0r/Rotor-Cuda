@@ -53,6 +53,16 @@ jobs:
             --config-file=release-please-config.json \
             --manifest-file=.release-please-manifest.json
 
+      - name: Require the release PAT
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+        env:
+          RELEASE_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::BOARD_SYNC_TOKEN is not set. A release PR opened with GITHUB_TOKEN does not trigger pull_request workflows, so its required checks never start; set the PAT secret instead of falling back silently."
+            exit 1
+          fi
+
       - name: Open or update the release PR
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
         uses: googleapis/release-please-action@v4

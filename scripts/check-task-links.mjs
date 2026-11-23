@@ -292,6 +292,7 @@ function main() {
   let exists = null;
   let author = args.author ?? null;
   let headRefName = args["head-ref"] ?? null;
+  let isBot = false;
 
   if (args.pr) {
     prNumber = Number(args.pr);
@@ -312,6 +313,7 @@ function main() {
     files = (view?.files ?? []).map((file) => file.path);
     author = view?.author?.login ?? null;
     headRefName = view?.headRefName ?? null;
+    isBot = view?.author?.is_bot === true;
     const directive = parseTaskDirective(body);
     if (directive.kind === "key") exists = issueExists(repo, directive.number);
   } else if (args["body-file"]) {
@@ -337,6 +339,7 @@ function main() {
     files,
     issueExists: exists,
     author,
+    isBot,
     headRefName,
   });
 
