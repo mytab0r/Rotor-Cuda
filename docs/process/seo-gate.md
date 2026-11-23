@@ -1,25 +1,38 @@
-# SEO gate for the chain directory and the 404 page
+# SEO gate for the chain directory, presentation pages and the 404 page
 
 `scripts/check-seo.mjs` reads the built `web/dist` tree and fails when a
-prerendered `/private-keys/<chain>` page or the root `404.html` breaks the
-contract measured in the SEO audit. It is wired into
-`.github/workflows/rust.yml` as the `web-seo` job and needs no dependencies or
-network.
+prerendered `/private-keys/<chain>` page, the `/docs` or `/tools` presentation
+page, or the root `404.html` breaks the contract measured in the SEO audit. It
+is wired into `.github/workflows/rust.yml` as the `web-seo` job and needs no
+dependencies or network.
 
 ## Rules
 
 | Detector | Rule |
 |---|---|
-| `seo-page-set` | Exactly the 18 mainnet slugs from `data/chains.json` are built; no missing or extra page. |
-| `seo-metadata-bounds` | Title 50–60 characters, chain name first and `\| Crypto` last; description 120–160 characters with at least one digit. |
-| `seo-canonical-robots` | Canonical is the page's own `https://rotor.pxbt.app/private-keys/<slug>` URL and robots is `index,follow`. |
-| `seo-duplicate-metadata` | No two chain pages share a title or a description. |
-| `seo-hidden-heading` | One visible H1, exactly `<Chain> private keys`; no visually-hidden H1; at least two visible content H2s inside `data-seo-prose`. |
-| `seo-rendered-rows` | At least 40 `<tr data-key>` rows are present in the initial HTML, not built by JavaScript. |
-| `seo-prose-uniqueness` | At least 120 unique prose words per page, and 5-gram Jaccard similarity below 0.50 between every pair of chain pages. The shared safety block is outside `data-seo-prose` and is not part of the comparison. |
-| `seo-structured-data` | JSON-LD contains both `CollectionPage` and `BreadcrumbList`. |
-| `seo-og-image-alt` | `og:image` is present and `og:image:alt` / `twitter:image:alt` name the chain. |
+| `seo-page-set` | Exactly the 18 mainnet slugs from `data/chains.json` are built; `/docs` and `/tools` are present; no missing or extra chain page. |
+| `seo-metadata-bounds` | Title 50–60 characters ending in `\| Crypto`; description 120–160 characters. Chain titles also start with the chain name, and chain descriptions carry at least one digit. |
+| `seo-canonical-robots` | Canonical is the page's own `https://rotor.pxbt.app` URL (`/private-keys/<slug>`, `/docs` or `/tools`) and robots is `index,follow`. |
+| `seo-duplicate-metadata` | No two checked pages share a title or a description. |
+| `seo-hidden-heading` | One visible H1 and no visually-hidden H1. A chain page needs at least two visible content H2s inside `data-seo-prose`; `/docs` needs at least three content H2s; `/tools` at least two. |
+| `seo-toc-anchor` | On `/docs`: the `data-docs-toc` TOC exists, every TOC href resolves to an existing id, every content H2 has an id and an entry, ids are unique, and there are at least three TOC anchors. Any `#fragment` link on either page must resolve. |
+| `seo-internal-link` | Every root-relative `<a href>` on `/docs` and `/tools` targets a page or file that exists in `dist`, or an entry in the checker's explicit `pendingCutover` allowlist. |
+| `seo-pending-cutover` | Every `pendingCutover` entry carries a non-empty reason and is not stale (a target that now exists in `dist` fails until it is removed). |
+| `seo-rendered-rows` | At least 40 `<tr data-key>` rows are present in a chain page's initial HTML, not built by JavaScript. |
+| `seo-prose-uniqueness` | At least 120 unique prose words per chain page, and 5-gram Jaccard similarity below 0.50 between every pair of chain pages. The shared safety block is outside `data-seo-prose` and is not part of the comparison. |
+| `seo-structured-data` | Every `application/ld+json` block parses. Chain pages contain `CollectionPage` + `BreadcrumbList`; `/docs` contains `TechArticle` + `BreadcrumbList`; `/tools` contains `CollectionPage` + `BreadcrumbList`. |
+| `seo-og-image-alt` | `og:image` is present. Chain pages also name the chain in `og:image:alt` / `twitter:image:alt`; `/docs` and `/tools` must carry both alt values. |
 | `seo-not-found` | The deploy root ships `404.html` with `noindex`, no hidden H1 and exactly one visible H1. Without the file Cloudflare Pages answers 200 with the landing page for an unknown path. |
+
+## The pendingCutover allowlist
+
+`/docs` and `/tools` are the first presentation pages in the static build. Most
+of the tools they link to are still served by the Rust coordinator, so the
+checker keeps those exact paths in one in-file `pendingCutover` map with a
+written reason and the frontend-platform phase that owns the move. The map is
+shrink-only: a route whose page is now built fails as a stale entry until it is
+removed. Do not add a path without a reason, and do not replace the list with a
+wildcard or a "skip external" rule.
 
 ## Usage
 
@@ -34,25 +47,28 @@ build tree).
 
 ## Mutation check
 
-The gate is only useful if it fails. To prove a rule locally, copy
-`web/dist/private-keys` to a temporary directory, mutate one file, and run the
-gate against the copy with `--dist`:
+The gate is only useful if it fails. To prove a rule locally, copy `web/dist` to
+a temporary directory, mutate one file, and run the gate against the copy with
+`--dist`:
 
 ```sh
 cp -r web/dist /tmp/rotor-seo-mutated
-# remove a heading, shrink a title, duplicate two rows, or copy one page's prose
+# remove a heading, shrink a title, break a TOC href, add an unknown internal
+# link, duplicate two pages' metadata, or corrupt a JSON-LD block
 node scripts/check-seo.mjs --dist /tmp/rotor-seo-mutated
 ```
 
 A mutation that removes the H1, truncates a title below 50 characters, deletes
-the rendered rows, copies one chain's prose into another, deletes
-`web/dist/404.html` or replaces its `noindex` with `index` must make the gate
-exit `1` with the matching detector id. The PR records at least three such
-mutations and their output.
+the rendered rows, copies one chain's prose into another, points a docs TOC
+anchor at a missing id, links to an unbuilt route that is not allowlisted,
+duplicates a title or description, or corrupts JSON-LD must make the gate exit
+`1` with the matching detector id. The PR records at least three such mutations
+and their output.
 
 ## Scope
 
-This gate covers page 1 of the chain directory and the root 404 document. Pages
-2+ remain noindex and are served on demand, as `data/routes.json` records. The
-pages are built in `web/dist` but are not routed through the coordinator until
-the frontend-platform cutover.
+This gate covers page 1 of the chain directory, the `/docs` and `/tools`
+presentation pages, and the root 404 document. Pages 2+ remain noindex and are
+served on demand, as `data/routes.json` records. The pages are built in
+`web/dist` but are not routed through the coordinator until the
+frontend-platform cutover.

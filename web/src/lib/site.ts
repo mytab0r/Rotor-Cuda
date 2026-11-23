@@ -82,4 +82,9 @@ export function absoluteUrl(pathname: string): string {
 /* Routes this Astro app owns today. The sitemap lists exactly these; later
  * phases add their routes here as pages move, so the sitemap can never claim a
  * page the static build does not contain. */
-export const PRERENDERED_ROUTES: readonly string[] = ['/', '/mnemonic-converter'];
+export const PRERENDERED_ROUTES: readonly string[] = [
+  '/',
+  '/docs',
+  '/mnemonic-converter',
+  '/tools',
+];
