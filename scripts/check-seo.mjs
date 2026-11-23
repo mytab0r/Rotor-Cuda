@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 // SEO gate for the prerendered chain directory (`/private-keys/<chain>`), its
-// hub (`/private-keys`) and the root 404 document.
+// hub (`/private-keys`), the presentation pages (`/docs`, `/tools`) and the
+// root 404 document.
 //
 // Reads the built `web/dist` tree (no network, no dependencies) and fails when
 // a page breaks the contract the SEO audit measured:
 //   - title outside 50-60 characters (hub: at most 60, intent first);
 //   - description outside 120-160 characters with no concrete number;
 //   - missing/incorrect canonical or robots;
-//   - duplicate title or description between chain pages or the hub;
-//   - a hidden H1 or fewer than two visible content H2s;
+//   - duplicate title or description between any two checked pages;
+//   - a hidden H1 or too few visible content H2s (at least 2 for a chain page
+//     or the hub, 3 for /docs);
 //   - fewer than 40 rendered key/address rows;
 //   - fewer than 120 unique prose words;
 //   - 5-gram Jaccard similarity >= 0.50 between two chain pages' prose;
 //   - a missing CollectionPage/BreadcrumbList JSON-LD or chain-named og:image:alt;
+//   - on /docs and /tools: a TOC anchor that does not resolve to an existing
+//     id, or a TOC that omits a content H2;
+//   - an internal link target that neither exists in `dist` nor is listed in
+//     the explicit `pendingCutover` allowlist below (with a reason);
+//   - malformed JSON-LD, or missing the expected schema types;
 //   - hub links missing for a chain page, or a hub internal link with no
 //     built target in `web/dist`;
 //   - a missing dist/404.html, a 404 without noindex, or a 404 without exactly
@@ -41,7 +48,67 @@ const MIN_ROWS = 40;
 const HUB_MIN_CONTENT_H2 = 2;
 const MAX_JACCARD = 0.5;
 
-const HELP = `check-seo - SEO gate for web/dist/private-keys, its chain pages and web/dist/404.html
+/* Presentation pages added to the Astro build. They are checked in addition to
+ * the chain set: one visible H1, content H2s, TOC coverage, resolving internal
+ * links, unique metadata and parseable JSON-LD with the expected types. */
+const PRESENTATION_PAGES = [
+  {
+    route: '/docs',
+    file: path.join('docs', 'index.html'),
+    label: 'docs',
+    minContentH2: 3,
+    requireToc: true,
+    jsonLdTypes: ['TechArticle', 'BreadcrumbList'],
+  },
+  {
+    route: '/tools',
+    file: path.join('tools', 'index.html'),
+    label: 'tools',
+    minContentH2: 2,
+    requireToc: false,
+    jsonLdTypes: ['CollectionPage', 'BreadcrumbList'],
+  },
+];
+
+/* Internal targets the new presentation pages link to that the static build
+ * does not contain yet. The coordinator still serves each of these routes, so
+ * the link is canonical today; the entry is removed when the route migrates. A
+ * reason is mandatory and a target that already exists in `dist` fails as a
+ * stale entry, so the list is shrink-only. */
+const pendingCutover = new Map([
+  ['/key', 'Key explorer and /key/<hex> calculators are still served by the coordinator (frontend-platform phase 3).'],
+  ['/key/hex', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
+  ['/key/wif', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
+  ['/key/decimal', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
+  ['/mnemonic-seeds', 'Seed pages still served by the coordinator (phase 4).'],
+  ['/seed', 'Seed studio still served by the coordinator (phase 4).'],
+  ['/bitcoin-puzzle', 'Puzzle pages still served by the coordinator (phase 4).'],
+  ['/vanity', 'Vanity generator still served by the coordinator (phase 2).'],
+  ['/milk-sad', 'Milk Sad audit still served by the coordinator (phase 2).'],
+  ['/brainwallet', 'Brainwallet pages still served by the coordinator (phase 4).'],
+  ['/brainwallet/bitcoin', 'Brainwallet pages still served by the coordinator (phase 4).'],
+  ['/brainwallet/ethereum', 'Brainwallet pages still served by the coordinator (phase 4).'],
+  ['/brainwallet-generator', 'Brainwallet generator still served by the coordinator (phase 4).'],
+  ['/hex-dec-bin', 'Converter still served by the coordinator (phase 2).'],
+  ['/public-key', 'Converter still served by the coordinator (phase 2).'],
+  ['/pubkey-add', 'Converter still served by the coordinator (phase 2).'],
+  ['/keystore-parser', 'Converter still served by the coordinator (phase 2).'],
+  ['/reconstruction', 'Converter still served by the coordinator (phase 2).'],
+  ['/tx', 'Transaction tools still served by the coordinator (phase 2).'],
+  ['/tx/bitcoin', 'Transaction tools still served by the coordinator (phase 2).'],
+  ['/tx/ethereum', 'Transaction tools still served by the coordinator (phase 2).'],
+  ['/cabinet', 'Client-only cabinet still served by the coordinator (phase 5).'],
+  ['/cabinet/wallet', 'Client-only wallet still served by the coordinator (phase 5).'],
+  ['/me', 'Client account shell still served by the coordinator (phase 5).'],
+  ['/run', 'Worker client shell still served by the coordinator (phase 5).'],
+  ['/send', 'Testnet send page still served by the coordinator (phase 5).'],
+  ['/wallets', 'Wallet database route is live on the coordinator; its cutover is not scheduled.'],
+  ['/faq', 'Documentation page still served by the coordinator (phase 2).'],
+  ['/disclaimer', 'Documentation page still served by the coordinator (phase 2).'],
+  ['/donate', 'Documentation page still served by the coordinator (phase 2).'],
+]);
+
+const HELP = `check-seo - SEO gate for web/dist/private-keys, its chain pages, /docs, /tools and 404.html
 
 Options:
   --dist PATH   built Astro output (default: web/dist)
@@ -150,7 +217,7 @@ function sectionByMarker(html, marker) {
 
 function headings(fragment) {
   const out = [];
-  const re = /<h([12])\b([^>]*)>([\s\S]*?)<\/h\1>/gi;
+  const re = /<h([123])\b([^>]*)>([\s\S]*?)<\/h\1>/gi;
   let match;
   while ((match = re.exec(fragment)) !== null) {
     const attrs = match[2] ?? '';
@@ -158,7 +225,12 @@ function headings(fragment) {
       /\baria-hidden\s*=\s*["']true["']/i.test(attrs) ||
       /\bclass\s*=\s*["'][^"']*visually-hidden/i.test(attrs) ||
       /\bstyle\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(attrs);
-    out.push({ level: Number(match[1]), hidden, text: visibleText(match[3]) });
+    out.push({
+      level: Number(match[1]),
+      hidden,
+      text: visibleText(match[3]),
+      id: attr(attrs, /\bid\s*=\s*["']([^"']*)["']/i),
+    });
   }
   return out;
 }
@@ -172,6 +244,219 @@ function rowsOf(html) {
   const body = html.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i);
   if (!body) return 0;
   return [...body[1].matchAll(/<tr\b[^>]*\bdata-key=/gi)].length;
+}
+
+/* Every relative target in the built tree, as POSIX paths, so a link check
+ * never needs to guess an extension or a directory index. */
+async function listDistFiles(root) {
+  const files = new Set();
+  async function walk(dir, prefix) {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(path.join(dir, entry.name), rel);
+      else if (entry.isFile()) files.add(rel);
+    }
+  }
+  await walk(root, '');
+  return files;
+}
+
+/* A root-relative URL resolves when `dist` contains the directory index or a
+ * matching file. Query strings and fragments are not part of the target. */
+function resolvesInDist(files, pathname) {
+  let target = pathname.split('#')[0].split('?')[0];
+  if (!target.startsWith('/')) return false;
+  target = target.replace(/^\/+/, '');
+  if (target === '') return files.has('index.html');
+  const trimmed = target.replace(/\/+$/, '');
+  return files.has(`${trimmed}/index.html`) || files.has(`${trimmed}.html`) || files.has(trimmed);
+}
+
+function hrefsOf(html) {
+  const out = [];
+  const re = /<a\b[^>]*\bhref\s*=\s*(["'])([\s\S]*?)\1/gi;
+  let match;
+  while ((match = re.exec(html)) !== null) out.push(decodeEntities(match[2].trim()));
+  return out;
+}
+
+function idCountsOf(html) {
+  const counts = new Map();
+  for (const match of html.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)) {
+    const id = decodeEntities(match[1]);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function jsonLdBlocks(html) {
+  return [...html.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((match) => match[1]);
+}
+
+function typesOf(value, out = new Set()) {
+  if (Array.isArray(value)) {
+    for (const item of value) typesOf(item, out);
+  } else if (value && typeof value === 'object') {
+    const type = value['@type'];
+    if (typeof type === 'string') out.add(type);
+    if (Array.isArray(type)) type.forEach((item) => out.add(String(item)));
+    for (const item of Object.values(value)) typesOf(item, out);
+  }
+  return out;
+}
+
+async function checkPresentationPage(spec, dist, distFiles) {
+  const { route, file, label } = spec;
+  const failures = [];
+  const fail = (id, message) => failures.push(`[${id}] ${label}: ${message}`);
+  const filePath = path.join(dist, file);
+  let html;
+  let bytes = 0;
+  try {
+    html = await readFile(filePath, 'utf8');
+    bytes = (await stat(filePath)).size;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      fail('seo-page-set', `missing built page ${file}; run the Astro build first`);
+      return { label, route, bytes, failures };
+    }
+    throw error;
+  }
+
+  const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
+  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=["']([^"']*)["']/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=["']([^"']*)["']/i);
+
+  if (!title) {
+    fail('seo-metadata-bounds', 'missing <title>');
+  } else if (title.length < TITLE_MIN || title.length > TITLE_MAX) {
+    fail('seo-metadata-bounds', `title length ${title.length} outside ${TITLE_MIN}-${TITLE_MAX}: ${title}`);
+  } else if (!title.endsWith('| Crypto')) {
+    fail('seo-metadata-bounds', `title does not end with the brand: ${title}`);
+  }
+
+  if (!description) {
+    fail('seo-metadata-bounds', 'missing meta description');
+  } else if (description.length < DESCRIPTION_MIN || description.length > DESCRIPTION_MAX) {
+    fail('seo-metadata-bounds', `description length ${description.length} outside ${DESCRIPTION_MIN}-${DESCRIPTION_MAX}`);
+  }
+
+  const expectedCanonical = `${SITE_ORIGIN}${route}`;
+  if (!canonical) fail('seo-canonical-robots', 'missing canonical');
+  else if (canonical !== expectedCanonical) fail('seo-canonical-robots', `canonical ${canonical} is not ${expectedCanonical}`);
+
+  if (!robots) fail('seo-canonical-robots', 'missing robots meta');
+  else if (!/index\s*,\s*follow/i.test(robots)) fail('seo-canonical-robots', `robots is not index,follow: ${robots}`);
+
+  if (!ogImage) fail('seo-og-image-alt', 'missing og:image');
+  if (!ogImageAlt) fail('seo-og-image-alt', 'missing og:image:alt');
+  if (!twitterImageAlt) fail('seo-og-image-alt', 'missing twitter:image:alt');
+
+  const allHeadings = headings(html);
+  const h1s = allHeadings.filter((heading) => heading.level === 1);
+  const visibleH1s = h1s.filter((heading) => !heading.hidden && heading.text);
+  if (h1s.length === 0) fail('seo-hidden-heading', 'missing H1');
+  else if (h1s.some((heading) => heading.hidden)) fail('seo-hidden-heading', 'H1 is visually hidden');
+  if (visibleH1s.length !== 1) fail('seo-hidden-heading', `expected exactly one visible H1, found ${visibleH1s.length}`);
+
+  const content = mainHtml(html);
+  const contentH2s = headings(content).filter(
+    (heading) => heading.level === 2 && !heading.hidden && heading.text,
+  );
+  if (contentH2s.length < spec.minContentH2) {
+    fail('seo-hidden-heading', `only ${contentH2s.length} visible content H2(s), need at least ${spec.minContentH2}`);
+  }
+
+  const idCounts = idCountsOf(html);
+  for (const [id, count] of idCounts) {
+    if (count > 1) fail('seo-toc-anchor', `duplicate id "${id}" (${count} times)`);
+  }
+
+  let tocAnchors = 0;
+  if (spec.requireToc) {
+    const toc = html.match(/<nav\b[^>]*\bdata-docs-toc\b[^>]*>([\s\S]*?)<\/nav>/i);
+    if (!toc) {
+      fail('seo-toc-anchor', 'missing the TOC nav (data-docs-toc)');
+    } else {
+      const tocHrefs = [...toc[1].matchAll(/href\s*=\s*(["'])#([^"']+)\1/gi)]
+        .map((match) => decodeEntities(match[2]));
+      tocAnchors = tocHrefs.length;
+      for (const anchor of tocHrefs) {
+        if (!idCounts.has(anchor)) fail('seo-toc-anchor', `TOC anchor #${anchor} has no matching id`);
+      }
+      for (const heading of contentH2s) {
+        if (!heading.id) {
+          fail('seo-toc-anchor', `content H2 "${heading.text}" has no id`);
+        } else if (!tocHrefs.includes(heading.id)) {
+          fail('seo-toc-anchor', `content H2 "${heading.text}" (#${heading.id}) is missing from the TOC`);
+        }
+      }
+      if (tocHrefs.length < spec.minContentH2) {
+        fail('seo-toc-anchor', `TOC has only ${tocHrefs.length} anchor(s), need at least ${spec.minContentH2}`);
+      }
+    }
+  }
+
+  const internal = new Set();
+  for (const href of hrefsOf(html)) {
+    if (!href) continue;
+    if (href.startsWith('#')) {
+      const id = href.slice(1);
+      if (!idCounts.has(id)) fail('seo-toc-anchor', `anchor ${href} has no matching id`);
+      continue;
+    }
+    if (!href.startsWith('/') || href.startsWith('//')) continue;
+    const pathname = href.split('#')[0].split('?')[0];
+    internal.add(pathname);
+    if (resolvesInDist(distFiles, pathname)) continue;
+    if (pendingCutover.has(pathname)) continue;
+    fail('seo-internal-link', `${href} is not built and is not in the pendingCutover allowlist`);
+  }
+
+  const blocks = jsonLdBlocks(html);
+  if (blocks.length === 0) {
+    fail('seo-structured-data', 'no application/ld+json block');
+  } else {
+    const types = new Set();
+    for (const block of blocks) {
+      try {
+        typesOf(JSON.parse(block), types);
+      } catch (error) {
+        fail('seo-structured-data', `JSON-LD does not parse: ${error.message}`);
+      }
+    }
+    for (const type of spec.jsonLdTypes) {
+      if (!types.has(type)) fail('seo-structured-data', `JSON-LD is missing ${type}`);
+    }
+  }
+
+  return {
+    label,
+    route,
+    bytes,
+    title,
+    titleLength: title?.length ?? 0,
+    description,
+    descriptionLength: description?.length ?? 0,
+    canonical,
+    robots,
+    contentH2s: contentH2s.length,
+    tocAnchors,
+    internalLinks: internal.size,
+    failures,
+  };
 }
 
 async function chainSlugs() {
@@ -535,6 +820,23 @@ function formatTable(rows) {
   return lines.join('\n');
 }
 
+function formatPresentationTable(rows) {
+  const header = ['page', 'title', 'desc', 'H2', 'toc', 'links', 'bytes'];
+  const lines = [header.join('\t')];
+  for (const row of rows) {
+    lines.push([
+      row.label,
+      row.titleLength,
+      row.descriptionLength,
+      row.contentH2s ?? 0,
+      row.tocAnchors ?? 0,
+      row.internalLinks ?? 0,
+      row.bytes ?? 0,
+    ].join('\t'));
+  }
+  return lines.join('\n');
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const slugs = await chainSlugs();
@@ -560,6 +862,23 @@ async function main() {
     for (const failure of result.failures) failures.push(`${result.slug}: ${failure}`);
   }
 
+  const distFiles = await listDistFiles(options.dist);
+  for (const [target, reason] of pendingCutover) {
+    if (!reason || !reason.trim()) {
+      failures.push(`[seo-pending-cutover] ${target}: allowlist entry has no reason`);
+    }
+    if (resolvesInDist(distFiles, target)) {
+      failures.push(`[seo-pending-cutover] ${target}: allowlist entry is stale, the target now exists in dist`);
+    }
+  }
+
+  const presentationResults = [];
+  for (const spec of PRESENTATION_PAGES) {
+    const result = await checkPresentationPage(spec, options.dist, distFiles);
+    presentationResults.push(result);
+    for (const failure of result.failures) failures.push(failure);
+  }
+
   const hubPage = await loadHub(options.dist);
   let hub = null;
   if (!hubPage) {
@@ -569,21 +888,34 @@ async function main() {
     for (const failure of hub.failures) failures.push(`hub: ${failure}`);
   }
 
+  const metadataPages = [
+    ...results.map((result) => ({
+      label: result.slug,
+      title: result.title,
+      description: result.description,
+    })),
+    ...presentationResults.map((result) => ({
+      label: result.label,
+      title: result.title,
+      description: result.description,
+    })),
+    ...(hub ? [{ label: 'hub', title: hub.title, description: hub.description }] : []),
+  ];
   const seenTitles = new Map();
   const seenDescriptions = new Map();
-  for (const result of results) {
+  for (const result of metadataPages) {
     if (result.title) {
       if (seenTitles.has(result.title)) {
-        failures.push(`[seo-duplicate-metadata] ${result.slug}: duplicate title with ${seenTitles.get(result.title)}`);
+        failures.push(`[seo-duplicate-metadata] ${result.label}: duplicate title with ${seenTitles.get(result.title)}`);
       } else {
-        seenTitles.set(result.title, result.slug);
+        seenTitles.set(result.title, result.label);
       }
     }
     if (result.description) {
       if (seenDescriptions.has(result.description)) {
-        failures.push(`[seo-duplicate-metadata] ${result.slug}: duplicate description with ${seenDescriptions.get(result.description)}`);
+        failures.push(`[seo-duplicate-metadata] ${result.label}: duplicate description with ${seenDescriptions.get(result.description)}`);
       } else {
-        seenDescriptions.set(result.description, result.slug);
+        seenDescriptions.set(result.description, result.label);
       }
     }
   }
@@ -605,6 +937,7 @@ async function main() {
   }
 
   console.log(formatTable(results));
+  console.log(`\n${formatPresentationTable(presentationResults)}`);
   if (hub) {
     console.log(
       `\nhub ${hub.route}: title ${hub.titleLength}, desc ${hub.descriptionLength}, ` +
@@ -621,6 +954,8 @@ async function main() {
     dist: options.dist,
     notFound,
     pages: results.map(({ proseTokens, grams, ...rest }) => rest),
+    presentation: presentationResults,
+    pendingCutover: [...pendingCutover].map(([target, reason]) => ({ target, reason })),
     hub,
     maxPair,
     failures,
@@ -632,7 +967,10 @@ async function main() {
     for (const failure of failures) console.error(`- ${failure}`);
     process.exit(1);
   }
-  console.log(`\nSEO gate passed: ${results.length} chain pages, the ${HUB_ROUTE} hub and the root 404 page.`);
+  console.log(
+    `\nSEO gate passed: ${results.length} chain pages, the ${HUB_ROUTE} hub, ` +
+      `${presentationResults.length} presentation pages and the root 404 page.`,
+  );
 }
 
 main().catch((error) => {

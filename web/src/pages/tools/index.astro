@@ -1,0 +1,238 @@
+---
+/* Tools hub, ported from apps/site/tools.html.
+ *
+ * Presentation only: no client script and no WASM. Every link points at the
+ * route the tool uses today, whether this static build contains the page yet
+ * or the coordinator still serves it; scripts/check-seo.mjs keeps the
+ * not-yet-built targets in one explicit pendingCutover allowlist. The page
+ * describes what each tool does and makes no availability or usage claim it
+ * cannot support. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN } from '../../lib/site';
+
+const TITLE = 'Crypto calculators: keys, WIF, seeds, vanity | Crypto';
+const DESCRIPTION =
+  'Browse every calculator: private keys in hex, decimal and WIF, BIP39 seed phrases, brainwallets, vanity addresses, keystores, decoders and testnet sends.';
+const CANONICAL = '/tools';
+const canonicalUrl = `${SITE_ORIGIN}${CANONICAL}`;
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+interface Tool {
+  label: string;
+  href: string;
+  text: string;
+}
+interface ToolFamily {
+  id: string;
+  title: string;
+  description: string;
+  tools: Tool[];
+  presets?: boolean;
+}
+
+const FAMILIES: ToolFamily[] = [
+  {
+    id: 'family-keys',
+    title: 'Key explorers',
+    description: 'Turn a key in any format into hex, WIF, decimal, public key and every address.',
+    tools: [
+      { label: 'Key explorer', href: '/key', text: 'Derive every address for one key, locally.' },
+      { label: 'Private key (hex)', href: '/key/hex', text: 'Open the key explorer with a hexadecimal key.' },
+      { label: 'WIF calculator', href: '/key/wif', text: 'Open the key explorer with a Bitcoin WIF key.' },
+      { label: 'Decimal key', href: '/key/decimal', text: 'Open the key explorer with a decimal key.' },
+      { label: 'Hex / dec / bin', href: '/hex-dec-bin', text: 'Convert an unsigned integer up to 256 bits.' },
+      { label: 'Public key', href: '/public-key', text: 'Public keys to every address they control.' },
+      { label: 'Add public keys', href: '/pubkey-add', text: 'P + Q, P − Q and k · P on secp256k1.' },
+    ],
+  },
+  {
+    id: 'family-seeds',
+    title: 'Seed tools',
+    description: 'BIP39 and Electrum phrases to the first keys on the standard derivation paths.',
+    tools: [
+      { label: 'Seed studio', href: '/seed', text: 'The full seed workspace: phrases, paths and addresses.' },
+      { label: 'Mnemonic converter', href: '/mnemonic-converter', text: 'Convert BIP39, Electrum BIP39 and legacy Electrum phrases.' },
+      { label: 'Mnemonic seeds', href: '/mnemonic-seeds', text: 'Browse deterministic seed examples on 18 chains.' },
+    ],
+  },
+  {
+    id: 'family-brainwallet',
+    title: 'Brainwallet',
+    description: 'Deterministic passphrase directories on 18 chains, plus a one-passphrase generator.',
+    tools: [
+      { label: 'Directory', href: '/brainwallet', text: 'Browse the passphrase directory.' },
+      { label: 'Bitcoin', href: '/brainwallet/bitcoin', text: 'Bitcoin brainwallet examples.' },
+      { label: 'Ethereum', href: '/brainwallet/ethereum', text: 'Ethereum brainwallet examples.' },
+      { label: 'Generator', href: '/brainwallet-generator', text: 'Derive one passphrase of your own.' },
+    ],
+  },
+  {
+    id: 'family-puzzle',
+    title: 'Puzzle and vanity',
+    description: 'Scan the public puzzle ranges or grind a vanity prefix, both locally.',
+    tools: [
+      { label: 'Bitcoin puzzle', href: '/bitcoin-puzzle', text: 'Browse the public puzzle board and ranges.' },
+      { label: 'Vanity generator', href: '/vanity', text: 'Grind an address that starts or ends with your text.' },
+    ],
+  },
+  {
+    id: 'family-wallet',
+    title: 'Wallet and keystore',
+    description: 'Encrypted local vault, UTC keystore decryption and wallet downloads.',
+    tools: [
+      { label: 'Cabinet wallet', href: '/cabinet/wallet', text: 'Open the local browser wallet and encrypted vault.' },
+      { label: 'Keystore parser', href: '/keystore-parser', text: 'Decrypt a V3 UTC/JSON keystore locally.' },
+      { label: 'Wallets and downloads', href: '/wallets', text: 'Open the address-database downloads.' },
+    ],
+  },
+  {
+    id: 'family-tx',
+    title: 'Transaction tools',
+    description: 'Decode a raw transaction, or build, review, sign and broadcast testnet sends; mainnet signing stays off.',
+    tools: [
+      { label: 'Send · testnet', href: '/send', text: 'Build, review, sign and broadcast a testnet send.' },
+      { label: 'Decoders overview', href: '/tx', text: 'The shared index for transaction decoders.' },
+      { label: 'Bitcoin decoder', href: '/tx/bitcoin', text: 'Decode a raw Bitcoin legacy or SegWit transaction.' },
+      { label: 'Ethereum decoder', href: '/tx/ethereum', text: 'Decode a raw legacy, access-list or EIP-1559 transaction.' },
+      { label: 'EVM send · Sepolia', href: '/cabinet/wallet#wallet-send', text: 'Open the wallet send flow on Sepolia.' },
+      { label: 'BTC send · testnet', href: '/cabinet/wallet#wallet-btc-send', text: 'Open the wallet BTC send flow on testnet.' },
+    ],
+  },
+  {
+    id: 'family-research',
+    title: 'Reconstruction and research',
+    description: 'Assemble a key from known bytes, read the Milk Sad audit and browse the docs.',
+    tools: [
+      { label: 'Byte-fragment assembler', href: '/reconstruction', text: 'Assemble a key from byte fragments at explicit offsets.' },
+      { label: 'Milk Sad audit', href: '/milk-sad', text: 'Read the Libbitcoin weak-entropy audit.' },
+      { label: 'Docs', href: '/docs', text: 'Run a client, read keys and review the limits.' },
+    ],
+  },
+  {
+    id: 'family-chains',
+    title: 'Per-chain generators',
+    description: 'Open the key explorer with a chain or address type preselected; presets only filter rows.',
+    tools: [],
+    presets: true,
+  },
+];
+
+/* Chain and address-type presets. The query only preselects a filter on /key;
+ * every one of them opens the same canonical route. */
+const PRESETS: Tool[] = [
+  { label: 'Ethereum', href: '/key?chain=ethereum', text: '' },
+  { label: 'BNB', href: '/key?chain=bnb', text: '' },
+  { label: 'TRON', href: '/key?chain=tron', text: '' },
+  { label: 'Solana', href: '/key?chain=solana', text: '' },
+  { label: 'XRP', href: '/key?chain=xrp', text: '' },
+  { label: 'TON', href: '/key?chain=ton', text: '' },
+  { label: 'BCH', href: '/key?chain=bitcoin-cash', text: '' },
+  { label: 'Taproot', href: '/key?chain=bitcoin&type=taproot', text: '' },
+  { label: 'SegWit', href: '/key?chain=bitcoin&type=segwit', text: '' },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: 'Crypto calculators',
+      description: DESCRIPTION,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: SITE_NAME,
+        inLanguage: 'en',
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: 'Tools', item: canonicalUrl },
+      ],
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={CANONICAL}
+  image={ogImageUrl}
+  imageAlt="Crypto calculators — keys, WIF, seeds and vanity tools"
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="tools-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Tools</span>
+  </nav>
+
+  <section class="hero key-hero" aria-labelledby="tools-title">
+    <div class="key-hero-head">
+      <span class="key-hero-icon">
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg>
+      </span>
+      <div>
+        <h1 id="tools-title">Crypto calculators</h1>
+        <p class="key-tagline">
+          One input, every useful form. Each calculator starts from the entity
+          you already have — WIF, hex, decimal, a seed phrase or a brainwallet —
+          and derives the rest in your browser.
+        </p>
+        <div class="key-badges">
+          <span>Runs locally</span>
+          <span>18 chains</span>
+          <span>No upload</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {FAMILIES.map((family) => (
+    <section class="card tools-family" aria-labelledby={family.id}>
+      <h2 id={family.id}>{family.title}</h2>
+      <p class="tools-family__desc">{family.description}</p>
+      {family.presets ? (
+        <ul class="tool-presets">
+          {PRESETS.map((preset) => (
+            <li><a class="chip" href={preset.href}>{preset.label}</a></li>
+          ))}
+        </ul>
+      ) : (
+        <ul class="tool-links">
+          {family.tools.map((tool) => (
+            <li>
+              <a class="tool-link" href={tool.href}>
+                <span class="tool-link__name">{tool.label}</span>
+                <span class="tool-link__desc">{tool.text}</span>
+                <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  ))}
+
+  <p class="muted key-help">
+    Every calculator derives in this browser. The server never receives a private
+    key, WIF or seed phrase; only public addresses are sent during an opt-in
+    balance check.
+  </p>
+  <p class="muted key-help">
+    Every Crypto page and calculator is compared with privatekeyfinder.io and
+    secretscan.org in the internal parity audit (<code>docs/site-map/index.html</code>).
+  </p>
+</SiteLayout>
