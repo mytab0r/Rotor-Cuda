@@ -88,7 +88,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['pkf:/private-keys', 'ss:/PrivateKeyHex'],
-    note: 'Index of the 18 chain directories.'
+    note: 'Astro hub at `web/src/pages/private-keys/index.astro`: one row per mainnet chain (name, page contents, address-format count from the same map the chain page renders), plus what-is/is-not, derivation and safety sections and CollectionPage/ItemList/BreadcrumbList JSON-LD. The Rust renderer still serves the route until cutover.'
   });
 
   CHAINS.forEach(function (item) {
