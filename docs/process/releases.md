@@ -16,7 +16,11 @@ from conventional commits on `main`.
 | `CHANGELOG.md` | Maintained by release-please from the next release onward. Never edit it by hand. |
 
 The release type is `rust`, so the release PR updates the version in
-`Cargo.toml`, the matching entry in `Cargo.lock`, and `CHANGELOG.md`.
+`Cargo.toml`, the matching entry in `Cargo.lock`, and `CHANGELOG.md`. The Rust
+strategy treats the workspace as one release, so it also sets the version in
+`crates/rotor-wasm/Cargo.toml` to the same number. The wasm crate is not a
+separate release: its build is `scripts/build-wasm.sh`, and its committed
+output is `apps/site/rotor_wasm.wasm`.
 
 ### Conventional commits → changelog sections
 
