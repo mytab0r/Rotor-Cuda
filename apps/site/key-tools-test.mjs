@@ -786,6 +786,34 @@ for (const [id, label] of TYPE_CASES) {
 assert(tools.addressTypeLabel("evm_bnb") === "", "EVM sub-rows carry no type label");
 assert(tools.addressTypeLabel("ltc_p2tr") === "Taproot", "a future Litecoin taproot row uses the donor label");
 
+// Address-format selector scope: the control exists only for a chain with more
+// than one format. All and single-format chains get no options, and a chain
+// switch never carries a format from another chain.
+const btcFormats = tools.chainFormatOptions("btc");
+assert(
+  btcFormats.map((option) => option.id).join(",") ===
+    "btc_p2pkh,btc_p2wpkh,btc_p2sh_p2wpkh,btc_p2tr",
+  `BTC format ids ${btcFormats.map((option) => option.id).join(",")}`,
+);
+assert(
+  btcFormats.map((option) => option.label).join(",") === "Legacy,SegWit,Nested SegWit,Taproot",
+  "BTC format labels",
+);
+assert(tools.chainFormatOptions("all").length === 0, "All shows no format selector");
+assert(tools.chainFormatOptions("evm").length === 0, "EVM is single-format");
+assert(tools.chainFormatOptions("ltc").length === 4, "LTC counts four formats");
+assert(tools.chainFormatOptions("bch").length === 2, "BCH counts legacy and CashAddr");
+assert(tools.chainFormatOptions(null).length === 0, "an unknown chain has no formats");
+// The returned options are copies, so a caller cannot mutate the map.
+btcFormats.pop();
+assert(tools.chainFormatOptions("btc").length === 4, "format options are not shared state");
+assert(tools.resolveChainFormat("btc_p2tr", "btc") === "btc_p2tr", "a format stays on its chain");
+assert(tools.resolveChainFormat("btc_p2tr", "all") === "", "All drops a format selection");
+assert(tools.resolveChainFormat("btc_p2tr", "evm") === "", "EVM drops a foreign format");
+assert(tools.resolveChainFormat("ltc_p2wpkh", "bch") === "", "BCH drops a Litecoin format");
+assert(tools.resolveChainFormat("summary", "evm") === "summary", "a non-format focus is untouched");
+assert(tools.resolveChainFormat("", "btc") === "", "no selection stays empty");
+
 // Display grouping: every BTC row shares one Chain cell; EVM sub-rows and the
 // generic 0x parent each keep their own; unknown families do not collapse.
 assert(tools.rowGroup("btc_p2pkh") === "btc" && tools.rowGroup("btc_p2tr") === "btc", "BTC rows group");
@@ -1129,6 +1157,6 @@ for (const id of ["btc_legacy", "zcash_p2pkh", "tron"]) {
 console.log(
   "key-tools ok: integer, fragments, pubkey report/add/subtract/multiply, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
     "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/Decimal/WIF/WIF-u/Keypair/XRP/PubKey/Page), " +
-    "row order/grouping/type labels, both-curve 30-row merge, chain-group counters, USD ticker math/cache, " +
+    "row order/grouping/type labels, address-format selector scope, both-curve 30-row merge, chain-group counters, USD ticker math/cache, " +
     "ZEC SoChain amounts, explorer URLs",
 );
