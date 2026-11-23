@@ -130,7 +130,7 @@ fn get(addr: SocketAddr, path: &str, token: Option<&str>) -> (u16, Value) {
 }
 
 fn address_of(key: &SigningKey) -> String {
-    let point = key.verifying_key().to_encoded_point(false);
+    let point = key.verifying_key().to_sec1_point(false);
     let hash = keccak256(&point.as_bytes()[1..]);
     let mut address = String::from("0x");
     for byte in &hash[12..] {
@@ -147,9 +147,7 @@ fn personal_sign_hash(message: &str) -> [u8; 32] {
 }
 
 fn sign_message(key: &SigningKey, message: &str) -> String {
-    let (signature, recovery) = key
-        .sign_prehash_recoverable(&personal_sign_hash(message))
-        .expect("sign");
+    let (signature, recovery) = key.sign_prehash_recoverable(&personal_sign_hash(message));
     let mut bytes = signature.to_bytes().to_vec();
     bytes.push(recovery.to_byte());
     let mut out = String::from("0x");
@@ -160,7 +158,7 @@ fn sign_message(key: &SigningKey, message: &str) -> String {
 }
 
 fn tron_address(key: &SigningKey) -> String {
-    let point = key.verifying_key().to_encoded_point(false);
+    let point = key.verifying_key().to_sec1_point(false);
     let hash = keccak256(&point.as_bytes()[1..]);
     let mut payload = [0u8; 21];
     payload[0] = 0x41;
@@ -173,9 +171,7 @@ fn sign_tron(key: &SigningKey, message: &str) -> String {
     let prefix = format!("\x19TRON Signed Message:\n{}", message.len());
     let mut data = prefix.into_bytes();
     data.extend_from_slice(message.as_bytes());
-    let (signature, recovery) = key
-        .sign_prehash_recoverable(&keccak256(&data))
-        .expect("sign tron message");
+    let (signature, recovery) = key.sign_prehash_recoverable(&keccak256(&data));
     let mut bytes = signature.to_bytes().to_vec();
     bytes.push(recovery.to_byte() + 27);
     let mut out = String::from("0x");
