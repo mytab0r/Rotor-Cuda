@@ -436,6 +436,14 @@ follow-ups were code-only.
   one-request, short-body, single-object and source-lock cases) and
   `apps/site/balance-cache-test.mjs` (parser vectors). Defect
   `mnemonic-doge-blockcypher-batch`.
+- [x] DOGE/ZEC live 60/60 (2026-11-23, evidence-only): SoChain's daily quota had
+  reset (live probe HTTP 200, `access-control-allow-origin: *`), so the two
+  directories were measured against the built coordinator (main `8be2662`):
+  `/mnemonic-seeds/dogecoin`, `/mnemonic-seeds/zcash`, `/private-keys/dogecoin`
+  and `/private-keys/zcash` each rendered 60/60 `data-balance-state="ok"` with
+  exactly 60 SoChain requests per page and no failed request. No code change; the
+  matrix row moves to `parity`. Evidence: headless-Chrome CDP poll of
+  `[data-balance-state]` plus the per-page request log.
 - [x] Puzzle detail Discussion link (2026-11-22, code-only, issue #380): the
   donor action row prints `Discussion`; ours had no link and no recorded
   target. `render_puzzle_detail` now renders

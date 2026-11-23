@@ -7,13 +7,13 @@
 import SiteLayout from '../layouts/SiteLayout.astro';
 import ogImage from '../assets/og-landing.png';
 import chainsData from '../../../data/chains.json';
+import { formatsFor } from '../lib/chain-directory';
 import { REPOSITORY_URL, SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../lib/site';
 
 interface ChainRow {
   slug: string;
   name: string;
   symbol: string;
-  family: string;
   order: number;
   testnet?: boolean;
 }
@@ -26,14 +26,9 @@ const chains = (chainsData as { chains: ChainRow[] }).chains
   .filter((chain) => !chain.testnet)
   .sort((a, b) => a.order - b.order);
 
-/* The landing card count follows the chain family's address forms: Bitcoin
- * exposes four, Litecoin three, every account-model chain one. Testnets are
- * excluded above, so the count matches the 18 mainnet directories. */
-function addressTypeCount(family: string): number {
-  if (family === 'btc') return 4;
-  if (family === 'ltc') return 3;
-  return 1;
-}
+/* The landing card count follows the same format map the chain page renders,
+ * so a card can never undercount the columns behind its link. Testnets are
+ * filtered out above, so every card names one of the 18 mainnet directories. */
 
 const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
 const jsonLd = {
@@ -102,21 +97,24 @@ const jsonLd = {
       Prefer one key? <a href="/key">Open the key calculator</a>.
     </p>
     <div class="chain-grid">
-      {chains.map((chain) => (
-        <a
-          class="chain-card"
-          href={`/private-keys/${chain.slug}`}
-          style={`--chain: var(--chain-${chain.slug})`}
-        >
-          <span class="chain-icon-wrap">
-            <svg class="chain-card-icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
-          </span>
-          <span class="chain-name">{chain.name}</span>
-          <span class="chain-meta">
-            {chain.symbol} · {addressTypeCount(chain.family)} address {addressTypeCount(chain.family) === 1 ? 'type' : 'types'}
-          </span>
-        </a>
-      ))}
+      {chains.map((chain) => {
+        const formatCount = formatsFor(chain.slug).length;
+        return (
+          <a
+            class="chain-card"
+            href={`/private-keys/${chain.slug}`}
+            style={`--chain: var(--chain-${chain.slug})`}
+          >
+            <span class="chain-icon-wrap">
+              <svg class="chain-card-icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
+            </span>
+            <span class="chain-name">{chain.name}</span>
+            <span class="chain-meta">
+              {chain.symbol} · {formatCount} address {formatCount === 1 ? 'type' : 'types'}
+            </span>
+          </a>
+        );
+      })}
     </div>
   </section>
 
