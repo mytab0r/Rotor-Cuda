@@ -225,8 +225,14 @@ async function upsertIssue(body, dryRun) {
   const repo = process.env.GITHUB_REPOSITORY;
   if (!repo) throw new Error("GITHUB_REPOSITORY is required");
 
-  const issues = await github(`/repos/${repo}/issues?state=open&per_page=100&sort=created&direction=desc`);
-  const existing = (issues ?? []).find(
+  // Search by title instead of listing open issues: the tracking issue is
+  // long-lived, and a list page can stop containing it once the repository
+  // has more than 100 open issues.
+  const query = encodeURIComponent(
+    `repo:${repo} is:issue is:open in:title "${ISSUE_TITLE}"`,
+  );
+  const found = await github(`/search/issues?q=${query}&per_page=10`);
+  const existing = (found?.items ?? []).find(
     (issue) => issue.title === ISSUE_TITLE && !issue.pull_request,
   );
   if (existing) {
