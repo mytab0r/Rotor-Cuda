@@ -46,6 +46,11 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
 - **Native dependencies**: the `Blocked by:` text line stays for humans, and
   the sync also creates GitHub `addBlockedBy` links, removes a link the text no
   longer lists and prints every edge in its report.
+- **Plan vs actual**: `Target date` is the milestone due date and `Start date`
+  is the status-change date or the issue `createdAt`; the native `createdAt` /
+  `closedAt` are facts and are only reported. The sync prints one
+  `actual: #N target ..., closed ... -> on time|late by N` line per closed
+  issue and an `actuals: X on time, Y late` total.
 - **Project fields**:
   - `Area` (single select): `site`, `coordinator`, `desktop`, `infra`,
     `design`, `docs`. Sub-issues carry the same field.
@@ -53,6 +58,10 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
     inherit the epic priority unless their body declares `Priority: Pn`.
   - `Severity` (single select): `S1`–`S4` plus `S-`; a `Bug` defaults to `S2`
     unless its body declares `Severity: Sn`.
+  - `Target date` (date): the due date of the issue's milestone; the Roadmap's
+    planned end.
+  - `Start date` (date): the status-change date when the item exposes one,
+    otherwise the native `createdAt` (the documented fallback).
   - `Progress` (number): the epic's sub-issue percentage.
   - `Status`: `Todo` at 0%, `Done` at 100%, `In Progress` in between.
     The project's built-in **Auto-close issue** workflow closes a `Done`
@@ -111,7 +120,10 @@ user-project access (fine-grained). The secret value is never stored in the
 repository; the job fails with an explicit error when it is missing. The same
 sync still runs locally with the owner's `gh` login for `--dry-run` plans.
 After the sync, the workflow runs `node scripts/check-task-links.mjs --board`;
-that gate fails when a synced open issue still lacks a native Type, Milestone
-or Priority, when text blockers disagree with native links, when a blocker is
-closed, when the native graph has a cycle, or when one epic spans milestones.
-`data/board-exceptions.json` is the shrink-only allowlist, one reason per entry.
+that gate fails when a synced issue still lacks a native Type, Milestone,
+Priority or Start/Target date, when text blockers disagree with native links,
+when a blocker is closed, when the native graph has a cycle, when one epic
+spans milestones, when a milestone has no due date, or when a Type-duplicating
+label exists.
+`data/board-exceptions.json` is the shrink-only allowlist, one reason per entry,
+for historical closed issues only.

@@ -350,12 +350,13 @@ export function findDependencyCycles(edges = []) {
 }
 
 // Board gate. `projectItems` is a map of issue number -> project field values
-// (`{ priority, severity, milestone }`); `allowlist` is the parsed
-// `data/board-exceptions.json`. Every synced open issue must have a native
-// Type, a Milestone, and a non-empty Priority, its text blockers must equal its
-// native blockedBy links, no open issue may be blocked by a closed one, the
-// native graph must be acyclic, and every issue of one change must share one
-// milestone.
+// (`{ priority, severity, targetDate, startDate }`); `allowlist` is the parsed
+// `data/board-exceptions.json` and may only name historical closed issues.
+// Every synced issue must have a native Type, a Milestone, a non-empty Priority
+// and Start/Target dates; its text blockers must equal its native blockedBy
+// links; no open issue may be blocked by a closed one; the native graph must be
+// acyclic; every issue of one change must share one milestone; and every
+// milestone in data/milestones.json must have a due date.
 export function evaluateBoardFields({
   issues = [],
   allowlist = [],
@@ -382,6 +383,13 @@ export function evaluateBoardFields({
   }
 
   const milestoneTitles = new Set((milestones ?? []).map((entry) => entry.title));
+  for (const milestone of milestones ?? []) {
+    if (!String(milestone?.due ?? "").trim()) {
+      errors.push(
+        `milestone "${milestone?.title ?? "(untitled)"}" has no due date; every release milestone needs one for the Roadmap.`,
+      );
+    }
+  }
   const byNumber = new Map();
   const byChange = new Map();
   let checked = 0;
@@ -394,7 +402,14 @@ export function evaluateBoardFields({
     const number = Number(issue.number);
     byNumber.set(number, issue);
     const allow = allowed.has(number);
-    if (allow) skipped += 1;
+    if (allow) {
+      skipped += 1;
+      if (issue.state === "OPEN") {
+        errors.push(
+          `board allowlist entry #${number} is an open issue; only historical closed issues may be allowlisted.`,
+        );
+      }
+    }
 
     const typeName =
       typeof issue.issueType === "string"
@@ -405,6 +420,8 @@ export function evaluateBoardFields({
         ? issue.milestone
         : issue.milestone?.title ?? null;
     const priority = projectItems?.[number]?.priority ?? null;
+    const targetDate = projectItems?.[number]?.targetDate ?? null;
+    const startDate = projectItems?.[number]?.startDate ?? null;
 
     if (!allow) {
       if (!typeName) {
@@ -426,6 +443,16 @@ export function evaluateBoardFields({
           `issue #${number} "${issue.title}" has no Priority; the sync must never leave it empty.`,
         );
       }
+      if (!targetDate) {
+        errors.push(
+          `issue #${number} "${issue.title}" has no Target date; the Roadmap needs the milestone due date.`,
+        );
+      }
+      if (!startDate) {
+        errors.push(
+          `issue #${number} "${issue.title}" has no Start date; the Roadmap needs it.`,
+        );
+      }
     }
 
     const changeId = changeIdForIssue(issue);
@@ -438,16 +465,18 @@ export function evaluateBoardFields({
       number: Number(blocker.number ?? blocker),
       state: blocker.state ?? null,
     }));
-    for (const blocker of native) {
-      edges.push({ from: number, to: blocker.number });
-      if (!allow && blocker.state === "CLOSED") {
-        errors.push(
-          `issue #${number} "${issue.title}" is open but blocked by closed issue #${blocker.number}.`,
-        );
+    if (issue.state === "OPEN") {
+      for (const blocker of native) {
+        edges.push({ from: number, to: blocker.number });
+        if (!allow && blocker.state === "CLOSED") {
+          errors.push(
+            `issue #${number} "${issue.title}" is open but blocked by closed issue #${blocker.number}.`,
+          );
+        }
       }
     }
 
-    if (!allow) {
+    if (!allow && issue.state === "OPEN") {
       const text = parseBlockedByText(issue.body).sort((a, b) => a - b);
       const linked = native.map((blocker) => blocker.number).sort((a, b) => a - b);
       if (text.join(",") !== linked.join(",")) {
@@ -482,7 +511,7 @@ export function evaluateBoardFields({
 // The caller injects ghJson, so this module still performs no network calls.
 export function listIssueMetadata({ ghJson, owner, name, states = ["OPEN"] }) {
   const stateArg = states.map((state) => String(state).toUpperCase()).join(",");
-  const query = `query($owner:String!,$name:String!,$cursor:String){repository(owner:$owner,name:$name){issues(first:100,after:$cursor,states:[${stateArg}],orderBy:{field:CREATED_AT,direction:ASC}){pageInfo{hasNextPage endCursor}nodes{number id title body url state issueType{name} milestone{title} labels(first:50){nodes{name}} blockedBy(first:50){nodes{number state title}}}}}}`;
+  const query = `query($owner:String!,$name:String!,$cursor:String){repository(owner:$owner,name:$name){issues(first:100,after:$cursor,states:[${stateArg}],orderBy:{field:CREATED_AT,direction:ASC}){pageInfo{hasNextPage endCursor}nodes{number id title body url state createdAt closedAt issueType{name} milestone{title} labels(first:50){nodes{name}} blockedBy(first:50){nodes{number state title}}}}}}`;
   const issues = [];
   let cursor = null;
   for (;;) {
@@ -512,6 +541,8 @@ export function listIssueMetadata({ ghJson, owner, name, states = ["OPEN"] }) {
         body: node.body ?? "",
         url: node.url ?? null,
         state: node.state ?? "OPEN",
+        createdAt: node.createdAt ?? null,
+        closedAt: node.closedAt ?? null,
         issueType: node.issueType?.name ?? null,
         milestone: node.milestone?.title ?? null,
         labels: (node.labels?.nodes ?? []).map((label) => label.name),

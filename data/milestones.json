@@ -47,6 +47,7 @@
   },
   {
     "title": "Design system and process foundations",
+    "due": "2027-03-31",
     "description": "Design tokens, SSOT gates, task tracking and repo structure that the product work depends on.",
     "match": {
       "areas": ["design", "docs", "infra"],

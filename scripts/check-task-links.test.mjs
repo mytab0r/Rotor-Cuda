@@ -4,7 +4,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkBoardFields, checkPullRequest } from "./check-task-links.mjs";
+import {
+  checkBoardFields,
+  checkPullRequest,
+  findDuplicateTypeLabels,
+} from "./check-task-links.mjs";
 
 const product = ["apps/site/site.js", "src/coordinator/mod.rs"];
 const docs = ["docs/process/task-tracking.md", "openspec/changes/x/tasks.md"];
@@ -134,6 +138,7 @@ test("board gate passes a fully classified synced issue", () => {
     issues: [
       {
         number: 1,
+        state: "OPEN",
         title: "[demo] Demo",
         labels: ["epic"],
         issueType: "Feature",
@@ -142,11 +147,15 @@ test("board gate passes a fully classified synced issue", () => {
         blockedBy: [],
       },
     ],
-    milestones: [{ title: "Wallet", match: { epics: ["demo"], areas: [] } }],
-    projectItems: { 1: { priority: "P1" } },
+    milestones: [
+      { title: "Wallet", due: "2027-03-31", match: { epics: ["demo"], areas: [] } },
+    ],
+    projectItems: {
+      1: { priority: "P1", targetDate: "2027-03-31", startDate: "2026-01-01" },
+    },
   });
   assert.equal(result.ok, true);
-  assert.match(result.summary, /1 synced open issues/);
+  assert.match(result.summary, /1 synced issues/);
 });
 
 test("board gate reports every missing native field", () => {
@@ -154,6 +163,7 @@ test("board gate reports every missing native field", () => {
     issues: [
       {
         number: 2,
+        state: "OPEN",
         title: "ROT-2 — A",
         labels: ["change:demo"],
         issueType: null,
@@ -162,13 +172,17 @@ test("board gate reports every missing native field", () => {
         blockedBy: [],
       },
     ],
-    milestones: [{ title: "Wallet", match: { epics: ["demo"], areas: [] } }],
+    milestones: [
+      { title: "Wallet", due: "2027-03-31", match: { epics: ["demo"], areas: [] } },
+    ],
     projectItems: {},
   });
   assert.equal(result.ok, false);
   assert.match(result.errors.join("\n"), /no issue Type/);
   assert.match(result.errors.join("\n"), /no Milestone/);
   assert.match(result.errors.join("\n"), /no Priority/);
+  assert.match(result.errors.join("\n"), /no Target date/);
+  assert.match(result.errors.join("\n"), /no Start date/);
 });
 
 test("board gate honors a reasoned allowlist entry", () => {
@@ -176,6 +190,7 @@ test("board gate honors a reasoned allowlist entry", () => {
     issues: [
       {
         number: 271,
+        state: "CLOSED",
         title: "historical",
         labels: ["change:demo"],
         issueType: null,
@@ -185,9 +200,41 @@ test("board gate honors a reasoned allowlist entry", () => {
       },
     ],
     allowlist: [{ number: 271, reason: "predates the sync" }],
-    milestones: [{ title: "Wallet", match: { epics: ["demo"], areas: [] } }],
+    milestones: [
+      { title: "Wallet", due: "2027-03-31", match: { epics: ["demo"], areas: [] } },
+    ],
     projectItems: {},
   });
   assert.equal(result.ok, true);
   assert.equal(result.skipped, 1);
+});
+
+test("labels that duplicate the native Type fail the board gate", () => {
+  assert.deepEqual(findDuplicateTypeLabels(["bug", "type:bug", "epic"]), [
+    "bug",
+    "type:bug",
+  ]);
+  const result = checkBoardFields({
+    issues: [
+      {
+        number: 1,
+        state: "OPEN",
+        title: "[demo] Demo",
+        labels: ["epic"],
+        issueType: "Feature",
+        milestone: "Wallet",
+        body: "",
+        blockedBy: [],
+      },
+    ],
+    milestones: [
+      { title: "Wallet", due: "2027-03-31", match: { epics: ["demo"], areas: [] } },
+    ],
+    projectItems: {
+      1: { priority: "P1", targetDate: "2027-03-31", startDate: "2026-01-01" },
+    },
+    labels: ["bug", "epic", "area:site"],
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /labels duplicate the native issue Type/);
 });

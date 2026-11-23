@@ -971,20 +971,30 @@ test("findDependencyCycles reports each cycle once", () => {
   assert.deepEqual(cycles[1], [4, 4]);
 });
 
-test("board gate checks type, milestone, priority, blockers and release grouping", () => {
+test("board gate checks type, milestone, priority, dates, blockers and release grouping", () => {
   const milestones = [
-    { title: "Wallet", match: { epics: ["wallet"], areas: [] } },
-    { title: "Astro", match: { epics: ["frontend"], areas: ["site"] } },
+    { title: "Wallet", due: "2027-03-31", match: { epics: ["wallet"], areas: [] } },
+    {
+      title: "Astro",
+      due: "2026-12-31",
+      match: { epics: ["frontend"], areas: ["site"] },
+    },
   ];
+  const fields = (priority) => ({
+    priority,
+    targetDate: "2027-03-31",
+    startDate: "2026-01-01",
+  });
   const projectItems = {
-    1: { priority: "P1" },
-    2: { priority: "P2" },
-    3: { priority: "P2" },
-    4: { priority: "P1" },
+    1: fields("P1"),
+    2: fields("P2"),
+    3: fields("P2"),
+    4: fields("P1"),
   };
   const base = [
     {
       number: 1,
+      state: "OPEN",
       title: "[wallet] Wallet",
       labels: ["epic"],
       issueType: "Feature",
@@ -994,6 +1004,7 @@ test("board gate checks type, milestone, priority, blockers and release grouping
     },
     {
       number: 2,
+      state: "OPEN",
       title: "ROT-2 — A",
       labels: ["change:wallet"],
       issueType: "Task",
@@ -1003,6 +1014,7 @@ test("board gate checks type, milestone, priority, blockers and release grouping
     },
     {
       number: 3,
+      state: "OPEN",
       title: "ROT-3 — B",
       labels: ["change:wallet"],
       issueType: "Task",
@@ -1012,6 +1024,7 @@ test("board gate checks type, milestone, priority, blockers and release grouping
     },
     {
       number: 4,
+      state: "OPEN",
       title: "manual",
       labels: [],
       issueType: null,
@@ -1034,9 +1047,26 @@ test("board gate checks type, milestone, priority, blockers and release grouping
   assert.match(missing.errors.join("\n"), /no issue Type/);
   assert.match(missing.errors.join("\n"), /no Milestone/);
   assert.match(missing.errors.join("\n"), /no Priority/);
+  assert.match(missing.errors.join("\n"), /no Target date/);
+  assert.match(missing.errors.join("\n"), /no Start date/);
+
+  const missingDue = evaluateBoardFields({
+    issues: [base[1]],
+    milestones: [{ title: "Wallet", match: { epics: ["wallet"], areas: [] } }],
+    projectItems,
+  });
+  assert.equal(missingDue.ok, false);
+  assert.match(missingDue.errors.join("\n"), /milestone "Wallet" has no due date/);
 
   const allowed = evaluateBoardFields({
-    issues: [{ ...base[1], issueType: null, milestone: null }],
+    issues: [
+      {
+        ...base[1],
+        state: "CLOSED",
+        issueType: null,
+        milestone: null,
+      },
+    ],
     allowlist: [{ number: 2, reason: "historical" }],
     milestones,
     projectItems: {},
@@ -1044,11 +1074,20 @@ test("board gate checks type, milestone, priority, blockers and release grouping
   assert.equal(allowed.ok, true, "an allowlisted historical issue is skipped");
   assert.equal(allowed.skipped, 1);
 
+  const openAllowed = evaluateBoardFields({
+    issues: [base[1]],
+    allowlist: [{ number: 2, reason: "historical" }],
+    milestones,
+    projectItems,
+  });
+  assert.equal(openAllowed.ok, false);
+  assert.match(openAllowed.errors.join("\n"), /only historical closed issues/);
+
   const badReason = evaluateBoardFields({
     issues: [base[0]],
     allowlist: [{ number: 1 }],
     milestones,
-    projectItems: { 1: { priority: "P1" } },
+    projectItems,
   });
   assert.equal(badReason.ok, false);
   assert.match(badReason.errors.join("\n"), /needs a reason/);
@@ -1062,17 +1101,21 @@ test("board gate checks type, milestone, priority, blockers and release grouping
       },
     ],
     milestones,
-    projectItems: { 2: { priority: "P1" } },
+    projectItems: { 2: fields("P1") },
   });
   assert.equal(mismatch.ok, false);
   assert.match(mismatch.errors.join("\n"), /disagree with native blockedBy/);
 
   const closedBlocker = evaluateBoardFields({
     issues: [
-      { ...base[1], body: "Blocked by: ROT-3 (#3)", blockedBy: [{ number: 3, state: "CLOSED" }] },
+      {
+        ...base[1],
+        body: "Blocked by: ROT-3 (#3)",
+        blockedBy: [{ number: 3, state: "CLOSED" }],
+      },
     ],
     milestones,
-    projectItems: { 2: { priority: "P1" } },
+    projectItems: { 2: fields("P1") },
   });
   assert.equal(closedBlocker.ok, false);
   assert.match(closedBlocker.errors.join("\n"), /blocked by closed issue #3/);
@@ -1091,7 +1134,7 @@ test("board gate checks type, milestone, priority, blockers and release grouping
       },
     ],
     milestones,
-    projectItems: { 2: { priority: "P1" }, 3: { priority: "P1" } },
+    projectItems: { 2: fields("P1"), 3: fields("P1") },
   });
   assert.equal(cycle.ok, false);
   assert.match(cycle.errors.join("\n"), /dependency cycle/);
@@ -1102,7 +1145,7 @@ test("board gate checks type, milestone, priority, blockers and release grouping
       { ...base[2], milestone: "Astro" },
     ],
     milestones,
-    projectItems: { 2: { priority: "P1" }, 3: { priority: "P1" } },
+    projectItems: { 2: fields("P1"), 3: fields("P1") },
   });
   assert.equal(releaseSpread.ok, false);
   assert.match(releaseSpread.errors.join("\n"), /spans milestones/);
@@ -1123,6 +1166,8 @@ test("listIssueMetadata paginates over GraphQL and normalizes blockedBy", () => 
                 body: "body",
                 url: "https://github.com/o/r/issues/1",
                 state: "OPEN",
+                createdAt: "2026-01-02T03:04:05Z",
+                closedAt: null,
                 issueType: { name: "Feature" },
                 milestone: { title: "Wallet" },
                 labels: { nodes: [{ name: "epic" }] },
@@ -1171,6 +1216,8 @@ test("listIssueMetadata paginates over GraphQL and normalizes blockedBy", () => 
   assert.match(calls[1].join(" "), /cursor=C1/);
   assert.equal(issues[0].issueType, "Feature");
   assert.equal(issues[0].milestone, "Wallet");
+  assert.equal(issues[0].createdAt, "2026-01-02T03:04:05Z");
+  assert.equal(issues[0].closedAt, null);
   assert.deepEqual(issues[0].blockedBy, [
     { number: 2, state: "OPEN", title: "b" },
   ]);
