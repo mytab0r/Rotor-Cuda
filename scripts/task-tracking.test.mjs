@@ -38,6 +38,7 @@ import {
   slugify,
   subIssueBody,
   syncChangeTasks,
+  targetDelta,
   taskKey,
 } from "./lib/task-tracking.mjs";
 import { readChanges } from "./sync-board.mjs";
@@ -969,6 +970,26 @@ test("findDependencyCycles reports each cycle once", () => {
   ]);
   assert.equal(cycles.length, 2);
   assert.deepEqual(cycles[1], [4, 4]);
+});
+
+test("targetDelta reports on-time, late and invalid dates", () => {
+  assert.deepEqual(targetDelta("2026-12-31", "2026-12-20"), {
+    days: -11,
+    verdict: "on time",
+  });
+  assert.deepEqual(targetDelta("2027-03-31", "2027-03-31T10:00:00Z"), {
+    days: 0,
+    verdict: "on time",
+  });
+  assert.deepEqual(targetDelta("2027-03-31", "2027-04-01"), {
+    days: 1,
+    verdict: "late by 1 day",
+  });
+  assert.deepEqual(targetDelta("2027-03-31", "2027-04-02"), {
+    days: 2,
+    verdict: "late by 2 days",
+  });
+  assert.equal(targetDelta("not-a-date", "2027-04-02"), null);
 });
 
 test("board gate checks type, milestone, priority, dates, blockers and release grouping", () => {
