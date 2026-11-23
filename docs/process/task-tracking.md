@@ -129,6 +129,114 @@ If a longer registered change id starts with this one (for example
 under `openspec/changes/<change-id>/` before it appends `Closes`; otherwise it
 reports the PR for a manual decision.
 
+## Native fields: Type, Priority, Severity
+
+GitHub issues carry a native **Type** (`Task`, `Bug`, `Feature`). A label does
+not duplicate it: the sync sets the issue type, and the project's `Type` column
+reads that native value.
+
+| Rule (first match) | Type |
+|---|---|
+| title starts with `fix(` or contains `defect`, or the body names the defect ledger (`docs/process/defects.json` or `Defect: <id>`) | `Bug` |
+| label `epic` | `Feature` |
+| label `change:<id>` or body marker `<!-- openspec-task: ... -->` | `Task` |
+| no match | left unset; the sync prints a warning naming the issue |
+
+Priority and Severity are Project v2 single-select fields, not labels:
+
+- `Priority` options are `P0`–`P3`; `Severity` options are `S1`–`S4` plus `S-`
+  ("no severity").
+- An epic defaults to `P1` / `S-`. A sub-issue inherits the epic priority; a
+  defect (`Bug`) defaults to `S2` unless the body declares a severity.
+- An issue declares its own value with a body line: `Priority: P2` or
+  `Severity: S3`. The sync preserves those lines when it regenerates the body.
+- The sync never leaves `Priority` empty for a synced issue; the board gate
+  fails otherwise.
+
+Labels `epic`, `area:<area>` and `change:<id>` stay because no native field
+expresses the OpenSpec grouping or the board area. Labels that duplicate a
+native field (`bug`, `enhancement`, `type:bug`, `type:feature`) are not used;
+they were audited and removed. `documentation`, `question`, `duplicate`,
+`invalid`, `wontfix`, `good first issue` and `help wanted` remain: they carry
+triage information that the three native types cannot express.
+
+## Milestones are releases
+
+`data/milestones.json` is the single source for release milestones. Each entry
+has `title`, a required `due` (a quarter-end planning default, `YYYY-MM-DD`), an
+optional `description`, and `match: { epics: [...], areas: [...] }`. The sync
+refuses a milestone without `due`, and the board gate fails one: the Roadmap
+needs both ends of the bar.
+
+The sync creates a missing milestone over REST, assigns every synced issue and
+matches **epic first, then area**. The epic mapping wins, so every issue of one
+OpenSpec change shares the epic's milestone. The board gate fails when one
+change spans milestones, and when a milestone title is not in this file. Never
+copy a milestone title into another script.
+
+Release plan:
+
+| Milestone | Epics | Target (planning default) |
+|---|---|---|
+| Wallet: signing, history and portfolio | cabinet-wallet, product-strategy, send-wif-keys, site-wallet-studio, tx-sign-broadcast, wallet-account-link, wallet-history, wallet-mainnet-signing, wallet-portfolio, wallet-seed-phrase, wallet-top-assets-wif, walletconnect-deeplinks | 2027-03-31 |
+| Desktop and coordinator parity | key-leak-monitor, rust-desktop-all-chains | 2027-03-31 |
+| Astro frontend cutover | admin-cabinet, donor-copy-parity, frontend-platform, seo-strategy, site-parity-audit | 2026-12-31 |
+| Design system and process foundations | design-system-process, edge-privacy, repo-structure, security-advisories, ssot, task-tracking | 2027-03-31 |
+
+The dates are planning defaults at quarter ends, not promises; change them in
+`data/milestones.json`, never in the project UI.
+
+## Dates: plan, facts and the Roadmap
+
+The Roadmap bar reads the built-in `Start date` → `Target date` pair, so those
+two fields are the **plan**: Plan start → Plan end. Two custom date fields hold
+the **facts**, and the sync never writes a fact into a plan field.
+
+| Field | Kind | Value | Source |
+|---|---|---|---|
+| `Start date` | plan start | when the work is planned to start; currently the first `In Progress` transition when the project item exposes one, otherwise the issue's native `createdAt` | project item / GraphQL `createdAt` |
+| `Target date` | plan end | the due date of the issue's milestone (the planned end of the bar) | `data/milestones.json` |
+| `Actual start` | fact | the first `In Progress` transition when readable, otherwise `createdAt` | project item / GraphQL `createdAt` |
+| `Actual end` | fact | the native `closedAt` date; empty while the issue is open | GraphQL |
+
+The status-transition timestamp is not exposed by `gh project item-list` today;
+the documented fallback for both start values is `createdAt`. When the API
+starts exposing the transition, the sync reads it and the two starts diverge
+without a schema change.
+
+On every sync the report prints, for each closed issue with all four dates:
+
+```text
+actual: #298 plan 2026-11-22 -> 2026-12-31, actual 2026-11-22 -> 2026-12-20, slip -11 day(s) (on time)
+actual: #305 plan 2026-11-22 -> 2027-03-31, actual 2026-11-22 -> 2027-04-02, slip 2 day(s) (late by 2 days)
+actuals: 8 on time, 2 late
+```
+
+Slip is `Actual end - Target date` in whole days; zero or negative is on time.
+The weekly comparison is the same computation over the closed issues at that
+moment, so a slipped issue stays visible after its close and the plan fields
+keep the original commitment. The board gate requires both plan dates on every
+synced issue and both actual dates on every closed one; the allowlist may only
+name historical closed issues.
+
+## Native dependencies
+
+The `Blocked by: ROT-7 (#7), ROT-8 (#8)` line stays for humans. The sync also
+creates GitHub's native issue dependencies (`addBlockedBy` over GraphQL) and
+removes a native link that the text no longer lists. The gate fails when:
+
+- the text and the native links disagree;
+- a blocker is closed while the dependent is open;
+- the native graph has a cycle.
+
+The sync report prints every resulting edge (`dependency: #366 <- #365`), so the
+dependency graph is visible without opening each issue.
+
+## Future work (explicitly deferred)
+
+- A staging environment with branch deploys and end-to-end runs. The owner
+  deferred it; it is recorded here so the sync work does not grow into it.
+
 ## Provider mapping
 
 | Provider | Where the key lives | Closing reference | Notes |
@@ -168,13 +276,26 @@ node scripts/sync-board.mjs             # apply (owner's gh login, project scope
 node scripts/check-task-links.mjs --pr 123
 node scripts/check-task-links.mjs --body-file body.md \
   --files scripts/sync-board.mjs,AGENTS.md --issue-exists skip
+node scripts/check-task-links.mjs --board   # native fields, blockers, cycles
 ```
 
 `sync-board` needs `gh` with `repo` and `project` scopes; it also creates the
-`change:<id>` labels on demand. `.github/workflows/task-links.yml` runs the
-check on every `pull_request` event (`opened`, `edited`, `synchronize`,
-`reopened`) with the default `GITHUB_TOKEN` and read-only `issues` /
-`pull-requests` permissions. The check fails when:
+`change:<id>` labels and the `Priority` / `Severity` / `Start date` /
+`Target date` / `Actual start` / `Actual end` project fields on demand.
+`.github/workflows/board-sync.yml` runs the sync and then
+`check-task-links.mjs --board`; the gate fails when a synced issue (open or
+closed) has no native Type, no Milestone, no Priority or not both plan dates,
+when a closed issue has no Actual start or Actual end, when the text blockers
+disagree with the native links, when an open issue is blocked by a closed one,
+when the native graph has a cycle, when one epic spans milestones, when a
+milestone has no due date, or when a label duplicates the native Type. The
+allowlist in `data/board-exceptions.json` may name historical closed issues
+only, each with a reason.
+
+`.github/workflows/task-links.yml` runs the PR check on every `pull_request`
+event (`opened`, `edited`, `synchronize`, `reopened`) with the default
+`GITHUB_TOKEN` and read-only `issues` / `pull-requests` permissions. The check
+fails when:
 
 - the body has no `Task:` line;
 - the key shape is invalid or the keyed issue does not exist;
@@ -200,6 +321,18 @@ context; the text convention does not change.
 - Make the `task-links` check a required status check in the branch protection
   for `main` after the first sync exists; until then it reports without
   blocking.
-- The project (owner `mytab0r`, number 3) must keep the `Area`, `Progress` and
-  `Status` fields. `Area` options are `site`, `coordinator`, `desktop`, `infra`,
-  `design`, `docs`; the script cannot add single-select options through `gh`.
+- The project (owner `mytab0r`, number 3) must keep the `Area`, `Progress`,
+  `Status`, `Priority`, `Severity`, `Start date`, `Target date`, `Actual start`
+  and `Actual end` fields. The sync creates `Priority` (`P0`–`P3`), `Severity`
+  (`S1`–`S4`, `S-`) and the four date fields when they are missing. `Area`
+  options are `site`, `coordinator`, `desktop`, `infra`, `design`, `docs`; `gh`
+  cannot edit the options of an existing single-select field, so a field that
+  already exists without an option must be fixed in the project UI. The sync
+  reuses an existing field whose name differs only in case instead of creating
+  a duplicate.
+- The repository issue types `Task`, `Bug` and `Feature` must stay enabled
+  (`repository.issueTypes` over GraphQL). The sync sets them and the project's
+  `Type` column reads them; no label duplicates them.
+- The release milestones are created from `data/milestones.json`; do not create
+  or rename a milestone by hand, or the next sync and the board gate will
+  disagree with the file.

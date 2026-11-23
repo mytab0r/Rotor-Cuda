@@ -12,21 +12,33 @@ import assert from "node:assert/strict";
 
 import {
   archiveStalePullRequestItems,
+  boardMetadataFor,
   branchMatchesChange,
   closingIssueNumbers,
+  declarationLines,
   epicBody,
+  evaluateBoardFields,
   evaluateTaskLinks,
   filesBelongToChange,
+  findDependencyCycles,
+  inferIssueType,
   isDocsOnly,
   isProcessOnly,
   issueNumberFromKey,
   linkSubIssueToEpic,
+  listIssueMetadata,
+  milestoneFor,
   parseBlockers,
+  parseBlockedByText,
   parseTaskDirective,
   parseTasksMarkdown,
+  priorityFor,
   resolveBlockedBy,
+  severityFor,
   slugify,
+  subIssueBody,
   syncChangeTasks,
+  targetDelta,
   taskKey,
 } from "./lib/task-tracking.mjs";
 import { readChanges } from "./sync-board.mjs";
@@ -787,6 +799,478 @@ test("archiveStalePullRequestItems --dry-run prints the plan without a mutation"
   });
   assert.equal(result.archived, 1);
   assert.match(lines[0], /\[dry-run\] archive project item for PR #1 \(MERGED\)/);
+});
+
+test("issue type inference: Bug wins, then epic Feature, then sub-issue Task", () => {
+  assert.equal(
+    inferIssueType({ title: "[frontend-platform] Frontend platform", labels: ["epic"] }),
+    "Feature",
+  );
+  assert.equal(
+    inferIssueType({
+      title: "ROT-299 — Seed and puzzle",
+      labels: ["change:frontend-platform"],
+    }),
+    "Task",
+  );
+  assert.equal(
+    inferIssueType({ title: "ROT-3 — x", body: "<!-- openspec-task: c/x -->" }),
+    "Task",
+  );
+  assert.equal(
+    inferIssueType({ title: "fix(wallet): history", labels: ["change:wallet-history"] }),
+    "Bug",
+  );
+  assert.equal(
+    inferIssueType({ title: "ROT-4 — memory defect scanner", labels: ["change:x"] }),
+    "Bug",
+  );
+  assert.equal(
+    inferIssueType({
+      title: "ROT-5 — report",
+      body: "Tracked in docs/process/defects.json",
+      labels: ["change:x"],
+    }),
+    "Bug",
+  );
+  assert.equal(inferIssueType({ title: "plain issue", labels: [] }), null);
+});
+
+test("milestone matching uses the epic first, then the area", () => {
+  const milestones = [
+    {
+      title: "Wallet: signing, history and portfolio",
+      match: { areas: [], epics: ["cabinet-wallet"] },
+    },
+    {
+      title: "Desktop and coordinator parity",
+      match: { areas: ["desktop", "coordinator"], epics: ["rust-desktop-all-chains"] },
+    },
+    {
+      title: "Astro frontend cutover",
+      match: { areas: ["site"], epics: ["frontend-platform"] },
+    },
+    {
+      title: "Design system and process foundations",
+      match: { areas: ["design", "docs", "infra"], epics: ["ssot"] },
+    },
+  ];
+
+  assert.equal(
+    milestoneFor({ changeId: "cabinet-wallet", area: "site", milestones }).title,
+    "Wallet: signing, history and portfolio",
+    "epic mapping beats the area",
+  );
+  assert.equal(
+    milestoneFor({ changeId: "frontend-platform", area: "site", milestones }).title,
+    "Astro frontend cutover",
+  );
+  assert.equal(
+    milestoneFor({ changeId: "brand-new", area: "desktop", milestones }).title,
+    "Desktop and coordinator parity",
+    "an unmapped epic falls back to its area",
+  );
+  assert.equal(
+    milestoneFor({ changeId: "brand-new", area: "site", milestones }).title,
+    "Astro frontend cutover",
+  );
+  assert.equal(milestoneFor({ changeId: "brand-new", area: "unknown", milestones }), null);
+});
+
+test("priority and severity defaults, inheritance and explicit declarations", () => {
+  assert.equal(priorityFor({ issue: { title: "epic" }, isEpic: true }), "P1");
+  assert.equal(
+    priorityFor({ issue: { title: "epic", body: "Priority: P0" }, isEpic: true }),
+    "P0",
+  );
+  assert.equal(
+    priorityFor({ issue: { title: "sub" }, isEpic: false, epicPriority: "P2" }),
+    "P2",
+  );
+  assert.equal(
+    priorityFor({
+      issue: { title: "sub", body: "Priority: P3" },
+      isEpic: false,
+      epicPriority: "P2",
+    }),
+    "P3",
+    "a sub-issue declaration beats inheritance",
+  );
+
+  assert.equal(severityFor({ issue: { title: "epic" }, issueType: "Feature" }), "S-");
+  assert.equal(
+    severityFor({ issue: { title: "fix(x)" }, issueType: "Bug" }),
+    "S2",
+    "a defect defaults to S2",
+  );
+  assert.equal(
+    severityFor({
+      issue: { title: "fix(x)", body: "Severity: S1" },
+      issueType: "Bug",
+    }),
+    "S1",
+    "an explicit severity beats the defect default",
+  );
+});
+
+test("declaration lines survive a generated body", () => {
+  const body = "Priority: P0\nSeverity: S1\nNoise";
+  assert.deepEqual(declarationLines(body), ["Priority: P0", "Severity: S1"]);
+
+  const sub = subIssueBody({
+    changeId: "demo",
+    epicNumber: 1,
+    task: { title: "A", number: "1", done: 0, total: 1 },
+    declarations: declarationLines(body),
+  });
+  assert.match(sub, /Priority: P0/);
+  assert.match(sub, /Severity: S1/);
+
+  const epic = epicBody({
+    change: { id: "demo", folder: "openspec/changes/demo", defaultArea: false },
+    subIssues: [],
+    percent: 0,
+    repoUrl: "https://github.com/o/r",
+    declarations: ["Priority: P2"],
+  });
+  assert.match(epic, /Priority: P2/);
+});
+
+test("board metadata warns when no type or milestone rule matches", () => {
+  const result = boardMetadataFor({
+    issue: { number: 9, title: "loose issue", labels: [] },
+    changeId: null,
+    area: null,
+    milestones: [],
+  });
+  assert.equal(result.type, null);
+  assert.equal(result.milestone, null);
+  assert.equal(result.warnings.length, 2);
+  assert.match(result.warnings[0], /#9 "loose issue": no issue-type rule/);
+  assert.match(result.warnings[1], /#9 "loose issue": no milestone rule/);
+});
+
+test("parseBlockedByText reads the human line only", () => {
+  assert.deepEqual(parseBlockedByText("Blocked by: ROT-7 (#7), ROT-8 (#8)\n"), [7, 8]);
+  assert.deepEqual(parseBlockedByText("Blocked by (unresolved): demand gate"), []);
+  assert.deepEqual(parseBlockedByText("Blocked by: ROT-7 (#7), ROT-7 (#7)"), [7]);
+  assert.deepEqual(parseBlockedByText("no blockers"), []);
+});
+
+test("findDependencyCycles reports each cycle once", () => {
+  assert.deepEqual(findDependencyCycles([{ from: 1, to: 2 }, { from: 2, to: 1 }]), [
+    [1, 2, 1],
+  ]);
+  assert.deepEqual(findDependencyCycles([{ from: 1, to: 2 }, { from: 2, to: 3 }]), []);
+  const cycles = findDependencyCycles([
+    { from: 1, to: 2 },
+    { from: 2, to: 3 },
+    { from: 3, to: 1 },
+    { from: 4, to: 4 },
+  ]);
+  assert.equal(cycles.length, 2);
+  assert.deepEqual(cycles[1], [4, 4]);
+});
+
+test("targetDelta reports on-time, late and invalid dates", () => {
+  assert.deepEqual(targetDelta("2026-12-31", "2026-12-20"), {
+    days: -11,
+    verdict: "on time",
+  });
+  assert.deepEqual(targetDelta("2027-03-31", "2027-03-31T10:00:00Z"), {
+    days: 0,
+    verdict: "on time",
+  });
+  assert.deepEqual(targetDelta("2027-03-31", "2027-04-01"), {
+    days: 1,
+    verdict: "late by 1 day",
+  });
+  assert.deepEqual(targetDelta("2027-03-31", "2027-04-02"), {
+    days: 2,
+    verdict: "late by 2 days",
+  });
+  assert.equal(targetDelta("not-a-date", "2027-04-02"), null);
+});
+
+test("board gate checks type, milestone, priority, dates, blockers and release grouping", () => {
+  const milestones = [
+    { title: "Wallet", due: "2027-03-31", match: { epics: ["wallet"], areas: [] } },
+    {
+      title: "Astro",
+      due: "2026-12-31",
+      match: { epics: ["frontend"], areas: ["site"] },
+    },
+  ];
+  const fields = (priority) => ({
+    priority,
+    targetDate: "2027-03-31",
+    startDate: "2026-01-01",
+    actualStart: "2026-01-01",
+    actualEnd: "2027-03-20",
+  });
+  const projectItems = {
+    1: fields("P1"),
+    2: fields("P2"),
+    3: fields("P2"),
+    4: fields("P1"),
+  };
+  const base = [
+    {
+      number: 1,
+      state: "OPEN",
+      title: "[wallet] Wallet",
+      labels: ["epic"],
+      issueType: "Feature",
+      milestone: "Wallet",
+      body: "",
+      blockedBy: [],
+    },
+    {
+      number: 2,
+      state: "OPEN",
+      title: "ROT-2 — A",
+      labels: ["change:wallet"],
+      issueType: "Task",
+      milestone: "Wallet",
+      body: "",
+      blockedBy: [],
+    },
+    {
+      number: 3,
+      state: "OPEN",
+      title: "ROT-3 — B",
+      labels: ["change:wallet"],
+      issueType: "Task",
+      milestone: "Wallet",
+      body: "",
+      blockedBy: [],
+    },
+    {
+      number: 4,
+      state: "OPEN",
+      title: "manual",
+      labels: [],
+      issueType: null,
+      milestone: null,
+      body: "",
+      blockedBy: [],
+    },
+  ];
+
+  const ok = evaluateBoardFields({ issues: base, milestones, projectItems });
+  assert.equal(ok.ok, true, ok.errors.join("\n"));
+  assert.equal(ok.checked, 3, "a manual issue is not gated");
+
+  const missing = evaluateBoardFields({
+    issues: [{ ...base[1], issueType: null, milestone: null }],
+    milestones,
+    projectItems: {},
+  });
+  assert.equal(missing.ok, false);
+  assert.match(missing.errors.join("\n"), /no issue Type/);
+  assert.match(missing.errors.join("\n"), /no Milestone/);
+  assert.match(missing.errors.join("\n"), /no Priority/);
+  assert.match(missing.errors.join("\n"), /no Plan start/);
+  assert.match(missing.errors.join("\n"), /no Plan end/);
+
+  const closedMissingActuals = evaluateBoardFields({
+    issues: [{ ...base[1], state: "CLOSED" }],
+    milestones,
+    projectItems: {
+      2: { priority: "P1", targetDate: "2027-03-31", startDate: "2026-01-01" },
+    },
+  });
+  assert.equal(closedMissingActuals.ok, false);
+  assert.match(closedMissingActuals.errors.join("\n"), /no Actual start/);
+  assert.match(closedMissingActuals.errors.join("\n"), /no Actual end/);
+
+  const missingDue = evaluateBoardFields({
+    issues: [base[1]],
+    milestones: [{ title: "Wallet", match: { epics: ["wallet"], areas: [] } }],
+    projectItems,
+  });
+  assert.equal(missingDue.ok, false);
+  assert.match(missingDue.errors.join("\n"), /milestone "Wallet" has no due date/);
+
+  const allowed = evaluateBoardFields({
+    issues: [
+      {
+        ...base[1],
+        state: "CLOSED",
+        issueType: null,
+        milestone: null,
+      },
+    ],
+    allowlist: [{ number: 2, reason: "historical" }],
+    milestones,
+    projectItems: {},
+  });
+  assert.equal(allowed.ok, true, "an allowlisted historical issue is skipped");
+  assert.equal(allowed.skipped, 1);
+
+  const openAllowed = evaluateBoardFields({
+    issues: [base[1]],
+    allowlist: [{ number: 2, reason: "historical" }],
+    milestones,
+    projectItems,
+  });
+  assert.equal(openAllowed.ok, false);
+  assert.match(openAllowed.errors.join("\n"), /only historical closed issues/);
+
+  const badReason = evaluateBoardFields({
+    issues: [base[0]],
+    allowlist: [{ number: 1 }],
+    milestones,
+    projectItems,
+  });
+  assert.equal(badReason.ok, false);
+  assert.match(badReason.errors.join("\n"), /needs a reason/);
+
+  const allowedGroup = evaluateBoardFields({
+    issues: [
+      { ...base[1], state: "CLOSED", issueType: null, milestone: null },
+      { ...base[2], milestone: "Wallet" },
+    ],
+    allowlist: [{ number: 2, reason: "historical" }],
+    milestones,
+    projectItems: { 3: fields("P1") },
+  });
+  assert.equal(
+    allowedGroup.ok,
+    true,
+    "an allowlisted closed issue does not break its change's milestone grouping",
+  );
+
+  const mismatch = evaluateBoardFields({
+    issues: [
+      {
+        ...base[1],
+        body: "Blocked by: ROT-3 (#3)",
+        blockedBy: [],
+      },
+    ],
+    milestones,
+    projectItems: { 2: fields("P1") },
+  });
+  assert.equal(mismatch.ok, false);
+  assert.match(mismatch.errors.join("\n"), /disagree with native blockedBy/);
+
+  const closedBlocker = evaluateBoardFields({
+    issues: [
+      {
+        ...base[1],
+        body: "Blocked by: ROT-3 (#3)",
+        blockedBy: [{ number: 3, state: "CLOSED" }],
+      },
+    ],
+    milestones,
+    projectItems: { 2: fields("P1") },
+  });
+  assert.equal(closedBlocker.ok, false);
+  assert.match(closedBlocker.errors.join("\n"), /blocked by closed issue #3/);
+
+  const cycle = evaluateBoardFields({
+    issues: [
+      {
+        ...base[1],
+        body: "Blocked by: ROT-3 (#3)",
+        blockedBy: [{ number: 3, state: "OPEN" }],
+      },
+      {
+        ...base[2],
+        body: "Blocked by: ROT-2 (#2)",
+        blockedBy: [{ number: 2, state: "OPEN" }],
+      },
+    ],
+    milestones,
+    projectItems: { 2: fields("P1"), 3: fields("P1") },
+  });
+  assert.equal(cycle.ok, false);
+  assert.match(cycle.errors.join("\n"), /dependency cycle/);
+
+  const releaseSpread = evaluateBoardFields({
+    issues: [
+      { ...base[1], milestone: "Wallet" },
+      { ...base[2], milestone: "Astro" },
+    ],
+    milestones,
+    projectItems: { 2: fields("P1"), 3: fields("P1") },
+  });
+  assert.equal(releaseSpread.ok, false);
+  assert.match(releaseSpread.errors.join("\n"), /spans milestones/);
+});
+
+test("listIssueMetadata paginates over GraphQL and normalizes blockedBy", () => {
+  const pages = [
+    {
+      data: {
+        repository: {
+          issues: {
+            pageInfo: { hasNextPage: true, endCursor: "C1" },
+            nodes: [
+              {
+                number: 1,
+                id: "I_1",
+                title: "epic",
+                body: "body",
+                url: "https://github.com/o/r/issues/1",
+                state: "OPEN",
+                createdAt: "2026-01-02T03:04:05Z",
+                closedAt: null,
+                issueType: { name: "Feature" },
+                milestone: { title: "Wallet" },
+                labels: { nodes: [{ name: "epic" }] },
+                blockedBy: { nodes: [{ number: 2, state: "OPEN", title: "b" }] },
+              },
+            ],
+          },
+        },
+      },
+    },
+    {
+      data: {
+        repository: {
+          issues: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [
+              {
+                number: 2,
+                id: "I_2",
+                title: "sub",
+                body: "",
+                url: "https://github.com/o/r/issues/2",
+                state: "OPEN",
+                issueType: { name: "Task" },
+                milestone: null,
+                labels: { nodes: [{ name: "change:x" }] },
+                blockedBy: { nodes: [] },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+  const calls = [];
+  const issues = listIssueMetadata({
+    ghJson: (args) => {
+      calls.push(args);
+      return pages.shift();
+    },
+    owner: "o",
+    name: "r",
+  });
+  assert.equal(issues.length, 2);
+  assert.equal(calls.length, 2);
+  assert.match(calls[1].join(" "), /cursor=C1/);
+  assert.equal(issues[0].issueType, "Feature");
+  assert.equal(issues[0].milestone, "Wallet");
+  assert.equal(issues[0].createdAt, "2026-01-02T03:04:05Z");
+  assert.equal(issues[0].closedAt, null);
+  assert.deepEqual(issues[0].blockedBy, [
+    { number: 2, state: "OPEN", title: "b" },
+  ]);
+  assert.deepEqual(issues[1].labels, ["change:x"]);
 });
 
 test("readChanges never reports the archive container as a change", () => {

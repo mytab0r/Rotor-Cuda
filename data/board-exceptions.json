@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "rules": "Shrink-only allowlist for scripts/check-task-links.mjs --board. An entry keeps a historical synced open issue out of the Type/Milestone gate and must name the issue number and a reason. Remove an entry once the issue gets both fields or closes.",
+  "entries": [
+    {
+      "number": 271,
+      "reason": "Historical wallet-history work that predates the type and milestone sync; the item is a merged PR, not a sync-created board issue."
+    }
+  ]
+}
