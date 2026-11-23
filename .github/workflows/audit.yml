@@ -2,14 +2,27 @@ name: security-audit
 
 on:
   schedule:
+    # Weekly, Monday 04:41 UTC, ahead of the working day.
     - cron: "41 4 * * 1"
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Print the tracking-issue body without creating or updating it."
+        type: boolean
+        default: false
 
+# This workflow never runs on a pull request. A finding is recorded in one
+# tracking issue, so a vulnerable dependency cannot redden an unrelated PR.
+#
+# The RustSec `audit-check` action files one issue per advisory, which cannot
+# satisfy the single-issue requirement. `cargo audit --json` is the same
+# RustSec scanner; the report job owns the one issue instead.
 permissions:
   contents: read
 
 jobs:
-  cargo-audit:
+  cargo:
+    name: cargo audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,5 +30,91 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-      - name: Audit dependencies
-        run: cargo audit
+      - name: Run cargo audit as JSON
+        run: |
+          set +e
+          cargo audit --json > cargo-audit.json
+          code=$?
+          echo "cargo audit exit: $code"
+          if [ ! -s cargo-audit.json ]; then
+            echo "::error::cargo audit produced no JSON"
+            exit 1
+          fi
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-cargo
+          path: cargo-audit.json
+          if-no-files-found: warn
+
+  npm:
+    name: npm audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: web
+            report: npm-web.json
+            artifact: audit-npm-web
+          - dir: deploy/cloudflare
+            report: npm-cloudflare.json
+            artifact: audit-npm-cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run npm audit for production dependencies
+        working-directory: ${{ matrix.dir }}
+        env:
+          REPORT: ${{ matrix.report }}
+        run: |
+          set +e
+          if [ ! -f package-lock.json ]; then
+            node -e 'require("fs").writeFileSync(process.env.REPORT, JSON.stringify({note: "No package-lock.json: this package declares no npm dependencies, so there is nothing to audit."}))'
+            echo "no lockfile; wrote a note report"
+            exit 0
+          fi
+          npm audit --omit=dev --audit-level=high --json > "$REPORT"
+          echo "npm audit exit: $?"
+          if [ ! -s "$REPORT" ]; then
+            echo "::error::npm audit produced no JSON for $PWD"
+            exit 1
+          fi
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.dir }}/${{ matrix.report }}
+          if-no-files-found: warn
+
+  report:
+    name: upsert tracking issue
+    needs: [cargo, npm]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: audit-*
+          path: reports
+          merge-multiple: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Create or update the single tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: node scripts/security-audit.mjs reports
