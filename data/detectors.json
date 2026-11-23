@@ -1065,6 +1065,14 @@
       "implemented_in": "scripts/check-seo.mjs",
       "doc_anchor": "docs/process/seo-gate.md#rules",
       "status": "implemented"
+    },
+    {
+      "id": "seo-not-found",
+      "rule": "The deploy root ships 404.html with noindex, no hidden H1 and exactly one visible H1; without it Cloudflare Pages answers 200 with the landing page for an unknown path (a soft 404).",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
     }
   ]
 }

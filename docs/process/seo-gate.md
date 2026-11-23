@@ -1,8 +1,8 @@
-# SEO gate for the chain directory
+# SEO gate for the chain directory and the 404 page
 
 `scripts/check-seo.mjs` reads the built `web/dist` tree and fails when the
-prerendered `/private-keys` hub or a `/private-keys/<chain>` page breaks the
-contract measured in the SEO audit. It is wired into
+prerendered `/private-keys` hub, a `/private-keys/<chain>` page or the root
+`404.html` breaks the contract measured in the SEO audit. It is wired into
 `.github/workflows/rust.yml` as the `web-seo` job and needs no dependencies or
 network.
 
@@ -20,6 +20,7 @@ network.
 | `seo-structured-data` | JSON-LD contains both `CollectionPage` and `BreadcrumbList`; the hub also carries an `ItemList` whose `numberOfItems` is the 18-chain count. |
 | `seo-og-image-alt` | `og:image` is present and `og:image:alt` / `twitter:image:alt` name the chain, or describe the hub and its chain count. |
 | `seo-hub-links` | The hub is built, links all 18 chain pages from `data/chains.json`, and every internal link in its main content resolves to a built file in `web/dist`. |
+| `seo-not-found` | The deploy root ships `404.html` with `noindex`, no hidden H1 and exactly one visible H1. Without the file Cloudflare Pages answers 200 with the landing page for an unknown path. |
 
 ## Usage
 
@@ -45,13 +46,14 @@ node scripts/check-seo.mjs --dist /tmp/rotor-seo-mutated
 ```
 
 A mutation that removes the H1, truncates a title below 50 characters, deletes
-the rendered rows, or copies one chain's prose into another must make the gate
+the rendered rows, copies one chain's prose into another, deletes
+`web/dist/404.html` or replaces its `noindex` with `index` must make the gate
 exit `1` with the matching detector id. The PR records at least three such
 mutations and their output.
 
 ## Scope
 
-This gate covers the `/private-keys` hub and page 1 of the chain directory.
-Pages 2+ remain noindex and are served on demand, as `data/routes.json` records.
-The pages are built in `web/dist` but are not routed through the coordinator
-until the frontend-platform cutover.
+This gate covers the `/private-keys` hub, page 1 of the chain directory and the
+root 404 document. Pages 2+ remain noindex and are served on demand, as
+`data/routes.json` records. The pages are built in `web/dist` but are not routed
+through the coordinator until the frontend-platform cutover.

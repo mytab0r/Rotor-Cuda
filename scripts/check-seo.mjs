@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// SEO gate for the prerendered chain directory (`/private-keys/<chain>`) and
-// its hub (`/private-keys`).
+// SEO gate for the prerendered chain directory (`/private-keys/<chain>`), its
+// hub (`/private-keys`) and the root 404 document.
 //
 // Reads the built `web/dist` tree (no network, no dependencies) and fails when
 // a page breaks the contract the SEO audit measured:
@@ -14,7 +14,9 @@
 //   - 5-gram Jaccard similarity >= 0.50 between two chain pages' prose;
 //   - a missing CollectionPage/BreadcrumbList JSON-LD or chain-named og:image:alt;
 //   - hub links missing for a chain page, or a hub internal link with no
-//     built target in `web/dist`.
+//     built target in `web/dist`;
+//   - a missing dist/404.html, a 404 without noindex, or a 404 without exactly
+//     one H1 (Cloudflare Pages answers 200 with the landing page otherwise).
 //
 // Usage:
 //   node scripts/check-seo.mjs [--dist web/dist] [--json report.json]
@@ -39,7 +41,7 @@ const MIN_ROWS = 40;
 const HUB_MIN_CONTENT_H2 = 2;
 const MAX_JACCARD = 0.5;
 
-const HELP = `check-seo - SEO gate for web/dist/private-keys and its chain pages
+const HELP = `check-seo - SEO gate for web/dist/private-keys, its chain pages and web/dist/404.html
 
 Options:
   --dist PATH   built Astro output (default: web/dist)
@@ -479,6 +481,43 @@ function checkPage(page, expectedSlugs) {
   };
 }
 
+/* The root 404 document is what Cloudflare Pages serves, with a real 404
+ * status, for an unknown path. Without it the platform answers 200 with the
+ * landing page (a soft 404). Require the file at the deploy root, a noindex
+ * robots value and exactly one H1. */
+async function checkNotFound(dist) {
+  const file = path.join(dist, '404.html');
+  const failures = [];
+  let html;
+  try {
+    html = await readFile(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      failures.push('[seo-not-found] missing 404.html at the deploy root; Cloudflare Pages would answer 200 with the landing page');
+      return { file, robots: null, h1s: 0, failures };
+    }
+    throw error;
+  }
+
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
+  if (!robots) {
+    failures.push('[seo-not-found] 404.html has no robots meta; it must be noindex');
+  } else if (!/noindex/i.test(robots)) {
+    failures.push(`[seo-not-found] 404.html robots is not noindex: ${robots}`);
+  }
+
+  const h1s = headings(html).filter((heading) => heading.level === 1);
+  const visibleH1s = h1s.filter((heading) => !heading.hidden && heading.text);
+  if (h1s.some((heading) => heading.hidden)) {
+    failures.push('[seo-not-found] 404.html has a hidden H1');
+  }
+  if (visibleH1s.length !== 1) {
+    failures.push(`[seo-not-found] 404.html must have exactly one H1, found ${visibleH1s.length}`);
+  }
+
+  return { file, robots, h1s: visibleH1s.length, failures };
+}
+
 function formatTable(rows) {
   const header = ['chain', 'title', 'desc', 'H2', 'rows', 'words', 'bytes'];
   const lines = [header.join('\t')];
@@ -506,7 +545,8 @@ async function main() {
   }
 
   const pages = await loadPages(options.dist);
-  const failures = [];
+  const notFound = await checkNotFound(options.dist);
+  const failures = [...notFound.failures];
   const missing = slugs.filter((slug) => !pages.some((page) => page.slug === slug));
   const extra = pages.filter((page) => !expected.has(page.slug)).map((page) => page.slug);
   if (missing.length) failures.push(`[seo-page-set] missing built pages: ${missing.join(', ')}`);
@@ -572,12 +612,14 @@ async function main() {
         `internal targets ${hub.internalLinks}`,
     );
   }
+  console.log(`\n404: robots=${notFound.robots ?? 'missing'} h1=${notFound.h1s}`);
   if (maxPair) {
     console.log(`\nmax prose similarity: ${maxPair.left} vs ${maxPair.right} = ${maxPair.score.toFixed(3)}`);
   }
 
   const report = {
     dist: options.dist,
+    notFound,
     pages: results.map(({ proseTokens, grams, ...rest }) => rest),
     hub,
     maxPair,
@@ -590,7 +632,7 @@ async function main() {
     for (const failure of failures) console.error(`- ${failure}`);
     process.exit(1);
   }
-  console.log(`\nSEO gate passed: ${results.length} chain pages and the ${HUB_ROUTE} hub.`);
+  console.log(`\nSEO gate passed: ${results.length} chain pages, the ${HUB_ROUTE} hub and the root 404 page.`);
 }
 
 main().catch((error) => {
