@@ -10,7 +10,7 @@ Citation convention: selectors/classes in backticks are from the server HTML or 
 
 ## 1. `/private-keys` — directory index
 
-**Route / title.** HTTP 200, canonical and `og:url` are `https://ref-site-a/private-keys` (`<link rel="canonical">`, `<meta property="og:url">`). `<title>` is `Bitcoin Private Keys Database - Browse 2²⁵⁶ Wallet Keys` — Bitcoin-branded even though the page lists 18 chains. Breadcrumb is `Home › Private Keys` (`ol.breadcrumb`).
+**Route / title.** HTTP 200, canonical and `og:url` are `ref-site-a/private-keys` (`<link rel="canonical">`, `<meta property="og:url">`). `<title>` is `Bitcoin Private Keys Database - Browse 2²⁵⁶ Wallet Keys` — Bitcoin-branded even though the page lists 18 chains. Breadcrumb is `Home › Private Keys` (`ol.breadcrumb`).
 
 **Heading.** `h1.h2.fw-bold` = `Private Keys Directory`, followed by `p.text-muted` = `Select a blockchain to browse all possible private keys` (`header.text-center`).
 
@@ -59,7 +59,7 @@ TON and Bitcoin Cash index cards link to the bare slugs above; the per-chain tab
 
 ## 2. `/private-keys/bitcoin` — per-chain private-key directory
 
-**Route / title.** HTTP 200, canonical and `og:url` = `https://ref-site-a/private-keys/bitcoin` (page 1) or `.../bitcoin/2` (page 2). `<title>` = `Bitcoin Private Keys - Browse BTC Wallet Addresses | PKF`. **There is no `<h1>` on this page** (`grep -c '<h1'` = 0); the page identity is the breadcrumb plus `.page-info-text`. Breadcrumb = `Home › Private Keys › Bitcoin`.
+**Route / title.** HTTP 200, canonical and `og:url` = `ref-site-a/private-keys/bitcoin` (page 1) or `.../bitcoin/2` (page 2). `<title>` = `Bitcoin Private Keys - Browse BTC Wallet Addresses | ref-site-a`. **There is no `<h1>` on this page** (`grep -c '<h1'` = 0); the page identity is the breadcrumb plus `.page-info-text`. Breadcrumb = `Home › Private Keys › Bitcoin`.
 
 ### 2.1 Controls, top to bottom
 
@@ -68,18 +68,18 @@ TON and Bitcoin Cash index cards link to the bare slugs above; the per-chain tab
 **Page info / progress.** `div.page-info-container` contains a chain icon and `.page-info-text`: `Bitcoin keys page #1 out of #1.93E+75`. `div.progress-bar` is server-rendered at `width:0%` with `.progress-text` `0.0000%`; it is effectively always near zero because the denominator is astronomical.
 
 **Navigation bar.** `div.nav-bar` has two groups:
-- `.nav-buttons`: `First` → `/private-keys/bitcoin`; `Previous` → `/private-keys/bitcoin` on page 1 (no `/1`); `Random` → `a#randomPageBtn` with a server-rendered random page path; `Next` → `/private-keys/bitcoin/2`; `Last` → `<button onclick="PKF.lastPage()">` (not a link).
-- `.page-jump`: `label` “Page:”, `input#pageInput` (text, current page), `button` “Jump” → `PKF.jumpToPage()`.
+- `.nav-buttons`: `First` → `/private-keys/bitcoin`; `Previous` → `/private-keys/bitcoin` on page 1 (no `/1`); `Random` → `a#randomPageBtn` with a server-rendered random page path; `Next` → `/private-keys/bitcoin/2`; `Last` → `<button onclick="donor.lastPage()">` (not a link).
+- `.page-jump`: `label` “Page:”, `input#pageInput` (text, current page), `button` “Jump” → `donor.jumpToPage()`.
 
-`PKF.lastPage()` navigates to `TOTAL_PAGE` from `app.obf.js` = `1929868153955269923726183083478131797547292737984581739710086052358636024906` (≈1.93E+75). `jumpToPage()` strips non-digits, clamps to 1…`TOTAL_PAGE`, and toasts `Page exceeds maximum (…)`.
+`donor.lastPage()` navigates to `TOTAL_PAGE` from `app.obf.js` = `1929868153955269923726183083478131797547292737984581739710086052358636024906` (≈1.93E+75). `jumpToPage()` strips non-digits, clamps to 1…`TOTAL_PAGE`, and toasts `Page exceeds maximum (…)`.
 
 **Search bar.** `div.search-bar.has-type-select` (icon, input, select, button, hint):
 - `input#searchInput` placeholder: `HEX, WIF (5/K/L), or Brainwallet`.
 - `select#searchType`: `Legacy (1...)` (value `legacy`, default), `SegWit (bc1q...)` (`segwit`), `Nested (3...)` (`script`), `Taproot (bc1p...)` (`taproot`).
-- `button` “Search” → `PKF.searchKey()`.
+- `button` “Search” → `donor.searchKey()`.
 - `.search-bar-hint`: `Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet`.
 
-Directory search detection (`app.obf.js: PKF.searchKey`) accepts: optional-`0x` 1–64 hex (padded to 64); WIF matching `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$`; XRP secret; Solana keypair; a JSON array of 64 or 32 byte values (first 32 bytes become hex); otherwise SHA-256 of the text (brainwallet). It then navigates to `/private-keys/<chain>?key=<encodeURIComponent(value)>`, appending `&type=<type>` when the selected type is not the chain default.
+Directory search detection (`app.obf.js: donor.searchKey`) accepts: optional-`0x` 1–64 hex (padded to 64); WIF matching `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$`; XRP secret; Solana keypair; a JSON array of 64 or 32 byte values (first 32 bytes become hex); otherwise SHA-256 of the text (brainwallet). It then navigates to `/private-keys/<chain>?key=<encodeURIComponent(value)>`, appending `&type=<type>` when the selected type is not the chain default.
 
 **Stats.** `div.balance-summary.cols-3` with three `.stat-card`s, DOM labels `Balance`, `Received`, `TX` (CSS `text-transform:uppercase`). Values are filled after row hydration; the first two carry a native unit, the third is an integer. At 1280px the grid is three equal columns (369.33px each); at 375px it collapses to one column (343px).
 
@@ -87,10 +87,10 @@ Directory search detection (`app.obf.js: PKF.searchKey`) accepts: optional-`0x` 
 
 | Button | `.type-name` | `.type-desc` | `onclick` |
 |---|---|---|---|
-| 1 | Legacy | `P2PKH · 1...` | `PKF.changeAddressType('legacy')` |
-| 2 | SegWit | `P2WPKH · bc1q...` | `PKF.changeAddressType('segwit')` |
-| 3 | Nested SegWit | `P2SH · 3...` | `PKF.changeAddressType('script')` |
-| 4 | Taproot | `P2TR · bc1p...` | `PKF.changeAddressType('taproot')` |
+| 1 | Legacy | `P2PKH · 1...` | `donor.changeAddressType('legacy')` |
+| 2 | SegWit | `P2WPKH · bc1q...` | `donor.changeAddressType('segwit')` |
+| 3 | Nested SegWit | `P2SH · 3...` | `donor.changeAddressType('script')` |
+| 4 | Taproot | `P2TR · bc1p...` | `donor.changeAddressType('taproot')` |
 
 Active card gets `.active`. Clicking navigates to `/private-keys/bitcoin[ /page]?type=<type>`; `legacy` omits the query. This is a full page navigation, not a client-side re-render.
 
@@ -114,7 +114,7 @@ Desktop grid (`getComputedStyle`): `1.6fr 0.9fr minmax(180px, auto)` → measure
 | `.col-address` | For Legacy: two `span.address-item`s separated by `<br>` — `(c) ` + `a.address-link` (`target="_blank" rel="noopener noreferrer"`) to the chain explorer + copy title `Copy Address`; then `(u) ` + the same for the uncompressed address. For SegWit / Nested / Taproot: one address item, no `(c)/(u)` prefix. |
 | `.col-balance` | One `.balance-info` per address line. Each line has `.bal` (coin icon + balance amount), `.tx` (arrows icon + transaction count, class `has-tx` when >0), `.recv` (down-arrow icon + received amount, class `has-recv` when >0). Legacy rows have two `.balance-info` lines (compressed and uncompressed); other types have one. |
 
-All key/WIF links point to `/key/<value>`; address links go to the external explorer. Copy buttons are `opacity:0` until row hover (`style.min.css: .key-row .copy-btn`). The server HTML ships address cells as `Calculating...` and balance cells as `-`; `PKF.generateKeys()` derives the 60 addresses row by row, then `fetchBalancesForPage()` fills the metrics.
+All key/WIF links point to `/key/<value>`; address links go to the external explorer. Copy buttons are `opacity:0` until row hover (`style.min.css: .key-row .copy-btn`). The server HTML ships address cells as `Calculating...` and balance cells as `-`; `donor.generateKeys()` derives the 60 addresses row by row, then `fetchBalancesForPage()` fills the metrics.
 
 **Paging / URL scheme**
 - Fixed page size: `KEYS_PER_PAGE=0x3c` (60) in `app.obf.js`; no page-size selector.
@@ -143,7 +143,7 @@ All key/WIF links point to `/key/<value>`; address links go to the external expl
 
 ## 3. `/mnemonic-seeds/bitcoin` — per-chain mnemonic directory
 
-**Route / title.** HTTP 200, canonical and `og:url` = `https://ref-site-a/mnemonic-seeds/bitcoin` (page 1) or `.../bitcoin/2` (page 2). `<title>` = `Mnemonic Seeds Directory - Browse All BIP-39 Seed Phrases`. **No `<h1>`** on this page either. Breadcrumb = `Home › Mnemonic Seeds › Bitcoin`.
+**Route / title.** HTTP 200, canonical and `og:url` = `ref-site-a/mnemonic-seeds/bitcoin` (page 1) or `.../bitcoin/2` (page 2). `<title>` = `Mnemonic Seeds Directory - Browse All BIP-39 Seed Phrases`. **No `<h1>`** on this page either. Breadcrumb = `Home › Mnemonic Seeds › Bitcoin`.
 
 ### 3.1 Controls, top to bottom
 
@@ -158,7 +158,7 @@ All key/WIF links point to `/key/<value>`; address links go to the external expl
 - `Next` → `/mnemonic-seeds/bitcoin/2`
 - `Last` → server-rendered link to `/mnemonic-seeds/bitcoin/5671372782015641057722910123862803525` (≈5.67E+36)
 
-`.page-jump`: `input#pageInput` + `button` “Jump” → `MnemonicSeeds.jumpToPage()`. It strips non-digits, clamps to 1…`PKF_CONFIG.totalPages`, and toasts `Please enter a valid page number` when empty.
+`.page-jump`: `input#pageInput` + `button` “Jump” → `MnemonicSeeds.jumpToPage()`. It strips non-digits, clamps to 1…the donor's `CONFIG.totalPages`, and toasts `Please enter a valid page number` when empty.
 
 **Options panel.** `div.milk-sad-options` (reused class name):
 - `label` “Word Count” + `select#bitsSelect`: `12 words (128 bits)` value `128` (default), `18 words (192 bits)` value `192`, `24 words (256 bits)` value `256`.
@@ -321,13 +321,13 @@ Each chain produces one card:
         <span class="ws-address-index">#<i></span>
         <span class="ws-address-type">TYPE</span>
         <span class="ws-address-value"><a href="<explorer><address>" target="_blank" rel="noopener">ADDRESS</a></span>
-        <button class="copy-btn" onclick="PKF.copy('<address>')" title="Copy Address">…</button>
+        <button class="copy-btn" onclick="donor.copy('<address>')" title="Copy Address">…</button>
         <span class="ws-address-balance" id="ws-addr-bal-<chain>-<sanitized>">-</span>
       </div>
       <div class="ws-key-row">
         <span class="ws-key-label">Key</span>
         <a href="/key/<privateKey>" class="ws-key-value">PRIVATE KEY</a>
-        <button class="copy-btn" onclick="PKF.copy('<privateKey>')" title="Copy Private Key">…</button>
+        <button class="copy-btn" onclick="donor.copy('<privateKey>')" title="Copy Private Key">…</button>
       </div>
     </div>
   </div>
@@ -340,7 +340,7 @@ Field notes:
 - Card state classes: `.has-balance` (green border), `.has-activity` (blue border), `.has-error` (red border).
 - `.ws-address-item` state classes: `.has-balance`, `.has-activity` (blue left border and a `●` after the index), `.has-error`.
 - `.ws-address-balance` gets `.has-balance` (green, bold) or `.has-error`.
-- Every key in `.ws-key-row` is wrapped by `PKF.keyLink(v) = baseUrl + '/key/' + v`, including WIF/keypair/XRP/mnemonic-derived values. Mnemonic results also include a `path` in the data object, but the card itself does not render a path row; the path appears only in CSV.
+- Every key in `.ws-key-row` is wrapped by `donor.keyLink(v) = baseUrl + '/key/' + v`, including WIF/keypair/XRP/mnemonic-derived values. Mnemonic results also include a `path` in the data object, but the card itself does not render a path row; the path appears only in CSV.
 
 ### 4.5 Copy All / CSV / activity summary
 

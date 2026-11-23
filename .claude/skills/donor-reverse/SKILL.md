@@ -34,9 +34,13 @@ the decision.
 
 ## 2. Run the measurement
 
+Donor tokens resolve from `DONOR_REFS_JSON` or the private
+`~/.rotor-donor-refs.json` (see `docs/process/private-references.md`). Never
+paste a real host into the skill, a report, a JSON artifact or a commit.
+
 ```sh
 node scripts/density-parity.mjs \
-  --donor https://ref-site-a/private-keys/tron \
+  --donor ref-site-a/private-keys/tron \
   --ours http://127.0.0.1:7915/private-keys/tron \
   --json docs/donor-parity/density-<page>.json
 ```
@@ -95,7 +99,7 @@ with `--allow-empty`, and then `0` is a measured zero.
 
 Write `docs/donor-parity/density-<page>.md` with:
 
-- the exact command, URLs, commit and raw JSON path;
+- the exact command, token path, commit and raw JSON path;
 - the donor accessibility result (loaded, retried, or unreachable with reason);
 - the full 1440x900 table, the all-viewport table and the block delta table;
 - the density ratio and document-height ratio;

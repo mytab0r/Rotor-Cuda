@@ -181,6 +181,6 @@ before a testnet alert proves the full path.
 - `openspec/changes/key-leak-monitor/{proposal.md,design.md}` — watchlist,
   cost model D5.2, billing D9, pricing D11.
 - `openspec/changes/tx-sign-broadcast/proposal.md` — P2WPKH scope and risks.
-- https://ref-site-a/ and https://ref-site-b/ — prior investigation
+- ref-site-a/ and ref-site-b/ — prior investigation
   2026-11-16; not re-verified today.
 - https://pay.pxbt.app — receive-only payment-link tool, recorded 2026-11-16.
