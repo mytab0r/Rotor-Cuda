@@ -4,10 +4,11 @@ Static Astro build for the public site. Phase 1 migrated `/mnemonic-converter`;
 phase 2 adds the shared `SiteLayout` and the landing page (`/`), then the
 presentation pages `/docs`, `/tools`, `/faq`, `/disclaimer` and `/donate`; phase
 3 adds the `/private-keys/<chain>` page-1 template for all 18 mainnet chains;
-phase 4 adds the `/bitcoin-puzzle` hub and its 160 `/bitcoin-puzzle/<n>` detail
-pages. Every page is built in `dist/` but **not routed**: the Rust coordinator
-keeps serving the route until the frontend-platform cutover, and
-`data/routes.json` still names the coordinator as the renderer.
+phase 4 adds the `/mnemonic-seeds` hub and its 18 chain pages, and the
+`/bitcoin-puzzle` hub and its 160 `/bitcoin-puzzle/<n>` detail pages. Every page
+is built in `dist/` but **not routed**: the Rust coordinator keeps serving the
+route until the frontend-platform cutover, and `data/routes.json` still names
+the coordinator as the renderer.
 
 ## Commands
 
