@@ -1124,8 +1124,11 @@ function auditPage(args) {
   //       - a flex/grid child's rendered box escapes its parent's padding box.
   //     Text inside an overflow:auto/scroll ancestor is reachable by scrolling
   //     and is not flagged. A deliberate ellipsis is allowed only on an element
-  //     (or its descendant) carrying data-clip-ok; the repository ships with no
-  //     such opt-outs, so every cut has to be fixed or annotated explicitly.
+  //     (or its descendant) carrying data-clip-ok. The repository ships exactly
+  //     two such opt-outs: the one-line status spans in the fixed 40px
+  //     .key-input-meta strip (#key-status-text and #exposure-status), whose
+  //     full text is in their title and whose live-region semantics announce
+  //     it; every other cut has to be fixed or annotated explicitly.
   const CLIP_OVERFLOW = new Set(["hidden", "clip"]);
   const clipOptOut = (el) => Boolean(el && el.closest("[data-clip-ok]"));
   // The classic sr-only recipe is written inline on a few shared elements
