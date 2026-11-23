@@ -84,6 +84,7 @@ export function absoluteUrl(pathname: string): string {
  * page the static build does not contain. */
 export const PRERENDERED_ROUTES: readonly string[] = [
   '/',
+  '/bitcoin-puzzle',
   '/disclaimer',
   '/docs',
   '/donate',

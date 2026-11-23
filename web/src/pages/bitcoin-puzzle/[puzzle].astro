@@ -1,0 +1,257 @@
+---
+/* Bitcoin puzzle detail, one static page per row in `data/puzzles.json`.
+ *
+ * The page renders the public facts the dataset carries: target address,
+ * address type, inclusive range and the solved flag. It renders no private key,
+ * no solver, no date and no reward, because the dataset has none of those. An
+ * unsolved page states plainly that the key is not derivable from the address;
+ * a solved page states that the flag records a spent target, not a published
+ * key.
+ *
+ * Indexability rule: a page is indexable only when its record carries a
+ * well-formed public P2PKH target and a number inside the published set, and
+ * its main prose clears the gate's 120-unique-word floor. Every current row
+ * passes, so every detail page is indexable and appears in the sitemap. A
+ * future row that cannot carry the facts would be `noindex` and omitted. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../../lib/site';
+import { breadcrumbList, webPageNode } from '../../lib/jsonld';
+import { chainBySlug } from '../../lib/chains';
+import {
+  PUZZLES,
+  addressTypeLabel,
+  detailDescription,
+  detailTitle,
+  isIndexable,
+  puzzleRange,
+  type PuzzleRecord,
+} from '../../lib/puzzles';
+
+export interface Props {
+  puzzle: PuzzleRecord;
+}
+
+export function getStaticPaths() {
+  return PUZZLES.map((puzzle) => ({
+    params: { puzzle: String(puzzle.number) },
+    props: { puzzle },
+  }));
+}
+
+const { puzzle } = Astro.props as Props;
+const { number, target, solved } = puzzle;
+const range = puzzleRange(number);
+const bits = range.bits;
+const statusLabel = solved ? 'Solved' : 'Unsolved';
+const statusTone = solved ? 'status--low' : 'status--medium';
+const indexable = isIndexable(puzzle);
+const robots = indexable ? 'index,follow' : 'noindex,follow';
+
+const H1 = `Bitcoin puzzle #${number}`;
+const canonical = `/bitcoin-puzzle/${number}`;
+const canonicalUrl = absoluteUrl(canonical);
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+const bitcoin = chainBySlug('bitcoin');
+if (!bitcoin) throw new Error('data/chains.json has no bitcoin row');
+const explorerUrl = bitcoin.explorer.replace('{address}', encodeURIComponent(target));
+
+const statusSentence = solved
+  ? `The published dataset marks puzzle #${number} as solved: its target address has been spent.`
+  : `The published dataset marks puzzle #${number} as unsolved: its target address is still open.`;
+
+const statusMeaning = solved
+  ? `A solved flag means the prize transaction for this target has moved. The dataset publishes the target and the flag; it does not publish the winning private key, the solver or the date. This page therefore shows the public facts only. It does not display a key it does not have, and it does not imply that anyone can reproduce the solve from the address.`
+  : `An unsolved flag means the target is still open. It does not mean the range is untouched, that a scan is running, or that this page has a key. The key is somewhere in the range above, and the address does not reveal it. Recovering it means testing keys until one hashes to this target, which is exactly the search the flag says has not succeeded publicly.`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    webPageNode({ url: canonicalUrl, name: H1, description: detailDescription(number) }),
+    breadcrumbList([
+      { name: 'Home', path: '/' },
+      { name: 'Bitcoin puzzle', path: '/bitcoin-puzzle' },
+      { name: `Puzzle #${number}`, path: canonical },
+    ]),
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_ORIGIN}/#website`,
+      url: `${SITE_ORIGIN}/`,
+      name: SITE_NAME,
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={detailTitle(number)}
+  description={detailDescription(number)}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`Bitcoin puzzle #${number} target ${target} — ${statusLabel.toLowerCase()} P2PKH key range | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots={robots}
+  mainClass="puzzle-page puzzle-detail-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <a href="/bitcoin-puzzle">Bitcoin puzzle</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">#{number}</span>
+  </nav>
+
+  <section
+    class="card puzzle-detail-head"
+    data-puzzle-detail
+    data-puzzle-number={number}
+    data-puzzle-target={target}
+    data-puzzle-status={statusLabel.toLowerCase()}
+  >
+    <div class="puzzle-detail-title">
+      <h1>{H1}</h1>
+      <span class:list={['status', statusTone]}>{statusLabel}</span>
+    </div>
+    <p>
+      {statusSentence}
+      The target is the only key match in an inclusive {bits}-bit range of
+      {range.keyspaceDecimal} keys. This page shows the public facts and no private key.
+    </p>
+    <p class="puzzle-detail-links">
+      <a href="/bitcoin-puzzle">All {PUZZLES.length} puzzles</a>
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="puzzle-facts">
+    <h2 id="puzzle-facts">Puzzle facts</h2>
+    <p class="muted">
+      Values come from the public dataset. Copy a value with the icon beside it; the copy control
+      copies the visible string and nothing else.
+    </p>
+    <dl class="puzzle-facts">
+      <div class="puzzle-fact">
+        <dt>Target address</dt>
+        <dd class="puzzle-fact-value">
+          <code class="puzzle-address">{target}</code>
+          <button
+            type="button"
+            class="icon-button icon-button--md icon-button--quiet"
+            data-copy={target}
+            data-copy-label="target address"
+            aria-label={`Copy puzzle #${number} target address`}
+            data-tooltip="Copy target address"
+          >
+            <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+          </button>
+        </dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Status</dt>
+        <dd><span class:list={['status', statusTone]}>{statusLabel}</span></dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Address type</dt>
+        <dd>{addressTypeLabel()} — Base58, address begins with 1</dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Range start</dt>
+        <dd class="puzzle-fact-value">
+          <code class="puzzle-hex">{range.startHex}</code>
+          <button
+            type="button"
+            class="icon-button icon-button--md icon-button--quiet"
+            data-copy={range.startHex}
+            data-copy-label="range start"
+            aria-label={`Copy puzzle #${number} range start`}
+            data-tooltip="Copy range start"
+          >
+            <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+          </button>
+        </dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Range end</dt>
+        <dd class="puzzle-fact-value">
+          <code class="puzzle-hex">{range.endHex}</code>
+          <button
+            type="button"
+            class="icon-button icon-button--md icon-button--quiet"
+            data-copy={range.endHex}
+            data-copy-label="range end"
+            aria-label={`Copy puzzle #${number} range end`}
+            data-tooltip="Copy range end"
+          >
+            <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+          </button>
+        </dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Range width</dt>
+        <dd>{bits} bits (2<sup>{bits}</sup>–2<sup>{number}</sup>−1)</dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Keys in range</dt>
+        <dd class="mono">{range.keyspaceDecimal}</dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Range in decimal</dt>
+        <dd class="mono puzzle-range-decimal">{range.startDecimal} … {range.endDecimal}</dd>
+      </div>
+      <div class="puzzle-fact">
+        <dt>Public explorer</dt>
+        <dd>
+          <a href={explorerUrl} rel="noopener noreferrer">Open the target on mempool.space</a>
+        </dd>
+      </div>
+    </dl>
+    <p class="visually-hidden" data-copy-status role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card puzzle-prose" aria-labelledby="puzzle-status-meaning">
+    <h2 id="puzzle-status-meaning">What the {statusLabel.toLowerCase()} flag means</h2>
+    <div class="puzzle-prose-body">
+      <p>{statusMeaning}</p>
+    </div>
+  </section>
+
+  <section class="card puzzle-prose" aria-labelledby="puzzle-derivation">
+    <h2 id="puzzle-derivation">Why the address does not reveal its key</h2>
+    <div class="puzzle-prose-body">
+      <p>
+        Bitcoin publishes an address, not the private key behind it. A P2PKH address is a hash of a
+        public key, and a hash cannot be run backwards to the key. Deriving the key from the target
+        would mean guessing a scalar, multiplying it by the secp256k1 generator and comparing the
+        result's hash with the address — one guess per key, with no shortcut in the address.
+      </p>
+      <p>
+        Puzzle #{number} defines the guesses to try: every key from
+        <span class="mono">{range.startDecimal}</span> to
+        <span class="mono">{range.endDecimal}</span>, inclusive. That is
+        <span class="mono">{range.keyspaceDecimal}</span> keys, or {bits} bits of search space.
+        Splitting the range, sampling it or running several workers changes how fast those guesses
+        are made; it does not change the target, the range or the work per key. The page cannot
+        shorten that work, and it does not pretend to.
+      </p>
+    </div>
+  </section>
+
+  <section class="card puzzle-prose" aria-labelledby="puzzle-next">
+    <h2 id="puzzle-next">Related pages</h2>
+    <div class="puzzle-prose-body">
+      <p>
+        The <a href="/bitcoin-puzzle">puzzle hub</a> lists all {PUZZLES.length} targets with their
+        ranges and status. The <a href="/private-keys/bitcoin">Bitcoin private-key directory</a>
+        shows how a key becomes each address format, and the <a href="/tools">tool hub</a> indexes
+        the calculators. None of those pages accepts a key for a puzzle range, and this one does not
+        either.
+      </p>
+    </div>
+  </section>
+</SiteLayout>
+
+<script>
+  import '../../scripts/chain-copy.ts';
+</script>

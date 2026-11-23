@@ -1,12 +1,13 @@
-# web/ — Astro frontend (phase 0-3)
+# web/ — Astro frontend (phase 0-4)
 
 Static Astro build for the public site. Phase 1 migrated `/mnemonic-converter`;
 phase 2 adds the shared `SiteLayout` and the landing page (`/`), then the
 presentation pages `/docs`, `/tools`, `/faq`, `/disclaimer` and `/donate`; phase
-3 adds the `/private-keys/<chain>` page-1 template for all 18 mainnet chains.
-Every page is built in `dist/` but **not routed**: the Rust coordinator keeps
-serving the route until the frontend-platform cutover, and `data/routes.json`
-still names the coordinator as the renderer.
+3 adds the `/private-keys/<chain>` page-1 template for all 18 mainnet chains;
+phase 4 adds the `/bitcoin-puzzle` hub and its 160 `/bitcoin-puzzle/<n>` detail
+pages. Every page is built in `dist/` but **not routed**: the Rust coordinator
+keeps serving the route until the frontend-platform cutover, and
+`data/routes.json` still names the coordinator as the renderer.
 
 ## Commands
 
@@ -16,8 +17,8 @@ npm run check     # astro check + tsc --noEmit
 npm run build     # static output in dist/, then /a/<build>/ asset prefixing
 npm run preview -- --host 127.0.0.1 --port 4321
 npm test          # tsc -p tsconfig.test.json + node --test (no browser)
-node ../scripts/check-seo.mjs   # after build: chain, presentation pages and 404 SEO gate
-node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools,faq,disclaimer,donate
+node ../scripts/check-seo.mjs   # after build: chain, presentation, puzzle and 404 SEO gate
+node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools,faq,disclaimer,donate,bitcoin-puzzle,bitcoin-puzzle/71,bitcoin-puzzle/72,bitcoin-puzzle/160
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
 ```
 
@@ -46,12 +47,15 @@ only deviation from the brief and is called out in the PR.
 | `src/pages/donate/index.astro` | The three maintainer addresses with human labels and shared `.icon-button` copy controls, plus the hosted payment link. Reuses `chain-copy.ts`; no QR and no new dependency. |
 | `src/pages/404.astro` | Root `404.html`: one H1, `noindex,follow`, links to home, the key explorer, private keys, docs and the wallet. Cloudflare Pages returns a real 404 status only when this file exists at the deploy root. |
 | `src/pages/private-keys/[chain].astro` | Chain directory page 1 for the 18 mainnet slugs; built but not routed until cutover. |
+| `src/pages/bitcoin-puzzle/index.astro` | Puzzle hub: all 160 public targets with address type, range, solved status and a copy control; built but not routed until cutover. |
+| `src/pages/bitcoin-puzzle/[puzzle].astro` | One static detail page per puzzle: target, status, inclusive range, keyspace and the honest derivation explanation. Unsolved pages render no key. |
+| `src/lib/puzzles.ts` | Typed view of `data/puzzles.json`, the `2^(n-1)..2^n-1` range arithmetic, the indexability rule and the bounded title/description builders. |
 | `src/content.config.ts`, `src/content/chains/*.md` | One Markdown entry per chain: unique prose, two content H2s, title and description. |
 | `src/lib/chain-directory.ts` | Build-time derivation: drives the existing WASM `derive_report` ABI for keys 1–60 and maps report ids to each chain's address formats. |
 | `src/lib/chains.ts` | Typed view of `data/chains.json`: the 18 mainnet chains in canonical order. |
 | `src/scripts/chain-copy.ts` | The only hydrated behaviour on the directory and donate pages: copy a value with the shared check-glyph and `is-copied` state and a live status message. |
 | `src/pages/mnemonic-converter.astro` | The pilot page: same markup and copy as `apps/site/mnemonic-converter.html`, now on `SiteLayout`. |
-| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/disclaimer`, `/docs`, `/donate`, `/faq`, `/mnemonic-converter`, `/tools`, and the 18 chain pages). |
+| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/bitcoin-puzzle` and its indexable detail pages, `/disclaimer`, `/docs`, `/donate`, `/faq`, `/mnemonic-converter`, `/tools`, and the 18 chain pages). |
 | `src/components/JsonLd.astro` | The only JSON-LD writer. |
 | `src/lib/jsonld.ts` | BreadcrumbList and WebPage builders shared by the presentation pages. |
 | `src/lib/site.ts` | Site origin, nav order/icons and the build-time active-section mapping. |
@@ -111,6 +115,35 @@ counters, partners or guarantees, and `scripts/check-seo.mjs` applies the same
 H1/H2, metadata, unique title/description, internal-link and JSON-LD rules as
 `/docs` and `/tools`. Removing the three routes from `pendingCutover` is part of
 the same change: the stale-entry rule forces the removal.
+
+## Bitcoin puzzle (built, not routed)
+
+`data/puzzles.json` is the build-time source. It reproduces the
+`PUZZLE_TARGETS` table in `src/coordinator/puzzles.rs` row for row: 160 public
+targets, 83 solved and 77 unsolved. `web/tests/puzzles.test.ts` parses the Rust
+table and fails when the JSON drifts, so the coordinator and the Astro build
+cannot silently disagree.
+
+The hub renders one row per puzzle with the target address, address type, the
+inclusive `2^(n-1)..2^n-1` range and the published solved flag. The dataset has
+no reward, solver or date field, so neither the hub nor a detail page invents
+one. Each detail page carries the target, the padded range hex, the decimal
+keyspace and one explanation of why an address does not reveal its key; an
+unsolved page states plainly that it holds no key and cannot derive one.
+
+Indexability rule: a detail page is indexable only when its record carries a
+well-formed public P2PKH target and a number inside the published set, and its
+main prose clears the gate's 120-unique-word floor. Every current row passes, so
+all 160 pages are indexable and listed in `sitemap.xml`; a future row that
+cannot carry the facts would render `noindex` and stay out of the sitemap. The
+gate cross-checks every row and page against `data/puzzles.json`, rejects a
+rendered 64-hex private key, and fails when the sitemap and the indexable set
+disagree.
+
+The table uses the shared `.data-table` inside `.table-scroll`, the shared
+`.status` pill and the shared `.icon-button--sm` copy action (28px dense visual
+with a 44px hit area on a fine desktop pointer, 44px on touch). No page-local
+control size, pill, radius or card override is introduced.
 
 ## Provenance of copied assets
 
