@@ -50,12 +50,16 @@ only deviation from the brief and is called out in the PR.
 | `src/pages/bitcoin-puzzle/index.astro` | Puzzle hub: all 160 public targets with address type, range, solved status and a copy control; built but not routed until cutover. |
 | `src/pages/bitcoin-puzzle/[puzzle].astro` | One static detail page per puzzle: target, status, inclusive range, keyspace and the honest derivation explanation. Unsolved pages render no key. |
 | `src/lib/puzzles.ts` | Typed view of `data/puzzles.json`, the `2^(n-1)..2^n-1` range arithmetic, the indexability rule and the bounded title/description builders. |
-| `src/content.config.ts`, `src/content/chains/*.md` | One Markdown entry per chain: unique prose, two content H2s, title and description. |
+| `src/pages/mnemonic-seeds/index.astro` | Hub for the 18 seed directories: chain list from `data/chains.json`, path/format counts, three content H2s and `CollectionPage` + `ItemList` + `BreadcrumbList` JSON-LD. |
+| `src/pages/mnemonic-seeds/[chain].astro` | Seed directory page 1 for the 18 mainnet slugs: 60 deterministic 12-word phrases, the first address in every supported format, a shared safety block and static balance placeholders. Built but not routed until cutover. |
+| `src/content.config.ts`, `src/content/chains/*.md`, `src/content/seeds/*.md` | One Markdown entry per chain per family: unique prose, content H2s, title and description. |
 | `src/lib/chain-directory.ts` | Build-time derivation: drives the existing WASM `derive_report` ABI for keys 1–60 and maps report ids to each chain's address formats. |
+| `src/lib/seed-directory.ts` | Build-time mnemonic derivation: BIP39 entropy → phrase → BIP32 or SLIP-0010 → WASM address, reusing `apps/site/seed.js`, `apps/site/seed-crypto.js` and the browser TON encoder. |
+| `src/lib/wasm-core.ts`, `src/lib/address-codecs.ts` | The one WASM loader/`derive_report` bridge and the one Bitcoin Cash CashAddr bridge shared by both directories. |
 | `src/lib/chains.ts` | Typed view of `data/chains.json`: the 18 mainnet chains in canonical order. |
 | `src/scripts/chain-copy.ts` | The only hydrated behaviour on the directory and donate pages: copy a value with the shared check-glyph and `is-copied` state and a live status message. |
 | `src/pages/mnemonic-converter.astro` | The pilot page: same markup and copy as `apps/site/mnemonic-converter.html`, now on `SiteLayout`. |
-| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/bitcoin-puzzle` and its indexable detail pages, `/disclaimer`, `/docs`, `/donate`, `/faq`, `/mnemonic-converter`, `/tools`, and the 18 chain pages). |
+| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/bitcoin-puzzle` and its indexable detail pages, `/disclaimer`, `/docs`, `/donate`, `/faq`, `/mnemonic-converter`, `/mnemonic-seeds` and its 18 chain pages, `/tools`, and the 18 private-key chain pages). |
 | `src/components/JsonLd.astro` | The only JSON-LD writer. |
 | `src/lib/jsonld.ts` | BreadcrumbList and WebPage builders shared by the presentation pages. |
 | `src/lib/site.ts` | Site origin, nav order/icons and the build-time active-section mapping. |
@@ -89,6 +93,22 @@ least 40 rendered rows, ≥120 unique prose words, pairwise 5-gram Jaccard below
 0.50, `CollectionPage` + `BreadcrumbList`, and chain-named OG alt text. It also
 requires `dist/404.html` with `noindex` and exactly one H1, so the deploy root
 can never fall back to a 200 landing page for an unknown path.
+
+## Mnemonic seed directory (built, not routed)
+
+`npm run build` also emits `/mnemonic-seeds/<slug>/index.html` for the 18
+mainnet slugs, plus the `/mnemonic-seeds` hub. Each page starts from the first
+60 values of the 128-bit BIP39 entropy space, turns each value into a 12-word
+phrase, and derives the first address in every format that chain supports:
+Bitcoin at BIP44/BIP49/BIP84/BIP86, Litecoin at BIP44/BIP49/BIP84, Bitcoin Cash
+at BIP44 coin 145 with legacy and CashAddr views, the EVM chains at coin 60,
+and Solana/Sui/TON with SLIP-0010 ed25519 at their wallet paths. BIP39 phrases,
+PBKDF2 seeds and BIP32 keys come from `apps/site/seed.js` and
+`apps/site/seed-crypto.js`; addresses come from the same WASM `derive_report`
+ABI as the private-key directory. Balance cells are static placeholders with
+reserved height. `check-seo.mjs` also gates the hub and the 18 seed pages with
+the same metadata, heading, row-count, internal-link, prose-uniqueness and
+structured-data rules.
 
 ## Docs and tools (built, not routed)
 

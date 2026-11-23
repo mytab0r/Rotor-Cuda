@@ -16,6 +16,7 @@ export const GET: APIRoute = () => {
   const routes = [
     ...PRERENDERED_ROUTES,
     ...MAINNET_CHAINS.map((chain) => `/private-keys/${chain.slug}`),
+    ...MAINNET_CHAINS.map((chain) => `/mnemonic-seeds/${chain.slug}`),
     ...INDEXABLE_PUZZLES.map((puzzle) => `/bitcoin-puzzle/${puzzle.number}`),
   ];
   const urls = routes.map(

@@ -260,6 +260,32 @@
     return bytesToHex(key);
   }
 
+  /* SLIP-0010 ed25519: every child key is hardened, and the master key comes
+   * from HMAC-SHA512 with the "ed25519 seed" key. Solana, Sui and TON wallet
+   * paths use this scheme, not secp256k1 BIP32. */
+  async function slip10PrivateKey(seedBytes, pathText) {
+    var segments = parsePath(pathText);
+    for (var i = 0; i < segments.length; i += 1) {
+      if (!segments[i].hardened) {
+        throw new Error("ed25519 paths must be hardened, for example m/44'/501'/0'/0'.");
+      }
+    }
+    var master = await hmacSha512(utf8('ed25519 seed'), seedBytes);
+    var key = master.slice(0, 32);
+    var chain = master.slice(32);
+    for (var j = 0; j < segments.length; j += 1) {
+      var index = segments[j].index + HARDENED;
+      var data = new Uint8Array(37);
+      data[0] = 0;
+      data.set(key, 1);
+      writeU32BE(data, 33, index);
+      var child = await hmacSha512(chain, data);
+      key = child.slice(0, 32);
+      chain = child.slice(32);
+    }
+    return bytesToHex(key);
+  }
+
   /* --------------------------------------------------------- electrum old */
 
   function oldDecode(words) {
@@ -479,6 +505,7 @@
     electrumSeedType: electrumSeedType,
     parsePath: parsePath,
     bip32PrivateKey: bip32PrivateKey,
+    slip10PrivateKey: slip10PrivateKey,
     oldDecode: oldDecode,
     oldEncode: oldEncode,
     validateOld: validateOld,
