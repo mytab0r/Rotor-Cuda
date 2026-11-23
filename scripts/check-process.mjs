@@ -25,7 +25,11 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isProcessOnly, parseTaskDirective } from "./lib/task-tracking.mjs";
+import {
+  automationPullRequestReason,
+  isProcessOnly,
+  parseTaskDirective,
+} from "./lib/task-tracking.mjs";
 
 const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 let repoRoot = DEFAULT_REPO_ROOT;
@@ -164,7 +168,25 @@ export function checkPullRequest({
   files = [],
   labels = [],
   author = null,
+  isBot = false,
+  headRefName = null,
 }) {
+  // Automation PRs (release-please, github-actions, app actors) have no human
+  // author to satisfy this contract. Skip them with a printed notice.
+  const automationReason = automationPullRequestReason({ author, isBot, headRefName });
+  if (automationReason) {
+    return {
+      ok: true,
+      errors: [],
+      summary: `PR #${number ?? "(local)"} automation PR (${automationReason}); process contract not required`,
+      skipped: true,
+      automationReason,
+      processOnly: isProcessOnly(files),
+      waivedBy: null,
+      directive: parseTaskDirective(body),
+    };
+  }
+
   const errors = [];
   const rendered = stripHtmlComments(body);
   const sections = parseSections(rendered);
@@ -320,13 +342,16 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/check-process.mjs --pr <number> [--repo owner/name] [--repo-root <path>]",
-    "  node scripts/check-process.mjs --body-file <path> --files <a,b> [--labels process-exempt] [--author login] [--repo-root <path>]",
+    "  node scripts/check-process.mjs --body-file <path> --files <a,b> [--labels process-exempt] [--author login] [--head-ref branch] [--repo-root <path>]",
     "",
     "Product PRs need `## Spec`, `## Tests`, `## Mutation proof`,",
     "`## Independent review`, `## Verification` and `Task: ROT-<n>`.",
     "Docs/process-only PRs may use `Task: none — <reason>` and skip the",
     "sections. `process-exempt` waives the sections only with a one-line",
     "`Process-exempt: <reason>` in the body.",
+    "Automation PRs (a `[bot]`/`app/*` author or a `release-please--*` head",
+    "branch) are skipped with a notice; they have no human author to satisfy",
+    "the contract.",
   ].join("\n");
 }
 
@@ -348,7 +373,15 @@ function main() {
     }
     const repo = resolveRepo(args);
     const view = JSON.parse(
-      gh(["pr", "view", String(prNumber), "--repo", repo, "--json", "number,body,files,labels,author"]),
+      gh([
+        "pr",
+        "view",
+        String(prNumber),
+        "--repo",
+        repo,
+        "--json",
+        "number,body,files,labels,author,headRefName",
+      ]),
     );
     result = checkPullRequest({
       number: view.number ?? prNumber,
@@ -356,6 +389,8 @@ function main() {
       files: (view.files ?? []).map((file) => file.path),
       labels: view.labels ?? [],
       author: view.author?.login ?? null,
+      isBot: view.author?.is_bot === true,
+      headRefName: view.headRefName ?? null,
     });
   } else if (args["body-file"]) {
     const body = fs.readFileSync(path.resolve(repoRoot, args["body-file"]), "utf8");
@@ -367,7 +402,13 @@ function main() {
       .split(",")
       .map((label) => label.trim())
       .filter(Boolean);
-    result = checkPullRequest({ body, files, labels, author: args.author ?? null });
+    result = checkPullRequest({
+      body,
+      files,
+      labels,
+      author: args.author ?? null,
+      headRefName: args["head-ref"] ?? null,
+    });
   } else {
     throw new Error(usage());
   }
@@ -376,6 +417,10 @@ function main() {
     for (const error of result.errors) console.error(`error: ${error}`);
     console.error("process-contract FAILED");
     process.exitCode = 1;
+    return;
+  }
+  if (result.skipped) {
+    console.log(`process-contract SKIPPED: ${result.summary}`);
     return;
   }
   console.log(`process-contract OK: ${result.summary}`);

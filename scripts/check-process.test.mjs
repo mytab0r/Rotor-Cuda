@@ -68,6 +68,65 @@ test("passes a filled product body", () => {
   assert.match(result.summary, /product contract: Task ROT-12/);
 });
 
+test("automation PRs are skipped with a notice, not the human contract", () => {
+  const cases = [
+    { author: "github-actions[bot]" },
+    { author: "release-please[bot]" },
+    { author: "app/github-actions" },
+    { author: "mytab0r", isBot: true },
+    { author: "mytab0r", headRefName: "release-please--branches--main--components--rotor" },
+  ];
+  for (const overrides of cases) {
+    const result = checkPullRequest({ number: 21, body: "", files: product, ...overrides });
+    assert.equal(result.ok, true, result.errors.join("\n"));
+    assert.equal(result.skipped, true);
+    assert.match(result.summary, /automation PR/);
+    assert.match(result.summary, /process contract not required/);
+  }
+});
+
+test("the release-please body fails for a human and passes only as an automation PR", () => {
+  const releaseBody =
+    ":robot: I have created a release *beep* *boop*\n\n" +
+    "## [2.1.0](https://example.invalid/compare/v2.0.0...v2.1.0) (2026-11-23)\n\n" +
+    "### Features\n\n* **ops:** route security alerts into issues\n";
+  const files = ["Cargo.toml", "Cargo.lock", "CHANGELOG.md", ".release-please-manifest.json"];
+
+  const bot = checkPullRequest({
+    number: 465,
+    body: releaseBody,
+    files,
+    author: "app/github-actions",
+    isBot: true,
+  });
+  assert.equal(bot.ok, true, bot.errors.join("\n"));
+  assert.equal(bot.skipped, true);
+
+  const human = checkPullRequest({
+    number: 465,
+    body: releaseBody,
+    files,
+    author: "mytab0r",
+    headRefName: "fix/manual-release",
+  });
+  assert.equal(human.ok, false);
+  assert.match(human.errors.join("\n"), /missing section/);
+  assert.match(human.errors.join("\n"), /Task: ROT-<n>/);
+});
+
+test("a human PR on a normal branch is not treated as automation", () => {
+  const result = checkPullRequest({
+    number: 22,
+    body: "",
+    files: product,
+    author: "mytab0r",
+    headRefName: "fix/release-please-pat",
+  });
+  assert.equal(result.ok, false);
+  assert.notEqual(result.skipped, true);
+  assert.match(result.errors.join("\n"), /missing section/);
+});
+
 test("fails when each required section is missing", () => {
   for (const name of REQUIRED_SECTIONS) {
     const body = FULL_BODY.replace(new RegExp(`^## ${name}$.*?(?=^## )`, "ms"), "");
