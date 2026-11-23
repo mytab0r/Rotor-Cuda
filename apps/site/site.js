@@ -1,4 +1,5 @@
 /* Shared helpers for the static coordinator pages. No build step, no deps. */
+/* Scratch product path for the process-contract proof PR; never merged. */
 (function () {
   'use strict';
 
