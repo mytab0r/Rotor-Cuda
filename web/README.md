@@ -31,9 +31,11 @@ Node 22.23.4+ (Astro 7.4.13). Dependencies are pinned exactly and
 
 ## Browser regression tests (Playwright)
 
-`npm run test:e2e` builds `dist/` and runs three suites in real Chromium
-against `scripts/serve-dist.mjs`, a zero-dependency local server on
-`127.0.0.1:4391`. The suite never reaches the internet: an auto fixture
+`npm run test:e2e` builds `dist/` and runs 222 tests in real Chromium against
+`scripts/serve-dist.mjs`, a zero-dependency local server on
+`127.0.0.1:4391`. Per run: 12 route contracts, 12 axe scans, 12 visual tests
+(six with a second table screenshot) and one navigation test, each in the six
+viewports/schemes below. The suite never reaches the internet: an auto fixture
 overrides `navigator.doNotTrack` and aborts any request whose host is not the
 local dist server, failing the test in teardown if one is attempted.
 
