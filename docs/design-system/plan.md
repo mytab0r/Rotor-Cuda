@@ -338,7 +338,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `quiet-icon-hover-border` | Quiet icon buttons gain no hover border; outline buttons keep their strong line. | 2 | implemented |
 | `tooltip-primitive` | data-tooltip target: non-empty text <=40 chars, no native title, accessible name. | 2 | implemented |
 | `tooltip-behaviour` | Tooltip appears within 300ms, hides on Escape, and the popover keeps row geometry. | 2 | implemented |
-| `key-meta-row` | The /key input meta row is one 40px line with the info control centred. | 2 | implemented |
+| `key-meta-row` | The /key input meta row grows to fit a one- to three-line status (40-72px) with the info control centred on the status block. | 2 | implemented |
 | `control-height-scale` | Input/select/chip/segmented height in {28,36,44,56}; 28 is reserved for dense table rows. | 3 | implemented |
 | `field-geometry` | Field radius 10/16, label >=12px, visible focus ring. | 3 | implemented |
 | `segmented-geometry` | One track grammar (4px padding, radius 12), 44px items, exactly one selected. | 3 | implemented |
@@ -467,7 +467,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `seo-puzzle-fabricated-key` | No puzzle page presents a 64-hex value as a private key or carries a private-key data attribute; the dataset has no key to render. | seo | implemented |
 | `seo-puzzle-sitemap` | sitemap.xml lists the /bitcoin-puzzle hub and exactly the indexable puzzle detail pages, and no page rendered noindex. | seo | implemented |
 | `cell-content-clipped` | Table cell text fits or wraps: no td/th scroll overflow, no overflow:hidden/text-overflow clipping of visible text, and no cell cut by a non-scrolling .table-scroll wrapper. | 8 | implemented |
-| `text-clipped` | Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; ellipsis requires data-clip-ok. | 8 | implemented |
+| `text-clipped` | Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; there is no ellipsis opt-out. | 8 | implemented |
 | `donor-layout-parity` | Measured layout (table start, row height, column widths, control heights, fonts) is compared with docs/parity/donor-layout.json at 375 and 1280; deltas are warnings, never failures. | 8 | implemented |
 <!-- END GENERATED detectors:plan -->
 
