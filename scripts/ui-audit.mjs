@@ -5542,6 +5542,19 @@ async function auditKeyFilterScope(cdp) {
       const activeChains = () => Array.from(document.querySelectorAll('.key-chain[aria-pressed="true"]'))
         .map((el) => el.getAttribute('data-chain'));
       const chip = (chain) => document.querySelector('.key-chain[data-chain="' + chain + '"]');
+      // The derive probe that runs before this one can finish asynchronously and
+      // move the format focus, so wait until the pressed set stops changing
+      // instead of trusting one fixed timeout.
+      const settle = async () => {
+        let last = null;
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+          const current = pressedRows().join(',');
+          if (current === last) return current;
+          last = current;
+          await sleep(40);
+        }
+        return last;
+      };
       const clickChip = async (chain) => {
         const el = chip(chain);
         if (!el) {
@@ -5549,7 +5562,7 @@ async function auditKeyFilterScope(cdp) {
           return false;
         }
         el.click();
-        await sleep(30);
+        await settle();
         return true;
       };
       const record = (step, chain, wantVisible, wantPressed, want) => {
@@ -5574,7 +5587,13 @@ async function auditKeyFilterScope(cdp) {
         if (visible !== wantVisible) {
           problems.push(step + ': #format-panel ' + (wantVisible ? 'hidden' : 'visible') + ' on chain ' + chain);
         }
-        if (wantPressed === null) {
+        if (wantPressed === undefined) {
+          // A format this chain owns may already be selected (the panel is
+          // hidden under All, so a prior probe can leave it in place); a
+          // foreign one never may.
+          const foreign = pressed.filter((id) => !prefix || !id || id.indexOf(prefix) !== 0);
+          if (foreign.length) problems.push(step + ': foreign format card(s) pressed on chain ' + chain + ': ' + foreign.join(', '));
+        } else if (wantPressed === null) {
           if (pressed.length) problems.push(step + ': format card(s) pressed on chain ' + chain + ': ' + pressed.join(', '));
         } else if (pressed.length !== 1 || pressed[0] !== wantPressed) {
           problems.push(step + ': expected only ' + wantPressed + ' pressed on chain ' + chain + ', got [' + pressed.join(', ') + ']');
@@ -5599,15 +5618,16 @@ async function auditKeyFilterScope(cdp) {
       // a. The default view is All: the selector is hidden, no format is pressed.
       record('all-default', 'all', false, null);
 
-      // b. Bitcoin shows its four cards; a card selects exactly one format.
+      // b. Bitcoin shows its four cards and never a card from another chain; a
+      // card selects exactly one format.
       if (await clickChip('btc')) {
-        record('btc', 'btc', true, null, { count: 4, prefix: 'btc_' });
+        record('btc', 'btc', true, undefined, { count: 4, prefix: 'btc_' });
         const card = document.querySelector('.address-type-card[data-row="btc_p2wpkh"]');
         if (!card) {
           problems.push('missing .address-type-card[data-row="btc_p2wpkh"]');
         } else {
           card.click();
-          await sleep(30);
+          await settle();
           record('btc-segwit', 'btc', true, 'btc_p2wpkh', { count: 4, prefix: 'btc_' });
         }
       }
