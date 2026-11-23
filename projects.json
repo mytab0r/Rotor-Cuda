@@ -243,7 +243,10 @@
         "PROJECTS.md",
         "projects.json",
         "SECURITY.md",
-        "PRODUCT.md"
+        "PRODUCT.md",
+        "CHANGELOG.md",
+        "release-please-config.json",
+        ".release-please-manifest.json"
       ],
       "build": [
         "node --check docs/site-map/site-map.js",
@@ -262,6 +265,7 @@
         "node --check scripts/lib/security-advisories.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/worker.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/upstreams.mjs",
+        "node --check scripts/security-audit.mjs",
         "node scripts/check-projects.mjs"
       ],
       "test": [
@@ -278,7 +282,9 @@
         "node scripts/check-advisories.mjs",
         "node scripts/gen-security-page.mjs --check",
         "node scripts/check-projects.mjs",
-        "node scripts/check-screenshots.mjs"
+        "node scripts/check-screenshots.mjs",
+        "node scripts/security-audit.mjs --help",
+        "node --test scripts/security-audit.test.mjs"
       ],
       "consumes": [],
       "contracts": [
