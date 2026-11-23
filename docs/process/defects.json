@@ -757,6 +757,13 @@
       "symptom": "Three of the four prose paragraphs on a chain page were identical across chains and the donor directory had no H1 or H2 at all, so the pages competed on the same text instead of explaining their own chain.",
       "detector": "seo-prose-uniqueness",
       "where": "scripts/check-seo.mjs"
+    },
+    {
+      "id": "clipped-table-cells",
+      "reported": "2026-11-23",
+      "symptom": "The /key status cell held a 148px fixed column with nowrap + overflow:hidden + ellipsis, so `0 BTC · 199 tx · just now` and long balances/nonces were cut on desktop and a phone saw only the spinner; long addresses were ellipsized and directory rows cut the 64-hex key. The gates measured document overflow and target sizes, not per-cell clipping.",
+      "detector": "cell-content-clipped",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
