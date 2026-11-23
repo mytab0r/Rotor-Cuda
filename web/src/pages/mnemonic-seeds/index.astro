@@ -1,0 +1,227 @@
+---
+/* Hub for the seed directory: the index of the 18 prerendered
+ * `/mnemonic-seeds/<chain>` pages.
+ *
+ * The chain list, names, symbols and order come from `data/chains.json`
+ * through `lib/chains.ts`; the path and format counts come from the same
+ * `lib/seed-directory.ts` map the chain pages derive from, so the hub cannot
+ * advertise a branch the page does not render. Nothing here is a live
+ * counter: the page is static and the copy says so. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../../lib/site';
+import { MAINNET_CHAINS } from '../../lib/chains';
+import { SEEDS_PER_PAGE, seedFormatsFor, seedPathsFor } from '../../lib/seed-directory';
+
+const chains = MAINNET_CHAINS.map((chain) => ({
+  ...chain,
+  formats: seedFormatsFor(chain.slug),
+  paths: seedPathsFor(chain.slug),
+}));
+
+const TITLE = `Mnemonic seeds by chain: ${chains.length} directories to browse | Crypto`;
+const DESCRIPTION = `Mnemonic seeds by chain: browse ${SEEDS_PER_PAGE} deterministic BIP39 phrases and the addresses they derive on ${chains.length} chains, with the paths each page actually uses.`;
+
+const H1 = 'Mnemonic seeds by chain';
+const canonical = '/mnemonic-seeds';
+const canonicalUrl = absoluteUrl(canonical);
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: H1,
+      description: DESCRIPTION,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: SITE_NAME,
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        name: 'Mnemonic seed pages by chain',
+        numberOfItems: chains.length,
+        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+        itemListElement: chains.map((chain, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: `${chain.name} seed phrases`,
+          url: absoluteUrl(`/mnemonic-seeds/${chain.slug}`),
+        })),
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: 'Mnemonic Seeds', item: canonicalUrl },
+      ],
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`Mnemonic seeds by chain — ${chains.length} seed directories | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="directory-page hub-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Mnemonic Seeds</span>
+  </nav>
+
+  <section class="browse-hero">
+    <span class="browse-hero-icon">
+      <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-seed"></use></svg>
+    </span>
+    <div class="browse-hero-title"><h1>{H1}</h1></div>
+    <p>
+      {chains.length} chain pages, each listing {SEEDS_PER_PAGE} deterministic 12-word phrases and
+      the first address they derive in every format that chain supports. Pick a chain to compare
+      paths and encodings, or open a derived key in the calculator from its page.
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="hub-chains">
+    <h2 id="hub-chains">Chains in the directory</h2>
+    <p class="muted">
+      Every row opens that chain's page. The phrases are generated at build time from the first
+      {SEEDS_PER_PAGE} values of the 128-bit BIP39 entropy space, so the words and addresses are
+      reproducible by anyone and are not a wallet. Balances stay placeholders in this static build.
+    </p>
+    <div class="table-scroll">
+      <table class="data-table hub-table">
+        <caption class="visually-hidden">
+          Mnemonic seed pages for the {chains.length} supported mainnet chains
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Chain</th>
+            <th scope="col">Page contents</th>
+            <th scope="col">Paths</th>
+            <th scope="col">Address formats</th>
+            <th scope="col" class="hub-open"><span class="visually-hidden">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {chains.map((chain) => (
+            <tr>
+              <td>
+                <a
+                  class="hub-chain-link"
+                  href={`/mnemonic-seeds/${chain.slug}/`}
+                  style={`--chain: var(--chain-${chain.slug})`}
+                >
+                  <svg class="icon hub-chain-icon" aria-hidden="true">
+                    <use href={`/icons.svg#chain-${chain.slug}`}></use>
+                  </svg>
+                  <span class="hub-chain-name">{chain.name}</span>
+                  <span class="hub-chain-symbol">{chain.symbol}</span>
+                </a>
+              </td>
+              <td class="hub-contents">
+                {SEEDS_PER_PAGE} example phrases, derived at build time.
+              </td>
+              <td>
+                <span class="hub-format-count">{chain.paths.length}</span>
+                <span class="muted">
+                  {chain.paths.length === 1 ? 'path' : 'paths'}
+                </span>
+              </td>
+              <td>
+                <span class="hub-format-count">{chain.formats.length}</span>
+                <span class="muted">
+                  address {chain.formats.length === 1 ? 'format' : 'formats'}
+                </span>
+              </td>
+              <td class="hub-open" aria-hidden="true">
+                <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="hub-what">
+    <h2 id="hub-what">What this directory is — and what it is not</h2>
+    <p>
+      It is an index of {chains.length} chain pages. Each page lists {SEEDS_PER_PAGE} example seed
+      phrases and the first address each phrase produces at the paths that chain's wallet uses.
+      The phrases encode the smallest integers of the BIP39 entropy space, not random secrets:
+      anyone can regenerate the words, keys and addresses, which makes them useful for testing
+      derivation and worthless for holding funds.
+    </p>
+    <p>
+      It is not a balance checker, a recovery service, or a way to find someone else's phrase.
+      This static build renders a placeholder in the balance column and does not contact a node or
+      an indexer. The address links on a chain page open a public block explorer, which learns the
+      address you clicked, as any explorer would; the page itself sends nothing.
+    </p>
+    <p>
+      It is also not a claim that any example address has been used. A derived address is only a
+      string until someone funds it, and enumerating the seed space to find a funded wallet is far
+      beyond any realistic search.
+    </p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="hub-derivation">
+    <h2 id="hub-derivation">How a seed phrase becomes an address</h2>
+    <p>
+      On secp256k1 chains the BIP39 words are stretched into a 64-byte seed with
+      PBKDF2-HMAC-SHA512, then walked along BIP32 paths. Bitcoin uses four branches —
+      <code>m/44'/0'/0'/0/0</code>, <code>m/49'/0'/0'/0/0</code>, <code>m/84'/0'/0'/0/0</code>
+      and <code>m/86'/0'/0'/0/0</code> — while Ethereum and the other EVM networks share
+      <code>m/44'/60'/0'/0/0</code>. TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin and Zcash each
+      have their own coin type in the page's table.
+    </p>
+    <p>
+      Solana, Sui and TON use ed25519, so the project applies SLIP-0010 instead of BIP32: Solana at
+      <code>m/44'/501'/0'/0'</code>, Sui at <code>m/44'/784'/0'/0'/0'</code> and TON at
+      <code>m/44'/607'/0'</code>. Every level is hardened, and the resulting 32-byte key feeds the
+      chain's own address encoder. Claiming a secp256k1 BIP32 result for those chains would be
+      wrong, and the pages describe the actual scheme.
+    </p>
+    <p>
+      One phrase controls every address below every branch it derives, so the phrase — not a single
+      address — is the secret. If you want to derive your own phrase, the
+      <a href="/mnemonic-converter">mnemonic converter</a> runs the same engine in your browser.
+    </p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="hub-safety">
+    <h2 id="hub-safety">Safety: example seeds are not a wallet</h2>
+    <p>
+      The first {SEEDS_PER_PAGE} entropy values are public. Never send funds to an address on these
+      pages; a phrase that anyone can type is not a secret. The pages are for learning and
+      comparison, not for storage.
+    </p>
+    <p>
+      For real funds, generate a phrase with a wallet you control, record it offline, and verify
+      the software you run. Never paste a live phrase into a site you do not control. The
+      calculators keep input in the tab, but that is confidentiality, not protection against a
+      compromised device, a malicious extension, or someone you share a phrase with.
+    </p>
+    <p>
+      Only inspect seeds and addresses you own or are authorized to test. A seed phrase is enough
+      to spend from every account derived from it, so treat the phrase as the secret and keep it
+      out of screenshots, chats and support tickets.
+    </p>
+  </section>
+</SiteLayout>
