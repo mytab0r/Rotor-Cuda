@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Crypto - traffic analytics</title>
+<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="/admin.css">
+<script src="/theme.js"></script>
+<script src="/analytics-admin.js" defer></script>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="/"><span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-rotor"></use></svg></span><span class="brand-name">Crypto<span>.</span></span></a>
+  <nav aria-label="Admin">
+    <a href="/cabinet/admin"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-grid"></use></svg><span>Admin</span></a>
+    <a href="/cabinet/admin/analytics" aria-current="page"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-history"></use></svg><span>Analytics</span></a>
+    <a href="/cabinet/admin/design"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-book"></use></svg><span>Design</span></a>
+    <a href="/cabinet/admin/site-map"><svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-tools"></use></svg><span>Site map</span></a>
+  </nav>
+  <div class="nav-tools">
+    <button class="btn" type="button" id="analytics-refresh">Refresh</button>
+  </div>
+</header>
+
+<main class="admin-main">
+  <section class="card admin-panel" aria-labelledby="analytics-title">
+    <div>
+      <h1 id="analytics-title">Traffic analytics</h1>
+      <p class="muted">
+        First-party page views from the Astro beacon. The coordinator stores
+        hourly aggregate counters only: no cookies, no visitor identifiers, no
+        IP addresses and no raw user agents. Countries come from Cloudflare's
+        <code>CF-IPCountry</code> header; device and browser are coarse
+        server-side classes. History is kept for seven days. All times are UTC.
+      </p>
+      <p class="muted" id="analytics-status" role="status" aria-live="polite">Loading analytics...</p>
+    </div>
+    <p class="error" id="analytics-error" role="alert" hidden></p>
+
+    <div class="empty-state" id="analytics-empty" hidden>
+      <p class="empty-state__title">No visits recorded yet</p>
+      <p class="muted">The beacon sends one request per Astro page view. Data appears once the first visitor loads a page; wallet-app pages never send it.</p>
+    </div>
+
+    <div id="analytics-data" hidden>
+      <div class="stat-grid" aria-label="Visit totals">
+        <div class="stat"><span class="stat-label">Today (UTC)</span><span class="stat-value" id="stat-today">-</span></div>
+        <div class="stat"><span class="stat-label">Last 7 days</span><span class="stat-value" id="stat-week">-</span></div>
+        <div class="stat"><span class="stat-label">Views this hour</span><span class="stat-value" id="stat-hour">-</span></div>
+        <div class="stat"><span class="stat-label">Last 24 hours</span><span class="stat-value" id="stat-last24">-</span></div>
+      </div>
+
+      <div class="stat-grid" aria-label="Coordinator load">
+        <div class="stat"><span class="stat-label">Views/min (hour)</span><span class="stat-value" id="load-current">-</span></div>
+        <div class="stat"><span class="stat-label">Views/min (24h)</span><span class="stat-value" id="load-average">-</span></div>
+        <div class="stat"><span class="stat-label">Requests/min (process)</span><span class="stat-value" id="load-served">-</span></div>
+        <div class="stat"><span class="stat-label">In flight</span><span class="stat-value" id="load-inflight">-</span></div>
+        <div class="stat"><span class="stat-label">Busy rejections</span><span class="stat-value" id="load-rejected">-</span></div>
+        <div class="stat"><span class="stat-label">Uptime</span><span class="stat-value" id="load-uptime">-</span></div>
+      </div>
+
+      <h2>Hourly views, last 24 hours</h2>
+      <figure class="analytics-figure">
+        <svg class="analytics-spark" id="analytics-spark" viewBox="0 0 600 120" role="img" aria-labelledby="analytics-spark-title">
+          <title id="analytics-spark-title">Hourly page views for the last 24 hours</title>
+        </svg>
+        <figcaption class="muted" id="analytics-spark-summary">No hourly data.</figcaption>
+      </figure>
+
+      <h2>Top route families</h2>
+      <div class="table-scroll" data-analytics-block="routes">
+        <table class="data-table" id="table-routes">
+          <thead><tr><th scope="col">Family</th><th scope="col">Views</th><th scope="col">Share</th></tr></thead>
+          <tbody id="rows-routes"></tbody>
+        </table>
+      </div>
+
+      <h2>Countries</h2>
+      <div class="table-scroll" data-analytics-block="countries">
+        <table class="data-table" id="table-countries">
+          <thead><tr><th scope="col">Country</th><th scope="col">Views</th><th scope="col">Share</th></tr></thead>
+          <tbody id="rows-countries"></tbody>
+        </table>
+      </div>
+
+      <h2>Device split</h2>
+      <div class="table-scroll" data-analytics-block="devices">
+        <table class="data-table" id="table-devices">
+          <thead><tr><th scope="col">Device</th><th scope="col">Views</th><th scope="col">Share</th></tr></thead>
+          <tbody id="rows-devices"></tbody>
+        </table>
+      </div>
+
+      <h2>Browsers</h2>
+      <div class="table-scroll" data-analytics-block="browsers">
+        <table class="data-table" id="table-browsers">
+          <thead><tr><th scope="col">Browser</th><th scope="col">Views</th><th scope="col">Share</th></tr></thead>
+          <tbody id="rows-browsers"></tbody>
+        </table>
+      </div>
+
+      <h2>Referrer hosts</h2>
+      <p class="muted">Only the host is recorded; paths and query strings never reach the coordinator.</p>
+      <div class="table-scroll" data-analytics-block="referrers">
+        <table class="data-table" id="table-referrers">
+          <thead><tr><th scope="col">Host</th><th scope="col">Views</th><th scope="col">Share</th></tr></thead>
+          <tbody id="rows-referrers"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

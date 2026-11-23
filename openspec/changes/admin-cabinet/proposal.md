@@ -41,6 +41,16 @@ Status: proposed. Evidence gathered 2026-11-22 from the current tree.
    'self'; img-src 'self' data:; connect-src 'self'; object-src 'none';
    base-uri 'none'; form-action 'self'; frame-ancestors 'none'`. Admin pages use
    external `/admin.js` and `/admin.css`; no inline script or style.
+8. **Visits are first-party and aggregate-only.** A beacon loaded only by the
+   Astro layout posts `{event:"view", path, referrer_host?}` to
+   `POST /api/v1/analytics/collect`. This is deliberately stricter than the
+   phase-4 sketch: there is no per-path top-200 list (fixed route families plus
+   `other`), no optional hashed-IP unique count, no cookies or storage on the
+   client, no raw IP or User-Agent persisted, and no full referrer URL. Country
+   comes only from `CF-IPCountry`; device/browser are coarse server-side
+   classes. Retention is 168 hourly buckets. CORS allows only the two site
+   origins; the per-IP limiter is memory-only. `docs/ops/analytics.md` is the
+   operator-facing contract.
 
 ## Surfaces
 
@@ -57,7 +67,7 @@ Status: proposed. Evidence gathered 2026-11-22 from the current tree.
 | `/cabinet/admin/seo` | title/description templates per route kind | read/write |
 | `/cabinet/admin/redirects` | redirect table | read/write |
 | `/cabinet/admin/links` | external link check report | read; run now |
-| `/cabinet/admin/visits` | page-view counters (phase 4) | read |
+| `/cabinet/admin/analytics` | aggregate page views: today/week totals, hourly ring, route/country/device/browser/referrer counts, process load counters | read |
 | `/cabinet/admin/audit` | audit tail | read |
 | `/cabinet/admin/design` | design-system gallery | read |
 

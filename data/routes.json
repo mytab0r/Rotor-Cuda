@@ -611,6 +611,16 @@
       "notes": "This routing map. Reads the embedded data/routes.json through the admin API; no inline script or style."
     },
     {
+      "pattern": "/cabinet/admin/analytics",
+      "family": "admin",
+      "template": "apps/site/analytics-admin.html",
+      "renderer": "coordinator",
+      "data_sources": ["apps/site/analytics-admin.html", "apps/site/analytics-admin.js", "apps/site/admin.css", "/cabinet/admin/api/analytics"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "Aggregate traffic dashboard: totals, hourly sparkline, route/country/device/browser/referrer tables and load indicators. No inline script or style."
+    },
+    {
       "pattern": "/cabinet/admin/:panel",
       "family": "admin",
       "template": "apps/site/admin.html",
@@ -631,6 +641,16 @@
       "notes": "Read-only inventory JSON. Session cookie or bearer; lists use {items,page,page_size,total,has_more}. Never carries token hashes or secrets."
     },
     {
+      "pattern": "/cabinet/admin/api/analytics",
+      "family": "admin-api",
+      "template": "src/coordinator/mod.rs#admin_analytics",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/analytics.rs", "src/coordinator/state.rs"],
+      "auth": "admin",
+      "status": "live",
+      "notes": "Aggregate-only traffic JSON: today/week totals, hourly and daily slots, top dimensions and process request counters. No per-visitor rows exist to expose."
+    },
+    {
       "pattern": "/api/v1/monitor/config",
       "family": "public-api",
       "template": "src/coordinator/mod.rs#handle",
@@ -639,6 +659,16 @@
       "auth": "public",
       "status": "live",
       "notes": "GET; exposes the WalletConnect project id to the browser."
+    },
+    {
+      "pattern": "/api/v1/analytics/collect",
+      "family": "analytics-api",
+      "template": "src/coordinator/analytics.rs#handle",
+      "renderer": "api",
+      "data_sources": ["src/coordinator/analytics.rs", "src/coordinator/state.rs"],
+      "auth": "public",
+      "status": "live",
+      "notes": "POST beacon collector. CORS allows only the two site origins; per-IP rate limit is in memory; only hourly aggregates are stored (no IP, cookie, user agent or full referrer)."
     },
     {
       "pattern": "/api/v1/telegram/webhook",
