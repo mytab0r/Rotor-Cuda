@@ -27,7 +27,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isProcessOnly, parseTaskDirective } from "./lib/task-tracking.mjs";
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+let repoRoot = DEFAULT_REPO_ROOT;
 
 export const REQUIRED_SECTIONS = [
   "Spec",
@@ -241,9 +242,9 @@ export function checkPullRequest({
       if (!reviewer) {
         errors.push("`## Independent review` must name `Reviewer: <agent/role>`.");
       } else {
-        const reviewerKey = reviewer.replace(/\s*\(.*?\)\s*/g, " ").trim().toLowerCase();
+        const reviewerKey = reviewer.toLowerCase().replace(/[`*_]/g, "").replace(/\s+/g, " ").trim();
         const authorKey = String(author ?? "").trim().toLowerCase();
-        if (SELF_REVIEW_RE.test(reviewer) || (authorKey && reviewerKey === authorKey)) {
+        if (SELF_REVIEW_RE.test(reviewerKey) || mentionsAuthor(reviewerKey, authorKey)) {
           errors.push("`## Independent review` names the author; the reviewer must be a different agent.");
         }
       }
@@ -266,10 +267,20 @@ export function checkPullRequest({
   return { ok, errors, summary, processOnly, waivedBy, directive };
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function mentionsAuthor(reviewer, author) {
+  if (!author) return false;
+  const pattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(author)}([^a-z0-9_-]|$)`, "i");
+  return pattern.test(reviewer);
+}
+
 function gh(args) {
   try {
     return execFileSync("gh", args, {
-      cwd: REPO_ROOT,
+      cwd: repoRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
@@ -308,8 +319,8 @@ function parseArgs(argv) {
 function usage() {
   return [
     "Usage:",
-    "  node scripts/check-process.mjs --pr <number> [--repo owner/name]",
-    "  node scripts/check-process.mjs --body-file <path> --files <a,b> [--labels process-exempt] [--author login]",
+    "  node scripts/check-process.mjs --pr <number> [--repo owner/name] [--repo-root <path>]",
+    "  node scripts/check-process.mjs --body-file <path> --files <a,b> [--labels process-exempt] [--author login] [--repo-root <path>]",
     "",
     "Product PRs need `## Spec`, `## Tests`, `## Mutation proof`,",
     "`## Independent review`, `## Verification` and `Task: ROT-<n>`.",
@@ -325,6 +336,9 @@ function main() {
     console.log(usage());
     return;
   }
+  // The workflow runs a copy of this file extracted from the base branch, so
+  // the checkout it judges is given explicitly (see .github/workflows/).
+  if (args["repo-root"]) repoRoot = path.resolve(args["repo-root"]);
 
   let result;
   if (args.pr) {
@@ -344,7 +358,7 @@ function main() {
       author: view.author?.login ?? null,
     });
   } else if (args["body-file"]) {
-    const body = fs.readFileSync(path.resolve(REPO_ROOT, args["body-file"]), "utf8");
+    const body = fs.readFileSync(path.resolve(repoRoot, args["body-file"]), "utf8");
     const files = (args.files ?? "")
       .split(",")
       .map((file) => file.trim())

@@ -17,7 +17,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+let repoRoot = DEFAULT_REPO_ROOT;
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_TARGETS = 3;
 const MAX_ATTEMPTS_PER_FILE = 10;
@@ -70,7 +71,7 @@ export function mutateLine(text) {
 
 function git(args) {
   return execFileSync("git", args, {
-    cwd: REPO_ROOT,
+    cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -123,13 +124,13 @@ function passFileArg(testFile) {
   if (!testFile.endsWith(".mjs") || !fs.existsSync(testFile)) return [];
   const source = fs.readFileSync(testFile, "utf8");
   const wasm = path.join("apps/site", "rotor_wasm.wasm");
-  if (/rotor_wasm/.test(source) && fs.existsSync(path.join(REPO_ROOT, wasm))) return [wasm];
+  if (/rotor_wasm/.test(source) && fs.existsSync(path.join(repoRoot, wasm))) return [wasm];
   return [];
 }
 
 function runTest(testFile, timeoutMs) {
   const result = spawnSync("node", [testFile, ...passFileArg(testFile)], {
-    cwd: REPO_ROOT,
+    cwd: repoRoot,
     encoding: "utf8",
     timeout: timeoutMs,
     stdio: ["ignore", "pipe", "pipe"],
@@ -143,7 +144,7 @@ function runTest(testFile, timeoutMs) {
 
 function syntaxOk(file) {
   const result = spawnSync("node", ["--check", file], {
-    cwd: REPO_ROOT,
+    cwd: repoRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -162,7 +163,7 @@ function evaluate({ source, testFile, base, timeoutMs, dryRun }) {
     return { source, testFile, result: "no changed comparison or return in the diff", ok: true, notes: [] };
   }
 
-  const absolute = path.join(REPO_ROOT, source);
+  const absolute = path.join(repoRoot, source);
   const original = fs.readFileSync(absolute, "utf8");
   const originalLines = original.split(/\r?\n/);
 
@@ -260,6 +261,7 @@ function parseArgs(argv) {
     else if (token === "--test") args.testFile = take();
     else if (token === "--max-targets") args.maxTargets = Number(take());
     else if (token === "--timeout") args.timeoutMs = Number(take());
+    else if (token === "--repo-root") args.repoRoot = take();
     else throw new Error(`unexpected argument: ${token}`);
   }
   return args;
@@ -269,7 +271,7 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/mutate-changed.mjs [--base <git-ref>] [--file <source>] [--test <test>]",
-    "      [--max-targets 3] [--timeout 120000] [--dry-run]",
+    "      [--max-targets 3] [--timeout 120000] [--repo-root <path>] [--dry-run]",
     "",
     "Without --file, scans changed apps/site/*.js against --base (or HEAD for",
     "the working tree), keeps only files with a matching *-test.mjs, flips one",
@@ -287,11 +289,14 @@ function main() {
     console.log(usage());
     return;
   }
+  // The workflow may run a copy extracted from the base branch; the checkout
+  // it mutates is given explicitly.
+  if (args.repoRoot) repoRoot = path.resolve(args.repoRoot);
 
   let targets;
   if (args.file) {
     const testFile = args.testFile ?? testFileFor(args.file);
-    if (!testFile || !fs.existsSync(path.join(REPO_ROOT, testFile))) {
+    if (!testFile || !fs.existsSync(path.join(repoRoot, testFile))) {
       console.log(`mutate-changed: ${args.file} has no matching test file; nothing to mutate`);
       return;
     }
@@ -299,7 +304,7 @@ function main() {
   } else {
     targets = changedSources(args.base)
       .map((source) => ({ source, testFile: testFileFor(source) }))
-      .filter((target) => target.testFile && fs.existsSync(path.join(REPO_ROOT, target.testFile)))
+      .filter((target) => target.testFile && fs.existsSync(path.join(repoRoot, target.testFile)))
       .slice(0, Math.max(1, args.maxTargets));
   }
 
