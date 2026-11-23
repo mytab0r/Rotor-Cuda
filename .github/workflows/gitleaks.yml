@@ -1,0 +1,43 @@
+name: secrets
+
+# gitleaks scans the working tree and the PR's commits. The tree scan catches a
+# secret in the current files; the commit scan catches one that was added and
+# later removed in the same PR (it is still in the history a reviewer sees).
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: gitleaks (tree and PR commits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      # Pinned by commit SHA (tag in the trailing comment); dependabot updates
+      # the actions group weekly.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks (pinned release binary)
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl -sSfL -o "$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/gitleaks" version
+      - name: Scan the working tree
+        run: "$RUNNER_TEMP/gitleaks dir . --config .gitleaks.toml --no-banner --redact --verbose"
+      - name: Scan the PR commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          "$RUNNER_TEMP/gitleaks" git \
+            --config .gitleaks.toml \
+            --log-opts="origin/${{ github.base_ref }}..HEAD" \
+            --no-banner --redact --verbose

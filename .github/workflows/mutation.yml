@@ -7,6 +7,97 @@ permissions:
   contents: read
 
 jobs:
+  # Always-on tier: revert the changed executable hunks per affected area and
+  # require that area's test command to go red. The area test list comes from
+  # projects.json; two commands are narrowed on Linux because the desktop GPU
+  # feature and the built wasm artifact are not available here (the rust and
+  # wasm jobs cover those). The adapters below stay optional and timeboxed.
+  revert-fix:
+    name: revert-fix (universal tier)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests for the revert tier
+        run: node --test scripts/revert-fix.test.mjs
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+      - name: Revert non-test hunks for every affected area
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          # A PR must not weaken the gate that judges it: run the base branch's
+          # script once it exists (first introduction uses the PR copy).
+          script="$RUNNER_TEMP/revert-fix.mjs"
+          if git show "$base:scripts/revert-fix.mjs" > "$script" 2>/dev/null; then
+            echo "revert-fix source: $base"
+          else
+            script="$GITHUB_WORKSPACE/scripts/revert-fix.mjs"
+            echo "revert-fix source: PR copy (first introduction)"
+          fi
+
+          node scripts/affected-areas.mjs --diff "$base...HEAD" --json > "$RUNNER_TEMP/affected.json"
+          mapfile -t ids < <(node -e '
+            const plan = require(process.argv[1]);
+            for (const area of plan.areas) console.log(area.id);
+          ' "$RUNNER_TEMP/affected.json")
+
+          source=(
+            --source-glob '**/*.rs'
+            --source-glob '**/*.js'
+            --source-glob '**/*.mjs'
+            --source-glob '**/*.ts'
+            --source-glob '**/*.tsx'
+            --source-glob '**/*.astro'
+            --source-glob '**/*.go'
+            --source-glob '**/*.py'
+            --source-glob '**/*.c'
+            --source-glob '**/*.cc'
+            --source-glob '**/*.cu'
+            --source-glob '**/*.h'
+          )
+
+          ran=0
+          for id in "${ids[@]}"; do
+            case "$id" in
+              site|ops|coordinator)
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area "$id" "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              web)
+                npm --prefix web ci
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area web "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              desktop)
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area desktop --cmd "cargo test --release" "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              wasm-core)
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area wasm-core --cmd "cargo test -p rotor-wasm" "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              *)
+                echo "::notice::no universal test command for area $id; skipped"
+                ;;
+            esac
+          done
+          if [ "$ran" -eq 0 ]; then
+            echo "no executable change in an affected area; the universal tier is a no-op"
+          fi
+
   rust-mutation:
     name: rust mutation (cargo-mutants, changed lines)
     runs-on: ubuntu-latest

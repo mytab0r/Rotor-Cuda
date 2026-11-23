@@ -1,0 +1,39 @@
+name: lighthouse
+
+# Budget gate for the built Astro site: performance, accessibility,
+# best-practices and SEO >= 0.9 on two representative routes, plus a per-route
+# JS budget (60 KB) and a total budget (400 KB).
+#
+# Observation window: non-blocking until 2026-12-08 (two weeks from adoption).
+# On that date remove `continue-on-error: true` and make `lighthouse` a required
+# check. Do not silently extend the date; change this comment and the job in the
+# same PR. `docs/process/gates.md` records the status.
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    name: lighthouse (budgets)
+    runs-on: ubuntu-latest
+    # Observation window ends 2026-12-08: remove this line and require the job.
+    continue-on-error: true
+    timeout-minutes: 15
+    steps:
+      # Pinned by commit SHA (tag in the trailing comment); dependabot updates
+      # the actions group weekly.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Install the Astro app
+        run: npm --prefix web ci
+      - name: Build the static site
+        run: npm --prefix web run build
+      # staticDistDir in lighthouserc.json is ./web/dist, so run from the root.
+      - name: Run Lighthouse CI against the built site
+        run: npx --yes @lhci/cli@0.16.1 autorun --config=lighthouserc.json
