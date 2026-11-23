@@ -158,3 +158,19 @@ test("integration: a dirty tracked tree is refused before anything runs", () => 
   assert.match(result.stderr, /tracked tree is dirty/);
   assert.equal(git(dir, "status", "--porcelain", "--untracked-files=no"), "M lib.mjs");
 });
+
+test("integration: a red baseline restores tracked files the command wrote", () => {
+  const { dir, base } = makeRepo();
+  fs.appendFileSync(path.join(dir, "lib.mjs"), "export const sub = (a, b) => a - b;\n");
+  git(dir, "add", "-A");
+  git(dir, "commit", "-qm", "feat: sub");
+
+  // The command deliberately writes a tracked file and then fails: the script
+  // must not leave that write behind when it aborts on the red baseline.
+  const command =
+    'node -e "require(\'fs\').writeFileSync(\'lib.mjs\', \'// touched\\n\')" && node -e "process.exit(1)"';
+  const result = run(dir, ["--repo-root", dir, "--base", base, "--cmd", command]);
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /baseline test command failed/);
+  assertClean(dir);
+});
