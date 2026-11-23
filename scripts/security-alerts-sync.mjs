@@ -368,6 +368,13 @@ function ensureItem(state, url, label) {
   return item;
 }
 
+const DATE_FIELDS = new Set([
+  "Start date",
+  "Target date",
+  "Actual start",
+  "Actual end",
+]);
+
 function setField(state, item, name, value, label = null) {
   if (value === null || value === undefined || value === "") return;
   const field = state.fields.get(name);
@@ -404,7 +411,7 @@ function setField(state, item, name, value, label = null) {
     );
     if (!option) throw new Error(`project field ${name} has no option ${value}`);
     args.push("--single-select-option-id", option.id);
-  } else if (/date/i.test(name)) {
+  } else if (DATE_FIELDS.has(name) || /date/i.test(name)) {
     args.push("--date", String(value));
   } else {
     args.push("--number", String(value));
