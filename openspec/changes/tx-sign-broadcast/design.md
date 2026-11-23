@@ -466,7 +466,7 @@ third-party service. It shows:
   unconfirmed inputs, address equal to the input address.
 
 Why local first: before broadcast the transaction is not public. Sending it to
-`secretscan`/`blockchain.com` would reveal the spend intent and txid to a third
+`ref-site-b`/`blockchain.com` would reveal the spend intent and txid to a third
 party and would be another trust dependency. External decode links are offered
 only after broadcast (or on explicit request, with a warning that the
 transaction becomes public), for example:
@@ -475,7 +475,7 @@ transaction becomes public), for example:
 https://mempool.space/tx/<txid>
 https://blockstream.info/tx/<txid>
 https://www.blockchain.com/explorer/transactions/btc/<txid>
-https://ref-site-b/Transaction_decoded_Bitcoin?tx=<txid>
+ref-site-b/Transaction_decoded_Bitcoin?tx=<txid>
 https://live.blockcypher.com/btc/tx/<txid>/
 ```
 

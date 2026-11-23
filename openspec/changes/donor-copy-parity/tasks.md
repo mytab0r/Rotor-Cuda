@@ -132,12 +132,12 @@ a worktree; one writer per area.
 
 ## 3. ref-site-b ideas
 - [x] Lists/pricing pages, filters and density reviewed; adopted items listed
-      in `docs/donor-parity/secretscan.md`.
-      Evidence: `docs/donor-parity/secretscan.md` §8 (ranked adoption list).
+      in `docs/donor-parity/ref-site-b.md`.
+      Evidence: `docs/donor-parity/ref-site-b.md` §8 (ranked adoption list).
       No datasets or prices copied; the list/rent machinery stays a separate
       owner decision (section 5).
 - Audit note (2026-11-20): mechanics of `/wallets`, `/results`, `/rent` and
-  `/scaner` recorded in `docs/donor-parity/secretscan.md`; no datasets or
+  `/scaner` recorded in `docs/donor-parity/ref-site-b.md`; no datasets or
   prices copied.
 
 ## 4. Rename Rotor → Crypto

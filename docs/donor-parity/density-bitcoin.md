@@ -11,7 +11,7 @@ Follow-up to the `/private-keys/tron` measurement and PR #218. Measured on
 protocol, one page load per viewport plus one user-agent retry on the donor at
 375px).
 
-- Donor: <https://ref-site-a/private-keys/bitcoin>
+- Donor: <ref-site-a/private-keys/bitcoin>
 - Ours: `http://127.0.0.1:7915/private-keys/bitcoin` (`target/release/rotor-coord`)
 - Base commit (before): `23b6b61` (merge of PR #218)
 - After: this PR's branch (`density/private-keys-bitcoin`), same binary/service
@@ -23,7 +23,7 @@ protocol, one page load per viewport plus one user-agent retry on the donor at
 
   ```sh
   node scripts/density-parity.mjs \
-    --donor https://ref-site-a/private-keys/bitcoin \
+    --donor ref-site-a/private-keys/bitcoin \
     --ours http://127.0.0.1:7915/private-keys/bitcoin \
     --json docs/donor-parity/density-bitcoin.json
   ```

@@ -77,7 +77,7 @@ Rotor currently has only `/bitcoin-puzzle` with a pooled chunk-leasing
 explanation and live public jobs; it lacks puzzle selection, puzzle detail,
 range presets, the random/sequential browser worker and the match UI.
 
-## Secretscan.org `/wallets` and calculator catalogue
+## ref-site-b `/wallets` and calculator catalogue
 
 Crawled 2026-11-19. The page combines a paid rich-list marketplace with a large
 calculator menu. Features worth taking (not necessarily the paid marketplace):
