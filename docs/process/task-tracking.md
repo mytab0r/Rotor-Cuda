@@ -176,7 +176,7 @@ Release plan:
 
 | Milestone | Epics | Target |
 |---|---|---|
-| Wallet: signing, history and portfolio | cabinet-wallet, product-strategy, site-wallet-studio, tx-sign-broadcast, wallet-account-link, wallet-history, wallet-mainnet-signing, wallet-portfolio, wallet-top-assets-wif, walletconnect-deeplinks | 2027-03-31 |
+| Wallet: signing, history and portfolio | cabinet-wallet, product-strategy, send-wif-keys, site-wallet-studio, tx-sign-broadcast, wallet-account-link, wallet-history, wallet-mainnet-signing, wallet-portfolio, wallet-seed-phrase, wallet-top-assets-wif, walletconnect-deeplinks | 2027-03-31 |
 | Desktop and coordinator parity | key-leak-monitor, rust-desktop-all-chains | 2027-03-31 |
 | Astro frontend cutover | admin-cabinet, donor-copy-parity, frontend-platform, seo-strategy, site-parity-audit | 2026-12-31 |
 | Design system and process foundations | design-system-process, edge-privacy, repo-structure, security-advisories, ssot, task-tracking | — |
