@@ -1,0 +1,120 @@
+---
+/* Donate, ported from `render_donate` in src/coordinator/mod.rs.
+ *
+ * The three maintainer addresses and the hosted payment link are the legacy
+ * values unchanged. Each address keeps a human-readable label and gets a copy
+ * control with the shared `.icon-button` grammar (aria-label, data-tooltip,
+ * copied state); the reused chain-copy helper owns the click behaviour. No QR
+ * generation and no new dependency. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { breadcrumbList, webPageNode } from '../../lib/jsonld';
+import { SITE_ORIGIN } from '../../lib/site';
+
+const TITLE = 'Donate — support Crypto development: BTC, USDT, EVM | Crypto';
+const DESCRIPTION =
+  'Maintainer donation addresses for Crypto: Bitcoin, USDT-TRC20 and EVM, plus a hosted payment link. Select an address and copy it in your browser.';
+const CANONICAL = '/donate';
+const canonicalUrl = `${SITE_ORIGIN}${CANONICAL}`;
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+const PAYMENT_URL = 'https://pay.pxbt.app/u/0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a';
+
+interface DonationAddress {
+  label: string;
+  value: string;
+  /** Short name for the copy control and its tooltip. */
+  copyLabel: string;
+}
+
+const ADDRESSES: readonly DonationAddress[] = [
+  {
+    label: 'Bitcoin (BTC)',
+    value: 'bc1qgkqw02q70d0j00gylp3l5p8tyjd0c4lftrdsz8',
+    copyLabel: 'Bitcoin address',
+  },
+  {
+    label: 'USDT (TRC-20)',
+    value: 'TC2d5VsjAY6eAVLrbwhEJtqtHTzbaf926f',
+    copyLabel: 'USDT (TRC-20) address',
+  },
+  {
+    label: 'EVM (Ethereum and compatible chains)',
+    value: '0xd451c8720545118a7e6566c54eb1bbbbc0f6a58a',
+    copyLabel: 'EVM address',
+  },
+];
+
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    webPageNode({ url: canonicalUrl, name: TITLE, description: DESCRIPTION }),
+    breadcrumbList([
+      { name: 'Home', path: '/' },
+      { name: 'Donate', path: CANONICAL },
+    ]),
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={CANONICAL}
+  image={ogImageUrl}
+  imageAlt="Crypto donation addresses and payment link"
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="key-page presentation-page"
+  jsonLd={JSON_LD}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Donate</span>
+  </nav>
+
+  <section class="hero" aria-labelledby="donate-title">
+    <h1 id="donate-title">Donate</h1>
+    <p>
+      Support maintenance of Crypto. These are the maintainer's own addresses; select an
+      address to copy it with your browser.
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="addresses">
+    <h2 id="addresses">Addresses</h2>
+    <ul class="donate-addresses">
+      {ADDRESSES.map((address) => (
+        <li class="donate-address">
+          <div class="donate-address__text">
+            <strong>{address.label}</strong>
+            <code class="mono">{address.value}</code>
+          </div>
+          <button
+            type="button"
+            class="icon-button icon-button--quiet"
+            data-copy={address.value}
+            data-copy-label={address.copyLabel}
+            aria-label={`Copy ${address.copyLabel}`}
+            data-tooltip={`Copy ${address.copyLabel}`}
+          >
+            <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+          </button>
+        </li>
+      ))}
+    </ul>
+    <p class="visually-hidden" role="status" aria-live="polite" data-copy-status></p>
+  </section>
+
+  <section class="card" aria-labelledby="payment-link">
+    <h2 id="payment-link">Payment link</h2>
+    <p>
+      <a href={PAYMENT_URL} rel="noopener noreferrer">pay.pxbt.app payment page</a>
+    </p>
+  </section>
+</SiteLayout>
+
+<script>
+  import '../../scripts/chain-copy.ts';
+</script>

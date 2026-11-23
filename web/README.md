@@ -2,11 +2,11 @@
 
 Static Astro build for the public site. Phase 1 migrated `/mnemonic-converter`;
 phase 2 adds the shared `SiteLayout` and the landing page (`/`), then the
-presentation pages `/docs` and `/tools`; phase 3 adds the
-`/private-keys/<chain>` page-1 template for all 18 mainnet chains. Every page is
-built in `dist/` but **not routed**: the Rust coordinator keeps serving the
-route until the frontend-platform cutover, and `data/routes.json` still names
-the coordinator as the renderer.
+presentation pages `/docs`, `/tools`, `/faq`, `/disclaimer` and `/donate`; phase
+3 adds the `/private-keys/<chain>` page-1 template for all 18 mainnet chains.
+Every page is built in `dist/` but **not routed**: the Rust coordinator keeps
+serving the route until the frontend-platform cutover, and `data/routes.json`
+still names the coordinator as the renderer.
 
 ## Commands
 
@@ -16,8 +16,8 @@ npm run check     # astro check + tsc --noEmit
 npm run build     # static output in dist/, then /a/<build>/ asset prefixing
 npm run preview -- --host 127.0.0.1 --port 4321
 npm test          # tsc -p tsconfig.test.json + node --test (no browser)
-node ../scripts/check-seo.mjs   # after build: chain, docs, tools and 404 SEO gate
-node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools
+node ../scripts/check-seo.mjs   # after build: chain, presentation pages and 404 SEO gate
+node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools,faq,disclaimer,donate
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
 ```
 
@@ -41,15 +41,19 @@ only deviation from the brief and is called out in the PR.
 | `src/pages/index.astro` | Landing page; content-equivalent to the live `/`, with static chain/tool/database links and no live counters. |
 | `src/pages/docs/index.astro` | Documentation reading surface: one H1, an anchored H2/H3 TOC, the legacy docs copy, and `TechArticle` + `BreadcrumbList` JSON-LD. No client script and no WASM. |
 | `src/pages/tools/index.astro` | Tool hub: eight families, one row per tool at its canonical route, and `CollectionPage` + `BreadcrumbList` JSON-LD. No client script and no WASM. |
+| `src/pages/faq/index.astro` | The nine legacy Q&A pairs verbatim, hub and site links, and `FAQPage` + `BreadcrumbList` JSON-LD built from the same visible copy. No client script and no WASM. |
+| `src/pages/disclaimer/index.astro` | The five legacy limitation sections verbatim and `WebPage` + `BreadcrumbList` JSON-LD. No client script. |
+| `src/pages/donate/index.astro` | The three maintainer addresses with human labels and shared `.icon-button` copy controls, plus the hosted payment link. Reuses `chain-copy.ts`; no QR and no new dependency. |
 | `src/pages/404.astro` | Root `404.html`: one H1, `noindex,follow`, links to home, the key explorer, private keys, docs and the wallet. Cloudflare Pages returns a real 404 status only when this file exists at the deploy root. |
 | `src/pages/private-keys/[chain].astro` | Chain directory page 1 for the 18 mainnet slugs; built but not routed until cutover. |
 | `src/content.config.ts`, `src/content/chains/*.md` | One Markdown entry per chain: unique prose, two content H2s, title and description. |
 | `src/lib/chain-directory.ts` | Build-time derivation: drives the existing WASM `derive_report` ABI for keys 1–60 and maps report ids to each chain's address formats. |
 | `src/lib/chains.ts` | Typed view of `data/chains.json`: the 18 mainnet chains in canonical order. |
-| `src/scripts/chain-copy.ts` | The page's only hydrated behaviour: copy a private key with the shared check-glyph state. |
+| `src/scripts/chain-copy.ts` | The only hydrated behaviour on the directory and donate pages: copy a value with the shared check-glyph and `is-copied` state and a live status message. |
 | `src/pages/mnemonic-converter.astro` | The pilot page: same markup and copy as `apps/site/mnemonic-converter.html`, now on `SiteLayout`. |
-| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/docs`, `/mnemonic-converter`, `/tools`, and the 18 chain pages). |
+| `src/pages/sitemap.xml.ts` | Sitemap for the routes this static build owns (`/`, `/disclaimer`, `/docs`, `/donate`, `/faq`, `/mnemonic-converter`, `/tools`, and the 18 chain pages). |
 | `src/components/JsonLd.astro` | The only JSON-LD writer. |
+| `src/lib/jsonld.ts` | BreadcrumbList and WebPage builders shared by the presentation pages. |
 | `src/lib/site.ts` | Site origin, nav order/icons and the build-time active-section mapping. |
 | `src/lib/build-id.ts` | Footer build id (`ROTOR_BUILD_ID`, else short git SHA). |
 | `src/assets/og-landing.png` | 1200×630 social card used by `og:image`/`twitter:image`. |
@@ -95,6 +99,18 @@ therefore keeps those exact targets in one in-file `pendingCutover` map with a
 reason and the frontend-platform phase that owns the move. The rule is
 shrink-only: when a tool page is built into `dist`, its entry must be removed.
 A link outside the map that does not resolve in `dist` fails the gate.
+
+## FAQ, disclaimer and donate (built, not routed)
+
+`/faq` carries the nine legacy question/answer pairs verbatim and emits a
+`FAQPage` node built from the same visible copy, so the structured data cannot
+invent a Q&A. `/disclaimer` keeps the five limitation sections; `/donate` keeps
+the three maintainer addresses and the payment link, and every address has a
+human-readable label and a shared `.icon-button` copy control. The pages add no
+counters, partners or guarantees, and `scripts/check-seo.mjs` applies the same
+H1/H2, metadata, unique title/description, internal-link and JSON-LD rules as
+`/docs` and `/tools`. Removing the three routes from `pendingCutover` is part of
+the same change: the stale-entry rule forces the removal.
 
 ## Provenance of copied assets
 

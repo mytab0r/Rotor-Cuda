@@ -1,0 +1,152 @@
+---
+/* FAQ, ported from `render_faq` in src/coordinator/mod.rs.
+ *
+ * The nine question/answer pairs are the legacy copy verbatim, including the
+ * limits the tool admits to. They feed both the visible page and the FAQPage
+ * JSON-LD, so structured data can never claim a Q&A the reader cannot see.
+ * Hub links point at the routes this static build owns; links to the
+ * coordinator-served brainwallet page stay in the checker's pendingCutover
+ * allowlist. No client script and no WASM. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { MAINNET_CHAINS } from '../../lib/chains';
+import { breadcrumbList } from '../../lib/jsonld';
+import { SITE_ORIGIN } from '../../lib/site';
+
+const TITLE = 'FAQ — how Crypto key tools and alerts work | Crypto';
+const DESCRIPTION =
+  "Answers about Crypto's browser key derivation, the /keys hubs, noindex pages, the address watchlist and Telegram alerts, and what the tools cannot do.";
+const CANONICAL = '/faq';
+const canonicalUrl = `${SITE_ORIGIN}${CANONICAL}`;
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+interface QA {
+  question: string;
+  answer: string;
+}
+
+const FAQ_QA: readonly QA[] = [
+  {
+    question: 'What does this site do?',
+    answer:
+      'Crypto explains how private keys map to public addresses on Bitcoin, Ethereum, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP. It derives addresses from a key you control in your browser and runs an authorized puzzle search engine and an address watchlist. It does not hold, sign for or move funds.',
+  },
+  {
+    question: 'Is my key sent to a server?',
+    answer:
+      'No. Derivation runs locally with WebAssembly in your browser. The page does not receive, log or transmit the key, and the site never asks for a seed phrase.',
+  },
+  {
+    question: 'Do you ask for seed phrases?',
+    answer:
+      'No. The web tools accept single private keys only, for educational use. There is no custody: Crypto cannot hold funds, sign transactions or sweep balances.',
+  },
+  {
+    question: 'What do /keys and /key/<hex> show?',
+    answer:
+      'The key hubs list 64 deterministic example keys (1 to 64). Each key page derives public addresses for the selected chain and curve. These pages show derivation, not balances, holdings or ownership; the server never places a key you enter into the page URL.',
+  },
+  {
+    question: 'Why are some pages noindex?',
+    answer:
+      'A key page or key range that contains user-supplied material is marked noindex so it is not published in search results. Only the curated example keys, hubs and informational pages are indexable.',
+  },
+  {
+    question: 'How do alerts and the watchlist work?',
+    answer:
+      'You add a public address you control to the cabinet. The coordinator polls public chain data providers for changes and can deliver Telegram alerts. Alerts are best-effort: provider delays, reorgs and outages mean a late or missed notification is possible.',
+  },
+  {
+    question: 'What is impossible here?',
+    answer:
+      'Deriving an address from a key does not prove that the address is observable, funded, used or known to anyone else. You cannot derive a private key from an address, and Crypto cannot know whether a key was used somewhere else.',
+  },
+  {
+    question: "Can I use this to find or recover someone else's keys?",
+    answer:
+      'No. Use Crypto only for keys and addresses you own or are explicitly authorized to test, such as public puzzles and research. Deriving a key does not give lawful access to funds.',
+  },
+  {
+    question: 'Is the brainwallet checker safe?',
+    answer:
+      'No brainwallet is safe for real funds. The checker is educational: it shows why passphrase-derived keys are easy to guess. Use only test passphrases, never a phrase that protects funds.',
+  },
+];
+
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'FAQPage',
+      '@id': `${canonicalUrl}#faq`,
+      url: canonicalUrl,
+      name: TITLE,
+      description: DESCRIPTION,
+      inLanguage: 'en',
+      mainEntity: FAQ_QA.map((item) => ({
+        '@type': 'Question',
+        name: item.question,
+        acceptedAnswer: { '@type': 'Answer', text: item.answer },
+      })),
+    },
+    breadcrumbList([
+      { name: 'Home', path: '/' },
+      { name: 'FAQ', path: CANONICAL },
+    ]),
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={CANONICAL}
+  image={ogImageUrl}
+  imageAlt="Crypto FAQ — how the key tools and address alerts work"
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="key-page presentation-page"
+  jsonLd={JSON_LD}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">FAQ</span>
+  </nav>
+
+  <section class="hero" aria-labelledby="faq-title">
+    <h1 id="faq-title">Frequently asked questions</h1>
+    <p>How Crypto derives addresses, what the key pages show, and what the tools cannot do.</p>
+  </section>
+
+  <section class="card" aria-labelledby="questions">
+    <h2 id="questions">Questions</h2>
+    {FAQ_QA.map((item) => (
+      <div class="faq-item">
+        <h3>{item.question}</h3>
+        <p>{item.answer}</p>
+      </div>
+    ))}
+  </section>
+
+  <section class="card" aria-labelledby="key-hubs">
+    <h2 id="key-hubs">Explore the key hubs</h2>
+    <ul>
+      <li><a href="/private-keys">All key hubs</a></li>
+      {MAINNET_CHAINS.map((chain) => (
+        <li><a href={`/private-keys/${chain.slug}`}>{chain.name} private keys</a></li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="card" aria-labelledby="site-information">
+    <h2 id="site-information">Site information</h2>
+    <ul>
+      <li><a href="/disclaimer">Disclaimer and authorized use</a></li>
+      <li><a href="/brainwallet">Brainwallet checker (educational)</a></li>
+      <li><a href="/docs">Documentation</a></li>
+      <li><a href="/donate">Donate</a></li>
+    </ul>
+  </section>
+</SiteLayout>
