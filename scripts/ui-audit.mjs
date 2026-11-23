@@ -102,6 +102,98 @@ const NAV_TIMEOUT_MS = 20000;
 const SELECTOR_TIMEOUT_MS = 12000;
 const CDP_TIMEOUT_MS = 20000;
 
+/* Donor layout parity. The reference numbers are measured from
+ * privatekeyfinder.io and live in docs/parity/donor-layout.json. They are a
+ * reference, not a target: the comparison reports deltas as warnings so a
+ * regression is visible without failing an unrelated PR. The selector map below
+ * is ours; the values are the donor's. */
+const PARITY_FIXTURE_PATH = path.join(REPO_ROOT, "docs", "parity", "donor-layout.json");
+const PARITY_PAGES = {
+  "chain-directory": {
+    page: "chain-directory",
+    routes: ["/private-keys/bitcoin"],
+    rows: "#keys-container .key-row",
+    columns: ".keys-header > .col-key, .keys-header > .col-address, .keys-header > .col-balance",
+    controls: {
+      chainTab: ".chain-tabs .chain-tab",
+      pagerButton: ".pager .pager-btn",
+      pageInput: "#browse-page-input",
+      jumpButton: ".page-jump button",
+      searchInput: "#browse-search-input",
+      searchSelect: "#browse-search-type",
+      searchButton: "#browse-search button[type='submit']",
+      globalSearch: ".site-nav a[aria-label='Search wallet']",
+    },
+    fonts: {
+      pageInfo: ".page-info-text",
+      statValue: ".stat-value",
+      tableHeader: ".keys-header",
+      rowText: ".key-row .private-key",
+    },
+  },
+  "key-page": {
+    page: "key-page",
+    routes: ["/key/0000000000000000000000000000000000000000000000000000000000000001"],
+    rows: "#addr-rows .key-row",
+    columns: "#addr-table thead th",
+    controls: {
+      globalSearch: ".site-nav a[aria-label='Search wallet']",
+      badge: ".key-url-chip:not([hidden])",
+      rowLink: "#addr-rows .key-row a.icon-button",
+      rowButton: "#addr-rows .key-row button.icon-button",
+    },
+    fonts: {
+      title: "h1",
+      statValue: ".key-stat-value",
+      tableHeader: "#addr-table th",
+      rowText: "#addr-table td",
+    },
+  },
+};
+
+function parityPageForRoute(route) {
+  return Object.values(PARITY_PAGES).find((page) => page.routes.includes(route)) || null;
+}
+
+function compareLayoutToFixture(fixture, layout) {
+  const page = fixture && fixture.pages && fixture.pages[layout.page];
+  const reference = page && page.viewports && page.viewports[String(layout.viewport)];
+  if (!reference) return null;
+  const tolerance = page.tolerance || {};
+  const deltas = [];
+  const push = (metric, donor, ours, unit, allowed) => {
+    if (!Number.isFinite(donor) || !Number.isFinite(ours)) return;
+    const delta = Math.round((ours - donor) * 10) / 10;
+    if (Math.abs(delta) <= (allowed ?? 0)) return;
+    deltas.push({ metric, donor, ours, delta, unit });
+  };
+  push("tableStartY", reference.tableStartY, layout.tableStartY, "px", tolerance.tableStartY ?? 16);
+  push("rowHeight", reference.rowHeight, layout.rowHeight, "px", tolerance.rowHeight ?? 8);
+  (reference.columnWidths || []).forEach((donor, index) => {
+    push(
+      `column[${index}]`,
+      donor,
+      layout.columns ? layout.columns[index] : null,
+      "px",
+      tolerance.columnWidth ?? 8,
+    );
+  });
+  for (const [name, donor] of Object.entries(reference.controlHeights || {})) {
+    const ours = layout.controls && layout.controls[name] ? layout.controls[name].height : null;
+    push(`control.${name}`, donor, ours, "px", tolerance.controlHeight ?? 4);
+  }
+  for (const [name, donor] of Object.entries(reference.fonts || {})) {
+    push(`font.${name}`, donor, layout.fonts ? layout.fonts[name] : null, "px", tolerance.font ?? 1);
+  }
+  return {
+    page: layout.page,
+    viewport: layout.viewport,
+    donorUrl: page.donorUrl || null,
+    note: fixture.note || "Donor values are a reference, not a target.",
+    deltas,
+  };
+}
+
 const HELP = `ui-audit - headless UI self-review for the Rotor site
 
 Options:
@@ -1020,6 +1112,244 @@ function auditPage(args) {
     add("cell-content-clipped", `${cellClips.length} cell(s) clip their text`, cellClips.slice(0, 10));
   }
 
+
+  // 1f. Text clipped by its own box or by a clipping ancestor. This is the
+  //     general case behind the clipped-cell defect (ROT-430 / PR #433): every
+  //     element with visible text is walked, not only td/th, and three shapes
+  //     fail:
+  //       - the element itself has overflow hidden/clip and its scroll box is
+  //         larger than its client box (nowrap text in a fixed column);
+  //       - a direct text line box escapes the nearest clipping ancestor's
+  //         padding box (a flex child pushed out, an absolutely sized label);
+  //       - a flex/grid child's rendered box escapes its parent's padding box.
+  //     Text inside an overflow:auto/scroll ancestor is reachable by scrolling
+  //     and is not flagged. There is no opt-out attribute: every cut has to be
+  //     fixed, and a deliberate one-line ellipsis is not allowed on content.
+  const CLIP_OVERFLOW = new Set(["hidden", "clip"]);
+  // The classic sr-only recipe is written inline on a few shared elements
+  // (brand wordmark, icon-chip label, key stats note). It is hidden text, not
+  // cut text, so it is not a clip defect.
+  const hiddenByClipPattern = (el) => {
+    const box = el.getBoundingClientRect();
+    if (box.width > 1 || box.height > 1) return false;
+    const style = getComputedStyle(el);
+    return (
+      style.position === "absolute" &&
+      (style.clip !== "auto" || style.clipPath !== "none" || style.overflow !== "visible")
+    );
+  };
+  const insideClipPattern = (el) => {
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      if (hiddenByClipPattern(node)) return true;
+    }
+    return false;
+  };
+  const skipClipText = (el) =>
+    !el ||
+    el.closest("[hidden], .visually-hidden, .sr-only, svg, script, style, template, noscript") ||
+    el.getAttribute("aria-hidden") === "true" ||
+    insideClipPattern(el) ||
+    ["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "BR", "HR", "IMG", "INPUT", "TEXTAREA", "SELECT", "OPTION", "OPTGROUP", "VIDEO", "AUDIO", "CANVAS", "IFRAME"].includes(el.tagName);
+  const paddingBoxOf = (el) => {
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const border = (side) => Number.parseFloat(style[`border${side}Width`]) || 0;
+    return {
+      left: box.left + border("Left"),
+      right: box.right - border("Right"),
+      top: box.top + border("Top"),
+      bottom: box.bottom - border("Bottom"),
+    };
+  };
+  // A control can carry padding plus a negative margin so its 44px hit area
+  // reaches past the row without widening it. That is a hit target, not
+  // overflowing content: the flex/grid escape check uses the content box.
+  const contentBoxOf = (el) => {
+    const box = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const inset = (side, suffix) =>
+      (Number.parseFloat(style[`border${side}Width`]) || 0) +
+      (Number.parseFloat(style[`padding${side}${suffix}`]) || 0);
+    return {
+      left: box.left + inset("Left", ""),
+      right: box.right - inset("Right", ""),
+      top: box.top + inset("Top", ""),
+      bottom: box.bottom - inset("Bottom", ""),
+    };
+  };
+  const lineBoxOutside = (el, box, clipX = true, clipY = true) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    for (const rect of range.getClientRects()) {
+      if (rect.width <= 1 || rect.height <= 1) continue;
+      const outsideX = clipX && (rect.left < box.left - 1 || rect.right > box.right + 1);
+      const outsideY = clipY && (rect.top < box.top - 1 || rect.bottom > box.bottom + 1);
+      if (outsideX || outsideY) return true;
+    }
+    return false;
+  };
+  const nearestClip = (el) => {
+    let node = el.parentElement;
+    while (node && node !== document.body && node !== document.documentElement) {
+      const style = getComputedStyle(node);
+      // A scroll container makes its content reachable; do not climb past it.
+      if (["auto", "scroll"].includes(style.overflowX) || ["auto", "scroll"].includes(style.overflowY)) {
+        return null;
+      }
+      if (CLIP_OVERFLOW.has(style.overflowX) || CLIP_OVERFLOW.has(style.overflowY)) return node;
+      node = node.parentElement;
+    }
+    return null;
+  };
+  const textClipGroups = new Map();
+  const reportedClipNodes = new Set();
+  let textClipTotal = 0;
+  const recordTextClip = (el, kind, reason, clipNode = null) => {
+    if (!el) return;
+    if (clipNode) reportedClipNodes.add(clipNode);
+    textClipTotal += 1;
+    const classes = [...el.classList].slice(0, 3).join(".");
+    const signature = `${el.tagName.toLowerCase()}${classes ? `.${classes}` : ""}|${kind}|${reason.replace(/\d+/g, "N")}`;
+    if (!textClipGroups.has(signature)) {
+      textClipGroups.set(signature, {
+        selector: selectorOf(el),
+        text: textOf(el).slice(0, 48),
+        reason,
+        count: 0,
+      });
+    }
+    textClipGroups.get(signature).count += 1;
+  };
+  for (const el of document.body.querySelectorAll("*")) {
+    if (textClipTotal >= 2000) break;
+    if (!visible(el) || skipClipText(el)) continue;
+    if (!textOf(el)) continue;
+    const style = getComputedStyle(el);
+    const clipsX = CLIP_OVERFLOW.has(style.overflowX);
+    const clipsY = CLIP_OVERFLOW.has(style.overflowY);
+    if (
+      (clipsX && el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1) ||
+      (clipsY && el.clientHeight > 0 && el.scrollHeight > el.clientHeight + 1)
+    ) {
+      recordTextClip(
+        el,
+        "scroll",
+        `scrolls ${el.scrollWidth}x${el.scrollHeight} inside ${el.clientWidth}x${el.clientHeight}`,
+        el,
+      );
+      continue;
+    }
+    const direct = directText(el);
+    if (direct) {
+      const clip = clipsX || clipsY ? el : nearestClip(el);
+      if (clip && !reportedClipNodes.has(clip)) {
+        const clipStyle = getComputedStyle(clip);
+        const clipX = CLIP_OVERFLOW.has(clipStyle.overflowX);
+        const clipY = CLIP_OVERFLOW.has(clipStyle.overflowY);
+        if (lineBoxOutside(el, paddingBoxOf(clip), clipX, clipY)) {
+          recordTextClip(el, "line-box", `line box outside the clip box of ${selectorOf(clip)}`, clip);
+          continue;
+        }
+      }
+    }
+    const parent = el.parentElement;
+    if (parent && parent !== document.body) {
+      const parentStyle = getComputedStyle(parent);
+      // Flex/grid content inside a scroll container is reachable by scrolling
+      // (the chain-tab strip is the common case); only a hard cut is a defect.
+      const scrollParent =
+        ["auto", "scroll"].includes(parentStyle.overflowX) ||
+        ["auto", "scroll"].includes(parentStyle.overflowY);
+      if (
+        !scrollParent &&
+        /flex|grid/.test(parentStyle.display) &&
+        !["absolute", "fixed"].includes(style.position)
+      ) {
+        const pbox = paddingBoxOf(parent);
+        const box = contentBoxOf(el);
+        if (
+          box.left < pbox.left - 1 ||
+          box.right > pbox.right + 1 ||
+          box.top < pbox.top - 1 ||
+          box.bottom > pbox.bottom + 1
+        ) {
+          recordTextClip(el, "flex-child", `escapes the padding box of ${selectorOf(parent)}`);
+        }
+      }
+    }
+  }
+  const textClips = [...textClipGroups.values()];
+  metrics.textClips = { total: textClipTotal, groups: textClips };
+  if (textClipTotal) {
+    add(
+      "text-clipped",
+      `${textClipTotal} element(s) in ${textClips.length} class(es) clip visible text`,
+      textClips
+        .slice(0, 10)
+        .map((group) => `${group.selector} "${group.text}" ${group.reason}${group.count > 1 ? ` (x${group.count})` : ""}`),
+    );
+  }
+
+  // 1g. Donor layout measurement for docs/parity/donor-layout.json. The values
+  //     are recorded only; main() compares them with the fixture and pushes
+  //     warnings, never violations. Donor values are a reference, not a target.
+  if (args.parity) {
+    const parity = args.parity;
+    const select = (selector) => {
+      try {
+        return document.querySelector(selector);
+      } catch {
+        return null;
+      }
+    };
+    const selectAll = (selector) => {
+      try {
+        return [...document.querySelectorAll(selector)];
+      } catch {
+        return [];
+      }
+    };
+    const round = (value) => Math.round(value * 10) / 10;
+    const rows = selectAll(parity.rows).filter(visible);
+    const tops = rows.map((row) => row.getBoundingClientRect().top);
+    const heights = rows.map((row) => row.getBoundingClientRect().height).filter((height) => height > 0);
+    heights.sort((a, b) => a - b);
+    const headerColumns = selectAll(parity.columns)
+      .filter(visible)
+      .map((cell) => round(cell.getBoundingClientRect().width));
+    const firstRowColumns = rows[0]
+      ? [...rows[0].children].map((cell) => round(cell.getBoundingClientRect().width))
+      : [];
+    const columns = headerColumns.some((width) => width > 0) ? headerColumns : firstRowColumns;
+    const controls = {};
+    for (const [name, selector] of Object.entries(parity.controls || {})) {
+      const control = select(selector);
+      if (!control || !visible(control)) {
+        controls[name] = null;
+        continue;
+      }
+      const box = control.getBoundingClientRect();
+      controls[name] = { height: round(box.height), width: round(box.width) };
+    }
+    const fonts = {};
+    for (const [name, selector] of Object.entries(parity.fonts || {})) {
+      const el = select(selector);
+      fonts[name] = el && visible(el) ? round(Number.parseFloat(getComputedStyle(el).fontSize)) : null;
+    }
+    metrics.layout = {
+      page: parity.page,
+      viewport: viewportWidth,
+      theme: theme || null,
+      tableStartY: tops.length ? round(Math.min(...tops)) : null,
+      rowHeight: heights.length ? round(heights[Math.floor(heights.length / 2)]) : null,
+      rows: rows.length,
+      columns,
+      controls,
+      fonts,
+    };
+  }
+
+
   // 2. Body text below 12px.
   const smallText = [];
   const seenText = new Set();
@@ -1653,15 +1983,23 @@ function auditPage(args) {
     if (meta && visible(meta)) {
       const metaBox = boxOf(meta);
       metrics.metaRow = { height: Math.round(metaBox.height) };
-      if (Math.abs(metaBox.height - 40) > 1) {
-        add("key-meta-row", `.key-input-meta is ${Math.round(metaBox.height)}px high (expected one 40px line)`);
+      const metaHeight = Math.round(metaBox.height);
+      if (metaHeight < 39 || metaHeight > 72) {
+        add(
+          "key-meta-row",
+          `.key-input-meta is ${metaHeight}px high (expected 40-72px for a one- to three-line status)`,
+        );
       }
       if (info && visible(info)) {
         const infoBox = boxOf(info);
-        const offset = Math.abs((infoBox.top + infoBox.height / 2) - (metaBox.top + metaBox.height / 2));
+        // Anchor the control to the status block, not the whole meta: the
+        // narrow layout puts the exposure note on a second row.
+        const statusEl = document.getElementById("key-status");
+        const anchor = statusEl && visible(statusEl) ? boxOf(statusEl) : metaBox;
+        const offset = Math.abs((infoBox.top + infoBox.height / 2) - (anchor.top + anchor.height / 2));
         metrics.metaRow.infoCentreOffset = Number(offset.toFixed(1));
         if (offset > 2) {
-          add("key-meta-row", `#key-info-btn is ${offset.toFixed(1)}px off the meta row centre`);
+          add("key-meta-row", `#key-info-btn is ${offset.toFixed(1)}px off the status block centre`);
         }
       }
     }
@@ -5582,6 +5920,15 @@ async function main() {
     return 0;
   }
 
+  let parityFixture = null;
+  try {
+    parityFixture = JSON.parse(readFileSync(PARITY_FIXTURE_PATH, "utf8"));
+  } catch (error) {
+    if (existsSync(PARITY_FIXTURE_PATH)) {
+      throw new Error(`cannot read ${PARITY_FIXTURE_PATH}: ${error.message}`);
+    }
+  }
+
   let server = null;
   let browser = null;
   let cdp = null;
@@ -6003,12 +6350,28 @@ async function main() {
             }
 
             // Audit after the interaction so /key results are inspected too.
+            const parityPage = parityPageForRoute(route);
             const result = await evaluate(
               cdp,
-              `(${auditPage.toString()})(${JSON.stringify({ route, theme, width: viewport.width })})`,
+              `(${auditPage.toString()})(${JSON.stringify({ route, theme, width: viewport.width, parity: parityPage })})`,
             );
             run.violations.push(...result.violations);
             run.metrics = { ...result.metrics, ...run.metrics };
+            if (result.metrics.layout && parityFixture) {
+              const layoutParity = compareLayoutToFixture(parityFixture, result.metrics.layout);
+              if (layoutParity) {
+                run.metrics.layoutParity = layoutParity;
+                if (layoutParity.deltas.length) {
+                  run.warnings.push({
+                    id: "donor-layout-parity",
+                    message:
+                      `${layoutParity.page} at ${layoutParity.viewport}px differs from the donor reference ` +
+                      `in ${layoutParity.deltas.length} measured value(s) (reference, not target)`,
+                    detail: layoutParity.deltas,
+                  });
+                }
+              }
+            }
 
             const shot = await cdp.send("Page.captureScreenshot", {
               format: "png",
@@ -6132,6 +6495,18 @@ async function main() {
     for (const run of runs) {
       for (const violation of run.violations) {
         log(`VIOLATION [${violation.id}] ${run.route} ${run.viewport.width}px ${run.theme}: ${violation.message}${detailSuffix(violation.detail)}`);
+      }
+    }
+    for (const run of runs) {
+      for (const warning of run.warnings) {
+        const line = `WARNING [${warning.id}] ${run.route} ${run.viewport.width}px ${run.theme}: ${warning.message}${detailSuffix(warning.detail)}`;
+        // Donor deltas are reference-only, but they should be visible on the PR
+        // check as annotations, not buried in a log.
+        if (process.env.GITHUB_ACTIONS === "true" && warning.id === "donor-layout-parity") {
+          log(`::warning title=Donor layout parity::${line.replace(/%/g, "%25").replace(/\r?\n/g, " ")}`);
+        } else {
+          log(line);
+        }
       }
     }
     if (warnings) {

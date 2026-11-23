@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "kind": "donor-layout-reference",
+  "donor": "privatekeyfinder.io",
+  "note": "Donor values are a reference, not targets. This file records what the donor renders so a delta is visible in the audit; no PR is blocked by a delta and parity is not a claimed goal.",
+  "measuredAt": "2026-11-23T18:26:09.545Z",
+  "method": "Headless Chrome 131, normal desktop user agent, DevTools device metrics, 8 s post-load settle; one load per page and viewport. Row heights are the median of rendered row boxes; column widths come from the table header, or from the first row when the mobile layout hides the header; control heights are getBoundingClientRect heights of the first rendered match; fonts are computed font-size.",
+  "pages": {
+    "chain-directory": {
+      "donorUrl": "https://privatekeyfinder.io/private-keys/bitcoin",
+      "oursRoute": "/private-keys/bitcoin",
+      "note": "Per-chain directory. At 375 px the donor hides .keys-header, so column widths come from the first .key-row's three cells, which stack; at 1280 px they come from .keys-header > div.",
+      "tolerance": {
+        "tableStartY": 16,
+        "rowHeight": 8,
+        "columnWidth": 8,
+        "controlHeight": 4,
+        "font": 1
+      },
+      "viewports": {
+        "375": {
+          "rows": 60,
+          "tableStartY": 1721.95,
+          "rowHeight": 226.25,
+          "columnSource": "first-row",
+          "columnWidths": [317, 239.58, 190.11],
+          "controlHeights": {
+            "chainTab": 40,
+            "pagerButton": 31,
+            "pageInput": 31,
+            "jumpButton": 31,
+            "searchInput": 31,
+            "searchSelect": 29.5,
+            "searchButton": 31,
+            "globalSearch": 37.2
+          },
+          "fonts": {
+            "pageInfo": 14.4,
+            "statValue": 16,
+            "tableHeader": 12.8,
+            "rowText": 10.4
+          }
+        },
+        "1280": {
+          "rows": 60,
+          "tableStartY": 1181.38,
+          "rowHeight": 95.91,
+          "columnSource": "header",
+          "columnWidths": [90.94, 73.02, 100.72],
+          "controlHeights": {
+            "chainTab": 41,
+            "pagerButton": 31,
+            "pageInput": 31,
+            "jumpButton": 31,
+            "searchInput": 31,
+            "searchSelect": 29.5,
+            "searchButton": 31,
+            "globalSearch": 44.8
+          },
+          "fonts": {
+            "pageInfo": 14.4,
+            "statValue": 20,
+            "tableHeader": 12.8,
+            "rowText": 12.8
+          }
+        }
+      }
+    },
+    "key-page": {
+      "donorUrl": "https://privatekeyfinder.io/key/1",
+      "oursRoute": "/key/0000000000000000000000000000000000000000000000000000000000000001",
+      "note": "Key details page. The donor address table keeps all five columns at 375 px, so the 375 px column widths are genuinely narrow; at 1280 px the address column takes the free space.",
+      "tolerance": {
+        "tableStartY": 16,
+        "rowHeight": 8,
+        "columnWidth": 8,
+        "controlHeight": 4,
+        "font": 1
+      },
+      "viewports": {
+        "375": {
+          "rows": 30,
+          "tableStartY": 1455.73,
+          "rowHeight": 108.78,
+          "columnSource": "header",
+          "columnWidths": [73.61, 67.52, 68.03, 84.66, 55.19],
+          "controlHeights": {
+            "globalSearch": 37.2,
+            "badge": 18.4,
+            "rowLink": 22.4,
+            "rowButton": 24.4
+          },
+          "fonts": {
+            "title": 16,
+            "tableHeader": 12,
+            "rowText": 11
+          }
+        },
+        "1280": {
+          "rows": 30,
+          "tableStartY": 1062.48,
+          "rowHeight": 39.66,
+          "columnSource": "header",
+          "columnWidths": [76.84, 72.67, 809.3, 100, 55.19],
+          "controlHeights": {
+            "globalSearch": 44.8,
+            "badge": 21.2,
+            "rowLink": 23.4,
+            "rowButton": 25.9
+          },
+          "fonts": {
+            "title": 20,
+            "tableHeader": 12,
+            "rowText": 13
+          }
+        }
+      }
+    }
+  }
+}
