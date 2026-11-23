@@ -937,6 +937,88 @@ function auditPage(args) {
     add("raw-path-text", `${rawPaths.length} cell(s) show a raw path instead of a label`, rawPaths.slice(0, 6));
   }
 
+  // 1d. Text that is clipped by its own cell or by an overflow:hidden element
+  //     inside a cell. The document-overflow and target-size checks cannot see
+  //     this: a nowrap status span in a fixed-width column stays inside the
+  //     viewport while its tail is cut. A flex child overflowing to the left
+  //     does not raise scrollWidth, so the text range is measured against the
+  //     clip box as well. Div directory rows (`div.key-row`) use the same row
+  //     grammar and the same clipping risk, so they are scanned as containers
+  //     too; the row's own scroll box is not a clip (its overflow is visible).
+  const cellClips = [];
+  const skipClip = (el) =>
+    !el ||
+    el.closest("[hidden], .visually-hidden, .sr-only, svg, script, style, template") ||
+    el.getAttribute("aria-hidden") === "true";
+  const rangeOutside = (el, box) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    for (const rect of range.getClientRects()) {
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (
+        rect.left < box.left - 1 ||
+        rect.right > box.right + 1 ||
+        rect.top < box.top - 1 ||
+        rect.bottom > box.bottom + 1
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+  for (const cell of document.querySelectorAll("td, th, div.key-row")) {
+    if (!visible(cell) || skipClip(cell)) continue;
+    const cellText = textOf(cell);
+    if (!cellText) continue;
+    const isCell = cell.matches("td, th");
+    if (isCell && (cell.scrollWidth > cell.clientWidth + 1 || cell.scrollHeight > cell.clientHeight + 1)) {
+      cellClips.push(
+        `${selectorOf(cell)} "${cellText.slice(0, 42)}" ${cell.scrollWidth}x${cell.scrollHeight} in ` +
+          `${cell.clientWidth}x${cell.clientHeight}`,
+      );
+    }
+    for (const el of cell.querySelectorAll("*")) {
+      if (!visible(el) || skipClip(el)) continue;
+      const style = getComputedStyle(el);
+      const clipsX = ["hidden", "clip"].includes(style.overflowX);
+      const clipsY = ["hidden", "clip"].includes(style.overflowY);
+      if (!clipsX && !clipsY) continue;
+      const text = textOf(el);
+      if (!text) continue;
+      const box = el.getBoundingClientRect();
+      const scrollsOut =
+        (clipsX && el.scrollWidth > el.clientWidth + 1) ||
+        (clipsY && el.scrollHeight > el.clientHeight + 1);
+      if (scrollsOut || rangeOutside(el, box)) {
+        cellClips.push(`${selectorOf(el)} "${text.slice(0, 42)}" clipped by ${selectorOf(cell)}`);
+      }
+      if (cellClips.length >= 40) break;
+    }
+    if (cellClips.length >= 40) break;
+  }
+
+  // 1e. A table wider than its .table-scroll wrapper that cannot scroll
+  //     (overflow-x: visible) cuts cells at the wrapper edge. A scrollable
+  //     wrapper is the shared grammar and is not flagged: its content stays
+  //     reachable by swiping.
+  for (const table of document.querySelectorAll("table")) {
+    if (!visible(table) || skipClip(table)) continue;
+    const wrapper = table.closest(".table-scroll");
+    if (!wrapper || !visible(wrapper)) continue;
+    if (getComputedStyle(wrapper).overflowX !== "visible") continue;
+    const wrapperBox = wrapper.getBoundingClientRect();
+    const cut = [...table.querySelectorAll("td, th")].find((cell) => {
+      if (!visible(cell) || skipClip(cell)) return false;
+      return cell.getBoundingClientRect().right > wrapperBox.right + 1;
+    });
+    if (cut) cellClips.push(`${selectorOf(table)} extends past its non-scrolling .table-scroll`);
+  }
+
+  metrics.cellClips = cellClips;
+  if (cellClips.length) {
+    add("cell-content-clipped", `${cellClips.length} cell(s) clip their text`, cellClips.slice(0, 10));
+  }
+
   // 2. Body text below 12px.
   const smallText = [];
   const seenText = new Set();

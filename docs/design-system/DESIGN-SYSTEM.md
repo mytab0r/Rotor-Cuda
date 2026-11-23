@@ -834,6 +834,7 @@ standalone freshness gate.
 | `seo-puzzle-data` | Every rendered puzzle row and detail page matches data/puzzles.json: number, target, solved status and the inclusive 2^(n-1)..2^n-1 range hex; copy controls carry only those values. | seo | implemented |
 | `seo-puzzle-fabricated-key` | No puzzle page presents a 64-hex value as a private key or carries a private-key data attribute; the dataset has no key to render. | seo | implemented |
 | `seo-puzzle-sitemap` | sitemap.xml lists the /bitcoin-puzzle hub and exactly the indexable puzzle detail pages, and no page rendered noindex. | seo | implemented |
+| `cell-content-clipped` | Table cell text fits or wraps: no td/th scroll overflow, no overflow:hidden/text-overflow clipping of visible text, and no cell cut by a non-scrolling .table-scroll wrapper. | 8 | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in
