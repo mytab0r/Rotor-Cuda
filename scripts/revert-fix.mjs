@@ -129,6 +129,13 @@ function trackedTreeIsClean(repoRoot) {
   return gitStatus(repoRoot) === "";
 }
 
+// The tree was clean at start. A test command is allowed to write tracked
+// generated files; put HEAD content back before leaving, including on the
+// baseline-failure path that exits before the patch exists.
+function discardTrackedChanges(repoRoot) {
+  if (!trackedTreeIsClean(repoRoot)) git(repoRoot, ["reset", "--hard", "HEAD"]);
+}
+
 export function changedFiles(repoRoot, base) {
   const output = git(repoRoot, [
     "diff",
@@ -364,10 +371,12 @@ function main() {
     console.log("baseline: running the test command before the revert");
     const baseline = runCommand(repoRoot, command, options.timeout);
     if (baseline.timedOut) {
+      discardTrackedChanges(repoRoot);
       console.error("error: the baseline test command timed out");
       process.exit(2);
     }
     if (baseline.status !== 0) {
+      discardTrackedChanges(repoRoot);
       console.error(
         `error: the baseline test command failed (exit ${baseline.status}); a later failure cannot prove the revert`,
       );
@@ -377,9 +386,7 @@ function main() {
 
     // The test command may write tracked generated files; reset them so the
     // reverse patch applies to the exact HEAD content.
-    if (!trackedTreeIsClean(repoRoot)) {
-      git(repoRoot, ["reset", "--hard", "HEAD"]);
-    }
+    discardTrackedChanges(repoRoot);
 
     patchPath = writePatch(repoRoot, options.base, revertable);
     if (!patchPath) {
