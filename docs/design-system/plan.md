@@ -460,6 +460,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `seo-prose-uniqueness` | Each chain page has at least 120 unique prose words and every pair of pages stays below 0.50 5-gram Jaccard similarity; the shared safety block is excluded. | seo | implemented |
 | `seo-structured-data` | Chain page JSON-LD contains both CollectionPage and BreadcrumbList. | seo | implemented |
 | `seo-og-image-alt` | og:image is present and og:image:alt plus twitter:image:alt name the chain, so one family image still tells crawlers which page it represents. | seo | implemented |
+| `seo-hub-links` | The /private-keys hub is built, links every one of the 18 mainnet chain pages from data/chains.json, and every internal link in its main content resolves to a built file in web/dist. | seo | implemented |
 | `seo-not-found` | The deploy root ships 404.html with noindex, no hidden H1 and exactly one visible H1; without it Cloudflare Pages answers 200 with the landing page for an unknown path (a soft 404). | seo | implemented |
 <!-- END GENERATED detectors:plan -->
 
