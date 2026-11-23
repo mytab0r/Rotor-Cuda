@@ -1,0 +1,35 @@
+name: Epic
+description: One OpenSpec change, tracked as its sub-issues.
+title: "[<change-id>] "
+labels: []
+body:
+  - type: input
+    id: change
+    attributes:
+      label: Change id
+      description: The folder name under openspec/changes/.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What the change delivers, in two or three lines.
+    validations:
+      required: true
+  - type: textarea
+    id: subissues
+    attributes:
+      label: Sub-issues
+      description: One `ROT-<n> — <section>` per tasks.md section.
+      placeholder: |
+        - ROT-12 — Providers and watcher
+    validations:
+      required: false
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this epic deliberately does not do.
+    validations:
+      required: false
