@@ -653,7 +653,7 @@ function main() {
       ghJson,
       owner: REPO_OWNER,
       name: REPO_NAME,
-      states: ["OPEN"],
+      states: ["OPEN", "CLOSED"],
     }).map((issue) => [issue.number, issue]),
   );
   const issueTypes = listIssueTypes();
@@ -766,25 +766,25 @@ function main() {
       return { type: info.type, milestone: info.milestone, priority, severity };
     }
 
-    if (state === "OPEN") {
-      const current = issueMetadata.get(Number(number)) ?? {};
-      if (info.type && current.issueType !== info.type) {
-        if (DRY_RUN) {
-          console.log(`[dry-run] set Type=${info.type} on #${number}`);
-          typesSet += 1;
-        } else {
-          setIssueType(number, info.type, id);
-        }
+    // Closed epics and sub-issues get a Type and a Milestone too: they can be
+    // project items, and the board's Type column must not be empty.
+    const current = issueMetadata.get(Number(number)) ?? {};
+    if (info.type && current.issueType !== info.type) {
+      if (DRY_RUN) {
+        console.log(`[dry-run] set Type=${info.type} on #${number}`);
+        typesSet += 1;
+      } else {
+        setIssueType(number, info.type, id);
       }
-      if (info.milestone && current.milestone !== info.milestone.title) {
-        if (DRY_RUN) {
-          console.log(
-            `[dry-run] set Milestone="${info.milestone.title}" on #${number}`,
-          );
-          milestonesAssigned += 1;
-        } else {
-          setMilestone(number, info.milestone.title);
-        }
+    }
+    if (info.milestone && current.milestone !== info.milestone.title) {
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] set Milestone="${info.milestone.title}" on #${number}`,
+        );
+        milestonesAssigned += 1;
+      } else {
+        setMilestone(number, info.milestone.title);
       }
     }
 
