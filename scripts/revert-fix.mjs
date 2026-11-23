@@ -88,9 +88,14 @@ export function isTestPath(filePath, testGlobs = DEFAULT_TEST_GLOBS) {
   return testGlobs.some((glob) => matchesGlob(normalized, glob));
 }
 
-// Files that may be reverted: changed, outside the test globs, and inside one
-// of the include globs when any are given.
-export function selectRevertableFiles(files, { testGlobs = DEFAULT_TEST_GLOBS, includeGlobs = [] } = {}) {
+// Files that may be reverted: changed, outside the test globs, inside one of
+// the include globs when any are given, and inside one of the source globs
+// when any are given. Source globs let CI ignore documentation, workflow and
+// data-only changes: there is no executable behaviour for a test to catch.
+export function selectRevertableFiles(
+  files,
+  { testGlobs = DEFAULT_TEST_GLOBS, includeGlobs = [], sourceGlobs = [] } = {},
+) {
   return files
     .map(normalizePath)
     .filter(Boolean)
@@ -99,6 +104,11 @@ export function selectRevertableFiles(files, { testGlobs = DEFAULT_TEST_GLOBS, i
       (filePath) =>
         includeGlobs.length === 0 ||
         includeGlobs.some((glob) => matchesGlob(filePath, glob)),
+    )
+    .filter(
+      (filePath) =>
+        sourceGlobs.length === 0 ||
+        sourceGlobs.some((glob) => matchesGlob(filePath, glob)),
     );
 }
 
@@ -188,10 +198,13 @@ function usage() {
 
 Options:
   --base <ref>          Base ref or commit to diff against (default: origin/main).
-  --cmd <command>       Test command to run; required unless --projects-area.
+  --cmd <command>       Test command to run; required unless --projects-area
+                        supplies one (it overrides the area's test list).
   --projects-area <id>  Use the area's paths and test commands from projects.json.
   --test-glob <glob>    Add a test-path glob (repeatable).
   --include <glob>      Only revert files matching this glob (repeatable).
+  --source-glob <glob>  Only revert executable-source files matching this glob
+                        (repeatable); ignored when empty.
   --timeout <ms>        Test command timeout in milliseconds (default: ${DEFAULT_TIMEOUT_MS}).
   --repo-root <path>    Repository root (default: the script's parent directory).
   --dry-run             Print the plan without running or modifying anything.
@@ -208,12 +221,12 @@ function parseArgs(argv) {
     projectsArea: null,
     testGlobs: [...DEFAULT_TEST_GLOBS],
     includeGlobs: [],
+    sourceGlobs: [],
     timeout: DEFAULT_TIMEOUT_MS,
     repoRoot: DEFAULT_REPO_ROOT,
     dryRun: false,
     help: false,
-  };
-  for (let index = 0; index < argv.length; index += 1) {
+  };  for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     const take = () => {
       index += 1;
@@ -225,6 +238,7 @@ function parseArgs(argv) {
     else if (arg === "--projects-area") options.projectsArea = take();
     else if (arg === "--test-glob") options.testGlobs.push(take());
     else if (arg === "--include") options.includeGlobs.push(take());
+    else if (arg === "--source-glob") options.sourceGlobs.push(take());
     else if (arg === "--timeout") options.timeout = Number(take());
     else if (arg === "--repo-root") options.repoRoot = path.resolve(take());
     else if (arg === "--dry-run") options.dryRun = true;
@@ -233,9 +247,6 @@ function parseArgs(argv) {
   }
   if (!Number.isFinite(options.timeout) || options.timeout <= 0) {
     throw new Error("--timeout must be a positive number of milliseconds");
-  }
-  if (options.cmd && options.projectsArea) {
-    throw new Error("use either --cmd or --projects-area, not both");
   }
   return options;
 }
@@ -293,7 +304,10 @@ function main() {
   try {
     if (options.projectsArea) {
       const area = loadArea(repoRoot, options.projectsArea);
-      command = area.test.join(" && ");
+      // --projects-area supplies the area's path globs; --cmd may override the
+      // area's test list when one command is not runnable on the CI runner
+      // (for example the GPU-feature desktop test or a wasm artifact test).
+      if (!command) command = area.test.join(" && ");
       includeGlobs = area.paths;
       console.log(`area: ${area.id} (${area.title})`);
     }
@@ -324,6 +338,7 @@ function main() {
   const revertable = selectRevertableFiles(changed, {
     testGlobs: options.testGlobs,
     includeGlobs,
+    sourceGlobs: options.sourceGlobs,
   });
 
   console.log(`base: ${options.base}`);

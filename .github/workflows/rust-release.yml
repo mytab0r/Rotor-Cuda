@@ -162,3 +162,49 @@ jobs:
           files: |
             rotor-gpu.exe
             rotor-gpu.exe.sha256
+
+  sbom:
+    # CycloneDX SBOMs for the Rust workspace and the Astro npm tree. Release
+    # tags only; there is no pull-request cost. cargo-cyclonedx emits one file
+    # next to each Cargo.toml, so collect and rename them into one directory.
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install cargo-cyclonedx (pinned)
+        run: cargo install cargo-cyclonedx --version 0.5.10 --locked
+      - name: Generate the Rust SBOMs
+        run: |
+          set -euo pipefail
+          cargo cyclonedx -f json --spec-version 1.5 --override-filename sbom.cdx
+          mkdir -p sbom
+          find . -name 'sbom.cdx.json' -not -path './target/*' -not -path './.git/*' -print0 \
+            | while IFS= read -r -d '' file; do
+                rel="${file#./}"
+                dir="${rel%/sbom.cdx.json}"
+                name="${dir//\//-}"
+                [ -z "$name" ] && name="workspace"
+                cp "$file" "sbom/${name}.cdx.json"
+                rm "$file"
+              done
+          ls -l sbom
+      - name: Generate the web SBOM
+        run: |
+          set -euo pipefail
+          npx --yes @cyclonedx/cyclonedx-npm@7.0.1 \
+            --package-lock-only \
+            --output-format json --spec-version 1.5 \
+            --output-file sbom/rotor-web.cdx.json \
+            web/package.json
+          ls -l sbom
+      - name: Publish the SBOMs as release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" sbom/*.cdx.json --clobber

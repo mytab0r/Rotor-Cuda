@@ -109,6 +109,11 @@ test("selection excludes test paths and honours include globs", () => {
   assert.deepEqual(selectRevertableFiles(files, { includeGlobs: ["web/**"] }), [
     "web/src/lib/chains.ts",
   ]);
+  assert.deepEqual(
+    selectRevertableFiles(files, { sourceGlobs: ["**/*.js", "**/*.ts"] }),
+    ["apps/site/amount.js", "web/src/lib/chains.ts"],
+  );
+  assert.deepEqual(selectRevertableFiles(["docs/process/gates.md"], { sourceGlobs: ["**/*.rs"] }), []);
 });
 
 test("integration: reverting a covered change makes the test fail", () => {

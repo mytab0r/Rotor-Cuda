@@ -27,7 +27,7 @@ const SOFT_NOTE_RE = /^(?:follows|after|needs?|depends on|see)\b/i;
 const DOC_PATH_RE = /^(?:docs\/|openspec\/)/i;
 const ROOT_MARKDOWN_RE = /^[^/]+\.(?:md|mdx)$/i;
 const PROCESS_PATH_RE =
-  /^(?:scripts\/|\.github\/)|^(?:projects\.json|AGENTS\.md|PROJECTS\.md)$/;
+  /^(?:scripts\/|\.github\/)|^(?:projects\.json|AGENTS\.md|PROJECTS\.md|\.commitlintrc\.json|lighthouserc\.json|\.gitleaks\.toml)$/;
 
 export function taskKey(issueNumber) {
   const number = Number(issueNumber);
