@@ -1464,7 +1464,11 @@ function main() {
       items,
       openPullRequestNumbers: new Set(prs.map((pr) => pr.number)),
       projectId: project.id,
-      ghJson,
+      ghJson: (args) =>
+        withProjectsRetry(() => ghJson(args), {
+          label: "project archive",
+          log: (line) => console.log(line),
+        }),
       repo: REPO,
       dryRun: DRY_RUN,
       log: (line) => console.log(line),
