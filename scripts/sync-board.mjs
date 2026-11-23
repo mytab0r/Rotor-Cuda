@@ -39,6 +39,7 @@ import {
   priorityFor,
   severityFor,
   syncChangeTasks,
+  targetDelta,
 } from "./lib/task-tracking.mjs";
 
 const REPO = "mytab0r/Rotor-Cuda";
@@ -1404,15 +1405,12 @@ function main() {
       if (!target) continue;
       const closedDate = dateOnly(meta.closedAt);
       if (!closedDate) continue;
-      const delta = Math.round(
-        (Date.parse(`${closedDate}T00:00:00Z`) - Date.parse(`${target}T00:00:00Z`)) /
-          86400000,
-      );
-      if (delta <= 0) onTime += 1;
+      const delta = targetDelta(target, closedDate);
+      if (!delta) continue;
+      if (delta.days <= 0) onTime += 1;
       else late += 1;
-      const verdict = delta <= 0 ? "on time" : `late by ${delta} day${delta === 1 ? "" : "s"}`;
       actualLines.push(
-        `actual: #${meta.number} target ${target}, closed ${closedDate} -> ${verdict}`,
+        `actual: #${meta.number} target ${target}, closed ${closedDate} -> ${delta.verdict}`,
       );
     }
 

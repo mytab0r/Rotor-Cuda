@@ -349,6 +349,23 @@ export function findDependencyCycles(edges = []) {
   return cycles;
 }
 
+// Plan vs fact: `days` is closedAt minus the milestone due date (negative or
+// zero is on time). The sync reports this; it never writes it back.
+export function targetDelta(targetDate, actualDate) {
+  const target = String(targetDate ?? "").slice(0, 10);
+  const actual = String(actualDate ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target) || !/^\d{4}-\d{2}-\d{2}$/.test(actual)) {
+    return null;
+  }
+  const days = Math.round(
+    (Date.parse(`${actual}T00:00:00Z`) - Date.parse(`${target}T00:00:00Z`)) / 86400000,
+  );
+  return {
+    days,
+    verdict: days <= 0 ? "on time" : `late by ${days} day${days === 1 ? "" : "s"}`,
+  };
+}
+
 // Board gate. `projectItems` is a map of issue number -> project field values
 // (`{ priority, severity, targetDate, startDate }`); `allowlist` is the parsed
 // `data/board-exceptions.json` and may only name historical closed issues.
