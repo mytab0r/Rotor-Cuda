@@ -1,0 +1,100 @@
+---
+/* Disclaimer, ported from `render_disclaimer` in src/coordinator/mod.rs.
+ *
+ * Every limit the legacy page states is kept in the same words: education and
+ * authorized testing only, no custody or signing, treat a key typed into a
+ * networked browser as exposed, provider data is best-effort. One H1, five
+ * content H2s, WebPage + BreadcrumbList JSON-LD. No client script. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { breadcrumbList, webPageNode } from '../../lib/jsonld';
+import { SITE_ORIGIN } from '../../lib/site';
+
+const TITLE = 'Disclaimer — educational and authorized use | Crypto';
+const DESCRIPTION =
+  'Crypto is provided for education, research and authorized testing only. It is not a wallet, holds no funds, signs nothing, and cannot sweep balances.';
+const CANONICAL = '/disclaimer';
+const canonicalUrl = `${SITE_ORIGIN}${CANONICAL}`;
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    webPageNode({ url: canonicalUrl, name: TITLE, description: DESCRIPTION }),
+    breadcrumbList([
+      { name: 'Home', path: '/' },
+      { name: 'Disclaimer', path: CANONICAL },
+    ]),
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={CANONICAL}
+  image={ogImageUrl}
+  imageAlt="Crypto disclaimer — educational and authorized use only"
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="key-page presentation-page"
+  jsonLd={JSON_LD}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Disclaimer</span>
+  </nav>
+
+  <section class="hero" aria-labelledby="disclaimer-title">
+    <h1 id="disclaimer-title">Disclaimer</h1>
+    <p>Crypto is an educational and research tool. Read this page before using any key or address feature.</p>
+  </section>
+
+  <section class="card">
+    <h2>Educational and authorized use only</h2>
+    <p>
+      The site explains how keys map to addresses and lets you test that mapping. Use it only
+      with keys and addresses you own or are explicitly authorized to test, such as public
+      puzzles and security research. Do not use it to access funds you do not control.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>No custody, signing or sweeping</h2>
+    <p>
+      Crypto is not a wallet. It does not hold funds, sign transactions, broadcast transfers or
+      sweep balances, and it never asks for a seed phrase. Any signing or transaction feature is
+      separate and gated; nothing on these pages moves value.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Key handling warning</h2>
+    <p>
+      Treat any private key typed into a networked browser as potentially exposed. Use published
+      test vectors or throwaway keys for learning, and keep keys that protect real funds offline
+      or air-gapped. A passphrase-derived brainwallet is not safe for real funds.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Data providers and API caveats</h2>
+    <p>
+      Balance and watchlist checks send public addresses to configured chain data providers.
+      Those services can be delayed, incomplete or unavailable, and alerts are best-effort
+      rather than a guarantee. Derived addresses alone do not prove ownership, funding or
+      observability.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>More information</h2>
+    <ul>
+      <li><a href="/faq">Frequently asked questions</a></li>
+      <li><a href="/docs">Documentation</a></li>
+      <li><a href="/private-keys">Key hubs</a></li>
+    </ul>
+  </section>
+</SiteLayout>

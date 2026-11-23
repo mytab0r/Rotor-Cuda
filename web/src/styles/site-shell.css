@@ -477,3 +477,64 @@
     inset: calc((var(--control-h-lg) - var(--control-h-md)) / -2) 0;
   }
 }
+
+/* ------------------------------------------------- faq / disclaimer / donate */
+/* The three pages are reading surfaces, so prose is capped at 72ch and every
+ * section is a plain card from the shared grammar. The donation rows follow the
+ * #399 density tier: 44 on touch, 36 visual on a fine desktop pointer with the
+ * copy button's hit area extended back to 44. Tokens only. */
+
+.presentation-page .hero > p { max-width: 72ch; }
+.presentation-page .card > p { max-width: 72ch; }
+.presentation-page .faq-item p { max-width: 68ch; }
+
+.donate-addresses {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.donate-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: var(--control-h-lg);
+  padding: var(--space-2);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-m);
+  background: var(--surface-1);
+}
+.donate-address__text {
+  display: grid;
+  flex: 1 1 260px;
+  gap: 2px;
+  min-width: 0;
+}
+.donate-address__text strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.donate-address__text code {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.donate-address .icon-button { position: relative; }
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .donate-address { min-height: var(--control-h-md); }
+  .donate-address .icon-button {
+    --icon-button-size: var(--control-h-md);
+    --icon-button-icon: var(--icon-size-md);
+  }
+  .donate-address .icon-button::before {
+    content: "";
+    position: absolute;
+    /* The button's padding box is 34px (36 minus the 1px border); 5px on each
+     * side restores the 44px hit area without changing the visual size. */
+    inset: calc((var(--control-h-lg) - var(--control-h-md)) / -2 - 1px);
+  }
+}
+

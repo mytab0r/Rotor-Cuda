@@ -84,7 +84,10 @@ export function absoluteUrl(pathname: string): string {
  * page the static build does not contain. */
 export const PRERENDERED_ROUTES: readonly string[] = [
   '/',
+  '/disclaimer',
   '/docs',
+  '/donate',
+  '/faq',
   '/mnemonic-converter',
   '/mnemonic-seeds',
   '/private-keys',

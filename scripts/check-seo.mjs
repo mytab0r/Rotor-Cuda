@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // SEO gate for the prerendered chain directories (`/private-keys/<chain>` and
 // `/mnemonic-seeds/<chain>`), their hubs, the presentation pages (`/docs`,
-// `/tools`) and the root 404 document.
+// `/tools`), the pure-content pages (`/faq`, `/disclaimer`, `/donate`), plus
+// the root 404 document.
 //
 // Reads the built `web/dist` tree (no network, no dependencies) and fails when
 // a page breaks the contract the SEO audit measured:
@@ -17,8 +18,9 @@
 //   - a missing CollectionPage/BreadcrumbList JSON-LD or chain-named og:image:alt;
 //   - on /docs and /tools: a TOC anchor that does not resolve to an existing
 //     id, or a TOC that omits a content H2;
-//   - an internal link target that neither exists in `dist` nor is listed in
-//     the explicit `pendingCutover` allowlist below (with a reason);
+//   - on every presentation page: an internal link target that neither exists
+//     in `dist` nor is listed in the explicit `pendingCutover` allowlist below
+//     (with a reason);
 //   - malformed JSON-LD, or missing the expected schema types;
 //   - hub links missing for a chain page, or a hub internal link with no
 //     built target in `web/dist`;
@@ -91,6 +93,30 @@ const PRESENTATION_PAGES = [
     requireToc: false,
     jsonLdTypes: ['CollectionPage', 'BreadcrumbList'],
   },
+  {
+    route: '/faq',
+    file: path.join('faq', 'index.html'),
+    label: 'faq',
+    minContentH2: 2,
+    requireToc: false,
+    jsonLdTypes: ['FAQPage', 'BreadcrumbList'],
+  },
+  {
+    route: '/disclaimer',
+    file: path.join('disclaimer', 'index.html'),
+    label: 'disclaimer',
+    minContentH2: 2,
+    requireToc: false,
+    jsonLdTypes: ['BreadcrumbList'],
+  },
+  {
+    route: '/donate',
+    file: path.join('donate', 'index.html'),
+    label: 'donate',
+    minContentH2: 2,
+    requireToc: false,
+    jsonLdTypes: ['BreadcrumbList'],
+  },
 ];
 
 /* Internal targets the new presentation pages link to that the static build
@@ -125,9 +151,6 @@ const pendingCutover = new Map([
   ['/run', 'Worker client shell still served by the coordinator (phase 5).'],
   ['/send', 'Testnet send page still served by the coordinator (phase 5).'],
   ['/wallets', 'Wallet database route is live on the coordinator; its cutover is not scheduled.'],
-  ['/faq', 'Documentation page still served by the coordinator (phase 2).'],
-  ['/disclaimer', 'Documentation page still served by the coordinator (phase 2).'],
-  ['/donate', 'Documentation page still served by the coordinator (phase 2).'],
 ]);
 
 /* Chain pages link into two coordinator-owned families that the static build
@@ -155,7 +178,7 @@ function pendingChainTarget(pathname) {
 }
 
 const HELP = `check-seo - SEO gate for web/dist/private-keys, web/dist/mnemonic-seeds,
-their hubs, /docs, /tools and 404.html
+their hubs, /docs, /tools, /faq, /disclaimer, /donate and 404.html
 
 Options:
   --dist PATH   built Astro output (default: web/dist)
@@ -254,19 +277,9 @@ function jaccard(first, second) {
 
 function attr(html, pattern) {
   const match = html.match(pattern);
-  return match ? decodeEntities(match[1].trim()) : null;
-}
-
-/* Meta content may contain the opposite quote character (a derivation path
- * such as m/44'/501'/0'/0' is a common case), so capture with the exact quote
- * that opened the value instead of a character class. */
-function metaContent(html, key, property = false) {
-  const attribute = property ? 'property' : 'name';
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = html.match(
-    new RegExp(`<meta\\s+${attribute}=["']${escaped}["']\\s+content=(["'])([\\s\\S]*?)\\1`, 'i'),
-  );
-  return match ? decodeEntities(match[2].trim()) : null;
+  // A `(["'])([\s\S]*?)\1` pattern keeps a quote of the other kind inside the
+  // value; older single-group patterns still return group 1.
+  return match ? decodeEntities((match[2] ?? match[1]).trim()) : null;
 }
 
 function sectionByMarker(html, marker) {
@@ -391,12 +404,12 @@ async function checkPresentationPage(spec, dist, distFiles) {
   }
 
   const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
-  const description = metaContent(html, 'description');
-  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
-  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
-  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
-  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=["']([^"']*)["']/i);
-  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=["']([^"']*)["']/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=(["'])([\s\S]*?)\1/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
 
   if (!title) {
     fail('seo-metadata-bounds', 'missing <title>');
@@ -583,13 +596,13 @@ function checkHub(page, slugs, chainResults, dist, family = PRIVATE_KEYS_FAMILY)
   const { html } = page;
 
   const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
-  const description = metaContent(html, 'description');
-  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
-  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
-  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
-  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=["']([^"']*)["']/i);
-  const twitterImage = attr(html, /<meta\s+name=["']twitter:image["']\s+content=["']([^"']*)["']/i);
-  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=["']([^"']*)["']/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=(["'])([\s\S]*?)\1/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImage = attr(html, /<meta\s+name=["']twitter:image["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
 
   if (!title) {
     fail('seo-metadata-bounds', 'missing <title>');
@@ -734,12 +747,12 @@ function checkPage(page, expectedSlugs, family = PRIVATE_KEYS_FAMILY, distFiles 
   const name = chainData?.name ?? slug;
 
   const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
-  const description = metaContent(html, 'description');
-  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
-  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
-  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
-  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=["']([^"']*)["']/i);
-  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=["']([^"']*)["']/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=(["'])([\s\S]*?)\1/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
 
   if (!title) {
     fail('seo-metadata-bounds', 'missing <title>');
@@ -861,7 +874,7 @@ async function checkNotFound(dist) {
     throw error;
   }
 
-  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
   if (!robots) {
     failures.push('[seo-not-found] 404.html has no robots meta; it must be noindex');
   } else if (!/noindex/i.test(robots)) {
