@@ -116,25 +116,21 @@ export function appendRunSummary(line) {
   }
 }
 
-const PROJECT_ITEMS_QUERY = `query($owner:String!,$number:Int!,$cursor:String){user(login:$owner){projectV2(number:$number){id items(first:100,after:$cursor){pageInfo{hasNextPage endCursor}totalCount nodes{id content{__typename ... on Issue{number url state} ... on PullRequest{number url state}} fieldValues(first:30){nodes{__typename ... on ProjectV2ItemFieldSingleSelectValue{name field{... on ProjectV2FieldCommon{name}}} ... on ProjectV2ItemFieldNumberValue{number field{... on ProjectV2FieldCommon{name}}} ... on ProjectV2ItemFieldDateValue{date field{... on ProjectV2FieldCommon{name}}} ... on ProjectV2ItemFieldTextValue{text field{... on ProjectV2FieldCommon{name}}}}}}}}}}`;
+const PROJECT_ITEMS_QUERY = `query($owner:String!,$number:Int!,$cursor:String){user(login:$owner){projectV2(number:$number){id items(first:100,after:$cursor){pageInfo{hasNextPage endCursor}totalCount nodes{id content{__typename ... on Issue{number url state} ... on PullRequest{number url state}} area:fieldValueByName(name:"Area"){... on ProjectV2ItemFieldSingleSelectValue{name}} progress:fieldValueByName(name:"Progress"){... on ProjectV2ItemFieldNumberValue{number}} status:fieldValueByName(name:"Status"){... on ProjectV2ItemFieldSingleSelectValue{name}} priority:fieldValueByName(name:"Priority"){... on ProjectV2ItemFieldSingleSelectValue{name}} severity:fieldValueByName(name:"Severity"){... on ProjectV2ItemFieldSingleSelectValue{name}} startDate:fieldValueByName(name:"Start date"){... on ProjectV2ItemFieldDateValue{date}} targetDate:fieldValueByName(name:"Target date"){... on ProjectV2ItemFieldDateValue{date}} actualStart:fieldValueByName(name:"Actual start"){... on ProjectV2ItemFieldDateValue{date}} actualEnd:fieldValueByName(name:"Actual end"){... on ProjectV2ItemFieldDateValue{date}}}}}}}`;
 
-function normalizeFieldValues(nodes = []) {
+function normalizeFieldValues(node) {
   const values = {};
-  for (const node of nodes) {
-    const name = node?.field?.name?.toLowerCase();
-    if (!name) continue;
-    let value = null;
-    if (node.__typename === "ProjectV2ItemFieldSingleSelectValue") {
-      value = node.name ?? null;
-    } else if (node.__typename === "ProjectV2ItemFieldNumberValue") {
-      value = node.number ?? null;
-    } else if (node.__typename === "ProjectV2ItemFieldDateValue") {
-      value = node.date ?? null;
-    } else if (node.__typename === "ProjectV2ItemFieldTextValue") {
-      value = node.text ?? null;
-    }
-    if (value !== null && value !== undefined) values[name] = value;
+  if (node?.area?.name) values.area = node.area.name;
+  if (node?.progress?.number !== undefined && node.progress.number !== null) {
+    values.progress = node.progress.number;
   }
+  if (node?.status?.name) values.status = node.status.name;
+  if (node?.priority?.name) values.priority = node.priority.name;
+  if (node?.severity?.name) values.severity = node.severity.name;
+  if (node?.startDate?.date) values["start date"] = node.startDate.date;
+  if (node?.targetDate?.date) values["target date"] = node.targetDate.date;
+  if (node?.actualStart?.date) values["actual start"] = node.actualStart.date;
+  if (node?.actualEnd?.date) values["actual end"] = node.actualEnd.date;
   return values;
 }
 
@@ -190,7 +186,7 @@ export function listProjectItems({
           url: node.content?.url ?? null,
           state: node.content?.state ?? null,
         },
-        ...normalizeFieldValues(node.fieldValues?.nodes),
+        ...normalizeFieldValues(node),
       });
     }
     if (!project.items?.pageInfo?.hasNextPage) break;

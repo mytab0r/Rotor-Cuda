@@ -1367,6 +1367,9 @@ test("listProjectItems requests only the board fields and normalizes them", () =
                     },
                   ],
                 },
+                priority: { name: "P1" },
+                targetDate: { date: "2027-03-31" },
+                progress: { number: 0 },
               },
             ],
           },
@@ -1393,6 +1396,7 @@ test("listProjectItems requests only the board fields and normalizes them", () =
   assert.equal(calls.length, 1);
   assert.match(calls[0].join(" "), /user\(login/);
   assert.match(calls[0].join(" "), /items\(first:100/);
+  assert.match(calls[0].join(" "), /fieldValueByName\(name:"Actual end"\)/);
 });
 
 test("readChanges never reports the archive container as a change", () => {
