@@ -539,6 +539,7 @@ export function planSync({
           title,
           body,
           changes,
+          labels: ["security", `area:${area}`],
           comment: reopenAlertComment(facts),
         });
         continue;
