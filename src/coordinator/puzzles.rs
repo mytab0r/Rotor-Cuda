@@ -1,7 +1,7 @@
 //! Bitcoin puzzle targets #1..#160 used by the public puzzle browser.
 //!
-//! Source: `privatekeyfinder.io/bitcoin-puzzle/<n>/random`, the public
-//! `window.PUZZLE_CONFIG.targetAddress` value on each page, crawled 2026-11-19
+//! Source: a public bitcoin-puzzle dataset (`bitcoin-puzzle/<n>/random`), the
+//! public `targetAddress` value on each page, crawled 2026-11-19
 //! for every number from 1 to 160. The donor also marks solved puzzles; the
 //! flag is copied as-is and matches the on-chain balances we spot-checked
 //! (for example #75 and #80 are spent, #71 still holds the prize).

@@ -5,7 +5,7 @@ Measured on 2026-11-21 with `scripts/density-parity.mjs` (headless Chrome
 the donor at 375px). This is a measurement document, not a redesign: no UI
 change is implemented in this PR.
 
-- Donor: <https://privatekeyfinder.io/private-keys/tron>
+- Donor: <ref-site-a/private-keys/tron>
 - Ours: `http://127.0.0.1:7915/private-keys/tron` (release
   `target/release/rotor-coord`, commit `70ed68d`)
 - Raw report: [`density-tron.json`](density-tron.json)
@@ -13,7 +13,7 @@ change is implemented in this PR.
 
   ```sh
   node scripts/density-parity.mjs \
-    --donor https://privatekeyfinder.io/private-keys/tron \
+    --donor ref-site-a/private-keys/tron \
     --ours http://127.0.0.1:7915/private-keys/tron \
     --json docs/donor-parity/density-tron.json
   ```

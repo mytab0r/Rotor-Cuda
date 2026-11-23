@@ -367,7 +367,7 @@ end-to-end alert is proven.
 
 ## D13 Public key pages and the warning path
 
-The public site follows the privatekeyfinder model: SEO hub pages per chain
+The public site follows the ref-site-a model: SEO hub pages per chain
 (`/keys`, `/keys/<chain>`) and URL-addressable key pages (`/key/<64hex>`,
 later `/range/<start>/<count>`). The key is in the URL, so the coordinator
 already learns which key or range is requested without any hidden beacon.

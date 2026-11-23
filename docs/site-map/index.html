@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Site map and donor parity (internal docs) — Crypto vs privatekeyfinder.io and secretscan.org</title>
-<meta name="description" content="Internal documentation: every Crypto route and calculator mapped against privatekeyfinder.io and secretscan.org, with an honest feature parity matrix and gap priorities.">
+<title>Site map and donor parity (internal docs) — Crypto vs ref-site-a and ref-site-b</title>
+<meta name="description" content="Internal documentation: every Crypto route and calculator mapped against ref-site-a and ref-site-b, with an honest feature parity matrix and gap priorities.">
 <link rel="stylesheet" href="site-map.css">
 <script src="theme.js"></script>
 </head>
@@ -26,7 +26,7 @@
       <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="icons.svg#ui-grid"></use></svg></span>
       <div>
         <h1>Site map and donor parity</h1>
-        <p class="key-tagline">Every Crypto route in one place, mapped to its equivalent on privatekeyfinder.io and secretscan.org. The feature matrix marks what is actually built, what is partial, and what is still a gap. Donor links open in a new tab.</p>
+        <p class="key-tagline">Every Crypto route in one place, mapped to its equivalent on ref-site-a and ref-site-b. The feature matrix marks what is actually built, what is partial, and what is still a gap. Donor links open in a new tab when the local donor refs file is present (see <code>docs/process/private-references.md</code>).</p>
         <div class="key-badges"><span>Internal docs</span><span>2 donor sites</span><span>Updated 2026-11-19</span></div>
       </div>
     </div>
@@ -78,7 +78,7 @@
 
   <section class="sitemap-view" id="view-donors" aria-labelledby="heading-donors" hidden>
     <h2 id="heading-donors">Donor routes</h2>
-    <p class="muted sitemap-help">Routes read from the privatekeyfinder.io sitemap and the secretscan.org navigation on 2026-11-19. “Missing” means a donor page has no Crypto equivalent.</p>
+    <p class="muted sitemap-help">Routes read from the ref-site-a sitemap and the ref-site-b navigation on 2026-11-19. “Missing” means a donor page has no Crypto equivalent.</p>
     <div class="sitemap-list" id="donors-grid" role="list" aria-label="Donor routes"></div>
     <p class="sitemap-empty" id="donors-empty" hidden>No donor route matches these filters.</p>
   </section>
@@ -107,6 +107,7 @@
   <noscript><p class="sitemap-empty">This page needs JavaScript to build the map from site-map-data.js.</p></noscript>
 </main>
 
+<script src="donor-refs.local.js"></script>
 <script src="site-map-data.js"></script>
 <script src="site-map.js"></script>
 </body>

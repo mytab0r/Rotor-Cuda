@@ -54,7 +54,7 @@ for (const route of data.ours) {
 }
 
 for (const donor of data.donors) {
-  assert.ok(donor.source === 'pkf' || donor.source === 'ss', `donor source: ${donor.id}`);
+  assert.ok(donor.source === 'ref-site-a' || donor.source === 'ref-site-b', `donor source: ${donor.id}`);
   assert.ok(allowed.has(donor.status), `bad donor status: ${donor.id} ${donor.status}`);
   if (donor.status === 'missing') {
     assert.equal(donor.ours, null, `missing donor must have no Rotor route: ${donor.id}`);
@@ -67,7 +67,7 @@ for (const chain of data.chains) {
   assert.ok(oursByPath.has('/private-keys/' + chain[0]), `missing /private-keys/${chain[0]}`);
   assert.ok(oursByPath.has('/mnemonic-seeds/' + chain[0]), `missing /mnemonic-seeds/${chain[0]}`);
   assert.ok(oursByPath.has('/brainwallet/' + chain[0]), `missing /brainwallet/${chain[0]}`);
-  assert.ok(donorById.has('pkf:/brainwallet/' + chain[0]), `missing donor /brainwallet/${chain[0]}`);
+  assert.ok(donorById.has('ref-site-a:/brainwallet/' + chain[0]), `missing donor /brainwallet/${chain[0]}`);
 }
 
 const requiredOurs = [
@@ -84,7 +84,7 @@ for (const path of requiredOurs) {
 }
 
 const requiredDonors = {
-  pkf: [
+  'ref-site-a': [
     '/', '/private-keys', '/key/<hex|wif|decimal>', '/mnemonic-seeds',
     '/mnemonic-converter', '/bitcoin-puzzle', '/brainwallet', '/brainwallet/bitcoin',
     '/brainwallet/ethereum', '/brainwallet-generator', '/vanity-generator',
@@ -92,7 +92,7 @@ const requiredDonors = {
     '/richest', '/bitcoin-dormant', '/satoshi-wallets', '/whale-tracker',
     '/wallet-viewer', '/wallets', '/faq', '/disclaimer', '/donate'
   ],
-  ss: [
+  'ref-site-b': [
     '/PrivateKeyHex', '/PrivateKeyWif', '/PrivateKeyEth', '/PrivateKeyTron',
     '/PrivateKeySegwit', '/PrivateKey_wif_to_hex', '/Bech32', '/PublicKey',
     '/PubkeyAdd', '/Reconstruction', '/HexDecBin', '/Transaction_decoded_Bitcoin',
