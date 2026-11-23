@@ -1,0 +1,50 @@
+name: Task
+description: One unit of implementable work with an acceptance check.
+title: "task: "
+labels: []
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - site
+        - coordinator
+        - desktop
+        - infra
+        - design
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What is true after this task lands.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: One checkable line per criterion; name the command or route.
+      placeholder: |
+        - node --test scripts/foo.test.mjs passes.
+        - /key has no clipped control at 375px.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: "`Blocked by: ROT-<n> (#<n>)`, or `none`."
+      placeholder: "Blocked by: none"
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec
+      description: openspec/changes/<change-id>/ or the spec file.
+    validations:
+      required: false

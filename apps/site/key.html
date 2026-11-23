@@ -143,14 +143,9 @@
         <button type="button" class="key-chain chip" data-chain="sui" aria-pressed="false"><span class="key-dot key-dot-sui"></span>Sui</button>
         <button type="button" class="key-chain chip" data-chain="ton" aria-pressed="false"><span class="key-dot key-dot-ton"></span>TON</button>
       </div>
-      <div id="btc-panel" hidden>
-        <div class="address-type-panel key-address-panel" role="group" aria-label="Bitcoin address type">
-          <div class="address-type-cards" role="group" aria-label="Bitcoin address type">
-            <button type="button" class="address-type-card" data-row="btc_p2pkh" aria-pressed="false" title="Legacy — P2PKH · 1…"><span class="type-name">Legacy</span><span class="type-desc">P2PKH · 1…</span></button>
-            <button type="button" class="address-type-card" data-row="btc_p2wpkh" aria-pressed="false" title="SegWit — P2WPKH · bc1q…"><span class="type-name">SegWit</span><span class="type-desc">P2WPKH · bc1q…</span></button>
-            <button type="button" class="address-type-card" data-row="btc_p2sh_p2wpkh" aria-pressed="false" title="Nested SegWit — P2SH · 3…"><span class="type-name">Nested SegWit</span><span class="type-desc">P2SH · 3…</span></button>
-            <button type="button" class="address-type-card" data-row="btc_p2tr" aria-pressed="false" title="Taproot — P2TR · bc1p…"><span class="type-name">Taproot</span><span class="type-desc">P2TR · bc1p…</span></button>
-          </div>
+      <div id="format-panel" hidden>
+        <div class="address-type-panel key-address-panel" role="group" aria-label="Address format">
+          <div class="address-type-cards" id="format-cards" role="group" aria-label="Address format"></div>
         </div>
       </div>
       <label class="key-path-field" for="derivation-path">
