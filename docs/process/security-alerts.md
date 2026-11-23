@@ -88,6 +88,7 @@ close it writes Actual end from the dismissal/fix/resolution timestamp.
 | --- | --- | --- |
 | `open` | missing | Create one issue with the marker, labels, Type `Bug`, milestone, Priority and plan dates |
 | `open` | open | Reconcile title/body if drifted; ensure labels, milestone and project fields. Never create a second issue |
+| `open` | closed by the sync | The alert regressed: reopen and reconcile (the close comment carries `<!-- security-alert-close:<kind>:<number> -->`) |
 | `open` | closed by a human | Post one comment saying the alert is still open and the sync never reopens a human-closed issue; later runs no-op (comment marker `<!-- security-alert-reopen:<kind>:<number> -->`) |
 | `dismissed` | open | Close with a comment naming `dismissed_by`, `dismissed_reason` and `dismissed_comment` |
 | `fixed` | open | Close with a comment naming `fixed_at`; close reason `completed` |

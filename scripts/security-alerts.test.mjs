@@ -364,6 +364,22 @@ test("a human-closed issue is never reopened; the notice is posted once", () => 
   assert.match(second.actions[0].reason, /already posted/);
 });
 
+test("an issue closed by the sync is reopened when the alert returns", () => {
+  const facts = normalizeAlert("code-scanning", codeScanningAlert({ state: "open" }));
+  const issue = issueFor(facts, { state: "CLOSED" });
+  const plan = planSync({
+    alerts: [facts],
+    issues: [issue],
+    commentsFor: () => [closeComment(facts)],
+    now: NOW,
+    milestones: MILESTONES,
+    repoUrl: REPO_URL,
+  });
+  assert.equal(plan.actions[0].type, "reopen");
+  assert.match(plan.actions[0].comment, /security-alert-reopen-alert:code-scanning:16/);
+  assert.deepEqual(plan.actions[0].changes, []);
+});
+
 test("duplicate markers produce one warning and no new issue", () => {
   const facts = normalizeAlert("code-scanning", codeScanningAlert({ state: "open" }));
   const first = issueFor(facts);

@@ -306,8 +306,12 @@ export function lifecycleSummary(facts) {
     const resolution = facts.resolution ? ` (resolution: ${facts.resolution})` : "";
     parts.push(`Alert resolved${who}${resolution}.`);
     if (facts.resolutionComment) parts.push(`Comment: ${facts.resolutionComment}`);
-  } else if (facts.state === "dismissed") {
-    const who = facts.dismissedBy ? ` by @${facts.dismissedBy}` : "";
+  } else if (facts.state === "dismissed" || facts.state === "auto_dismissed") {
+    const who = facts.dismissedBy
+      ? ` by @${facts.dismissedBy}`
+      : facts.state === "auto_dismissed"
+        ? " automatically"
+        : "";
     const reason = facts.dismissedReason
       ? ` (reason: ${facts.dismissedReason})`
       : " (no reason recorded)";
@@ -398,6 +402,17 @@ export function reopenNotice(facts) {
     "",
     "The sync does not reopen a human-closed issue. Reopen it if the alert " +
       "should be tracked again, or dismiss/fix the alert in the Security tab.",
+    facts.url ? `\nAlert: ${facts.url}` : "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+export function reopenAlertComment(facts) {
+  return [
+    `<!-- security-alert-reopen-alert:${facts.kind}:${facts.number} -->`,
+    `The ${KIND_LABELS[facts.kind]} alert is open again (severity: ` +
+      `${facts.severity}). Reopening this tracking issue.`,
     facts.url ? `\nAlert: ${facts.url}` : "",
   ]
     .filter((line) => line !== "")
@@ -501,10 +516,37 @@ export function planSync({
         });
         continue;
       }
-      // A human closed the issue while the alert is still open. Never reopen:
-      // leave one comment and stop.
+      // The issue is closed while the alert is open. If the sync closed it
+      // (its close comment carries the marker), the alert has regressed:
+      // reopen and reconcile. If a human closed it, never reopen; leave one
+      // notice and stop.
+      const comments = commentsFor(issue.number);
+      const closedBySync = comments.some((comment) =>
+        String(comment).includes(
+          `<!-- security-alert-close:${facts.kind}:${facts.number} -->`,
+        ),
+      );
+      if (closedBySync) {
+        const changes = [];
+        if (text(issue.title) !== title) changes.push("title");
+        if (text(issue.body) !== body.trim()) changes.push("body");
+        actions.push({
+          type: "reopen",
+          number: issue.number,
+          issue,
+          facts,
+          area,
+          priority,
+          milestone,
+          title,
+          body,
+          changes,
+          comment: reopenAlertComment(facts),
+        });
+        continue;
+      }
       const notice = reopenNoticeMarker(facts.kind, facts.number);
-      const alreadyCommented = commentsFor(issue.number).some((comment) =>
+      const alreadyCommented = comments.some((comment) =>
         String(comment).includes(notice),
       );
       actions.push(
