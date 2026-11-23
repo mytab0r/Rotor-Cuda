@@ -1,0 +1,234 @@
+---
+/* Seed directory template, page 1. The coordinator keeps serving
+ * `/mnemonic-seeds/<chain>` until the frontend-platform cutover; this build
+ * proves the static page and its SEO contract without changing the origin.
+ *
+ * Every row starts from the first 60 values of the 128-bit BIP39 entropy
+ * space, converts one value into a 12-word phrase, and derives the first
+ * address of each path this project uses for the chain. The derivation runs at
+ * build time through `apps/site/seed.js`, `apps/site/seed-crypto.js` and the
+ * vendored WASM `derive_report` core. The phrases are examples, not a wallet. */
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../../lib/site';
+import { MAINNET_CHAINS, chainBySlug } from '../../lib/chains';
+import {
+  SEEDS_PER_PAGE,
+  WORDS_PER_SEED,
+  seedFormatsFor,
+  seedPathsFor,
+  seedRowsFor,
+} from '../../lib/seed-directory';
+
+type SeedEntry = CollectionEntry<'seeds'>;
+
+export interface Props {
+  entry: SeedEntry;
+}
+
+export async function getStaticPaths() {
+  const entries: SeedEntry[] = await getCollection('seeds');
+  const bySlug = new Map(MAINNET_CHAINS.map((chain) => [chain.slug, chain]));
+  for (const entry of entries) {
+    if (!bySlug.has(entry.data.chain)) {
+      throw new Error(`content/seeds/${entry.id}.md names unknown mainnet chain "${entry.data.chain}"`);
+    }
+  }
+  const missing = MAINNET_CHAINS.filter(
+    (chain) => !entries.some((entry) => entry.data.chain === chain.slug),
+  );
+  if (missing.length > 0) {
+    throw new Error(`content/seeds is missing: ${missing.map((chain) => chain.slug).join(', ')}`);
+  }
+  return entries.map((entry) => ({
+    params: { chain: entry.data.chain },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props as Props;
+const chain = chainBySlug(entry.data.chain);
+if (!chain) throw new Error(`unknown chain "${entry.data.chain}"`);
+const explorerTemplate = chain.explorer;
+
+const formats = seedFormatsFor(chain.slug);
+const paths = seedPathsFor(chain.slug);
+const rows = await seedRowsFor(chain.slug);
+const { Content } = await render(entry);
+
+const canonical = `/mnemonic-seeds/${chain.slug}`;
+const canonicalUrl = absoluteUrl(canonical);
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+const formatNames = formats.map((format) => format.label).join('; ');
+const h1 = `${chain.name} seed phrases`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: entry.data.title,
+      description: entry.data.description,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: SITE_NAME,
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        name: `${chain.name} example seed phrases`,
+        numberOfItems: rows.length,
+        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Mnemonic Seeds',
+          item: `${SITE_ORIGIN}/mnemonic-seeds`,
+        },
+        { '@type': 'ListItem', position: 3, name: chain.name, item: canonicalUrl },
+      ],
+    },
+  ],
+};
+
+function explorerUrl(address: string): string {
+  return explorerTemplate.replace('{address}', encodeURIComponent(address));
+}
+---
+
+<SiteLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`${chain.name} seed phrases — deterministic BIP39 examples | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="directory-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <a href="/mnemonic-seeds">Mnemonic Seeds</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">{chain.name}</span>
+  </nav>
+
+  <section class="browse-hero" style={`--chain: var(--chain-${chain.slug})`}>
+    <span class="browse-hero-icon">
+      <svg class="icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
+    </span>
+    <div class="browse-hero-title"><h1>{h1}</h1></div>
+    <p>{entry.data.description}</p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose>
+    <Content />
+  </section>
+
+  <section class="card" aria-labelledby="example-seeds">
+    <h2 id="example-seeds">Example {chain.name} seeds and first addresses</h2>
+    <p class="muted">
+      {SEEDS_PER_PAGE} deterministic {WORDS_PER_SEED}-word phrases, each derived at build time
+      through {paths.length} {paths.length === 1 ? 'path' : 'paths'} in {formats.length}
+      address {formats.length === 1 ? 'format' : 'formats'}: {formatNames}. The column order
+      follows that list, and the prose above names the derivation path behind each column. The
+      phrases are the first {SEEDS_PER_PAGE} values of the 128-bit BIP39 entropy space, so anyone
+      can reproduce them. Balances are placeholders in this static build; nothing is sent anywhere
+      by this page.
+    </p>
+    <div class="table-scroll">
+      <table class="data-table">
+        <caption class="visually-hidden">
+          Example {chain.name} seed phrases with the first derived address in every format
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Seed</th>
+            <th scope="col">Mnemonic</th>
+            {formats.map((format) => <th scope="col">{format.label}</th>)}
+            <th scope="col">Balance</th>
+            <th scope="col" class="actions-col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr data-seed={row.index}>
+              <td class="mono">#{row.index + 1}</td>
+              <td class="mono wrap">{row.phrase}</td>
+              {row.cells.map((cell) => (
+                <td class="mono">
+                  <a
+                    class="address-link"
+                    href={explorerUrl(cell.address)}
+                    rel="noopener noreferrer"
+                    title={`Open ${cell.address} in the explorer`}
+                  >{cell.address}</a>
+                </td>
+              ))}
+              <td>
+                <span class="cell-skeleton" data-balance-state="placeholder" aria-hidden="true">—</span>
+              </td>
+              <td class="key-cell-act">
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="icon-button icon-button--sm icon-button--quiet"
+                    data-copy={row.phrase}
+                    aria-label={`Copy seed phrase ${row.index + 1}`}
+                    data-tooltip="Copy seed phrase"
+                  >
+                    <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+                  </button>
+                  <a
+                    class="icon-button icon-button--sm icon-button--quiet"
+                    href={`/key/${row.keyHex}${row.keyCurve === 1 ? '?curve=ed25519' : ''}`}
+                    aria-label={`Open seed ${row.index + 1} in the key calculator`}
+                    data-tooltip="Open in calculator"
+                  >
+                    <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">
+      Page 1 is prerendered and indexable. Later pages stay on the coordinator and keep their
+      <code>noindex</code> rule until the cutover.
+    </p>
+  </section>
+
+  <section class="card" data-seo-shared aria-labelledby="safety">
+    <h2 id="safety">Safety and limits</h2>
+    <p>
+      These are deterministic example phrases, not a wallet. Each one encodes a small integer
+      at the start of the BIP39 entropy range, so anyone can regenerate the same words, keys and
+      addresses; never send funds to them. A seed phrase controls every account derived from it,
+      including paths this page does not show, and a passphrase would change every result. Use
+      fresh entropy from a trusted device for real funds, keep the phrase offline, and never paste
+      a live phrase into a site you do not control. Only inspect keys and funds you are authorized
+      to use. This static build does not fetch balances; the balance column is reserved for the
+      client-side step the live page runs.
+    </p>
+  </section>
+</SiteLayout>
+
+<script>
+  import '../../scripts/chain-copy.ts';
+</script>

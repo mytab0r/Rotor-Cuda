@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// SEO gate for the prerendered chain directory (`/private-keys/<chain>`), its
-// hub (`/private-keys`), the presentation pages (`/docs`, `/tools`) and the
-// root 404 document.
+// SEO gate for the prerendered chain directories (`/private-keys/<chain>` and
+// `/mnemonic-seeds/<chain>`), their hubs, the presentation pages (`/docs`,
+// `/tools`) and the root 404 document.
 //
 // Reads the built `web/dist` tree (no network, no dependencies) and fails when
 // a page breaks the contract the SEO audit measured:
@@ -37,7 +37,30 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_ORIGIN = 'https://rotor.pxbt.app';
-const HUB_ROUTE = '/private-keys';
+const PRIVATE_KEYS_FAMILY = {
+  id: 'private-keys',
+  dir: 'private-keys',
+  route: '/private-keys',
+  label: 'Private Keys',
+  titleStart: /^private keys by chain/i,
+  h1: 'Private keys by chain',
+  h1ForChain: (name) => `${name} private keys`,
+  rowsMarker: 'data-key',
+  ogAlt: /private keys/i,
+  linkPattern: /^\/private-keys\/([a-z0-9-]+)\/?$/,
+};
+const SEED_FAMILY = {
+  id: 'mnemonic-seeds',
+  dir: 'mnemonic-seeds',
+  route: '/mnemonic-seeds',
+  label: 'Mnemonic Seeds',
+  titleStart: /^mnemonic seeds by chain/i,
+  h1: 'Mnemonic seeds by chain',
+  h1ForChain: (name) => `${name} seed phrases`,
+  rowsMarker: 'data-seed',
+  ogAlt: /seed/i,
+  linkPattern: /^\/mnemonic-seeds\/([a-z0-9-]+)\/?$/,
+};
 const TITLE_MIN = 50;
 const TITLE_MAX = 60;
 const HUB_TITLE_MAX = 60;
@@ -80,7 +103,6 @@ const pendingCutover = new Map([
   ['/key/hex', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
   ['/key/wif', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
   ['/key/decimal', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
-  ['/mnemonic-seeds', 'Seed pages still served by the coordinator (phase 4).'],
   ['/seed', 'Seed studio still served by the coordinator (phase 4).'],
   ['/bitcoin-puzzle', 'Puzzle pages still served by the coordinator (phase 4).'],
   ['/vanity', 'Vanity generator still served by the coordinator (phase 2).'],
@@ -108,7 +130,32 @@ const pendingCutover = new Map([
   ['/donate', 'Documentation page still served by the coordinator (phase 2).'],
 ]);
 
-const HELP = `check-seo - SEO gate for web/dist/private-keys, its chain pages, /docs, /tools and 404.html
+/* Chain pages link into two coordinator-owned families that the static build
+ * cannot enumerate: the key calculator (`/key/<hex>`) and directory page 2+
+ * (the paginated continuation of the same family). Both are served today and
+ * are not index candidates; the prefix is allowed only with a reason, and a
+ * target that exists in `dist` is not treated as pending. */
+const pendingChainPrefixes = new Map([
+  ['/key/', 'Key calculator routes are still served by the coordinator (frontend-platform phase 3).'],
+  ['/private-keys/', 'Private-key directory page 2+ is still served by the coordinator (noindex).'],
+  ['/mnemonic-seeds/', 'Mnemonic-seed directory page 2+ is still served by the coordinator (noindex).'],
+]);
+
+function pendingChainTarget(pathname) {
+  for (const [prefix, reason] of pendingChainPrefixes) {
+    if (!reason || !reason.trim()) continue;
+    if (pathname === prefix.replace(/\/$/, '') || pathname.startsWith(prefix)) {
+      // A nested route that the page set already built is checked normally.
+      if (pathname === '/private-keys' || pathname === '/mnemonic-seeds') return false;
+      if (/^\/(?:private-keys|mnemonic-seeds)\/[a-z0-9-]+\/?$/.test(pathname)) return false;
+      return true;
+    }
+  }
+  return false;
+}
+
+const HELP = `check-seo - SEO gate for web/dist/private-keys, web/dist/mnemonic-seeds,
+their hubs, /docs, /tools and 404.html
 
 Options:
   --dist PATH   built Astro output (default: web/dist)
@@ -210,6 +257,18 @@ function attr(html, pattern) {
   return match ? decodeEntities(match[1].trim()) : null;
 }
 
+/* Meta content may contain the opposite quote character (a derivation path
+ * such as m/44'/501'/0'/0' is a common case), so capture with the exact quote
+ * that opened the value instead of a character class. */
+function metaContent(html, key, property = false) {
+  const attribute = property ? 'property' : 'name';
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = html.match(
+    new RegExp(`<meta\\s+${attribute}=["']${escaped}["']\\s+content=(["'])([\\s\\S]*?)\\1`, 'i'),
+  );
+  return match ? decodeEntities(match[2].trim()) : null;
+}
+
 function sectionByMarker(html, marker) {
   const match = html.match(new RegExp(`<section\\b[^>]*\\b${marker}\\b[^>]*>([\\s\\S]*?)</section>`, 'i'));
   return match ? match[1] : '';
@@ -240,10 +299,10 @@ function sectionHtml(fragment) {
   return match ? match[1] : '';
 }
 
-function rowsOf(html) {
+function rowsOf(html, marker = 'data-key') {
   const body = html.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/i);
   if (!body) return 0;
-  return [...body[1].matchAll(/<tr\b[^>]*\bdata-key=/gi)].length;
+  return [...body[1].matchAll(new RegExp(`<tr\\b[^>]*\\b${marker}=`, 'gi'))].length;
 }
 
 /* Every relative target in the built tree, as POSIX paths, so a link check
@@ -332,7 +391,7 @@ async function checkPresentationPage(spec, dist, distFiles) {
   }
 
   const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
-  const description = attr(html, /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i);
+  const description = metaContent(html, 'description');
   const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
   const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
   const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
@@ -507,8 +566,8 @@ function targetExists(dist, pathname) {
   return candidates.some((candidate) => existsSync(path.join(dist, candidate)));
 }
 
-async function loadHub(dist) {
-  const file = path.join(dist, 'private-keys', 'index.html');
+async function loadHub(dist, family = PRIVATE_KEYS_FAMILY) {
+  const file = path.join(dist, family.dir, 'index.html');
   try {
     const info = await stat(file);
     return { file, bytes: info.size, html: await readFile(file, 'utf8') };
@@ -518,13 +577,13 @@ async function loadHub(dist) {
   }
 }
 
-function checkHub(page, slugs, chainResults, dist) {
+function checkHub(page, slugs, chainResults, dist, family = PRIVATE_KEYS_FAMILY) {
   const failures = [];
   const fail = (id, message) => failures.push(`[${id}] ${message}`);
   const { html } = page;
 
   const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
-  const description = attr(html, /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i);
+  const description = metaContent(html, 'description');
   const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
   const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
   const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
@@ -536,7 +595,7 @@ function checkHub(page, slugs, chainResults, dist) {
     fail('seo-metadata-bounds', 'missing <title>');
   } else if (title.length > HUB_TITLE_MAX) {
     fail('seo-metadata-bounds', `title length ${title.length} over ${HUB_TITLE_MAX}: ${title}`);
-  } else if (!/^private keys by chain/i.test(title)) {
+  } else if (!family.titleStart.test(title)) {
     fail('seo-metadata-bounds', `title does not start with the hub intent: ${title}`);
   }
 
@@ -548,7 +607,7 @@ function checkHub(page, slugs, chainResults, dist) {
     fail('seo-metadata-bounds', `description does not name the ${slugs.length} chains: ${description}`);
   }
 
-  const expectedCanonical = `${SITE_ORIGIN}${HUB_ROUTE}`;
+  const expectedCanonical = `${SITE_ORIGIN}${family.route}`;
   if (!canonical) fail('seo-canonical-robots', 'missing canonical');
   else if (canonical !== expectedCanonical) fail('seo-canonical-robots', `canonical ${canonical} is not ${expectedCanonical}`);
 
@@ -558,11 +617,11 @@ function checkHub(page, slugs, chainResults, dist) {
   if (!ogImage) fail('seo-og-image-alt', 'missing og:image');
   if (!twitterImage) fail('seo-og-image-alt', 'missing twitter:image');
   if (!ogImageAlt) fail('seo-og-image-alt', 'missing og:image:alt');
-  else if (!/private keys/i.test(ogImageAlt) || !new RegExp(`\\b${slugs.length}\\b`).test(ogImageAlt)) {
+  else if (!family.ogAlt.test(ogImageAlt) || !new RegExp(`\\b${slugs.length}\\b`).test(ogImageAlt)) {
     fail('seo-og-image-alt', `og:image:alt does not describe the hub: ${ogImageAlt}`);
   }
   if (!twitterImageAlt) fail('seo-og-image-alt', 'missing twitter:image:alt');
-  else if (!/private keys/i.test(twitterImageAlt)) {
+  else if (!family.ogAlt.test(twitterImageAlt)) {
     fail('seo-og-image-alt', `twitter:image:alt does not describe the hub: ${twitterImageAlt}`);
   }
 
@@ -572,8 +631,8 @@ function checkHub(page, slugs, chainResults, dist) {
   if (h1s.length === 0) fail('seo-hidden-heading', 'missing H1');
   else if (h1s.some((heading) => heading.hidden)) fail('seo-hidden-heading', 'H1 is visually hidden');
   if (visibleH1s.length !== 1) fail('seo-hidden-heading', `expected exactly one visible H1, found ${visibleH1s.length}`);
-  else if (visibleH1s[0].text !== 'Private keys by chain') {
-    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}", expected "Private keys by chain"`);
+  else if (visibleH1s[0].text !== family.h1) {
+    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}", expected "${family.h1}"`);
   }
 
   const contentH2s = proseSections(html)
@@ -589,7 +648,7 @@ function checkHub(page, slugs, chainResults, dist) {
   for (const href of hrefs) {
     const pathname = internalPath(href);
     if (!pathname) continue;
-    const match = pathname.match(/^\/private-keys\/([a-z0-9-]+)\/?$/);
+    const match = pathname.match(family.linkPattern);
     if (match) linked.add(match[1]);
   }
   const missing = slugs.filter((slug) => !linked.has(slug));
@@ -629,7 +688,7 @@ function checkHub(page, slugs, chainResults, dist) {
   }
 
   return {
-    route: HUB_ROUTE,
+    route: family.route,
     bytes: page.bytes,
     title,
     titleLength: title?.length ?? 0,
@@ -644,8 +703,8 @@ function checkHub(page, slugs, chainResults, dist) {
   };
 }
 
-async function loadPages(dist) {
-  const root = path.join(dist, 'private-keys');
+async function loadPages(dist, family = PRIVATE_KEYS_FAMILY) {
+  const root = path.join(dist, family.dir);
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
@@ -667,7 +726,7 @@ async function loadPages(dist) {
   return pages.sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-function checkPage(page, expectedSlugs) {
+function checkPage(page, expectedSlugs, family = PRIVATE_KEYS_FAMILY, distFiles = null) {
   const { slug, html } = page;
   const failures = [];
   const fail = (id, message) => failures.push(`[${id}] ${message}`);
@@ -675,7 +734,7 @@ function checkPage(page, expectedSlugs) {
   const name = chainData?.name ?? slug;
 
   const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
-  const description = attr(html, /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i);
+  const description = metaContent(html, 'description');
   const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=["']([^"']*)["']/i);
   const robots = attr(html, /<meta\s+name=["']robots["']\s+content=["']([^"']*)["']/i);
   const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i);
@@ -700,7 +759,7 @@ function checkPage(page, expectedSlugs) {
     fail('seo-metadata-bounds', 'description has no concrete number');
   }
 
-  const expectedCanonical = `${SITE_ORIGIN}/private-keys/${slug}`;
+  const expectedCanonical = `${SITE_ORIGIN}${family.route}/${slug}`;
   if (!canonical) fail('seo-canonical-robots', 'missing canonical');
   else if (canonical !== expectedCanonical) fail('seo-canonical-robots', `canonical ${canonical} is not ${expectedCanonical}`);
 
@@ -723,16 +782,33 @@ function checkPage(page, expectedSlugs) {
   if (h1s.length === 0) fail('seo-hidden-heading', 'missing H1');
   else if (h1s.some((heading) => heading.hidden)) fail('seo-hidden-heading', 'H1 is visually hidden');
   if (visibleH1s.length !== 1) fail('seo-hidden-heading', `expected exactly one visible H1, found ${visibleH1s.length}`);
-  else if (visibleH1s[0].text !== `${name} private keys`) {
-    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}", expected "${name} private keys"`);
+  else if (visibleH1s[0].text !== family.h1ForChain(name)) {
+    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}", expected "${family.h1ForChain(name)}"`);
   }
 
   const contentSection = sectionHtml(html);
   const contentH2s = headings(contentSection).filter((heading) => heading.level === 2 && !heading.hidden && heading.text);
   if (contentH2s.length < 2) fail('seo-hidden-heading', `only ${contentH2s.length} visible content H2(s), need at least 2`);
 
-  const rows = rowsOf(html);
+  const rows = rowsOf(html, family.rowsMarker);
   if (rows < MIN_ROWS) fail('seo-rendered-rows', `only ${rows} rendered data rows, need at least ${MIN_ROWS}`);
+
+  /* Every internal link in the main content must resolve in `dist` or be an
+   * explicitly pending coordinator family (key calculator, directory page 2+).
+   * This is the same link contract the hub and presentation pages use. */
+  let internalLinks = 0;
+  if (distFiles) {
+    const seenTargets = new Set();
+    for (const href of anchorsIn(mainHtml(html))) {
+      const pathname = internalPath(href);
+      if (!pathname || seenTargets.has(pathname)) continue;
+      seenTargets.add(pathname);
+      internalLinks += 1;
+      if (resolvesInDist(distFiles, pathname)) continue;
+      if (pendingChainTarget(pathname)) continue;
+      fail('seo-internal-link', `${href} is not built and is not in the pendingCutover allowlist`);
+    }
+  }
 
   const prose = visibleText(contentSection);
   const proseTokens = tokensOf(prose);
@@ -759,6 +835,7 @@ function checkPage(page, expectedSlugs) {
     robots,
     rows,
     contentH2s: contentH2s.length,
+    internalLinks,
     uniqueWords,
     proseTokens,
     grams: gramsOf(proseTokens, 5),
@@ -837,6 +914,42 @@ function formatPresentationTable(rows) {
   return lines.join('\n');
 }
 
+async function checkFamily(dist, slugs, expected, distFiles, family) {
+  const pages = await loadPages(dist, family);
+  const failures = [];
+  const missing = slugs.filter((slug) => !pages.some((page) => page.slug === slug));
+  const extra = pages.filter((page) => !expected.has(page.slug)).map((page) => page.slug);
+  if (missing.length) failures.push(`[seo-page-set] ${family.id}: missing built pages: ${missing.join(', ')}`);
+  if (extra.length) failures.push(`[seo-page-set] ${family.id}: unexpected built chain pages: ${extra.join(', ')}`);
+  if (pages.length !== slugs.length) {
+    failures.push(`[seo-page-set] ${family.id}: built ${pages.length} chain pages, expected ${slugs.length}`);
+  }
+  const results = pages.map((page) => checkPage(page, expected, family, distFiles));
+  for (const result of results) {
+    for (const failure of result.failures) failures.push(`${result.slug}: ${failure}`);
+  }
+  return { pages, results, failures };
+}
+
+function checkProseUniqueness(results, family, failures) {
+  let maxPair = null;
+  for (let left = 0; left < results.length; left += 1) {
+    for (let right = left + 1; right < results.length; right += 1) {
+      const score = jaccard(results[left].grams, results[right].grams);
+      if (!maxPair || score > maxPair.score) {
+        maxPair = { left: results[left].slug, right: results[right].slug, score };
+      }
+      if (score >= MAX_JACCARD) {
+        failures.push(
+          `[seo-prose-uniqueness] ${family.id} ${results[left].slug} vs ${results[right].slug}: ` +
+            `5-gram Jaccard ${score.toFixed(3)} >= ${MAX_JACCARD}`,
+        );
+      }
+    }
+  }
+  return maxPair;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const slugs = await chainSlugs();
@@ -846,29 +959,25 @@ async function main() {
     if (!chain.testnet) expected.set(chain.slug, chain);
   }
 
-  const pages = await loadPages(options.dist);
+  const distFiles = await listDistFiles(options.dist);
   const notFound = await checkNotFound(options.dist);
   const failures = [...notFound.failures];
-  const missing = slugs.filter((slug) => !pages.some((page) => page.slug === slug));
-  const extra = pages.filter((page) => !expected.has(page.slug)).map((page) => page.slug);
-  if (missing.length) failures.push(`[seo-page-set] missing built pages: ${missing.join(', ')}`);
-  if (extra.length) failures.push(`[seo-page-set] unexpected built chain pages: ${extra.join(', ')}`);
-  if (pages.length !== slugs.length) {
-    failures.push(`[seo-page-set] built ${pages.length} chain pages, expected ${slugs.length}`);
-  }
 
-  const results = pages.map((page) => checkPage(page, expected));
-  for (const result of results) {
-    for (const failure of result.failures) failures.push(`${result.slug}: ${failure}`);
-  }
+  const privateFamily = await checkFamily(options.dist, slugs, expected, distFiles, PRIVATE_KEYS_FAMILY);
+  const seedFamily = await checkFamily(options.dist, slugs, expected, distFiles, SEED_FAMILY);
+  failures.push(...privateFamily.failures, ...seedFamily.failures);
 
-  const distFiles = await listDistFiles(options.dist);
   for (const [target, reason] of pendingCutover) {
     if (!reason || !reason.trim()) {
       failures.push(`[seo-pending-cutover] ${target}: allowlist entry has no reason`);
     }
     if (resolvesInDist(distFiles, target)) {
       failures.push(`[seo-pending-cutover] ${target}: allowlist entry is stale, the target now exists in dist`);
+    }
+  }
+  for (const [prefix, reason] of pendingChainPrefixes) {
+    if (!reason || !reason.trim()) {
+      failures.push(`[seo-pending-cutover] ${prefix}: prefix entry has no reason`);
     }
   }
 
@@ -879,18 +988,32 @@ async function main() {
     for (const failure of result.failures) failures.push(failure);
   }
 
-  const hubPage = await loadHub(options.dist);
+  const hubPage = await loadHub(options.dist, PRIVATE_KEYS_FAMILY);
   let hub = null;
   if (!hubPage) {
-    failures.push(`[seo-hub-links] missing built hub page ${HUB_ROUTE}/index.html`);
+    failures.push(`[seo-hub-links] missing built hub page ${PRIVATE_KEYS_FAMILY.route}/index.html`);
   } else {
-    hub = checkHub(hubPage, slugs, results, options.dist);
+    hub = checkHub(hubPage, slugs, privateFamily.results, options.dist, PRIVATE_KEYS_FAMILY);
     for (const failure of hub.failures) failures.push(`hub: ${failure}`);
   }
 
+  const seedHubPage = await loadHub(options.dist, SEED_FAMILY);
+  let seedHub = null;
+  if (!seedHubPage) {
+    failures.push(`[seo-hub-links] missing built hub page ${SEED_FAMILY.route}/index.html`);
+  } else {
+    seedHub = checkHub(seedHubPage, slugs, seedFamily.results, options.dist, SEED_FAMILY);
+    for (const failure of seedHub.failures) failures.push(`seed-hub: ${failure}`);
+  }
+
   const metadataPages = [
-    ...results.map((result) => ({
-      label: result.slug,
+    ...privateFamily.results.map((result) => ({
+      label: `private-keys/${result.slug}`,
+      title: result.title,
+      description: result.description,
+    })),
+    ...seedFamily.results.map((result) => ({
+      label: `mnemonic-seeds/${result.slug}`,
       title: result.title,
       description: result.description,
     })),
@@ -899,7 +1022,8 @@ async function main() {
       title: result.title,
       description: result.description,
     })),
-    ...(hub ? [{ label: 'hub', title: hub.title, description: hub.description }] : []),
+    ...(hub ? [{ label: 'private-keys hub', title: hub.title, description: hub.description }] : []),
+    ...(seedHub ? [{ label: 'mnemonic-seeds hub', title: seedHub.title, description: seedHub.description }] : []),
   ];
   const seenTitles = new Map();
   const seenDescriptions = new Map();
@@ -920,44 +1044,40 @@ async function main() {
     }
   }
 
-  let maxPair = null;
-  for (let left = 0; left < results.length; left += 1) {
-    for (let right = left + 1; right < results.length; right += 1) {
-      const score = jaccard(results[left].grams, results[right].grams);
-      if (!maxPair || score > maxPair.score) {
-        maxPair = { left: results[left].slug, right: results[right].slug, score };
-      }
-      if (score >= MAX_JACCARD) {
-        failures.push(
-          `[seo-prose-uniqueness] ${results[left].slug} vs ${results[right].slug}: ` +
-            `5-gram Jaccard ${score.toFixed(3)} >= ${MAX_JACCARD}`,
-        );
-      }
-    }
-  }
+  const maxPair = checkProseUniqueness(privateFamily.results, PRIVATE_KEYS_FAMILY, failures);
+  const seedMaxPair = checkProseUniqueness(seedFamily.results, SEED_FAMILY, failures);
 
-  console.log(formatTable(results));
+  console.log(`private-keys:\n${formatTable(privateFamily.results)}`);
+  console.log(`\nmnemonic-seeds:\n${formatTable(seedFamily.results)}`);
   console.log(`\n${formatPresentationTable(presentationResults)}`);
-  if (hub) {
+  for (const [label, page] of [['private-keys hub', hub], ['mnemonic-seeds hub', seedHub]]) {
+    if (!page) continue;
     console.log(
-      `\nhub ${hub.route}: title ${hub.titleLength}, desc ${hub.descriptionLength}, ` +
-        `H2 ${hub.contentH2s}, chain links ${hub.chainLinks}/${slugs.length}, ` +
-        `internal targets ${hub.internalLinks}`,
+      `\n${label} ${page.route}: title ${page.titleLength}, desc ${page.descriptionLength}, ` +
+        `H2 ${page.contentH2s}, chain links ${page.chainLinks}/${slugs.length}, ` +
+        `internal targets ${page.internalLinks}`,
     );
   }
   console.log(`\n404: robots=${notFound.robots ?? 'missing'} h1=${notFound.h1s}`);
   if (maxPair) {
-    console.log(`\nmax prose similarity: ${maxPair.left} vs ${maxPair.right} = ${maxPair.score.toFixed(3)}`);
+    console.log(`\nmax prose similarity (private-keys): ${maxPair.left} vs ${maxPair.right} = ${maxPair.score.toFixed(3)}`);
+  }
+  if (seedMaxPair) {
+    console.log(`max prose similarity (mnemonic-seeds): ${seedMaxPair.left} vs ${seedMaxPair.right} = ${seedMaxPair.score.toFixed(3)}`);
   }
 
   const report = {
     dist: options.dist,
     notFound,
-    pages: results.map(({ proseTokens, grams, ...rest }) => rest),
+    pages: privateFamily.results.map(({ proseTokens, grams, ...rest }) => rest),
+    seedPages: seedFamily.results.map(({ proseTokens, grams, ...rest }) => rest),
     presentation: presentationResults,
     pendingCutover: [...pendingCutover].map(([target, reason]) => ({ target, reason })),
+    pendingChainPrefixes: [...pendingChainPrefixes].map(([prefix, reason]) => ({ prefix, reason })),
     hub,
+    seedHub,
     maxPair,
+    seedMaxPair,
     failures,
   };
   if (options.json) await writeFile(options.json, `${JSON.stringify(report, null, 2)}\n`);
@@ -968,7 +1088,8 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `\nSEO gate passed: ${results.length} chain pages, the ${HUB_ROUTE} hub, ` +
+    `\nSEO gate passed: ${privateFamily.results.length} private-key pages, ` +
+      `${seedFamily.results.length} mnemonic-seed pages, both hubs, ` +
       `${presentationResults.length} presentation pages and the root 404 page.`,
   );
 }

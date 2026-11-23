@@ -242,6 +242,25 @@ test("BIP39 BIP32 derivation matches the bundled scure implementation", async ()
   }
 });
 
+test("SLIP-0010 ed25519 matches the published vector and rejects public steps", async () => {
+  const seed = hexToBytes("000102030405060708090a0b0c0d0e0f");
+  assertEqual(
+    await crypto.slip10PrivateKey(seed, "m"),
+    "2b4be7f19ee27bbf30c667b642d5f4aa69fd169872f8fc3059c08ebae2eb19e7",
+    "SLIP-0010 master"
+  );
+  assertEqual(
+    await crypto.slip10PrivateKey(seed, "m/0'"),
+    "68e0fe46dfb67e368c75379acec591dad19df3cde26e63b93a8e704f1dade7a3",
+    "SLIP-0010 m/0'"
+  );
+  await assertRejects(
+    () => crypto.slip10PrivateKey(seed, "m/0"),
+    /hardened/,
+    "unhardened ed25519 path"
+  );
+});
+
 test("BIP39 generation honours all five word counts", () => {
   for (const count of [12, 15, 18, 21, 24]) {
     const phrase = crypto.generateBip39(count);
