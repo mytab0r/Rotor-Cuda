@@ -1,0 +1,48 @@
+# No labels: the native issue Type carries Bug; a `bug` label fails the board gate.
+name: Bug
+description: Report a defect with a severity.
+title: "bug: "
+labels: []
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What happens, on which route or command.
+      placeholder: /send/bnb shows two balance controls at 375px.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: S1 data loss or security, S2 broken flow, S3 degraded, S4 cosmetic.
+      options:
+        - S1
+        - S2
+        - S3
+        - S4
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open /send/bnb at 375px.
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: input
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Failing command output, log line or artifact link.
+    validations:
+      required: false

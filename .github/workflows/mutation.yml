@@ -1,0 +1,84 @@
+name: mutation
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-mutation:
+    name: rust mutation (cargo-mutants, changed lines)
+    runs-on: ubuntu-latest
+    # Observation window: PR-only, changed lines only, timeboxed below.
+    # Remove `continue-on-error` on 2026-12-08 (two weeks after 2026-11-24)
+    # and make this job a required status check. Until then a red or timeboxed
+    # run is visible but does not block a merge.
+    continue-on-error: true
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch the base branch and list changed Rust files
+        id: changed
+        shell: bash
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          git diff --name-only "$base...HEAD" -- '*.rs' > "$RUNNER_TEMP/changed-rs.txt"
+          cat "$RUNNER_TEMP/changed-rs.txt"
+          if [ -s "$RUNNER_TEMP/changed-rs.txt" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "no Rust changes; skipping cargo-mutants"
+          fi
+      - name: Install cargo-mutants
+        if: steps.changed.outputs.present == 'true'
+        run: cargo install cargo-mutants --locked
+      - name: Mutate only the changed lines (15-minute timebox)
+        if: steps.changed.outputs.present == 'true'
+        shell: bash
+        run: |
+          mkdir -p target
+          git diff "origin/${{ github.base_ref }}...HEAD" -- '*.rs' > target/changed.diff
+          set +e
+          timeout 900 cargo mutants --in-diff target/changed.diff --jobs 2 --timeout 120 2>&1 | tee target/mutants.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -eq 124 ]; then
+            echo "::warning::cargo-mutants reached the 15-minute timebox; treat the partial log as advisory"
+          fi
+          exit "$status"
+      - name: Upload the cargo-mutants log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-log-${{ github.run_id }}
+          path: |
+            target/mutants.log
+            target/changed.diff
+          retention-days: 7
+          if-no-files-found: ignore
+
+  js-mutation:
+    name: js mutation (changed comparison/return)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests for the mutation selector
+        run: node --test scripts/mutate-changed.test.mjs
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+      # Scans changed apps/site/*.js, flips one changed comparison or return per
+      # file and runs its *-test.mjs. Exit 0 only when every mutation was caught.
+      - name: Mutate one changed expression per touched source
+        run: node scripts/mutate-changed.mjs --base "origin/${{ github.base_ref }}"
