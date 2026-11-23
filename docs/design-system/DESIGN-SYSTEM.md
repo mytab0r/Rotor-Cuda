@@ -706,7 +706,7 @@ standalone freshness gate.
 | `quiet-icon-hover-border` | Quiet icon buttons gain no hover border; outline buttons keep their strong line. | 2 | implemented |
 | `tooltip-primitive` | data-tooltip target: non-empty text <=40 chars, no native title, accessible name. | 2 | implemented |
 | `tooltip-behaviour` | Tooltip appears within 300ms, hides on Escape, and the popover keeps row geometry. | 2 | implemented |
-| `key-meta-row` | The /key input meta row is one 40px line with the info control centred. | 2 | implemented |
+| `key-meta-row` | The /key input meta row grows to fit a one- to three-line status (40-72px) with the info control centred on the status block. | 2 | implemented |
 | `control-height-scale` | Input/select/chip/segmented height in {28,36,44,56}; 28 is reserved for dense table rows. | 3 | implemented |
 | `field-geometry` | Field radius 10/16, label >=12px, visible focus ring. | 3 | implemented |
 | `segmented-geometry` | One track grammar (4px padding, radius 12), 44px items, exactly one selected. | 3 | implemented |

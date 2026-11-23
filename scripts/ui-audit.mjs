@@ -1124,11 +1124,8 @@ function auditPage(args) {
   //       - a flex/grid child's rendered box escapes its parent's padding box.
   //     Text inside an overflow:auto/scroll ancestor is reachable by scrolling
   //     and is not flagged. A deliberate ellipsis is allowed only on an element
-  //     (or its descendant) carrying data-clip-ok. The repository ships exactly
-  //     two such opt-outs: the one-line status spans in the fixed 40px
-  //     .key-input-meta strip (#key-status-text and #exposure-status), whose
-  //     full text is in their title and whose live-region semantics announce
-  //     it; every other cut has to be fixed or annotated explicitly.
+  //     (or its descendant) carrying data-clip-ok; the repository ships with no
+  //     such opt-outs, so every cut has to be fixed or annotated explicitly.
   const CLIP_OVERFLOW = new Set(["hidden", "clip"]);
   const clipOptOut = (el) => Boolean(el && el.closest("[data-clip-ok]"));
   // The classic sr-only recipe is written inline on a few shared elements
@@ -1988,15 +1985,23 @@ function auditPage(args) {
     if (meta && visible(meta)) {
       const metaBox = boxOf(meta);
       metrics.metaRow = { height: Math.round(metaBox.height) };
-      if (Math.abs(metaBox.height - 40) > 1) {
-        add("key-meta-row", `.key-input-meta is ${Math.round(metaBox.height)}px high (expected one 40px line)`);
+      const metaHeight = Math.round(metaBox.height);
+      if (metaHeight < 39 || metaHeight > 72) {
+        add(
+          "key-meta-row",
+          `.key-input-meta is ${metaHeight}px high (expected 40-72px for a one- to three-line status)`,
+        );
       }
       if (info && visible(info)) {
         const infoBox = boxOf(info);
-        const offset = Math.abs((infoBox.top + infoBox.height / 2) - (metaBox.top + metaBox.height / 2));
+        // Anchor the control to the status block, not the whole meta: the
+        // narrow layout puts the exposure note on a second row.
+        const statusEl = document.getElementById("key-status");
+        const anchor = statusEl && visible(statusEl) ? boxOf(statusEl) : metaBox;
+        const offset = Math.abs((infoBox.top + infoBox.height / 2) - (anchor.top + anchor.height / 2));
         metrics.metaRow.infoCentreOffset = Number(offset.toFixed(1));
         if (offset > 2) {
-          add("key-meta-row", `#key-info-btn is ${offset.toFixed(1)}px off the meta row centre`);
+          add("key-meta-row", `#key-info-btn is ${offset.toFixed(1)}px off the status block centre`);
         }
       }
     }
