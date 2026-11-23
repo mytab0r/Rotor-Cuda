@@ -110,6 +110,11 @@ Markdown file at the repository root (`README.md`, `AGENTS.md`,
 (`apps/`, `web/`, `src/`, `crates/`, `data/`, `design/`, `tests/`) requires a
 key.
 
+The PR body also follows `.github/pull_request_template.md`.
+`scripts/check-process.mjs` gates the evidence sections and accepts the same
+docs/process-only reduced contract; see
+[verification.md](verification.md).
+
 ### Branch
 
 ```text
