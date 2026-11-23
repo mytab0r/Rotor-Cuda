@@ -5509,6 +5509,108 @@ async function auditKeyAutoDerive(cdp) {
   );
 }
 
+/* The Bitcoin format selector (#btc-panel) is chain-scoped: it must be hidden
+ * under All and on every single-format chain, and a format card belongs to its
+ * chain only. Real chip and card clicks exercise the page logic instead of
+ * reading markup, so a default focus or a stale focus is caught. */
+async function auditKeyFilterScope(cdp) {
+  return evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const panel = document.getElementById('btc-panel');
+      const evidence = {};
+      const problems = [];
+      if (!panel) return { evidence, problems: ['#btc-panel is missing'] };
+      // Selecting a format opens its details row and scrolls it into view.
+      // The layout audit and the resting screenshot run after this probe, so
+      // suppress that scroll and restore the page view before returning.
+      const scrollBefore = window.scrollY;
+      const nativeScrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function () {};
+
+      const shown = () => {
+        const style = getComputedStyle(panel);
+        return !panel.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const pressedRows = () => Array.from(document.querySelectorAll('.address-type-card[aria-pressed="true"]'))
+        .map((el) => el.getAttribute('data-row'));
+      const activeChains = () => Array.from(document.querySelectorAll('.key-chain[aria-pressed="true"]'))
+        .map((el) => el.getAttribute('data-chain'));
+      const chip = (chain) => document.querySelector('.key-chain[data-chain="' + chain + '"]');
+      const clickChip = async (chain) => {
+        const el = chip(chain);
+        if (!el) {
+          problems.push('missing .key-chain[data-chain="' + chain + '"]');
+          return false;
+        }
+        el.click();
+        await sleep(30);
+        return true;
+      };
+      const record = (step, chain, wantVisible, wantPressed) => {
+        const visible = shown();
+        const pressed = pressedRows();
+        evidence[step] = {
+          chain,
+          activeChains: activeChains(),
+          hidden: panel.hidden,
+          display: getComputedStyle(panel).display,
+          visible,
+          pressed
+        };
+        if (visible !== wantVisible) {
+          problems.push(step + ': #btc-panel ' + (wantVisible ? 'hidden' : 'visible') + ' on chain ' + chain);
+        }
+        if (wantPressed === null) {
+          if (pressed.length) problems.push(step + ': format card(s) pressed on chain ' + chain + ': ' + pressed.join(', '));
+        } else if (pressed.length !== 1 || pressed[0] !== wantPressed) {
+          problems.push(step + ': expected only ' + wantPressed + ' pressed on chain ' + chain + ', got [' + pressed.join(', ') + ']');
+        }
+      };
+
+      // a. The default view is All: the selector is hidden, no format is pressed.
+      record('all-default', 'all', false, null);
+
+      // b. Bitcoin shows the selector; a card selects exactly one format.
+      if (await clickChip('btc')) {
+        const card = document.querySelector('.address-type-card[data-row="btc_p2wpkh"]');
+        if (!card) {
+          problems.push('missing .address-type-card[data-row="btc_p2wpkh"]');
+        } else {
+          card.click();
+          await sleep(30);
+          record('btc-segwit', 'btc', true, 'btc_p2wpkh');
+        }
+      }
+
+      // c. Single-format chains hide the selector and clear the format.
+      if (await clickChip('evm')) record('evm', 'evm', false, null);
+      if (await clickChip('tron')) record('tron', 'tron', false, null);
+
+      // d. All hides the selector and clears the format.
+      if (await clickChip('all')) record('all-again', 'all', false, null);
+
+      // e. Returning to Bitcoin shows the selector with no stale format pressed.
+      if (await clickChip('btc')) record('btc-revisit', 'btc', true, null);
+
+      // f. The other multi-format chains never show the Bitcoin selector.
+      if (await clickChip('ltc')) record('ltc', 'ltc', false, null);
+      if (await clickChip('bch')) record('bch', 'bch', false, null);
+
+      // Restore the default view so later probes and the screenshot see All.
+      await clickChip('all');
+      Element.prototype.scrollIntoView = nativeScrollIntoView;
+      Array.from(document.querySelectorAll('.key-details-toggle[aria-expanded="true"]'))
+        .forEach((toggle) => toggle.click());
+      window.scrollTo(0, scrollBefore);
+
+      return { ok: problems.length === 0, evidence, problems };
+    })()`,
+    10000,
+  );
+}
+
 async function auditKeyTooltips(cdp) {
   return evaluate(
     cdp,
@@ -6253,6 +6355,17 @@ async function main() {
                   id: "key-auto-derive",
                   message: `/key did not derive from the input: ${derive.reason}`,
                   detail: derive,
+                });
+              }
+              // Runs after the derive so the chain chips and format cards have
+              // rows to select from.
+              const filterScope = await auditKeyFilterScope(cdp);
+              run.metrics.keyFilterScope = filterScope.evidence;
+              if (!filterScope.ok) {
+                run.violations.push({
+                  id: "key-filter-scope",
+                  message: `/key chain filter leaked the address format: ${(filterScope.problems || []).join("; ")}`,
+                  detail: filterScope,
                 });
               }
             }

@@ -223,6 +223,20 @@
     ton: 'ton'
   };
 
+  /* Chains that derive more than one address format. Bitcoin's formats are
+   * selectable through #btc-panel; every other chain renders its formats as
+   * plain rows. The map drives format scope (the panel and the focus reset on
+   * a chain change) instead of the currently visible rows, because under All
+   * the Bitcoin rows are visible while the selector must stay hidden. */
+  var CHAIN_FORMAT_ROWS = {
+    btc: ['btc_p2pkh', 'btc_p2pkh_uncompressed', 'btc_p2sh_p2wpkh', 'btc_p2wpkh', 'btc_p2tr'],
+    ltc: ['ltc_p2pkh', 'ltc_p2sh_p2wpkh', 'ltc_p2wpkh', 'ltc_p2tr'],
+    bch: ['bch_legacy', 'bch_cashaddr'],
+    doge: ['doge_p2pkh', 'doge_p2pkh_uncompressed'],
+    zcash: ['zcash_p2pkh', 'zcash_p2pkh_uncompressed'],
+    ton: ['ton', 'ton_w5']
+  };
+
   function chainDisplayName(chainClass) {
     var slug = CHAIN_SLUGS[chainClass];
     return slug && SSOT_CHAINS.bySlug[slug] ? SSOT_CHAINS.bySlug[slug].name : '';
@@ -1545,6 +1559,10 @@
   }
 
   function ensureBtcFocus() {
+    /* The default Bitcoin-format focus exists for the #btc-panel selector, so
+     * it only applies while Bitcoin is the selected chain. Under All or on a
+     * single-format chain no format card may be (or stay) pressed. */
+    if (state.chain !== 'btc') return;
     var ids = btcRowIds();
     if (!ids.length) {
       state.focusId = null;
@@ -1554,6 +1572,20 @@
     if (!state.focusId || ids.indexOf(state.focusId) < 0) {
       state.focusId = ids.indexOf('btc_p2pkh') >= 0 ? 'btc_p2pkh' : ids[0];
     }
+  }
+
+  /* Does this chain own the format row? Multi-format chains are listed in
+   * CHAIN_FORMAT_ROWS; the rest match their row prefix. All owns nothing, so a
+   * chain change to All always clears a format focus. */
+  function chainOwnsFormat(chain, id) {
+    if (!chain || !id) return false;
+    var rows = CHAIN_FORMAT_ROWS[chain];
+    if (rows) return rows.indexOf(id) >= 0;
+    var prefixes = CHAIN_PREFIXES[chain];
+    if (!prefixes) return false;
+    return prefixes.some(function (prefix) {
+      return id === prefix || id.indexOf(prefix) === 0;
+    });
   }
 
   function chainHasRows(chain, addresses) {
@@ -1693,7 +1725,15 @@
     chainButtons.forEach(function (other) {
       other.setAttribute('aria-pressed', String(other === button));
     });
+    /* A format belongs to its chain: when the new chain (or All) does not own
+     * the focused row, drop it so no card from the previous chain stays
+     * pressed. Revisiting the same chain keeps the format. */
+    if (state.focusId && state.focusId !== 'summary' &&
+        !chainOwnsFormat(state.chain, state.focusId)) {
+      state.focusId = null;
+    }
     applyFilters();
+    syncSelection(false, false);
     syncBitcoinPanel();
   }
 
@@ -1751,11 +1791,10 @@
 
   function syncBitcoinPanel() {
     if (!btcPanel) return;
-    var hasVisibleBtc = rowList().some(function (row) {
-      var id = row.getAttribute('data-id');
-      return !!id && id.indexOf('btc_') === 0 && !row.classList.contains('hidden');
-    });
-    btcPanel.hidden = !hasVisibleBtc;
+    /* #btc-panel renders the Bitcoin formats only. It is scoped to the Bitcoin
+     * chain and hidden under All and every single-format chain; the other
+     * multi-format chains in CHAIN_FORMAT_ROWS render their formats as rows. */
+    btcPanel.hidden = state.chain !== 'btc';
   }
 
   /* --------------------------------------------------------------- balances */
@@ -3199,10 +3238,18 @@
     var chainParam = params.get('chain');
     var typeParam = params.get('type');
     var curveParam = params.get('curve');
-    var chainId = chainParam
-      ? (CHAIN_PRESETS[chainParam] || (CHAIN_PREFIXES[chainParam] ? chainParam : null))
-      : null;
-    var row = typeParam ? TYPE_ROWS[typeParam] : null;
+    /* ?chain=all keeps the unfiltered view: a ?type= must not imply a chain and
+     * pre-select a format on top of All. */
+    var chainAll = chainParam === 'all';
+    var chainId = chainAll
+      ? 'all'
+      : (chainParam
+        ? (CHAIN_PRESETS[chainParam] || (CHAIN_PREFIXES[chainParam] ? chainParam : null))
+        : null);
+    var row = !chainAll && typeParam ? TYPE_ROWS[typeParam] : null;
+    /* An explicit, resolved chain wins over the type shorthand: a foreign
+     * format would otherwise force its own chain inside focusTarget(). */
+    if (row && chainId && row[0] !== chainId) row = null;
     if (row && !chainId) chainId = row[0];
     var wantsEd25519 = curveParam === 'ed25519' ||
       (chainId && ED25519_CHAINS[chainId]) ||

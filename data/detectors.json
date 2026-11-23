@@ -1129,6 +1129,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"
+    },
+    {
+      "id": "key-filter-scope",
+      "rule": "The /key Bitcoin address-format selector (#btc-panel) is hidden under All and on every single-format chain, and a format card is pressed only while its own chain is selected.",
+      "batch": "8",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
     }
   ]
 }
