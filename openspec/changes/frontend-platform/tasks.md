@@ -8,7 +8,10 @@ ship two renderers for the same route.
 - [ ] `web/` Astro app: pinned deps, committed lockfile, `npm ci` in CI, area in
       `projects.json`.
 - [ ] `data/chains.json` and `data/puzzles.json` consumed by both Rust and Astro
-      (one source, generated or imported).
+      (one source, generated or imported). `data/puzzles.json` now mirrors the
+      `PUZZLE_TARGETS` table in `src/coordinator/puzzles.rs`, and
+      `web/tests/puzzles.test.ts` fails when the two drift; the coordinator
+      still reads its embedded array until the cutover.
 - [ ] CSP plan and provider allowlist documented before any page moves.
 
 ## 1. Pilot
@@ -42,6 +45,10 @@ ship two renderers for the same route.
 ## 4. Seed and puzzle
 
 - [ ] `/seed`, `/mnemonic-seeds`, `/brainwallet*`, `/bitcoin-puzzle*`.
+      `/bitcoin-puzzle` and all 160 `/bitcoin-puzzle/<n>` pages are built in
+      `web/src/pages/bitcoin-puzzle/` from `data/puzzles.json`; the coordinator
+      still serves them and `data/routes.json` keeps its renderer/status until
+      cutover.
 - [ ] WASM core served unchanged and loaded on demand.
 
 ## 5. App shell

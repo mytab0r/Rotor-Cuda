@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // SEO gate for the prerendered chain directories (`/private-keys/<chain>` and
 // `/mnemonic-seeds/<chain>`), their hubs, the presentation pages (`/docs`,
-// `/tools`), the pure-content pages (`/faq`, `/disclaimer`, `/donate`), plus
-// the root 404 document.
+// `/tools`), the pure-content pages (`/faq`, `/disclaimer`, `/donate`), the
+// Bitcoin puzzle hub (`/bitcoin-puzzle`) and its detail pages
+// (`/bitcoin-puzzle/<n>`), plus the sitemap and the root 404 document.
 //
 // Reads the built `web/dist` tree (no network, no dependencies) and fails when
 // a page breaks the contract the SEO audit measured:
-//   - title outside 50-60 characters (hub: at most 60, intent first);
+//   - title outside 50-60 characters (hubs: at most 60, intent first);
 //   - description outside 120-160 characters with no concrete number;
 //   - missing/incorrect canonical or robots;
 //   - duplicate title or description between any two checked pages;
@@ -24,6 +25,10 @@
 //   - malformed JSON-LD, or missing the expected schema types;
 //   - hub links missing for a chain page, or a hub internal link with no
 //     built target in `web/dist`;
+//   - a puzzle row or detail page whose number, target, solved flag or range
+//     disagrees with `data/puzzles.json`, a missing/extra detail page, a
+//     fabricated 64-hex private key, or a puzzle route in the sitemap that the
+//     build renders noindex;
 //   - a missing dist/404.html, a 404 without noindex, or a 404 without exactly
 //     one H1 (Cloudflare Pages answers 200 with the landing page otherwise).
 //
@@ -39,6 +44,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE_ORIGIN = 'https://rotor.pxbt.app';
+const PUZZLE_HUB_ROUTE = '/bitcoin-puzzle';
 const PRIVATE_KEYS_FAMILY = {
   id: 'private-keys',
   dir: 'private-keys',
@@ -71,6 +77,7 @@ const DESCRIPTION_MAX = 160;
 const MIN_UNIQUE_WORDS = 120;
 const MIN_ROWS = 40;
 const HUB_MIN_CONTENT_H2 = 2;
+const PUZZLE_MIN_CONTENT_H2 = 2;
 const MAX_JACCARD = 0.5;
 
 /* Presentation pages added to the Astro build. They are checked in addition to
@@ -130,7 +137,6 @@ const pendingCutover = new Map([
   ['/key/wif', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
   ['/key/decimal', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
   ['/seed', 'Seed studio still served by the coordinator (phase 4).'],
-  ['/bitcoin-puzzle', 'Puzzle pages still served by the coordinator (phase 4).'],
   ['/vanity', 'Vanity generator still served by the coordinator (phase 2).'],
   ['/milk-sad', 'Milk Sad audit still served by the coordinator (phase 2).'],
   ['/brainwallet', 'Brainwallet pages still served by the coordinator (phase 4).'],
@@ -178,7 +184,8 @@ function pendingChainTarget(pathname) {
 }
 
 const HELP = `check-seo - SEO gate for web/dist/private-keys, web/dist/mnemonic-seeds,
-their hubs, /docs, /tools, /faq, /disclaimer, /donate and 404.html
+their hubs, /docs, /tools, /faq, /disclaimer, /donate, /bitcoin-puzzle, its
+detail pages, sitemap.xml and 404.html
 
 Options:
   --dist PATH   built Astro output (default: web/dist)
@@ -543,6 +550,442 @@ async function chainSlugs() {
 function mainHtml(html) {
   const match = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i);
   return match ? match[1] : '';
+}
+
+/* ------------------------------------------------------------ puzzle pages */
+/* `data/puzzles.json` is the machine source for the puzzle hub and its 160
+ * detail pages. The gate compares every rendered row and page against this
+ * file, so a fabricated number, target or solved flag fails the build. */
+
+async function loadPuzzleData() {
+  const file = path.join(REPO_ROOT, 'data', 'puzzles.json');
+  let data;
+  try {
+    data = JSON.parse(await readFile(file, 'utf8'));
+  } catch (error) {
+    throw new Error(`cannot read ${file}: ${error.code ?? error.message}`);
+  }
+  if (!Number.isInteger(data.count) || !Array.isArray(data.puzzles)) {
+    throw new Error(`${file}: expected a count and a puzzles array`);
+  }
+  if (data.puzzles.length !== data.count) {
+    throw new Error(`${file}: count ${data.count} does not match ${data.puzzles.length} rows`);
+  }
+  const numbers = new Set();
+  for (const puzzle of data.puzzles) {
+    if (!Number.isInteger(puzzle.number) || puzzle.number < 1 || puzzle.number > data.count) {
+      throw new Error(`${file}: bad puzzle number ${puzzle.number}`);
+    }
+    if (numbers.has(puzzle.number)) throw new Error(`${file}: duplicate puzzle #${puzzle.number}`);
+    numbers.add(puzzle.number);
+    if (typeof puzzle.target !== 'string' || typeof puzzle.solved !== 'boolean') {
+      throw new Error(`${file}: puzzle #${puzzle.number} needs a target string and a solved boolean`);
+    }
+  }
+  return data;
+}
+
+function puzzleIndexable(puzzle, data) {
+  return (
+    /^1[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(puzzle.target) &&
+    puzzle.number >= 1 &&
+    puzzle.number <= data.count
+  );
+}
+
+function puzzleRangeHex(number) {
+  const start = (1n << BigInt(number - 1)).toString(16).padStart(64, '0');
+  const end = ((1n << BigInt(number)) - 1n).toString(16).padStart(64, '0');
+  return { start, end };
+}
+
+/* One parsed `<tr>` from the hub table. The page writes the dataset values as
+ * data attributes, which lets the gate compare them without re-parsing prose. */
+function puzzleRowsOf(html) {
+  const rows = [];
+  const re = /<tr\b([^>]*\bdata-puzzle-number=["'](\d+)["'][^>]*)>([\s\S]*?)<\/tr>/gi;
+  let match;
+  while ((match = re.exec(html)) !== null) {
+    const attrs = match[1];
+    rows.push({
+      number: Number(match[2]),
+      target: attr(attrs, /\bdata-puzzle-target\s*=\s*["']([^"']+)["']/i),
+      status: attr(attrs, /\bdata-puzzle-status\s*=\s*["']([^"']+)["']/i),
+      text: visibleText(match[3]),
+    });
+  }
+  return rows;
+}
+
+async function loadPuzzleDetailPages(dist) {
+  const root = path.join(dist, 'bitcoin-puzzle');
+  const pages = [];
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') return pages;
+    throw error;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+    const file = path.join(root, entry.name, 'index.html');
+    try {
+      const info = await stat(file);
+      pages.push({
+        number: Number(entry.name),
+        file,
+        bytes: info.size,
+        html: await readFile(file, 'utf8'),
+      });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return pages.sort((left, right) => left.number - right.number);
+}
+
+function checkPuzzleHub(page, data, distFiles) {
+  const failures = [];
+  const fail = (id, message) => failures.push(`[${id}] ${message}`);
+  const { html } = page;
+
+  const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=(["'])([\s\S]*?)\1/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+
+  if (!title) {
+    fail('seo-metadata-bounds', 'missing <title>');
+  } else if (title.length > HUB_TITLE_MAX) {
+    fail('seo-metadata-bounds', `title length ${title.length} over ${HUB_TITLE_MAX}: ${title}`);
+  } else if (!/^Bitcoin puzzle browser/i.test(title)) {
+    fail('seo-metadata-bounds', `title does not start with the hub intent: ${title}`);
+  } else if (!title.endsWith('| Crypto')) {
+    fail('seo-metadata-bounds', `title does not end with the brand: ${title}`);
+  }
+
+  if (!description) {
+    fail('seo-metadata-bounds', 'missing meta description');
+  } else if (description.length < DESCRIPTION_MIN || description.length > DESCRIPTION_MAX) {
+    fail('seo-metadata-bounds', `description length ${description.length} outside ${DESCRIPTION_MIN}-${DESCRIPTION_MAX}`);
+  } else if (!new RegExp(`\\b${data.count}\\b`).test(description)) {
+    fail('seo-metadata-bounds', `description does not name the ${data.count} puzzles`);
+  }
+
+  const expectedCanonical = `${SITE_ORIGIN}${PUZZLE_HUB_ROUTE}`;
+  if (!canonical) fail('seo-canonical-robots', 'missing canonical');
+  else if (canonical !== expectedCanonical) fail('seo-canonical-robots', `canonical ${canonical} is not ${expectedCanonical}`);
+  if (!robots) fail('seo-canonical-robots', 'missing robots meta');
+  else if (!/index\s*,\s*follow/i.test(robots)) fail('seo-canonical-robots', `robots is not index,follow: ${robots}`);
+
+  if (!ogImage) fail('seo-og-image-alt', 'missing og:image');
+  if (!ogImageAlt) fail('seo-og-image-alt', 'missing og:image:alt');
+  else if (!/bitcoin puzzle/i.test(ogImageAlt) || !new RegExp(`\\b${data.count}\\b`).test(ogImageAlt)) {
+    fail('seo-og-image-alt', `og:image:alt does not describe the hub: ${ogImageAlt}`);
+  }
+  if (!twitterImageAlt) fail('seo-og-image-alt', 'missing twitter:image:alt');
+  else if (!/bitcoin puzzle/i.test(twitterImageAlt)) {
+    fail('seo-og-image-alt', `twitter:image:alt does not describe the hub: ${twitterImageAlt}`);
+  }
+
+  const allHeadings = headings(html);
+  const h1s = allHeadings.filter((heading) => heading.level === 1);
+  const visibleH1s = h1s.filter((heading) => !heading.hidden && heading.text);
+  if (h1s.length === 0) fail('seo-hidden-heading', 'missing H1');
+  else if (h1s.some((heading) => heading.hidden)) fail('seo-hidden-heading', 'H1 is visually hidden');
+  if (visibleH1s.length !== 1) fail('seo-hidden-heading', `expected exactly one visible H1, found ${visibleH1s.length}`);
+  else if (visibleH1s[0].text !== 'Bitcoin puzzle') {
+    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}", expected "Bitcoin puzzle"`);
+  }
+
+  const main = mainHtml(html);
+  const contentH2s = headings(main).filter(
+    (heading) => heading.level === 2 && !heading.hidden && heading.text,
+  );
+  if (contentH2s.length < PUZZLE_MIN_CONTENT_H2) {
+    fail('seo-hidden-heading', `only ${contentH2s.length} visible content H2(s), need at least ${PUZZLE_MIN_CONTENT_H2}`);
+  }
+
+  const tableCount = attr(html, /\bdata-puzzle-count=["'](\d+)["']/i);
+  if (Number(tableCount) !== data.count) {
+    fail('seo-puzzle-rows', `table data-puzzle-count is ${tableCount}, expected ${data.count}`);
+  }
+  const rows = puzzleRowsOf(main);
+  if (rows.length !== data.count) {
+    fail('seo-puzzle-rows', `rendered ${rows.length} puzzle rows, expected ${data.count}`);
+  }
+  for (let index = 0; index < Math.min(rows.length, data.puzzles.length); index += 1) {
+    const row = rows[index];
+    const expected = data.puzzles[index];
+    if (row.number !== expected.number) {
+      fail('seo-puzzle-rows', `row ${index + 1} is puzzle #${row.number}, expected #${expected.number}`);
+    }
+    if (row.target !== expected.target) {
+      fail('seo-puzzle-data', `puzzle #${expected.number} target ${row.target} is not ${expected.target}`);
+    }
+    const status = expected.solved ? 'solved' : 'unsolved';
+    if (row.status !== status) {
+      fail('seo-puzzle-data', `puzzle #${expected.number} status ${row.status} is not ${status}`);
+    }
+    if (!row.text.includes(expected.target)) {
+      fail('seo-puzzle-data', `puzzle #${expected.number} row does not show its target`);
+    }
+    const pill = expected.solved ? 'Solved' : 'Unsolved';
+    if (!row.text.includes(pill)) {
+      fail('seo-puzzle-data', `puzzle #${expected.number} row has no "${pill}" pill`);
+    }
+  }
+
+  const seenTargets = new Set();
+  let checkedTargets = 0;
+  for (const href of hrefsOf(html)) {
+    if (!href || !href.startsWith('/') || href.startsWith('//')) continue;
+    const pathname = href.split('#')[0].split('?')[0];
+    if (seenTargets.has(pathname)) continue;
+    seenTargets.add(pathname);
+    checkedTargets += 1;
+    if (resolvesInDist(distFiles, pathname) || pendingCutover.has(pathname)) continue;
+    fail('seo-internal-link', `${href} is not built`);
+  }
+
+  const blocks = jsonLdBlocks(html);
+  if (blocks.length === 0) {
+    fail('seo-structured-data', 'no application/ld+json block');
+  } else {
+    const types = new Set();
+    for (const block of blocks) {
+      try {
+        typesOf(JSON.parse(block), types);
+      } catch (error) {
+        fail('seo-structured-data', `JSON-LD does not parse: ${error.message}`);
+      }
+    }
+    for (const type of ['CollectionPage', 'BreadcrumbList', 'ItemList']) {
+      if (!types.has(type)) fail('seo-structured-data', `JSON-LD is missing ${type}`);
+    }
+    const joined = blocks.join('\n');
+    if (!new RegExp(`"numberOfItems"\\s*:\\s*${data.count}\\b`).test(joined)) {
+      fail('seo-structured-data', `JSON-LD numberOfItems is not ${data.count}`);
+    }
+  }
+
+  return {
+    route: PUZZLE_HUB_ROUTE,
+    bytes: page.bytes,
+    title,
+    titleLength: title?.length ?? 0,
+    description,
+    descriptionLength: description?.length ?? 0,
+    canonical,
+    robots,
+    contentH2s: contentH2s.length,
+    rows: rows.length,
+    internalLinks: checkedTargets,
+    failures,
+  };
+}
+
+function checkPuzzleDetail(page, puzzle, data, distFiles) {
+  const { number, target, solved } = puzzle;
+  const failures = [];
+  const fail = (id, message) => failures.push(`[${id}] #${number}: ${message}`);
+  const { html } = page;
+  const indexable = puzzleIndexable(puzzle, data);
+
+  const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=(["'])([\s\S]*?)\1/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImage = attr(html, /<meta\s+property=["']og:image["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+
+  if (!title) {
+    fail('seo-metadata-bounds', 'missing <title>');
+  } else if (title.length < TITLE_MIN || title.length > TITLE_MAX) {
+    fail('seo-metadata-bounds', `title length ${title.length} outside ${TITLE_MIN}-${TITLE_MAX}: ${title}`);
+  } else if (!title.includes(`#${number}`)) {
+    fail('seo-metadata-bounds', `title does not name puzzle #${number}: ${title}`);
+  } else if (!title.endsWith('| Crypto')) {
+    fail('seo-metadata-bounds', `title does not end with the brand: ${title}`);
+  }
+
+  if (!description) {
+    fail('seo-metadata-bounds', 'missing meta description');
+  } else if (description.length < DESCRIPTION_MIN || description.length > DESCRIPTION_MAX) {
+    fail('seo-metadata-bounds', `description length ${description.length} outside ${DESCRIPTION_MIN}-${DESCRIPTION_MAX}`);
+  } else if (!description.includes(target)) {
+    fail('seo-metadata-bounds', 'description does not carry the puzzle target');
+  }
+
+  const expectedCanonical = `${SITE_ORIGIN}${PUZZLE_HUB_ROUTE}/${number}`;
+  if (!canonical) fail('seo-canonical-robots', 'missing canonical');
+  else if (canonical !== expectedCanonical) fail('seo-canonical-robots', `canonical ${canonical} is not ${expectedCanonical}`);
+  if (!robots) fail('seo-canonical-robots', 'missing robots meta');
+  else if (indexable && !/index\s*,\s*follow/i.test(robots)) {
+    fail('seo-canonical-robots', `robots is not index,follow: ${robots}`);
+  } else if (!indexable && !/noindex/i.test(robots)) {
+    fail('seo-canonical-robots', `thin page is not noindex: ${robots}`);
+  }
+
+  if (!ogImage) fail('seo-og-image-alt', 'missing og:image');
+  if (!ogImageAlt) fail('seo-og-image-alt', 'missing og:image:alt');
+  else if (!ogImageAlt.toLowerCase().includes(target.toLowerCase())) {
+    fail('seo-og-image-alt', `og:image:alt does not name the target: ${ogImageAlt}`);
+  }
+  if (!twitterImageAlt) fail('seo-og-image-alt', 'missing twitter:image:alt');
+
+  const allHeadings = headings(html);
+  const h1s = allHeadings.filter((heading) => heading.level === 1);
+  const visibleH1s = h1s.filter((heading) => !heading.hidden && heading.text);
+  if (h1s.length === 0) fail('seo-hidden-heading', 'missing H1');
+  else if (h1s.some((heading) => heading.hidden)) fail('seo-hidden-heading', 'H1 is visually hidden');
+  if (visibleH1s.length !== 1) fail('seo-hidden-heading', `expected exactly one visible H1, found ${visibleH1s.length}`);
+  else if (visibleH1s[0].text !== `Bitcoin puzzle #${number}`) {
+    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}"`);
+  }
+
+  const main = mainHtml(html);
+  const contentH2s = headings(main).filter(
+    (heading) => heading.level === 2 && !heading.hidden && heading.text,
+  );
+  if (contentH2s.length < PUZZLE_MIN_CONTENT_H2) {
+    fail('seo-hidden-heading', `only ${contentH2s.length} visible content H2(s), need at least ${PUZZLE_MIN_CONTENT_H2}`);
+  }
+
+  const pageNumber = attr(html, /\bdata-puzzle-number=["'](\d+)["']/i);
+  const pageTarget = attr(html, /\bdata-puzzle-target=["']([^"']+)["']/i);
+  const pageStatus = attr(html, /\bdata-puzzle-status=["']([^"']+)["']/i);
+  const expectedStatus = solved ? 'solved' : 'unsolved';
+  if (Number(pageNumber) !== number) {
+    fail('seo-puzzle-data', `page data-puzzle-number is ${pageNumber}, expected ${number}`);
+  }
+  if (pageTarget !== target) {
+    fail('seo-puzzle-data', `page target ${pageTarget} is not ${target}`);
+  }
+  if (pageStatus !== expectedStatus) {
+    fail('seo-puzzle-data', `page status ${pageStatus} is not ${expectedStatus}`);
+  }
+  const mainText = visibleText(main);
+  if (!mainText.includes(target)) {
+    fail('seo-puzzle-data', 'target address is not visible in the main content');
+  }
+  const pill = solved ? 'Solved' : 'Unsolved';
+  if (!mainText.includes(pill)) {
+    fail('seo-puzzle-data', `main content has no "${pill}" status pill`);
+  }
+
+  const range = puzzleRangeHex(number);
+  if (!html.includes(range.start)) {
+    fail('seo-puzzle-data', `range start ${range.start} is not rendered`);
+  }
+  if (!html.includes(range.end)) {
+    fail('seo-puzzle-data', `range end ${range.end} is not rendered`);
+  }
+  const allowedCopyValues = new Set([target, range.start, range.end]);
+  for (const match of html.matchAll(/\bdata-copy=["']([^"']+)["']/gi)) {
+    const value = decodeEntities(match[1]);
+    if (!allowedCopyValues.has(value)) {
+      fail('seo-puzzle-data', `copy control carries an unexpected value: ${value}`);
+    }
+  }
+
+  /* No fabricated key: a 64-hex value labelled as a private key, or an explicit
+   * secret data attribute. The inclusive range hex is legitimate and appears
+   * without a "private key" label. */
+  if (/(?:private\s*key|priv(?:ate)?\s*key)[^<>]{0,48}\b[0-9a-f]{64}\b/i.test(mainText)) {
+    fail('seo-puzzle-fabricated-key', 'a 64-hex value is presented as a private key');
+  }
+  if (/\bdata-(?:private|priv|secret)-key\b/i.test(html)) {
+    fail('seo-puzzle-fabricated-key', 'page carries a private-key data attribute');
+  }
+
+  const proseTokens = tokensOf(mainText);
+  const uniqueWords = new Set(proseTokens).size;
+  if (uniqueWords < MIN_UNIQUE_WORDS) {
+    fail('seo-prose-uniqueness', `only ${uniqueWords} unique prose words, need at least ${MIN_UNIQUE_WORDS}`);
+  }
+
+  const seenTargets = new Set();
+  for (const href of hrefsOf(html)) {
+    if (!href || !href.startsWith('/') || href.startsWith('//')) continue;
+    const pathname = href.split('#')[0].split('?')[0];
+    if (seenTargets.has(pathname)) continue;
+    seenTargets.add(pathname);
+    if (resolvesInDist(distFiles, pathname) || pendingCutover.has(pathname)) continue;
+    fail('seo-internal-link', `${href} is not built`);
+  }
+
+  const blocks = jsonLdBlocks(html);
+  if (blocks.length === 0) {
+    fail('seo-structured-data', 'no application/ld+json block');
+  } else {
+    const types = new Set();
+    for (const block of blocks) {
+      try {
+        typesOf(JSON.parse(block), types);
+      } catch (error) {
+        fail('seo-structured-data', `JSON-LD does not parse: ${error.message}`);
+      }
+    }
+    for (const type of ['WebPage', 'BreadcrumbList']) {
+      if (!types.has(type)) fail('seo-structured-data', `JSON-LD is missing ${type}`);
+    }
+  }
+
+  return {
+    label: `puzzle-${number}`,
+    number,
+    indexable,
+    bytes: page.bytes,
+    title,
+    titleLength: title?.length ?? 0,
+    description,
+    descriptionLength: description?.length ?? 0,
+    canonical,
+    robots,
+    contentH2s: contentH2s.length,
+    uniqueWords,
+    failures,
+  };
+}
+
+async function checkPuzzleSitemap(dist, data) {
+  const failures = [];
+  const fail = (id, message) => failures.push(`[${id}] ${message}`);
+  const file = path.join(dist, 'sitemap.xml');
+  let xml;
+  try {
+    xml = await readFile(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      fail('seo-puzzle-sitemap', 'missing sitemap.xml');
+      return { locs: 0, failures };
+    }
+    throw error;
+  }
+  const locs = new Set(
+    [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((match) => match[1].trim()),
+  );
+  const hub = `${SITE_ORIGIN}${PUZZLE_HUB_ROUTE}`;
+  if (!locs.has(hub)) fail('seo-puzzle-sitemap', `sitemap is missing ${hub}`);
+  const expected = new Set();
+  for (const puzzle of data.puzzles) {
+    if (!puzzleIndexable(puzzle, data)) continue;
+    expected.add(`${SITE_ORIGIN}${PUZZLE_HUB_ROUTE}/${puzzle.number}`);
+  }
+  for (const loc of expected) {
+    if (!locs.has(loc)) fail('seo-puzzle-sitemap', `sitemap is missing indexable ${loc}`);
+  }
+  for (const loc of locs) {
+    if (!loc.startsWith(`${SITE_ORIGIN}${PUZZLE_HUB_ROUTE}/`)) continue;
+    if (!expected.has(loc)) fail('seo-puzzle-sitemap', `sitemap lists a non-indexable page ${loc}`);
+  }
+  return { locs: locs.size, failures };
 }
 
 function proseSections(html) {
@@ -980,6 +1423,53 @@ async function main() {
   const seedFamily = await checkFamily(options.dist, slugs, expected, distFiles, SEED_FAMILY);
   failures.push(...privateFamily.failures, ...seedFamily.failures);
 
+  /* Puzzle hub and detail pages: one row in `data/puzzles.json` must produce
+   * exactly one built detail page and one hub row, and a detail page is listed
+   * in the sitemap only when its data row is indexable. */
+  const puzzleData = await loadPuzzleData();
+  const puzzlePages = await loadPuzzleDetailPages(options.dist);
+  const builtPuzzleNumbers = new Set(puzzlePages.map((page) => page.number));
+  const expectedPuzzleNumbers = new Set(puzzleData.puzzles.map((puzzle) => puzzle.number));
+  for (const number of expectedPuzzleNumbers) {
+    if (!builtPuzzleNumbers.has(number)) {
+      failures.push(`[seo-page-set] missing built puzzle detail page /bitcoin-puzzle/${number}`);
+    }
+  }
+  for (const number of builtPuzzleNumbers) {
+    if (!expectedPuzzleNumbers.has(number)) {
+      failures.push(`[seo-page-set] unexpected built puzzle detail page /bitcoin-puzzle/${number}`);
+    }
+  }
+  if (puzzlePages.length !== puzzleData.count) {
+    failures.push(`[seo-page-set] built ${puzzlePages.length} puzzle detail pages, expected ${puzzleData.count}`);
+  }
+  const puzzleResults = [];
+  for (const page of puzzlePages) {
+    const record = puzzleData.puzzles.find((puzzle) => puzzle.number === page.number);
+    if (!record) continue;
+    const result = checkPuzzleDetail(page, record, puzzleData, distFiles);
+    puzzleResults.push(result);
+    for (const failure of result.failures) failures.push(`puzzle: ${failure}`);
+  }
+
+  let puzzleHub = null;
+  const puzzleHubFile = path.join(options.dist, 'bitcoin-puzzle', 'index.html');
+  try {
+    const info = await stat(puzzleHubFile);
+    const html = await readFile(puzzleHubFile, 'utf8');
+    puzzleHub = checkPuzzleHub({ file: puzzleHubFile, bytes: info.size, html }, puzzleData, distFiles);
+    for (const failure of puzzleHub.failures) failures.push(`puzzle hub: ${failure}`);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      failures.push(`[seo-page-set] missing built puzzle hub ${PUZZLE_HUB_ROUTE}/index.html`);
+    } else {
+      throw error;
+    }
+  }
+
+  const puzzleSitemap = await checkPuzzleSitemap(options.dist, puzzleData);
+  for (const failure of puzzleSitemap.failures) failures.push(failure);
+
   for (const [target, reason] of pendingCutover) {
     if (!reason || !reason.trim()) {
       failures.push(`[seo-pending-cutover] ${target}: allowlist entry has no reason`);
@@ -1035,6 +1525,12 @@ async function main() {
       title: result.title,
       description: result.description,
     })),
+    ...puzzleResults.map((result) => ({
+      label: result.label,
+      title: result.title,
+      description: result.description,
+    })),
+    ...(puzzleHub ? [{ label: 'puzzle-hub', title: puzzleHub.title, description: puzzleHub.description }] : []),
     ...(hub ? [{ label: 'private-keys hub', title: hub.title, description: hub.description }] : []),
     ...(seedHub ? [{ label: 'mnemonic-seeds hub', title: seedHub.title, description: seedHub.description }] : []),
   ];
@@ -1071,6 +1567,24 @@ async function main() {
         `internal targets ${page.internalLinks}`,
     );
   }
+  if (puzzleHub) {
+    console.log(
+      `\npuzzle hub ${puzzleHub.route}: title ${puzzleHub.titleLength}, desc ${puzzleHub.descriptionLength}, ` +
+        `H2 ${puzzleHub.contentH2s}, rows ${puzzleHub.rows}/${puzzleData.count}, internal targets ${puzzleHub.internalLinks}`,
+    );
+  }
+  if (puzzleResults.length) {
+    const titleLengths = puzzleResults.map((result) => result.titleLength);
+    const descriptionLengths = puzzleResults.map((result) => result.descriptionLength);
+    console.log(
+      `puzzle details: ${puzzleResults.length} pages, ` +
+        `${puzzleResults.filter((result) => result.indexable).length} indexable, ` +
+        `titles ${Math.min(...titleLengths)}-${Math.max(...titleLengths)}, ` +
+        `descriptions ${Math.min(...descriptionLengths)}-${Math.max(...descriptionLengths)}, ` +
+        `min unique words ${Math.min(...puzzleResults.map((result) => result.uniqueWords))}`,
+    );
+  }
+  console.log(`\nsitemap: ${puzzleSitemap.locs} loc(s)`);
   console.log(`\n404: robots=${notFound.robots ?? 'missing'} h1=${notFound.h1s}`);
   if (maxPair) {
     console.log(`\nmax prose similarity (private-keys): ${maxPair.left} vs ${maxPair.right} = ${maxPair.score.toFixed(3)}`);
@@ -1085,6 +1599,9 @@ async function main() {
     pages: privateFamily.results.map(({ proseTokens, grams, ...rest }) => rest),
     seedPages: seedFamily.results.map(({ proseTokens, grams, ...rest }) => rest),
     presentation: presentationResults,
+    puzzleHub,
+    puzzles: puzzleResults,
+    puzzleSitemap,
     pendingCutover: [...pendingCutover].map(([target, reason]) => ({ target, reason })),
     pendingChainPrefixes: [...pendingChainPrefixes].map(([prefix, reason]) => ({ prefix, reason })),
     hub,
@@ -1103,7 +1620,8 @@ async function main() {
   console.log(
     `\nSEO gate passed: ${privateFamily.results.length} private-key pages, ` +
       `${seedFamily.results.length} mnemonic-seed pages, both hubs, ` +
-      `${presentationResults.length} presentation pages and the root 404 page.`,
+      `${presentationResults.length} presentation pages, the ${PUZZLE_HUB_ROUTE} hub, ` +
+      `${puzzleResults.length} puzzle detail pages, the sitemap and the root 404 page.`,
   );
 }
 
