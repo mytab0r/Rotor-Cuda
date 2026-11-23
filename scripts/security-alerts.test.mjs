@@ -379,6 +379,7 @@ test("an issue closed by the sync is reopened when the alert returns", () => {
   assert.equal(plan.actions[0].type, "reopen");
   assert.match(plan.actions[0].comment, /security-alert-reopen-alert:code-scanning:16/);
   assert.deepEqual(plan.actions[0].changes, []);
+  assert.deepEqual(plan.actions[0].labels, ["security", "area:desktop"]);
 });
 
 test("duplicate markers produce one warning and no new issue", () => {
