@@ -2164,6 +2164,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   background: var(--input-bg);
   overflow: visible;
 }
+/* The selector renders only for a multi-format chain; the track count follows
+ * the option count so a two-format chain (BCH) leaves no empty column. */
+.key-filter-bar .address-type-cards[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .key-filter-bar .address-type-card {
   min-height: 44px;
   padding: 4px 10px;
