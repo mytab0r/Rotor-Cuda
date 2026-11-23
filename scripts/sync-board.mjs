@@ -23,17 +23,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   archiveStalePullRequestItems,
+  boardMetadataFor,
   branchMatchesChange,
   closingIssueNumbers,
+  declarationLines,
   epicBody,
   filesBelongToChange,
+  issueNumberFromKey,
   linkSubIssueToEpic,
+  listIssueMetadata,
   parseTaskDirective,
   parseTasksMarkdown,
+  priorityFor,
+  severityFor,
   syncChangeTasks,
 } from "./lib/task-tracking.mjs";
 
 const REPO = "mytab0r/Rotor-Cuda";
+const [REPO_OWNER, REPO_NAME] = REPO.split("/");
 const OWNER = "mytab0r";
 const PROJECT_NUMBER = 3;
 const REPO_URL = `https://github.com/${REPO}`;
@@ -43,6 +50,7 @@ const EPIC_MARKER_RE = /<!--\s*openspec-change:\s*([^\s>]+)\s*-->/;
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CHANGES_DIR = path.join(REPO_ROOT, "openspec", "changes");
+const MILESTONES_PATH = path.join(REPO_ROOT, "data", "milestones.json");
 const DRY_RUN = process.argv.slice(2).includes("--dry-run");
 
 function gh(args) {
@@ -273,6 +281,146 @@ function prBelongsToChange(pr, changeId, changeIds) {
   }
 }
 
+function readMilestones() {
+  if (!fs.existsSync(MILESTONES_PATH)) {
+    throw new Error(`missing ${path.relative(REPO_ROOT, MILESTONES_PATH)}`);
+  }
+  const parsed = JSON.parse(fs.readFileSync(MILESTONES_PATH, "utf8"));
+  if (!Array.isArray(parsed)) {
+    throw new Error("data/milestones.json must be an array of milestones");
+  }
+  const titles = new Set();
+  return parsed.map((entry) => {
+    const title = String(entry?.title ?? "").trim();
+    if (!title) throw new Error("data/milestones.json: every milestone needs a title");
+    if (titles.has(title)) {
+      throw new Error(`data/milestones.json: duplicate milestone "${title}"`);
+    }
+    titles.add(title);
+    return {
+      title,
+      description: entry.description ? String(entry.description) : null,
+      due: entry.due ? String(entry.due) : null,
+      match: {
+        areas: Array.isArray(entry.match?.areas) ? entry.match.areas : [],
+        epics: Array.isArray(entry.match?.epics) ? entry.match.epics : [],
+      },
+    };
+  });
+}
+
+function dueOn(due) {
+  if (!due) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(due) ? `${due}T00:00:00Z` : due;
+}
+
+// Milestones are releases; data/milestones.json is the source. Create a
+// missing one, update a changed description or due date, and reuse the rest.
+function ensureMilestones(milestones) {
+  const existing = ghJson([
+    "api",
+    `repos/${REPO}/milestones?state=all&per_page=100`,
+  ]);
+  if (!Array.isArray(existing)) {
+    throw new Error("cannot list repository milestones");
+  }
+  const byTitle = new Map(existing.map((milestone) => [milestone.title, milestone]));
+  let created = 0;
+  let updated = 0;
+
+  for (const milestone of milestones) {
+    const current = byTitle.get(milestone.title);
+    const due = dueOn(milestone.due);
+
+    if (!current) {
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] create milestone "${milestone.title}"` +
+            `${milestone.due ? ` (due ${milestone.due})` : ""}`,
+        );
+        created += 1;
+      } else {
+        const args = [
+          "api",
+          "--method",
+          "POST",
+          `repos/${REPO}/milestones`,
+          "-f",
+          `title=${milestone.title}`,
+        ];
+        if (milestone.description) args.push("-f", `description=${milestone.description}`);
+        if (due) args.push("-f", `due_on=${due}`);
+        const made = ghJson(args);
+        if (!made?.number) {
+          throw new Error(`cannot create milestone "${milestone.title}"`);
+        }
+        byTitle.set(made.title, made);
+        created += 1;
+        console.log(`created milestone "${milestone.title}" (#${made.number})`);
+      }
+      continue;
+    }
+
+    const patch = {};
+    if (milestone.description && milestone.description !== (current.description ?? "")) {
+      patch.description = milestone.description;
+    }
+    if (due && due !== current.due_on) patch.due_on = due;
+    if (Object.keys(patch).length === 0) continue;
+    if (DRY_RUN) {
+      console.log(
+        `[dry-run] update milestone "${milestone.title}": ${Object.keys(patch).join(", ")}`,
+      );
+      updated += 1;
+    } else {
+      const args = [
+        "api",
+        "--method",
+        "PATCH",
+        `repos/${REPO}/milestones/${current.number}`,
+      ];
+      for (const [key, value] of Object.entries(patch)) args.push("-f", `${key}=${value}`);
+      ghJson(args);
+      updated += 1;
+      console.log(`updated milestone "${milestone.title}"`);
+    }
+  }
+
+  return { created, updated, existing: existing.length };
+}
+
+function listIssueTypes() {
+  const query =
+    "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issueTypes(first:20){nodes{id name}}}}";
+  const result = ghJson([
+    "api",
+    "graphql",
+    "-f",
+    `query=${query}`,
+    "-f",
+    `owner=${REPO_OWNER}`,
+    "-f",
+    `name=${REPO_NAME}`,
+  ]);
+  if (result?.errors?.length) {
+    throw new Error(
+      `cannot read repository issue types: ${result.errors
+        .map((error) => error.message)
+        .join("; ")}`,
+    );
+  }
+  const types = new Map();
+  for (const node of result?.data?.repository?.issueTypes?.nodes ?? []) {
+    types.set(node.name, node.id);
+  }
+  for (const required of ["Task", "Bug", "Feature"]) {
+    if (!types.has(required)) {
+      throw new Error(`repository has no issue type "${required}"`);
+    }
+  }
+  return types;
+}
+
 function main() {
   const repoInfo = ghJson([
     "repo",
@@ -386,6 +534,19 @@ function main() {
   }
 
   const areaField = ensureField("Area", "SINGLE_SELECT", AREA_OPTIONS);
+  const priorityField = ensureField("Priority", "SINGLE_SELECT", [
+    "P0",
+    "P1",
+    "P2",
+    "P3",
+  ]);
+  const severityField = ensureField("Severity", "SINGLE_SELECT", [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S-",
+  ]);
   const progressField = ensureField("Progress", "NUMBER");
   const statusField = fieldByName.get("Status");
   if (!statusField?.options) {
@@ -455,6 +616,10 @@ function main() {
       console.log(`[dry-run] set ${field.name}=${valueLabel} on ${itemUrl(item)}`);
       return;
     }
+    // item-list exposes custom fields by lowercased name; skip an unchanged
+    // value so a daily run only writes what drifted.
+    const current = item[field.name.toLowerCase()];
+    if (current !== undefined && String(current) === String(value)) return;
     const args = [
       "project",
       "item-edit",
@@ -475,6 +640,239 @@ function main() {
       args.push("--number", String(value));
     }
     gh(args);
+  }
+
+  const milestones = readMilestones();
+  const milestoneState = ensureMilestones(milestones);
+
+  // Issue types and native blockedBy links are GraphQL-only. One paginated
+  // listing gives the current type, milestone and blockers for every open
+  // issue, so a repeat run only mutates what drifted.
+  const issueMetadata = new Map(
+    listIssueMetadata({
+      ghJson,
+      owner: REPO_OWNER,
+      name: REPO_NAME,
+      states: ["OPEN"],
+    }).map((issue) => [issue.number, issue]),
+  );
+  const issueTypes = listIssueTypes();
+  let typesSet = 0;
+  let milestonesAssigned = 0;
+  let dependenciesAdded = 0;
+  let dependenciesRemoved = 0;
+  const dependencyEdges = [];
+  const metadataWarnings = [];
+
+  function issueIdFor(number, known = null) {
+    const metadata = issueMetadata.get(Number(number));
+    if (metadata?.id) return metadata.id;
+    if (known) return known;
+    if (DRY_RUN) return null;
+    const viewed = ghJson([
+      "issue",
+      "view",
+      String(number),
+      "--repo",
+      REPO,
+      "--json",
+      "id",
+    ]);
+    if (!viewed?.id) throw new Error(`cannot resolve issue #${number} id`);
+    return viewed.id;
+  }
+
+  function setIssueType(number, type, id = null) {
+    const issueId = issueIdFor(number, id);
+    const typeId = issueTypes.get(type);
+    if (!typeId) throw new Error(`repository has no issue type "${type}"`);
+    if (!issueId) return;
+    const mutation =
+      "mutation($issueId:ID!,$issueTypeId:ID!){updateIssueIssueType(input:{issueId:$issueId,issueTypeId:$issueTypeId}){issue{number issueType{name}}}}";
+    const result = ghJson([
+      "api",
+      "graphql",
+      "-f",
+      `query=${mutation}`,
+      "-f",
+      `issueId=${issueId}`,
+      "-f",
+      `issueTypeId=${typeId}`,
+    ]);
+    if (result?.errors?.length) {
+      throw new Error(
+        `cannot set Type=${type} on #${number}: ${result.errors
+          .map((error) => error.message)
+          .join("; ")}`,
+      );
+    }
+    const current = issueMetadata.get(Number(number)) ?? {};
+    issueMetadata.set(Number(number), { ...current, id: issueId, issueType: type });
+    typesSet += 1;
+    console.log(`set Type=${type} on #${number}`);
+  }
+
+  function setMilestone(number, title) {
+    if (DRY_RUN) {
+      console.log(`[dry-run] set Milestone="${title}" on #${number}`);
+      return;
+    }
+    gh(["issue", "edit", String(number), "--repo", REPO, "--milestone", title]);
+    const current = issueMetadata.get(Number(number)) ?? {};
+    issueMetadata.set(Number(number), { ...current, milestone: title });
+    milestonesAssigned += 1;
+    console.log(`set Milestone="${title}" on #${number}`);
+  }
+
+  // Applies Type, Milestone, Priority and Severity to one synced issue. The
+  // rules live in the pure helpers, so a dry run and a real run agree.
+  function applyIssueMetadata({
+    number = null,
+    id = null,
+    title,
+    body = "",
+    labels = [],
+    state = "OPEN",
+    changeId = null,
+    area = null,
+    isEpic = false,
+    epicPriority = null,
+    epicSeverity = null,
+    item = null,
+    planned = false,
+  }) {
+    const issue = { number, title, body, labels };
+    const info = boardMetadataFor({ issue, changeId, area, milestones });
+    for (const warning of info.warnings) {
+      metadataWarnings.push(warning);
+      console.log(`warning: ${warning}`);
+    }
+    const priority = priorityFor({ issue, isEpic, epicPriority });
+    const severity = severityFor({ issue, issueType: info.type, epicSeverity });
+
+    if (planned || !number) {
+      const label = number ? `#${number}` : `new issue "${title}"`;
+      if (info.type) {
+        console.log(`[dry-run] set Type=${info.type} on ${label}`);
+        typesSet += 1;
+      }
+      if (info.milestone) {
+        console.log(`[dry-run] set Milestone="${info.milestone.title}" on ${label}`);
+        milestonesAssigned += 1;
+      }
+      console.log(
+        `[dry-run] set Priority=${priority}, Severity=${severity} on ${label}`,
+      );
+      return { type: info.type, milestone: info.milestone, priority, severity };
+    }
+
+    if (state === "OPEN") {
+      const current = issueMetadata.get(Number(number)) ?? {};
+      if (info.type && current.issueType !== info.type) {
+        if (DRY_RUN) {
+          console.log(`[dry-run] set Type=${info.type} on #${number}`);
+          typesSet += 1;
+        } else {
+          setIssueType(number, info.type, id);
+        }
+      }
+      if (info.milestone && current.milestone !== info.milestone.title) {
+        if (DRY_RUN) {
+          console.log(
+            `[dry-run] set Milestone="${info.milestone.title}" on #${number}`,
+          );
+          milestonesAssigned += 1;
+        } else {
+          setMilestone(number, info.milestone.title);
+        }
+      }
+    }
+
+    setField(item, priorityField, priority, priority);
+    setField(item, severityField, severity, severity);
+    return { type: info.type, milestone: info.milestone, priority, severity };
+  }
+
+  // Keep the native blockedBy graph equal to the `Blocked by:` text. Add a
+  // missing link, remove a link the text no longer lists, and report the edge.
+  function syncNativeBlockers({ number, blockedByKeys, id = null }) {
+    const desired = blockedByKeys
+      .map((key) => issueNumberFromKey(key))
+      .filter((value) => Number.isInteger(value));
+    const current = (issueMetadata.get(Number(number))?.blockedBy ?? []).map(
+      (blocker) => Number(blocker.number),
+    );
+    const issueId = issueIdFor(number, id);
+    if (!issueId) return;
+
+    for (const blocker of desired) {
+      if (current.includes(blocker)) continue;
+      if (DRY_RUN) {
+        console.log(`[dry-run] add native blockedBy: #${number} <- #${blocker}`);
+        continue;
+      }
+      const blockerId = issueIdFor(blocker);
+      if (!blockerId) throw new Error(`cannot resolve blocker #${blocker} id`);
+      const mutation =
+        "mutation($issueId:ID!,$blockingIssueId:ID!){addBlockedBy(input:{issueId:$issueId,blockingIssueId:$blockingIssueId}){issue{number}}}";
+      const result = ghJson([
+        "api",
+        "graphql",
+        "-f",
+        `query=${mutation}`,
+        "-f",
+        `issueId=${issueId}`,
+        "-f",
+        `blockingIssueId=${blockerId}`,
+      ]);
+      if (result?.errors?.length) {
+        throw new Error(
+          `cannot add blockedBy #${blocker} to #${number}: ${result.errors
+            .map((error) => error.message)
+            .join("; ")}`,
+        );
+      }
+      dependenciesAdded += 1;
+      console.log(`added native blockedBy: #${number} <- #${blocker}`);
+    }
+
+    for (const blocker of current) {
+      if (desired.includes(blocker)) continue;
+      if (DRY_RUN) {
+        console.log(`[dry-run] remove native blockedBy: #${number} <- #${blocker}`);
+        continue;
+      }
+      const blockerId = issueIdFor(blocker);
+      if (!blockerId) continue;
+      const mutation =
+        "mutation($issueId:ID!,$blockingIssueId:ID!){removeBlockedBy(input:{issueId:$issueId,blockingIssueId:$blockingIssueId}){issue{number}}}";
+      const result = ghJson([
+        "api",
+        "graphql",
+        "-f",
+        `query=${mutation}`,
+        "-f",
+        `issueId=${issueId}`,
+        "-f",
+        `blockingIssueId=${blockerId}`,
+      ]);
+      if (result?.errors?.length) {
+        throw new Error(
+          `cannot remove blockedBy #${blocker} from #${number}: ${result.errors
+            .map((error) => error.message)
+            .join("; ")}`,
+        );
+      }
+      dependenciesRemoved += 1;
+      console.log(`removed native blockedBy: #${number} <- #${blocker}`);
+    }
+
+    const metadata = issueMetadata.get(Number(number)) ?? {};
+    issueMetadata.set(Number(number), {
+      ...metadata,
+      id: issueId,
+      blockedBy: desired.map((blocker) => ({ number: blocker, state: null })),
+    });
   }
 
   const { changes, skipped, empty, allIds } = readChanges();
@@ -522,6 +920,7 @@ function main() {
   let tasksUnchanged = 0;
   const subIssueByNumber = new Map();
 
+  const issueByNumber = new Map(issues.map((issue) => [issue.number, issue]));
   try {
     for (const change of changes) {
       let epic = epicByChange.get(change.id) ?? null;
@@ -533,6 +932,24 @@ function main() {
             `[dry-run] create epic issue ${change.title} ` +
               `[epic, area:${change.area}]`,
           );
+          const plannedBody = provisionalEpicBody(change);
+          applyIssueMetadata({
+            title: change.title,
+            body: plannedBody,
+            labels: ["epic", `area:${change.area}`],
+            changeId: change.id,
+            area: change.area,
+            isEpic: true,
+            epicPriority: priorityFor({
+              issue: { title: change.title, body: plannedBody },
+              isEpic: true,
+            }),
+            epicSeverity: severityFor({
+              issue: { title: change.title, body: plannedBody },
+              issueType: "Feature",
+            }),
+            planned: true,
+          });
         } else {
           const bodyPath = path.join(tempDir, `epic-${change.id}.md`);
           fs.writeFileSync(bodyPath, provisionalEpicBody(change));
@@ -574,6 +991,16 @@ function main() {
         }
       }
 
+      const epicIssue = epic ?? {
+        title: change.title,
+        body: provisionalEpicBody(change),
+        labels: ["epic", `area:${change.area}`],
+      };
+      const epicPriority = priorityFor({ issue: epicIssue, isEpic: true });
+      const epicSeverity = severityFor({ issue: epicIssue, issueType: "Feature" });
+      const taskArea = (task) =>
+        areaFromText(`${change.id} ${task.title}`) ?? change.area;
+
       const sync = syncChangeTasks({
         changeId: change.id,
         epicNumber: epic?.number ?? null,
@@ -585,12 +1012,24 @@ function main() {
         dryRun: DRY_RUN,
         tempDir,
         log: (line) => console.log(line),
-        areaForTask: (task) => areaFromText(`${change.id} ${task.title}`) ?? change.area,
+        areaForTask: taskArea,
         ensureLabel,
         onPlanned: (planned) => {
           console.log(
             `[dry-run] planned sub-issue ${planned.changeId}/${planned.slug}: ${planned.title}`,
           );
+          const area = taskArea(planned.task);
+          applyIssueMetadata({
+            title: planned.title,
+            body: "",
+            labels: [`change:${change.id}`, `area:${area}`],
+            changeId: change.id,
+            area,
+            isEpic: false,
+            epicPriority,
+            epicSeverity,
+            planned: true,
+          });
         },
       });
       tasksCreated += sync.created;
@@ -609,6 +1048,7 @@ function main() {
           planned: sync.planned,
           percent,
           repoUrl: REPO_URL,
+          declarations: declarationLines(epic.body),
         });
         const currentLabels = labelsOf(epic);
         const areaToRemove = currentLabels.filter(
@@ -659,6 +1099,7 @@ function main() {
             console.log(`[dry-run] reopen epic issue #${epic.number} (${percent}%)`);
           } else {
             gh(["issue", "reopen", String(epic.number), "--repo", REPO]);
+            epic.state = "OPEN";
             console.log(`reopened epic issue #${epic.number} (${percent}%)`);
           }
         }
@@ -667,11 +1108,49 @@ function main() {
         setField(epicItem, areaField, change.area, change.area);
         setField(epicItem, progressField, String(percent), `${percent}%`);
         setField(epicItem, statusField, statusOption(percent).name, statusOption(percent).name);
+        applyIssueMetadata({
+          number: epic.number,
+          id: epic.id ?? null,
+          title: change.title,
+          body: epic.body ?? "",
+          labels: labelsOf(epic),
+          state: epic.state,
+          changeId: change.id,
+          area: change.area,
+          isEpic: true,
+          epicPriority,
+          epicSeverity,
+          item: epicItem,
+        });
       }
 
       for (const issue of sync.subIssues) {
+        const area = issue.area ?? change.area;
         const item = ensureItem(issue.url, `sub-issue #${issue.number}`);
-        setField(item, areaField, issue.area ?? change.area, issue.area ?? change.area);
+        setField(item, areaField, area, area);
+        applyIssueMetadata({
+          number: issue.number,
+          title: issue.title,
+          body: issueByNumber.get(issue.number)?.body ?? "",
+          labels: [`change:${change.id}`, `area:${area}`],
+          state: issue.state,
+          changeId: change.id,
+          area,
+          isEpic: false,
+          epicPriority,
+          epicSeverity,
+          item,
+        });
+        if (issue.state === "OPEN") {
+          syncNativeBlockers({
+            number: issue.number,
+            blockedByKeys: issue.blockedBy,
+          });
+        }
+        for (const key of issue.blockedBy) {
+          const blocker = issueNumberFromKey(key);
+          if (blocker) dependencyEdges.push(`#${issue.number} <- #${blocker}`);
+        }
       }
 
       if (epic) {
@@ -826,6 +1305,24 @@ function main() {
     );
     console.log(`open PRs seen: ${prs.length}; new PR items: ${prsAdded}; PR links added: ${prLinksAdded}`);
     console.log(`stale PR items archived: ${archive.archived}`);
+    if (DRY_RUN) {
+      console.log(
+        `issue Types planned: ${typesSet}; milestones planned: ${milestonesAssigned}; ` +
+          `milestones to create: ${milestoneState.created}, to update: ${milestoneState.updated}`,
+      );
+    } else {
+      console.log(
+        `issue Types set: ${typesSet}; milestones assigned: ${milestonesAssigned}; ` +
+          `milestones created: ${milestoneState.created}, updated: ${milestoneState.updated}`,
+      );
+    }
+    console.log(
+      `native dependencies added: ${dependenciesAdded}, removed: ${dependenciesRemoved}, edges: ${dependencyEdges.length}`,
+    );
+    for (const edge of dependencyEdges) console.log(`dependency: ${edge}`);
+    if (metadataWarnings.length > 0) {
+      console.log(`board metadata warnings: ${metadataWarnings.length}`);
+    }
     if (skipped.length > 0) console.log(`changes without tasks.md: ${skipped.join(", ")}`);
     if (empty.length > 0) console.log(`changes without checkbox tasks: ${empty.join(", ")}`);
     if (prsWithoutTask.length > 0) {

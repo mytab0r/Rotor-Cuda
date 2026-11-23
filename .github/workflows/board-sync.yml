@@ -38,3 +38,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
         run: node scripts/sync-board.mjs
+      # Fail the daily sync when a synced open issue still has no native Type,
+      # Milestone or Priority, when text blockers disagree with native links,
+      # when a blocker is closed, when a cycle exists, or when one epic spans
+      # milestones. Allowlisted historical issues carry a reason in
+      # data/board-exceptions.json.
+      - name: Verify board fields and native dependencies
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: node scripts/check-task-links.mjs --board

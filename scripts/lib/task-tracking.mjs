@@ -174,6 +174,360 @@ export function evaluateTaskLinks({ body, files, issueExists = null }) {
   return { ok: errors.length === 0, errors, directive, docsOnly, processOnly };
 }
 
+// --- Board metadata: issue type, milestone, priority, severity -------------
+//
+// GitHub issue types (Task/Bug/Feature) and milestones are native fields, so a
+// label must not duplicate them. `epic`, `area:<area>` and `change:<id>` stay:
+// no native field expresses the OpenSpec grouping or the board area.
+
+export function inferIssueType({ title = "", body = "", labels = [] } = {}) {
+  const titleText = String(title);
+  const bodyText = String(body);
+  const names = labelsOf({ labels });
+  const fromDefectLedger =
+    /(?:docs\/process\/defects\.json|\bdefect:\s*\S+)/i.test(bodyText);
+  if (/^fix\(/i.test(titleText) || /\bdefect\b/i.test(titleText) || fromDefectLedger) {
+    return "Bug";
+  }
+  if (names.includes("epic")) return "Feature";
+  if (
+    names.some((name) => name.startsWith("change:")) ||
+    /<!--\s*openspec-task:/i.test(bodyText)
+  ) {
+    return "Task";
+  }
+  return null;
+}
+
+// Milestones are releases. Epic mapping wins over area, so every issue of one
+// OpenSpec change ships with its epic. The first matching entry in the file is
+// the answer; `data/milestones.json` is the single source.
+export function milestoneFor({ changeId = null, area = null, milestones = [] } = {}) {
+  if (changeId) {
+    const byEpic = milestones.find((milestone) =>
+      (milestone.match?.epics ?? []).includes(changeId),
+    );
+    if (byEpic) return byEpic;
+  }
+  if (area) {
+    const byArea = milestones.find((milestone) =>
+      (milestone.match?.areas ?? []).includes(area),
+    );
+    if (byArea) return byArea;
+  }
+  return null;
+}
+
+export function declaredPriority(text) {
+  const match = /\bPriority:\s*(P[0-3])\b/i.exec(String(text ?? ""));
+  return match ? match[1].toUpperCase() : null;
+}
+
+export function declaredSeverity(text) {
+  const match = /\bSeverity:\s*(S[1-4])\b/i.exec(String(text ?? ""));
+  return match ? match[1].toUpperCase() : null;
+}
+
+// A `Priority: P2` / `Severity: S3` line is an issue's own declaration. The
+// sync rewrites the body, so the generator must carry the line through.
+export function declarationLines(body) {
+  const lines = [];
+  for (const line of String(body ?? "").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (/^(?:Priority:\s*P[0-3]|Severity:\s*S[1-4])$/i.test(trimmed)) {
+      if (!lines.includes(trimmed)) lines.push(trimmed);
+    }
+  }
+  return lines;
+}
+
+export function priorityFor({ issue, isEpic = false, epicPriority = null } = {}) {
+  const declared = declaredPriority(`${issue?.title ?? ""}\n${issue?.body ?? ""}`);
+  if (declared) return declared;
+  if (isEpic) return "P1";
+  return epicPriority ?? "P1";
+}
+
+export function severityFor({ issue, issueType = null, epicSeverity = null } = {}) {
+  const declared = declaredSeverity(`${issue?.title ?? ""}\n${issue?.body ?? ""}`);
+  if (declared) return declared;
+  if (issueType === "Bug") return "S2";
+  return epicSeverity ?? "S-";
+}
+
+export function boardMetadataFor({
+  issue,
+  changeId = null,
+  area = null,
+  milestones = [],
+}) {
+  const type = inferIssueType(issue);
+  const milestone = milestoneFor({ changeId, area, milestones });
+  const warnings = [];
+  const number = issue?.number ?? "?";
+  const title = issue?.title ?? "";
+  if (!type) {
+    warnings.push(
+      `issue #${number} "${title}": no issue-type rule matched; Type left unset`,
+    );
+  }
+  if (!milestone) {
+    warnings.push(
+      `issue #${number} "${title}": no milestone rule matched; Milestone left unset`,
+    );
+  }
+  return { type, milestone, warnings };
+}
+
+// A synced issue is one the board sync owns: an epic or an OpenSpec sub-issue.
+// A manual issue may legitimately carry no type or milestone.
+export function isSyncManagedIssue(issue) {
+  const names = labelsOf(issue);
+  return (
+    names.includes("epic") || names.some((name) => name.startsWith("change:"))
+  );
+}
+
+export function changeIdForIssue(issue) {
+  const label = labelsOf(issue).find((name) => name.startsWith("change:"));
+  if (label) return label.slice("change:".length);
+  const title = /^\[([^\]]+)\]/.exec(String(issue?.title ?? ""));
+  return title ? title[1] : null;
+}
+
+export function parseBlockedByText(body) {
+  const match = /^Blocked by:\s*(.+)$/m.exec(String(body ?? ""));
+  if (!match) return [];
+  const numbers = [];
+  for (const found of match[1].matchAll(new RegExp(`\\b${KEY_PREFIX}-([1-9]\\d*)`, "gi"))) {
+    const number = Number(found[1]);
+    if (!numbers.includes(number)) numbers.push(number);
+  }
+  return numbers;
+}
+
+// `edges` are `{ from, to }` pairs where `from` depends on `to`. Returns one
+// path per cycle, each path ending at its start (for example `[1, 2, 1]`).
+export function findDependencyCycles(edges = []) {
+  const adjacency = new Map();
+  for (const edge of edges) {
+    const from = Number(edge.from);
+    const to = Number(edge.to);
+    if (!Number.isInteger(from) || !Number.isInteger(to)) continue;
+    if (!adjacency.has(from)) adjacency.set(from, []);
+    if (!adjacency.get(from).includes(to)) adjacency.get(from).push(to);
+  }
+
+  const state = new Map(); // 0 unvisited, 1 on stack, 2 done
+  const stack = [];
+  const cycles = [];
+  const seenCycles = new Set();
+
+  const visit = (node) => {
+    state.set(node, 1);
+    stack.push(node);
+    for (const next of adjacency.get(node) ?? []) {
+      if (!state.has(next)) {
+        visit(next);
+      } else if (state.get(next) === 1) {
+        const start = stack.indexOf(next);
+        const cycle = [...stack.slice(start), next];
+        const key = cycle.join(">");
+        if (!seenCycles.has(key)) {
+          seenCycles.add(key);
+          cycles.push(cycle);
+        }
+      }
+    }
+    stack.pop();
+    state.set(node, 2);
+  };
+
+  for (const node of adjacency.keys()) {
+    if (!state.has(node)) visit(node);
+  }
+  return cycles;
+}
+
+// Board gate. `projectItems` is a map of issue number -> project field values
+// (`{ priority, severity, milestone }`); `allowlist` is the parsed
+// `data/board-exceptions.json`. Every synced open issue must have a native
+// Type, a Milestone, and a non-empty Priority, its text blockers must equal its
+// native blockedBy links, no open issue may be blocked by a closed one, the
+// native graph must be acyclic, and every issue of one change must share one
+// milestone.
+export function evaluateBoardFields({
+  issues = [],
+  allowlist = [],
+  milestones = [],
+  projectItems = {},
+} = {}) {
+  const entries = Array.isArray(allowlist) ? allowlist : allowlist?.entries ?? [];
+  const allowed = new Map();
+  const errors = [];
+
+  for (const entry of entries) {
+    const number = Number(entry?.number);
+    if (!Number.isInteger(number) || number <= 0) {
+      errors.push(
+        `board allowlist entry needs a positive issue number: ${JSON.stringify(entry)}`,
+      );
+      continue;
+    }
+    if (!String(entry?.reason ?? "").trim()) {
+      errors.push(`board allowlist entry #${number} needs a reason.`);
+      continue;
+    }
+    allowed.set(number, entry.reason);
+  }
+
+  const milestoneTitles = new Set((milestones ?? []).map((entry) => entry.title));
+  const byNumber = new Map();
+  const byChange = new Map();
+  let checked = 0;
+  let skipped = 0;
+  const edges = [];
+
+  for (const issue of issues) {
+    if (!isSyncManagedIssue(issue)) continue;
+    checked += 1;
+    const number = Number(issue.number);
+    byNumber.set(number, issue);
+    const allow = allowed.has(number);
+    if (allow) skipped += 1;
+
+    const typeName =
+      typeof issue.issueType === "string"
+        ? issue.issueType
+        : issue.issueType?.name ?? null;
+    const milestone =
+      typeof issue.milestone === "string"
+        ? issue.milestone
+        : issue.milestone?.title ?? null;
+    const priority = projectItems?.[number]?.priority ?? null;
+
+    if (!allow) {
+      if (!typeName) {
+        errors.push(
+          `issue #${number} "${issue.title}" has no issue Type; add a rule in data/milestones.json or set it in the sync.`,
+        );
+      }
+      if (!milestone) {
+        errors.push(
+          `issue #${number} "${issue.title}" has no Milestone; map its epic or area in data/milestones.json.`,
+        );
+      } else if (milestoneTitles.size > 0 && !milestoneTitles.has(milestone)) {
+        errors.push(
+          `issue #${number} "${issue.title}" has milestone "${milestone}", which is not in data/milestones.json.`,
+        );
+      }
+      if (!priority) {
+        errors.push(
+          `issue #${number} "${issue.title}" has no Priority; the sync must never leave it empty.`,
+        );
+      }
+    }
+
+    const changeId = changeIdForIssue(issue);
+    if (changeId) {
+      if (!byChange.has(changeId)) byChange.set(changeId, []);
+      byChange.get(changeId).push({ number, title: issue.title, milestone });
+    }
+
+    const native = (issue.blockedBy ?? []).map((blocker) => ({
+      number: Number(blocker.number ?? blocker),
+      state: blocker.state ?? null,
+    }));
+    for (const blocker of native) {
+      edges.push({ from: number, to: blocker.number });
+      if (!allow && blocker.state === "CLOSED") {
+        errors.push(
+          `issue #${number} "${issue.title}" is open but blocked by closed issue #${blocker.number}.`,
+        );
+      }
+    }
+
+    if (!allow) {
+      const text = parseBlockedByText(issue.body).sort((a, b) => a - b);
+      const linked = native.map((blocker) => blocker.number).sort((a, b) => a - b);
+      if (text.join(",") !== linked.join(",")) {
+        errors.push(
+          `issue #${number} "${issue.title}" text blockers (${text.join(", ") || "none"}) ` +
+            `disagree with native blockedBy links (${linked.join(", ") || "none"}).`,
+        );
+      }
+    }
+  }
+
+  for (const [changeId, group] of byChange) {
+    if (group.length < 2) continue;
+    const titles = [...new Set(group.map((entry) => entry.milestone ?? "(none)"))];
+    if (titles.length > 1) {
+      errors.push(
+        `change ${changeId} spans milestones ${titles.join(", ")}; every issue of one epic must share one release milestone (${group
+          .map((entry) => `#${entry.number}`)
+          .join(", ")}).`,
+      );
+    }
+  }
+
+  for (const cycle of findDependencyCycles(edges)) {
+    errors.push(`dependency cycle: ${cycle.map((number) => `#${number}`).join(" -> ")}.`);
+  }
+
+  return { ok: errors.length === 0, errors, checked, skipped, edges };
+}
+
+// Open issue metadata over GraphQL: gh issue list cannot select issueType.
+// The caller injects ghJson, so this module still performs no network calls.
+export function listIssueMetadata({ ghJson, owner, name, states = ["OPEN"] }) {
+  const stateArg = states.map((state) => String(state).toUpperCase()).join(",");
+  const query = `query($owner:String!,$name:String!,$cursor:String){repository(owner:$owner,name:$name){issues(first:100,after:$cursor,states:[${stateArg}],orderBy:{field:CREATED_AT,direction:ASC}){pageInfo{hasNextPage endCursor}nodes{number id title body url state issueType{name} milestone{title} labels(first:50){nodes{name}} blockedBy(first:50){nodes{number state title}}}}}}`;
+  const issues = [];
+  let cursor = null;
+  for (;;) {
+    const args = [
+      "api",
+      "graphql",
+      "-f",
+      `query=${query}`,
+      "-f",
+      `owner=${owner}`,
+      "-f",
+      `name=${name}`,
+    ];
+    if (cursor) args.push("-f", `cursor=${cursor}`);
+    const result = ghJson(args);
+    if (result?.errors?.length) {
+      throw new Error(
+        `GraphQL issue listing failed: ${result.errors.map((error) => error.message).join("; ")}`,
+      );
+    }
+    const page = result?.data?.repository?.issues;
+    for (const node of page?.nodes ?? []) {
+      issues.push({
+        number: Number(node.number),
+        id: node.id,
+        title: node.title ?? "",
+        body: node.body ?? "",
+        url: node.url ?? null,
+        state: node.state ?? "OPEN",
+        issueType: node.issueType?.name ?? null,
+        milestone: node.milestone?.title ?? null,
+        labels: (node.labels?.nodes ?? []).map((label) => label.name),
+        blockedBy: (node.blockedBy?.nodes ?? []).map((blocker) => ({
+          number: Number(blocker.number),
+          state: blocker.state ?? null,
+          title: blocker.title ?? "",
+        })),
+      });
+    }
+    if (!page?.pageInfo?.hasNextPage) break;
+    cursor = page.pageInfo.endCursor;
+  }
+  return issues;
+}
+
 export function slugify(text) {
   const slug = String(text)
     .toLowerCase()
@@ -397,6 +751,7 @@ export function subIssueBody({
   blockedBy = [],
   unresolved = [],
   notes = [],
+  declarations = [],
 }) {
   const epic = epicNumber ? `epic #${epicNumber}` : `the \`${changeId}\` epic`;
   const lines = [
@@ -419,7 +774,10 @@ export function subIssueBody({
     lines.push(`Blocked by (unresolved): ${unresolved.join(", ")}`);
   }
   if (notes.length > 0) lines.push(`Notes: ${notes.join(", ")}`);
-  if (blockedBy.length + unresolved.length + notes.length > 0) lines.push("");
+  if (declarations.length > 0) lines.push(...declarations);
+  if (blockedBy.length + unresolved.length + notes.length + declarations.length > 0) {
+    lines.push("");
+  }
   lines.push(`<!-- openspec-task: ${changeId}/${task.slug} -->`);
   return `${lines.join("\n")}\n`;
 }
@@ -430,6 +788,7 @@ export function epicBody({
   planned = 0,
   percent,
   repoUrl,
+  declarations = [],
 }) {
   const closed = subIssues.filter((issue) => issue.state === "CLOSED").length;
   const total = subIssues.length;
@@ -442,6 +801,9 @@ export function epicBody({
     "",
     progress,
   ];
+  if (declarations.length > 0) {
+    lines.push("", ...declarations);
+  }
   if (total > 0) {
     lines.push("", "Sub-issues:");
     for (const issue of subIssues) {
@@ -610,6 +972,7 @@ export function syncChangeTasks({
       blockedBy: resolved.keys,
       unresolved: resolved.unresolved,
       notes: resolved.notes,
+      declarations: declarationLines(record.issue.body),
     });
     const area = areaForTask(record.task) ?? null;
     const currentLabels = labelsOf(record.issue);

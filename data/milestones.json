@@ -1,0 +1,61 @@
+[
+  {
+    "title": "Wallet: signing, history and portfolio",
+    "due": "2027-03-31",
+    "description": "Non-custodial multi-chain wallet: onboarding, signing, history, portfolio, approvals and WalletConnect handoff.",
+    "match": {
+      "areas": [],
+      "epics": [
+        "cabinet-wallet",
+        "product-strategy",
+        "site-wallet-studio",
+        "tx-sign-broadcast",
+        "wallet-account-link",
+        "wallet-history",
+        "wallet-mainnet-signing",
+        "wallet-portfolio",
+        "wallet-top-assets-wif",
+        "walletconnect-deeplinks"
+      ]
+    }
+  },
+  {
+    "title": "Desktop and coordinator parity",
+    "due": "2027-03-31",
+    "description": "Keep the native CLI, the GPU/BSGS desktop and the coordinator on the same chain and API contracts.",
+    "match": {
+      "areas": ["desktop", "coordinator"],
+      "epics": ["key-leak-monitor", "rust-desktop-all-chains"]
+    }
+  },
+  {
+    "title": "Astro frontend cutover",
+    "due": "2026-12-31",
+    "description": "Port the served site to Astro route by route, keep the coordinator contract and the vendor lock intact, and cut over production pages.",
+    "match": {
+      "areas": ["site"],
+      "epics": [
+        "admin-cabinet",
+        "donor-copy-parity",
+        "frontend-platform",
+        "seo-strategy",
+        "site-parity-audit"
+      ]
+    }
+  },
+  {
+    "title": "Design system and process foundations",
+    "description": "Design tokens, SSOT gates, task tracking and repo structure that the product work depends on.",
+    "match": {
+      "areas": ["design", "docs", "infra"],
+      "epics": [
+        "design-system-process",
+        "edge-privacy",
+        "repo-structure",
+        "security-advisories",
+        "ssot",
+        "task-tracking"
+      ]
+    }
+  }
+]

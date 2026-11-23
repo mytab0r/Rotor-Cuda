@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { checkPullRequest } from "./check-task-links.mjs";
+import { checkBoardFields, checkPullRequest } from "./check-task-links.mjs";
 
 const product = ["apps/site/site.js", "src/coordinator/mod.rs"];
 const docs = ["docs/process/task-tracking.md", "openspec/changes/x/tasks.md"];
@@ -127,4 +127,67 @@ test("issue existence is skipped when the caller does not know it", () => {
     issueExists: null,
   });
   assert.equal(result.ok, true);
+});
+
+test("board gate passes a fully classified synced issue", () => {
+  const result = checkBoardFields({
+    issues: [
+      {
+        number: 1,
+        title: "[demo] Demo",
+        labels: ["epic"],
+        issueType: "Feature",
+        milestone: "Wallet",
+        body: "",
+        blockedBy: [],
+      },
+    ],
+    milestones: [{ title: "Wallet", match: { epics: ["demo"], areas: [] } }],
+    projectItems: { 1: { priority: "P1" } },
+  });
+  assert.equal(result.ok, true);
+  assert.match(result.summary, /1 synced open issues/);
+});
+
+test("board gate reports every missing native field", () => {
+  const result = checkBoardFields({
+    issues: [
+      {
+        number: 2,
+        title: "ROT-2 — A",
+        labels: ["change:demo"],
+        issueType: null,
+        milestone: null,
+        body: "",
+        blockedBy: [],
+      },
+    ],
+    milestones: [{ title: "Wallet", match: { epics: ["demo"], areas: [] } }],
+    projectItems: {},
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /no issue Type/);
+  assert.match(result.errors.join("\n"), /no Milestone/);
+  assert.match(result.errors.join("\n"), /no Priority/);
+});
+
+test("board gate honors a reasoned allowlist entry", () => {
+  const result = checkBoardFields({
+    issues: [
+      {
+        number: 271,
+        title: "historical",
+        labels: ["change:demo"],
+        issueType: null,
+        milestone: null,
+        body: "",
+        blockedBy: [],
+      },
+    ],
+    allowlist: [{ number: 271, reason: "predates the sync" }],
+    milestones: [{ title: "Wallet", match: { epics: ["demo"], areas: [] } }],
+    projectItems: {},
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.skipped, 1);
 });
