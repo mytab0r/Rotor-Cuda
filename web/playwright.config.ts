@@ -23,9 +23,11 @@ const schemes = ['light', 'dark'] as const;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  /* Baselines live in `tests/__screenshots__/<project>/<name>.png`; the name
-   * is explicit so no test file nesting leaks into the path. */
-  snapshotPathTemplate: '{testDir}/../__screenshots__/{projectName}/{arg}{ext}',
+  /* Baselines live in `tests/__screenshots__/<platform>/<project>/<name>.png`.
+   * Text rasterisation differs between Windows and the Linux CI runner by
+   * more than a few percent, so each platform keeps its own reviewed set
+   * instead of masking real diffs behind a loose pixel tolerance. */
+  snapshotPathTemplate: '{testDir}/../__screenshots__/{platform}/{projectName}/{arg}{ext}',
   outputDir: 'test-results',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
@@ -37,10 +39,10 @@ export default defineConfig({
     toHaveScreenshot: {
       animations: 'disabled',
       caret: 'hide',
-      /* Font rasterisation differs slightly between Windows and the Linux CI
-       * runner. Structural regressions (a hidden column, a table spilling out
-       * of its scroll wrapper) change far more pixels than this ceiling. */
-      maxDiffPixelRatio: 0.02,
+      /* Baselines are per platform; this ceiling only absorbs sub-pixel
+       * antialiasing noise inside one OS. A structural regression (a hidden
+       * column, a table spilling out of its scroll wrapper) changes far more. */
+      maxDiffPixelRatio: 0.005,
       threshold: 0.2,
     },
   },

@@ -64,19 +64,31 @@ mode). The `/docs/` code blocks are focusable scroll regions
 ### Visual baselines
 
 `toHaveScreenshot` stores one PNG per route and project under
-`web/tests/__screenshots__/<project>/<route>.png`, plus `<route>-table.png`
-for the six routes with a data table. These are deterministic test fixtures,
-not evidence: they are the only images allowed under `web/tests/`
-(`scripts/check-screenshots.mjs` enforces it), and UI run evidence still
-belongs in the CI artifact. The footer build id is masked because it changes
-on every commit. The comparison allows a 2% pixel ratio so Windows and Linux
-font rasterisation can differ; a structural regression changes far more.
+`web/tests/__screenshots__/<platform>/<project>/<route>.png`, plus
+`<route>-table.png` for the six routes with a data table. Baselines are per
+platform (`win32`, `linux`) because text rasterisation differs between Windows
+and the Linux CI runner by more than a small tolerance; each set is reviewed
+and committed. They are deterministic test fixtures, not evidence: they are
+the only images allowed under `web/tests/` (`scripts/check-screenshots.mjs`
+enforces it), and UI run evidence still belongs in the CI artifact. The footer
+build id is masked because it changes on every commit, and the comparison
+allows a 0.5% pixel ratio inside one platform.
 
 Update the baselines deliberately after a reviewed visual change:
 
 ```sh
 npm run test:e2e:update
 git add tests/__screenshots__
+```
+
+On Windows that writes the `win32` set. Regenerate the `linux` set in the same
+image the CI runner uses (the browser and fonts are already installed there):
+
+```sh
+docker run --rm -v "$PWD/..:/work" -w /work/web \
+  mcr.microsoft.com/playwright:v1.65.1-noble \
+  node node_modules/@playwright/test/cli.js test \
+  tests/e2e/visual.spec.ts --update-snapshots
 ```
 
 A failing CI run uploads `playwright-report/` and `test-results/` (HTML
