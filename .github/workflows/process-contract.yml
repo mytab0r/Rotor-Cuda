@@ -1,0 +1,30 @@
+name: process-contract
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  process-contract:
+    name: process-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests for the process contract
+        run: node --test scripts/check-process.test.mjs
+      # The contract is described in docs/process/verification.md and the
+      # template in .github/pull_request_template.md. Product PRs need the five
+      # evidence sections and `Task: ROT-<n>`; docs/process-only PRs may use
+      # `Task: none — <reason>`; `process-exempt` needs a one-line reason.
+      - name: Check the PR body against the process contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-process.mjs --pr "${{ github.event.pull_request.number }}"
