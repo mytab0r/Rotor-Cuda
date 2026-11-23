@@ -118,7 +118,8 @@ const jsonLd = {
     <p>
       {statusSentence}
       The target is the only key match in an inclusive {bits}-bit range of
-      {range.keyspaceDecimal} keys. This page shows the public facts and no private key.
+      {range.keyspaceDecimal} {range.keyspaceDecimal === '1' ? 'key' : 'keys'}. This page shows
+      the public facts and no private key.
     </p>
     <p class="puzzle-detail-links">
       <a href="/bitcoin-puzzle">All {PUZZLES.length} puzzles</a>
@@ -230,7 +231,8 @@ const jsonLd = {
         Puzzle #{number} defines the guesses to try: every key from
         <span class="mono">{range.startDecimal}</span> to
         <span class="mono">{range.endDecimal}</span>, inclusive. That is
-        <span class="mono">{range.keyspaceDecimal}</span> keys, or {bits} bits of search space.
+        <span class="mono">{range.keyspaceDecimal}</span>
+        {range.keyspaceDecimal === '1' ? 'key' : 'keys'}, or {bits} bits of search space.
         Splitting the range, sampling it or running several workers changes how fast those guesses
         are made; it does not change the target, the range or the work per key. The page cannot
         shorten that work, and it does not pretend to.
