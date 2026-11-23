@@ -10,15 +10,19 @@ on:
         type: boolean
         default: false
 
-# release-please needs to write the release PR, its labels, the changelog
-# commit, the tag and the GitHub release. The extra `actions: write` is for
-# dispatching rust-release.yml after a tag is created: a tag pushed with the
-# default GITHUB_TOKEN does not trigger a `push: tags` workflow.
+# release-please authenticates with the owner PAT (`BOARD_SYNC_TOKEN`), not the
+# workflow's GITHUB_TOKEN. A PR opened with GITHUB_TOKEN does not trigger
+# `pull_request` workflows, so its required checks never start and the release
+# PR can never merge. A PAT makes the PR user-authored, so PR events fire.
+#
+# The PAT also creates the tag and the GitHub release, so the tag push triggers
+# rust-release.yml through its `push: tags` trigger; no explicit dispatch is
+# needed. The `GITHUB_TOKEN` permissions below only cover checkout and the
+# read-only dry run.
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  actions: write
+  contents: read
+  issues: read
+  pull-requests: read
 
 concurrency:
   group: release-please
@@ -50,21 +54,10 @@ jobs:
             --manifest-file=.release-please-manifest.json
 
       - name: Open or update the release PR
-        id: release
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
         uses: googleapis/release-please-action@v4
         with:
+          token: ${{ secrets.BOARD_SYNC_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: main
-
-      # The tag and release created above use GITHUB_TOKEN, so the `push: tags`
-      # trigger of rust-release.yml will not fire. `workflow_dispatch` is one of
-      # the two events GITHUB_TOKEN is allowed to trigger, so ask for it
-      # explicitly and let the existing asset pipeline run on the tag.
-      - name: Publish release assets for the new tag
-        if: ${{ steps.release.outputs.release_created == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.release.outputs.tag_name }}
-        run: gh workflow run rust-release.yml --ref "$TAG"

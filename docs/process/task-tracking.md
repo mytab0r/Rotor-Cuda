@@ -333,7 +333,9 @@ fails when:
 - the closing reference to the keyed issue is missing;
 - `Task: none` has no reason, or is used on a PR that changes product paths.
 
-The workflow needs no secret. If the repository moves under a provider without
+The workflow needs no secret. An automation PR (a `[bot]` or `app/*` author, or
+a `release-please--*` head branch) is skipped with a notice: it has no human
+author to carry a key. If the repository moves under a provider without
 GitHub's issue tracker, the check is replaced by the provider's own status
 context; the text convention does not change.
 

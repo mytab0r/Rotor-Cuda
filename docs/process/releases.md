@@ -10,10 +10,18 @@ from conventional commits on `main`.
 
 | File | Role |
 |---|---|
-| `.github/workflows/release-please.yml` | Opens or updates the release PR on every push to `main`; tags and releases when the release PR is merged. Adds a manual `workflow_dispatch` dry run. |
+| `.github/workflows/release-please.yml` | Opens or updates the release PR on every push to `main`; tags and releases when the release PR is merged. Authenticates the action with the owner PAT so the PR triggers workflows. Adds a manual `workflow_dispatch` dry run. |
 | `release-please-config.json` | Single root package (`.`) with `release-type: rust`; changelog sections; `bootstrap-sha`. |
 | `.release-please-manifest.json` | Current released version: `{".": "2.0.0"}`. |
 | `CHANGELOG.md` | Maintained by release-please from the next release onward. Never edit it by hand. |
+
+The action authenticates with the owner PAT (`BOARD_SYNC_TOKEN`), not the
+workflow `GITHUB_TOKEN`. A PR opened with `GITHUB_TOKEN` does not trigger
+`pull_request` workflows, so its required checks never start and the release PR
+can never merge; the PAT makes the PR user-authored, so PR events fire. The
+workflow's own `GITHUB_TOKEN` permissions stay read-only. The release PR is an
+automation PR: the process and task-link gates skip it with a notice instead of
+requiring the human sections and `Task:` line.
 
 The release type is `rust`, so the release PR updates the version in
 `Cargo.toml`, the matching entry in `Cargo.lock`, and `CHANGELOG.md`. The Rust
@@ -58,11 +66,9 @@ There are no tags in the repository yet. The manifest baseline is `2.0.0` from
 3. Review the PR: the version follows the table above, and the notes name the
    commits. Merge it when the branch is green.
 4. On the push created by that merge, release-please creates the `vX.Y.Z` tag
-   and the GitHub release.
-5. In the same job, `gh workflow run rust-release.yml --ref vX.Y.Z` starts the
-   existing asset pipeline. This explicit dispatch is required: a tag pushed by
-   the default `GITHUB_TOKEN` does **not** trigger a `push: tags` workflow.
-   `workflow_dispatch` is one of the two events that token may trigger.
+   and the GitHub release with the PAT.
+5. The PAT-authored tag push triggers `rust-release.yml` through its
+   `push: tags` trigger; no explicit dispatch is needed.
 6. `rust-release.yml` builds and uploads:
    - `rotor.exe` + `rotor.exe.sha256` (CPU, Windows),
    - `rotor-coord-linux-x86_64` + `.sha256` (Linux coordinator),
@@ -160,7 +166,7 @@ and an expiry in the workflow, not by closing the issue.
 | Secret scanning validity checks | disabled |
 | Dependabot alerts / security updates | **enabled** |
 | Default workflow permissions | read (each workflow declares what it needs) |
-| Allow GitHub Actions to create and approve pull requests | false (owner action) |
+| Allow GitHub Actions to create and approve pull requests | false (not needed: the release PR uses the PAT) |
 
 The two disabled secret-scanning extras are optional; enabling
 non-provider patterns and validity checks is an owner decision in
@@ -168,11 +174,12 @@ non-provider patterns and validity checks is an owner decision in
 
 ## What the owner must do
 
-1. **Enable Actions pull-request creation.** In **Settings → Actions →
-   General → Workflow permissions**, tick **Allow GitHub Actions to create and
-   approve pull requests**. The API currently reports
-   `can_approve_pull_request_reviews: false`; without this, release-please
-   cannot open the release PR with `GITHUB_TOKEN`.
+1. **Keep the `BOARD_SYNC_TOKEN` secret.** A classic token with `repo` scope
+   (or a fine-grained token with contents and pull-requests write) is what
+   release-please uses to open the release PR. Without it the PR is opened by
+   `GITHUB_TOKEN`, which does not trigger PR workflows, so its required checks
+   never start and the release PR cannot merge. The value is never stored in
+   the repository.
 2. **Merge the first release PR** after reviewing the proposed version and
    changelog, then confirm the tag, the GitHub release and the six assets.
 3. **Decide on the two secret-scanning extras** above (non-provider patterns,
@@ -180,9 +187,6 @@ non-provider patterns and validity checks is an owner decision in
 4. **Review dependency PRs.** No automerge is configured; grouped
    major/minor/patch PRs arrive weekly. Dependabot security updates are already
    enabled and bypass the weekly schedule for known advisories.
-5. **Do not add a personal access token for releases.** The workflow uses the
-   automatic `GITHUB_TOKEN`; a token would only be needed to make the tag push
-   trigger other workflows, which the explicit `workflow_dispatch` avoids.
 
 ## Verifying the automation
 

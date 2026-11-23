@@ -142,8 +142,9 @@ BOARD_SYNC_FORCE_RATE_LIMIT=99 BOARD_SYNC_RETRY_BASE_MS=10 \
 
 `.github/workflows/task-links.yml` runs `scripts/check-task-links.mjs` on every
 `pull_request` event with the default `GITHUB_TOKEN` (read-only `issues` and
-`pull-requests`) and no secret. See `docs/process/task-tracking.md` for the PR
-rules.
+`pull-requests`) and no secret. Automation PRs (a `[bot]`/`app/*` author or a
+`release-please--*` head branch) are skipped with a notice. See
+`docs/process/task-tracking.md` for the PR rules.
 
 `.github/workflows/board-sync.yml` runs `scripts/sync-board.mjs` daily at 03:17
 UTC and on `workflow_dispatch`, so the board cannot lag behind merged PRs. A
