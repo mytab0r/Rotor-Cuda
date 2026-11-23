@@ -77,3 +77,40 @@ jobs:
             ${{ runner.temp }}/ui-audit/rotor-ui-audit-*/screenshots
           retention-days: 14
           if-no-files-found: ignore
+
+  # Browser-level regression: real Chromium over the built `web/dist`, no
+  # network. Playwright covers structural E2E, axe accessibility and visual
+  # baselines; the custom CDP audit above still owns geometry and density.
+  playwright:
+    name: playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Build the static site
+        working-directory: web
+        run: npm run build
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      # retries: 1 is set in playwright.config.ts; a retry stabilises flaky
+      # browser timing without hiding a real regression from the gate.
+      - name: Run browser regression tests
+        working-directory: web
+        run: npx playwright test
+      - name: Upload the HTML report and failure diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 14
+          if-no-files-found: ignore

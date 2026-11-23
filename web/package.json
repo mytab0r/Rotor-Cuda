@@ -13,6 +13,8 @@
     "preview": "astro preview",
     "check": "astro check && tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js tests/analytics-beacon.test.mjs",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:update": "npm run build && playwright test --update-snapshots",
     "verify:cdp": "node scripts/cdp-parity.mjs"
   },
   "dependencies": {
@@ -20,6 +22,8 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.65.1",
     "@types/node": "20.19.43",
     "typescript": "5.9.3"
   }

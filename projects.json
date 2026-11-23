@@ -133,7 +133,8 @@
         "npm --prefix web ci && npm --prefix web run build"
       ],
       "test": [
-        "npm --prefix web test"
+        "npm --prefix web test",
+        "npm --prefix web run test:e2e"
       ],
       "consumes": [
         "wasm-core"
