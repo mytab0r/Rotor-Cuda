@@ -382,41 +382,38 @@ export function issueBody(facts, { area, priority, milestone, repoUrl } = {}) {
 }
 
 export function closeComment(facts) {
-  return [
+  const lines = [
     `<!-- security-alert-close:${facts.kind}:${facts.number} -->`,
     lifecycleSummary(facts),
     "",
-    `The detection is no longer open, so this tracking issue is closed. ` +
-      `Reopen it only if the alert returns.`,
-    facts.url ? `\nAlert: ${facts.url}` : "",
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
+    "The detection is no longer open, so this tracking issue is closed. " +
+      "Reopen it only if the alert returns.",
+  ];
+  if (facts.url) lines.push("", `Alert: ${facts.url}`);
+  return lines.join("\n");
 }
 
 export function reopenNotice(facts) {
-  return [
+  const lines = [
     reopenNoticeMarker(facts.kind, facts.number),
     `This tracking issue is closed, but the ${KIND_LABELS[facts.kind]} alert ` +
       `#${facts.number} is still open (severity: ${facts.severity}).`,
     "",
     "The sync does not reopen a human-closed issue. Reopen it if the alert " +
       "should be tracked again, or dismiss/fix the alert in the Security tab.",
-    facts.url ? `\nAlert: ${facts.url}` : "",
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
+  ];
+  if (facts.url) lines.push("", `Alert: ${facts.url}`);
+  return lines.join("\n");
 }
 
 export function reopenAlertComment(facts) {
-  return [
+  const lines = [
     `<!-- security-alert-reopen-alert:${facts.kind}:${facts.number} -->`,
     `The ${KIND_LABELS[facts.kind]} alert is open again (severity: ` +
       `${facts.severity}). Reopening this tracking issue.`,
-    facts.url ? `\nAlert: ${facts.url}` : "",
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
+  ];
+  if (facts.url) lines.push("", `Alert: ${facts.url}`);
+  return lines.join("\n");
 }
 
 export function escalationLine(entry, now = new Date()) {
