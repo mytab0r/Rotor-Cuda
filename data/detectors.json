@@ -1057,6 +1057,14 @@
       "implemented_in": "scripts/check-seo.mjs",
       "doc_anchor": "docs/process/seo-gate.md#rules",
       "status": "implemented"
+    },
+    {
+      "id": "seo-hub-links",
+      "rule": "The /private-keys hub is built, links every one of the 18 mainnet chain pages from data/chains.json, and every internal link in its main content resolves to a built file in web/dist.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
     }
   ]
 }

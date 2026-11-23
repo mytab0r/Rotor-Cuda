@@ -1,23 +1,25 @@
 # SEO gate for the chain directory
 
-`scripts/check-seo.mjs` reads the built `web/dist` tree and fails when a
-prerendered `/private-keys/<chain>` page breaks the contract measured in the
-SEO audit. It is wired into `.github/workflows/rust.yml` as the `web-seo` job
-and needs no dependencies or network.
+`scripts/check-seo.mjs` reads the built `web/dist` tree and fails when the
+prerendered `/private-keys` hub or a `/private-keys/<chain>` page breaks the
+contract measured in the SEO audit. It is wired into
+`.github/workflows/rust.yml` as the `web-seo` job and needs no dependencies or
+network.
 
 ## Rules
 
 | Detector | Rule |
 |---|---|
 | `seo-page-set` | Exactly the 18 mainnet slugs from `data/chains.json` are built; no missing or extra page. |
-| `seo-metadata-bounds` | Title 50–60 characters, chain name first and `\| Crypto` last; description 120–160 characters with at least one digit. |
-| `seo-canonical-robots` | Canonical is the page's own `https://rotor.pxbt.app/private-keys/<slug>` URL and robots is `index,follow`. |
-| `seo-duplicate-metadata` | No two chain pages share a title or a description. |
-| `seo-hidden-heading` | One visible H1, exactly `<Chain> private keys`; no visually-hidden H1; at least two visible content H2s inside `data-seo-prose`. |
+| `seo-metadata-bounds` | Title 50–60 characters, chain name first and `\| Crypto` last; description 120–160 characters with at least one digit. The hub title is at most 60 and starts with “Private keys by chain”; its description is 120–160 and names the 18 chains. |
+| `seo-canonical-robots` | Canonical is the page's own `https://rotor.pxbt.app/private-keys/<slug>` URL (the hub uses `/private-keys`) and robots is `index,follow`. |
+| `seo-duplicate-metadata` | No two chain pages, and no chain page and the hub, share a title or a description. |
+| `seo-hidden-heading` | One visible H1, exactly `<Chain> private keys` on a chain page and `Private keys by chain` on the hub; no visually-hidden H1; at least two visible content H2s inside `data-seo-prose`. |
 | `seo-rendered-rows` | At least 40 `<tr data-key>` rows are present in the initial HTML, not built by JavaScript. |
 | `seo-prose-uniqueness` | At least 120 unique prose words per page, and 5-gram Jaccard similarity below 0.50 between every pair of chain pages. The shared safety block is outside `data-seo-prose` and is not part of the comparison. |
-| `seo-structured-data` | JSON-LD contains both `CollectionPage` and `BreadcrumbList`. |
-| `seo-og-image-alt` | `og:image` is present and `og:image:alt` / `twitter:image:alt` name the chain. |
+| `seo-structured-data` | JSON-LD contains both `CollectionPage` and `BreadcrumbList`; the hub also carries an `ItemList` whose `numberOfItems` is the 18-chain count. |
+| `seo-og-image-alt` | `og:image` is present and `og:image:alt` / `twitter:image:alt` name the chain, or describe the hub and its chain count. |
+| `seo-hub-links` | The hub is built, links all 18 chain pages from `data/chains.json`, and every internal link in its main content resolves to a built file in `web/dist`. |
 
 ## Usage
 
@@ -49,7 +51,7 @@ mutations and their output.
 
 ## Scope
 
-This gate covers page 1 of the chain directory only. Pages 2+ remain noindex
-and are served on demand, as `data/routes.json` records. The pages are built in
-`web/dist` but are not routed through the coordinator until the
-frontend-platform cutover.
+This gate covers the `/private-keys` hub and page 1 of the chain directory.
+Pages 2+ remain noindex and are served on demand, as `data/routes.json` records.
+The pages are built in `web/dist` but are not routed through the coordinator
+until the frontend-platform cutover.

@@ -1,0 +1,222 @@
+---
+/* Hub for the chain directory: the index of the 18 prerendered
+ * `/private-keys/<chain>` pages.
+ *
+ * The chain list, names, symbols and order come from `data/chains.json`
+ * through `lib/chains.ts`; the address-format count comes from the same
+ * `lib/chain-directory.ts` map the chain pages render from, so the hub can
+ * never advertise a format the page does not show. Nothing here is a live
+ * counter: the page is static and the copy says so. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../../lib/site';
+import { MAINNET_CHAINS } from '../../lib/chains';
+import { KEYS_PER_PAGE, formatsFor } from '../../lib/chain-directory';
+
+/* Resolve every mainnet chain and its formats at build time. `formatsFor`
+ * throws for an unconfigured slug, so a data addition cannot silently ship a
+ * hub row that points at a page with no address columns. */
+const chains = MAINNET_CHAINS.map((chain) => ({
+  ...chain,
+  formats: formatsFor(chain.slug),
+}));
+
+const TITLE = `Private keys by chain: ${chains.length} directories to browse | Crypto`;
+const DESCRIPTION = `Private keys by chain: browse deterministic example keys and every address format for ${chains.length} chains, each page derived at build time and reproducible.`;
+
+const H1 = 'Private keys by chain';
+const canonical = '/private-keys';
+const canonicalUrl = absoluteUrl(canonical);
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: H1,
+      description: DESCRIPTION,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: SITE_NAME,
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        name: 'Private key pages by chain',
+        numberOfItems: chains.length,
+        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+        itemListElement: chains.map((chain, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: `${chain.name} private keys`,
+          url: absoluteUrl(`/private-keys/${chain.slug}`),
+        })),
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: 'Private Keys', item: canonicalUrl },
+      ],
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`Private keys by chain — ${chains.length} chain directories | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="directory-page hub-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Private Keys</span>
+  </nav>
+
+  <section class="browse-hero">
+    <span class="browse-hero-icon">
+      <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-key"></use></svg>
+    </span>
+    <div class="browse-hero-title"><h1>{H1}</h1></div>
+    <p>
+      {chains.length} chain pages, each listing {KEYS_PER_PAGE} deterministic example keys and
+      the addresses they produce in every format that chain supports. Pick a chain to compare
+      encodings, or open a key in the calculator from its page.
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="hub-chains">
+    <h2 id="hub-chains">Chains in the directory</h2>
+    <p class="muted">
+      Every row opens that chain's page. The key list is generated at build time from the public
+      small integers 1–{KEYS_PER_PAGE}, so the addresses are reproducible by anyone and are not a
+      wallet. Balances stay placeholders in this static build.
+    </p>
+    <div class="table-scroll">
+      <table class="data-table hub-table">
+        <caption class="visually-hidden">
+          Private-key pages for the {chains.length} supported mainnet chains
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Chain</th>
+            <th scope="col">Page contents</th>
+            <th scope="col">Address formats</th>
+            <th scope="col" class="hub-open"><span class="visually-hidden">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {chains.map((chain) => (
+            <tr>
+              <td>
+                <a
+                  class="hub-chain-link"
+                  href={`/private-keys/${chain.slug}/`}
+                  style={`--chain: var(--chain-${chain.slug})`}
+                >
+                  <svg class="icon hub-chain-icon" aria-hidden="true">
+                    <use href={`/icons.svg#chain-${chain.slug}`}></use>
+                  </svg>
+                  <span class="hub-chain-name">{chain.name}</span>
+                  <span class="hub-chain-symbol">{chain.symbol}</span>
+                </a>
+              </td>
+              <td class="hub-contents">
+                {KEYS_PER_PAGE} example keys, derived at build time.
+              </td>
+              <td>
+                <span class="hub-format-count">{chain.formats.length}</span>
+                <span class="muted">
+                  address {chain.formats.length === 1 ? 'format' : 'formats'}
+                </span>
+              </td>
+              <td class="hub-open" aria-hidden="true">
+                <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="hub-what">
+    <h2 id="hub-what">What this directory is — and what it is not</h2>
+    <p>
+      It is an index of {chains.length} chain pages. Each page lists {KEYS_PER_PAGE} example
+      private keys — the public small integers 1 through {KEYS_PER_PAGE} — and the addresses
+      each key produces in every format that chain supports. The keys are examples, not a
+      wallet: anyone can regenerate them, so they are useful for comparing encodings and
+      worthless for holding funds.
+    </p>
+    <p>
+      It is not a balance checker, a recovery service, or a way to find someone else's key.
+      This static build renders a placeholder in the balance column and does not contact a node
+      or an indexer. The address links on a chain page open a public block explorer, which
+      learns the address you clicked, as any explorer would; the page itself sends nothing.
+    </p>
+    <p>
+      The directory is also not a claim that every address has been used. A derived address is
+      just a string until someone funds it, and the odds of landing on a funded address by
+      enumeration are far beyond any realistic search.
+    </p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="hub-derivation">
+    <h2 id="hub-derivation">How one private key becomes an address</h2>
+    <p>
+      On secp256k1 chains — Bitcoin, Ethereum and the other EVM networks, TRON, XRP, Litecoin,
+      Bitcoin Cash, Dogecoin and Zcash — a private key is a 256-bit integer. Elliptic-curve
+      multiplication produces a public key, and each address format encodes that public key
+      differently: Base58Check with a version byte for legacy P2PKH, a script hash for nested
+      SegWit, Bech32 for native SegWit, Bech32m for taproot, or the EIP-55 hex checksum on EVM
+      chains.
+    </p>
+    <p>
+      Solana, Sui and TON use ed25519: a 32-byte seed produces a 32-byte public key, which is
+      then written as Base58 or Base64url. Bitcoin Cash shows two views of the same hash160 —
+      legacy Base58Check and CashAddr — so one key can appear under two different strings on
+      the same page.
+    </p>
+    <p>
+      Whichever encoding you read, one private key controls every address derived from it.
+      Changing the format changes the text, not the owner. If you start from a seed phrase
+      instead of a single key, the <a href="/mnemonic-converter">mnemonic converter</a> derives
+      the first key of the standard wallet paths.
+    </p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="hub-safety">
+    <h2 id="hub-safety">Safety: example keys are not a wallet</h2>
+    <p>
+      Keys 1–{KEYS_PER_PAGE} are public. Never send funds to an address on these pages; a key
+      that anyone can type is not a secret. The pages are for learning and comparison, not for
+      storage.
+    </p>
+    <p>
+      For real funds, derive keys offline with a wallet you control, verify the software you
+      run, and never paste a live key or seed phrase into a site you do not control. The
+      calculators keep input in the tab, but that is confidentiality, not protection against a
+      compromised device, a malicious extension, or someone you share a phrase with.
+    </p>
+    <p>
+      Only inspect keys and addresses you own or are authorized to test. A private key is
+      enough to spend from every address it derives, so treat the key — not the address — as
+      the secret.
+    </p>
+  </section>
+</SiteLayout>
