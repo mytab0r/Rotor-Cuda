@@ -65,16 +65,20 @@
       </div>
     </form>
     <div class="key-input-meta">
+      <!-- The 40px meta strip keeps the status on one line. Both status spans
+           opt out of the text-clipped check: the full message is in the title
+           of #key-status (and of #exposure-status itself) and both controls are
+           live regions, so the ellipsis hides nothing. -->
       <p id="key-status" class="key-input-status is-idle" role="status" aria-live="polite">
         <span class="key-status-dot" aria-hidden="true"></span>
-        <span id="key-status-text">Paste a key to derive automatically.</span>
+        <span id="key-status-text" data-clip-ok>Paste a key to derive automatically.</span>
         <span class="skeleton key-status-skeleton" aria-hidden="true"></span>
       </p>
       <span id="key-url-notice" class="key-url-chip" role="note" title="Key is in the page URL — already exposed to browser history and server logs." hidden>
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v.01"/><path d="M12 11v5"/></svg>
         <span class="visually-hidden">Key is in the page URL — already exposed to browser history and server logs.</span>
       </span>
-      <p id="exposure-status" class="key-exposure-status" role="status" hidden></p>
+      <p id="exposure-status" class="key-exposure-status" role="status" data-clip-ok hidden></p>
       <button type="button" id="key-info-btn" class="icon-button icon-button--quiet" aria-label="Formats and behaviour" data-tooltip="Formats and behaviour" aria-expanded="false" aria-controls="key-info-popover">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
       </button>
