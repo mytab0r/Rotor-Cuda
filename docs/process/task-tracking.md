@@ -219,6 +219,28 @@ keep the original commitment. The board gate requires both plan dates on every
 synced issue and both actual dates on every closed one; the allowlist may only
 name historical closed issues.
 
+## Adopted issues
+
+An issue created outside the sync still belongs to the board when its title
+carries a `ROT-<n>` key or it has an `area:*`, `change:*` or `epic` label. The
+sync adopts it instead of ignoring it:
+
+- **Area** comes from the `area:*` label, then from the title, then `site`.
+- **Type**: `fix(...)` in the title is `Bug`; an epic is `Feature`; any other
+  adopted issue is `Task`. An existing native Type is kept.
+- **Priority** defaults to `P2` for adopted non-epic work, unless the epic's
+  body declares `Priority: Pn`; an adopted epic follows the epic rule
+  (`P1` unless declared).
+- **Milestone** follows the normal epic-first, then area mapping.
+- **Plan dates**: `Start date` = the issue `createdAt` date, `Target date` =
+  the milestone due date.
+- **Actual dates** for a closed issue: `Actual start` = `createdAt`,
+  `Actual end` = `closedAt`.
+
+This is why the gate can stay strict: #421, #423 and #425 are adopted and get
+real fields rather than an allowlist entry. Historical allowlist entries remain
+only for issues whose work predates the sync and is not adopted.
+
 ## Native dependencies
 
 The `Blocked by: ROT-7 (#7), ROT-8 (#8)` line stays for humans. The sync also

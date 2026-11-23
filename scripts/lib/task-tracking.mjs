@@ -279,12 +279,15 @@ export function boardMetadataFor({
   return { type, milestone, warnings };
 }
 
-// A synced issue is one the board sync owns: an epic or an OpenSpec sub-issue.
-// A manual issue may legitimately carry no type or milestone.
+// A synced issue is one the board sync owns: an epic, an OpenSpec sub-issue,
+// an area-labelled issue, or any issue whose title carries a ROT key. Manual
+// issues without any of those markers are left alone.
 export function isSyncManagedIssue(issue) {
   const names = labelsOf(issue);
   return (
-    names.includes("epic") || names.some((name) => name.startsWith("change:"))
+    names.includes("epic") ||
+    names.some((name) => name.startsWith("change:") || name.startsWith("area:")) ||
+    /(?:^|\s)ROT-[1-9]\d*\b/.test(String(issue?.title ?? ""))
   );
 }
 

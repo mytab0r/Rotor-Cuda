@@ -24,6 +24,7 @@ import {
   inferIssueType,
   isDocsOnly,
   isProcessOnly,
+  isSyncManagedIssue,
   issueNumberFromKey,
   linkSubIssueToEpic,
   listIssueMetadata,
@@ -948,6 +949,17 @@ test("board metadata warns when no type or milestone rule matches", () => {
   assert.equal(result.warnings.length, 2);
   assert.match(result.warnings[0], /#9 "loose issue": no issue-type rule/);
   assert.match(result.warnings[1], /#9 "loose issue": no milestone rule/);
+});
+
+test("sync-managed detection adopts ROT titles and area-labelled issues", () => {
+  assert.equal(isSyncManagedIssue({ title: "[demo] Epic", labels: ["epic"] }), true);
+  assert.equal(
+    isSyncManagedIssue({ title: "ROT-421 — Page", labels: ["area:site"] }),
+    true,
+  );
+  assert.equal(isSyncManagedIssue({ title: "ROT-421 — Page", labels: [] }), true);
+  assert.equal(isSyncManagedIssue({ title: "manual", labels: ["area:site"] }), true);
+  assert.equal(isSyncManagedIssue({ title: "manual", labels: [] }), false);
 });
 
 test("parseBlockedByText reads the human line only", () => {

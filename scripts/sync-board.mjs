@@ -28,12 +28,15 @@ import {
   changeIdForIssue,
   closingIssueNumbers,
   declarationLines,
+  declaredPriority,
   epicBody,
   filesBelongToChange,
+  inferIssueType,
   isSyncManagedIssue,
   issueNumberFromKey,
   linkSubIssueToEpic,
   listIssueMetadata,
+  parseBlockedByText,
   parseTaskDirective,
   parseTasksMarkdown,
   priorityFor,
@@ -652,7 +655,14 @@ function main() {
   }
 
   function setField(item, field, value, valueLabel, kind = null) {
-    if (!item) return;
+    if (!item) {
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] set ${field?.name ?? "field"}=${valueLabel} on a new project item`,
+        );
+      }
+      return;
+    }
     if (!field) {
       console.log(`[dry-run] set ${valueLabel} on ${itemUrl(item)} (field not created yet)`);
       return;
@@ -1277,26 +1287,34 @@ function main() {
       }
     }
 
-    // Archived changes no longer appear in openspec/changes, but their issues
-    // can still be project items. Classify those so the board's Type column is
-    // never empty; do not add a closed archived issue that is not an item yet.
-    // A manual item that already has a native Type keeps it and gets a
-    // milestone/priority; an untyped manual issue is left alone.
+    // Adoption pass. An issue created outside the sync is still board work
+    // when its title carries a ROT key or it has an area:/change:/epic label.
+    // Give it the same fields as a synced issue instead of leaving the gate to
+    // fail on it. Newly adopted non-epic work defaults to P2 unless its epic
+    // declares a priority.
     for (const issue of issues) {
       if (processedNumbers.has(issue.number)) continue;
-      const managed = isSyncManagedIssue(issue);
-      if (managed) {
-        if (issue.state !== "OPEN" && !itemsByUrl.has(issue.url)) continue;
-      } else if (!itemsByUrl.has(issue.url)) {
-        continue;
-      }
-      const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
-      if (!managed && !existingType) continue;
+      if (!isSyncManagedIssue(issue)) continue;
       const labels = labelsOf(issue);
       const areaLabel = labels.find((name) => name.startsWith("area:"));
       const area =
         areaLabel?.slice("area:".length) ?? areaFromText(issue.title ?? "") ?? "site";
       const isEpic = labels.includes("epic");
+      const changeId = changeIdForIssue(issue);
+      const epic = changeId ? epicByChange.get(changeId) : null;
+      const epicDeclaredPriority = epic
+        ? declaredPriority(`${epic.title ?? ""}\n${epic.body ?? ""}`)
+        : null;
+      const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
+      const inferred = inferIssueType(issue);
+      const fixTitle = /^fix\(/i.test(String(issue.title ?? ""));
+      // Keep a native Bug (a defect) and a native Feature (an epic); otherwise
+      // the adoption rule is fix( -> Bug, everything else non-epic -> Task.
+      let typeOverride = inferred;
+      if (typeOverride !== "Feature" && existingType === "Bug") {
+        typeOverride = "Bug";
+      }
+      if (!typeOverride) typeOverride = fixTitle ? "Bug" : existingType ?? "Task";
       const item = ensureItem(
         issue.url,
         `${isEpic ? "epic" : "sub-issue"} #${issue.number}`,
@@ -1308,14 +1326,24 @@ function main() {
         body: issue.body ?? "",
         labels,
         state: issue.state,
-        changeId: changeIdForIssue(issue),
+        changeId,
         area,
         isEpic,
-        epicPriority: "P1",
+        epicPriority: isEpic ? "P1" : epicDeclaredPriority ?? "P2",
         epicSeverity: "S-",
         item,
-        typeOverride: managed ? null : existingType,
+        typeOverride,
       });
+      if (issue.state === "OPEN") {
+        const blockers = parseBlockedByText(issue.body ?? "");
+        if (blockers.length > 0) {
+          syncNativeBlockers({
+            number: issue.number,
+            blockedByKeys: blockers.map((number) => `ROT-${number}`),
+            id: issue.id,
+          });
+        }
+      }
     }
 
     const prs = ghJson([
