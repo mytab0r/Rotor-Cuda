@@ -1005,6 +1005,8 @@ test("board gate checks type, milestone, priority, dates, blockers and release g
     priority,
     targetDate: "2027-03-31",
     startDate: "2026-01-01",
+    actualStart: "2026-01-01",
+    actualEnd: "2027-03-20",
   });
   const projectItems = {
     1: fields("P1"),
@@ -1068,8 +1070,19 @@ test("board gate checks type, milestone, priority, dates, blockers and release g
   assert.match(missing.errors.join("\n"), /no issue Type/);
   assert.match(missing.errors.join("\n"), /no Milestone/);
   assert.match(missing.errors.join("\n"), /no Priority/);
-  assert.match(missing.errors.join("\n"), /no Target date/);
-  assert.match(missing.errors.join("\n"), /no Start date/);
+  assert.match(missing.errors.join("\n"), /no Plan start/);
+  assert.match(missing.errors.join("\n"), /no Plan end/);
+
+  const closedMissingActuals = evaluateBoardFields({
+    issues: [{ ...base[1], state: "CLOSED" }],
+    milestones,
+    projectItems: {
+      2: { priority: "P1", targetDate: "2027-03-31", startDate: "2026-01-01" },
+    },
+  });
+  assert.equal(closedMissingActuals.ok, false);
+  assert.match(closedMissingActuals.errors.join("\n"), /no Actual start/);
+  assert.match(closedMissingActuals.errors.join("\n"), /no Actual end/);
 
   const missingDue = evaluateBoardFields({
     issues: [base[1]],

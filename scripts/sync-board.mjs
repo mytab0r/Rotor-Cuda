@@ -527,8 +527,17 @@ function main() {
   const fieldByName = new Map(fieldList.map((field) => [field.name, field]));
 
   function ensureField(name, type, options) {
-    const existing = fieldByName.get(name);
+    const existing =
+      fieldByName.get(name) ??
+      [...fieldByName.values()].find(
+        (field) => field.name.toLowerCase() === name.toLowerCase(),
+      );
     if (existing) {
+      if (existing.name !== name) {
+        console.log(
+          `using project field "${existing.name}" for "${name}" (case-only name difference)`,
+        );
+      }
       if (type === "SINGLE_SELECT") {
         const have = new Set((existing.options ?? []).map((option) => option.name));
         const missing = options.filter((option) => !have.has(option));
@@ -581,6 +590,8 @@ function main() {
   ]);
   const targetDateField = ensureField("Target date", "DATE");
   const startDateField = ensureField("Start date", "DATE");
+  const actualStartField = ensureField("Actual start", "DATE");
+  const actualEndField = ensureField("Actual end", "DATE");
   const progressField = ensureField("Progress", "NUMBER");
   const statusField = fieldByName.get("Status");
   if (!statusField?.options) {
@@ -699,6 +710,7 @@ function main() {
   let dependenciesRemoved = 0;
   const dependencyEdges = [];
   const metadataWarnings = [];
+  const boardDates = new Map();
 
   function issueIdFor(number, known = null) {
     const metadata = issueMetadata.get(Number(number));
@@ -789,8 +801,9 @@ function main() {
     }
     const priority = priorityFor({ issue, isEpic, epicPriority });
     const severity = severityFor({ issue, issueType: type, epicSeverity });
-    const targetDate = info.milestone?.due ?? null;
-    if (info.milestone && !targetDate) {
+    // Plan pair: GitHub's Roadmap draws Start date -> Target date.
+    const planEnd = info.milestone?.due ?? null;
+    if (info.milestone && !planEnd) {
       const warning = `issue #${number ?? "?"} "${title}": milestone "${info.milestone.title}" has no due date; Target date left unset`;
       metadataWarnings.push(warning);
       console.log(`warning: ${warning}`);
@@ -799,7 +812,17 @@ function main() {
       createdAt ??
       issueMetadata.get(Number(number))?.createdAt ??
       new Date().toISOString();
-    const startDate = statusEnteredDate(item) ?? dateOnly(created);
+    const planStart = statusEnteredDate(item) ?? dateOnly(created);
+    // Fact pair: never written into start/target. Actual end exists only after
+    // the issue closes.
+    const actualStart = statusEnteredDate(item) ?? dateOnly(created);
+    const actualEnd =
+      state === "CLOSED"
+        ? dateOnly(issueMetadata.get(Number(number))?.closedAt)
+        : null;
+    if (number) {
+      boardDates.set(Number(number), { planStart, planEnd, actualStart, actualEnd });
+    }
 
     if (planned || !number) {
       const label = number ? `#${number}` : `new issue "${title}"`;
@@ -813,9 +836,19 @@ function main() {
       }
       console.log(
         `[dry-run] set Priority=${priority}, Severity=${severity}, ` +
-          `Start date=${startDate ?? "-"}, Target date=${targetDate ?? "-"} on ${label}`,
+          `plan ${planStart ?? "-"} -> ${planEnd ?? "-"}, ` +
+          `actual ${actualStart ?? "-"} -> ${actualEnd ?? "open"} on ${label}`,
       );
-      return { type, milestone: info.milestone, priority, severity, targetDate, startDate };
+      return {
+        type,
+        milestone: info.milestone,
+        priority,
+        severity,
+        planStart,
+        planEnd,
+        actualStart,
+        actualEnd,
+      };
     }
 
     // Closed epics and sub-issues get a Type and a Milestone too: they can be
@@ -842,9 +875,22 @@ function main() {
 
     setField(item, priorityField, priority, priority);
     setField(item, severityField, severity, severity);
-    if (targetDate) setField(item, targetDateField, targetDate, targetDate, "date");
-    if (startDate) setField(item, startDateField, startDate, startDate, "date");
-    return { type, milestone: info.milestone, priority, severity, targetDate, startDate };
+    if (planStart) setField(item, startDateField, planStart, planStart, "date");
+    if (planEnd) setField(item, targetDateField, planEnd, planEnd, "date");
+    if (actualStart) {
+      setField(item, actualStartField, actualStart, actualStart, "date");
+    }
+    if (actualEnd) setField(item, actualEndField, actualEnd, actualEnd, "date");
+    return {
+      type,
+      milestone: info.milestone,
+      priority,
+      severity,
+      planStart,
+      planEnd,
+      actualStart,
+      actualEnd,
+    };
   }
 
   // Keep the native blockedBy graph equal to the `Blocked by:` text. Add a
@@ -1393,24 +1439,31 @@ function main() {
             "json",
           ])?.items?.length ?? 0;
 
-    // Plan vs fact: the milestone due date is the target, the native closedAt
-    // is the actual finish. Actuals are reported only, never written back into
-    // the plan fields.
+    // Plan vs fact: plan is Start date -> Target date; facts are Actual start
+    // -> Actual end. Actuals are reported only, never written into the plan
+    // fields. Slip = actual end minus plan end.
     let onTime = 0;
     let late = 0;
     const actualLines = [];
-    for (const meta of issueMetadata.values()) {
-      if (meta.state !== "CLOSED" || !meta.closedAt || !meta.milestone) continue;
-      const target = milestones.find((entry) => entry.title === meta.milestone)?.due;
-      if (!target) continue;
-      const closedDate = dateOnly(meta.closedAt);
-      if (!closedDate) continue;
-      const delta = targetDelta(target, closedDate);
-      if (!delta) continue;
-      if (delta.days <= 0) onTime += 1;
+    for (const [number, dates] of boardDates) {
+      const meta = issueMetadata.get(number);
+      if (meta?.state !== "CLOSED") continue;
+      if (
+        !dates.planStart ||
+        !dates.planEnd ||
+        !dates.actualStart ||
+        !dates.actualEnd
+      ) {
+        continue;
+      }
+      const slip = targetDelta(dates.planEnd, dates.actualEnd);
+      if (!slip) continue;
+      if (slip.days <= 0) onTime += 1;
       else late += 1;
       actualLines.push(
-        `actual: #${meta.number} target ${target}, closed ${closedDate} -> ${delta.verdict}`,
+        `actual: #${number} plan ${dates.planStart} -> ${dates.planEnd}, ` +
+          `actual ${dates.actualStart} -> ${dates.actualEnd}, ` +
+          `slip ${slip.days} day(s) (${slip.verdict})`,
       );
     }
 

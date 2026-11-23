@@ -181,8 +181,34 @@ test("board gate reports every missing native field", () => {
   assert.match(result.errors.join("\n"), /no issue Type/);
   assert.match(result.errors.join("\n"), /no Milestone/);
   assert.match(result.errors.join("\n"), /no Priority/);
-  assert.match(result.errors.join("\n"), /no Target date/);
-  assert.match(result.errors.join("\n"), /no Start date/);
+  assert.match(result.errors.join("\n"), /no Plan start/);
+  assert.match(result.errors.join("\n"), /no Plan end/);
+});
+
+test("board gate requires actual dates on closed issues", () => {
+  const result = checkBoardFields({
+    issues: [
+      {
+        number: 3,
+        state: "CLOSED",
+        title: "ROT-3 — C",
+        labels: ["change:demo"],
+        issueType: "Task",
+        milestone: "Wallet",
+        body: "",
+        blockedBy: [],
+      },
+    ],
+    milestones: [
+      { title: "Wallet", due: "2027-03-31", match: { epics: ["demo"], areas: [] } },
+    ],
+    projectItems: {
+      3: { priority: "P1", targetDate: "2027-03-31", startDate: "2026-01-01" },
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /no Actual start/);
+  assert.match(result.errors.join("\n"), /no Actual end/);
 });
 
 test("board gate honors a reasoned allowlist entry", () => {
