@@ -422,10 +422,14 @@ function setField(state, item, name, value, label = null) {
   });
 }
 
-function applyProjectFields(state, { number, url, facts, priority, milestone, closed }) {
+function applyProjectFields(
+  state,
+  { number, url, facts, area, priority, milestone, closed },
+) {
   const label = `#${number}`;
   const item = ensureItem(state, url, label);
   const firstSeen = dateOnly(facts.firstSeen) ?? dateOnly(new Date().toISOString());
+  setField(state, item, "Area", area, label);
   setField(state, item, "Priority", priority, label);
   setField(state, item, "Severity", severityFieldForPriority(priority), label);
   setField(state, item, "Start date", firstSeen, label);
@@ -538,6 +542,7 @@ function applyIssueEdit(action, context) {
     number: action.number,
     url: action.issue.url,
     facts: action.facts,
+    area: action.area,
     priority: action.priority,
     milestone: action.milestone,
     closed: false,
@@ -599,6 +604,7 @@ function applyAction(action, context) {
       number,
       url,
       facts: action.facts,
+      area: action.area,
       priority: action.priority,
       milestone: action.milestone,
       closed: false,
@@ -648,6 +654,7 @@ function applyAction(action, context) {
       number: action.number,
       url: action.issue.url,
       facts: action.facts,
+      area: action.area,
       priority: action.priority,
       milestone: action.milestone,
       closed: true,
