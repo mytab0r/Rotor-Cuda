@@ -34,7 +34,7 @@ ureq = { version = "2", features = ["native-tls"], default-features = false }
 xorf = "0.13"
 bip39 = "2"
 getrandom = "0.2"
-k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+k256 = { version = "0.14", default-features = false, features = ["ecdsa"] }
 ed25519-dalek = "2"
 blake2 = "0.10"
 num-bigint = "0.4"

@@ -127,7 +127,7 @@ pub fn recover_address(message: &str, signature: &str) -> Result<String, String>
 
 /// Ethereum address of a recovered verifying key.
 fn address_from_verifying_key(key: &k256::ecdsa::VerifyingKey) -> String {
-    let point = key.to_encoded_point(false);
+    let point = key.to_sec1_point(false);
     let bytes = point.as_bytes();
     let hash = keccak256(&bytes[1..]);
     let mut address = String::with_capacity(42);
@@ -188,7 +188,7 @@ pub fn verify_tron(message: &str, address: &str, signature: &str) -> Result<Stri
     let prehash = tron_message_hash(message);
     let verifying_key = VerifyingKey::recover_from_prehash(&prehash, &signature, recovery_id)
         .map_err(|err| format!("cannot recover public key: {err}"))?;
-    let point = verifying_key.to_encoded_point(false);
+    let point = verifying_key.to_sec1_point(false);
     let hash = keccak256(&point.as_bytes()[1..]);
     let mut payload = [0u8; 21];
     payload[0] = 0x41;
@@ -423,7 +423,7 @@ mod tests {
 
     fn sign_message(key: &SigningKey, message: &str) -> String {
         let prehash = personal_sign_hash(message);
-        let (signature, recovery) = key.sign_prehash_recoverable(&prehash).expect("sign");
+        let (signature, recovery) = key.sign_prehash_recoverable(&prehash);
         let mut bytes = signature.to_bytes().to_vec();
         bytes.push(recovery.to_byte());
         let mut out = String::with_capacity(2 + bytes.len() * 2);
@@ -503,7 +503,7 @@ mod tests {
     #[test]
     fn tron_sign_message_v2_recovers_the_signer() {
         let key = signing_key();
-        let point = key.verifying_key().to_encoded_point(false);
+        let point = key.verifying_key().to_sec1_point(false);
         let hash = keccak256(&point.as_bytes()[1..]);
         let mut payload = [0u8; 21];
         payload[0] = 0x41;
@@ -517,9 +517,7 @@ mod tests {
             1_700_000_000,
             1_700_000_600,
         );
-        let (signature, recovery) = key
-            .sign_prehash_recoverable(&tron_message_hash(&message))
-            .expect("sign");
+        let (signature, recovery) = key.sign_prehash_recoverable(&tron_message_hash(&message));
         let mut bytes = signature.to_bytes().to_vec();
         bytes.push(recovery.to_byte() + 27);
         let hex_signature = format!(
