@@ -1307,10 +1307,14 @@ function main() {
         : null;
       const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
       const inferred = inferIssueType(issue);
-      const typeOverride =
-        inferred ??
-        existingType ??
-        (/^fix\(/i.test(String(issue.title ?? "")) ? "Bug" : "Task");
+      const fixTitle = /^fix\(/i.test(String(issue.title ?? ""));
+      // Keep a native Bug (a defect) and a native Feature (an epic); otherwise
+      // the adoption rule is fix( -> Bug, everything else non-epic -> Task.
+      let typeOverride = inferred;
+      if (typeOverride !== "Feature" && existingType === "Bug") {
+        typeOverride = "Bug";
+      }
+      if (!typeOverride) typeOverride = fixTitle ? "Bug" : existingType ?? "Task";
       const item = ensureItem(
         issue.url,
         `${isEpic ? "epic" : "sub-issue"} #${issue.number}`,
