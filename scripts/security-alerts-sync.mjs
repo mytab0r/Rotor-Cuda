@@ -218,7 +218,10 @@ function labelList() {
 
 function ensureLabels(actions) {
   const relevant = actions.filter(
-    (action) => action.type === "create" || action.type === "update",
+    (action) =>
+      action.type === "create" ||
+      action.type === "update" ||
+      action.type === "reopen",
   );
   if (relevant.length === 0) return;
   const needed = new Set(["security"]);
@@ -252,7 +255,12 @@ function ensureLabels(actions) {
 function ensureMilestones(actions, milestones) {
   const wanted = new Set(
     actions
-      .filter((action) => action.type === "create" || action.type === "update")
+      .filter(
+        (action) =>
+          action.type === "create" ||
+          action.type === "update" ||
+          action.type === "reopen",
+      )
       .map((action) => action.milestone?.title)
       .filter(Boolean),
   );
@@ -484,6 +492,9 @@ function planLabel(action) {
     const changed = action.changes.length > 0 ? action.changes.join(", ") : "metadata";
     return `[dry-run] update #${action.number}: ${changed}`;
   }
+  if (action.type === "reopen") {
+    return `[dry-run] reopen #${action.number}: alert is open again`;
+  }
   if (action.type === "close") {
     return `[dry-run] close #${action.number}: ${lifecycleSummary(action.facts)}`;
   }
@@ -491,6 +502,42 @@ function planLabel(action) {
     return `[dry-run] comment once on closed #${action.number}: alert is still open`;
   }
   return null;
+}
+
+function applyIssueEdit(action, context) {
+  const args = ["issue", "edit", String(action.number), "--repo", REPO];
+  let changed = false;
+  if ((action.changes ?? []).includes("title")) {
+    args.push("--title", action.title);
+    changed = true;
+  }
+  if ((action.changes ?? []).includes("body")) {
+    args.push("--body", action.body);
+    changed = true;
+  }
+  const labels = new Set(action.issue.labels ?? []);
+  for (const label of action.labels ?? []) {
+    if (!labels.has(label)) {
+      args.push("--add-label", label);
+      changed = true;
+    }
+  }
+  if (action.milestone && action.issue.milestone !== action.milestone.title) {
+    args.push("--milestone", action.milestone.title);
+    changed = true;
+  }
+  if (changed) gh(args);
+  applyProjectFields(context.project, {
+    number: action.number,
+    url: action.issue.url,
+    facts: action.facts,
+    priority: action.priority,
+    milestone: action.milestone,
+    closed: false,
+  });
+  return (action.changes ?? []).length > 0
+    ? action.changes.join(", ")
+    : "metadata";
 }
 
 function applyAction(action, context) {
@@ -554,40 +601,23 @@ function applyAction(action, context) {
   }
 
   if (action.type === "update") {
-    const args = ["issue", "edit", String(action.number), "--repo", REPO];
-    let changed = false;
-    if (action.changes.includes("title")) {
-      args.push("--title", action.title);
-      changed = true;
-    }
-    if (action.changes.includes("body")) {
-      args.push("--body", action.body);
-      changed = true;
-    }
-    const labels = new Set(action.issue.labels ?? []);
-    for (const label of action.labels ?? []) {
-      if (!labels.has(label)) {
-        args.push("--add-label", label);
-        changed = true;
-      }
-    }
-    if (action.milestone && action.issue.milestone !== action.milestone.title) {
-      args.push("--milestone", action.milestone.title);
-      changed = true;
-    }
-    if (changed) gh(args);
-    applyProjectFields(context.project, {
-      number: action.number,
-      url: action.issue.url,
-      facts: action.facts,
-      priority: action.priority,
-      milestone: action.milestone,
-      closed: false,
-    });
-    console.log(
-      `updated #${action.number}` +
-        (action.changes.length > 0 ? ` (${action.changes.join(", ")})` : " (metadata)"),
-    );
+    const changed = applyIssueEdit(action, context);
+    console.log(`updated #${action.number} (${changed})`);
+    return;
+  }
+
+  if (action.type === "reopen") {
+    gh([
+      "issue",
+      "reopen",
+      String(action.number),
+      "--repo",
+      REPO,
+      "--comment",
+      action.comment,
+    ]);
+    const changed = applyIssueEdit(action, context);
+    console.log(`reopened #${action.number} (${changed})`);
     return;
   }
 
@@ -688,7 +718,7 @@ async function main() {
   );
 
   const mutable = plan.actions.filter((action) =>
-    ["create", "update", "close"].includes(action.type),
+    ["create", "update", "reopen", "close"].includes(action.type),
   );
   ensureLabels(plan.actions);
   ensureMilestones(plan.actions, milestones);
