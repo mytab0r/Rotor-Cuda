@@ -43,6 +43,12 @@ the GitHub issue number; an epic per OpenSpec change and a sub-issue per
   issue beyond the sync marker.
 - `node scripts/check-task-links.mjs` is the CI gate; run it locally before
   pushing when the PR body or the task mapping changed.
+- The PR body follows `.github/pull_request_template.md`. `process-contract`
+  fails a product PR without `## Spec`, `## Tests`, `## Mutation proof`,
+  `## Independent review`, `## Verification` or `Task: ROT-<n>`. The role chain
+  (spec and tests before code, author never edits its own tests, reviewer
+  re-runs the mutation proof), the reduced contract and the mutation smoke are
+  in `docs/process/verification.md`.
 
 Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
 
