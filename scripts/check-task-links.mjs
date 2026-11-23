@@ -25,6 +25,13 @@ import {
   listIssueMetadata,
   parseTaskDirective,
 } from "./lib/task-tracking.mjs";
+import {
+  ProjectsRateLimitError,
+  appendRunSummary,
+  isRateLimitError,
+  listProjectItems,
+  projectApiCalls,
+} from "./lib/project-api.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MILESTONES_PATH = path.join(REPO_ROOT, "data", "milestones.json");
@@ -85,21 +92,15 @@ function loadMilestones() {
 }
 
 function projectFieldValues() {
-  const items =
-    ghJson([
-      "project",
-      "item-list",
-      String(PROJECT_NUMBER),
-      "--owner",
-      PROJECT_OWNER,
-      "--limit",
-      "1000",
-      "--format",
-      "json",
-    ])?.items ?? [];
+  const { items } = listProjectItems({
+    ghJson,
+    owner: PROJECT_OWNER,
+    number: PROJECT_NUMBER,
+    log: (line) => console.log(line),
+  });
   const values = {};
   for (const item of items) {
-    const number = Number(item.content?.number ?? item.number);
+    const number = Number(item.content?.number);
     if (!Number.isInteger(number)) continue;
     values[number] = {
       priority: item.priority ?? null,
@@ -208,40 +209,58 @@ function main() {
   }
 
   if (args.board) {
-    const repo = resolveRepo(args);
-    const [owner, name] = repo.split("/");
-    const issues = listIssueMetadata({
-      ghJson,
-      owner,
-      name,
-      states: ["OPEN", "CLOSED"],
-    });
-    const labels =
-      ghJson([
-        "label",
-        "list",
-        "--repo",
-        repo,
-        "--limit",
-        "200",
-        "--json",
-        "name",
-      ])?.map((label) => label.name) ?? [];
-    const result = checkBoardFields({
-      issues,
-      allowlist: loadBoardExceptions(),
-      milestones: loadMilestones(),
-      projectItems: projectFieldValues(),
-      labels,
-    });
-    if (!result.ok) {
-      for (const error of result.errors) console.error(`error: ${error}`);
-      console.error("board-fields FAILED");
-      process.exitCode = 1;
+    try {
+      const repo = resolveRepo(args);
+      const [owner, name] = repo.split("/");
+      const issues = listIssueMetadata({
+        ghJson,
+        owner,
+        name,
+        states: ["OPEN", "CLOSED"],
+      });
+      const labels =
+        ghJson([
+          "label",
+          "list",
+          "--repo",
+          repo,
+          "--limit",
+          "200",
+          "--json",
+          "name",
+        ])?.map((label) => label.name) ?? [];
+      const result = checkBoardFields({
+        issues,
+        allowlist: loadBoardExceptions(),
+        milestones: loadMilestones(),
+        projectItems: projectFieldValues(),
+        labels,
+      });
+      if (!result.ok) {
+        for (const error of result.errors) console.error(`error: ${error}`);
+        console.error("board-fields FAILED");
+        process.exitCode = 1;
+        return;
+      }
+      console.log(result.summary);
+      console.log(`project API calls: ${projectApiCalls()}`);
+      appendRunSummary(`project API calls: ${projectApiCalls()}`);
       return;
+    } catch (error) {
+      if (error instanceof ProjectsRateLimitError || isRateLimitError(error)) {
+        console.log("warning: sync deferred: Projects quota");
+        console.log(`warning: ${error.message}`);
+        console.log(`project API calls: ${projectApiCalls()}`);
+        appendRunSummary("### sync deferred: Projects quota");
+        appendRunSummary(`project API calls: ${projectApiCalls()}`);
+        if (process.env.GITHUB_ACTIONS) {
+          console.log("::warning::sync deferred: Projects quota");
+        }
+        process.exitCode = 0;
+        return;
+      }
+      throw error;
     }
-    console.log(result.summary);
-    return;
   }
 
   let prNumber = null;
