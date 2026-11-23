@@ -188,9 +188,9 @@ const jsonLd = {
     </p>
     <p>
       Solana, Sui and TON use ed25519: a 32-byte seed produces a 32-byte public key, which is
-      then written as Base58 or Base64url. Bitcoin Cash shows two views of the same hash160 —
-      legacy Base58Check and CashAddr — so one key can appear under two different strings on
-      the same page.
+      then written as Base58, 0x-prefixed hex or Base64url depending on the chain. Bitcoin
+      Cash shows two views of the same hash160 — legacy Base58Check and CashAddr — so one key
+      can appear under two different strings on the same page.
     </p>
     <p>
       Whichever encoding you read, one private key controls every address derived from it.
