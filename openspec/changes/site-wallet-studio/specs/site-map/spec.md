@@ -4,7 +4,7 @@
 
 ### Requirement: canonical donor map
 `/site-map` MUST serve one interactive map of Rotor routes against
-privatekeyfinder.io and secretscan.org, with search, area and status filters,
+ref-site-a and ref-site-b, with search, area and status filters,
 and `ours` / `donors` / `matrix` views. Every Rotor route MUST show its donor
 equivalent or `ours-only`; every donor route without a Rotor counterpart MUST
 stay visible as `missing`. Route and feature data MUST live in one file,

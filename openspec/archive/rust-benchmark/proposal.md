@@ -7,7 +7,7 @@ can compare hardware and the dashboard can report it later.
 
 ## Why
 
-Secretscan-style tools expose a benchmark page; our users currently guess rates
+ref-site-b-style tools expose a benchmark page; our users currently guess rates
 from the progress line. A repeatable, JSON-able measurement is cheap and useful.
 
 ## Scope

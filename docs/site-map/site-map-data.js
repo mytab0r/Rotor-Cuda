@@ -3,7 +3,7 @@
  *
  * Update this file when a route or a capability lands; the page only renders
  * this data. Donor routes were read from
- * https://privatekeyfinder.io/sitemap.xml and the secretscan.org navigation on
+ * ref-site-a/sitemap.xml and the ref-site-b navigation on
  * 2026-11-19, with a few live probes (marked in `note`) where the sitemap was
  * stale.
  *
@@ -77,7 +77,7 @@
     area: 'site',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/'],
+    donorIds: ['ref-site-a:/'],
     note: 'Astro landing at `web/src/pages/index.astro` on the shared `SiteLayout`; the Rust renderer still serves the route until the phase-6 cutover. One H1 for the page intent, a wallet CTA and a directory CTA, 18 chain cards, the six address-database links, the tool index and honest security wording. Static HTML renders no live counters: totals and the leaderboard link to the operator console, and registration links to the cabinet, which owns the token flow.'
   });
 
@@ -87,7 +87,7 @@
     area: 'directory',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/private-keys', 'ss:/PrivateKeyHex'],
+    donorIds: ['ref-site-a:/private-keys', 'ref-site-b:/PrivateKeyHex'],
     note: 'Astro hub at `web/src/pages/private-keys/index.astro`: one row per mainnet chain (name, page contents, address-format count from the same map the chain page renders), plus what-is/is-not, derivation and safety sections and CollectionPage/ItemList/BreadcrumbList JSON-LD. The Rust renderer still serves the route until cutover.'
   });
 
@@ -98,7 +98,7 @@
       area: 'directory',
       status: 'parity',
       priority: '-',
-      donorIds: ['pkf:/private-keys/' + item[0]],
+      donorIds: ['ref-site-a:/private-keys/' + item[0]],
       note: '60 rows per page, 18 chain tabs, pager + page jump, a search bar with the optional type select and `?key=` page jumps; the search placeholder and hint name the chain’s own WIF shape (BTC/BCH/ZEC 5/K/L, LTC 6/T, DOGE Q/6, account chains “HEX or Brainwallet”), as the donor does; BTC and LTC expose four address-type cards, other chains one row set as the donor. Listing rows show the hex key with a real 44px copy action; a BTC legacy key shows both the compressed and uncompressed address at once (60 keys x 2 = 120 addresses per page) with one balance line per address, and the WIF stays key-level on /key/<hex>. Each balance line shows the bold balance, a TX `.badge` and a received `.badge` only when non-zero. Account-model chains summarise Balance/Active; UTXO chains Balance/Received/TX, as the donor does. The donor has neither a CSV export nor balance sorting, so neither is a gap.'
     });
   });
@@ -110,14 +110,14 @@
     status: 'parity',
     priority: 'P0',
     donorIds: [
-      'pkf:/key/<hex|wif|decimal>',
-      'ss:/PrivateKeyHex',
-      'ss:/PrivateKeyWif',
-      'ss:/PrivateKeyEth',
-      'ss:/PrivateKeyTron',
-      'ss:/PrivateKeySegwit',
-      'ss:/PrivateKey_wif_to_hex',
-      'ss:/Bech32'
+      'ref-site-a:/key/<hex|wif|decimal>',
+      'ref-site-b:/PrivateKeyHex',
+      'ref-site-b:/PrivateKeyWif',
+      'ref-site-b:/PrivateKeyEth',
+      'ref-site-b:/PrivateKeyTron',
+      'ref-site-b:/PrivateKeySegwit',
+      'ref-site-b:/PrivateKey_wif_to_hex',
+      'ref-site-b:/Bech32'
     ],
     note: 'Auto-derives as you type for hex, decimal, WIF, Solana keypair JSON and brainwallet text. Key facts cover HEX, DECIMAL, WIF, WIF(u), Solana keypair, XRP secret, PUBKEY and PAGE; counters (USD Total Value from a six-hour cached public ticker, Has Balance, Active Chains, Checked 18/18), eight EVM chain rows and public-row Copy All/CSV are in place. The formats help is a quiet info icon with a shared hover/focus tooltip that opens an in-place popover; random/clear/±1 use the same tooltip. Balances load for XRP (XRPScan), SOL, SUI, TON (TON Center), LTC, DOGE and ZEC (SoChain; LTC/DOGE fall back to BlockCypher) and BCH (Haskoin) from free public providers, so no chain group shows —. Short URL forms /key/<1–64 hex> and /key/0x… render the padded key page; arbitrary text stays a real 404 (not the donor soft-404). The curve selector ships (secp256k1/ed25519) and the signing entry links to the testnet /send page.'
   });
@@ -128,7 +128,7 @@
     area: 'key',
     status: 'parity',
     priority: 'P0',
-    donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyHex'],
+    donorIds: ['ref-site-a:/key/<hex|wif|decimal>', 'ref-site-b:/PrivateKeyHex'],
     note: 'Auto-derives from 64 hex characters to WIF, public key and addresses. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
@@ -138,7 +138,7 @@
     area: 'key',
     status: 'parity',
     priority: 'P0',
-    donorIds: ['pkf:/key/<hex|wif|decimal>', 'ss:/PrivateKeyWif', 'ss:/PrivateKey_wif_to_hex'],
+    donorIds: ['ref-site-a:/key/<hex|wif|decimal>', 'ref-site-b:/PrivateKeyWif', 'ref-site-b:/PrivateKey_wif_to_hex'],
     note: 'Auto-derives from 5…, K… or L… to hex and addresses. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
@@ -148,7 +148,7 @@
     area: 'key',
     status: 'parity',
     priority: 'P0',
-    donorIds: ['pkf:/key/<hex|wif|decimal>'],
+    donorIds: ['ref-site-a:/key/<hex|wif|decimal>'],
     note: 'Auto-derives from a decimal integer below the curve order. Counters, key facts, eight EVM rows and public-row export are shared with /key.'
   });
 
@@ -158,7 +158,7 @@
     area: 'seeds',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/mnemonic-seeds'],
+    donorIds: ['ref-site-a:/mnemonic-seeds'],
     note: 'Astro hub at `web/src/pages/mnemonic-seeds/index.astro`: one row per mainnet chain (name, page contents, path and address-format counts from the same `lib/seed-directory.ts` map the chain page derives from), three content H2s and CollectionPage/ItemList/BreadcrumbList JSON-LD. The Rust renderer still serves the route until cutover. 60 seed rows per page with phrase, private key copy, paths, address types and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI, TON, LTC, DOGE and ZEC. BCH and SUI fill all 60 rows; LTC/DOGE/ZEC use the shared per-address SoChain provider first (2500 lookups a day per IP keyless, so a page is 2.4% of the daily budget, and the first 429 stops the SoChain fan-out). On that 429 a Litecoin page is served whole through the keyless litecoinspace Esplora provider declared in the SSOT (one request per address) and the DOGE page through one batched BlockCypher request (`<base>/addrs/<a;b;...>/balance`, SSOT `blockcypher`), whose small hourly quota counts each address so it does not guarantee a filled page; ZEC has no fallback, and both keep the retry state when their providers are limited. Live 2026-11-22, with SoChain answering 429 to every request: both Litecoin pages rendered 60/60 `ok` at 375/768/1280 in light and dark (each page ~10 SoChain 429s, then exactly 60 litecoinspace 200s, 0 failed requests), while both DOGE pages rendered 60/60 `err` (the single BlockCypher fallback batch also answered 429) and ZEC has no fallback, so their live 60/60 was unmeasured at that point; live 2026-11-23, with SoChain\'s quota reset, both DOGE pages and both ZEC pages rendered 60/60 `ok` (60 SoChain requests per page), so their live 60/60 is now measured. XRP comes from XRPScan and accounts it redirects to its bulk dataset show the retry state rather than a balance. Rows carry no WIF links, matching the donor.'
   });
 
@@ -170,7 +170,7 @@
       area: 'seeds',
       status: 'parity',
       priority: '-',
-      donorIds: ['pkf:/mnemonic-seeds/' + item[0]],
+      donorIds: ['ref-site-a:/mnemonic-seeds/' + item[0]],
       note: ton
         ? 'Astro chain page at `web/src/pages/mnemonic-seeds/ton.astro` with 60 deterministic BIP39 phrases, each derived at the same path into the first v4R2 and W5 address; the Rust renderer still serves the route until cutover. Derives BIP39 seeds with SLIP-0010 ed25519 at the donor path m/44\'/607\'/0\'; the Wallet v4R2 row is built by /ton.js and Wallet W5 comes from the WASM report, with one batched TonAPI /accounts/_bulk request per page (measured 60/60 `ok` at 375/768/1280 in both themes on /mnemonic-seeds/ton and /private-keys/ton; the single-address /key page keeps Toncenter). Deliberate deviation: the donor feeds its BIP32 secp256k1 master bytes to the v4R2 builder (row 0, abandon…about: key 1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67, EQD5BSqbqr-TBe8BHVx26V85ly7o5lkYFU0MKAJWVUwlkPZG; Tonkeeper key 2d1b84ab366915a9b58d64ea6d3a8766e490479ac2ab8aea635603afe3ad6153, EQBuAV_45fTfgLs-CqOtQnNP5rh-Z3xv0jVCL_Nz8C1fe-), while we ship the standard SLIP-0010 ed25519 derivation (master key 560f9f3c94558b6551928bb781cf6092c6b8800b4fc544af2c9444ed126d51aa, EQBql5EyfHFHHq0eULGOI7xdUWgk62w-HzLBlEcAyqYM79AN; Tonkeeper key b477ef5ed17fb8a2b8faddd7a9835a227243a82c70b190c7af4896155aa7df9f, EQAzWZa6nM5mJev91wGc7VCSfBoIsYRqKJpV78N8Add9-U9d), which is what real TON wallets use. The donor renders one v4R2 address per row with static 0 TON text; our v4R2/W5 type cards and live TonAPI balances are a deliberate superset. Master/Tonkeeper preset ids, labels and paths match the donor; no WIF links, matching the donor.'
         : 'Astro chain page at `web/src/pages/mnemonic-seeds/\'+item[0]+\'.astro` with 60 deterministic BIP39 phrases, each derived at the same paths into the first address of every supported format; the Rust renderer still serves the route until cutover. Phrase, private key copy, path, address type and balances for Bitcoin, EVM, Solana, BCH, TRON, XRP, SUI, TON, LTC, DOGE and ZEC; XRP accounts that XRPScan redirects to its bulk dataset show the retry state; LTC/DOGE/ZEC use the shared per-address SoChain provider. On SoChain\'s first 429 a Litecoin page is served whole through the keyless litecoinspace Esplora provider (one request per address) and the DOGE page through one batched BlockCypher request (`<base>/addrs/<a;b;...>/balance`, SSOT `blockcypher`), whose small hourly quota counts each address so it does not guarantee a filled page; ZEC has no fallback, and both keep the retry state when their providers are limited. Live 2026-11-22, with SoChain answering 429 to every request, both Litecoin pages rendered 60/60 `ok` at 375/768/1280 in light and dark (each page ~10 SoChain 429s, then exactly 60 litecoinspace 200s, 0 failed requests), while both DOGE pages rendered 60/60 `err` (the single BlockCypher fallback batch also answered 429) and ZEC has no fallback, so their live 60/60 was unmeasured at that point; live 2026-11-23, with SoChain\'s quota reset, both DOGE pages and both ZEC pages rendered 60/60 `ok` (60 SoChain requests per page), so their live 60/60 is now measured. No WIF links, matching the donor.'
@@ -193,7 +193,7 @@
     area: 'seeds',
     status: 'parity',
     priority: 'P1',
-    donorIds: ['pkf:/mnemonic-converter'],
+    donorIds: ['ref-site-a:/mnemonic-converter'],
     note: 'Word counter, 20-address option, “Load next 5”, Copy All and Active/Sum aggregates are present. The lifetime Received total is shown for BTC from the same blockchain.info balance response, so it costs no extra request; other assets have no lifetime total to show. There is no separate hardened checkbox.'
   });
 
@@ -203,7 +203,7 @@
     area: 'puzzle',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/bitcoin-puzzle', 'ss:/bitcoin-puzzle'],
+    donorIds: ['ref-site-a:/bitcoin-puzzle', 'ref-site-b:/bitcoin-puzzle'],
     note: '160-puzzle table with All/Solved/Unsolved filters, search, Balance/TX/Actions columns and BTC claimed/left stats.'
   });
 
@@ -214,7 +214,7 @@
     area: 'puzzle',
     status: 'partial',
     priority: '-',
-    donorIds: ['pkf:/bitcoin-puzzle/<n>'],
+    donorIds: ['ref-site-a:/bitcoin-puzzle/<n>'],
     note: 'Target and range copy, difficulty, decimal key space, TX link, /private-keys cross-link, the 1–160 picker, the Discussion link and the unsolved-only solver tool links (BitCrack / Keyhunt / VanitySearch). Missing only the donor’s Solution field (blocked: `puzzles.rs` stores only `solved: bool`).'
   });
 
@@ -225,7 +225,7 @@
     area: 'puzzle',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/bitcoin-puzzle/<n>/random'],
+    donorIds: ['ref-site-a:/bitcoin-puzzle/<n>/random'],
     note: 'Local WASM worker plus Community Hunt, live results table, range presets and a match panel with key copy.'
   });
 
@@ -235,7 +235,7 @@
     area: 'brainwallet',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/brainwallet'],
+    donorIds: ['ref-site-a:/brainwallet'],
     note: '18 chain tiles, an 18,890-passphrase counter, explainer blocks and links to the generator, key calculator and seed tool.'
   });
 
@@ -246,7 +246,7 @@
       area: 'brainwallet',
       status: 'parity',
       priority: '-',
-      donorIds: ['pkf:/brainwallet/' + item[0]],
+      donorIds: ['ref-site-a:/brainwallet/' + item[0]],
       note: '60 rows × 315 pages: SHA-256 key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE with the chain’s own WIF encoding (BTC/BCH 0x80, LTC 0xb0, DOGE 0x9e), chain address with explorer and copy, address types where the chain supports them, optional balances.'
     });
   });
@@ -257,7 +257,7 @@
     area: 'brainwallet',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/brainwallet-generator'],
+    donorIds: ['ref-site-a:/brainwallet-generator'],
     note: 'Network dropdown for 18 chains, 1/3/5/10 addresses, Generate & Check Balance, Copy all and CSV.'
   });
 
@@ -277,7 +277,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P1',
-    donorIds: ['pkf:/vanity-generator', 'ss:/vanity-generator'],
+    donorIds: ['ref-site-a:/vanity-generator', 'ref-site-b:/vanity-generator'],
     note: 'Six networks, parallel workers (1-4), difficulty, ETA, a recent-5 list and an address QR. Saving keys is intentionally absent; keys are never saved.'
   });
 
@@ -307,7 +307,7 @@
     area: 'tools',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/hex-dec-bin', 'ss:/HexDecBin'],
+    donorIds: ['ref-site-a:/hex-dec-bin', 'ref-site-b:/HexDecBin'],
     note: 'Unsigned 0..2^256-1 conversion with validation and copy.'
   });
 
@@ -317,7 +317,7 @@
     area: 'tools',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/public-key', 'ss:/PublicKey'],
+    donorIds: ['ref-site-a:/public-key', 'ref-site-b:/PublicKey'],
     note: 'Compressed/uncompressed secp256k1 to BTC, EVM and TRON addresses without a private key.'
   });
 
@@ -327,7 +327,7 @@
     area: 'tools',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/pubkey-add', 'ss:/PubkeyAdd'],
+    donorIds: ['ref-site-a:/pubkey-add', 'ref-site-b:/PubkeyAdd'],
     note: 'P + Q, P − Q and k · P are shipped; the donor offers the same three operations.'
   });
 
@@ -337,7 +337,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P1',
-    donorIds: ['pkf:/reconstruction', 'ss:/Reconstruction'],
+    donorIds: ['ref-site-a:/reconstruction', 'ref-site-b:/Reconstruction'],
     note: 'Different semantics: Crypto assembles known bytes at fixed offsets and never guesses. Donor reconstruction uses ±a±λb formulas.'
   });
 
@@ -347,7 +347,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P1',
-    donorIds: ['pkf:/keystore-parser', 'ss:/keystore-parser'],
+    donorIds: ['ref-site-a:/keystore-parser', 'ref-site-b:/keystore-parser'],
     note: 'Local V3 decrypt, drag-drop/file input, a verified web3 test-vector example and id/version/cipher/address metadata.'
   });
 
@@ -357,7 +357,7 @@
     area: 'tools',
     status: 'parity',
     priority: '-',
-    donorIds: ['ss:/Transaction_decoded_Bitcoin', 'ss:/decode_ethereum_transaction'],
+    donorIds: ['ref-site-b:/Transaction_decoded_Bitcoin', 'ref-site-b:/decode_ethereum_transaction'],
     note: 'Shared index for the two client-side decoders.'
   });
 
@@ -367,7 +367,7 @@
     area: 'tools',
     status: 'parity',
     priority: '-',
-    donorIds: ['ss:/Transaction_decoded_Bitcoin'],
+    donorIds: ['ref-site-b:/Transaction_decoded_Bitcoin'],
     note: 'Raw legacy or SegWit hex to inputs, outputs, script types/addresses, locktime, size/weight/vsize and JSON. A fee appears only when prevout values are supplied; no guessing.'
   });
 
@@ -377,7 +377,7 @@
     area: 'tools',
     status: 'parity',
     priority: '-',
-    donorIds: ['ss:/decode_ethereum_transaction'],
+    donorIds: ['ref-site-b:/decode_ethereum_transaction'],
     note: 'Raw legacy, EIP-2930 and EIP-1559 hex to chain id, gas/fee fields, destination or contract creation, value, data, access list, signature fields and JSON. Canonical RLP is validated; no signature recovery.'
   });
 
@@ -387,7 +387,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_bitcoin_transaction_online', 'ss:/Easy_ethereum_transaction_online', 'ss:/Easy_bnb_transaction_online', 'ss:/Easy_usdt_erc20_transaction_online'],
+    donorIds: ['ref-site-b:/Easy_bitcoin_transaction_online', 'ref-site-b:/Easy_ethereum_transaction_online', 'ref-site-b:/Easy_bnb_transaction_online', 'ref-site-b:/Easy_usdt_erc20_transaction_online'],
     note: 'Top-level TESTNET-only send page shared by /send, /send/bitcoin, /send/ethereum, /send/bnb, /send/usdt and /send/tron. Every route accepts a testnet WIF or a 64-hex key; on the EVM and TRON routes a Bitcoin mainnet/testnet WIF is only a 32-byte key container and its network byte does not select the chain. Keys derive, sign and broadcast locally; mainnet slugs, mainnet chain ids and mainnet endpoints are rejected in code. The donor covers more chains on mainnet; ours is deliberately testnet-only.'
   });
 
@@ -397,7 +397,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_bitcoin_transaction_online'],
+    donorIds: ['ref-site-b:/Easy_bitcoin_transaction_online'],
     note: 'Bitcoin testnet only: testnet WIF or 64-hex key, tb1q destination, coin selection, review, local P2WPKH signing and an optional mempool.space testnet broadcast. Mainnet WIFs are rejected.'
   });
 
@@ -407,7 +407,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_ethereum_transaction_online'],
+    donorIds: ['ref-site-b:/Easy_ethereum_transaction_online'],
     note: 'Ethereum Sepolia only: testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain), chain-id 11155111 guard, fee/nonce estimates from allowlisted Sepolia RPCs, review, local EIP-1559 signing and an optional broadcast. Mainnet RPCs are rejected.'
   });
 
@@ -417,7 +417,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_bnb_transaction_online'],
+    donorIds: ['ref-site-b:/Easy_bnb_transaction_online'],
     note: 'BNB Smart Chain testnet only (chapel, chain id 97): testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain), allowlisted BSC-testnet RPCs, chain-id guard, review, local EIP-1559 signing and an optional testnet.bscscan.com broadcast. BSC mainnet (chain id 56) and mainnet RPCs are rejected. The donor also covers mainnet.'
   });
 
@@ -427,7 +427,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_tron_trx_transaction_online'],
+    donorIds: ['ref-site-b:/Easy_tron_trx_transaction_online'],
     note: 'TRON Nile testnet only: a testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain; the same 32 bytes derive the same TRON address), a T... base58 recipient and TRX->sun conversion feed the WASM TransferContract builder. Review shows the ref block, expiration, txID and raw_data_hex; signing is local and an optional broadcast posts only to api.nileex.io. Mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'
   });
 
@@ -437,7 +437,7 @@
     area: 'tools',
     status: 'partial',
     priority: 'P0',
-    donorIds: ['ss:/Easy_usdt_erc20_transaction_online'],
+    donorIds: ['ref-site-b:/Easy_usdt_erc20_transaction_online'],
     note: 'Generic ERC-20 transfer(address,uint256) builder on Ethereum Sepolia from a testnet WIF or 64-hex key (a WIF is used as its 32-byte key; its network byte does not select the chain). No token contract is hardcoded: the user supplies the contract, decimals (default 6) and amount, and the exact calldata is shown in the review. There is no canonical USDT deployment on Sepolia, so this is not a USDT-specific mainnet flow.'
   });
 
@@ -447,8 +447,8 @@
     area: 'wallet',
     status: 'ours-only',
     priority: '-',
-    donorIds: ['pkf:/downloads', 'ss:/wallets'],
-    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. privatekeyfinder.io serves ten direct files on /downloads (that exact path now redirects here); secretscan.org shows a market/price table.'
+    donorIds: ['ref-site-a:/downloads', 'ref-site-b:/wallets'],
+    note: 'Crypto mirrors six Rich-Address-Wallet downloads through its origin. ref-site-a serves ten direct files on /downloads (that exact path now redirects here); ref-site-b shows a market/price table.'
   });
 
   oursRoute({
@@ -467,8 +467,8 @@
     area: 'wallet',
     status: 'partial',
     priority: 'P2',
-    donorIds: ['ss:/dashboard'],
-    note: 'Address monitor and account workspace. secretscan.org /dashboard is a calculator dashboard, not the same product. Sign-in: injected EVM/Solana/TRON wallets sign a one-time SIWE challenge; WalletConnect builds its own panel instead of the built-in modal, exposing the connection URI, a QR code, a copy action and MetaMask/Trust Wallet/Rainbow/Coinbase Wallet deep links plus the generic wc: link, opens the selected wallet app directly on Android/iPhone/iPad, regenerates an expired URI, and keeps one EVM account across eight optional chains with Ethereum required.'
+    donorIds: ['ref-site-b:/dashboard'],
+    note: 'Address monitor and account workspace. ref-site-b /dashboard is a calculator dashboard, not the same product. Sign-in: injected EVM/Solana/TRON wallets sign a one-time SIWE challenge; WalletConnect builds its own panel instead of the built-in modal, exposing the connection URI, a QR code, a copy action and MetaMask/Trust Wallet/Rainbow/Coinbase Wallet deep links plus the generic wc: link, opens the selected wallet app directly on Android/iPhone/iPad, regenerates an expired URI, and keeps one EVM account across eight optional chains with Ethereum required.'
   });
 
   oursRoute({
@@ -477,7 +477,7 @@
     area: 'site',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/faq']
+    donorIds: ['ref-site-a:/faq']
   });
 
   oursRoute({
@@ -486,7 +486,7 @@
     area: 'site',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/disclaimer']
+    donorIds: ['ref-site-a:/disclaimer']
   });
 
   oursRoute({
@@ -495,7 +495,7 @@
     area: 'site',
     status: 'parity',
     priority: '-',
-    donorIds: ['pkf:/donate']
+    donorIds: ['ref-site-a:/donate']
   });
 
   oursRoute({
@@ -521,7 +521,7 @@
   /* ------------------------------------------------------------ donor routes */
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/',
     title: 'Home',
     area: 'site',
@@ -530,7 +530,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/private-keys',
     title: 'Private keys directory',
     area: 'directory',
@@ -540,7 +540,7 @@
 
   CHAINS.forEach(function (item) {
     donorRoute({
-      source: 'pkf',
+      source: 'ref-site-a',
       path: '/private-keys/' + item[0],
       title: item[1] + ' private keys',
       area: 'directory',
@@ -551,7 +551,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/key/<hex|wif|decimal>',
     href: '/key/0000000000000000000000000000000000000000000000000000000000000001',
     title: 'Key entity pages',
@@ -562,7 +562,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/mnemonic-seeds',
     title: 'Mnemonic seeds directory',
     area: 'seeds',
@@ -572,7 +572,7 @@
 
   CHAINS.forEach(function (item) {
     donorRoute({
-      source: 'pkf',
+      source: 'ref-site-a',
       path: '/mnemonic-seeds/' + item[0],
       title: item[1] + ' mnemonic seeds',
       area: 'seeds',
@@ -583,7 +583,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/mnemonic-converter',
     title: 'Mnemonic converter',
     area: 'seeds',
@@ -592,7 +592,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/bitcoin-puzzle',
     title: 'Bitcoin puzzle index',
     area: 'puzzle',
@@ -601,7 +601,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/bitcoin-puzzle/<n>',
     href: '/bitcoin-puzzle/71',
     title: 'Puzzle detail',
@@ -611,7 +611,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/bitcoin-puzzle/<n>/random',
     href: '/bitcoin-puzzle/71/random',
     title: 'Puzzle random keys',
@@ -621,7 +621,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/brainwallet',
     title: 'Brainwallet directory',
     area: 'brainwallet',
@@ -631,7 +631,7 @@
 
   CHAINS.forEach(function (item) {
     donorRoute({
-      source: 'pkf',
+      source: 'ref-site-a',
       path: '/brainwallet/' + item[0],
       title: item[1] + ' brainwallets',
       area: 'brainwallet',
@@ -643,7 +643,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/brainwallet-generator',
     title: 'Brainwallet generator',
     area: 'brainwallet',
@@ -652,7 +652,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/vanity-generator',
     title: 'Vanity generator',
     area: 'tools',
@@ -661,7 +661,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/keystore-parser',
     title: 'Keystore parser',
     area: 'tools',
@@ -670,7 +670,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/public-key',
     title: 'Public key to addresses',
     area: 'tools',
@@ -679,7 +679,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/hex-dec-bin',
     title: 'Hex / decimal / binary',
     area: 'tools',
@@ -688,7 +688,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/pubkey-add',
     title: 'Add public keys',
     area: 'tools',
@@ -697,7 +697,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/reconstruction',
     title: 'Private key reconstruction',
     area: 'tools',
@@ -707,7 +707,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/richest',
     title: 'Rich list index',
     area: 'wallet',
@@ -719,7 +719,7 @@
 
   RICHEST_CHAINS.forEach(function (item) {
     donorRoute({
-      source: 'pkf',
+      source: 'ref-site-a',
       path: '/richest/' + item[0],
       title: item[1] + ' rich list',
       area: 'wallet',
@@ -731,7 +731,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/bitcoin-dormant',
     title: 'Bitcoin dormant wallets',
     area: 'wallet',
@@ -742,7 +742,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/satoshi-wallets',
     title: 'Satoshi wallets',
     area: 'wallet',
@@ -752,7 +752,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/whale-tracker',
     title: 'Whale tracker',
     area: 'wallet',
@@ -762,7 +762,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/wallet-viewer',
     title: 'Wallet viewer',
     area: 'wallet',
@@ -773,7 +773,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/wallets',
     title: 'Wallet catalogue',
     area: 'wallet',
@@ -783,7 +783,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/downloads',
     title: 'Downloadable datasets',
     area: 'wallet',
@@ -793,7 +793,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/faq',
     title: 'FAQ',
     area: 'site',
@@ -802,7 +802,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/disclaimer',
     title: 'Disclaimer',
     area: 'site',
@@ -811,7 +811,7 @@
   });
 
   donorRoute({
-    source: 'pkf',
+    source: 'ref-site-a',
     path: '/donate',
     title: 'Donate',
     area: 'site',
@@ -819,7 +819,7 @@
     ours: '/donate'
   });
 
-  /* secretscan.org navigation, 2026-11-19. */
+  /* ref-site-b navigation, 2026-11-19. */
   [
     ['/PrivateKeyHex', 'Private key (HEX)', 'key', '/key/hex', 'parity', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; every chain group has a keyless balance provider (ZEC through SoChain), so no balance row shows `—`.'],
     ['/PrivateKeyWif', 'Private key (WIF)', 'key', '/key/wif', 'parity', 'P0', 'Auto-derive, counters, Copy All/CSV and the donor’s eight EVM chain rows (`↑ same`) are present; every chain group has a keyless balance provider (ZEC through SoChain), so no balance row shows `—`.'],
@@ -839,8 +839,8 @@
     ['/Easy_bnb_transaction_online', 'BNB transaction builder', 'tools', '/send/bnb', 'partial', 'P0', 'Top-level BNB Smart Chain testnet-only /send/bnb page (chapel, chain id 97) that accepts a testnet WIF or 64-hex key; BSC mainnet chain id 56 and mainnet RPCs are rejected. The donor also covers mainnet.'],
     ['/Easy_tron_trx_transaction_online', 'TRON TRX transaction builder', 'tools', '/send/tron', 'partial', 'P0', 'Top-level TRON Nile testnet-only /send/tron page that accepts a testnet WIF or 64-hex key: TRX->sun conversion, local WASM TransferContract signing and an optional api.nileex.io broadcast; mainnet TRON hosts and the mainnet tron route are rejected. The donor covers mainnet TRX.'],
     ['/Easy_usdt_erc20_transaction_online', 'USDT ERC20 transaction builder', 'tools', '/send/usdt', 'partial', 'P0', 'Generic ERC-20 transfer builder on Ethereum Sepolia from a testnet WIF or 64-hex key with a user-supplied contract; no canonical USDT on Sepolia is assumed. The donor covers mainnet USDT.'],
-    ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; secretscan.org shows prices and terms.'],
-    ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The secretscan.org nav link currently answers 404.'],
+    ['/wallets', 'Wallet market table', 'wallet', '/wallets', 'ours-only', '-', 'Crypto mirrors real dataset downloads; ref-site-b shows prices and terms.'],
+    ['/richest', 'Rich lists', 'wallet', null, 'missing', 'P0', 'The ref-site-b nav link currently answers 404.'],
     ['/bitcoin-puzzle', 'Bitcoin puzzle', 'puzzle', '/bitcoin-puzzle', 'parity', '-', 'Table, filters, local worker and Community Hunt now match the donor scope.'],
     ['/vanity-generator', 'Vanity generator', 'tools', '/vanity', 'partial', 'P1', 'Crypto shows parallel workers (1-4), difficulty, ETA, a recent-address list and an address QR (addresses only; keys are never saved). Saving keys is intentionally absent.'],
     ['/keystore-parser', 'Keystore parser', 'tools', '/keystore-parser', 'partial', 'P1', 'Crypto has drag-drop/file input, a verified public test-vector example and keystore metadata; decryption stays in the tab.'],
@@ -853,7 +853,7 @@
     ['/about', 'About', 'site', null, 'missing', 'P3', 'Crypto docs are not an about page.']
   ].forEach(function (row) {
     donorRoute({
-      source: 'ss',
+      source: 'ref-site-b',
       path: row[0],
       title: row[1],
       area: row[2],
@@ -874,7 +874,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: '60 rows per page with First/Previous/Random/Next/Last and a page jump; `?key=` jumps to the page that contains the key.'
   });
 
@@ -886,7 +886,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Opt-in per row; only derived public addresses are queried. BTC, the eight EVM rows, BCH, TRON, XRP, SOL, SUI, TON, LTC, DOGE and ZEC have directory providers. BCH uses one batched Haskoin request per page, the same provider the mnemonic directory uses. LTC/DOGE/ZEC use the shared per-address SoChain provider first (2500 lookups a day per IP keyless, so a 60-row page is 2.4% of the daily budget, and the first 429 stops the SoChain fan-out), the same wiring as the mnemonic directory. On that 429 Litecoin serves the whole page through the keyless litecoinspace Esplora provider declared in the SSOT (one request per address); DOGE falls back to one batched BlockCypher request (`<base>/addrs/<a;b;...>/balance`, SSOT `blockcypher`), whose small hourly quota counts each address and so does not guarantee a filled page; ZEC has no fallback. Both keep the retry state when their providers are limited. Live 2026-11-22, with SoChain answering 429 to every request, both Litecoin pages rendered 60/60 `ok` at 375/768/1280 in light and dark (each page ~10 SoChain 429s, then exactly 60 litecoinspace 200s, 0 failed requests); both DOGE pages rendered 60/60 `err` (the single BlockCypher fallback batch also answered 429), so their live 60/60 was unmeasured at that point; live 2026-11-23, with SoChain\'s quota reset, both DOGE pages and both ZEC pages rendered 60/60 `ok` (60 SoChain requests per page), so their live 60/60 is now measured. A provider failure stays a retry state, never a fake zero.'
   });
 
@@ -898,7 +898,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'BTC and LTC expose legacy/segwit/script/taproot; BCH legacy + CashAddr; TON v4R2 + W5; DOGE and ZEC compressed + uncompressed (`key.js` ID_LABELS, `crates/rotor-wasm/src/derive.rs`, `address-codecs.js`). The page derives the selected curve (secp256k1/ed25519) instead of printing both curves at once.'
   });
 
@@ -910,7 +910,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'BTC rows link to /key/<WIF>; details show compressed and uncompressed WIF.'
   });
 
@@ -922,7 +922,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Rows, pager, word counts, phrase/key copy, path and address types are present for every chain; TON derives v4R2/W5 at the donor path m/44\'/607\'/0\'. Balance checks run for BTC, the eight EVM chains, Solana (one batched getMultipleAccounts POST per page), BCH, SUI, TRON, XRP, TON (one batched TonAPI /accounts/_bulk POST per page, 60/60 rows) and LTC/DOGE/ZEC (shared per-address SoChain provider, 2.4% of the daily budget per page; on SoChain\'s first 429 a Litecoin page is served whole from the keyless litecoinspace Esplora provider (one request per address) and the DOGE page through one batched BlockCypher request (`<base>/addrs/<a;b;...>/balance`, SSOT `blockcypher`), whose small hourly quota counts each address so it does not guarantee a filled page; ZEC has no fallback, and both keep the retry state when their providers are limited. Live 2026-11-22, with SoChain answering 429 to every request, both Litecoin pages rendered 60/60 `ok` at 375/768/1280 in light and dark (each page ~10 SoChain 429s, then exactly 60 litecoinspace 200s, 0 failed requests), while both DOGE pages rendered 60/60 `err` (the single BlockCypher fallback batch also answered 429) and ZEC has no fallback, so their live 60/60 was unmeasured at that point; live 2026-11-23, with SoChain\'s quota reset, both DOGE pages and both ZEC pages rendered 60/60 `ok` (60 SoChain requests per page), so their live 60/60 is now measured). The audit route set covers bitcoin, solana, bitcoin-cash and ton; the other chain pages stay out because their providers fan out one request per address.'
   });
 
@@ -934,7 +934,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Bitcoin rows expose the compressed WIF; other curves expose the derived hex key, each with a copy action.'
   });
 
@@ -946,7 +946,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Crypto adds Electrum old and Electrum BIP39 and all BIP39 entropy lengths.'
   });
 
@@ -958,7 +958,7 @@
     rotor: 'present',
     status: 'parity',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Word counter, 20 addresses, Load next 5, Copy All and Active/Sum aggregates are present, as are breadcrumbs. There is no separate hardened checkbox. The lifetime Received total is shown for BTC from the same blockchain.info balance response, so it costs no extra request; other assets have no lifetime total to show.'
   });
 
@@ -970,7 +970,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: '160 rows with Balance/TX/Actions columns, solved filters, search and BTC claimed/left stats.'
   });
 
@@ -982,7 +982,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Community Hunt stats, live results table, presets, local WASM worker and a key-copy match panel.'
   });
 
@@ -994,7 +994,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Target/range copy, difficulty, decimal key space, TX link, /private-keys cross-link and the 1–160 picker. The donor’s Discussion link now matches (`Discussion` → https://bitcointalk.org/index.php?topic=1306983.0); the remaining gap is the donor’s Solution field (solved private key), out of scope by policy.'
   });
 
@@ -1006,7 +1006,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Solo Random/Solo Seq and a separate Team mode; no silent mix of local and lease work.'
   });
 
@@ -1018,7 +1018,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: '18 chain tiles, an 18,890 counter, explainer blocks and links to the generator/key/seed tools.'
   });
 
@@ -1030,7 +1030,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Shared SHA-256 engine, BTC legacy/SegWit/Taproot or ETH rows, explorer links and copy.'
   });
 
@@ -1042,7 +1042,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: '60 rows × 315 pages per chain with key and phrase copy, the hex key plus WIF(c)/WIF(u) links to /key/<key> on BTC/BCH/LTC/DOGE with the chain’s own WIF encoding (BTC/BCH 0x80, LTC 0xb0, DOGE 0x9e), address/explorer/copy, address types and optional balances.'
   });
 
@@ -1054,7 +1054,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: '18-chain network dropdown, 1/3/5/10 addresses, Generate & Check Balance, Copy all and CSV.'
   });
 
@@ -1066,7 +1066,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: 'Six networks, parallel workers (1-4), difficulty, ETA, recent matches and an address-only QR are shipped (`apps/site/qr.js`, `vanity.js` `paintQr`). Saving keys is intentionally absent: keys never leave the page or enter storage.'
   });
 
@@ -1078,7 +1078,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: 'Local V3 decrypt, drag-drop/file input, a verified example and metadata display; nothing leaves the tab.'
   });
 
@@ -1090,7 +1090,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: 'BTC P2PKH/P2WPKH/P2SH/P2TR, EVM and TRON from a public key.'
   });
 
@@ -1102,7 +1102,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: 'P + Q, P − Q and k · P are all shipped: the operation select in `pubkey-add.html` maps to `pubkey_subtract_report`/`pubkey_mul_report` in `crates/rotor-wasm/src/derive.rs`, with pinned vectors in `key-tools-test.mjs`.'
   });
 
@@ -1114,7 +1114,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: 'Different semantics: a known-byte assembler, not ±a±λb search.'
   });
 
@@ -1126,7 +1126,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
+    sources: ['ref-site-a', 'ref-site-b'],
     note: 'Unsigned 0..2^256-1 with validation and copy.'
   });
 
@@ -1138,8 +1138,8 @@
     rotor: 'missing',
     status: 'missing',
     priority: 'P0',
-    sources: ['privatekeyfinder.io', 'secretscan.org'],
-    note: 'Crypto only has dataset dumps under /wallets; privatekeyfinder.io has top-100 tables for seven chains (bitcoin, ethereum, bnb, polygon, arbitrum, tron, dogecoin). The keyless SoChain rich_list ranks BTC, DOGE, LTC and ZEC only and so cannot cover the five EVM/Tron lists; the route stays absent until the owner chooses between a BTC/DOGE-only list and a ranked dataset.'
+    sources: ['ref-site-a', 'ref-site-b'],
+    note: 'Crypto only has dataset dumps under /wallets; ref-site-a has top-100 tables for seven chains (bitcoin, ethereum, bnb, polygon, arbitrum, tron, dogecoin). The keyless SoChain rich_list ranks BTC, DOGE, LTC and ZEC only and so cannot cover the five EVM/Tron lists; the route stays absent until the owner chooses between a BTC/DOGE-only list and a ranked dataset.'
   });
 
   feature({
@@ -1150,7 +1150,7 @@
     rotor: 'missing',
     status: 'missing',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Stats, tables, filters and pagination on the donor; no Crypto data source yet.'
   });
 
@@ -1162,7 +1162,7 @@
     rotor: 'missing',
     status: 'missing',
     priority: 'P2',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: ''
   });
 
@@ -1174,7 +1174,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P2',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'The keystore parser can expose one ETH address; there is no general address viewer.'
   });
 
@@ -1186,7 +1186,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P0',
-    sources: ['secretscan.org'],
+    sources: ['ref-site-b'],
     note: 'Top-level /send covers BTC testnet, ETH Sepolia, BNB Smart Chain testnet, TRON Nile testnet and a generic ERC-20 transfer builder on Sepolia; every route accepts a testnet WIF or 64-hex key. USDC-specific builders and all mainnet sends are still missing; /send/usdt uses a user-supplied contract because Sepolia has no canonical USDT deployment.'
   });
 
@@ -1198,7 +1198,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['secretscan.org'],
+    sources: ['ref-site-b'],
     note: 'Public client-side decoders on /tx/bitcoin and /tx/ethereum. Bitcoin fee needs supplied prevouts; EVM signature recovery is not performed.'
   });
 
@@ -1210,7 +1210,7 @@
     rotor: 'missing',
     status: 'missing',
     priority: 'P2',
-    sources: ['secretscan.org'],
+    sources: ['ref-site-b'],
     note: ''
   });
 
@@ -1222,7 +1222,7 @@
     rotor: 'present',
     status: 'parity',
     priority: 'P0',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'The Ctrl+K modal keeps auto-detect, adds an explicit interpret-as selector and 1/3/5/10 address counts, and renders a public chain/address/type table with Copy All and a public-only CSV export. A live N chars/N words counter sits under the input, and a detected mnemonic is labelled with its Electrum SegWit/Legacy sub-type. Mnemonics hand off to /mnemonic-converter through sessionStorage (the phrase is removed as soon as the converter reads it); keys never enter the URL. WIF auto-detection accepts Bitcoin (5/K/L), Litecoin (T/6) and Dogecoin (Q/6) mainnet keys.'
   });
 
@@ -1234,7 +1234,7 @@
     rotor: 'present',
     status: 'parity',
     priority: 'P0',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Auto-derive, counters, Copy All/CSV, WIF(u), XRP secret and public-key formats shipped; eight separate EVM chain rows and a USD Total value from a six-hour cached public ticker (rows without a price are excluded and counted) are in place.'
   });
 
@@ -1246,7 +1246,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'The compact derivation block with an editable path and the curve segmented control shipped. The duplicate wallet-preset select was removed; the preset chips are the only wallet control, and the audit `duplicate-preset-control` detector rejects a second copy (`key.html:166-183`).'
   });
 
@@ -1258,7 +1258,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Below 860px the first four links stay inline and the rest move into a More disclosure with Escape/outside-click close; search and theme toggles are icon-only. The Seeds item resolves to the browsable /mnemonic-seeds directory (`data-nav="seeds"`, active on every /mnemonic-seeds/* page); the /seed studio is a tool page reached from /tools, /key, /mnemonic-seeds and /mnemonic-converter, not a primary nav destination.'
   });
 
@@ -1270,7 +1270,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Crypto /tools renders eight families with 37 alias chips, each at the 44px touch target.'
   });
 
@@ -1282,7 +1282,7 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Address copy, explorer and details actions use the shared 44 px `.icon-button--lg` with `aria-label` + `data-tooltip` and an `.is-copied` state (`key.js`, `site.css`). Addresses truncate with a CSS end ellipsis (the full value stays in `title`); the captured donor `key-details.css` uses `word-break: break-all` on `.kd-addr code` and wraps the full address instead. The truncation is a deliberate density choice, not a missing control.'
   });
 
@@ -1294,7 +1294,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'The donor renders 60 key rows and, for a legacy Bitcoin key, two address items `(c)`/`(u)` immediately (120 addresses per page); there is no disclosure. Rotor matches that and keeps the page total at 120 (`data-addresses-per-page`); a single-address chain stays at 60. Each balance line shows the balance, a `.badge` TX count and a received `.badge` only when non-zero; the zero received figure and relative-age label were removed. Measured in `docs/donor-parity/density-bitcoin-row.md`; detectors `browse-row-address-count`, `browse-row-balance-lines`, `browse-row-key-copy`, `browse-row-height`.'
   });
 
@@ -1306,7 +1306,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'The donor also prints the whole phrase, truncated with an ellipsis and carried in `title` plus a copy action (`docs/donor-parity/directories.md` §3, items 11 and 12); Crypto matches that cell (`mnemonic-seeds.js:675-704`). There is no collapsed/reveal row on either site.'
   });
 
@@ -1318,7 +1318,7 @@
     rotor: 'present',
     status: 'parity',
     priority: 'P1',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Breadcrumbs are consistent on every public page, with one current crumb per trail. `.empty-state`, `.skeleton` and `.error` are shared primitives (`apps/site/site.css`, PR #170) and the page-local empty classes are gone. Directory pages keep separate search, type-selector and pager panels because the donor splits them the same way (`docs/donor-parity/directory-pages.md` §1); `/key` renders one filter bar and a separate pager.'
   });
 
@@ -1330,7 +1330,7 @@
     rotor: 'present',
     status: 'parity',
     priority: '-',
-    sources: ['privatekeyfinder.io'],
+    sources: ['ref-site-a'],
     note: 'Header toggle, saved choice, follows prefers-color-scheme by default.'
   });
 
@@ -1354,8 +1354,8 @@
     rotor: 'partial',
     status: 'partial',
     priority: 'P2',
-    sources: ['secretscan.org'],
-    note: 'Crypto /cabinet is an address monitor; secretscan.org /dashboard is a calculator dashboard.'
+    sources: ['ref-site-b'],
+    note: 'Crypto /cabinet is an address monitor; ref-site-b /dashboard is a calculator dashboard.'
   });
 
   window.RotorSiteMapData = {

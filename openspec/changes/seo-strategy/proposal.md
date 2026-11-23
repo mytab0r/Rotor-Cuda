@@ -201,7 +201,7 @@ Each is checkable with a command or a review checklist.
 - `openspec/changes/tx-sign-broadcast/` for the planned `/tx` surface.
 - `openspec/specs/coordinator/spec.md` embedded-asset requirement.
 - `deploy/README.md:109,117-119` host and Cloudflare proxy facts.
-- Reference patterns reviewed: privatekeyfinder.io (browser derivation plus
-  public balance APIs, per-key pages), secretscan.org (server-side step
+- Reference patterns reviewed: ref-site-a (browser derivation plus
+  public balance APIs, per-key pages), ref-site-b (server-side step
   calculators). Neither pattern is copied wholesale; the key-index part is
   rejected.
