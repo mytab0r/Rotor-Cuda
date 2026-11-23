@@ -1,0 +1,230 @@
+---
+/* Bitcoin puzzle hub, built from `data/puzzles.json`.
+ *
+ * The table is server-rendered from the same 160-row dataset the coordinator's
+ * `src/coordinator/puzzles.rs` carries. The rows show the target address, its
+ * address type, the inclusive bit range and the published solved flag. The
+ * dataset has no reward field, so the page does not invent a BTC column.
+ *
+ * Each row links to its detail page and offers the shared copy control; there
+ * is no dead action. The page is static: balances and scan tools stay on the
+ * coordinator until the frontend-platform cutover, and this page claims none of
+ * them. */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN, absoluteUrl } from '../../lib/site';
+import { breadcrumbList } from '../../lib/jsonld';
+import {
+  HUB_DESCRIPTION,
+  HUB_TITLE,
+  PUZZLES,
+  PUZZLE_COUNT,
+  SOLVED_COUNT,
+  UNSOLVED_COUNT,
+  addressTypeLabel,
+  puzzleRange,
+} from '../../lib/puzzles';
+
+const H1 = 'Bitcoin puzzle';
+const canonical = '/bitcoin-puzzle';
+const canonicalUrl = absoluteUrl(canonical);
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+const addressType = addressTypeLabel();
+
+const rows = PUZZLES.map((puzzle) => {
+  const range = puzzleRange(puzzle.number);
+  return { ...puzzle, range };
+});
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: H1,
+      description: HUB_DESCRIPTION,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: SITE_NAME,
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        name: 'Public Bitcoin puzzles',
+        numberOfItems: PUZZLE_COUNT,
+        itemListOrder: 'https://schema.org/ItemListOrderAscending',
+        itemListElement: rows.map((puzzle) => ({
+          '@type': 'ListItem',
+          position: puzzle.number,
+          name: `Bitcoin puzzle #${puzzle.number}`,
+          url: absoluteUrl(`/bitcoin-puzzle/${puzzle.number}`),
+        })),
+      },
+    },
+    breadcrumbList([
+      { name: 'Home', path: '/' },
+      { name: 'Bitcoin puzzle', path: canonical },
+    ]),
+  ],
+};
+---
+
+<SiteLayout
+  title={HUB_TITLE}
+  description={HUB_DESCRIPTION}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`Bitcoin puzzle browser — ${PUZZLE_COUNT} public targets, ${SOLVED_COUNT} solved | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="puzzle-page hub-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Bitcoin puzzle</span>
+  </nav>
+
+  <section class="browse-hero">
+    <span class="browse-hero-icon">
+      <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-puzzle"></use></svg>
+    </span>
+    <div class="browse-hero-title"><h1>{H1}</h1></div>
+    <p>
+      {PUZZLE_COUNT} public Bitcoin puzzles, each a target address whose private key sits in a
+      known bit range. {SOLVED_COUNT} targets are marked solved and {UNSOLVED_COUNT} are marked
+      unsolved in the published dataset. Open any row for its target, range and status.
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="puzzle-set">
+    <h2 id="puzzle-set">What the dataset records</h2>
+    <div class="puzzle-prose-body">
+      <p>
+        The table carries three facts per puzzle: the public target address, the inclusive key range
+        and the solved flag. The target is a legacy P2PKH address, so every row has the same
+        address type. The range follows one rule: puzzle <var>n</var> covers every private key from
+        2<sup>n−1</sup> to 2<sup>n</sup>−1, which means puzzle #1 has one key and each later puzzle
+        doubles the count.
+      </p>
+      <p class="muted">
+        The dataset has no reward, solver or date field, so this page shows no BTC amount and no
+        solve history. It also does not claim that the owner of a solved target is known or that an
+        unsolved range has been fully searched. Status is the published flag, nothing more.
+      </p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="puzzle-table">
+    <h2 id="puzzle-table">All {PUZZLE_COUNT} puzzles</h2>
+    <p class="muted">
+      Sorted by puzzle number. Solved is the flag the public dataset publishes; it is not a live
+      balance check. The copy control copies only the public target address.
+    </p>
+    <div class="table-scroll">
+      <table class="data-table puzzle-table" data-puzzle-table data-puzzle-count={PUZZLE_COUNT}>
+        <caption class="visually-hidden">
+          Public Bitcoin puzzles with target address, address type, key range and solved status
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Puzzle</th>
+            <th scope="col">Target address</th>
+            <th scope="col">Type</th>
+            <th scope="col">Range</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((puzzle) => (
+            <tr
+              data-puzzle-row
+              data-puzzle-number={puzzle.number}
+              data-puzzle-target={puzzle.target}
+              data-puzzle-status={puzzle.solved ? 'solved' : 'unsolved'}
+            >
+              <td class="puzzle-num">
+                <a class="puzzle-row-link" href={`/bitcoin-puzzle/${puzzle.number}/`}>#{puzzle.number}</a>
+              </td>
+              <td class="mono puzzle-target">
+                <span>{puzzle.target}</span>
+                <button
+                  type="button"
+                  class="icon-button icon-button--sm icon-button--quiet puzzle-copy"
+                  data-copy={puzzle.target}
+                  data-copy-label={`puzzle #${puzzle.number} target`}
+                  aria-label={`Copy puzzle #${puzzle.number} target address`}
+                  data-tooltip="Copy target address"
+                >
+                  <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+                </button>
+              </td>
+              <td>{addressType}</td>
+              <td class="puzzle-range">
+                <span class="puzzle-range-cell">
+                  <span class="puzzle-range-bits">{puzzle.range.bits} bits</span>
+                  <span class="puzzle-range-values">
+                    2^{puzzle.range.bits}–2^{puzzle.number}−1
+                  </span>
+                </span>
+              </td>
+              <td>
+                <span class:list={['status', puzzle.solved ? 'status--low' : 'status--medium']}>
+                  {puzzle.solved ? 'Solved' : 'Unsolved'}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="visually-hidden" data-copy-status role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card puzzle-prose" aria-labelledby="puzzle-range">
+    <h2 id="puzzle-range">How the range works</h2>
+    <div class="puzzle-prose-body">
+      <p>
+        A puzzle is a public target plus a known slice of the secp256k1 private-key space. For puzzle
+        <var>n</var>, the slice is the inclusive interval from 2<sup>n−1</sup> to 2<sup>n</sup>−1.
+        #10 therefore spans 512 keys, #20 spans 524,288 keys and #71 spans 2<sup>70</sup> keys. The
+        target is the single key in that slice whose public key hashes to the published address;
+        every other key is a miss.
+      </p>
+      <p>
+        A range is a search space, not a progress report. Knowing that a target is unsolved says
+        nothing about how much of its range has been tested, and knowing that a target is solved does
+        not reveal which key won. The dataset publishes no per-puzzle scan counts, so this page
+        publishes none.
+      </p>
+    </div>
+  </section>
+
+  <section class="card puzzle-prose" aria-labelledby="puzzle-limits">
+    <h2 id="puzzle-limits">What this page does not do</h2>
+    <div class="puzzle-prose-body">
+      <p>
+        It does not derive, display or accept a private key. It does not query a node, an indexer or
+        a balance service. It does not run a scan and it does not claim that any range is practical
+        to search. The only outbound links are the target addresses' public block explorers on the
+        detail pages, and those links reveal the address you clicked, as any explorer would.
+      </p>
+      <p>
+        For the derivation mechanics and the other calculators, open the
+        <a href="/private-keys/bitcoin">Bitcoin private-key directory</a> or the
+        <a href="/tools">tool hub</a>. Both are built in this static app; the coordinator keeps
+        serving its live scan pages until the cutover.
+      </p>
+    </div>
+  </section>
+</SiteLayout>
+
+<script>
+  import '../../scripts/chain-copy.ts';
+</script>

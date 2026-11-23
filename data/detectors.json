@@ -1073,6 +1073,38 @@
       "implemented_in": "scripts/check-seo.mjs",
       "doc_anchor": "docs/process/seo-gate.md#rules",
       "status": "implemented"
+    },
+    {
+      "id": "seo-puzzle-rows",
+      "rule": "The /bitcoin-puzzle hub renders one table row per row in data/puzzles.json, in order, with the table's data-puzzle-count equal to the dataset count.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-puzzle-data",
+      "rule": "Every rendered puzzle row and detail page matches data/puzzles.json: number, target, solved status and the inclusive 2^(n-1)..2^n-1 range hex; copy controls carry only those values.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-puzzle-fabricated-key",
+      "rule": "No puzzle page presents a 64-hex value as a private key or carries a private-key data attribute; the dataset has no key to render.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
+    },
+    {
+      "id": "seo-puzzle-sitemap",
+      "rule": "sitemap.xml lists the /bitcoin-puzzle hub and exactly the indexable puzzle detail pages, and no page rendered noindex.",
+      "batch": "seo",
+      "implemented_in": "scripts/check-seo.mjs",
+      "doc_anchor": "docs/process/seo-gate.md#rules",
+      "status": "implemented"
     }
   ]
 }

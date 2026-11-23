@@ -538,3 +538,174 @@
   }
 }
 
+/* ---------------------------------------------------------- bitcoin puzzle */
+/* The hub table and the per-puzzle fact list. Rows use the shared 36/44 table
+ * rhythm; the dense copy action is 28 on a fine desktop pointer with a 44px
+ * hit area (the shared .icon-button--sm tier) and 44 on touch. No page-local
+ * control size, pill or radius: the status pills and copy buttons are the
+ * shared components. Tokens only. */
+
+.puzzle-page > .card { min-width: 0; }
+.puzzle-page > section { min-width: 0; }
+.puzzle-table { min-width: 640px; }
+/* One stable row per puzzle: the table keeps every column and scrolls inside
+ * the shared wrapper, rather than wrapping the target or the range into a
+ * second line. The row height is then the shared 36px desktop / 44px touch
+ * step. */
+.puzzle-table th,
+.puzzle-table td {
+  line-height: 1.2;
+  white-space: nowrap;
+}
+/* The number cell is one full-cell link: the anchor is absolutely positioned
+ * into the cell's padding box, so it is 36/44 high without adding that height
+ * on top of the cell padding. */
+.puzzle-num {
+  position: relative;
+  width: calc(var(--control-h-lg) + var(--space-5));
+  min-width: calc(var(--control-h-lg) + var(--space-5));
+}
+.puzzle-num a {
+  position: absolute;
+  inset: -1px 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-3);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+}
+.puzzle-target > span { overflow-wrap: anywhere; }
+.puzzle-target {
+  position: relative;
+  padding-right: calc(var(--control-h-lg) + var(--space-3));
+}
+.puzzle-copy {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  margin: 0;
+  transform: translateY(-50%);
+}
+.puzzle-range-cell {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.puzzle-range-bits {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+.puzzle-range-values {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The detail header is one compact card rather than the browse hero: an H1 and
+ * status on one row, one fact-carrying paragraph and one link. */
+.puzzle-detail-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.puzzle-detail-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.puzzle-detail-title h1 {
+  min-width: 0;
+  margin: 0;
+  font-size: clamp(var(--text-2xl), 3vw, var(--text-3xl));
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.puzzle-detail-head p {
+  max-width: none;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.puzzle-detail-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  font-weight: var(--weight-semibold);
+}
+
+/* The prose cards keep the heading above a full-width body wrapper, so a wide
+ * card is not judged half-empty by the shared block audit. At desktop the
+ * paragraphs split into two reading columns inside that wrapper. */
+.puzzle-prose-body {
+  display: grid;
+  gap: var(--space-2);
+}
+.puzzle-prose-body p {
+  max-width: 72ch;
+  overflow-wrap: anywhere;
+}
+.puzzle-page .mono { overflow-wrap: anywhere; }
+@media (min-width: 1024px) {
+  .puzzle-prose-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-6);
+    align-items: start;
+  }
+}
+
+.puzzle-facts {
+  display: grid;
+  margin: 0;
+}
+.puzzle-fact {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--line-subtle);
+}
+.puzzle-fact:last-child { border-bottom: 0; }
+.puzzle-fact dt {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+.puzzle-fact dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-1);
+}
+.puzzle-fact-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.puzzle-fact-value .icon-button { position: relative; }
+.puzzle-address {
+  font-family: var(--mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.puzzle-hex {
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.puzzle-range-decimal {
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .puzzle-fact {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .puzzle-detail-links a { min-height: var(--control-h-md); }
+}
+

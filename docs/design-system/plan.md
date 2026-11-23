@@ -462,6 +462,10 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `seo-og-image-alt` | og:image is present and og:image:alt plus twitter:image:alt name the chain, so one family image still tells crawlers which page it represents. | seo | implemented |
 | `seo-hub-links` | The /private-keys hub is built, links every one of the 18 mainnet chain pages from data/chains.json, and every internal link in its main content resolves to a built file in web/dist. | seo | implemented |
 | `seo-not-found` | The deploy root ships 404.html with noindex, no hidden H1 and exactly one visible H1; without it Cloudflare Pages answers 200 with the landing page for an unknown path (a soft 404). | seo | implemented |
+| `seo-puzzle-rows` | The /bitcoin-puzzle hub renders one table row per row in data/puzzles.json, in order, with the table's data-puzzle-count equal to the dataset count. | seo | implemented |
+| `seo-puzzle-data` | Every rendered puzzle row and detail page matches data/puzzles.json: number, target, solved status and the inclusive 2^(n-1)..2^n-1 range hex; copy controls carry only those values. | seo | implemented |
+| `seo-puzzle-fabricated-key` | No puzzle page presents a 64-hex value as a private key or carries a private-key data attribute; the dataset has no key to render. | seo | implemented |
+| `seo-puzzle-sitemap` | sitemap.xml lists the /bitcoin-puzzle hub and exactly the indexable puzzle detail pages, and no page rendered noindex. | seo | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.
