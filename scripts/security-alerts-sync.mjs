@@ -630,6 +630,9 @@ function applyAction(action, context) {
 
   if (action.type === "close") {
     const reason = action.facts.state === "fixed" ? "completed" : "not planned";
+    // Add the project item before the issue closes, so a closed issue is never
+    // the reason a project write fails.
+    ensureItem(context.project, action.issue.url, `#${action.number}`);
     gh([
       "issue",
       "close",

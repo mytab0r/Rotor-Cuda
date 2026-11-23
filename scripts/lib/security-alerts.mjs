@@ -617,8 +617,9 @@ export function summarize(alerts) {
   const counts = { total: alerts.length, open: 0, dismissed: 0, fixed: 0, resolved: 0 };
   for (const facts of alerts) {
     if (facts.state === "open") counts.open += 1;
-    else if (facts.state === "dismissed") counts.dismissed += 1;
-    else if (facts.state === "fixed") counts.fixed += 1;
+    else if (facts.state === "dismissed" || facts.state === "auto_dismissed") {
+      counts.dismissed += 1;
+    } else if (facts.state === "fixed") counts.fixed += 1;
     else if (facts.state === "resolved") counts.resolved += 1;
   }
   return counts;
