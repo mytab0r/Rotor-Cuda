@@ -7187,13 +7187,17 @@ mod tests {
         }
         for needle in [
             "<div class=\"address-type-panel key-address-panel\"",
-            "class=\"address-type-card\"",
-            "class=\"type-name\"",
-            "class=\"type-desc\"",
-            "data-row=\"btc_p2pkh\"",
-            "id=\"btc-panel\"",
+            "id=\"format-panel\"",
+            "id=\"format-cards\"",
+            "aria-label=\"Address format\"",
         ] {
             assert!(KEY_PAGE.contains(needle), "key page misses {needle}");
+        }
+        for needle in ["address-type-card", "type-name"] {
+            assert!(
+                KEY_JS.contains(needle),
+                "key script misses the shared card markup {needle}"
+            );
         }
         for legacy in ["key-type", "key-types", "key-btc-panel"] {
             assert!(!KEY_PAGE.contains(legacy), "key page still uses {legacy}");

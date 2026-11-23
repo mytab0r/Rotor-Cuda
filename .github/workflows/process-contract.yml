@@ -1,0 +1,53 @@
+name: process-contract
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  process-contract:
+    name: process-contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests for the process contract
+        run: node --test scripts/check-process.test.mjs
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+      # The gate itself is taken from the base branch, not from the PR: a PR
+      # could otherwise weaken the check that judges it. On the PR that first
+      # introduces the gate the base copy does not exist yet, so the PR copy is
+      # used (this one time). The contract is described in
+      # docs/process/verification.md; the template is
+      # .github/pull_request_template.md. Product PRs need the five evidence
+      # sections and `Task: ROT-<n>`; docs/process-only PRs may use
+      # `Task: none — <reason>`; `process-exempt` needs a one-line reason.
+      - name: Check the PR body against the process contract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          base="origin/${{ github.base_ref }}"
+          gate="$RUNNER_TEMP/process-gate/scripts"
+          mkdir -p "$gate/lib"
+          if git show "$base:scripts/check-process.mjs" > "$gate/check-process.mjs" 2>/dev/null; then
+            git show "$base:scripts/lib/task-tracking.mjs" > "$gate/lib/task-tracking.mjs"
+            echo "gate source: $base"
+          else
+            cp scripts/check-process.mjs "$gate/check-process.mjs"
+            cp scripts/lib/task-tracking.mjs "$gate/lib/task-tracking.mjs"
+            echo "gate source: PR copy (first introduction)"
+          fi
+          node "$gate/check-process.mjs" \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --pr "${{ github.event.pull_request.number }}"
