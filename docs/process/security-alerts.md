@@ -168,7 +168,7 @@ workflow runs daily at 04:43 UTC and on `workflow_dispatch`.
 
 ```text
 $ node scripts/security-alerts-sync.mjs --dry-run
-security-alerts: 0 open, 8 dismissed, 3 fixed, 0 resolved (tracking issues: 164 scanned)
+security-alerts: 0 open, 8 dismissed, 3 fixed, 0 resolved (repository issues scanned: 164)
 no-op code-scanning #1: Alert fixed upstream at 2026-11-18T05:40:51.000Z. No tracking issue to close.
 no-op code-scanning #2: Alert fixed upstream at 2026-11-18T05:40:51.000Z. No tracking issue to close.
 no-op code-scanning #3: Alert fixed upstream at 2026-11-18T05:40:51.000Z. No tracking issue to close.

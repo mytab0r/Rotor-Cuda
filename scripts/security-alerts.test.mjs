@@ -197,6 +197,7 @@ test("code scanning alert facts, title and body carry every required field", () 
   assert.match(body, /\| First seen \| 2026-11-23T16:45:07\.000Z \|/);
   assert.match(body, /\[open the alert\]\(https:\/\/github\.com\/mytab0r\/Rotor-Cuda\/security\/code-scanning\/16\)/);
   assert.match(body, /^Priority: P0$/m);
+  assert.match(body, /^Severity: S1$/m);
   assert.match(body, /Required action:/);
 });
 

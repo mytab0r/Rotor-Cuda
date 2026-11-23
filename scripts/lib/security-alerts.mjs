@@ -361,6 +361,7 @@ export function issueBody(facts, { area, priority, milestone, repoUrl } = {}) {
     ...rows.map(([name, value]) => `| ${name} | ${tableCell(value)} |`),
     "",
     `Priority: ${priority}`,
+    `Severity: ${severityFieldForPriority(priority)}`,
     "",
     `**Required action:** ${requiredAction(facts)}`,
   ];

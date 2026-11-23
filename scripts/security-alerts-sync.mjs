@@ -724,7 +724,7 @@ async function main() {
   updateSummary(
     `security-alerts: ${counts.open} open, ${counts.dismissed} dismissed, ` +
       `${counts.fixed} fixed, ${counts.resolved} resolved ` +
-      `(tracking issues: ${issues.length} scanned)`,
+      `(repository issues scanned: ${issues.length})`,
   );
 
   const mutable = plan.actions.filter((action) =>
