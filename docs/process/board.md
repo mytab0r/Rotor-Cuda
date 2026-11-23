@@ -46,6 +46,10 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
 - **Native dependencies**: the `Blocked by:` text line stays for humans, and
   the sync also creates GitHub `addBlockedBy` links, removes a link the text no
   longer lists and prints every edge in its report.
+- **Adoption**: an issue created outside the sync that carries a `ROT-<n>`
+  title or an `area:*` / `change:*` / `epic` label gets the same Type,
+  Milestone, Priority and plan/actual dates. New adopted non-epic work defaults
+  to `P2` unless its epic declares a priority.
 - **Plan vs actual**: `Start date` → `Target date` is the plan; `Actual start`
   → `Actual end` is the fact. The native `createdAt` / `closedAt` are only
   reported. The sync prints one
