@@ -764,6 +764,20 @@
       "symptom": "The /key status cell held a 148px fixed column with nowrap + overflow:hidden + ellipsis, so `0 BTC · 199 tx · just now` and long balances/nonces were cut on desktop and a phone saw only the spinner; long addresses were ellipsized and directory rows cut the 64-hex key. The gates measured document overflow and target sizes, not per-cell clipping.",
       "detector": "cell-content-clipped",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "clipped-text-anywhere",
+      "reported": "2026-11-23",
+      "symptom": "Clipping was checked only for table cells after PR #433. A paragraph, a fixed-height label, a key summary value or a flex child could still cut visible text while every page-level overflow and target check passed, so each new instance was found by accident.",
+      "detector": "text-clipped",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "donor-layout-unmeasured",
+      "reported": "2026-11-23",
+      "symptom": "Density and layout work measured the donor with ad-hoc commands and left no committed reference, so a later change could move the table start, row height, column widths, controls or fonts without any visible signal. The reference is recorded as docs/parity/donor-layout.json; deltas are warnings, not targets.",
+      "detector": "donor-layout-parity",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

@@ -1677,7 +1677,13 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .balance-summary--browse .balance-refresh {
   grid-column: auto;
   flex: 0 0 auto;
-  padding: 0 0 0 var(--space-2);
+  /* The retry count is absolutely positioned 4px past the button's top-right
+   * corner. The right padding keeps the badge inside the refresh's own scroll
+   * box and the right margin reserves the same 4px after the control, so the
+   * summary's scrollWidth is deterministic instead of 3px wider than its
+   * clientWidth in the failed-check state. */
+  padding: 0 4px 0 var(--space-2);
+  margin-right: 4px;
   border-top: 0;
   background: transparent;
 }
@@ -3507,16 +3513,76 @@ details > summary { min-height: 44px; }
   white-space: nowrap;
   border: 0;
 }
-.key-page .key-summary-group .key-form-row { grid-template-columns: 112px minmax(0, 1fr) auto; height: 44px; min-height: 44px; padding: 0; gap: 8px; }
-.key-page .key-summary-group .key-form-row:first-child { padding-top: 0; }
-.key-page .key-summary-group .key-form-row dt,
-.key-page .key-summary-group .key-form-row dd { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.key-page #balance-help {
-  max-width: 100%;
+/* Key facts are values a reader may need to copy by eye; never ellipsize
+ * them. The row grows and the value wraps anywhere. On a phone the label
+ * sits above the value so the value gets the full width beside the copy
+ * action. */
+.key-page .key-summary-group .key-form-row {
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  height: auto;
+  min-height: 44px;
+  padding: 4px 0;
+  gap: 4px 8px;
+  align-items: center;
+}
+.key-page .key-summary-group .key-form-row:first-child { padding-top: 4px; }
+.key-page .key-summary-group .key-form-row dt {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.key-page .key-summary-group .key-form-row dd {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  line-height: 1.45;
+}
+@media (max-width: 560px) {
+  .key-page .key-summary-group .key-form-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label action" "value action";
+    align-items: start;
+    row-gap: 2px;
+    min-height: 44px;
+    padding: 6px 0;
+  }
+  .key-page .key-summary-group .key-form-row dt { grid-area: label; grid-column: auto; }
+  .key-page .key-summary-group .key-form-row dd { grid-area: value; grid-column: auto; }
+  .key-page .key-summary-group .key-form-row .key-copy {
+    grid-area: action;
+    grid-column: auto;
+    grid-row: auto;
+    align-self: center;
+  }
+  .key-page .key-summary-group .key-form-row .key-copy-spacer {
+    display: block;
+    grid-area: action;
+    align-self: center;
+  }
+}
+.key-page .key-balance-help {
+  max-width: 82ch;
   margin: 0 0 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+.key-page .key-balance-help summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.key-page .key-balance-help summary:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+.key-page .key-balance-help p {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
 }
 .key-page .key-export-status:empty { display: none; }
 
@@ -3537,7 +3603,7 @@ details > summary { min-height: 44px; }
   flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  min-height: 40px;
   margin-top: 2px;
   line-height: 1.25;
 }
@@ -3546,13 +3612,13 @@ details > summary { min-height: 44px; }
   min-width: 0;
   min-height: 0;
   line-height: 1.25;
-  white-space: nowrap;
+  white-space: normal;
 }
 .key-input-meta #key-status-text {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .key-url-chip {
   flex: none;
@@ -3570,15 +3636,14 @@ details > summary { min-height: 44px; }
 .key-url-chip .icon { width: 17px; height: 17px; }
 .key-exposure-status {
   flex: 0 1 auto;
-  min-width: 0;
+  min-width: 12ch;
   max-width: 34ch;
   margin: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .key-exposure-status.ok { color: var(--ok); }
 .key-exposure-status.err { color: var(--err); }
@@ -3633,9 +3698,24 @@ details > summary { min-height: 44px; }
   .key-page .key-chains { flex-basis: 100%; }
 }
 @media (max-width: 560px) {
-  /* The status keeps one line; optional chips share the same 40px row and
-   * the popover stays inside the viewport. */
-  .key-input-meta { flex-wrap: nowrap; height: 40px; min-height: 40px; row-gap: 0; padding-block: 0; }
+  /* Two rows: the status gets the full width beside the URL chip and the
+   * info control, and the exposure note sits on its own line. This lets the
+   * status wrap to two lines instead of the four it needed when the exposure
+   * chip shared the row. The row grows; nothing is clipped. */
+  .key-input-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "status url info" "exposure exposure exposure";
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    min-height: 40px;
+    padding-block: 0;
+  }
+  .key-input-meta .key-input-status { grid-area: status; }
+  .key-input-meta #key-url-notice { grid-area: url; }
+  .key-input-meta #exposure-status { grid-area: exposure; min-width: 0; max-width: none; justify-self: start; }
+  .key-input-meta #key-info-btn { grid-area: info; }
   .key-info-popover { width: min(430px, calc(100vw - 40px)); }
   .key-filter-bar .address-type-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Stacked label/value rows must grow: the 44px single-line height clipped
@@ -4548,7 +4628,7 @@ a.button.primary,
     padding-block: var(--space-1);
   }
   .key-page .key-summary-group .key-form-row {
-    height: var(--control-h);
+    height: auto;
     min-height: var(--control-h);
   }
   /* The key table keeps every value readable at desktop density: long
