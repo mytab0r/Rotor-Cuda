@@ -1,0 +1,50 @@
+name: security-alerts-sync
+
+on:
+  schedule:
+    # Daily routing. GitHub also runs CodeQL on push; the next sync turns every
+    # open alert into a tracking issue, so the board and the issue list are the
+    # place a human sees it. `workflow_dispatch` is the manual catch-up.
+    - cron: "43 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  security-events: read
+
+concurrency:
+  group: security-alerts-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: route and reconcile security alerts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The default GITHUB_TOKEN cannot read all alert APIs on a user-owned
+      # repository nor edit a user-owned Project v2. BOARD_SYNC_TOKEN is the
+      # owner's personal token (repo, project and security-events access); the
+      # value is never stored in the repository or printed.
+      - name: Require the owner token
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::BOARD_SYNC_TOKEN is not configured; see docs/process/security-alerts.md."
+            exit 1
+          fi
+      - name: Upsert and close security tracking issues
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: node scripts/security-alerts-sync.mjs
+      # The only red signal: an open alert older than 24h whose tracking issue
+      # has no assignee. A daily run that merely sees open alerts stays green.
+      - name: Escalate open alerts older than 24h without an assignee
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: node scripts/security-alerts-sync.mjs --check-escalation

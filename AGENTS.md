@@ -113,8 +113,13 @@ explorer URL or chain identity into a page script.
 
 ## Security alerts
 
-- Code scanning alerts are triaged within one working day. `.github/workflows/codeql-alerts.yml`
-  fails daily while any alert stays open, so an ignored alert turns the monitor red.
+- Every open code scanning, Dependabot and secret scanning alert is routed to
+  one tracking issue by `.github/workflows/security-alerts-sync.yml`; the
+  lifecycle, severity-to-priority mapping and the 24h unassigned escalation are
+  in `docs/process/security-alerts.md`. A dismissed or fixed alert closes its
+  issue with the evidence; a human-closed issue is never reopened.
+- Code scanning alerts are triaged within one working day. The daily sync
+  escalates an open alert older than 24h whose tracking issue has no assignee.
 - Fix a real finding; dismiss a false positive only with `dismissed_reason` and a
   written comment naming the evidence (for example: deterministic test fixture
   inside `#[test]`, never used by production code). Never dismiss silently and
