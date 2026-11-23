@@ -6,7 +6,7 @@ the donor's balance + TX model, and the layout made explicit rather than
 cramped. Measured on 2026-11-22 with `scripts/density-parity.mjs` (headless
 Chrome 131, DevTools protocol, one page load per viewport).
 
-- Donor: <https://privatekeyfinder.io/private-keys/bitcoin>
+- Donor: <ref-site-a/private-keys/bitcoin>
 - Ours: `http://127.0.0.1:7915/private-keys/bitcoin` (`target/release/rotor-coord`)
 - Branch: `parity/btc-legacy-row-r28` from `origin/main` (`2877bdc`)
 - Raw reports:
@@ -16,7 +16,7 @@ Chrome 131, DevTools protocol, one page load per viewport).
 
   ```sh
   node scripts/density-parity.mjs \
-    --donor https://privatekeyfinder.io/private-keys/bitcoin \
+    --donor ref-site-a/private-keys/bitcoin \
     --ours http://127.0.0.1:7915/private-keys/bitcoin \
     --json docs/donor-parity/density-bitcoin-row-after.json
   ```

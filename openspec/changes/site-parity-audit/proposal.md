@@ -8,8 +8,8 @@ ordered rollout so a page is either at parity or explicitly partial/missing.
 
 ## Sources
 
-- `privatekeyfinder.io/sitemap.xml` (58 routes) and live pages.
-- `secretscan.org` navigation and its transaction/tool pages.
+- `ref-site-a/sitemap.xml` (58 routes) and live pages.
+- `ref-site-b` navigation and its transaction/tool pages.
 - Our route inventory and live pages.
 - Interactive map: internal docs page `docs/site-map/index.html` (route ↔
   route, feature matrix); not a public route.

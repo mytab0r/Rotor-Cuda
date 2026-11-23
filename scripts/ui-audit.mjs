@@ -103,7 +103,7 @@ const SELECTOR_TIMEOUT_MS = 12000;
 const CDP_TIMEOUT_MS = 20000;
 
 /* Donor layout parity. The reference numbers are measured from
- * privatekeyfinder.io and live in docs/parity/donor-layout.json. They are a
+ * ref-site-a and live in docs/parity/donor-layout.json. They are a
  * reference, not a target: the comparison reports deltas as warnings so a
  * regression is visible without failing an unrelated PR. The selector map below
  * is ours; the values are the donor's. */
