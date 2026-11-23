@@ -68,7 +68,7 @@
       "data_sources": ["apps/site/key.js", "apps/site/key-tools.js", "apps/site/address-codecs.js", "apps/site/balance-cache.js", "apps/site/rotor_wasm.wasm", "data/chains.json", "data/providers.json"],
       "auth": "public",
       "status": "planned",
-      "notes": "Derivation runs in the browser through the WASM core. Phase 3 moves the page to Astro and the fragment key contract."
+      "notes": "Derivation runs in the browser through the WASM core. Phase 3 Astro target: web/src/pages/key/index.astro prerenders the hub and the curated key with the eight donor facts, 30 address rows and one derive island; the coordinator still serves the route until cutover."
     },
     {
       "pattern": "/key/:hex",
@@ -78,7 +78,7 @@
       "data_sources": ["apps/site/key.html", "apps/site/key.js", "apps/site/rotor_wasm.wasm", "data/chains.json"],
       "auth": "public",
       "status": "planned",
-      "notes": "Also answers WIF/decimal/value forms. Phase 3: 64 curated keys become Astro static, other values 301 to /key#<hex> so the key never enters the request path."
+      "notes": "Also answers WIF/decimal/value forms on the coordinator. Astro target: curated 64-hex keys are prerendered from data/key-curated.json; every other 64-hex key is served by web/public/_worker.js (Cloudflare Pages advanced mode) from the built hub shell with per-key metadata and noindex. The key stays in the path, matching the legacy contract. The coordinator still serves the route until cutover."
     },
     {
       "pattern": "/vanity",

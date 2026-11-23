@@ -46,7 +46,9 @@ function filesUnder(root, relative = '') {
 const id = buildId();
 const prefix = `a/${id}`;
 const files = filesUnder(DIST);
-const assetFiles = files.filter((rel) => ASSET.test(rel));
+/* `_worker.js` is executed by Cloudflare Pages, not fetched as an asset;
+ * copying it under /a/<build>/ would publish a second, useless copy. */
+const assetFiles = files.filter((rel) => ASSET.test(rel) && rel !== '_worker.js');
 
 for (const rel of assetFiles) {
   const target = path.join(DIST, prefix, rel);

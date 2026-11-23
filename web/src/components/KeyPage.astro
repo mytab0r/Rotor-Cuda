@@ -1,0 +1,394 @@
+---
+/* The /key calculator shell.
+ *
+ * The document is server-rendered for a known key (the curated default on
+ * `/key`, the route's key on `/key/<hex>`), so the H1, the eight donor facts
+ * and all 30 address rows exist in the first HTML byte. The single island
+ * (`src/scripts/key-page.ts`) derives a different key on input, or hydrates a
+ * worker-injected arbitrary key from the `#key-request` JSON block.
+ *
+ * Everything that can be computed at build time is: facts and rows come from
+ * `lib/key-core.ts`, which drives the same WASM core and the same browser
+ * helpers the live page uses. The island repeats only the DOM work. */
+import SiteLayout from '../layouts/SiteLayout.astro';
+import ogImage from '../assets/og-landing.png';
+import { SITE_ORIGIN } from '../lib/site.js';
+import { CURATED_KEYS } from '../lib/key-curated.js';
+import type { AddressRow, KeyPageData } from '../lib/key-core.js';
+import '../styles/key-page.css';
+
+export interface Props {
+  hex: string;
+  data: KeyPageData;
+  h1: string;
+  title: string;
+  description: string;
+  canonical: string;
+  robots?: string;
+  /** The hub links to the curated set; curated pages link back. */
+  hub?: boolean;
+}
+
+const {
+  hex,
+  data,
+  h1,
+  title,
+  description,
+  canonical,
+  robots = 'index,follow',
+  hub = false,
+} = Astro.props;
+
+const canonicalUrl = new URL(canonical, SITE_ORIGIN).href;
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+const display = `0x${hex.slice(0, 4)}…${hex.slice(-4)}`;
+const rowModelJson = JSON.stringify(data.model).replace(/</g, '\\u003c');
+
+/* Contiguous chain groups share one Chain cell with a rowspan, matching the
+ * live table (BTC 5, LTC 4, BCH 2, DOGE 2, TON 2, ZEC 2; each EVM id is its
+ * own group). */
+const rendered: Array<{ row: AddressRow; first: boolean; span: number }> = [];
+for (const row of data.rows) {
+  const last = rendered.at(-1);
+  if (last && last.row.group === row.group) {
+    last.span += 1;
+    rendered.push({ row, first: false, span: 0 });
+  } else {
+    rendered.push({ row, first: true, span: 1 });
+  }
+}
+
+function explorerHref(row: AddressRow): string {
+  if (!row.explorer) return '';
+  const address = encodeURIComponent(row.address);
+  return row.explorer.includes('{address}')
+    ? row.explorer.replace('{address}', address)
+    : `${row.explorer}${address}`;
+}
+
+const factsVisible = data.facts;
+const factsExtra = data.extras;
+const typed = data.rows.filter((row) => row.id === 'btc_p2pkh' || row.id === 'solana');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${canonicalUrl}#page`,
+      url: canonicalUrl,
+      name: title,
+      description,
+      inLanguage: 'en',
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: 'Crypto',
+      },
+      about: typed.map((row) => ({
+        '@type': 'Thing',
+        name: `${row.chain} address`,
+        identifier: row.address,
+      })),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: 'Tools', item: `${SITE_ORIGIN}/tools` },
+        { '@type': 'ListItem', position: 3, name: 'Key explorer', item: `${SITE_ORIGIN}/key` },
+        ...(hub ? [] : [{ '@type': 'ListItem', position: 4, name: display, item: canonicalUrl }]),
+      ],
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={title}
+  description={description}
+  canonical={canonical}
+  image={ogImageUrl}
+  imageAlt={`Private key ${display} — 30 derived addresses on 18 chains | Crypto`}
+  imageWidth={1200}
+  imageHeight={630}
+  robots={robots}
+  mainClass="key-page key-page-v2"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <a href="/tools">Tools</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    {hub ? (
+      <span aria-current="page">Key explorer</span>
+    ) : (
+      <>
+        <a href="/key">Key explorer</a>
+        <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+        <span aria-current="page">{display}</span>
+      </>
+    )}
+  </nav>
+
+  <section class="card key-hero" aria-labelledby="key-title">
+    <h1 id="key-title">{h1}</h1>
+    <form id="key-form" class="key-form" autocomplete="off" novalidate>
+      <label class="visually-hidden" for="priv">Private key (64 hex characters)</label>
+      <input
+        id="priv"
+        type="text"
+        class="mono"
+        value={hex}
+        placeholder="64 hex characters, optional 0x prefix"
+        autocomplete="new-password"
+        spellcheck="false"
+        autocapitalize="off"
+        inputmode="text"
+        data-lpignore="true"
+        data-1p-ignore="true"
+        aria-describedby="key-status key-help"
+      >
+    </form>
+    <div class="key-status-row">
+      <p id="key-status" class="key-input-status is-idle" role="status" aria-live="polite">
+        <span class="key-status-dot" aria-hidden="true"></span>
+        <span id="key-status-text">Derived {data.rows.length} addresses from {display}.</span>
+      </p>
+      <button
+        type="button"
+        id="key-info-btn"
+        class="icon-button icon-button--quiet"
+        aria-label="Formats and behaviour"
+        data-tooltip="Formats and behaviour"
+      >
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 7.5v.01"></path>
+        </svg>
+      </button>
+    </div>
+    <p id="key-help" class="visually-hidden">
+      A private key is 64 hex characters (0–9, a–f) with an optional 0x prefix. The key stays
+      in this tab and is never sent anywhere.
+    </p>
+    <section class="key-stats" id="key-stats" aria-label="Key counters">
+      <div class="key-stat card--flat">
+        <span class="key-stat-label">Value</span>
+        <strong class="key-stat-value">—</strong>
+      </div>
+      <div class="key-stat card--flat">
+        <span class="key-stat-label">Balance</span>
+        <strong class="key-stat-value">—</strong>
+      </div>
+      <div class="key-stat card--flat">
+        <span class="key-stat-label">Active</span>
+        <strong class="key-stat-value">—</strong>
+      </div>
+      <div class="key-stat card--flat">
+        <span class="key-stat-label">Checked</span>
+        <strong class="key-stat-value">0/18</strong>
+      </div>
+    </section>
+  </section>
+
+  <section class="card" id="summary-card" aria-labelledby="key-facts-title">
+    <h2 id="key-facts-title">Key facts</h2>
+    <dl class="key-facts" id="key-facts">
+      {factsVisible.map((fact) => (
+        <div class="key-form-row key-fact-row" data-fact={fact.id}>
+          <dt>
+            {fact.href ? (
+              <a href={fact.href} title={`Open the ${fact.label} calculator`}>{fact.label}</a>
+            ) : (
+              <span>{fact.label}</span>
+            )}
+          </dt>
+          <dd>
+            {fact.unavailable ? (
+              <span class="key-fact-unavailable">{fact.unavailable}</span>
+            ) : fact.valueHref ? (
+              <a class="key-fact-value key-fact-link" href={fact.valueHref}>{fact.displayValue || fact.value}</a>
+            ) : (
+              <code class="key-fact-value" tabindex="0">{fact.value}</code>
+            )}
+          </dd>
+          {fact.unavailable || fact.valueHref ? (
+            <span class="key-copy-spacer" aria-hidden="true"></span>
+          ) : (
+            <button
+              type="button"
+              class="icon-button icon-button--quiet row-action"
+              data-copy={fact.value}
+              data-copy-label={fact.label}
+              aria-label={`Copy ${fact.label} value`}
+              data-tooltip={`Copy ${fact.label}`}
+            >
+              <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+            </button>
+          )}
+        </div>
+      ))}
+    </dl>
+
+    <details class="key-points">
+      <summary>Public point: compressed, uncompressed, X and Y</summary>
+      <dl class="key-facts key-facts--extra">
+        {factsExtra.map((fact) => (
+          <div class="key-form-row key-fact-row" data-fact={fact.id}>
+            <dt><span>{fact.label}</span></dt>
+            <dd><code class="key-fact-value" tabindex="0">{fact.value}</code></dd>
+            <button
+              type="button"
+              class="icon-button icon-button--quiet row-action"
+              data-copy={fact.value}
+              data-copy-label={fact.label}
+              aria-label={`Copy ${fact.label} value`}
+              data-tooltip={`Copy ${fact.label}`}
+            >
+              <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+            </button>
+          </div>
+        ))}
+      </dl>
+    </details>
+
+  </section>
+
+  <section class="card" id="addresses-card" aria-labelledby="addresses-title">
+    <h2 id="addresses-title">Addresses</h2>
+    <p class="muted key-help">
+      {data.rows.length} rows across 18 chain groups, every format the derivation core
+      supports. Balances are not queried in this static build; the status column stays empty.
+    </p>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Address table">
+      <table class="data-table key-addr-tbl" id="addr-table">
+        <caption class="visually-hidden">
+          Public addresses derived from the private key {display}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Chain</th>
+            <th scope="col">Type</th>
+            <th scope="col">Address</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="addr-rows">
+          {rendered.map(({ row, first, span }) => {
+            const href = explorerHref(row);
+            return (
+              <tr class="key-row" data-address-id={row.id}>
+                {first && (
+                  <td class="key-cell-chain" rowspan={span}>
+                    <span class="key-chain-id">
+                      <svg class="icon key-chain-icon" aria-hidden="true">
+                        <use href={`/icons.svg#${row.icon}`}></use>
+                      </svg>
+                      <span>{row.chain}</span>
+                    </span>
+                    <span class="key-chain-ticker">{row.ticker}</span>
+                  </td>
+                )}
+                <td class="key-cell-type">{row.type}</td>
+                <td class="key-cell-addr">
+                  <code class="key-addr" tabindex="0">{row.address}</code>
+                </td>
+                <td class="key-cell-status"><span class="muted">—</span></td>
+                <td class="key-cell-act">
+                  <div class="row-actions">
+                    <button
+                      type="button"
+                      class="icon-button icon-button--sm icon-button--quiet"
+                      data-copy={row.address}
+                      data-copy-label={`${row.chain} address`}
+                      aria-label={`Copy ${row.chain} address`}
+                      data-tooltip="Copy address"
+                    >
+                      <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-copy"></use></svg>
+                    </button>
+                    {href && (
+                      <a
+                        class="icon-button icon-button--sm icon-button--quiet"
+                        href={href}
+                        rel="noopener noreferrer"
+                        aria-label={`Open the ${row.chain} address in the explorer`}
+                        data-tooltip="Open in explorer"
+                      >
+                        <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-external"></use></svg>
+                      </a>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {hub && (
+    <nav class="key-curated" aria-label="Curated example keys">
+      <span class="muted">Curated examples:</span>
+      {CURATED_KEYS.map((key) => (
+        <a href={key.path}>{key.display}</a>
+      ))}
+    </nav>
+  )}
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="key-what">
+    <h2 id="key-what">{hub ? 'What the key explorer derives' : `What ${display} derives`}</h2>
+    <p>
+      {hub
+        ? 'A private key is a 256-bit number. The browser derives its secp256k1 public key for the UTXO, EVM, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin and Zcash formats, and separately treats the same 32 bytes as an ed25519 seed for Solana, Sui and the two TON wallets. The table lists the resulting address for every supported format, grouped by chain and type.'
+        : `${display} is the decimal integer ${data.facts.find((fact) => fact.id === 'decimal')?.value || 'value'}. Its secp256k1 public key produces the Bitcoin, Litecoin, Bitcoin Cash, Dogecoin, Zcash, XRP, TRON and EVM rows; the same 32 bytes as an ed25519 seed produce the Solana, Sui and TON rows. Every address on this page is derived from this one number, and every value is reproducible in the browser with the same WASM core.`}
+    </p>
+    <p>
+      The eight facts above match the donor key page: hex, decimal, the compressed and
+      uncompressed WIF, the Solana keypair, the XRP secret, the public key and the directory
+      page. The four public-point coordinates sit behind the disclosure so the facts that
+      people actually copy stay at the top.
+    </p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="key-read">
+    <h2 id="key-read">How to read the address table</h2>
+    <p>
+      The Chain column groups rows by network; a shared EVM 0x address is shown once as the
+      parent row and repeated on the eight EVM networks with “↑ same”, because one secp256k1
+      key controls all of them. The Type column names the address format — Legacy, SegWit,
+      P2SH, Taproot, CashAddr, Base58, t1, W5 and so on. Every address also has an explorer
+      action, and the address text stays selectable and scrollable rather than being shortened.
+    </p>
+    <p>
+      A WIF encodes the same key for a legacy wallet; the uncompressed WIF and public key are
+      kept for tools that still expect the 65-byte point. The XRP secret is an encoded form of
+      the key with its own checksum. None of these is a second key: they all control the same
+      funds.
+    </p>
+  </section>
+
+  <section class="card chain-prose" data-seo-prose aria-labelledby="key-safety">
+    <h2 id="key-safety">Safety: a private key is the secret</h2>
+    <p>
+      Anyone who sees this number can spend from every address on this page. The curated
+      examples are public small integers and are worthless for holding funds. For a real key,
+      use an offline device you control, verify the software, and never paste a live key or seed
+      phrase into a site you do not control. The page keeps input in the tab and sends no key or
+      address to a server.
+    </p>
+    <p>
+      Only inspect keys you own or are authorized to test. A public address is safe to share; a
+      private key, WIF, XRP secret or Solana keypair is not.
+    </p>
+  </section>
+
+  <script type="application/json" id="key-row-model" set:html={rowModelJson}></script>
+  <script>
+    import '../scripts/key-page.ts';
+  </script>
+</SiteLayout>

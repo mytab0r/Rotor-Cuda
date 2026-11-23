@@ -31,7 +31,7 @@ ship two renderers for the same route.
 
 ## 3. Key and directory
 
-- [ ] `/key`, `/key/<hex>` (curated static, others 301 to `/key#<hex>`).
+- [x] `/key` and the curated `/key/<hex>` set built in Astro; every other 64-hex key is served by `web/public/_worker.js` with per-key metadata and `noindex`. The coordinator still serves the route until cutover.
 - [ ] `/private-keys` and chain pages (page 1 prerendered, later pages on edge).
       Page 1 is built for all 18 mainnet slugs in
       `web/src/pages/private-keys/[chain].astro` with a content collection and

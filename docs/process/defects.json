@@ -757,6 +757,13 @@
       "symptom": "Three of the four prose paragraphs on a chain page were identical across chains and the donor directory had no H1 or H2 at all, so the pages competed on the same text instead of explaining their own chain.",
       "detector": "seo-prose-uniqueness",
       "where": "scripts/check-seo.mjs"
+    },
+    {
+      "id": "key-native-title-attributes",
+      "reported": "2026-11-23",
+      "symptom": "The live /key page put 507-character native title attributes on the counters and summary containers, so every fact was duplicated as an unreadable hover string and the real captions were hidden from assistive technology.",
+      "detector": "native-title-length",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

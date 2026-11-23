@@ -2084,6 +2084,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 
 .visually-hidden {
   position: absolute !important;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -2279,7 +2280,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 }
 .key-addr-tbl th,
 .key-addr-tbl td {
-  padding: 8px;
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
@@ -2287,9 +2288,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-addr-tbl thead th {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .07em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .key-addr-tbl th:nth-child(1) { width: 11%; }
 .key-addr-tbl th:nth-child(2) { width: 15%; }
@@ -2372,7 +2373,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .key-table-wrap { overflow-x: auto; overscroll-behavior-x: contain; }
   .key-addr-tbl { min-width: 620px; }
   .key-addr-tbl th,
-  .key-addr-tbl td { padding: 6px; }
+  .key-addr-tbl td { padding: var(--space-2) var(--space-3); }
   .key-addr-tbl th:nth-child(1) { width: 64px; }
   .key-addr-tbl th:nth-child(2) { width: 88px; }
   .key-addr-tbl th:nth-child(4) { width: 100px; }
@@ -2402,8 +2403,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 /* Key counters and facts */
 .key-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 10px; }
 .key-stat { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--panel-2); }
-.key-stat-label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.key-stat-value { display: block; margin-top: 3px; color: var(--text); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.key-stat-label { display: block; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.key-stat-value { display: block; margin-top: 3px; color: var(--text); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .key-stat-value.empty { color: var(--muted); font-weight: 600; }
 .key-stats-note { margin: 0 0 14px; font-size: 12px; }
 .key-fact-unavailable { color: var(--muted); font-size: 12px; line-height: 1.5; }

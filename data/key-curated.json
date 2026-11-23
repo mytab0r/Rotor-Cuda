@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "description": "Keys the static Astro build prerenders at /key/<hex> and lists in the sitemap. Every other 64-hex key is served by web/public/_worker.js with per-key metadata and noindex. Keys are lowercase 64-character hex; the build derives their facts and 30 address rows from these bytes, never from a second source.",
+  "keys": [
+    "0000000000000000000000000000000000000000000000000000000000000001",
+    "0000000000000000000000000000000000000000000000000000000000000002",
+    "0000000000000000000000000000000000000000000000000000000000000003"
+  ]
+}

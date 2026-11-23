@@ -2806,6 +2806,38 @@ function auditPage(args) {
     }
   }
 
+  // 12b. Key-page fold and native-title probe. The target is the visible
+  //     table top and the 44px fact rows, plus the donor defect this migration
+  //     removes: a 507-character native title on a container.
+  if (route === "/key" || route.startsWith("/key/")) {
+    const table = document.getElementById("addr-table");
+    const rows = [...document.querySelectorAll("#addr-rows .key-row")].filter(visible);
+    const factRows = [...document.querySelectorAll(".key-facts .key-fact-row")].filter(visible);
+    const stats = [...document.querySelectorAll(".key-stats .key-stat")].filter(visible);
+    const longTitles = [...document.querySelectorAll(".key-page [title]")]
+      .filter(visible)
+      .map((el) => ({ selector: selectorOf(el), length: (el.getAttribute("title") || "").length }))
+      .filter((entry) => entry.length > 80);
+    const fold = window.innerHeight;
+    metrics.keyPage = {
+      tableStartY: table ? Math.round(table.getBoundingClientRect().top + window.scrollY) : null,
+      firstRowY: rows.length ? Math.round(rows[0].getBoundingClientRect().top + window.scrollY) : null,
+      rowsAboveFold: rows.filter((row) => row.getBoundingClientRect().top < fold).length,
+      totalRows: rows.length,
+      factRowHeights: [...new Set(factRows.map((row) => Math.round(row.getBoundingClientRect().height)))],
+      factRows: factRows.map((row) => ({ fact: row.dataset.fact || "", height: Math.round(row.getBoundingClientRect().height) })),
+      statHeights: [...new Set(stats.map((stat) => Math.round(stat.getBoundingClientRect().height)))],
+      titleAttrsOver80: longTitles,
+    };
+    if (longTitles.length) {
+      add(
+        "native-title-length",
+        `${longTitles.length} native title attribute(s) over 80 characters`,
+        longTitles.slice(0, 5),
+      );
+    }
+  }
+
   // 13. Density probe. The desktop density scale and the page-inset parity
   //     check need the rendered boxes, not the stylesheet. Keep the probe
   //     read-only and route-scoped: it never changes the page.
@@ -5063,27 +5095,43 @@ async function auditKeyAutoDerive(cdp) {
         toggle.dispatchEvent(new Event('change', { bubbles: true }));
       }
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-      setter.call(input, '${"0".repeat(63)}1');
+      // Key 3 is different from the server-rendered default (key 1), so the
+      // table can only pass after the island has run the WASM derivation and
+      // re-rendered the rows. The first Bitcoin legacy address is a fixed
+      // vector from the build (/key/000…003): 1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb.
+      const original = input.value;
+      setter.call(input, '${"0".repeat(63)}3');
       input.dispatchEvent(new Event('input', { bubbles: true }));
       const started = Date.now();
-      while (Date.now() - started < 6000) {
-        const card = document.getElementById('summary-card');
-        const rows = document.querySelectorAll('#addr-rows .key-row');
-        if (card && !card.hidden && rows.length > 0) {
-          return { ok: true, rows: rows.length, ms: Date.now() - started };
+      let last = null;
+      while (Date.now() - started < 12000) {
+        const first = document.querySelector('#addr-rows .key-row[data-address-id="btc_p2pkh"] .key-addr');
+        const facts = document.querySelector('[data-fact="hex"] .key-fact-value');
+        last = {
+          first: first ? first.textContent.trim() : '',
+          hex: facts ? facts.textContent.trim() : '',
+          status: (document.getElementById('key-status-text') || {}).textContent || '',
+        };
+        if (last.first === '1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb' &&
+            last.hex === '${"0".repeat(63)}3') {
+          setter.call(input, original);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          return { ok: true, rows: document.querySelectorAll('#addr-rows .key-row').length, ms: Date.now() - started, checked: last };
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      setter.call(input, original);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
       const card = document.getElementById('summary-card');
       return {
         ok: false,
-        reason: 'no derived rows within 6s',
+        reason: 'the island did not render key 3 within 12s',
         summaryHidden: card ? card.hidden : null,
         rows: document.querySelectorAll('#addr-rows .key-row').length,
-        status: (document.getElementById('key-status-text') || {}).textContent || '',
+        last,
       };
     })()`,
-    10000,
+    20000,
   );
 }
 

@@ -1073,6 +1073,14 @@
       "implemented_in": "scripts/check-seo.mjs",
       "doc_anchor": "docs/process/seo-gate.md#rules",
       "status": "implemented"
+    },
+    {
+      "id": "native-title-length",
+      "rule": "No /key page carries a native title attribute longer than 80 characters; long values live in visible text or data-tooltip, never in a container title.",
+      "batch": "density",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
     }
   ]
 }
