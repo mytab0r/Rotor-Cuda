@@ -304,6 +304,10 @@ node scripts/check-task-links.mjs --board   # native fields, blockers, cycles
 `sync-board` needs `gh` with `repo` and `project` scopes; it also creates the
 `change:<id>` labels and the `Priority` / `Severity` / `Start date` /
 `Target date` / `Actual start` / `Actual end` project fields on demand.
+Projects v2 has its own points budget: project calls retry with 60/120/240/240s
+backoff, and if the quota stays exhausted the sync and the gate exit 0 with
+`sync deferred: Projects quota` (green run, step-summary note) instead of a red
+one. The report prints `project API calls: N`.
 `.github/workflows/board-sync.yml` runs the sync and then
 `check-task-links.mjs --board`; the gate fails when a synced issue (open or
 closed) has no native Type, no Milestone, no Priority or not both plan dates,
