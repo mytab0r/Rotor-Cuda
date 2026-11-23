@@ -1569,6 +1569,10 @@
       return;
     }
     if (state.focusId === 'summary') return;
+    /* Keep a format the selected chain offers (LTC/BCH as well as BTC) when a
+     * new key re-renders the rows. */
+    var options = formatOptions(state.chain);
+    if (state.focusId && options.some(function (option) { return option.id === state.focusId; })) return;
     if (!state.focusId || ids.indexOf(state.focusId) < 0) {
       state.focusId = ids.indexOf('btc_p2pkh') >= 0 ? 'btc_p2pkh' : ids[0];
     }
