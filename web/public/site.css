@@ -1761,13 +1761,12 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   min-height: 44px;
   padding-block: 12px;
   font-size: 12.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .private-key:hover { color: var(--accent-2); }
 
-.address-link { display: block; min-height: 44px; padding-block: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c8d8ea; font-size: 12.5px; }
+.address-link { display: block; min-height: 44px; padding-block: 12px; overflow-wrap: anywhere; white-space: normal; color: #c8d8ea; font-size: 12.5px; }
 .address-link:hover { color: var(--accent-2); }
 .col-balance { text-align: right; color: var(--muted); font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-balance.has-balance { color: var(--ok); }
@@ -2033,9 +2032,8 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   }
   .key-row .col-key { grid-column: 1; }
   .private-key {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
     font-size: 12px;
   }
   .key-row .col-address { grid-column: 1 / -1; align-self: start; }
@@ -2271,7 +2269,11 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-addr-tbl {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  /* Content-driven columns: a hard width for the status/actions cells cut the
+   * status text on desktop and left only the spinner on a phone. The action
+   * column shrinks to its controls and the status cell keeps a readable
+   * min-width, so the text fits or wraps instead of being clipped. */
+  table-layout: auto;
 }
 .key-addr-tbl caption {
   padding: 0;
@@ -2291,12 +2293,20 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   letter-spacing: .07em;
   text-transform: uppercase;
 }
-.key-addr-tbl th:nth-child(1) { width: 11%; }
-.key-addr-tbl th:nth-child(2) { width: 15%; }
-.key-addr-tbl th:nth-child(4) { width: 17%; }
-.key-addr-tbl th:nth-child(5) { width: 148px; }
+/* `width: 1%` lets the auto table layout shrink a column to its content; an
+ * explicit min-width keeps the content readable. No hard pixel width on the
+ * status or action column: both are driven by what they hold. */
+.key-addr-tbl th:nth-child(1) { width: 1%; white-space: nowrap; }
+.key-addr-tbl th:nth-child(2) { width: 1%; }
+.key-addr-tbl th:nth-child(4) { width: auto; min-width: 168px; }
+.key-addr-tbl th:nth-child(5) { width: 1%; min-width: 96px; white-space: nowrap; }
 .key-addr-tbl th:nth-child(4),
 .key-addr-tbl th:nth-child(5) { text-align: right; }
+.key-addr-tbl .key-cell-addr { min-width: 180px; }
+/* Table layout ignores min-width on a cell in Chrome; the content box carries
+ * the floor, so the status text gets a readable two-line column and a long
+ * address gets a full unbroken line before it wraps. */
+.key-addr-tbl .key-balance { min-width: 168px; }
 .key-addr-tbl .key-row {
   display: table-row;
   min-height: 0;
@@ -2310,11 +2320,11 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-chain-ticker,
 .key-chain-literal { white-space: nowrap; }
 .key-cell-type { color: var(--text-2); font-size: 12px; }
-.key-format-text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.key-format-text { display: block; overflow-wrap: anywhere; min-width: 88px; }
 .key-cell-addr code.key-addr {
   display: block;
   width: 100%;
-  min-width: 0;
+  min-width: 180px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -2329,10 +2339,11 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-same { color: var(--muted); font-size: 12px; font-style: italic; white-space: nowrap; }
 .key-cell-status { text-align: right; }
 .key-addr-tbl .key-balance {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 0 4px;
   max-width: 100%;
   margin: 0;
   padding: 0;
@@ -2343,6 +2354,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.35;
+  text-align: right;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -2373,10 +2385,10 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .key-addr-tbl { min-width: 620px; }
   .key-addr-tbl th,
   .key-addr-tbl td { padding: 6px; }
-  .key-addr-tbl th:nth-child(1) { width: 64px; }
-  .key-addr-tbl th:nth-child(2) { width: 88px; }
-  .key-addr-tbl th:nth-child(4) { width: 100px; }
-  .key-addr-tbl th:nth-child(5) { width: 144px; }
+  .key-addr-tbl th:nth-child(1) { width: 1%; white-space: nowrap; }
+  .key-addr-tbl th:nth-child(2) { width: 1%; }
+  .key-addr-tbl th:nth-child(4) { width: auto; min-width: 168px; }
+  .key-addr-tbl th:nth-child(5) { width: 1%; min-width: 88px; }
   .key-details { margin-top: 6px; padding-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4539,10 +4551,12 @@ a.button.primary,
     height: var(--control-h);
     min-height: var(--control-h);
   }
+  /* The key table keeps every value readable at desktop density: long
+   * addresses and balance/nonce lines wrap inside their cell instead of
+   * being ellipsized. */
   .key-addr-tbl .key-cell-addr code.key-addr,
   .key-addr-tbl .key-balance {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }

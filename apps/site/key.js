@@ -1782,10 +1782,21 @@
       badge.appendChild(spinner);
     }
     if (text) {
+      /* The status string is amount-first, then tx/nonce/note/age. Two spans
+       * let a narrow status column wrap into at most two compact lines (the
+       * amount line and one meta line) instead of clipping the tail. */
+      var parts = String(text).split(' · ');
+      var lead = parts.shift();
       var label = document.createElement('span');
       label.className = 'key-balance-text';
-      label.textContent = text;
+      label.textContent = parts.length ? lead + ' ·' : lead;
       badge.appendChild(label);
+      if (parts.length) {
+        var meta = document.createElement('span');
+        meta.className = 'key-balance-meta';
+        meta.textContent = parts.join(' · ');
+        badge.appendChild(meta);
+      }
     }
     badge.title = settings.title || text;
     if (settings.ariaLabel) badge.setAttribute('aria-label', settings.ariaLabel);
