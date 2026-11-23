@@ -12,7 +12,7 @@
     "build": "astro build && node scripts/build-prefix.mjs",
     "preview": "astro preview",
     "check": "astro check && tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js tests/analytics-beacon.test.mjs",
     "verify:cdp": "node scripts/cdp-parity.mjs"
   },
   "dependencies": {

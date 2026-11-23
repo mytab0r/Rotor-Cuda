@@ -3409,3 +3409,244 @@ fn admin_panels_render_with_states_and_no_inline_code() {
     }
     handle.shutdown();
 }
+
+// ------------------------------------------------------------- analytics
+
+#[test]
+fn analytics_collector_is_cors_scoped_private_and_persisted() {
+    let temp = TempState::new("analytics");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+    const COLLECT: &str = "/api/v1/analytics/collect";
+
+    // A foreign origin is refused before the body is read, and no CORS header
+    // is echoed back.
+    let body = json!({"event": "view", "path": "/private-keys/ethereum"}).to_string();
+    let (status, head, _) = raw_with_headers(
+        addr,
+        "POST",
+        COLLECT,
+        None,
+        Some(&body),
+        &[("Origin", "https://evil.example")],
+    );
+    assert_eq!(status, 403);
+    assert_eq!(response_header(&head, "access-control-allow-origin"), None);
+
+    // Malformed and oversized bodies are rejected and never counted.
+    for bad in [
+        "",
+        "{}",
+        "{\"event\":\"click\",\"path\":\"/\"}",
+        "{\"event\":\"view\",\"path\":\"not-a-path\"}",
+        "{\"event\":\"view\",\"path\":\"/\",\"referrer_host\":\"https://a/b\"}",
+    ] {
+        let (status, _, _) = raw(addr, "POST", COLLECT, None, Some(bad));
+        assert_eq!(status, 400, "{bad}");
+    }
+    let oversized = json!({
+        "event": "view",
+        "path": "/",
+        "pad": "x".repeat(5000),
+    })
+    .to_string();
+    let (status, _, _) = raw(addr, "POST", COLLECT, None, Some(&oversized));
+    assert_eq!(status, 413);
+
+    // Preflight is answered only for the two site origins.
+    let (status, head, _) = raw_with_headers(
+        addr,
+        "OPTIONS",
+        COLLECT,
+        None,
+        None,
+        &[("Origin", "https://rotor.pxbt.app")],
+    );
+    assert_eq!(status, 204);
+    assert_eq!(
+        response_header(&head, "access-control-allow-origin").as_deref(),
+        Some("https://rotor.pxbt.app")
+    );
+    assert!(
+        response_header(&head, "access-control-allow-methods")
+            .expect("allow-methods")
+            .contains("POST")
+    );
+    let (status, _, _) = raw_with_headers(
+        addr,
+        "OPTIONS",
+        COLLECT,
+        None,
+        None,
+        &[("Origin", "https://evil.example")],
+    );
+    assert_eq!(status, 403);
+
+    // First allowed beacon: desktop Chrome from Germany.
+    let chrome = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+    let body = json!({
+        "event": "view",
+        "path": "/private-keys/ethereum",
+        "referrer_host": "search.example",
+    })
+    .to_string();
+    let (status, head, _) = raw_with_headers(
+        addr,
+        "POST",
+        COLLECT,
+        None,
+        Some(&body),
+        &[
+            ("Origin", "https://rotor.pxbt.app"),
+            ("CF-IPCountry", "DE"),
+            ("User-Agent", chrome),
+        ],
+    );
+    assert_eq!(status, 204);
+    assert_eq!(
+        response_header(&head, "access-control-allow-origin").as_deref(),
+        Some("https://rotor.pxbt.app")
+    );
+    assert!(
+        response_header(&head, "cache-control")
+            .expect("cache-control")
+            .contains("no-store")
+    );
+    assert_eq!(
+        response_header(&head, "set-cookie"),
+        None,
+        "the collector must not set a cookie"
+    );
+
+    // Second allowed beacon: a bot with no geo header.
+    let body = json!({
+        "event": "view",
+        "path": "/bitcoin-puzzle/66",
+    })
+    .to_string();
+    let (status, head, _) = raw_with_headers(
+        addr,
+        "POST",
+        COLLECT,
+        None,
+        Some(&body),
+        &[
+            ("Origin", "https://rotor-site-b8c.pages.dev"),
+            (
+                "User-Agent",
+                "Googlebot/2.1 (+http://www.google.com/bot.html)",
+            ),
+        ],
+    );
+    assert_eq!(status, 204);
+    assert_eq!(
+        response_header(&head, "access-control-allow-origin").as_deref(),
+        Some("https://rotor-site-b8c.pages.dev")
+    );
+
+    // Unauthenticated admin surfaces stay closed: JSON 401, HTML redirect.
+    let (status, _, _) = raw(addr, "GET", "/cabinet/admin/api/analytics", None, None);
+    assert_eq!(status, 401);
+    let (status, head, _) = raw(addr, "GET", "/cabinet/admin/analytics", None, None);
+    assert_eq!(status, 302);
+    assert_eq!(
+        response_header(&head, "location").as_deref(),
+        Some("/cabinet/admin/login")
+    );
+    assert_admin_headers(&head);
+
+    // The page script is an admin asset and needs no session.
+    let (status, head, _) = raw(addr, "GET", "/analytics-admin.js", None, None);
+    assert_eq!(status, 200);
+    assert_admin_headers(&head);
+
+    // Aggregate API with the bearer token.
+    let (status, head, body) = raw(
+        addr,
+        "GET",
+        "/cabinet/admin/api/analytics",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    assert_admin_headers(&head);
+    assert!(!body.contains(TOKEN));
+    let snapshot: serde_json::Value = serde_json::from_str(&body).expect("analytics JSON");
+    assert_eq!(snapshot["today"]["views"], 2);
+    assert_eq!(snapshot["week"]["views"], 2);
+    assert_eq!(snapshot["retention_hours"], 168);
+    assert_eq!(snapshot["timezone"], "UTC");
+    assert_eq!(snapshot["hourly"].as_array().expect("hourly").len(), 24);
+    assert_eq!(snapshot["daily"].as_array().expect("daily").len(), 7);
+
+    let routes = snapshot["routes"].as_array().expect("routes");
+    assert!(
+        routes
+            .iter()
+            .any(|row| row["name"] == "/private-keys" && row["views"] == 1)
+    );
+    assert!(
+        routes
+            .iter()
+            .any(|row| row["name"] == "/bitcoin-puzzle" && row["views"] == 1)
+    );
+    let countries = snapshot["countries"].as_array().expect("countries");
+    assert!(
+        countries
+            .iter()
+            .any(|row| row["name"] == "DE" && row["views"] == 1)
+    );
+    assert!(
+        countries
+            .iter()
+            .any(|row| row["name"] == "unknown" && row["views"] == 1)
+    );
+    let devices = snapshot["devices"].as_array().expect("devices");
+    assert!(devices.iter().any(|row| row["name"] == "desktop"));
+    assert!(devices.iter().any(|row| row["name"] == "bot"));
+    let browsers = snapshot["browsers"].as_array().expect("browsers");
+    assert!(browsers.iter().any(|row| row["name"] == "chrome"));
+    let referrers = snapshot["referrers"].as_array().expect("referrers");
+    assert!(
+        referrers
+            .iter()
+            .any(|row| row["name"] == "search.example" && row["views"] == 1)
+    );
+    assert!(snapshot["coordinator"]["served_requests_total"].is_u64());
+    assert!(snapshot["coordinator"]["max_concurrent_requests"].is_u64());
+
+    // The persisted document contains counters only: no user agent, no IP.
+    let stored = fs::read_to_string(temp.path()).expect("read state");
+    assert!(stored.contains("\"analytics\""), "{stored}");
+    assert!(
+        !stored.contains("Mozilla"),
+        "user agent must never be stored"
+    );
+    assert!(
+        !stored.contains("AppleWebKit"),
+        "user agent must never be stored"
+    );
+    assert!(
+        !stored.contains("Googlebot"),
+        "user agent must never be stored"
+    );
+    assert!(!stored.contains("127.0.0.1"), "IP must never be stored");
+
+    // Restarting the coordinator keeps the persisted day.
+    handle.shutdown();
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("respawn");
+    let (status, _, body) = raw(
+        handle.addr,
+        "GET",
+        "/cabinet/admin/api/analytics",
+        Some(TOKEN),
+        None,
+    );
+    assert_eq!(status, 200, "{body}");
+    let snapshot: serde_json::Value = serde_json::from_str(&body).expect("analytics JSON");
+    assert_eq!(
+        snapshot["today"]["views"], 2,
+        "graceful shutdown must flush coalesced counters: {body}"
+    );
+    handle.shutdown();
+}

@@ -57,10 +57,18 @@
 
 ## 4. Visits and hardening
 
-- [ ] `stats.rs`: page-view counter for HTML GET, excluding API/assets/admin;
-      top-200 paths plus `/other`; hourly ring 24 h, daily 30 days.
-- [ ] No IP, cookie or User-Agent by default; optional daily-salted hashed IP for
-      unique counts, in-memory only, never persisted.
+- [x] First-party visit analytics at `/cabinet/admin/analytics`
+      (`src/coordinator/analytics.rs`): a public Astro beacon posts one view per
+      page to `POST /api/v1/analytics/collect`; the coordinator derives
+      country/device/browser server-side and keeps hourly aggregate buckets for
+      168 h in the coordinator state (coalesced writes, flush on shutdown).
+      Route families are a fixed allowlist (`other` for anything unknown), not a
+      top-200 path list, so request input cannot grow the key space.
+- [x] No IP, cookie, storage identifier or User-Agent is stored, and there is no
+      hashed-IP unique count: the owner's privacy constraint forbids visitor
+      identifiers. The remote address is only a transient in-memory rate-limit
+      key; the UA is reduced to `desktop|mobile|tablet|bot` and
+      `chrome|safari|firefox|edge|other`.
 - [ ] Audit rotation at 5 MiB, retention 90 days, hash-chain verification on read.
 - [ ] CSP enforced on admin responses; security-header test.
 

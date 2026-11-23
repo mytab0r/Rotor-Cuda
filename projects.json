@@ -54,6 +54,7 @@
         "node --check apps/site/tx-decoders.js",
         "node --check apps/site/tx-page.js",
         "node --check apps/site/site-map-admin.js",
+        "node --check apps/site/analytics-admin.js",
         "node --check scripts/ui-audit.mjs",
         "node --check scripts/check-token-usage.mjs",
         "node --check scripts/build-gallery.mjs",
