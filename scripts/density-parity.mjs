@@ -61,15 +61,15 @@ function readDonorRefs() {
   if (raw && raw.trim()) {
     try {
       return JSON.parse(raw);
-    } catch (error) {
-      throw new Error(`DONOR_REFS_JSON is not valid JSON: ${error.message}`);
+    } catch {
+      throw new Error("DONOR_REFS_JSON is not valid JSON");
     }
   }
   if (existsSync(REFS_PATH)) {
     try {
       return JSON.parse(readFileSync(REFS_PATH, "utf8"));
     } catch (error) {
-      throw new Error(`cannot read ${REFS_PATH}: ${error.message}`);
+      throw new Error(`cannot read ${REFS_PATH}: ${error.code || "read error"}`);
     }
   }
   return null;
@@ -115,7 +115,11 @@ function makeRedactor(refs) {
         pairs.push([`http://${host}`, donor.token]);
         pairs.push([host, donor.token]);
       }
-      if (donor.name) pairs.push([donor.name, donor.token]);
+      if (donor.name) {
+        pairs.push([donor.name, donor.token]);
+        const stem = donor.name.replace(/\.[a-z0-9-]+$/i, "");
+        if (stem && stem !== donor.name) pairs.push([stem, donor.token]);
+      }
     }
   }
   pairs.sort((a, b) => b[0].length - a[0].length);
@@ -124,7 +128,8 @@ function makeRedactor(refs) {
     let text = value;
     for (const [from, to] of pairs) {
       if (!from) continue;
-      text = text.split(from).join(to);
+      const pattern = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      text = text.replace(pattern, to);
     }
     return text;
   };
@@ -1304,16 +1309,7 @@ async function main() {
   // Resolve the donor token before launching a browser. A missing refs source
   // is a harness error, not an unreachable donor: the caller asked for a token.
   const donorIsUrl = /^https?:\/\//i.test(options.donor);
-  let refs = null;
-  if (donorIsUrl) {
-    try {
-      refs = readDonorRefs();
-    } catch {
-      refs = null;
-    }
-  } else {
-    refs = readDonorRefs();
-  }
+  const refs = readDonorRefs();
   const resolved = resolveDonor(options.donor, refs);
   options.donorUrl = resolved.url;
   options.donorToken = resolved.token;

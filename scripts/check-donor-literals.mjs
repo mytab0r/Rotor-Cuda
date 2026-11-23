@@ -41,15 +41,15 @@ function loadRefs() {
   if (raw && raw.trim()) {
     try {
       return JSON.parse(raw);
-    } catch (error) {
-      throw new Error(`DONOR_REFS_JSON is not valid JSON: ${error.message}`);
+    } catch {
+      throw new Error("DONOR_REFS_JSON is not valid JSON");
     }
   }
   if (existsSync(REFS_PATH)) {
     try {
       return JSON.parse(readFileSync(REFS_PATH, "utf8"));
     } catch (error) {
-      throw new Error(`cannot read ${REFS_PATH}: ${error.message}`);
+      throw new Error(`cannot read ${REFS_PATH}: ${error.code || "read error"}`);
     }
   }
   return null;
@@ -125,7 +125,16 @@ function main() {
     return 1;
   }
 
-  const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+  // Resolve the repository root so the gate is correct when run from a
+  // subdirectory; `git ls-files` is otherwise scoped to the current directory.
+  let root;
+  try {
+    root = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+  } catch {
+    process.stderr.write("check-donor-literals: not inside a git repository\n");
+    return 1;
+  }
+  const files = execFileSync("git", ["-C", root, "ls-files", "-z"], { encoding: "utf8" })
     .split("\0")
     .filter(Boolean);
 
@@ -139,7 +148,7 @@ function main() {
 
     let buffer;
     try {
-      buffer = readFileSync(file);
+      buffer = readFileSync(path.join(root, file));
     } catch {
       continue;
     }

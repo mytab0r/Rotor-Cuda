@@ -207,7 +207,7 @@
     }
     link.setAttribute('aria-label', label);
     link.title = href ? label : label + ' (set donor refs locally to open)';
-    if (external) {
+    if (external && href) {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
     }
@@ -230,7 +230,7 @@
     } else {
       titleLink.setAttribute('aria-disabled', 'true');
     }
-    if (external) {
+    if (external && titleHref) {
       titleLink.target = '_blank';
       titleLink.rel = 'noopener noreferrer';
       titleLink.appendChild(document.createTextNode(title + ' '));
