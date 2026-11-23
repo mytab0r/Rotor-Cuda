@@ -1746,9 +1746,9 @@
 
   function renderFormatCards(options) {
     if (!formatCardsEl) return;
-    var chainName = chainDisplayName(state.chain) || 'Address';
-    formatCardsEl.setAttribute('aria-label', chainName + ' address format');
-    formatCardsEl.setAttribute('data-count', String(options.length || 4));
+    var chainName = chainDisplayName(state.chain);
+    formatCardsEl.setAttribute('aria-label', chainName ? chainName + ' address format' : 'Address format');
+    formatCardsEl.setAttribute('data-count', String(options.length));
     var key = options.map(function (option) { return option.id; }).join(',');
     if (key === renderedFormatKey) {
       syncFormatPressed();
