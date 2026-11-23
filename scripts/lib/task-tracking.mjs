@@ -367,13 +367,15 @@ export function targetDelta(targetDate, actualDate) {
 }
 
 // Board gate. `projectItems` is a map of issue number -> project field values
-// (`{ priority, severity, targetDate, startDate }`); `allowlist` is the parsed
-// `data/board-exceptions.json` and may only name historical closed issues.
-// Every synced issue must have a native Type, a Milestone, a non-empty Priority
-// and Start/Target dates; its text blockers must equal its native blockedBy
-// links; no open issue may be blocked by a closed one; the native graph must be
-// acyclic; every issue of one change must share one milestone; and every
-// milestone in data/milestones.json must have a due date.
+// (`{ priority, severity, startDate, targetDate, actualStart, actualEnd }`);
+// `allowlist` is the parsed `data/board-exceptions.json` and may only name
+// historical closed issues. Every synced issue must have a native Type, a
+// Milestone, a non-empty Priority and both plan dates (Start date, Target
+// date); a closed issue must also carry both actual dates. Its text blockers
+// must equal its native blockedBy links; no open issue may be blocked by a
+// closed one; the native graph must be acyclic; every issue of one change must
+// share one milestone; and every milestone in data/milestones.json must have a
+// due date.
 export function evaluateBoardFields({
   issues = [],
   allowlist = [],
@@ -439,6 +441,8 @@ export function evaluateBoardFields({
     const priority = projectItems?.[number]?.priority ?? null;
     const targetDate = projectItems?.[number]?.targetDate ?? null;
     const startDate = projectItems?.[number]?.startDate ?? null;
+    const actualStart = projectItems?.[number]?.actualStart ?? null;
+    const actualEnd = projectItems?.[number]?.actualEnd ?? null;
 
     if (!allow) {
       if (!typeName) {
@@ -460,15 +464,27 @@ export function evaluateBoardFields({
           `issue #${number} "${issue.title}" has no Priority; the sync must never leave it empty.`,
         );
       }
-      if (!targetDate) {
-        errors.push(
-          `issue #${number} "${issue.title}" has no Target date; the Roadmap needs the milestone due date.`,
-        );
-      }
       if (!startDate) {
         errors.push(
-          `issue #${number} "${issue.title}" has no Start date; the Roadmap needs it.`,
+          `issue #${number} "${issue.title}" has no Plan start (Start date); the Roadmap bar needs both ends.`,
         );
+      }
+      if (!targetDate) {
+        errors.push(
+          `issue #${number} "${issue.title}" has no Plan end (Target date); the Roadmap bar needs both ends.`,
+        );
+      }
+      if (issue.state === "CLOSED") {
+        if (!actualStart) {
+          errors.push(
+            `issue #${number} "${issue.title}" is closed but has no Actual start.`,
+          );
+        }
+        if (!actualEnd) {
+          errors.push(
+            `issue #${number} "${issue.title}" is closed but has no Actual end.`,
+          );
+        }
       }
     }
 

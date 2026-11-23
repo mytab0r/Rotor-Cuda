@@ -186,32 +186,38 @@ Release plan:
 The dates are planning defaults at quarter ends, not promises; change them in
 `data/milestones.json`, never in the project UI.
 
-## Dates, the Roadmap and actuals
+## Dates: plan, facts and the Roadmap
 
-The GitHub Project Roadmap view reads two date fields. They are **plan** fields,
-and the sync keeps them separate from the facts:
+The Roadmap bar reads the built-in `Start date` → `Target date` pair, so those
+two fields are the **plan**: Plan start → Plan end. Two custom date fields hold
+the **facts**, and the sync never writes a fact into a plan field.
 
-| Field | Value | Source |
-|---|---|---|
-| `Target date` | the due date of the issue's milestone | `data/milestones.json` |
-| `Start date` | the date the issue entered `In Progress` when the project item exposes a status-change timestamp; otherwise the issue's native `createdAt` (the documented fallback, because `gh project item-list` currently exposes only the current status) | project item / GraphQL `createdAt` |
-| actual start | native issue `createdAt` | GraphQL, reported only |
-| actual finish | native issue `closedAt` | GraphQL, reported only |
+| Field | Kind | Value | Source |
+|---|---|---|---|
+| `Start date` | plan start | when the work is planned to start; currently the first `In Progress` transition when the project item exposes one, otherwise the issue's native `createdAt` | project item / GraphQL `createdAt` |
+| `Target date` | plan end | the due date of the issue's milestone (the planned end of the bar) | `data/milestones.json` |
+| `Actual start` | fact | the first `In Progress` transition when readable, otherwise `createdAt` | project item / GraphQL `createdAt` |
+| `Actual end` | fact | the native `closedAt` date; empty while the issue is open | GraphQL |
 
-Actuals are never written into `Start date` or `Target date`: that would
-overwrite the plan and make the delta meaningless. On every sync the report
-prints, for each closed issue with a milestone and a `closedAt`:
+The status-transition timestamp is not exposed by `gh project item-list` today;
+the documented fallback for both start values is `createdAt`. When the API
+starts exposing the transition, the sync reads it and the two starts diverge
+without a schema change.
+
+On every sync the report prints, for each closed issue with all four dates:
 
 ```text
-actual: #298 target 2026-12-31, closed 2026-12-20 -> on time
-actual: #305 target 2027-03-31, closed 2027-04-02 -> late by 2 days
+actual: #298 plan 2026-11-22 -> 2026-12-31, actual 2026-11-22 -> 2026-12-20, slip -11 day(s) (on time)
+actual: #305 plan 2026-11-22 -> 2027-03-31, actual 2026-11-22 -> 2027-04-02, slip 2 day(s) (late by 2 days)
 actuals: 8 on time, 2 late
 ```
 
-The delta is `closedAt (date only) - milestone.due` in whole days; a zero or
-negative delta is on time. The weekly comparison is the same computation over
-the closed issues at that moment, so a slipped issue stays visible after its
-close and the plan fields keep the original commitment.
+Slip is `Actual end - Target date` in whole days; zero or negative is on time.
+The weekly comparison is the same computation over the closed issues at that
+moment, so a slipped issue stays visible after its close and the plan fields
+keep the original commitment. The board gate requires both plan dates on every
+synced issue and both actual dates on every closed one; the allowlist may only
+name historical closed issues.
 
 ## Native dependencies
 
@@ -274,16 +280,17 @@ node scripts/check-task-links.mjs --board   # native fields, blockers, cycles
 ```
 
 `sync-board` needs `gh` with `repo` and `project` scopes; it also creates the
-`change:<id>` labels and the `Priority` / `Severity` / `Target date` /
-`Start date` project fields on demand. `.github/workflows/board-sync.yml` runs
-the sync and then `check-task-links.mjs --board`; the gate fails when a synced
-issue (open or closed) has no native Type, no Milestone, no Priority or no
-Start/Target date, when the text blockers disagree with the native links, when
-an open issue is blocked by a closed one, when the native graph has a cycle,
-when one epic spans milestones, when a milestone has no due date, or when a
-label duplicates the native Type. The allowlist in
-`data/board-exceptions.json` may name historical closed issues only, each with
-a reason.
+`change:<id>` labels and the `Priority` / `Severity` / `Start date` /
+`Target date` / `Actual start` / `Actual end` project fields on demand.
+`.github/workflows/board-sync.yml` runs the sync and then
+`check-task-links.mjs --board`; the gate fails when a synced issue (open or
+closed) has no native Type, no Milestone, no Priority or not both plan dates,
+when a closed issue has no Actual start or Actual end, when the text blockers
+disagree with the native links, when an open issue is blocked by a closed one,
+when the native graph has a cycle, when one epic spans milestones, when a
+milestone has no due date, or when a label duplicates the native Type. The
+allowlist in `data/board-exceptions.json` may name historical closed issues
+only, each with a reason.
 
 `.github/workflows/task-links.yml` runs the PR check on every `pull_request`
 event (`opened`, `edited`, `synchronize`, `reopened`) with the default
@@ -315,12 +322,14 @@ context; the text convention does not change.
   for `main` after the first sync exists; until then it reports without
   blocking.
 - The project (owner `mytab0r`, number 3) must keep the `Area`, `Progress`,
-  `Status`, `Priority`, `Severity`, `Target date` and `Start date` fields. The
-  sync creates `Priority` (`P0`–`P3`), `Severity` (`S1`–`S4`, `S-`) and the two
-  date fields when they are missing. `Area` options are `site`, `coordinator`,
-  `desktop`, `infra`, `design`, `docs`; `gh` cannot edit the options of an
-  existing single-select field, so a field that already exists without an option
-  must be fixed in the project UI.
+  `Status`, `Priority`, `Severity`, `Start date`, `Target date`, `Actual start`
+  and `Actual end` fields. The sync creates `Priority` (`P0`–`P3`), `Severity`
+  (`S1`–`S4`, `S-`) and the four date fields when they are missing. `Area`
+  options are `site`, `coordinator`, `desktop`, `infra`, `design`, `docs`; `gh`
+  cannot edit the options of an existing single-select field, so a field that
+  already exists without an option must be fixed in the project UI. The sync
+  reuses an existing field whose name differs only in case instead of creating
+  a duplicate.
 - The repository issue types `Task`, `Bug` and `Feature` must stay enabled
   (`repository.issueTypes` over GraphQL). The sync sets them and the project's
   `Type` column reads them; no label duplicates them.

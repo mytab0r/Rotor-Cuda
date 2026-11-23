@@ -106,6 +106,8 @@ function projectFieldValues() {
       severity: item.severity ?? null,
       targetDate: item["target date"] ?? null,
       startDate: item["start date"] ?? null,
+      actualStart: item["actual start"] ?? null,
+      actualEnd: item["actual end"] ?? null,
     };
   }
   return values;
@@ -130,7 +132,7 @@ export function checkBoardFields({
   }
   const ok = result.errors.length === 0;
   const summary = ok
-    ? `board-fields OK: ${result.checked} synced issues have a Type, Milestone, Priority and Start/Target dates`
+    ? `board-fields OK: ${result.checked} synced issues have a Type, Milestone, Priority and plan dates; closed issues have actual dates`
     : null;
   return { ...result, ok, summary };
 }
@@ -188,11 +190,12 @@ function usage() {
     "may use `Task: none — <reason>`.",
     "",
     "`--board` fails when a synced issue has no native issue Type, no",
-    "Milestone, no Priority or no Start/Target date; when its `Blocked by:`",
-    "text disagrees with its native blockedBy links; when an open issue is",
-    "blocked by a closed one; when the native graph has a cycle; when one epic",
-    "spans milestones; when a milestone has no due date; or when a label",
-    "duplicates the native Type. The allowlist is for historical closed",
+    "Milestone, no Priority, or not both plan dates (Start date, Target",
+    "date); when a closed issue has no Actual start or Actual end; when its",
+    "`Blocked by:` text disagrees with its native blockedBy links; when an open",
+    "issue is blocked by a closed one; when the native graph has a cycle; when",
+    "one epic spans milestones; when a milestone has no due date; or when a",
+    "label duplicates the native Type. The allowlist is for historical closed",
     "issues only.",
   ].join("\n");
 }
