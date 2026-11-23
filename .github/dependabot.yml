@@ -1,3 +1,19 @@
+# Dependency updates.
+#
+# Renovate is not used: it requires the Mend Renovate app to be installed on the
+# repository (or a self-hosted runner with its own credentials), which is an
+# owner action and would add a secret. Dependabot is built in and needs none.
+# The groups below give the same separation Renovate would: one group per
+# ecosystem/location and one per semantic-update level.
+#
+# No automerge: every grouped PR is reviewed and tested. Dependabot does not
+# automerge unless a repository workflow says so; none does.
+#
+# The wasm toolchain is deliberately left alone: rustup, the
+# wasm32-unknown-unknown target and wasm-pack are not declared in any manifest,
+# so Dependabot never sees or updates them. Cargo dependencies used by
+# crates/rotor-wasm are ordinary crate updates and stay in the root cargo
+# groups; the wasm gate rebuilds and tests them.
 version: 2
 
 updates:
@@ -5,18 +21,74 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: monday
+      time: "04:17"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 15
     groups:
-      cargo-minor-patch:
+      cargo-major:
         patterns: ["*"]
-        update-types: ["minor", "patch"]
+        update-types: ["major"]
+      cargo-minor:
+        patterns: ["*"]
+        update-types: ["minor"]
+      cargo-patch:
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: npm
+    directory: "/web"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:27"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 15
+    groups:
+      web-major:
+        patterns: ["*"]
+        update-types: ["major"]
+      web-minor:
+        patterns: ["*"]
+        update-types: ["minor"]
+      web-patch:
+        patterns: ["*"]
+        update-types: ["patch"]
+
+  - package-ecosystem: npm
+    directory: "/deploy/cloudflare"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:37"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    groups:
+      cloudflare-major:
+        patterns: ["*"]
+        update-types: ["major"]
+      cloudflare-minor:
+        patterns: ["*"]
+        update-types: ["minor"]
+      cloudflare-patch:
+        patterns: ["*"]
+        update-types: ["patch"]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: monday
+      time: "04:47"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
     groups:
-      actions-minor-patch:
+      actions-major:
         patterns: ["*"]
-        update-types: ["minor", "patch"]
+        update-types: ["major"]
+      actions-minor:
+        patterns: ["*"]
+        update-types: ["minor"]
+      actions-patch:
+        patterns: ["*"]
+        update-types: ["patch"]
