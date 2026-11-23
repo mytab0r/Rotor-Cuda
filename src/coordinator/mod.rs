@@ -6,6 +6,7 @@
 //! reverse proxy).
 
 mod admin;
+pub mod analytics;
 pub mod chunk_loop;
 pub mod client;
 
@@ -22,7 +23,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -51,6 +52,8 @@ const ADMIN_JS: &str = include_str!("../../apps/site/admin.js");
 const ADMIN_CSS: &str = include_str!("../../apps/site/admin.css");
 const SITE_MAP_PAGE: &str = include_str!("../../apps/site/site-map-admin.html");
 const SITE_MAP_JS: &str = include_str!("../../apps/site/site-map-admin.js");
+const ANALYTICS_PAGE: &str = include_str!("../../apps/site/analytics-admin.html");
+const ANALYTICS_JS: &str = include_str!("../../apps/site/analytics-admin.js");
 /// The routing map is data, not markup: `scripts/check-ssot.mjs` keeps it in
 /// sync with this file's route table and the admin page renders it as-is.
 const ROUTES_JSON: &str = include_str!("../../data/routes.json");
@@ -207,6 +210,10 @@ impl std::fmt::Debug for EdgeProxy {
 
 /// Number of request handlers currently running.
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
+/// Requests accepted since this process started (admin load indicator).
+static SERVED_REQUESTS: AtomicU64 = AtomicU64::new(0);
+/// Requests refused because every handler slot was busy.
+static CAPACITY_REJECTIONS: AtomicU64 = AtomicU64::new(0);
 
 /// The `--clients` map: client id -> SHA-256 of its bearer token.
 #[derive(Clone, Debug, Default)]
@@ -389,6 +396,8 @@ struct App {
     admin_auth: admin::AdminAuth,
     /// Failed login attempts per IP, shared with the monitor's limiter type.
     admin_login: crate::monitor::api::IpRateLimiter,
+    /// Per-IP beacon limiter. Memory only; the IP is never persisted.
+    analytics_limiter: analytics::IpLimiter,
     /// Process start, reported as uptime by the admin dashboard.
     started: Instant,
 }
@@ -460,6 +469,7 @@ pub struct ServerHandle {
     pub addr: SocketAddr,
     server: Arc<Server>,
     join: Option<thread::JoinHandle<()>>,
+    app: Arc<App>,
 }
 
 impl ServerHandle {
@@ -473,6 +483,8 @@ impl ServerHandle {
         if let Some(join) = self.join.take() {
             let _ = join.join();
         }
+        // Persist coalesced analytics before the process can exit.
+        let _ = self.app.lock().flush_analytics();
     }
 }
 
@@ -699,6 +711,7 @@ fn spawn_inner(
         telegram: Arc::new(crate::monitor::notify::TelegramConfig::from_env()),
         admin_auth,
         admin_login: crate::monitor::api::IpRateLimiter::new(5, Duration::from_secs(15 * 60)),
+        analytics_limiter: analytics::IpLimiter::default(),
         started: Instant::now(),
     });
     // The poller is detached and does nothing until an order exists.
@@ -710,6 +723,7 @@ fn spawn_inner(
         );
     }
     let listener = Arc::clone(&server);
+    let handle_app = Arc::clone(&app);
     let join = thread::spawn(move || {
         for request in listener.incoming_requests() {
             if ACTIVE_REQUESTS.fetch_add(1, Ordering::SeqCst) >= MAX_CONCURRENT_REQUESTS {
@@ -728,6 +742,7 @@ fn spawn_inner(
         addr,
         server,
         join: Some(join),
+        app: handle_app,
     })
 }
 
@@ -745,6 +760,7 @@ impl Drop for ActiveSlot {
 /// An API request with a missing or wrong token still gets 401, so the auth
 /// check wins over the capacity limit where it can be decided cheaply.
 fn reject_over_capacity(app: &App, request: Request) {
+    CAPACITY_REJECTIONS.fetch_add(1, Ordering::Relaxed);
     let url = request.url().to_string();
     let path = url.split_once('?').map_or(url.as_str(), |(path, _)| path);
     let status = capacity_rejection_status(path, app.identity(&request).is_some());
@@ -772,6 +788,7 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
         || path.starts_with("/api/v1/admin/orders/")
         || path == "/api/v1/admin/payments/reconcile"
         || path.starts_with("/api/v1/wallets")
+        || path == analytics::COLLECT_PATH
     {
         return 503;
     }
@@ -783,6 +800,7 @@ fn capacity_rejection_status(path: &str, authorized: bool) -> u16 {
 }
 
 fn handle(app: Arc<App>, request: Request) {
+    SERVED_REQUESTS.fetch_add(1, Ordering::Relaxed);
     let method = request.method().clone();
     let url = request.url().to_string();
     let (path, query) = url.split_once('?').unwrap_or((&url, ""));
@@ -890,6 +908,17 @@ fn handle(app: Arc<App>, request: Request) {
             None => respond_json(request, 404, &json!({"error": "not found"})),
         }
         return;
+    }
+
+    // Privacy-preserving visit analytics. Public and CORS-scoped: the Astro
+    // beacon must reach it without a coordinator token, and only the two site
+    // origins may call it cross-origin.
+    if path == "/api/v1/analytics/collect" {
+        if method == Method::Post || method == Method::Options {
+            let ip = client_ip(&request, app.trust_proxy);
+            return analytics::handle(&app, request, &method, &ip);
+        }
+        return respond_json(request, 405, &json!({ "error": "method not allowed" }));
     }
 
     // Public wallet-database catalogue and streamed dataset downloads. Hit
@@ -1028,6 +1057,10 @@ fn admin_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         "/admin.css" => Some((ADMIN_CSS.as_bytes(), "text/css; charset=utf-8")),
         "/site-map-admin.js" => Some((
             SITE_MAP_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/analytics-admin.js" => Some((
+            ANALYTICS_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         _ => None,
@@ -1174,6 +1207,9 @@ fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str, q
                 admin_integrations(app, request)
             }
             (Method::Get | Method::Head, "/cabinet/admin/api/audit") => admin_audit(request, query),
+            (Method::Get | Method::Head, "/cabinet/admin/api/analytics") => {
+                admin_analytics(app, request)
+            }
             (Method::Get | Method::Head, "/cabinet/admin/api/site-map") => respond_admin_asset(
                 request,
                 ROUTES_JSON.as_bytes(),
@@ -1208,6 +1244,9 @@ fn handle_admin(app: &Arc<App>, request: Request, method: &Method, path: &str, q
         }
         (Method::Get | Method::Head, "/cabinet/admin/site-map") => {
             respond_admin_page(request, "/cabinet/admin/site-map", SITE_MAP_PAGE);
+        }
+        (Method::Get | Method::Head, "/cabinet/admin/analytics") => {
+            respond_admin_page(request, "/cabinet/admin/analytics", ANALYTICS_PAGE);
         }
         (Method::Get | Method::Head, panel) if ADMIN_PANEL_ROUTES.contains(&panel) => {
             respond_admin_page(request, panel, ADMIN_PAGE);
@@ -1377,6 +1416,26 @@ fn admin_overview(app: &Arc<App>, request: Request) {
             "totals": status.totals,
         }),
     );
+}
+
+/// Operator analytics: aggregate beacons plus this process's load counters.
+///
+/// There are no per-visitor rows to leak: the state holds hourly counters only.
+fn admin_analytics(app: &Arc<App>, request: Request) {
+    let now = state::now_secs();
+    let mut body = app.lock().analytics_snapshot(now);
+    let uptime_secs = app.started.elapsed().as_secs();
+    let served = SERVED_REQUESTS.load(Ordering::Relaxed);
+    let minutes = (uptime_secs / 60).max(1);
+    body["coordinator"] = json!({
+        "uptime_secs": uptime_secs,
+        "served_requests_total": served,
+        "served_requests_per_minute": ((served as f64 / minutes as f64) * 100.0).round() / 100.0,
+        "capacity_rejections_total": CAPACITY_REJECTIONS.load(Ordering::Relaxed),
+        "in_flight_requests": ACTIVE_REQUESTS.load(Ordering::Relaxed),
+        "max_concurrent_requests": MAX_CONCURRENT_REQUESTS,
+    });
+    respond_admin_json(request, 200, &body);
 }
 
 /// Bounded pagination for the read-only admin inventory. `page` is 1-based;
@@ -2789,6 +2848,7 @@ fn is_app_shell(path: &str) -> bool {
             | "/cabinet/admin/"
             | "/cabinet/admin/login"
             | "/cabinet/admin/site-map"
+            | "/cabinet/admin/analytics"
     ) || ADMIN_PANEL_ROUTES.contains(&path)
 }
 

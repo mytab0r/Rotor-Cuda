@@ -89,6 +89,7 @@ const DEFAULT_ROUTES = [
   "/cabinet/admin/audit",
   "/cabinet/admin/design",
   "/cabinet/admin/site-map",
+  "/cabinet/admin/analytics",
 ];
 const VIEWPORT_HEIGHTS = { 375: 812, 768: 1024, 1280: 900 };
 /* The WalletConnect handoff is UA-driven, not width-driven: a narrow viewport
@@ -2572,6 +2573,7 @@ function auditPage(args) {
     "/cabinet/admin/integrations",
     "/cabinet/admin/audit",
     "/cabinet/admin/site-map",
+    "/cabinet/admin/analytics",
   ]);
   const shellPage = shellRoutes.has(route);
   const needsBreadcrumbs = route !== "/" && !shellPage;

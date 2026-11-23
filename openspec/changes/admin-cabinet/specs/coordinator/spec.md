@@ -68,3 +68,45 @@ explicit empty page until the audit store ships. Source:
 - WHEN `/cabinet/admin/api/orders` and `/cabinet/admin/api/audit` are requested
 - THEN both answer `200` with an empty `items` array and explicit
   `configured`/`available` flags; no placeholder rows are invented
+
+### Requirement: privacy-preserving visit analytics
+The coordinator MUST accept `POST /api/v1/analytics/collect` with a JSON body
+`{event:"view", path, referrer_host?}` of at most 4 KiB and answer `204` after
+incrementing one hourly aggregate bucket. It MUST reject malformed bodies,
+`event` values other than `view`, invalid paths and invalid referrer hosts with
+`400`, and oversized bodies with `413`. CORS MUST allow only
+`https://rotor.pxbt.app` and `https://rotor-site-b8c.pages.dev`; any other
+`Origin` MUST be refused with `403`. The remote address MUST only key an
+in-memory rate limiter and MUST NOT be persisted. Country MUST come only from
+`CF-IPCountry` (two uppercase letters, else `unknown`); device MUST be one of
+`desktop|mobile|tablet|bot` and browser one of
+`chrome|safari|firefox|edge|other`, both derived server-side from the
+User-Agent which MUST NOT be stored. The path MUST be normalized to a fixed
+route family (`/private-keys/<slug>` -> `/private-keys`,
+`/bitcoin-puzzle/<n>` -> `/bitcoin-puzzle`, unknown -> `other`); query strings
+and fragments MUST NOT be stored. Retention MUST be exactly 168 hourly buckets.
+The aggregates MUST live in the coordinator state file, be written immediately
+on the first beacon after a start, coalesced to at most one write per 10 s
+afterwards, and flushed on graceful shutdown. The dashboard MUST be served at
+`/cabinet/admin/analytics` behind the admin session and the aggregates at
+`/cabinet/admin/api/analytics` behind the session/bearer gate with the admin
+header set. Source: `src/coordinator/analytics.rs`,
+`src/coordinator/state.rs`, `src/coordinator/mod.rs`,
+`apps/site/analytics-admin.html`, `apps/site/analytics-admin.js`,
+`web/src/scripts/analytics-beacon.js`.
+
+#### Scenario: no identifiers are stored
+- GIVEN beacons carrying a User-Agent, `CF-IPCountry` and a full referrer URL
+- WHEN the coordinator state file is inspected
+- THEN it contains only hourly counters, with no IP, User-Agent, cookie,
+  storage identifier, path query or full referrer URL
+
+#### Scenario: foreign origin is refused
+- GIVEN `Origin: https://evil.example`
+- WHEN `POST /api/v1/analytics/collect` is requested
+- THEN it answers `403` and no `Access-Control-Allow-Origin` header
+
+#### Scenario: the day survives a restart
+- GIVEN accepted beacons in the current UTC day
+- WHEN the coordinator is shut down gracefully and started again
+- THEN the dashboard still reports those views
