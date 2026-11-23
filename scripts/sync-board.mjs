@@ -25,10 +25,12 @@ import {
   archiveStalePullRequestItems,
   boardMetadataFor,
   branchMatchesChange,
+  changeIdForIssue,
   closingIssueNumbers,
   declarationLines,
   epicBody,
   filesBelongToChange,
+  isSyncManagedIssue,
   issueNumberFromKey,
   linkSubIssueToEpic,
   listIssueMetadata,
@@ -740,20 +742,23 @@ function main() {
     epicSeverity = null,
     item = null,
     planned = false,
+    typeOverride = null,
   }) {
     const issue = { number, title, body, labels };
     const info = boardMetadataFor({ issue, changeId, area, milestones });
+    const type = typeOverride ?? info.type;
     for (const warning of info.warnings) {
+      if (typeOverride && warning.includes("no issue-type rule matched")) continue;
       metadataWarnings.push(warning);
       console.log(`warning: ${warning}`);
     }
     const priority = priorityFor({ issue, isEpic, epicPriority });
-    const severity = severityFor({ issue, issueType: info.type, epicSeverity });
+    const severity = severityFor({ issue, issueType: type, epicSeverity });
 
     if (planned || !number) {
       const label = number ? `#${number}` : `new issue "${title}"`;
-      if (info.type) {
-        console.log(`[dry-run] set Type=${info.type} on ${label}`);
+      if (type) {
+        console.log(`[dry-run] set Type=${type} on ${label}`);
         typesSet += 1;
       }
       if (info.milestone) {
@@ -763,18 +768,18 @@ function main() {
       console.log(
         `[dry-run] set Priority=${priority}, Severity=${severity} on ${label}`,
       );
-      return { type: info.type, milestone: info.milestone, priority, severity };
+      return { type, milestone: info.milestone, priority, severity };
     }
 
     // Closed epics and sub-issues get a Type and a Milestone too: they can be
     // project items, and the board's Type column must not be empty.
     const current = issueMetadata.get(Number(number)) ?? {};
-    if (info.type && current.issueType !== info.type) {
+    if (type && current.issueType !== type) {
       if (DRY_RUN) {
-        console.log(`[dry-run] set Type=${info.type} on #${number}`);
+        console.log(`[dry-run] set Type=${type} on #${number}`);
         typesSet += 1;
       } else {
-        setIssueType(number, info.type, id);
+        setIssueType(number, type, id);
       }
     }
     if (info.milestone && current.milestone !== info.milestone.title) {
@@ -790,7 +795,7 @@ function main() {
 
     setField(item, priorityField, priority, priority);
     setField(item, severityField, severity, severity);
-    return { type: info.type, milestone: info.milestone, priority, severity };
+    return { type, milestone: info.milestone, priority, severity };
   }
 
   // Keep the native blockedBy graph equal to the `Blocked by:` text. Add a
@@ -919,6 +924,7 @@ function main() {
   let tasksUpdated = 0;
   let tasksUnchanged = 0;
   const subIssueByNumber = new Map();
+  const processedNumbers = new Set();
 
   const issueByNumber = new Map(issues.map((issue) => [issue.number, issue]));
   try {
@@ -1105,6 +1111,7 @@ function main() {
         }
 
         const epicItem = ensureItem(epic.url, `epic #${epic.number}`);
+        processedNumbers.add(epic.number);
         setField(epicItem, areaField, change.area, change.area);
         setField(epicItem, progressField, String(percent), `${percent}%`);
         setField(epicItem, statusField, statusOption(percent).name, statusOption(percent).name);
@@ -1126,6 +1133,7 @@ function main() {
 
       for (const issue of sync.subIssues) {
         const area = issue.area ?? change.area;
+        processedNumbers.add(issue.number);
         const item = ensureItem(issue.url, `sub-issue #${issue.number}`);
         setField(item, areaField, area, area);
         applyIssueMetadata({
@@ -1172,6 +1180,47 @@ function main() {
           );
         }
       }
+    }
+
+    // Archived changes no longer appear in openspec/changes, but their issues
+    // can still be project items. Classify those so the board's Type column is
+    // never empty; do not add a closed archived issue that is not an item yet.
+    // A manual item that already has a native Type keeps it and gets a
+    // milestone/priority; an untyped manual issue is left alone.
+    for (const issue of issues) {
+      if (processedNumbers.has(issue.number)) continue;
+      const managed = isSyncManagedIssue(issue);
+      if (managed) {
+        if (issue.state !== "OPEN" && !itemsByUrl.has(issue.url)) continue;
+      } else if (!itemsByUrl.has(issue.url)) {
+        continue;
+      }
+      const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
+      if (!managed && !existingType) continue;
+      const labels = labelsOf(issue);
+      const areaLabel = labels.find((name) => name.startsWith("area:"));
+      const area =
+        areaLabel?.slice("area:".length) ?? areaFromText(issue.title ?? "") ?? "site";
+      const isEpic = labels.includes("epic");
+      const item = ensureItem(
+        issue.url,
+        `${isEpic ? "epic" : "sub-issue"} #${issue.number}`,
+      );
+      applyIssueMetadata({
+        number: issue.number,
+        id: issue.id,
+        title: issue.title,
+        body: issue.body ?? "",
+        labels,
+        state: issue.state,
+        changeId: changeIdForIssue(issue),
+        area,
+        isEpic,
+        epicPriority: "P1",
+        epicSeverity: "S-",
+        item,
+        typeOverride: managed ? null : existingType,
+      });
     }
 
     const prs = ghJson([

@@ -8,12 +8,14 @@
       "epics": [
         "cabinet-wallet",
         "product-strategy",
+        "send-wif-keys",
         "site-wallet-studio",
         "tx-sign-broadcast",
         "wallet-account-link",
         "wallet-history",
         "wallet-mainnet-signing",
         "wallet-portfolio",
+        "wallet-seed-phrase",
         "wallet-top-assets-wif",
         "walletconnect-deeplinks"
       ]
