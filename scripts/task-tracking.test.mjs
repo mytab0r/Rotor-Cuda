@@ -1113,6 +1113,21 @@ test("board gate checks type, milestone, priority, dates, blockers and release g
   assert.equal(badReason.ok, false);
   assert.match(badReason.errors.join("\n"), /needs a reason/);
 
+  const allowedGroup = evaluateBoardFields({
+    issues: [
+      { ...base[1], state: "CLOSED", issueType: null, milestone: null },
+      { ...base[2], milestone: "Wallet" },
+    ],
+    allowlist: [{ number: 2, reason: "historical" }],
+    milestones,
+    projectItems: { 3: fields("P1") },
+  });
+  assert.equal(
+    allowedGroup.ok,
+    true,
+    "an allowlisted closed issue does not break its change's milestone grouping",
+  );
+
   const mismatch = evaluateBoardFields({
     issues: [
       {

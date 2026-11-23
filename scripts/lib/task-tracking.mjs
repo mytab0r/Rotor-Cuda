@@ -473,7 +473,7 @@ export function evaluateBoardFields({
     }
 
     const changeId = changeIdForIssue(issue);
-    if (changeId) {
+    if (changeId && !allow) {
       if (!byChange.has(changeId)) byChange.set(changeId, []);
       byChange.get(changeId).push({ number, title: issue.title, milestone });
     }
