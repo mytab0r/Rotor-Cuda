@@ -1123,11 +1123,9 @@ function auditPage(args) {
   //         padding box (a flex child pushed out, an absolutely sized label);
   //       - a flex/grid child's rendered box escapes its parent's padding box.
   //     Text inside an overflow:auto/scroll ancestor is reachable by scrolling
-  //     and is not flagged. A deliberate ellipsis is allowed only on an element
-  //     (or its descendant) carrying data-clip-ok; the repository ships with no
-  //     such opt-outs, so every cut has to be fixed or annotated explicitly.
+  //     and is not flagged. There is no opt-out attribute: every cut has to be
+  //     fixed, and a deliberate one-line ellipsis is not allowed on content.
   const CLIP_OVERFLOW = new Set(["hidden", "clip"]);
-  const clipOptOut = (el) => Boolean(el && el.closest("[data-clip-ok]"));
   // The classic sr-only recipe is written inline on a few shared elements
   // (brand wordmark, icon-chip label, key stats note). It is hidden text, not
   // cut text, so it is not a clip defect.
@@ -1224,7 +1222,7 @@ function auditPage(args) {
   };
   for (const el of document.body.querySelectorAll("*")) {
     if (textClipTotal >= 2000) break;
-    if (!visible(el) || clipOptOut(el) || skipClipText(el)) continue;
+    if (!visible(el) || skipClipText(el)) continue;
     if (!textOf(el)) continue;
     const style = getComputedStyle(el);
     const clipsX = CLIP_OVERFLOW.has(style.overflowX);
@@ -1244,7 +1242,7 @@ function auditPage(args) {
     const direct = directText(el);
     if (direct) {
       const clip = clipsX || clipsY ? el : nearestClip(el);
-      if (clip && !clipOptOut(clip) && !reportedClipNodes.has(clip)) {
+      if (clip && !reportedClipNodes.has(clip)) {
         const clipStyle = getComputedStyle(clip);
         const clipX = CLIP_OVERFLOW.has(clipStyle.overflowX);
         const clipY = CLIP_OVERFLOW.has(clipStyle.overflowY);
