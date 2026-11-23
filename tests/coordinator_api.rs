@@ -1483,9 +1483,8 @@ fn public_pages_and_assets_are_served() {
             "/key",
             &[
                 "class=\"address-type-panel key-address-panel\"",
-                "class=\"address-type-card\"",
-                "data-row=\"btc_p2pkh\"",
-                "id=\"btc-panel\"",
+                "id=\"format-panel\"",
+                "id=\"format-cards\"",
             ],
         ),
         ("/site.css", &[":root", "--bg", "@media"]),
