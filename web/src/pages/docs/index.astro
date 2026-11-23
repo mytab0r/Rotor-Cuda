@@ -1,0 +1,364 @@
+---
+/* Documentation page, ported from apps/site/docs.html.
+ *
+ * Presentation only: the layout owns the header, theme and tooltips, and this
+ * page adds no client script and loads no WASM. The copy carries every factual
+ * claim of the legacy page in the same words where accuracy matters; the
+ * structure is a reading surface with one H1, anchored H2/H3 sections and a
+ * keyboard TOC. Internal links keep their canonical coordinator routes until
+ * the frontend-platform cutover (see scripts/check-seo.mjs pendingCutover). */
+import SiteLayout from '../../layouts/SiteLayout.astro';
+import ogImage from '../../assets/og-landing.png';
+import { SITE_NAME, SITE_ORIGIN } from '../../lib/site';
+
+const TITLE = 'Docs: run a client, key tools and site limits | Crypto';
+const DESCRIPTION =
+  'How to run a client against the coordinator, read keys and addresses in the browser, monitor accounts and decode Bitcoin and Ethereum transactions locally.';
+const CANONICAL = '/docs';
+const canonicalUrl = `${SITE_ORIGIN}${CANONICAL}`;
+const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
+
+interface TocItem {
+  id: string;
+  label: string;
+  children?: TocItem[];
+}
+
+/* One entry per anchored H2/H3. The ids here and in the prose are the same
+ * strings; scripts/check-seo.mjs fails when a TOC href has no matching id. */
+const TOC: TocItem[] = [
+  { id: 'getting-a-token', label: 'Getting a token' },
+  {
+    id: 'running-a-client',
+    label: 'Running a client',
+    children: [
+      { id: 'cpu', label: 'CPU' },
+      { id: 'gpu', label: 'GPU' },
+      { id: 'bsgs', label: 'BSGS' },
+      { id: 'browser-client', label: 'Browser client' },
+    ],
+  },
+  { id: 'private-key-explorer', label: 'Private-key explorer' },
+  { id: 'public-key-pages', label: 'Public key pages' },
+  { id: 'derivation-paths-and-address-formats', label: 'Derivation paths and address formats' },
+  { id: 'address-monitor', label: 'Address monitor' },
+  { id: 'transaction-decoders', label: 'Transaction decoders' },
+  { id: 'site-map-and-donor-parity', label: 'Site map and donor parity' },
+  { id: 'security-and-disclaimer', label: 'Security and disclaimer' },
+  {
+    id: 'common-questions',
+    label: 'Common questions',
+    children: [
+      { id: 'does-the-site-receive-my-private-key', label: 'Does the site receive my private key?' },
+      { id: 'can-i-use-this-as-a-wallet', label: 'Can I use this as a wallet?' },
+      { id: 'what-does-a-balance-lookup-send', label: 'What does a balance lookup send?' },
+      { id: 'what-are-the-client-requirements', label: 'What are the client requirements?' },
+    ],
+  },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'TechArticle',
+      '@id': `${canonicalUrl}#article`,
+      headline: 'Documentation',
+      description: DESCRIPTION,
+      inLanguage: 'en',
+      url: canonicalUrl,
+      mainEntityOfPage: canonicalUrl,
+      isPartOf: {
+        '@type': 'WebSite',
+        '@id': `${SITE_ORIGIN}/#website`,
+        url: `${SITE_ORIGIN}/`,
+        name: SITE_NAME,
+        inLanguage: 'en',
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: SITE_NAME,
+        url: `${SITE_ORIGIN}/`,
+        logo: { '@type': 'ImageObject', url: `${SITE_ORIGIN}/favicon.png` },
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_ORIGIN}/` },
+        { '@type': 'ListItem', position: 2, name: 'Docs', item: canonicalUrl },
+      ],
+    },
+  ],
+};
+---
+
+<SiteLayout
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={CANONICAL}
+  image={ogImageUrl}
+  imageAlt="Crypto documentation — client setup, key tools and site limits"
+  imageWidth={1200}
+  imageHeight={630}
+  robots="index,follow"
+  mainClass="docs-page"
+  jsonLd={jsonLd}
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+    <span aria-current="page">Docs</span>
+  </nav>
+
+  <section class="hero docs-hero" aria-labelledby="docs-title">
+    <h1 id="docs-title">Documentation</h1>
+    <p>
+      How to get a client token, run a search client, read keys and addresses
+      in the browser, and the limits that apply to all of it. Every calculator
+      derives locally; only a public address leaves the page, and only during
+      an opt-in balance check.
+    </p>
+    <div class="key-badges">
+      <span>Client setup</span>
+      <span>Key handling</span>
+      <span>Limits</span>
+    </div>
+  </section>
+
+  <div class="docs-layout">
+    <nav class="docs-toc" aria-label="On this page" data-docs-toc>
+      <p class="docs-toc__title" id="toc-title">On this page</p>
+      <ol>
+        {TOC.map((item) => (
+          <li>
+            <a href={`#${item.id}`}>{item.label}</a>
+            {item.children && (
+              <ol>
+                {item.children.map((child) => (
+                  <li><a href={`#${child.id}`}>{child.label}</a></li>
+                ))}
+              </ol>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <article class="card docs-prose">
+      <h2 id="getting-a-token">Getting a token</h2>
+      <p>
+        A client token identifies you to the coordinator and ties heartbeats and
+        accepted results to your cabinet and leaderboard entry.
+      </p>
+      <ul>
+        <li><strong>Open registration:</strong> use the form on the <a href="/">landing page</a>. The token is shown once; copy it immediately.</li>
+        <li><strong>Closed registration:</strong> ask the operator to create an account for you. The operator can issue a token from the admin API.</li>
+      </ul>
+      <p class="muted">Paste the token into the <a href="/me">cabinet</a> to see your personal stats.</p>
+
+      <h2 id="running-a-client">Running a client</h2>
+      <p>The client leases disjoint key ranges; point it at this coordinator and pass your token.</p>
+      <pre><code>rotor -m addresses --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
+  --coordinator https://your-coordinator.example --token &lt;client-token&gt; \
+  --client-id my-machine --targets targets.txt</code></pre>
+      <p>
+        Use <code>--client-id</code> to name the machine. When the coordinator
+        authenticates per-client tokens, the server owns the identity: the token
+        decides which account receives the work and stats.
+      </p>
+      <p>Admin-only commands create jobs and manage accounts; a client token cannot create jobs.</p>
+      <pre><code># create a job (admin token)
+rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.1:7878</code></pre>
+
+      <h3 id="cpu">CPU</h3>
+      <p>Without <code>-g</code> the client scans on the CPU. CPU is the supported path for coordinator mode with every search mode.</p>
+
+      <h3 id="gpu">GPU</h3>
+      <p>
+        Add <code>-g</code> and select devices with <code>--gpui</code>; address and
+        xpoint searches also accept <code>--gpux</code> for the grid. Each selected
+        device runs its own lease loop.
+      </p>
+      <pre><code>rotor -g --gpui 0 -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
+  --coordinator https://your-coordinator.example --token &lt;client-token&gt; --client-id rig-a \
+  GXtpBqxw3xwZ61zZ3f3uWk2dNq6M6j4K6w6yY1R1cGxY...</code></pre>
+
+      <h3 id="bsgs">BSGS</h3>
+      <p>
+        BSGS jobs store a resumable giant-step checkpoint on the coordinator.
+        CPU BSGS is the supported coordinator path; <code>-m bsgs -g</code> is
+        rejected with <code>--coordinator</code> because the giant walk lives on
+        the coordinator.
+      </p>
+
+      <h3 id="browser-client">Browser client</h3>
+      <p>
+        Open <a href="/run">/run</a>, paste a client token from the
+        <a href="/me">cabinet</a> and press Start. The tab runs the WASM scan core
+        on the CPU, leases the same chunks and submits the same completion proofs
+        as the native client. It only leases jobs the operator already created
+        (authorized puzzle jobs only) and cannot create jobs.
+      </p>
+      <ul>
+        <li>Measured on the development machine: ~300–400k keys/s per tab; the page shows its own measured rate.</li>
+        <li>Use <code>chunk_width</code> 2^20–2^22 and <code>lease_ttl</code> 120–300 seconds for browser jobs.</li>
+        <li>The page requires HTTPS or localhost.</li>
+        <li>The token is stored in this browser's <code>localStorage</code> and sent only in the <code>Authorization</code> header.</li>
+      </ul>
+
+      <h2 id="private-key-explorer">Private-key explorer</h2>
+      <p>
+        <a href="/key">/key</a> is a read-only private-key explorer. Derivation
+        runs in this browser in the same WASM artifact the worker uses; the
+        coordinator only serves the page. It accepts hex, decimal or Bitcoin WIF
+        keys for secp256k1 and ed25519, and shows BTC (legacy/P2SH/segwit/taproot),
+        EVM, TRON, Solana, Litecoin, Dogecoin, Bitcoin Cash and XRP addresses with
+        expandable calculations.
+      </p>
+      <ul>
+        <li>Online balance lookups are opt-in and off by default. When enabled, only the derived addresses currently shown are queried: BTC via mempool.space, EVM via public Ethereum JSON-RPC providers (publicnode, dRPC, 1rpc; tried in order), TRON via Tronscan.</li>
+        <li>The private key never leaves the browser and is not stored in the URL, history or local storage.</li>
+        <li>This is not a wallet: no signing or sweeping. Handle any key that holds funds offline on an air-gapped machine, never on an online page.</li>
+      </ul>
+
+      <h2 id="public-key-pages">Public key pages</h2>
+      <p>
+        <a href="/private-keys">/private-keys</a> is the directory of 18 chains.
+        Every chain page shows 60 keys at a time with First/Previous/Random/Next/
+        Last controls, a page jump, HEX/WIF/brainwallet search and — for Bitcoin
+        and Litecoin — address-type tabs (Legacy, SegWit, Nested SegWit,
+        Taproot). Addresses are derived locally and balances are checked in your
+        browser; only the derived public addresses reach a public provider.
+        <code>/keys</code> is a permanent alias for the directory, and
+        <code>/keys/&lt;chain&gt;/&lt;start&gt;-&lt;end&gt;</code> opens a key
+        range. A URL such as <code>/key/&lt;64 hex&gt;</code> derives every
+        address for one key. The first 64 keys and ranges are
+        <code>index,follow</code>; later chain pages and arbitrary keys are
+        <code>noindex,follow</code>.
+      </p>
+      <p>
+        Because the key is in the URL, the coordinator knows which key page was
+        requested. The page shows a notice and checks only the derived addresses
+        against the registry, so a registered owner can be warned that someone
+        opened a page containing their address. Typing a key locally on
+        <a href="/key">/key</a> is checked only if you tick the opt-in box.
+      </p>
+
+      <h2 id="derivation-paths-and-address-formats">Derivation paths and address formats</h2>
+      <p>
+        The key explorer and the seed tools derive in this browser. The
+        <a href="/mnemonic-converter">mnemonic converter</a> turns BIP39, Electrum
+        BIP39 and legacy Electrum phrases into the first keys on the standard
+        derivation paths; the <a href="/seed">seed studio</a> and the
+        <a href="/mnemonic-seeds">mnemonic seed</a> examples use the same engine.
+        Address formats follow the chain: Bitcoin and Litecoin expose legacy,
+        P2SH, native segwit and taproot forms; account chains show one address
+        per key.
+      </p>
+
+      <h2 id="address-monitor">Address monitor</h2>
+      <p>
+        <a href="/cabinet">/cabinet</a> watches addresses you control: connect an
+        EVM wallet, sign the one-time SIWE challenge, and the coordinator stores
+        those accounts and reports balance/nonce changes in your feed. It never
+        asks for a private key, WIF or seed phrase, never signs, and never moves
+        funds.
+      </p>
+      <ul>
+        <li>Only the address that signed the login is <code>verified</code>; other imported accounts and manually added BTC addresses are marked <code>unverified</code>.</li>
+        <li>On <a href="/key">/key</a>, the "Check these addresses against the Crypto registry" box is off by default. When checked, only the derived addresses (never the key) are sent; the coordinator returns a match count and warns the registered owner that someone looked the address up.</li>
+        <li>Alerts are early warning, not protection: an idle stolen key is not observable, and delivery can be delayed or missed.</li>
+        <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
+      </ul>
+
+      <h2 id="transaction-decoders">Transaction decoders</h2>
+      <p>
+        <a href="/tx/bitcoin">/tx/bitcoin</a> decodes a raw Bitcoin legacy or
+        SegWit transaction in the browser: version, SegWit marker and flag, every
+        input and witness item, every output with its value and script type
+        (P2PKH, P2SH, P2WPKH, P2WSH, P2TR, P2PK, OP_RETURN or unknown), the
+        decoded address where the script has one, locktime, serialized size,
+        weight and virtual size. A fee is reported only when you supply one
+        satoshi value per input; without prevouts the page says the fee is
+        unavailable and does not guess.
+      </p>
+      <p>
+        <a href="/tx/ethereum">/tx/ethereum</a> decodes a raw EIP-2718 legacy,
+        access-list (type 1) or EIP-1559 (type 2) transaction: chain id, nonce,
+        gas price or max priority/max fee, gas limit, destination or contract
+        creation, value in wei and ETH, data length/selector/first bytes, access
+        list and the y-parity or v, r and s fields. RLP is validated for
+        canonical encoding; signature recovery and verification are not
+        performed.
+      </p>
+      <p class="muted">
+        Both pages are client-side only: no key, network request, storage or URL
+        payload. <a href="/tx">/tx</a> is the shared index.
+      </p>
+
+      <h2 id="site-map-and-donor-parity">Site map and donor parity</h2>
+      <p>
+        The parity audit maps every Crypto route to its ref-site-a and
+        ref-site-b equivalent. It is internal documentation, kept in
+        <code>docs/site-map/index.html</code> and
+        <code>docs/site-map/site-map-data.js</code>, not a public route. The data
+        also carries the feature matrix (parity, partial and missing capabilities
+        with a priority), so a gap closes only when the data says so.
+      </p>
+
+      <h2 id="security-and-disclaimer">Security and disclaimer</h2>
+      <ul>
+        <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
+        <li>Use HTTPS: put the coordinator behind a TLS-terminating reverse proxy. Never send a token over plain HTTP to a remote host.</li>
+        <li>A disabled account gets <code>401</code> on every authenticated call and its active leases are released.</li>
+        <li>This is a puzzle-only tool. Search only keys and ranges you are authorized to search; do not target live wallets or funds you do not own.</li>
+        <li>Progress and results are public aggregates. Job targets and found keys are visible to authenticated clients and the operator.</li>
+      </ul>
+
+      <h2 id="common-questions">Common questions</h2>
+      <div class="faq-item">
+        <h3 id="does-the-site-receive-my-private-key">Does the site receive my private key?</h3>
+        <p>
+          On <a href="/key">/key</a> and the seed tools, derivation runs in the
+          tab and the key is not sent to the coordinator. The public key pages are
+          the exception: the key range is in the page URL, so the coordinator
+          knows which page was requested; it checks only the derived addresses
+          against the registry, and a key typed on <a href="/key">/key</a> is
+          checked only when you tick the opt-in box.
+        </p>
+      </div>
+      <div class="faq-item">
+        <h3 id="can-i-use-this-as-a-wallet">Can I use this as a wallet?</h3>
+        <p>
+          No. The private-key explorer is read-only: it does not sign or sweep.
+          Handle any key that holds funds offline on an air-gapped machine, never
+          on an online page, and never paste a live key into a site you do not
+          control.
+        </p>
+      </div>
+      <div class="faq-item">
+        <h3 id="what-does-a-balance-lookup-send">What does a balance lookup send?</h3>
+        <p>
+          Balance lookups are opt-in and off by default on <a href="/key">/key</a>.
+          When enabled, only the derived addresses currently shown are sent to
+          public providers: BTC via mempool.space, EVM via public Ethereum
+          JSON-RPC providers, TRON via Tronscan. The private key never leaves the
+          browser.
+        </p>
+      </div>
+      <div class="faq-item">
+        <h3 id="what-are-the-client-requirements">What are the client requirements?</h3>
+        <p>
+          The CPU path supports every search mode. GPU mode uses <code>-g</code>
+          with <code>--gpui</code>, and address or xpoint grids also accept
+          <code>--gpux</code>; <code>-m bsgs -g</code> is rejected with
+          <code>--coordinator</code> because the giant walk lives on the
+          coordinator. The browser client needs HTTPS or localhost, keeps the
+          token in <code>localStorage</code> and sends it only in the
+          <code>Authorization</code> header.
+        </p>
+      </div>
+    </article>
+  </div>
+</SiteLayout>
