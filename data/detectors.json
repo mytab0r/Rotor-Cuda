@@ -60,7 +60,7 @@
     },
     {
       "id": "key-meta-row",
-      "rule": "The /key input meta row is one 40px line with the info control centred.",
+      "rule": "The /key input meta row grows to fit a one- to three-line status (40-72px) with the info control centred on the status block.",
       "batch": "2",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
@@ -1116,7 +1116,7 @@
     },
     {
       "id": "text-clipped",
-      "rule": "Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; ellipsis requires data-clip-ok.",
+      "rule": "Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; there is no ellipsis opt-out.",
       "batch": "8",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
