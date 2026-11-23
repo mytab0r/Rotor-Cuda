@@ -709,8 +709,9 @@ the CPU/GMP/hash/filter sources) was removed; it is still available in git
 history. The C++-only workflows that built it (`windows-build`,
 `windows-release` and the BSGS/filter/self-update self-tests) were removed too;
 the remaining workflows (`rust.yml`, `gpu-bsgs-compile.yml`, `rust-release.yml`,
-`coordinator-image.yml`, `codeql.yml`, `selfupdate-check.yml`, `audit.yml`) are
-Rust-only.
+`coordinator-image.yml`, `codeql.yml`, `selfupdate-check.yml`, `audit.yml`,
+`release-please.yml`) are Rust-only. Release automation and the weekly
+dependency audit are documented in `docs/process/releases.md`.
 
 Build (no GMP, no CUDA, no MSBuild needed):
 
