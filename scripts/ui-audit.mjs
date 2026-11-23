@@ -1179,19 +1179,14 @@ function auditPage(args) {
       bottom: box.bottom - inset("Bottom", ""),
     };
   };
-  const lineBoxOutside = (el, box) => {
+  const lineBoxOutside = (el, box, clipX = true, clipY = true) => {
     const range = document.createRange();
     range.selectNodeContents(el);
     for (const rect of range.getClientRects()) {
       if (rect.width <= 1 || rect.height <= 1) continue;
-      if (
-        rect.left < box.left - 1 ||
-        rect.right > box.right + 1 ||
-        rect.top < box.top - 1 ||
-        rect.bottom > box.bottom + 1
-      ) {
-        return true;
-      }
+      const outsideX = clipX && (rect.left < box.left - 1 || rect.right > box.right + 1);
+      const outsideY = clipY && (rect.top < box.top - 1 || rect.bottom > box.bottom + 1);
+      if (outsideX || outsideY) return true;
     }
     return false;
   };
@@ -1249,9 +1244,14 @@ function auditPage(args) {
     const direct = directText(el);
     if (direct) {
       const clip = clipsX || clipsY ? el : nearestClip(el);
-      if (clip && !clipOptOut(clip) && !reportedClipNodes.has(clip) && lineBoxOutside(el, paddingBoxOf(clip))) {
-        recordTextClip(el, "line-box", `line box outside the clip box of ${selectorOf(clip)}`, clip);
-        continue;
+      if (clip && !clipOptOut(clip) && !reportedClipNodes.has(clip)) {
+        const clipStyle = getComputedStyle(clip);
+        const clipX = CLIP_OVERFLOW.has(clipStyle.overflowX);
+        const clipY = CLIP_OVERFLOW.has(clipStyle.overflowY);
+        if (lineBoxOutside(el, paddingBoxOf(clip), clipX, clipY)) {
+          recordTextClip(el, "line-box", `line box outside the clip box of ${selectorOf(clip)}`, clip);
+          continue;
+        }
       }
     }
     const parent = el.parentElement;
