@@ -23,17 +23,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   archiveStalePullRequestItems,
+  boardMetadataFor,
   branchMatchesChange,
+  changeIdForIssue,
   closingIssueNumbers,
+  declarationLines,
   epicBody,
   filesBelongToChange,
+  isSyncManagedIssue,
+  issueNumberFromKey,
   linkSubIssueToEpic,
+  listIssueMetadata,
   parseTaskDirective,
   parseTasksMarkdown,
+  priorityFor,
+  severityFor,
   syncChangeTasks,
+  targetDelta,
 } from "./lib/task-tracking.mjs";
 
 const REPO = "mytab0r/Rotor-Cuda";
+const [REPO_OWNER, REPO_NAME] = REPO.split("/");
 const OWNER = "mytab0r";
 const PROJECT_NUMBER = 3;
 const REPO_URL = `https://github.com/${REPO}`;
@@ -43,6 +53,7 @@ const EPIC_MARKER_RE = /<!--\s*openspec-change:\s*([^\s>]+)\s*-->/;
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CHANGES_DIR = path.join(REPO_ROOT, "openspec", "changes");
+const MILESTONES_PATH = path.join(REPO_ROOT, "data", "milestones.json");
 const DRY_RUN = process.argv.slice(2).includes("--dry-run");
 
 function gh(args) {
@@ -273,6 +284,175 @@ function prBelongsToChange(pr, changeId, changeIds) {
   }
 }
 
+function readMilestones() {
+  if (!fs.existsSync(MILESTONES_PATH)) {
+    throw new Error(`missing ${path.relative(REPO_ROOT, MILESTONES_PATH)}`);
+  }
+  const parsed = JSON.parse(fs.readFileSync(MILESTONES_PATH, "utf8"));
+  if (!Array.isArray(parsed)) {
+    throw new Error("data/milestones.json must be an array of milestones");
+  }
+  const titles = new Set();
+  return parsed.map((entry) => {
+    const title = String(entry?.title ?? "").trim();
+    if (!title) throw new Error("data/milestones.json: every milestone needs a title");
+    if (titles.has(title)) {
+      throw new Error(`data/milestones.json: duplicate milestone "${title}"`);
+    }
+    titles.add(title);
+    const due = entry.due ? String(entry.due) : null;
+    if (!due) {
+      throw new Error(
+        `data/milestones.json: milestone "${title}" needs a due date for the Roadmap`,
+      );
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+      throw new Error(
+        `data/milestones.json: milestone "${title}" due must be YYYY-MM-DD, got "${due}"`,
+      );
+    }
+    return {
+      title,
+      description: entry.description ? String(entry.description) : null,
+      due,
+      match: {
+        areas: Array.isArray(entry.match?.areas) ? entry.match.areas : [],
+        epics: Array.isArray(entry.match?.epics) ? entry.match.epics : [],
+      },
+    };
+  });
+}
+
+function dueOn(due) {
+  if (!due) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(due) ? `${due}T00:00:00Z` : due;
+}
+
+function dateOnly(value) {
+  if (!value) return null;
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+}
+
+// The project item does not expose a status-transition timestamp through
+// item-list today; the createdAt date is the documented fallback. If GitHub
+// adds the field, the first matching key wins.
+function statusEnteredDate(item) {
+  if (!item) return null;
+  for (const key of ["statusChangedAt", "statusUpdatedAt", "status changed at"]) {
+    const value = item[key];
+    if (value) return dateOnly(value);
+  }
+  return null;
+}
+
+// Milestones are releases; data/milestones.json is the source. Create a
+// missing one, update a changed description or due date, and reuse the rest.
+function ensureMilestones(milestones) {
+  const existing = ghJson([
+    "api",
+    `repos/${REPO}/milestones?state=all&per_page=100`,
+  ]);
+  if (!Array.isArray(existing)) {
+    throw new Error("cannot list repository milestones");
+  }
+  const byTitle = new Map(existing.map((milestone) => [milestone.title, milestone]));
+  let created = 0;
+  let updated = 0;
+
+  for (const milestone of milestones) {
+    const current = byTitle.get(milestone.title);
+    const due = dueOn(milestone.due);
+
+    if (!current) {
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] create milestone "${milestone.title}"` +
+            `${milestone.due ? ` (due ${milestone.due})` : ""}`,
+        );
+        created += 1;
+      } else {
+        const args = [
+          "api",
+          "--method",
+          "POST",
+          `repos/${REPO}/milestones`,
+          "-f",
+          `title=${milestone.title}`,
+        ];
+        if (milestone.description) args.push("-f", `description=${milestone.description}`);
+        if (due) args.push("-f", `due_on=${due}`);
+        const made = ghJson(args);
+        if (!made?.number) {
+          throw new Error(`cannot create milestone "${milestone.title}"`);
+        }
+        byTitle.set(made.title, made);
+        created += 1;
+        console.log(`created milestone "${milestone.title}" (#${made.number})`);
+      }
+      continue;
+    }
+
+    const patch = {};
+    if (milestone.description && milestone.description !== (current.description ?? "")) {
+      patch.description = milestone.description;
+    }
+    if (due && due !== current.due_on) patch.due_on = due;
+    if (Object.keys(patch).length === 0) continue;
+    if (DRY_RUN) {
+      console.log(
+        `[dry-run] update milestone "${milestone.title}": ${Object.keys(patch).join(", ")}`,
+      );
+      updated += 1;
+    } else {
+      const args = [
+        "api",
+        "--method",
+        "PATCH",
+        `repos/${REPO}/milestones/${current.number}`,
+      ];
+      for (const [key, value] of Object.entries(patch)) args.push("-f", `${key}=${value}`);
+      ghJson(args);
+      updated += 1;
+      console.log(`updated milestone "${milestone.title}"`);
+    }
+  }
+
+  return { created, updated, existing: existing.length };
+}
+
+function listIssueTypes() {
+  const query =
+    "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issueTypes(first:20){nodes{id name}}}}";
+  const result = ghJson([
+    "api",
+    "graphql",
+    "-f",
+    `query=${query}`,
+    "-f",
+    `owner=${REPO_OWNER}`,
+    "-f",
+    `name=${REPO_NAME}`,
+  ]);
+  if (result?.errors?.length) {
+    throw new Error(
+      `cannot read repository issue types: ${result.errors
+        .map((error) => error.message)
+        .join("; ")}`,
+    );
+  }
+  const types = new Map();
+  for (const node of result?.data?.repository?.issueTypes?.nodes ?? []) {
+    types.set(node.name, node.id);
+  }
+  for (const required of ["Task", "Bug", "Feature"]) {
+    if (!types.has(required)) {
+      throw new Error(`repository has no issue type "${required}"`);
+    }
+  }
+  return types;
+}
+
 function main() {
   const repoInfo = ghJson([
     "repo",
@@ -347,8 +527,17 @@ function main() {
   const fieldByName = new Map(fieldList.map((field) => [field.name, field]));
 
   function ensureField(name, type, options) {
-    const existing = fieldByName.get(name);
+    const existing =
+      fieldByName.get(name) ??
+      [...fieldByName.values()].find(
+        (field) => field.name.toLowerCase() === name.toLowerCase(),
+      );
     if (existing) {
+      if (existing.name !== name) {
+        console.log(
+          `using project field "${existing.name}" for "${name}" (case-only name difference)`,
+        );
+      }
       if (type === "SINGLE_SELECT") {
         const have = new Set((existing.options ?? []).map((option) => option.name));
         const missing = options.filter((option) => !have.has(option));
@@ -386,6 +575,23 @@ function main() {
   }
 
   const areaField = ensureField("Area", "SINGLE_SELECT", AREA_OPTIONS);
+  const priorityField = ensureField("Priority", "SINGLE_SELECT", [
+    "P0",
+    "P1",
+    "P2",
+    "P3",
+  ]);
+  const severityField = ensureField("Severity", "SINGLE_SELECT", [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S-",
+  ]);
+  const targetDateField = ensureField("Target date", "DATE");
+  const startDateField = ensureField("Start date", "DATE");
+  const actualStartField = ensureField("Actual start", "DATE");
+  const actualEndField = ensureField("Actual end", "DATE");
   const progressField = ensureField("Progress", "NUMBER");
   const statusField = fieldByName.get("Status");
   if (!statusField?.options) {
@@ -445,7 +651,7 @@ function main() {
     return item;
   }
 
-  function setField(item, field, value, valueLabel) {
+  function setField(item, field, value, valueLabel, kind = null) {
     if (!item) return;
     if (!field) {
       console.log(`[dry-run] set ${valueLabel} on ${itemUrl(item)} (field not created yet)`);
@@ -455,6 +661,10 @@ function main() {
       console.log(`[dry-run] set ${field.name}=${valueLabel} on ${itemUrl(item)}`);
       return;
     }
+    // item-list exposes custom fields by lowercased name; skip an unchanged
+    // value so a daily run only writes what drifted.
+    const current = item[field.name.toLowerCase()];
+    if (current !== undefined && String(current) === String(value)) return;
     const args = [
       "project",
       "item-edit",
@@ -471,10 +681,298 @@ function main() {
       );
       if (!option) throw new Error(`field ${field.name} has no option ${value}`);
       args.push("--single-select-option-id", option.id);
+    } else if (kind === "date") {
+      args.push("--date", String(value));
     } else {
       args.push("--number", String(value));
     }
     gh(args);
+  }
+
+  const milestones = readMilestones();
+  const milestoneState = ensureMilestones(milestones);
+
+  // Issue types and native blockedBy links are GraphQL-only. One paginated
+  // listing gives the current type, milestone and blockers for every open
+  // issue, so a repeat run only mutates what drifted.
+  const issueMetadata = new Map(
+    listIssueMetadata({
+      ghJson,
+      owner: REPO_OWNER,
+      name: REPO_NAME,
+      states: ["OPEN", "CLOSED"],
+    }).map((issue) => [issue.number, issue]),
+  );
+  const issueTypes = listIssueTypes();
+  let typesSet = 0;
+  let milestonesAssigned = 0;
+  let dependenciesAdded = 0;
+  let dependenciesRemoved = 0;
+  const dependencyEdges = [];
+  const metadataWarnings = [];
+  const boardDates = new Map();
+
+  function issueIdFor(number, known = null) {
+    const metadata = issueMetadata.get(Number(number));
+    if (metadata?.id) return metadata.id;
+    if (known) return known;
+    if (DRY_RUN) return null;
+    const viewed = ghJson([
+      "issue",
+      "view",
+      String(number),
+      "--repo",
+      REPO,
+      "--json",
+      "id",
+    ]);
+    if (!viewed?.id) throw new Error(`cannot resolve issue #${number} id`);
+    return viewed.id;
+  }
+
+  function setIssueType(number, type, id = null) {
+    const issueId = issueIdFor(number, id);
+    const typeId = issueTypes.get(type);
+    if (!typeId) throw new Error(`repository has no issue type "${type}"`);
+    if (!issueId) return;
+    const mutation =
+      "mutation($issueId:ID!,$issueTypeId:ID!){updateIssueIssueType(input:{issueId:$issueId,issueTypeId:$issueTypeId}){issue{number issueType{name}}}}";
+    const result = ghJson([
+      "api",
+      "graphql",
+      "-f",
+      `query=${mutation}`,
+      "-f",
+      `issueId=${issueId}`,
+      "-f",
+      `issueTypeId=${typeId}`,
+    ]);
+    if (result?.errors?.length) {
+      throw new Error(
+        `cannot set Type=${type} on #${number}: ${result.errors
+          .map((error) => error.message)
+          .join("; ")}`,
+      );
+    }
+    const current = issueMetadata.get(Number(number)) ?? {};
+    issueMetadata.set(Number(number), { ...current, id: issueId, issueType: type });
+    typesSet += 1;
+    console.log(`set Type=${type} on #${number}`);
+  }
+
+  function setMilestone(number, title) {
+    if (DRY_RUN) {
+      console.log(`[dry-run] set Milestone="${title}" on #${number}`);
+      return;
+    }
+    gh(["issue", "edit", String(number), "--repo", REPO, "--milestone", title]);
+    const current = issueMetadata.get(Number(number)) ?? {};
+    issueMetadata.set(Number(number), { ...current, milestone: title });
+    milestonesAssigned += 1;
+    console.log(`set Milestone="${title}" on #${number}`);
+  }
+
+  // Applies Type, Milestone, Priority and Severity to one synced issue. The
+  // rules live in the pure helpers, so a dry run and a real run agree.
+  function applyIssueMetadata({
+    number = null,
+    id = null,
+    title,
+    body = "",
+    labels = [],
+    state = "OPEN",
+    changeId = null,
+    area = null,
+    isEpic = false,
+    epicPriority = null,
+    epicSeverity = null,
+    item = null,
+    planned = false,
+    typeOverride = null,
+    createdAt = null,
+  }) {
+    const issue = { number, title, body, labels };
+    const info = boardMetadataFor({ issue, changeId, area, milestones });
+    const type = typeOverride ?? info.type;
+    for (const warning of info.warnings) {
+      if (typeOverride && warning.includes("no issue-type rule matched")) continue;
+      metadataWarnings.push(warning);
+      console.log(`warning: ${warning}`);
+    }
+    const priority = priorityFor({ issue, isEpic, epicPriority });
+    const severity = severityFor({ issue, issueType: type, epicSeverity });
+    // Plan pair: GitHub's Roadmap draws Start date -> Target date.
+    const planEnd = info.milestone?.due ?? null;
+    if (info.milestone && !planEnd) {
+      const warning = `issue #${number ?? "?"} "${title}": milestone "${info.milestone.title}" has no due date; Target date left unset`;
+      metadataWarnings.push(warning);
+      console.log(`warning: ${warning}`);
+    }
+    const created =
+      createdAt ??
+      issueMetadata.get(Number(number))?.createdAt ??
+      new Date().toISOString();
+    const planStart = statusEnteredDate(item) ?? dateOnly(created);
+    // Fact pair: never written into start/target. Actual end exists only after
+    // the issue closes.
+    const actualStart = statusEnteredDate(item) ?? dateOnly(created);
+    const actualEnd =
+      state === "CLOSED"
+        ? dateOnly(issueMetadata.get(Number(number))?.closedAt)
+        : null;
+    if (number) {
+      boardDates.set(Number(number), { planStart, planEnd, actualStart, actualEnd });
+    }
+
+    if (planned || !number) {
+      const label = number ? `#${number}` : `new issue "${title}"`;
+      if (type) {
+        console.log(`[dry-run] set Type=${type} on ${label}`);
+        typesSet += 1;
+      }
+      if (info.milestone) {
+        console.log(`[dry-run] set Milestone="${info.milestone.title}" on ${label}`);
+        milestonesAssigned += 1;
+      }
+      console.log(
+        `[dry-run] set Priority=${priority}, Severity=${severity}, ` +
+          `plan ${planStart ?? "-"} -> ${planEnd ?? "-"}, ` +
+          `actual ${actualStart ?? "-"} -> ${actualEnd ?? "open"} on ${label}`,
+      );
+      return {
+        type,
+        milestone: info.milestone,
+        priority,
+        severity,
+        planStart,
+        planEnd,
+        actualStart,
+        actualEnd,
+      };
+    }
+
+    // Closed epics and sub-issues get a Type and a Milestone too: they can be
+    // project items, and the board's Type column must not be empty.
+    const current = issueMetadata.get(Number(number)) ?? {};
+    if (type && current.issueType !== type) {
+      if (DRY_RUN) {
+        console.log(`[dry-run] set Type=${type} on #${number}`);
+        typesSet += 1;
+      } else {
+        setIssueType(number, type, id);
+      }
+    }
+    if (info.milestone && current.milestone !== info.milestone.title) {
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] set Milestone="${info.milestone.title}" on #${number}`,
+        );
+        milestonesAssigned += 1;
+      } else {
+        setMilestone(number, info.milestone.title);
+      }
+    }
+
+    setField(item, priorityField, priority, priority);
+    setField(item, severityField, severity, severity);
+    if (planStart) setField(item, startDateField, planStart, planStart, "date");
+    if (planEnd) setField(item, targetDateField, planEnd, planEnd, "date");
+    if (actualStart) {
+      setField(item, actualStartField, actualStart, actualStart, "date");
+    }
+    if (actualEnd) setField(item, actualEndField, actualEnd, actualEnd, "date");
+    return {
+      type,
+      milestone: info.milestone,
+      priority,
+      severity,
+      planStart,
+      planEnd,
+      actualStart,
+      actualEnd,
+    };
+  }
+
+  // Keep the native blockedBy graph equal to the `Blocked by:` text. Add a
+  // missing link, remove a link the text no longer lists, and report the edge.
+  function syncNativeBlockers({ number, blockedByKeys, id = null }) {
+    const desired = blockedByKeys
+      .map((key) => issueNumberFromKey(key))
+      .filter((value) => Number.isInteger(value));
+    const current = (issueMetadata.get(Number(number))?.blockedBy ?? []).map(
+      (blocker) => Number(blocker.number),
+    );
+    const issueId = issueIdFor(number, id);
+    if (!issueId) return;
+
+    for (const blocker of desired) {
+      if (current.includes(blocker)) continue;
+      if (DRY_RUN) {
+        console.log(`[dry-run] add native blockedBy: #${number} <- #${blocker}`);
+        continue;
+      }
+      const blockerId = issueIdFor(blocker);
+      if (!blockerId) throw new Error(`cannot resolve blocker #${blocker} id`);
+      const mutation =
+        "mutation($issueId:ID!,$blockingIssueId:ID!){addBlockedBy(input:{issueId:$issueId,blockingIssueId:$blockingIssueId}){issue{number}}}";
+      const result = ghJson([
+        "api",
+        "graphql",
+        "-f",
+        `query=${mutation}`,
+        "-f",
+        `issueId=${issueId}`,
+        "-f",
+        `blockingIssueId=${blockerId}`,
+      ]);
+      if (result?.errors?.length) {
+        throw new Error(
+          `cannot add blockedBy #${blocker} to #${number}: ${result.errors
+            .map((error) => error.message)
+            .join("; ")}`,
+        );
+      }
+      dependenciesAdded += 1;
+      console.log(`added native blockedBy: #${number} <- #${blocker}`);
+    }
+
+    for (const blocker of current) {
+      if (desired.includes(blocker)) continue;
+      if (DRY_RUN) {
+        console.log(`[dry-run] remove native blockedBy: #${number} <- #${blocker}`);
+        continue;
+      }
+      const blockerId = issueIdFor(blocker);
+      if (!blockerId) continue;
+      const mutation =
+        "mutation($issueId:ID!,$blockingIssueId:ID!){removeBlockedBy(input:{issueId:$issueId,blockingIssueId:$blockingIssueId}){issue{number}}}";
+      const result = ghJson([
+        "api",
+        "graphql",
+        "-f",
+        `query=${mutation}`,
+        "-f",
+        `issueId=${issueId}`,
+        "-f",
+        `blockingIssueId=${blockerId}`,
+      ]);
+      if (result?.errors?.length) {
+        throw new Error(
+          `cannot remove blockedBy #${blocker} from #${number}: ${result.errors
+            .map((error) => error.message)
+            .join("; ")}`,
+        );
+      }
+      dependenciesRemoved += 1;
+      console.log(`removed native blockedBy: #${number} <- #${blocker}`);
+    }
+
+    const metadata = issueMetadata.get(Number(number)) ?? {};
+    issueMetadata.set(Number(number), {
+      ...metadata,
+      id: issueId,
+      blockedBy: desired.map((blocker) => ({ number: blocker, state: null })),
+    });
   }
 
   const { changes, skipped, empty, allIds } = readChanges();
@@ -521,7 +1019,9 @@ function main() {
   let tasksUpdated = 0;
   let tasksUnchanged = 0;
   const subIssueByNumber = new Map();
+  const processedNumbers = new Set();
 
+  const issueByNumber = new Map(issues.map((issue) => [issue.number, issue]));
   try {
     for (const change of changes) {
       let epic = epicByChange.get(change.id) ?? null;
@@ -533,6 +1033,24 @@ function main() {
             `[dry-run] create epic issue ${change.title} ` +
               `[epic, area:${change.area}]`,
           );
+          const plannedBody = provisionalEpicBody(change);
+          applyIssueMetadata({
+            title: change.title,
+            body: plannedBody,
+            labels: ["epic", `area:${change.area}`],
+            changeId: change.id,
+            area: change.area,
+            isEpic: true,
+            epicPriority: priorityFor({
+              issue: { title: change.title, body: plannedBody },
+              isEpic: true,
+            }),
+            epicSeverity: severityFor({
+              issue: { title: change.title, body: plannedBody },
+              issueType: "Feature",
+            }),
+            planned: true,
+          });
         } else {
           const bodyPath = path.join(tempDir, `epic-${change.id}.md`);
           fs.writeFileSync(bodyPath, provisionalEpicBody(change));
@@ -574,6 +1092,16 @@ function main() {
         }
       }
 
+      const epicIssue = epic ?? {
+        title: change.title,
+        body: provisionalEpicBody(change),
+        labels: ["epic", `area:${change.area}`],
+      };
+      const epicPriority = priorityFor({ issue: epicIssue, isEpic: true });
+      const epicSeverity = severityFor({ issue: epicIssue, issueType: "Feature" });
+      const taskArea = (task) =>
+        areaFromText(`${change.id} ${task.title}`) ?? change.area;
+
       const sync = syncChangeTasks({
         changeId: change.id,
         epicNumber: epic?.number ?? null,
@@ -585,12 +1113,24 @@ function main() {
         dryRun: DRY_RUN,
         tempDir,
         log: (line) => console.log(line),
-        areaForTask: (task) => areaFromText(`${change.id} ${task.title}`) ?? change.area,
+        areaForTask: taskArea,
         ensureLabel,
         onPlanned: (planned) => {
           console.log(
             `[dry-run] planned sub-issue ${planned.changeId}/${planned.slug}: ${planned.title}`,
           );
+          const area = taskArea(planned.task);
+          applyIssueMetadata({
+            title: planned.title,
+            body: "",
+            labels: [`change:${change.id}`, `area:${area}`],
+            changeId: change.id,
+            area,
+            isEpic: false,
+            epicPriority,
+            epicSeverity,
+            planned: true,
+          });
         },
       });
       tasksCreated += sync.created;
@@ -609,6 +1149,7 @@ function main() {
           planned: sync.planned,
           percent,
           repoUrl: REPO_URL,
+          declarations: declarationLines(epic.body),
         });
         const currentLabels = labelsOf(epic);
         const areaToRemove = currentLabels.filter(
@@ -659,19 +1200,60 @@ function main() {
             console.log(`[dry-run] reopen epic issue #${epic.number} (${percent}%)`);
           } else {
             gh(["issue", "reopen", String(epic.number), "--repo", REPO]);
+            epic.state = "OPEN";
             console.log(`reopened epic issue #${epic.number} (${percent}%)`);
           }
         }
 
         const epicItem = ensureItem(epic.url, `epic #${epic.number}`);
+        processedNumbers.add(epic.number);
         setField(epicItem, areaField, change.area, change.area);
         setField(epicItem, progressField, String(percent), `${percent}%`);
         setField(epicItem, statusField, statusOption(percent).name, statusOption(percent).name);
+        applyIssueMetadata({
+          number: epic.number,
+          id: epic.id ?? null,
+          title: change.title,
+          body: epic.body ?? "",
+          labels: labelsOf(epic),
+          state: epic.state,
+          changeId: change.id,
+          area: change.area,
+          isEpic: true,
+          epicPriority,
+          epicSeverity,
+          item: epicItem,
+        });
       }
 
       for (const issue of sync.subIssues) {
+        const area = issue.area ?? change.area;
+        processedNumbers.add(issue.number);
         const item = ensureItem(issue.url, `sub-issue #${issue.number}`);
-        setField(item, areaField, issue.area ?? change.area, issue.area ?? change.area);
+        setField(item, areaField, area, area);
+        applyIssueMetadata({
+          number: issue.number,
+          title: issue.title,
+          body: issueByNumber.get(issue.number)?.body ?? "",
+          labels: [`change:${change.id}`, `area:${area}`],
+          state: issue.state,
+          changeId: change.id,
+          area,
+          isEpic: false,
+          epicPriority,
+          epicSeverity,
+          item,
+        });
+        if (issue.state === "OPEN") {
+          syncNativeBlockers({
+            number: issue.number,
+            blockedByKeys: issue.blockedBy,
+          });
+        }
+        for (const key of issue.blockedBy) {
+          const blocker = issueNumberFromKey(key);
+          if (blocker) dependencyEdges.push(`#${issue.number} <- #${blocker}`);
+        }
       }
 
       if (epic) {
@@ -693,6 +1275,47 @@ function main() {
           );
         }
       }
+    }
+
+    // Archived changes no longer appear in openspec/changes, but their issues
+    // can still be project items. Classify those so the board's Type column is
+    // never empty; do not add a closed archived issue that is not an item yet.
+    // A manual item that already has a native Type keeps it and gets a
+    // milestone/priority; an untyped manual issue is left alone.
+    for (const issue of issues) {
+      if (processedNumbers.has(issue.number)) continue;
+      const managed = isSyncManagedIssue(issue);
+      if (managed) {
+        if (issue.state !== "OPEN" && !itemsByUrl.has(issue.url)) continue;
+      } else if (!itemsByUrl.has(issue.url)) {
+        continue;
+      }
+      const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
+      if (!managed && !existingType) continue;
+      const labels = labelsOf(issue);
+      const areaLabel = labels.find((name) => name.startsWith("area:"));
+      const area =
+        areaLabel?.slice("area:".length) ?? areaFromText(issue.title ?? "") ?? "site";
+      const isEpic = labels.includes("epic");
+      const item = ensureItem(
+        issue.url,
+        `${isEpic ? "epic" : "sub-issue"} #${issue.number}`,
+      );
+      applyIssueMetadata({
+        number: issue.number,
+        id: issue.id,
+        title: issue.title,
+        body: issue.body ?? "",
+        labels,
+        state: issue.state,
+        changeId: changeIdForIssue(issue),
+        area,
+        isEpic,
+        epicPriority: "P1",
+        epicSeverity: "S-",
+        item,
+        typeOverride: managed ? null : existingType,
+      });
     }
 
     const prs = ghJson([
@@ -816,6 +1439,34 @@ function main() {
             "json",
           ])?.items?.length ?? 0;
 
+    // Plan vs fact: plan is Start date -> Target date; facts are Actual start
+    // -> Actual end. Actuals are reported only, never written into the plan
+    // fields. Slip = actual end minus plan end.
+    let onTime = 0;
+    let late = 0;
+    const actualLines = [];
+    for (const [number, dates] of boardDates) {
+      const meta = issueMetadata.get(number);
+      if (meta?.state !== "CLOSED") continue;
+      if (
+        !dates.planStart ||
+        !dates.planEnd ||
+        !dates.actualStart ||
+        !dates.actualEnd
+      ) {
+        continue;
+      }
+      const slip = targetDelta(dates.planEnd, dates.actualEnd);
+      if (!slip) continue;
+      if (slip.days <= 0) onTime += 1;
+      else late += 1;
+      actualLines.push(
+        `actual: #${number} plan ${dates.planStart} -> ${dates.planEnd}, ` +
+          `actual ${dates.actualStart} -> ${dates.actualEnd}, ` +
+          `slip ${slip.days} day(s) (${slip.verdict})`,
+      );
+    }
+
     console.log("");
     console.log(`changes: ${changes.length}`);
     console.log(
@@ -826,6 +1477,26 @@ function main() {
     );
     console.log(`open PRs seen: ${prs.length}; new PR items: ${prsAdded}; PR links added: ${prLinksAdded}`);
     console.log(`stale PR items archived: ${archive.archived}`);
+    if (DRY_RUN) {
+      console.log(
+        `issue Types planned: ${typesSet}; milestones planned: ${milestonesAssigned}; ` +
+          `milestones to create: ${milestoneState.created}, to update: ${milestoneState.updated}`,
+      );
+    } else {
+      console.log(
+        `issue Types set: ${typesSet}; milestones assigned: ${milestonesAssigned}; ` +
+          `milestones created: ${milestoneState.created}, updated: ${milestoneState.updated}`,
+      );
+    }
+    console.log(
+      `native dependencies added: ${dependenciesAdded}, removed: ${dependenciesRemoved}, edges: ${dependencyEdges.length}`,
+    );
+    for (const edge of dependencyEdges) console.log(`dependency: ${edge}`);
+    for (const line of actualLines) console.log(line);
+    console.log(`actuals: ${onTime} on time, ${late} late`);
+    if (metadataWarnings.length > 0) {
+      console.log(`board metadata warnings: ${metadataWarnings.length}`);
+    }
     if (skipped.length > 0) console.log(`changes without tasks.md: ${skipped.join(", ")}`);
     if (empty.length > 0) console.log(`changes without checkbox tasks: ${empty.join(", ")}`);
     if (prsWithoutTask.length > 0) {
