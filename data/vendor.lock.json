@@ -40,7 +40,7 @@
     {
       "source": "apps/site/seed-crypto.js",
       "target": "web/public/vendor/seed-crypto.js",
-      "sha256": "eefdb2f394cd8040e2117cbb8f17512c0e1b19b2274c6c006c946f1b746dd7f0"
+      "sha256": "3b444f307120b2653651eda769e8e63a8360ee7b2204d878d16166d2ce98b636"
     },
     {
       "source": "apps/site/seed-studio.css",

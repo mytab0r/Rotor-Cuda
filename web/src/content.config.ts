@@ -15,4 +15,17 @@ const chains = defineCollection({
   }),
 });
 
-export const collections = { chains };
+/* One Markdown entry per `/mnemonic-seeds/<chain>` page. The body is the
+ * chain's unique seed prose (what a seed controls, the paths this project
+ * derives, and the address formats); the shared safety block is rendered by
+ * the template, not copied into 18 files. */
+const seeds = defineCollection({
+  loader: glob({ pattern: '*.md', base: './src/content/seeds' }),
+  schema: z.object({
+    chain: z.string(),
+    title: z.string(),
+    description: z.string(),
+  }),
+});
+
+export const collections = { chains, seeds };
