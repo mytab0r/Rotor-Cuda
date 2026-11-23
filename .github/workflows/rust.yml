@@ -24,6 +24,10 @@ jobs:
         run: node --test scripts/task-tracking.test.mjs scripts/check-task-links.test.mjs
       - name: No screenshots or test evidence committed under docs/
         run: node scripts/check-screenshots.mjs
+      - name: No donor identities in tracked files
+        env:
+          DONOR_REFS_JSON: ${{ secrets.DONOR_REFS_JSON }}
+        run: node scripts/check-donor-literals.mjs
       - name: Single source of truth (chains, providers, vendor lock, detectors)
         run: |
           node scripts/gen-ssot.mjs --check

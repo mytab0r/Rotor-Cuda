@@ -23,7 +23,7 @@ No `<link rel="canonical">`, no `<meta name="robots">` and **no `<meta name="vie
 
 ## 1. `/wallets` — dataset index ("Addresses")
 
-**Route / title.** HTTP 200. `<title>` = `Cryptocurrency Address Database - Download Active Wallets with Balances | SecretScan.org`. `h1` = `Cryptocurrency Address Databases for sale`. Subtitle `h2` is a keyword list (`Cryptoaddress databases, active wallet lists, …`). Nav item `Addresses` carries `.grid-item.active`.
+**Route / title.** HTTP 200. `<title>` = `Cryptocurrency Address Database - Download Active Wallets with Balances | ref-site-b`. `h1` = `Cryptocurrency Address Databases for sale`. Subtitle `h2` is a keyword list (`Cryptoaddress databases, active wallet lists, …`). Nav item `Addresses` carries `.grid-item.active`.
 
 **Grouping.** One table, `table#t2.coin-table.qwe.js-searchable`, with **42 `<tbody class="coin-group" data-symbol="…">` groups and 45 asset rows** (`tr[data-symbol]`). A group is one ranked entity; variants share the entity's rank via `rowspan`:
 
@@ -72,7 +72,7 @@ Five sortable columns; `Pic`, `Ticker` and `Address dump` are not sortable. Sort
 
 ## 2. `/results` — found-key records list
 
-**Route / title.** HTTP 200 while logged out. `<title>` = `Results | Rent Results & Earn SSC Tokens | Multi-Crypto Support (ETH, BCH, KCS, MANA & More) | SecretScan`. `h1` = `Results`; `h2` = `Supports ETH, USDT, BNB, TRX, DOGE, BCH, LTC, ZEC and more`.
+**Route / title.** HTTP 200 while logged out. `<title>` = `Results | Rent Results & Earn SSC Tokens | Multi-Crypto Support (ETH, BCH, KCS, MANA & More) | ref-site-b`. `h1` = `Results`; `h2` = `Supports ETH, USDT, BNB, TRX, DOGE, BCH, LTC, ZEC and more`.
 
 **Top bar.** Left: `0 records found` (server text). Right: two selects —
 - `select#group` — coin filter; in the empty state a single option `no data available` with `value=''`; `onChange=''`. The page's own JS expects option **values to be URLs** (`auto_grow2(){ if (sel.value) window.location.href = sel.value }`) and expects coin chips `#all` / `#<coin>` with `buttons_found` / `buttons_found_activ` classes.
@@ -109,7 +109,7 @@ Only two columns are server-sortable; each arrow is a plain `<a class="sort" hre
 
 ## 3. `/rent` — pricing / plans
 
-**Route / title.** HTTP 200; `/rent.php` returns the same page. `<title>` = `Private Key Search - Rent Massive Computing Power | SecretScan.org`. `h1` = `Rent SecretScan to search your private keys`; `h2` describes renting a server and storing results privately in the account.
+**Route / title.** HTTP 200; `/rent.php` returns the same page. `<title>` = `Private Key Search - Rent Massive Computing Power | ref-site-b`. `h1` = `Rent ref-site-b to search your private keys`; `h2` describes renting a server and storing results privately in the account.
 
 **Shape: one calculator, no plan matrix.** There are no plan cards, tier names, feature-comparison columns or "most popular" badges. The whole offer is a single card: `div.swap_1` (`rent.css: max-width:600px; border-radius:10px`), a 510px-wide decorative `img[src="img/12_2.svg"]`, then one `form#form1`:
 
@@ -144,7 +144,7 @@ So the only gated step is the actual order/payment; browsing and pricing are pub
 
 ## 4. `/scaner` — check/search surface
 
-**Route / title.** HTTP 200. `<title>` = `Online Private Key Scanner | SecretScan.org`. `h1` = `Online Private Key Scanner`; `h2` includes a `span.badgev` `100+`.
+**Route / title.** HTTP 200. `<title>` = `Online Private Key Scanner | ref-site-b`. `h1` = `Online Private Key Scanner`; `h2` includes a `span.badgev` `100+`.
 
 **Stat cards** (`div.cards > div.card_info`, 4 cards; CDP 218.5×80px each at 980/1280, one row):
 
@@ -170,7 +170,7 @@ So the only gated step is the actual order/payment; browsing and pricing are pub
 
 Submit handler POSTs `form#form1` to `/script/scaner_job_new.php`, shows `#spinnerContainer`, parses JSON and writes `data.info` into `#info`. The body of that `info` HTML is **unverified** (no form submitted).
 
-**Live result anatomy** (from the page's Centrifuge subscription, no submission needed). `new Centrifuge('wss://scaner.ref-site-b:443/connection/websocket')`, `setToken(...)`, `subscribe(<#channels value>, …)`. Each message updates:
+**Live result anatomy** (from the page's Centrifuge subscription, no submission needed). `new Centrifuge('wss://<ref-site-b scan host>:443/connection/websocket')`, `setToken(...)`, `subscribe(<#channels value>, …)`. Each message updates:
 - `#server` (`message.data.start`),
 - `#inquiries` (`message.offset * 16`, thousands set with commas),
 - `#progress` (`innerHTML = message.data.progress` — the ruler is replaced live),

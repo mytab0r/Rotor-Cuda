@@ -258,6 +258,7 @@
         "node --check scripts/mutate-changed.mjs",
         "node --check scripts/lib/task-tracking.mjs",
         "node --check scripts/density-parity.mjs",
+        "node --check scripts/check-donor-literals.mjs",
         "node --check scripts/check-screenshots.mjs",
         "node --check scripts/check-seo.mjs",
         "node --check scripts/check-advisories.mjs",
