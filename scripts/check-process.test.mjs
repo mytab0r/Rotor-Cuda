@@ -123,6 +123,10 @@ test("Independent review rejects the author and a non-passing verdict", () => {
     /names the author/,
   );
   assert.match(
+    errorsFor(FULL_BODY.replace("Reviewer: critic", "Reviewer: someone (mytab0r)")),
+    /names the author/,
+  );
+  assert.match(
     errorsFor(FULL_BODY.replace("Verdict: APPROVE", "Verdict: REWORK")),
     /only APPROVE, PASS or LGTM/,
   );

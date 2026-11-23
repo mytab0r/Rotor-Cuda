@@ -80,5 +80,18 @@ jobs:
         run: git fetch --no-tags origin "${{ github.base_ref }}"
       # Scans changed apps/site/*.js, flips one changed comparison or return per
       # file and runs its *-test.mjs. Exit 0 only when every mutation was caught.
+      # The script comes from the base branch when it exists, so a PR cannot
+      # weaken the mutation it is judged by; first introduction falls back to
+      # the PR copy.
       - name: Mutate one changed expression per touched source
-        run: node scripts/mutate-changed.mjs --base "origin/${{ github.base_ref }}"
+        shell: bash
+        run: |
+          base="origin/${{ github.base_ref }}"
+          script="$RUNNER_TEMP/mutate-changed.mjs"
+          if ! git show "$base:scripts/mutate-changed.mjs" > "$script" 2>/dev/null; then
+            script="$GITHUB_WORKSPACE/scripts/mutate-changed.mjs"
+            echo "mutation source: PR copy (first introduction)"
+          else
+            echo "mutation source: $base"
+          fi
+          node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base"

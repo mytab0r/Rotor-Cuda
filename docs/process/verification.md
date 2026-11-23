@@ -60,6 +60,14 @@ What the script cannot check: whether the pasted output is real, whether the
 test is a good test, or whether the reviewer actually ran anything. That is
 why the reviewer re-runs the proof and why the mutation jobs exist.
 
+The workflow does not run the PR's copy of the gate. It extracts
+`scripts/check-process.mjs` and `scripts/lib/task-tracking.mjs` from the base
+branch and runs them with `--repo-root` pointing at the checkout; a PR
+therefore cannot weaken the check that judges it. On the PR that first
+introduces the gate the base copy does not exist yet, so that one run uses the
+PR copy. The JS mutation job applies the same rule to
+`scripts/mutate-changed.mjs`.
+
 ## 3. The role chain
 
 Work moves in this order, with a different agent at each edit:
@@ -171,4 +179,6 @@ node scripts/check-process.mjs --body-file body.md --files a,b \
 node scripts/check-task-links.mjs --pr 123
 node scripts/mutate-changed.mjs --base origin/main
 node scripts/mutate-changed.mjs --file apps/site/amount.js --test apps/site/amount-test.mjs
+node scripts/mutate-changed.mjs --base main --file scripts/check-process.mjs \
+  --test scripts/check-process.test.mjs
 ```
