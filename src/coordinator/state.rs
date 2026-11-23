@@ -10,9 +10,11 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+
+use super::analytics::{AnalyticsData, Visit};
 
 use crate::base58;
 use crate::bsgs::TableManifest;
@@ -40,6 +42,8 @@ pub const MAX_CLIENT_HISTORY: usize = 240;
 pub const HISTORY_SPACING_SECS: u64 = 5;
 /// Longest accepted client display name, in characters.
 pub const MAX_CLIENT_NAME_LEN: usize = 64;
+/// Minimum gap between analytics persistence writes while beacons arrive.
+const ANALYTICS_FLUSH: Duration = Duration::from_secs(10);
 
 /// Error text used across the state, HTTP and client layers.
 pub const ERR_JOB_NOT_FOUND: &str = "job not found";
@@ -408,6 +412,9 @@ struct Data {
     bsgs: HashMap<String, BsgsEntry>,
     #[serde(default)]
     clients: Vec<ClientRecord>,
+    /// Privacy-preserving hourly visit aggregates; no per-visitor records.
+    #[serde(default)]
+    analytics: AnalyticsData,
 }
 
 impl Default for Data {
@@ -419,6 +426,7 @@ impl Default for Data {
             results: Vec::new(),
             bsgs: HashMap::new(),
             clients: Vec::new(),
+            analytics: AnalyticsData::default(),
         }
     }
 }
@@ -436,6 +444,13 @@ struct VersionProbe {
 pub struct State {
     path: PathBuf,
     data: Data,
+    /// Wall time of the last analytics persistence. The first beacon after a
+    /// start writes immediately; later writes are coalesced so a burst of page
+    /// views never rewrites the whole state once per request.
+    analytics_saved: Option<Instant>,
+    /// True while counters changed after the last persistence write, so a
+    /// graceful shutdown can flush them.
+    analytics_dirty: bool,
 }
 
 impl State {
@@ -445,7 +460,7 @@ impl State {
     /// rejected with an operator-facing message; there is no silent migration.
     pub fn open(path: impl AsRef<Path>) -> Result<State, String> {
         let path = path.as_ref().to_path_buf();
-        let data = match fs::read(&path) {
+        let mut data = match fs::read(&path) {
             Ok(bytes) => {
                 let probe: VersionProbe = serde_json::from_slice(&bytes)
                     .map_err(|err| format!("cannot parse {}: {err}", path.display()))?;
@@ -472,7 +487,18 @@ impl State {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Data::default(),
             Err(err) => return Err(format!("cannot read {}: {err}", path.display())),
         };
-        Ok(State { path, data })
+        data.analytics
+            .validate()
+            .map_err(|err| format!("{}: {err}", path.display()))?;
+        // Drop buckets that aged out while the process was down so the file
+        // never grows past the documented retention window.
+        data.analytics.prune(now_secs());
+        Ok(State {
+            path,
+            data,
+            analytics_saved: None,
+            analytics_dirty: false,
+        })
     }
 
     /// Alias for [`State::open`], kept for the documented API.
@@ -490,6 +516,47 @@ impl State {
         fs::write(&tmp, json).map_err(|err| format!("cannot write {}: {err}", tmp.display()))?;
         fs::rename(&tmp, &self.path)
             .map_err(|err| format!("cannot replace {}: {err}", self.path.display()))
+    }
+
+    /// Record one validated visit in the hourly aggregates.
+    ///
+    /// The first beacon after a start is persisted immediately, so a restart
+    /// keeps the current day even if it happens seconds later. Later writes are
+    /// coalesced to one per [`ANALYTICS_FLUSH`] instead of rewriting the state
+    /// file once per page view.
+    pub fn record_analytics(&mut self, now: u64, visit: &Visit) -> Result<(), String> {
+        self.data.analytics.record(now, visit);
+        self.data.analytics.prune(now);
+        self.analytics_dirty = true;
+        let due = self
+            .analytics_saved
+            .is_none_or(|saved| saved.elapsed() >= ANALYTICS_FLUSH);
+        if due {
+            self.save()?;
+            self.analytics_saved = Some(Instant::now());
+            self.analytics_dirty = false;
+        }
+        Ok(())
+    }
+
+    /// Persist counters that changed since the last write. Called on a
+    /// graceful coordinator shutdown so a restart keeps the full day even
+    /// inside the coalescing window.
+    pub fn flush_analytics(&mut self) -> Result<(), String> {
+        if !self.analytics_dirty {
+            return Ok(());
+        }
+        self.save()?;
+        self.analytics_saved = Some(Instant::now());
+        self.analytics_dirty = false;
+        Ok(())
+    }
+
+    /// Admin projection of the aggregates. Prunes first so a long-idle process
+    /// reports only the retained window.
+    pub fn analytics_snapshot(&mut self, now: u64) -> serde_json::Value {
+        self.data.analytics.prune(now);
+        self.data.analytics.snapshot(now)
     }
 
     /// True when the state holds at least one client account.

@@ -42,6 +42,7 @@ envelope `{items, page, page_size, total, has_more}`. `page` is 1-based;
 | `/cabinet/admin/api/payments` | recorded payments |
 | `/cabinet/admin/api/providers` | TRON cache hit/miss/error, limiter wait/reject, last error class, watcher health |
 | `/cabinet/admin/api/integrations` | Telegram, TronScan, orders and WalletConnect configuration flags |
+| `/cabinet/admin/api/analytics` | aggregate page views, route/country/device/browser/referrer counts and process request counters |
 | `/cabinet/admin/api/audit` | explicit empty page until phase 3 |
 
 Disabling the monitor store or the orders store keeps the endpoint working and
@@ -65,6 +66,10 @@ boxes, and no row actions exist in phase 2. The admin surfaces are app shells:
 they use the shared navigation and intentionally carry no marketing footer.
 `node scripts/ui-audit.mjs --serve` covers every panel at 375/768/1280 in dark
 and light.
+
+The traffic dashboard is its own page (`apps/site/analytics-admin.html` +
+`analytics-admin.js`) at `/cabinet/admin/analytics`; the privacy contract and
+reading guide are in `docs/ops/analytics.md`.
 
 ## User cabinet WalletConnect
 

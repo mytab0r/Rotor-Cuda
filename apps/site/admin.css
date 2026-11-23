@@ -93,3 +93,57 @@
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+
+/* Traffic analytics: a dependency-free inline SVG sparkline. The drawing is
+   built by analytics-admin.js; the page carries no inline style. */
+.analytics-figure {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.analytics-spark {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.analytics-spark__grid {
+  stroke: var(--line-subtle);
+  stroke-width: 1;
+}
+
+.analytics-spark__area {
+  fill: var(--accent-soft);
+}
+
+.analytics-spark__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The admin nav has four destinations plus the refresh action. Below 560 the
+   labels collapse to their icons (the accessible name stays in the DOM) so the
+   row fits instead of clipping the last destination. */
+@media (max-width: 560px) {
+  .site-nav nav[aria-label="Admin"] a {
+    justify-content: center;
+    min-width: var(--control-h);
+    padding: 0 var(--space-2);
+  }
+
+  .site-nav nav[aria-label="Admin"] a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
