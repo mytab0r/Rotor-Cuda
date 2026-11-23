@@ -299,10 +299,21 @@ function readMilestones() {
       throw new Error(`data/milestones.json: duplicate milestone "${title}"`);
     }
     titles.add(title);
+    const due = entry.due ? String(entry.due) : null;
+    if (!due) {
+      throw new Error(
+        `data/milestones.json: milestone "${title}" needs a due date for the Roadmap`,
+      );
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+      throw new Error(
+        `data/milestones.json: milestone "${title}" due must be YYYY-MM-DD, got "${due}"`,
+      );
+    }
     return {
       title,
       description: entry.description ? String(entry.description) : null,
-      due: entry.due ? String(entry.due) : null,
+      due,
       match: {
         areas: Array.isArray(entry.match?.areas) ? entry.match.areas : [],
         epics: Array.isArray(entry.match?.epics) ? entry.match.epics : [],
@@ -314,6 +325,24 @@ function readMilestones() {
 function dueOn(due) {
   if (!due) return null;
   return /^\d{4}-\d{2}-\d{2}$/.test(due) ? `${due}T00:00:00Z` : due;
+}
+
+function dateOnly(value) {
+  if (!value) return null;
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+}
+
+// The project item does not expose a status-transition timestamp through
+// item-list today; the createdAt date is the documented fallback. If GitHub
+// adds the field, the first matching key wins.
+function statusEnteredDate(item) {
+  if (!item) return null;
+  for (const key of ["statusChangedAt", "statusUpdatedAt", "status changed at"]) {
+    const value = item[key];
+    if (value) return dateOnly(value);
+  }
+  return null;
 }
 
 // Milestones are releases; data/milestones.json is the source. Create a
@@ -549,6 +578,8 @@ function main() {
     "S4",
     "S-",
   ]);
+  const targetDateField = ensureField("Target date", "DATE");
+  const startDateField = ensureField("Start date", "DATE");
   const progressField = ensureField("Progress", "NUMBER");
   const statusField = fieldByName.get("Status");
   if (!statusField?.options) {
@@ -608,7 +639,7 @@ function main() {
     return item;
   }
 
-  function setField(item, field, value, valueLabel) {
+  function setField(item, field, value, valueLabel, kind = null) {
     if (!item) return;
     if (!field) {
       console.log(`[dry-run] set ${valueLabel} on ${itemUrl(item)} (field not created yet)`);
@@ -638,6 +669,8 @@ function main() {
       );
       if (!option) throw new Error(`field ${field.name} has no option ${value}`);
       args.push("--single-select-option-id", option.id);
+    } else if (kind === "date") {
+      args.push("--date", String(value));
     } else {
       args.push("--number", String(value));
     }
@@ -743,6 +776,7 @@ function main() {
     item = null,
     planned = false,
     typeOverride = null,
+    createdAt = null,
   }) {
     const issue = { number, title, body, labels };
     const info = boardMetadataFor({ issue, changeId, area, milestones });
@@ -754,6 +788,17 @@ function main() {
     }
     const priority = priorityFor({ issue, isEpic, epicPriority });
     const severity = severityFor({ issue, issueType: type, epicSeverity });
+    const targetDate = info.milestone?.due ?? null;
+    if (info.milestone && !targetDate) {
+      const warning = `issue #${number ?? "?"} "${title}": milestone "${info.milestone.title}" has no due date; Target date left unset`;
+      metadataWarnings.push(warning);
+      console.log(`warning: ${warning}`);
+    }
+    const created =
+      createdAt ??
+      issueMetadata.get(Number(number))?.createdAt ??
+      new Date().toISOString();
+    const startDate = statusEnteredDate(item) ?? dateOnly(created);
 
     if (planned || !number) {
       const label = number ? `#${number}` : `new issue "${title}"`;
@@ -766,9 +811,10 @@ function main() {
         milestonesAssigned += 1;
       }
       console.log(
-        `[dry-run] set Priority=${priority}, Severity=${severity} on ${label}`,
+        `[dry-run] set Priority=${priority}, Severity=${severity}, ` +
+          `Start date=${startDate ?? "-"}, Target date=${targetDate ?? "-"} on ${label}`,
       );
-      return { type, milestone: info.milestone, priority, severity };
+      return { type, milestone: info.milestone, priority, severity, targetDate, startDate };
     }
 
     // Closed epics and sub-issues get a Type and a Milestone too: they can be
@@ -795,7 +841,9 @@ function main() {
 
     setField(item, priorityField, priority, priority);
     setField(item, severityField, severity, severity);
-    return { type, milestone: info.milestone, priority, severity };
+    if (targetDate) setField(item, targetDateField, targetDate, targetDate, "date");
+    if (startDate) setField(item, startDateField, startDate, startDate, "date");
+    return { type, milestone: info.milestone, priority, severity, targetDate, startDate };
   }
 
   // Keep the native blockedBy graph equal to the `Blocked by:` text. Add a
@@ -1344,6 +1392,30 @@ function main() {
             "json",
           ])?.items?.length ?? 0;
 
+    // Plan vs fact: the milestone due date is the target, the native closedAt
+    // is the actual finish. Actuals are reported only, never written back into
+    // the plan fields.
+    let onTime = 0;
+    let late = 0;
+    const actualLines = [];
+    for (const meta of issueMetadata.values()) {
+      if (meta.state !== "CLOSED" || !meta.closedAt || !meta.milestone) continue;
+      const target = milestones.find((entry) => entry.title === meta.milestone)?.due;
+      if (!target) continue;
+      const closedDate = dateOnly(meta.closedAt);
+      if (!closedDate) continue;
+      const delta = Math.round(
+        (Date.parse(`${closedDate}T00:00:00Z`) - Date.parse(`${target}T00:00:00Z`)) /
+          86400000,
+      );
+      if (delta <= 0) onTime += 1;
+      else late += 1;
+      const verdict = delta <= 0 ? "on time" : `late by ${delta} day${delta === 1 ? "" : "s"}`;
+      actualLines.push(
+        `actual: #${meta.number} target ${target}, closed ${closedDate} -> ${verdict}`,
+      );
+    }
+
     console.log("");
     console.log(`changes: ${changes.length}`);
     console.log(
@@ -1369,6 +1441,8 @@ function main() {
       `native dependencies added: ${dependenciesAdded}, removed: ${dependenciesRemoved}, edges: ${dependencyEdges.length}`,
     );
     for (const edge of dependencyEdges) console.log(`dependency: ${edge}`);
+    for (const line of actualLines) console.log(line);
+    console.log(`actuals: ${onTime} on time, ${late} late`);
     if (metadataWarnings.length > 0) {
       console.log(`board metadata warnings: ${metadataWarnings.length}`);
     }

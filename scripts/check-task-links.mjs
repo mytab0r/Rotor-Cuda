@@ -32,6 +32,14 @@ const BOARD_EXCEPTIONS_PATH = path.join(REPO_ROOT, "data", "board-exceptions.jso
 const PROJECT_OWNER = "mytab0r";
 const PROJECT_NUMBER = 3;
 
+// GitHub issue types are native; these labels duplicated them and were
+// removed. Keep the list empty or the board gate fails.
+export const DUPLICATE_TYPE_LABELS = ["bug", "enhancement", "type:bug", "type:feature"];
+
+export function findDuplicateTypeLabels(names = []) {
+  return DUPLICATE_TYPE_LABELS.filter((name) => names.includes(name));
+}
+
 function gh(args) {
   try {
     return execFileSync("gh", args, {
@@ -96,6 +104,8 @@ function projectFieldValues() {
     values[number] = {
       priority: item.priority ?? null,
       severity: item.severity ?? null,
+      targetDate: item["target date"] ?? null,
+      startDate: item["start date"] ?? null,
     };
   }
   return values;
@@ -109,12 +119,20 @@ export function checkBoardFields({
   allowlist = [],
   milestones = [],
   projectItems = {},
+  labels = [],
 }) {
   const result = evaluateBoardFields({ issues, allowlist, milestones, projectItems });
-  const summary = result.ok
-    ? `board-fields OK: ${result.checked} synced open issues have a Type, Milestone and Priority`
+  const duplicates = findDuplicateTypeLabels(labels);
+  if (duplicates.length > 0) {
+    result.errors.push(
+      `labels duplicate the native issue Type and must not exist: ${duplicates.join(", ")}.`,
+    );
+  }
+  const ok = result.errors.length === 0;
+  const summary = ok
+    ? `board-fields OK: ${result.checked} synced issues have a Type, Milestone, Priority and Start/Target dates`
     : null;
-  return { ...result, summary };
+  return { ...result, ok, summary };
 }
 
 // Pure verdict used by the CLI and by tests: the caller supplies the body, the
@@ -169,10 +187,13 @@ function usage() {
     "not exist, or when the closing reference is missing. Docs/process-only PRs",
     "may use `Task: none — <reason>`.",
     "",
-    "`--board` fails when a synced open issue has no native issue Type, no",
-    "Milestone or no project Priority; when its `Blocked by:` text disagrees",
-    "with its native blockedBy links; when an open issue is blocked by a closed",
-    "one; when the native graph has a cycle; or when one epic spans milestones.",
+    "`--board` fails when a synced issue has no native issue Type, no",
+    "Milestone, no Priority or no Start/Target date; when its `Blocked by:`",
+    "text disagrees with its native blockedBy links; when an open issue is",
+    "blocked by a closed one; when the native graph has a cycle; when one epic",
+    "spans milestones; when a milestone has no due date; or when a label",
+    "duplicates the native Type. The allowlist is for historical closed",
+    "issues only.",
   ].join("\n");
 }
 
@@ -186,12 +207,29 @@ function main() {
   if (args.board) {
     const repo = resolveRepo(args);
     const [owner, name] = repo.split("/");
-    const issues = listIssueMetadata({ ghJson, owner, name, states: ["OPEN"] });
+    const issues = listIssueMetadata({
+      ghJson,
+      owner,
+      name,
+      states: ["OPEN", "CLOSED"],
+    });
+    const labels =
+      ghJson([
+        "label",
+        "list",
+        "--repo",
+        repo,
+        "--limit",
+        "200",
+        "--json",
+        "name",
+      ])?.map((label) => label.name) ?? [];
     const result = checkBoardFields({
       issues,
       allowlist: loadBoardExceptions(),
       milestones: loadMilestones(),
       projectItems: projectFieldValues(),
+      labels,
     });
     if (!result.ok) {
       for (const error of result.errors) console.error(`error: ${error}`);

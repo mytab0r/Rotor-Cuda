@@ -163,8 +163,10 @@ triage information that the three native types cannot express.
 ## Milestones are releases
 
 `data/milestones.json` is the single source for release milestones. Each entry
-has `title`, an optional `due` (a quarter end; leave it out when unsure), an
-optional `description`, and `match: { epics: [...], areas: [...] }`.
+has `title`, a required `due` (a quarter-end planning default, `YYYY-MM-DD`), an
+optional `description`, and `match: { epics: [...], areas: [...] }`. The sync
+refuses a milestone without `due`, and the board gate fails one: the Roadmap
+needs both ends of the bar.
 
 The sync creates a missing milestone over REST, assigns every synced issue and
 matches **epic first, then area**. The epic mapping wins, so every issue of one
@@ -174,12 +176,42 @@ copy a milestone title into another script.
 
 Release plan:
 
-| Milestone | Epics | Target |
+| Milestone | Epics | Target (planning default) |
 |---|---|---|
 | Wallet: signing, history and portfolio | cabinet-wallet, product-strategy, send-wif-keys, site-wallet-studio, tx-sign-broadcast, wallet-account-link, wallet-history, wallet-mainnet-signing, wallet-portfolio, wallet-seed-phrase, wallet-top-assets-wif, walletconnect-deeplinks | 2027-03-31 |
 | Desktop and coordinator parity | key-leak-monitor, rust-desktop-all-chains | 2027-03-31 |
 | Astro frontend cutover | admin-cabinet, donor-copy-parity, frontend-platform, seo-strategy, site-parity-audit | 2026-12-31 |
-| Design system and process foundations | design-system-process, edge-privacy, repo-structure, security-advisories, ssot, task-tracking | — |
+| Design system and process foundations | design-system-process, edge-privacy, repo-structure, security-advisories, ssot, task-tracking | 2027-03-31 |
+
+The dates are planning defaults at quarter ends, not promises; change them in
+`data/milestones.json`, never in the project UI.
+
+## Dates, the Roadmap and actuals
+
+The GitHub Project Roadmap view reads two date fields. They are **plan** fields,
+and the sync keeps them separate from the facts:
+
+| Field | Value | Source |
+|---|---|---|
+| `Target date` | the due date of the issue's milestone | `data/milestones.json` |
+| `Start date` | the date the issue entered `In Progress` when the project item exposes a status-change timestamp; otherwise the issue's native `createdAt` (the documented fallback, because `gh project item-list` currently exposes only the current status) | project item / GraphQL `createdAt` |
+| actual start | native issue `createdAt` | GraphQL, reported only |
+| actual finish | native issue `closedAt` | GraphQL, reported only |
+
+Actuals are never written into `Start date` or `Target date`: that would
+overwrite the plan and make the delta meaningless. On every sync the report
+prints, for each closed issue with a milestone and a `closedAt`:
+
+```text
+actual: #298 target 2026-12-31, closed 2026-12-20 -> on time
+actual: #305 target 2027-03-31, closed 2027-04-02 -> late by 2 days
+actuals: 8 on time, 2 late
+```
+
+The delta is `closedAt (date only) - milestone.due` in whole days; a zero or
+negative delta is on time. The weekly comparison is the same computation over
+the closed issues at that moment, so a slipped issue stays visible after its
+close and the plan fields keep the original commitment.
 
 ## Native dependencies
 
@@ -242,13 +274,16 @@ node scripts/check-task-links.mjs --board   # native fields, blockers, cycles
 ```
 
 `sync-board` needs `gh` with `repo` and `project` scopes; it also creates the
-`change:<id>` labels and the `Priority` / `Severity` project fields on demand.
-`.github/workflows/board-sync.yml` runs the sync and then
-`check-task-links.mjs --board`; the gate fails when a synced open issue has no
-native Type, no Milestone or no Priority, when the text blockers disagree with
-the native links, when an open issue is blocked by a closed one, when the
-native graph has a cycle, or when one epic spans milestones. Historical
-exceptions live in `data/board-exceptions.json`, each with a reason.
+`change:<id>` labels and the `Priority` / `Severity` / `Target date` /
+`Start date` project fields on demand. `.github/workflows/board-sync.yml` runs
+the sync and then `check-task-links.mjs --board`; the gate fails when a synced
+issue (open or closed) has no native Type, no Milestone, no Priority or no
+Start/Target date, when the text blockers disagree with the native links, when
+an open issue is blocked by a closed one, when the native graph has a cycle,
+when one epic spans milestones, when a milestone has no due date, or when a
+label duplicates the native Type. The allowlist in
+`data/board-exceptions.json` may name historical closed issues only, each with
+a reason.
 
 `.github/workflows/task-links.yml` runs the PR check on every `pull_request`
 event (`opened`, `edited`, `synchronize`, `reopened`) with the default
@@ -280,11 +315,12 @@ context; the text convention does not change.
   for `main` after the first sync exists; until then it reports without
   blocking.
 - The project (owner `mytab0r`, number 3) must keep the `Area`, `Progress`,
-  `Status`, `Priority` and `Severity` fields. The sync creates `Priority`
-  (`P0`–`P3`) and `Severity` (`S1`–`S4`, `S-`) when they are missing. `Area`
-  options are `site`, `coordinator`, `desktop`, `infra`, `design`, `docs`; `gh`
-  cannot edit the options of an existing single-select field, so a field that
-  already exists without an option must be fixed in the project UI.
+  `Status`, `Priority`, `Severity`, `Target date` and `Start date` fields. The
+  sync creates `Priority` (`P0`–`P3`), `Severity` (`S1`–`S4`, `S-`) and the two
+  date fields when they are missing. `Area` options are `site`, `coordinator`,
+  `desktop`, `infra`, `design`, `docs`; `gh` cannot edit the options of an
+  existing single-select field, so a field that already exists without an option
+  must be fixed in the project UI.
 - The repository issue types `Task`, `Bug` and `Feature` must stay enabled
   (`repository.issueTypes` over GraphQL). The sync sets them and the project's
   `Type` column reads them; no label duplicates them.
