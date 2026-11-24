@@ -140,23 +140,23 @@
 Goal: TRX and USDT TRC-20 transfers from an imported key on TRON mainnet, one
 code path with the Nile testnet route, behind the same mainnet arm gate.
 
-- [ ] Provider data: add `trongrid` (`https://api.trongrid.io`) and
+- [x] Provider data: add `trongrid` (`https://api.trongrid.io`) and
   `publicnode` (`https://tron-rpc.publicnode.com`) to `data/providers.json`
   under chain `tron`, both keyless and CORS-enabled; regenerate
   `chains.generated.js` and `crates/rotor-core/src/generated/chains.rs`
   (`node scripts/gen-ssot.mjs`). No API key is shipped; document the rate
   limit and the failover order.
-- [ ] WASM encoder: extend `crates/rotor-wasm/src/tron.rs` with an explicit
+- [x] WASM encoder: extend `crates/rotor-wasm/src/tron.rs` with an explicit
   contract kind (`trx` | `trc20`) and a TRC-20 `token_contract_address`;
   encode `TriggerSmartContract` (type 31) with the type URL
   `type.googleapis.com/protocol.TriggerSmartContract`, `owner_address`,
   `contract_address` (21-byte `0x41` payload) and
   `data = a9059cbb || pad32(recipient-20-byte) || pad32(amount)`.
   `amount` stays raw base units; the encoder never converts decimals.
-- [ ] Strict parsing: unknown, duplicate or missing fields are refused, a
+- [x] Strict parsing: unknown, duplicate or missing fields are refused, a
   `trc20` request without a valid token contract is refused, a `trx` request
   carrying a token contract is refused.
-- [ ] Signing is unchanged: SHA-256 over `raw_data`, RFC 6979 nonce, 65-byte
+- [x] Signing is unchanged: SHA-256 over `raw_data`, RFC 6979 nonce, 65-byte
   `r || s || v` with `v = 27 + recovery_id`; the signature verifies against
   the derived public key in the same call.
 - [ ] Cabinet wallet: TRON mainnet and TRON Nile in the network picker; the

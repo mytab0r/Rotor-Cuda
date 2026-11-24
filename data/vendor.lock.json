@@ -25,7 +25,7 @@
     {
       "source": "apps/site/chains.generated.js",
       "target": "web/public/chains.generated.js",
-      "sha256": "85f0b81a584f8694af424ddebb57d9b3a25bc19b91f2539a5651e1217343f0a7"
+      "sha256": "cccff2de73a76623aecf504e8b782820fb6605e43559ad8fceb0f50555eca4ae"
     },
     {
       "source": "apps/site/favicon.ico",
