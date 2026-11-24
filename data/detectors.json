@@ -1196,7 +1196,7 @@
     },
     {
       "id": "font-swap-layout-shift",
-      "rule": "A first-party @font-face must not use font-display: swap; optional/block only, so a late webfont cannot shift layout.",
+      "rule": "Every document that links /site.css preloads the first-party Manrope woff2, so a late webfont swap cannot shift layout or keep a wider fallback.",
       "batch": "7",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#detectors",
