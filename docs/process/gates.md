@@ -11,7 +11,7 @@ wall-clock time on one PR; "required" means a red result blocks the merge
 | clippy | `cargo clippy --workspace --all-targets -- -D warnings` (`rust.yml`) | lint, correctness classes | ~1–2 min | required |
 | Rust tests | `cargo test --release` on Ubuntu and Windows (`rust.yml`) | unit and integration regressions | ~3–6 min | required |
 | wasm build + test | `cargo build -p rotor-wasm --target wasm32-unknown-unknown --release`; smoke and worker protocol (`rust.yml` → `wasm`) | wasm artifact, protocol drift | ~1–2 min | required |
-| area map + SSOT | `node scripts/check-projects.mjs`, `gen-ssot --check`, `check-ssot`, `gen-detector-docs --check`, `check-defect-ledger`, `check-advisories`, `check-screenshots` (`rust.yml` → `projects`) | unowned paths, cache tokens, stale generated data/vendor copies, detector tables, committed screenshots, advisory schema | ~30 s | required |
+| area map + SSOT | `node scripts/check-projects.mjs`, `check-donor-literals`, `gen-ssot --check`, `check-ssot`, `gen-detector-docs --check`, `check-defect-ledger`, `check-advisories`, `check-screenshots` (`rust.yml` → `projects`) | unowned paths, donor identities, cache tokens, stale generated data/vendor copies, detector tables, committed screenshots, advisory schema | ~30 s | required |
 | web SEO | `npm --prefix web run check`, `npm --prefix web test`, `npm --prefix web run build`, `node scripts/check-seo.mjs` (`rust.yml` → `web-seo`) | Astro type errors, route tests, build, SEO route table | ~1–2 min | required |
 | UI audit | `node scripts/ui-audit.mjs --serve` (`ui.yml`) | overflow, tiny text/targets, unlabeled icon controls, component/table/card/field geometry at 375/768/1280 | ~3–5 min | required |
 | process contract | `node scripts/check-process.mjs --pr <n>` (`process-contract.yml`) | missing Spec/Tests/Mutation proof/Review/Verification sections, weak evidence shape | ~20 s | required |
@@ -23,7 +23,7 @@ wall-clock time on one PR; "required" means a red result blocks the merge
 | rust mutation adapter | `cargo mutants --in-diff …` (`mutation.yml` → `rust-mutation`) | surviving mutants in changed Rust lines | up to 25 min, timeboxed | advisory until 2026-12-08 |
 | Lighthouse budgets | `npx @lhci/cli@0.16.1 autorun --config=lighthouserc.json` (`lighthouse.yml`) | performance/accessibility/best-practices/SEO below 0.9, JS > 60 KB per route, total > 400 KB on `/` and a chain page. `errors-in-console` is skipped because the static-local run has no analytics backend | ~2–3 min | advisory until 2026-12-08 |
 | CodeQL | `.github/workflows/codeql.yml` | static-analysis findings | ~2–5 min | required |
-| CodeQL alert monitor | `.github/workflows/codeql-alerts.yml` (daily) | any open code-scanning alert left untriaged | daily, no PR cost | required |
+| security alert routing | `.github/workflows/security-alerts-sync.yml` (daily) | an open Code scanning, Dependabot or secret-scanning alert without one tracking issue; closes the issue on fix/dismissal | daily, no PR cost | required |
 | dependency audit | `.github/workflows/audit.yml` (weekly) | RustSec/npm advisories; one tracking issue | weekly, no PR cost | advisory |
 | dead links | `.github/workflows/links.yml` (weekly, lychee 0.24.2) | dead links under `docs/**` and `web/src/**`; one tracking issue | weekly, no PR cost | advisory |
 | Dependabot | `.github/dependabot.yml` (weekly) | out-of-date Cargo, npm and action dependencies | weekly, no PR cost | advisory (no automerge) |
