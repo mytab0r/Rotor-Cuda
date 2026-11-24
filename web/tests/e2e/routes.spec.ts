@@ -75,6 +75,15 @@ test.describe('static routes', () => {
           await expect(page.locator('main h2').first()).toBeVisible();
           const text = await page.locator('main').innerText();
           expect(text.trim().split(/\s+/).length).toBeGreaterThan(30);
+          if (route.path === '/docs/') {
+            // Scrollable code blocks must be keyboard reachable; axe does not
+            // flag a non-focusable scroller, so pin it here.
+            const tabindexes = await page
+              .locator('main pre')
+              .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('tabindex')));
+            expect(tabindexes.length).toBeGreaterThan(0);
+            expect(tabindexes.every((value) => value === '0')).toBe(true);
+          }
           break;
         }
       }
