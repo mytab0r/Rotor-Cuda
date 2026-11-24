@@ -14,6 +14,7 @@
     "check": "astro check && tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js tests/analytics-beacon.test.mjs",
     "test:e2e": "npm run build && playwright test",
+    "test:e2e:coord": "playwright test --config playwright.coord.config.ts",
     "test:e2e:update": "npm run build && playwright test --update-snapshots",
     "verify:cdp": "node scripts/cdp-parity.mjs"
   },
