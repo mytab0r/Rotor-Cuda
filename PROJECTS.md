@@ -8,7 +8,7 @@ owned by exactly one area; the most-specific glob wins.
 | `site` | site-ui | `apps/site/**`, `data/**` | `node --check apps/site/*.js` | `node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm` |
 | `web` | site-ui | `web/**` (Astro pilot) | `npm --prefix web ci && npm --prefix web run build` | `npm --prefix web test`; `npm --prefix web run test:e2e` (needs `npx playwright install chromium`) |
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
-| `wasm-core` | wasm-core | `crates/rotor-core/**`, `crates/rotor-wasm/**` | `cargo build -p rotor-core`; `sh scripts/build-wasm.sh` | `cargo test -p rotor-core`; `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
+| `wasm-core` | wasm-core | `crates/rotor-core/**`, `crates/rotor-search/**`, `crates/rotor-wasm/**` | `cargo build -p rotor-core`; `cargo build -p rotor-search`; `sh scripts/build-wasm.sh` | `cargo test -p rotor-core`; `cargo test -p rotor-search`; `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
 | `desktop` | desktop-tools | remaining `src/**` and `tests/**`, `Rotor-Cuda/**`, legacy trees, `build.rs`, `Cargo.toml` | `cargo build --release [--features gpu]` | `cargo test --release [--features gpu]` |
 | `ops` | ops/docs | `.github/**`, `.claude/skills/**`, `deploy/**`, `scripts/**`, `openspec/**`, `docs/**`, `Dockerfile`, root docs | `node scripts/check-projects.mjs` | `node docs/site-map/site-map-test.mjs`; `node scripts/check-projects.mjs` |
 
@@ -24,6 +24,14 @@ owned by exactly one area; the most-specific glob wins.
   `rotor::<module>` paths stay valid; `crates/rotor-wasm` depends on the crate
   and must not `#[path]`-include `src/` files. Core has no network, GPU, BSGS,
   coordinator, CLI or filesystem dependency.
+- **Search -> desktop/coordinator.** `crates/rotor-search` owns the
+  deterministic 256-bit range and chunk math (`U256`, `Split`, split/shift),
+  SplitMix64 and `thread_seed`, BSGS manifest identity (manifest, baby size,
+  range id, fold checksum), the FNV-1a/64 fold and the shared stop flag. The
+  desktop engine/GPU drivers and the coordinator import it; the root crate
+  re-exports the moved items, so `rotor::engine`, `rotor::bsgs` and
+  `rotor::cli` paths stay valid. It has no network, GPU, CLI or HTTP-handler
+  code and no product dependency.
 - **Wasm -> site -> coordinator.** `apps/site/rotor_wasm.wasm` is a committed
   artifact rebuilt by `scripts/build-wasm.sh` from `crates/rotor-wasm`, then
   embedded by the coordinator. The `Dockerfile` rebuilds it during the image

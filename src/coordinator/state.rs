@@ -16,18 +16,18 @@ use serde::{Deserialize, Serialize};
 
 use super::analytics::{AnalyticsData, Visit};
 
-use crate::base58;
-use crate::bsgs::TableManifest;
-use crate::cli::U256;
-use crate::engine::{Split, SplitMix64, thread_seed};
-use crate::field::Fe;
-use crate::hashes::sha256;
-use crate::point::Affine;
-use crate::scalar::Scalar;
-use crate::secp;
+use rotor_core::base58;
+use rotor_core::field::Fe;
+use rotor_core::hashes::sha256;
+use rotor_core::point::Affine;
+use rotor_core::scalar::Scalar;
+use rotor_core::secp;
+use rotor_search::bsgs::TableManifest;
+use rotor_search::range::{Split, U256};
+use rotor_search::rng::{SplitMix64, thread_seed};
 
-/// Default chunk width (`0x10000000`).
-pub const DEFAULT_CHUNK_WIDTH: u64 = 0x1000_0000;
+/// Default chunk width (`0x10000000`), shared with the search protocol math.
+pub use rotor_search::range::DEFAULT_CHUNK_WIDTH;
 /// Default lease TTL in seconds.
 pub const DEFAULT_LEASE_TTL: u64 = 600;
 /// Refuse jobs that would need more chunks than this.

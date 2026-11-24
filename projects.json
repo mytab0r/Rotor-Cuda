@@ -174,19 +174,22 @@
     },
     {
       "id": "wasm-core",
-      "title": "Shared crypto core and browser wasm",
+      "title": "Shared crypto core, search planning and browser wasm",
       "owner": "wasm-core",
       "paths": [
         "crates/rotor-core/**",
+        "crates/rotor-search/**",
         "crates/rotor-wasm/**"
       ],
       "build": [
         "cargo build -p rotor-core",
+        "cargo build -p rotor-search",
         "cargo build -p rotor-wasm --target wasm32-unknown-unknown --release",
         "sh scripts/build-wasm.sh"
       ],
       "test": [
         "cargo test -p rotor-core",
+        "cargo test -p rotor-search",
         "cargo test -p rotor-wasm",
         "node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm",
         "node apps/site/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm"
@@ -194,6 +197,7 @@
       "consumes": [],
       "contracts": [
         "rotor-core-has-no-network-gpu-bsgs-cli-or-fs",
+        "rotor-search-has-no-network-gpu-cli-or-server-code",
         "wasm-exports-consumed-by-apps/site/key.js-and-apps/site/rotor-worker.js",
         "committed-artifact-apps/site/rotor_wasm.wasm-must-be-fresh"
       ]

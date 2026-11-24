@@ -21,19 +21,10 @@ use std::path::Path;
 use xorf::{BinaryFuse8, Filter};
 
 use crate::chain::ChainDescriptor;
+use rotor_search::fnv::fnv1a64;
 
 /// Record count from which the binary fuse prefilter replaces Bloom.
 pub const FUSE_THRESHOLD: usize = 1024;
-
-/// FNV-1a/64, the same fold the C++ `FilterCatalog` uses for fuse keys.
-fn fnv1a64(bytes: &[u8]) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325;
-    for &byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    hash
-}
 
 /// MurmurHash2 (32-bit), by Austin Appleby.
 ///

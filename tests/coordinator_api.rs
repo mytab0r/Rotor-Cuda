@@ -3656,3 +3656,39 @@ fn analytics_collector_is_cors_scoped_private_and_persisted() {
     );
     handle.shutdown();
 }
+
+/// The coordinator must consume the shared crates, never the desktop modules.
+///
+/// The sources are embedded at compile time so the universal revert tier sees
+/// the change: restoring an old `use crate::engine`/`bsgs`/`cli` import turns
+/// this test red even though the runtime behaviour is identical.
+#[test]
+fn coordinator_modules_import_shared_crates_not_desktop_modules() {
+    const SOURCES: &[(&str, &str)] = &[
+        ("state.rs", include_str!("../src/coordinator/state.rs")),
+        (
+            "chunk_loop.rs",
+            include_str!("../src/coordinator/chunk_loop.rs"),
+        ),
+        ("client.rs", include_str!("../src/coordinator/client.rs")),
+        ("mod.rs", include_str!("../src/coordinator/mod.rs")),
+        ("orders.rs", include_str!("../src/coordinator/orders.rs")),
+    ];
+    const FORBIDDEN: &[&str] = &[
+        "use crate::engine",
+        "use crate::bsgs",
+        "use crate::cli",
+        "use crate::field",
+        "use crate::point",
+        "use crate::scalar",
+        "use crate::secp",
+    ];
+    for (file, source) in SOURCES {
+        for forbidden in FORBIDDEN {
+            assert!(
+                !source.contains(forbidden),
+                "{file} imports a desktop module: `{forbidden}`"
+            );
+        }
+    }
+}

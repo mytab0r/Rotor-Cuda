@@ -10,8 +10,8 @@ use std::time::Duration;
 use serde::Deserialize;
 use ureq::Agent;
 
-use crate::bsgs::TableManifest;
 use crate::coordinator::state::{CHALLENGE_SAMPLES, ManifestJson};
+use rotor_search::bsgs::TableManifest;
 
 /// A chunk granted by the coordinator.
 #[derive(Clone, Debug, Deserialize)]

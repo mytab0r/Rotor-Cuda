@@ -1,7 +1,7 @@
 //! Generic coordinator chunk loop for scanners that cannot use CPU workers.
 //!
-//! Mirrors [`crate::engine::run_coordinator`]: lease a chunk, scan it, refresh
-//! the lease, submit a found key and re-lease until the job is done. The CPU
+//! Mirrors the desktop engine's `run_coordinator`: lease a chunk, scan it,
+//! refresh the lease, submit a found key and re-lease until the job is done. The CPU
 //! coordinator path keeps its parallel workers; this loop exists for a backend
 //! that owns its whole device and scans one window at a time (the GPU).
 //!
@@ -18,8 +18,8 @@ use std::time::{Duration, Instant};
 
 use crate::coordinator::client::{CoordinatorClient, JobInfo, Lease};
 use crate::coordinator::state::challenge_samples;
-use crate::engine;
-use crate::scalar::Scalar;
+use rotor_core::scalar::Scalar;
+use rotor_search::stop;
 
 /// Keys covered by one scan and the first key it found, if any.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,7 +31,7 @@ pub struct ScanOutcome {
 /// A backend that scans one inclusive `[start, end]` key window.
 ///
 /// The scanner must stop at the next batch boundary when
-/// [`crate::engine::stop_requested`] becomes true.
+/// [`stop::requested`] becomes true.
 pub trait ChunkScanner {
     fn scan(&mut self, start: &Scalar, end: &Scalar) -> Result<ScanOutcome, String>;
 
@@ -73,7 +73,7 @@ pub fn run_leases(
     let mut total_scanned = 0u64;
 
     loop {
-        if engine::stop_requested() {
+        if stop::requested() {
             break;
         }
 
@@ -120,7 +120,7 @@ pub fn run_leases(
         }
 
         // Ctrl-C abandons a partially scanned chunk; it must not be marked done.
-        if engine::stop_requested() {
+        if stop::requested() {
             break;
         }
 

@@ -23,6 +23,7 @@ gpu = []
 
 [dependencies]
 rotor-core = { path = "crates/rotor-core" }
+rotor-search = { path = "crates/rotor-search" }
 ctrlc = "3"
 sha2 = "0.11"
 ripemd = "0.2"
@@ -45,5 +46,5 @@ num-traits = "0.2"
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Networking_WinHttp"] }
 
 [workspace]
-members = ["crates/rotor-core", "crates/rotor-wasm"]
+members = ["crates/rotor-core", "crates/rotor-search", "crates/rotor-wasm"]
 resolver = "3"

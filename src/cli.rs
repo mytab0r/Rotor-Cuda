@@ -224,65 +224,9 @@ pub fn list_chains_text() -> String {
     out
 }
 
-/// Big-endian 256-bit integer used for range endpoints.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct U256(pub [u8; 32]);
-
-impl U256 {
-    pub const ZERO: Self = Self([0; 32]);
-
-    pub const fn from_u64(value: u64) -> Self {
-        let mut bytes = [0; 32];
-        let source = value.to_be_bytes();
-        let mut i = 0;
-        while i < 8 {
-            bytes[24 + i] = source[i];
-            i += 1;
-        }
-        Self(bytes)
-    }
-
-    pub fn from_hex(text: &str) -> Result<Self, CliError> {
-        if text.is_empty() {
-            return Err(CliError::new("Invalid hex value: empty"));
-        }
-        if text.len() > 64 {
-            return Err(CliError::new(format!(
-                "Invalid hex value: more than 64 digits: {text}"
-            )));
-        }
-
-        let mut bytes = [0; 32];
-        for (index, byte) in text.bytes().rev().enumerate() {
-            let nibble = match byte {
-                b'0'..=b'9' => byte - b'0',
-                b'a'..=b'f' => byte - b'a' + 10,
-                b'A'..=b'F' => byte - b'A' + 10,
-                _ => {
-                    return Err(CliError::new(format!("Invalid hex value: {text}")));
-                }
-            };
-            let slot = 31 - index / 2;
-            if index % 2 == 0 {
-                bytes[slot] = nibble;
-            } else {
-                bytes[slot] |= nibble << 4;
-            }
-        }
-        Ok(Self(bytes))
-    }
-
-    pub fn wrapping_add(self, rhs: Self) -> Self {
-        let mut bytes = [0; 32];
-        let mut carry = 0u16;
-        for i in (0..32).rev() {
-            let sum = u16::from(self.0[i]) + u16::from(rhs.0[i]) + carry;
-            bytes[i] = sum as u8;
-            carry = sum >> 8;
-        }
-        Self(bytes)
-    }
-}
+// The 256-bit range endpoint is shared search math; re-export it so every
+// `rotor::cli::U256` path stays valid.
+pub use rotor_search::range::U256;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Range {
@@ -850,7 +794,7 @@ pub fn parse_range(spec: &str) -> Result<Range, CliError> {
 
 fn hex_part(value: &str, spec: &str) -> Result<U256, CliError> {
     U256::from_hex(value)
-        .map_err(|err| CliError::new(format!("Invalid --range value '{spec}': {}", err.message())))
+        .map_err(|err| CliError::new(format!("Invalid --range value '{spec}': {err}")))
 }
 
 fn validate_mnemonic(config: &Config) -> Result<(), CliError> {

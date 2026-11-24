@@ -27,52 +27,17 @@ use crate::point::{Affine, Jacobian, batch_to_affine};
 use crate::scalar::Scalar;
 use crate::secp;
 
-/// Bump when the baby-table layout or fold changes so a stale checkpoint that
-/// names an older version is rejected instead of silently trusted.
-pub const BSGS_TABLE_FORMAT_VERSION: u32 = 1;
+// Table identity, fold math and the fold function live in `rotor-search`; the
+// re-exports keep every `crate::bsgs::<item>` path (and the public
+// `rotor::bsgs::{TableManifest, BSGS_TABLE_FORMAT_VERSION}` paths) intact.
+pub use rotor_search::bsgs::{BSGS_TABLE_FORMAT_VERSION, TableManifest};
+pub(crate) use rotor_search::bsgs::{
+    baby_size_for, hex_trim, map_from_folds, range_id, scalar_to_u128, span_u128, table_checksum,
+};
+use rotor_search::fnv::fnv1a64;
 
-/// FNV-1a/64 offset basis.
-const FNV_OFFSET: u64 = 14_695_981_039_346_656_037;
-/// FNV-1a/64 prime.
-const FNV_PRIME: u64 = 1_099_511_628_211;
 /// Batch size for one shared inversion when normalizing points.
 const NORMALIZE_BATCH: usize = 1024;
-
-/// Canonical identity of a built baby-step table.
-///
-/// A saved checkpoint/resume must carry one of these and is rejected on any
-/// field mismatch, so a table from different `m`/range/content is never reused.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TableManifest {
-    pub format_version: u32,
-    pub curve: String,
-    pub baby_size: u64,
-    pub range_id: String,
-    pub table_checksum: u64,
-}
-
-impl Default for TableManifest {
-    fn default() -> Self {
-        Self {
-            format_version: BSGS_TABLE_FORMAT_VERSION,
-            curve: "secp256k1".to_string(),
-            baby_size: 0,
-            range_id: String::new(),
-            table_checksum: 0,
-        }
-    }
-}
-
-impl TableManifest {
-    /// `true` only when both manifests name the exact same table.
-    pub fn compatible(&self, other: &Self) -> bool {
-        self.format_version == other.format_version
-            && self.curve == other.curve
-            && self.baby_size == other.baby_size
-            && self.range_id == other.range_id
-            && self.table_checksum == other.table_checksum
-    }
-}
 
 /// Outcome of a [`solve`] call.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -917,65 +882,6 @@ fn build_baby_table(generator: &Affine, m: u64, map: &mut HashMap<u64, u32>, fol
     }
 }
 
-/// Rebuild the baby map from an ordered fold list with the same first-j-wins
-/// rule as `build_baby_table`, without any baby-step EC work.
-pub(crate) fn map_from_folds(folds: &[u64]) -> HashMap<u64, u32> {
-    let mut map = HashMap::with_capacity(folds.len());
-    for (offset, fold) in folds.iter().enumerate() {
-        map.entry(*fold).or_insert((offset as u64 + 1) as u32);
-    }
-    map
-}
-
-/// FNV-1a/64 over the little-endian bytes of every fold, in table order.
-pub(crate) fn table_checksum(folds: &[u64]) -> u64 {
-    let mut hash = FNV_OFFSET;
-    for fold in folds {
-        for byte in fold.to_le_bytes() {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(FNV_PRIME);
-        }
-    }
-    hash
-}
-
-/// Baby-step count for a span: explicit `m` or the `isqrt(span + 1) + 1`
-/// default, clamped and validated exactly like `build_table`.
-pub(crate) fn baby_size_for(span: u128, m: u64) -> Result<u64, String> {
-    let mut baby_size = m;
-    if baby_size == 0 {
-        let root = span.saturating_add(1).isqrt();
-        if root >= u128::from(u32::MAX) {
-            return Err("baby table would exceed 32-bit indices".to_string());
-        }
-        baby_size = root as u64 + 1;
-    }
-    if baby_size > u64::from(u32::MAX) {
-        return Err("baby table would exceed 32-bit indices".to_string());
-    }
-    Ok(baby_size.max(1))
-}
-
-/// Canonical manifest range identity, e.g. `"3E8:13E7"`.
-pub(crate) fn range_id(k_start: &Scalar, k_end: &Scalar) -> String {
-    format!("{}:{}", hex_trim(k_start), hex_trim(k_end))
-}
-
-/// The scalar span `k_end - k_start` as `u128`, or `None` when it does not fit.
-pub(crate) fn span_u128(k_start: &Scalar, k_end: &Scalar) -> Option<u128> {
-    scalar_to_u128(&k_end.sub(k_start))
-}
-
-/// FNV-1a/64, the same fold used for the `X` coordinate bytes.
-fn fnv1a64(bytes: &[u8]) -> u64 {
-    let mut hash = FNV_OFFSET;
-    for &byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-    hash
-}
-
 /// `k_start + value` in GF(n); `value` is split into two 64-bit additions.
 fn add_u128(base: &Scalar, value: u128) -> Scalar {
     base.add_u64(value as u64).add_u64((value >> 64) as u64)
@@ -984,25 +890,6 @@ fn add_u128(base: &Scalar, value: u128) -> Scalar {
 fn key_matches(key: &Scalar, target: &Affine) -> bool {
     // `mul_g` cannot represent infinity; a zero key never matches an affine target.
     !key.is_zero() && secp::mul_g(key) == *target
-}
-
-/// Scalar as `u128`, or `None` when any bit at 128 or above is set.
-fn scalar_to_u128(value: &Scalar) -> Option<u128> {
-    if (128..256).any(|index| value.bit(index)) {
-        return None;
-    }
-    let bytes = value.to_bytes_be();
-    let mut low = [0u8; 16];
-    low.copy_from_slice(&bytes[16..]);
-    Some(u128::from_be_bytes(low))
-}
-
-/// Uppercase hex with no leading zeros; zero prints as `"0"`.
-fn hex_trim(value: &Scalar) -> String {
-    let hex = value.to_hex();
-    let trimmed = hex.trim_start_matches('0');
-    let trimmed = if trimmed.is_empty() { "0" } else { trimmed };
-    trimmed.to_ascii_uppercase()
 }
 
 /// Clamp a requested table size to something `usize` can index.
