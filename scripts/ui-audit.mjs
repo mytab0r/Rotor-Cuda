@@ -2730,6 +2730,14 @@ async function auditPage(args) {
         offenders.slice(0, 10),
       );
     }
+    // An entered key always renders facts. Zero rows means the summary was
+    // hidden or never rendered, which would otherwise pass silently. /key,
+    // /key/hex, /key/wif and /key/decimal have an empty input and may
+    // legitimately render no rows.
+    const priv = document.getElementById("priv");
+    if (!rows.length && priv && priv.value.trim()) {
+      add("key-summary-stack", "no key summary rows found for an entered key");
+    }
   }
 
   if (route === "/seed") {
