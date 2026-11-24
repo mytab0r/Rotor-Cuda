@@ -813,6 +813,13 @@
       "symptom": "The audit clicked the balance control on a synthesized /key/<hex> page while the island was still deriving that key, so a settled state could describe the hub's key 1 rows instead of the requested key.",
       "detector": "key-url-derive",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "mobile-key-summary-label-column",
+      "reported": "2026-11-23",
+      "symptom": "The 0-3-0 `.key-page .key-summary-group .key-form-row` rule outranked the <=560px stacking rule, so at 375px the summary kept the 112px label column, wrapped the value into a ~159px column and grew rows to 78-203px.",
+      "detector": "key-summary-stack",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
