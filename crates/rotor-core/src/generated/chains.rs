@@ -360,6 +360,8 @@ pub static PROVIDERS: &[(&str, &[ProviderEntry])] = &[
     (
         "tron",
         &[
+            ("trongrid", "https://api.trongrid.io", "TronGrid"),
+            ("publicnode", "https://tron-rpc.publicnode.com", "publicnode.com"),
             ("tronscan", "https://apilist.tronscanapi.com/api", "Tronscan"),
         ],
     ),

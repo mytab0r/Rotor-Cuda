@@ -1,6 +1,6 @@
 [package]
 name = "rotor"
-version = "2.2.1"
+version = "2.3.1"
 edition = "2024"
 license = "GPL-3.0-only"
 description = "Rust port of the Rotor-Cuda CPU key search"

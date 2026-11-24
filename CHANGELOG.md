@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.3.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.3.0...v2.3.1) (2026-11-24)
+
+
+### Documentation
+
+* **design-system:** rule for progressive disclosure on functional pages ([#531](https://github.com/mytab0r/Rotor-Cuda/issues/531)) ([eedf75d](https://github.com/mytab0r/Rotor-Cuda/commit/eedf75deb7f635f85e3832d0b695b6b7ed830c29))
+
+## [2.3.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.2.1...v2.3.0) (2026-11-24)
+
+
+### Features
+
+* **process:** claim a task before editing it across sessions ([#524](https://github.com/mytab0r/Rotor-Cuda/issues/524)) ([425d08a](https://github.com/mytab0r/Rotor-Cuda/commit/425d08ab6b02aed32dc99522743c2f69e454aa37))
+
+
+### Bug Fixes
+
+* **board:** skip unchanged project fields in the sync and its dry run ([#529](https://github.com/mytab0r/Rotor-Cuda/issues/529)) ([31ff5a3](https://github.com/mytab0r/Rotor-Cuda/commit/31ff5a3d543c9b06860a0566ca796f06816d47f5))
+* **ci:** never revert documentation in the mutation gate ([#530](https://github.com/mytab0r/Rotor-Cuda/issues/530)) ([fad08da](https://github.com/mytab0r/Rotor-Cuda/commit/fad08da532b7ecbcc7600521d2f0ec6f21189c53))
+
 ## [2.2.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.2.0...v2.2.1) (2026-11-24)
 
 

@@ -7,6 +7,11 @@
 ## What changed
 <!-- The user-visible or behavioural change, in two or three lines. -->
 
+## For users
+<!-- One to three bullets a visitor or wallet user understands, or
+     "No user-visible change". The release changelog (docs/changelog.md) is
+     filled from this line. -->
+
 ## Tests
 <!-- Command per test and how it fails without this change:
      - node scripts/foo.test.mjs — asserts the new rejection; fails with ENOENT before the change

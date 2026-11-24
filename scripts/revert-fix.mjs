@@ -92,6 +92,12 @@ export function isTestPath(filePath, testGlobs = DEFAULT_TEST_GLOBS) {
 // the include globs when any are given, and inside one of the source globs
 // when any are given. Source globs let CI ignore documentation, workflow and
 // data-only changes: there is no executable behaviour for a test to catch.
+// Documentation and specs carry no executable behaviour: a test cannot catch a
+// prose edit, and `docs/` holds `.js` data files whose text no test asserts.
+// Excluding them keeps the gate honest instead of demanding a red test that
+// cannot exist.
+const DOC_PATH_RE = /^(?:docs|openspec)\//i;
+
 export function selectRevertableFiles(
   files,
   { testGlobs = DEFAULT_TEST_GLOBS, includeGlobs = [], sourceGlobs = [] } = {},
@@ -100,6 +106,7 @@ export function selectRevertableFiles(
     .map(normalizePath)
     .filter(Boolean)
     .filter((filePath) => !isTestPath(filePath, testGlobs))
+    .filter((filePath) => !DOC_PATH_RE.test(filePath))
     .filter(
       (filePath) =>
         includeGlobs.length === 0 ||

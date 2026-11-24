@@ -93,7 +93,7 @@ test("test paths cover the project conventions", () => {
   assert.ok(DEFAULT_TEST_GLOBS.length > 0);
 });
 
-test("selection excludes test paths and honours include globs", () => {
+test("selection excludes test and documentation paths and honours include globs", () => {
   const files = [
     "apps/site/amount.js",
     "apps/site/amount-test.mjs",
@@ -101,11 +101,11 @@ test("selection excludes test paths and honours include globs", () => {
     "web/tests/chains.test.ts",
     "docs/process/gates.md",
   ];
-  assert.deepEqual(selectRevertableFiles(files), [
-    "apps/site/amount.js",
-    "web/src/lib/chains.ts",
-    "docs/process/gates.md",
-  ]);
+  assert.deepEqual(
+    selectRevertableFiles(files),
+    ["apps/site/amount.js", "web/src/lib/chains.ts"],
+    "docs/ is never reverted",
+  );
   assert.deepEqual(selectRevertableFiles(files, { includeGlobs: ["web/**"] }), [
     "web/src/lib/chains.ts",
   ]);
@@ -114,6 +114,14 @@ test("selection excludes test paths and honours include globs", () => {
     ["apps/site/amount.js", "web/src/lib/chains.ts"],
   );
   assert.deepEqual(selectRevertableFiles(["docs/process/gates.md"], { sourceGlobs: ["**/*.rs"] }), []);
+  assert.deepEqual(
+    selectRevertableFiles(
+      ["docs/site-map/site-map-data.js", "openspec/changes/x/tasks.md", "apps/site/key.js"],
+      { sourceGlobs: ["**/*.js"] },
+    ),
+    ["apps/site/key.js"],
+    "documentation and specs are never reverted: no test can catch prose",
+  );
 });
 
 test("integration: reverting a covered change makes the test fail", () => {
