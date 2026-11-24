@@ -12,6 +12,8 @@ test("the cabinet login sends the operator credentials", () => {
   assert.match(source, /user: userInput\?\.value/);
   assert.match(source, /password: passwordInput\?\.value/);
   assert.match(source, /\{ token \}/);
+  // The operator, not just the operand: flipping !== to === must break a test.
+  assert.match(source, /token\.trim\(\) !== ""/);
   assert.match(source, /if \(passwordInput\) passwordInput\.value = ""/);
   assert.match(source, /That login was not accepted\./);
 });
