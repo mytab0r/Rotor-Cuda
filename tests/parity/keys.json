@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "Fixed deterministic inputs for the P0 desktop/wasm behaviour-parity baseline. Every value is a 32-byte hex string. secp256k1 keys are used directly on secp chains and as raw ed25519 seeds on ed25519 chains; seed inputs go through the desktop BIP32 path for secp chains and are used as the ed25519 seed directly.",
+  "keys": [
+    {
+      "id": "key-1",
+      "kind": "secp256k1",
+      "material": "0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    {
+      "id": "key-2",
+      "kind": "secp256k1",
+      "material": "0000000000000000000000000000000000000000000000000000000000000002"
+    },
+    {
+      "id": "key-3",
+      "kind": "secp256k1",
+      "material": "0000000000000000000000000000000000000000000000000000000000000003"
+    },
+    {
+      "id": "key-0xff",
+      "kind": "secp256k1",
+      "material": "00000000000000000000000000000000000000000000000000000000000000ff"
+    },
+    {
+      "id": "seed-bip32-000102",
+      "kind": "seed",
+      "material": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    },
+    {
+      "id": "seed-rfc8032",
+      "kind": "seed",
+      "material": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"
+    },
+    {
+      "id": "seed-repeat-11",
+      "kind": "seed",
+      "material": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ]
+}

@@ -79,6 +79,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --release
+      - name: Desktop parity baseline (P0)
+        run: cargo test --release --test parity
       - run: cargo build --release
       - name: CLI smoke
         shell: bash
@@ -104,6 +106,10 @@ jobs:
       - name: Check wasm artifact
         run: test -f target/wasm32-unknown-unknown/release/rotor_wasm.wasm
       - run: cargo test -p rotor-wasm
+      - name: Desktop/wasm parity baseline (P0, fresh artifact)
+        run: node tests/parity/parity-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
+      - name: Desktop/wasm parity baseline (P0, committed artifact)
+        run: node tests/parity/parity-test.mjs apps/site/rotor_wasm.wasm
       - name: Node smoke test
         run: node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
       - name: Worker protocol test

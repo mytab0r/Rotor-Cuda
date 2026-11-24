@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "description": "One mapping from every chain in data/chains.json to the wasm derive_report row that carries its canonical address. `format` names the address encoding; `wifComparable` is true only when the desktop WIF version byte equals the Bitcoin mainnet WIF byte that derive_report exposes (0x80). A chain with `desktop: false` is not registered in the desktop chain descriptor table.",
+  "chains": {
+    "bitcoin": {
+      "format": "p2pkh",
+      "wasm_row": "btc_p2pkh",
+      "wasm_rows": [
+        "btc_p2pkh",
+        "btc_p2pkh_uncompressed",
+        "btc_p2sh_p2wpkh",
+        "btc_p2wpkh",
+        "btc_p2tr"
+      ],
+      "wif_comparable": true,
+      "desktop": true
+    },
+    "ethereum": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "bnb": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "arbitrum": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "optimism": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "base": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "polygon": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "avalanche": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "zksync": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "solana": {
+      "format": "base58",
+      "wasm_row": "solana",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "tron": {
+      "format": "base58check",
+      "wasm_row": "tron",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "xrp": {
+      "format": "classic",
+      "wasm_row": "xrp_classic",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "litecoin": {
+      "format": "p2pkh",
+      "wasm_row": "ltc_p2pkh",
+      "wasm_rows": [
+        "ltc_p2pkh",
+        "ltc_p2sh_p2wpkh",
+        "ltc_p2wpkh",
+        "ltc_p2tr"
+      ],
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "bitcoin-cash": {
+      "format": "p2pkh",
+      "wasm_row": "bch_legacy",
+      "wif_comparable": true,
+      "desktop": true
+    },
+    "dogecoin": {
+      "format": "p2pkh",
+      "wasm_row": "doge_p2pkh",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "zcash": {
+      "format": "p2pkh",
+      "wasm_row": "zcash_p2pkh",
+      "wif_comparable": true,
+      "desktop": true
+    },
+    "sui": {
+      "format": "blake2b",
+      "wasm_row": "sui",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "ton": {
+      "format": "ton-user-friendly",
+      "wasm_row": "ton_w5",
+      "wif_comparable": false,
+      "desktop": true
+    },
+    "bitcoin-testnet": {
+      "format": "p2pkh",
+      "wasm_row": "btc_p2pkh",
+      "wasm_rows": [
+        "btc_p2pkh",
+        "btc_p2sh_p2wpkh",
+        "btc_p2wpkh",
+        "btc_p2tr"
+      ],
+      "wasm_network": 1,
+      "wif_comparable": false,
+      "desktop": false,
+      "key_source_chain": "bitcoin"
+    },
+    "sepolia": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": false,
+      "key_source_chain": "ethereum"
+    },
+    "bnb-testnet": {
+      "format": "eip55",
+      "wasm_row": "evm",
+      "wif_comparable": false,
+      "desktop": false,
+      "key_source_chain": "bnb"
+    },
+    "tron-nile": {
+      "format": "base58check",
+      "wasm_row": "tron",
+      "wif_comparable": false,
+      "desktop": false,
+      "key_source_chain": "tron"
+    }
+  }
+}
