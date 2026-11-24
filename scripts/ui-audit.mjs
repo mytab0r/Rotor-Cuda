@@ -2694,8 +2694,9 @@ async function auditPage(args) {
   // Key facts stack the label above the value at <=560px and stay two columns
   // above it. A 0-3-0 `.key-page .key-summary-group .key-form-row` rule used to
   // keep the 112px label column at 375px, wrapping the value into a ~159px
-  // column (ROT-445).
-  if (route === "/key" || route.startsWith("/key/")) {
+  // column (ROT-445). The Astro shell has its own markup and no
+  // `.key-summary-group`, so this pins the legacy coordinator page only.
+  if ((route === "/key" || route.startsWith("/key/")) && !document.querySelector("main.key-page-v2")) {
     const rows = [];
     const offenders = [];
     for (const row of document.querySelectorAll(".key-page .key-summary-group .key-form-row")) {
