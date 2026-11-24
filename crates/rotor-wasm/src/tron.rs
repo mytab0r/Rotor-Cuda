@@ -607,4 +607,218 @@ mod tests {
         push_varint(&mut out, value);
         out
     }
+    /// TRC-20 (`TriggerSmartContract`) coverage for the ROT-511 slice.
+    ///
+    /// Oracle: tronweb 6.5.2 run offline on 2026-11-24 outside the repository
+    /// (`txJsonToPb` / `txPbToRawDataHex` / `txPbToTxID` for the raw bytes and
+    /// the id, `utils.abi.encodeParams` for the calldata and
+    /// `utils.crypto.signTransaction` for the RFC 6979 signature). The ABI
+    /// coder takes the 20-byte recipient body without the `0x41` prefix.
+    /// Cross-check: the same tronweb signer reproduces the pinned TRX
+    /// `SIGNATURE` above byte for byte.
+    mod trc20_tests {
+        use super::*;
+        use crate::scalar::Scalar;
+        use crate::secp;
+
+        /// TRON mainnet USDT (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`).
+        const CONTRACT: &str = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+        const CONTRACT_HEX: &str = "41a614f803b6fd780986a42c78ec9c7f77e6ded13c";
+        const DATA: &str = "a9059cbb0000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf00000000000000000000000000000000000000000000000000000000000f4240";
+        const TRC20_RAW_DATA_HEX: &str = "0a0212ab2208001122334455667740e0a499ffbc315aae01081f12a9010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412740a15417e5f4552091a69125d5dfcb7b8c2659029395bdf121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2244a9059cbb0000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf00000000000000000000000000000000000000000000000000000000000f42407080d095ffbc31900180c2d72f";
+        const TRC20_TX_ID: &str =
+            "e2e775bf45d59c75626a7b1c3a87bf32eada7b0870c2c617408fe87e609800b6";
+        const TRC20_SIGNATURE: &str = "bb8652874740c0860c7735e92bba6405253b578e5966b3e5015adb66952a06a0130522d939703fbbb831800c7c51986061bf16a212724950efeee28869f7de191c";
+
+        /// One request body; `contract` is `None` (field absent) or
+        /// `Some("")` (explicitly empty) or a token contract address.
+        fn body(kind: &str, contract: Option<&str>) -> String {
+            let token = match contract {
+                Some(value) => format!(r#","token_contract_address":"{value}""#),
+                None => String::new(),
+            };
+            format!(
+                r#""kind":"{kind}","owner_address":"{OWNER}","to_address":"{TO}"{token},"amount":"1000000","ref_block_bytes":"12ab","ref_block_hash":"0011223344556677","expiration":"1700000060000","timestamp":"1700000000000","fee_limit":"100000000""#
+            )
+        }
+
+        fn unsigned(kind: &str, contract: Option<&str>) -> String {
+            format!("{{{}}}", body(kind, contract))
+        }
+
+        fn signed(kind: &str, contract: Option<&str>) -> String {
+            format!(r#"{{{},"private_key":"0x{KEY1}"}}"#, body(kind, contract))
+        }
+
+        #[test]
+        fn trc20_unsigned_vector_matches_the_independent_encoding() {
+            let result =
+                unsigned_request(&unsigned("trc20", Some(CONTRACT))).expect("unsigned trc20");
+            let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+            assert_eq!(value["txID"], TRC20_TX_ID);
+            assert_eq!(value["raw_data_hex"], TRC20_RAW_DATA_HEX);
+            assert!(value.get("signature").is_none());
+
+            let raw = &value["raw_data"];
+            assert_eq!(raw["ref_block_bytes"], "12ab");
+            assert_eq!(raw["ref_block_hash"], "0011223344556677");
+            assert_eq!(raw["expiration"], 1_700_000_060_000u64);
+            assert_eq!(raw["timestamp"], 1_700_000_000_000u64);
+            assert_eq!(raw["fee_limit"], 100_000_000u64);
+
+            let contract = &raw["contract"][0];
+            assert_eq!(contract["type"], "TriggerSmartContract");
+            assert_eq!(
+                contract["parameter"]["type_url"],
+                "type.googleapis.com/protocol.TriggerSmartContract"
+            );
+            let payload = &contract["parameter"]["value"];
+            assert_eq!(
+                payload["owner_address"],
+                "417e5f4552091a69125d5dfcb7b8c2659029395bdf"
+            );
+            assert_eq!(payload["contract_address"], CONTRACT_HEX);
+            assert_eq!(payload["data"], DATA);
+        }
+
+        #[test]
+        fn trc20_signature_verifies_and_matches_the_independent_signer() {
+            let first = sign_request(&signed("trc20", Some(CONTRACT))).expect("sign trc20");
+            let second = sign_request(&signed("trc20", Some(CONTRACT))).expect("sign again");
+            assert_eq!(first, second, "RFC 6979 is deterministic");
+
+            let value: serde_json::Value = serde_json::from_str(&first).unwrap();
+            assert_eq!(value["txID"], TRC20_TX_ID);
+            assert_eq!(value["raw_data_hex"], TRC20_RAW_DATA_HEX);
+
+            let signature_hex = value["signature"].as_str().expect("signature");
+            assert_eq!(signature_hex, TRC20_SIGNATURE);
+            assert_eq!(signature_hex.len(), 130, "65 bytes r||s||v");
+
+            let bytes: Vec<u8> = (0..signature_hex.len())
+                .step_by(2)
+                .map(|index| u8::from_str_radix(&signature_hex[index..index + 2], 16).unwrap())
+                .collect();
+            assert!(matches!(bytes[64], 27 | 28), "v = 27 + recovery_id");
+
+            let mut r = [0u8; 32];
+            r.copy_from_slice(&bytes[..32]);
+            let mut s = [0u8; 32];
+            s.copy_from_slice(&bytes[32..64]);
+            let signature = sign::Signature {
+                r: Scalar::from_bytes_be(&r).unwrap(),
+                s: Scalar::from_bytes_be(&s).unwrap(),
+                recovery: bytes[64] - 27,
+            };
+
+            let mut tx_id = [0u8; 32];
+            tx_id.copy_from_slice(&json::parse_bytes(TRC20_TX_ID, "txID").unwrap());
+            assert!(
+                sign::verify(
+                    &secp::mul_g(&Scalar::from_u64(1)),
+                    &tx_id,
+                    &signature.r,
+                    &signature.s
+                ),
+                "the signature must verify against the public key of key 1"
+            );
+
+            let recovered = sign::recover(&tx_id, &signature).expect("recover");
+            let mut payload = [0u8; 21];
+            payload[0] = ADDRESS_PREFIX;
+            payload[1..].copy_from_slice(&secp::eth_address(&recovered));
+            assert_eq!(base58::encode_check(&payload), OWNER);
+
+            // An unsigned request never carries a signature.
+            let unsigned_result = unsigned_request(&unsigned("trc20", Some(CONTRACT))).unwrap();
+            let unsigned_value: serde_json::Value =
+                serde_json::from_str(&unsigned_result).unwrap();
+            assert!(unsigned_value.get("signature").is_none());
+        }
+
+        #[test]
+        fn the_kind_is_required_and_strict() {
+            assert!(unsigned_request(&unsigned("trc20", Some(CONTRACT))).is_ok());
+            assert!(unsigned_request(&unsigned("trx", None)).is_ok());
+            // An explicitly empty token contract on a TRX request carries none.
+            assert!(unsigned_request(&unsigned("trx", Some(""))).is_ok());
+            // A TRX request with a kind field still encodes the pinned TRX bytes.
+            let trx: serde_json::Value =
+                serde_json::from_str(&unsigned_request(&unsigned("trx", None)).unwrap()).unwrap();
+            assert_eq!(trx["raw_data_hex"], RAW_DATA_HEX);
+            assert_eq!(trx["txID"], TX_ID);
+
+            let err = unsigned_request(&unsigned("trc21", Some(CONTRACT))).unwrap_err();
+            assert!(err.contains("kind"), "unknown kind must name the field: {err}");
+
+            let missing = unsigned("trc20", Some(CONTRACT)).replace(r#""kind":"trc20","#, "");
+            let err = unsigned_request(&missing).unwrap_err();
+            assert!(err.contains("kind"), "a missing kind must name the field: {err}");
+
+            let duplicate_kind = format!("{{{},\"kind\":\"trx\"}}", body("trc20", Some(CONTRACT)));
+            assert!(unsigned_request(&duplicate_kind).is_err());
+
+            let duplicate_token = format!(
+                "{{{},\"token_contract_address\":\"{CONTRACT}\"}}",
+                body("trc20", Some(CONTRACT))
+            );
+            assert!(unsigned_request(&duplicate_token).is_err());
+
+            let unknown = format!("{{{},\"extra\":\"x\"}}", body("trc20", Some(CONTRACT)));
+            assert!(unsigned_request(&unknown).is_err());
+
+            assert!(unsigned_request("{}").is_err());
+        }
+
+        #[test]
+        fn kind_and_token_contract_must_agree() {
+            let mismatch = unsigned("trx", Some(CONTRACT));
+            let err = unsigned_request(&mismatch).unwrap_err();
+            assert!(
+                err.contains("token_contract_address"),
+                "a TRX request with a token contract must name the field: {err}"
+            );
+
+            let missing = unsigned("trc20", None);
+            let err = unsigned_request(&missing).unwrap_err();
+            assert!(
+                err.contains("token_contract_address"),
+                "a TRC-20 request without a token contract must name the field: {err}"
+            );
+        }
+
+        #[test]
+        fn trc20_refuses_invalid_token_contracts() {
+            let request = |contract: &str| unsigned("trc20", Some(contract));
+
+            for contract in [
+                "not-an-address",
+                // Bitcoin P2PKH: valid base58check, but a 0x00 payload prefix.
+                "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+                // EVM hex address.
+                "0x2b5ad5c4795c026514f8317c7a215e218dccd6cf",
+            ] {
+                let err = unsigned_request(&request(contract)).unwrap_err();
+                assert!(err.contains("token_contract_address"), "{contract}: {err}");
+            }
+
+            // A one-character checksum change.
+            let mut flipped = CONTRACT[..CONTRACT.len() - 1].to_owned();
+            flipped.push_str("u");
+            assert!(unsigned_request(&request(&flipped)).is_err());
+
+            // Correct prefix but the wrong payload length.
+            let short = base58::encode_check(&[ADDRESS_PREFIX; 20]);
+            assert!(unsigned_request(&request(&short)).is_err());
+        }
+
+        #[test]
+        fn trc20_refuses_a_zero_amount() {
+            let request = unsigned("trc20", Some(CONTRACT))
+                .replace(r#""amount":"1000000""#, r#""amount":"0""#);
+            let err = unsigned_request(&request).unwrap_err();
+            assert!(err.contains("amount"), "{err}");
+        }
+    }
 }
