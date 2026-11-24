@@ -289,6 +289,7 @@
         "node --test scripts/check-advisories.test.mjs",
         "node --test scripts/security-alerts.test.mjs",
         "node --test scripts/site-routes.test.mjs",
+        "node --test scripts/check-screenshots.test.mjs",
         "node scripts/check-advisories.mjs",
         "node scripts/gen-security-page.mjs --check",
         "node scripts/check-projects.mjs",
