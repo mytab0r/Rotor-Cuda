@@ -45,6 +45,10 @@ test("the format-scope probe is coordinator-only and keeps the coordinator repor
 
 test("key summary rows stack at <=560px and stay two columns above it", () => {
   assert.match(auditPage, /"key-summary-stack"/);
+  assert.match(
+    auditPage,
+    /\(route === "\/key" \|\| route\.startsWith\("\/key\/"\)\) && !document\.querySelector\("main\.key-page-v2"\)/,
+  );
   assert.match(auditPage, /Math\.abs\(ddBox\.left - dtBox\.left\) <= 2 && ddBox\.top >= dtBox\.bottom - 2/);
   assert.match(auditPage, /ddBox\.left > dtBox\.left \+ 40 && ddBox\.top < dtBox\.bottom - 2 && dtBox\.top < ddBox\.bottom - 2/);
   assert.match(auditPage, /viewportWidth <= 560 \? !stacked : !beside/);
