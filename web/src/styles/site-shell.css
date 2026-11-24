@@ -709,3 +709,9 @@
   .puzzle-detail-links a { min-height: var(--control-h-md); }
 }
 
+/* Astro-only accessibility overrides, covered by the Playwright + axe suite.
+ * The legacy coordinator pages keep the shared rules until the migration
+ * replaces them; that residual debt is filed as ROT-478 (#478). */
+main p a, main li a, main dd a { text-decoration: underline; }
+.address-link { color: var(--text-2); }
+

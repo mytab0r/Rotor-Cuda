@@ -56,12 +56,15 @@ exactly one toggle, the menu opens, Escape closes it and focus returns to the
 trigger; at 1280 the toggle is hidden and the full nav is visible.
 
 `@axe-core/playwright` scans each page in each project. Critical and serious
-findings fail the build; there is no page allowlist. The two real findings the
-first run exposed were fixed in the shared source: in-text links are now
-underlined (`link-in-text-block`) and `.address-link` uses the theme-aware
-`--text-2` instead of the dark-only `#c8d8ea` (`color-contrast` in light
-mode). The `/docs/` code blocks are focusable scroll regions
-(`scrollable-region-focusable`).
+findings fail the build; there is no page allowlist. The three real findings
+the first run exposed are fixed for the Astro pages in
+`src/styles/site-shell.css`, which loads after the shared `/site.css`: in-text
+links are underlined (`link-in-text-block`), `.address-link` uses the
+theme-aware `--text-2` instead of the dark-only `#c8d8ea` (`color-contrast` in
+light mode), and the `/docs/` code blocks are focusable scroll regions
+(`scrollable-region-focusable`). The legacy coordinator pages keep the shared
+rules until the migration replaces them; that residual debt is tracked as
+ROT-478 (#478), with the measured ratios.
 
 ### Visual baselines
 
