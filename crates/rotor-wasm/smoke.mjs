@@ -657,6 +657,7 @@ if (
   throw new Error("wasm does not export the TRON signing ABI");
 }
 const tronBody = {
+  kind: "trx",
   owner_address: "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
   to_address: "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K",
   amount: "1000000",

@@ -1523,6 +1523,7 @@ fn public_pages_and_assets_are_served() {
         ("/assets.generated.js", "RotorAssetsData"),
         ("/wallet-vault.js", "PBKDF2-SHA256"),
         ("/wallet-btc.js", "RotorBtcSend"),
+        ("/wallet-tron.js", "RotorTronWallet"),
         ("/vanity-worker.js", "derive_report"),
     ] {
         let (status, headers, body) = raw(addr, "GET", path, None, None);

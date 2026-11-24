@@ -45,6 +45,7 @@
 
   var BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
   var TRON_FIELDS = [
+    'kind',
     'owner_address',
     'to_address',
     'amount',
@@ -313,7 +314,14 @@
       }
     });
 
+    /* The WASM schema requires an explicit kind. This Nile adapter only builds
+     * TRX transfers; a token transfer belongs to the wallet-tron.js path. */
+    if (request.kind !== undefined && request.kind !== null && request.kind !== 'trx') {
+      throw new Error('kind must be "trx" in the Nile TRX transfer request.');
+    }
+
     var fields = {
+      kind: 'trx',
       owner_address: assertAddress(request.owner_address, 'owner_address'),
       to_address: assertAddress(request.to_address, 'to_address'),
       amount: amountSun(request.amount).toString(),

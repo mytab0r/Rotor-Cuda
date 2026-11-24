@@ -194,12 +194,14 @@ add("normalizeRequest accepts the documented schema", () => {
     "amount",
     "expiration",
     "fee_limit",
+    "kind",
     "owner_address",
     "ref_block_bytes",
     "ref_block_hash",
     "timestamp",
     "to_address",
   ]);
+  assert.equal(fields.kind, "trx");
   assert.equal(fields.fee_limit, "0");
   assert.equal(fields.amount, "1000000");
 });

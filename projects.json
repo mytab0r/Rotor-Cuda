@@ -44,6 +44,7 @@
         "node --check apps/site/wallet-vault.js",
         "node --check apps/site/wallet-sign.js",
         "node --check apps/site/wallet-evm.js",
+        "node --check apps/site/wallet-tron.js",
         "node --check apps/site/wallet-btc.js",
         "node --check apps/site/wallet-history.js",
         "node --check apps/site/monitor.js",
@@ -95,6 +96,7 @@
         "node apps/site/wallet-mainnet-test.mjs",
         "node apps/site/wallet-erc20-test.mjs",
         "node apps/site/wallet-approvals-test.mjs",
+        "node apps/site/wallet-tron-test.mjs",
         "node apps/site/wallet-btc-test.mjs",
         "node apps/site/wallet-history-test.mjs",
         "node apps/site/wallet-summary-test.mjs",
@@ -133,6 +135,7 @@
         "npm --prefix web ci && npm --prefix web run build"
       ],
       "test": [
+        "node scripts/check-ssot.mjs",
         "npm --prefix web test",
         "npm --prefix web run test:e2e"
       ],
@@ -159,6 +162,7 @@
         "cargo build --release --bin rotor-coord"
       ],
       "test": [
+        "cargo test --lib",
         "cargo test --test coordinator_api --test coordinator_client"
       ],
       "consumes": [
@@ -179,7 +183,9 @@
       "paths": [
         "crates/rotor-core/**",
         "crates/rotor-search/**",
-        "crates/rotor-wasm/**"
+        "crates/rotor-wasm/**",
+        "tests/vectors/**",
+        "tests/parity/**"
       ],
       "build": [
         "cargo build -p rotor-core",
