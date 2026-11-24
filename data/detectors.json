@@ -1177,6 +1177,22 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"
+    },
+    {
+      "id": "legacy-link-contrast",
+      "rule": "Every visible legacy .address-link keeps >=4.5:1 contrast on its effective card background.",
+      "batch": "8",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "link-in-text-block",
+      "rule": "Every visible in-text link (a link inside a main p/li/dd block that also has text) is underlined, so it is not distinguished from body text by colour alone.",
+      "batch": "8",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
     }
   ]
 }

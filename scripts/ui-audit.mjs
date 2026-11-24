@@ -6068,8 +6068,11 @@ async function auditKeyTooltips(cdp) {
  * defect this guards: .error shipped a hardcoded #ffb3b3, which is about
  * 1.7:1 on the light theme and was copied into four other error variants.
  * The probe resolves the theme's --state-err (an alias of --err), so dark and
- * light are checked with the value they actually render. */
-async function auditErrorMessages(cdp) {
+ * light are checked with the value they actually render.
+ * The same probe also pins the ROT-478 legacy link rules: .address-link must
+ * keep 4.5:1 on its card (legacy-link-contrast), and in-text links must be
+ * underlined (link-in-text-block) so they do not rely on colour alone. */
+async function auditContrast(cdp) {
   return evaluate(
     cdp,
     `(() => {
@@ -6079,6 +6082,7 @@ async function auditErrorMessages(cdp) {
         invalidFields: 0,
         theme: document.documentElement.getAttribute('data-theme') || '',
       };
+      const links = { checked: 0, addressLinks: 0, inTextLinks: 0, theme: evidence.theme };
       const parse = (value) => {
         const match = /rgba?\\(([^)]+)\\)/.exec(value || '');
         if (!match) return null;
@@ -6166,7 +6170,43 @@ async function auditErrorMessages(cdp) {
           });
         }
       }
-      return { ok: violations.length === 0, violations, evidence };
+
+      // ROT-478: the legacy pages hard-coded .address-link to #c8d8ea (1.45:1
+      // on the light card) and relied on colour alone for in-text links.
+      for (const node of document.querySelectorAll('.address-link')) {
+        if (!node.getClientRects().length || !node.textContent.trim()) continue;
+        links.checked += 1;
+        links.addressLinks += 1;
+        const style = getComputedStyle(node);
+        const color = parse(style.color);
+        const ratio = color ? contrast(color, effectiveBackground(node)) : 0;
+        if (ratio < 4.5) {
+          violations.push({
+            id: 'legacy-link-contrast',
+            message: 'address link has ' + ratio.toFixed(2) + ':1 on "' +
+              node.textContent.trim().slice(0, 60) + '" (minimum 4.5:1)',
+            detail: { color: style.color, ratio: Number(ratio.toFixed(2)) },
+          });
+        }
+      }
+      // ROT-478: WCAG 1.4.1 applies to a link inside a block of text. A
+      // link-only p/li/dd is a chip/button/nav control (the .chip class wins on
+      // specificity), so it is not an in-text link and needs no underline.
+      for (const node of document.querySelectorAll('main p a, main li a, main dd a')) {
+        if (!node.getClientRects().length || !node.textContent.trim()) continue;
+        const parentText = node.parentElement ? node.parentElement.textContent.trim() : '';
+        if (parentText.length <= node.textContent.trim().length) continue;
+        links.checked += 1;
+        links.inTextLinks += 1;
+        if (!getComputedStyle(node).textDecorationLine.includes('underline')) {
+          violations.push({
+            id: 'link-in-text-block',
+            message: 'in-text link is distinguished by colour alone (no underline)',
+            detail: { text: node.textContent.trim().slice(0, 60), href: node.getAttribute('href') || '' },
+          });
+        }
+      }
+      return { ok: violations.length === 0, violations, evidence, links };
     })()`,
     20000,
   );
@@ -6910,9 +6950,10 @@ async function main() {
             const quietHover = await auditQuietIconHover(cdp);
             run.metrics.quietIconHover = quietHover.evidence;
             if (!quietHover.ok) run.violations.push(...quietHover.violations);
-            const errorMessages = await auditErrorMessages(cdp);
-            run.metrics.errorMessageContrast = errorMessages.evidence;
-            if (!errorMessages.ok) run.violations.push(...errorMessages.violations);
+            const contrast = await auditContrast(cdp);
+            run.metrics.errorMessageContrast = contrast.evidence;
+            run.metrics.legacyLinkContrast = contrast.links;
+            if (!contrast.ok) run.violations.push(...contrast.violations);
           } catch (error) {
             run.status = "error";
             run.violations.push({

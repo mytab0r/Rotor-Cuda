@@ -54,3 +54,19 @@ test("key summary rows stack at <=560px and stay two columns above it", () => {
   assert.match(auditPage, /viewportWidth <= 560 \? !stacked : !beside/);
   assert.match(auditPage, /if \(!rows\.length && priv && priv\.value\.trim\(\)\) \{/);
 });
+
+
+const contrastStart = source.indexOf("async function auditContrast(cdp)");
+const contrastEnd = source.indexOf("async function auditQuietIconHover(cdp)", contrastStart);
+assert.ok(contrastStart > 0 && contrastEnd > contrastStart, "auditContrast is present");
+const auditContrast = source.slice(contrastStart, contrastEnd);
+
+test("legacy address links keep 4.5:1 and in-text links are underlined (ROT-478)", () => {
+  assert.match(auditContrast, /'legacy-link-contrast'/);
+  assert.match(auditContrast, /document\.querySelectorAll\('\.address-link'\)/);
+  assert.match(auditContrast, /if \(ratio < 4\.5\)/);
+  assert.match(auditContrast, /'link-in-text-block'/);
+  assert.match(auditContrast, /parentText\.length <= node\.textContent\.trim\(\)\.length/);
+  assert.match(auditContrast, /textDecorationLine\.includes\('underline'\)/);
+  assert.match(auditContrast, /addressLinks: 0, inTextLinks: 0/);
+});

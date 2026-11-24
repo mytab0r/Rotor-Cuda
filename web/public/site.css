@@ -887,6 +887,9 @@ body {
 
 a { color: var(--accent-2); text-decoration: none; text-underline-offset: 3px; }
 a:hover { color: var(--accent); text-decoration: underline; }
+/* ROT-478 / WCAG 1.4.1: an in-text link must not be distinguished from body
+ * text by colour alone. The Astro shell already carries this rule. */
+main p a, main li a, main dd a { text-decoration: underline; }
 
 h1, h2, h3, h4 { color: var(--text); font-weight: 750; letter-spacing: -.025em; }
 h2 { font-size: 21px; line-height: 1.25; }
@@ -1772,7 +1775,9 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 }
 .private-key:hover { color: var(--accent-2); }
 
-.address-link { display: block; min-height: 44px; padding-block: 12px; overflow-wrap: anywhere; white-space: normal; color: #c8d8ea; font-size: 12.5px; }
+/* ROT-478: the theme-aware text colour keeps >=4.5:1 on the card in both themes;
+ * the old hard-coded #c8d8ea measured 1.45:1 on the light card. */
+.address-link { display: block; min-height: 44px; padding-block: 12px; overflow-wrap: anywhere; white-space: normal; color: var(--text-2); font-size: 12.5px; }
 .address-link:hover { color: var(--accent-2); }
 .col-balance { text-align: right; color: var(--muted); font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-balance.has-balance { color: var(--ok); }
