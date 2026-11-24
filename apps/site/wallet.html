@@ -41,7 +41,11 @@
     </div>
   </section>
 
-  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. TRON keys can send TRX and TRC-20 tokens on TRON mainnet (after you arm it for the session) and on the TRON Nile testnet; a TRON send reads the latest block from TronGrid or publicnode and broadcasts once to the same provider. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
+  <p class="notice" role="note">Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe.</p>
+  <details class="muted key-help">
+    <summary>What this page can send and sign</summary>
+    <p>The vault lives in this browser's IndexedDB. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. TRON keys can send TRX and TRC-20 tokens on TRON mainnet (after you arm it for the session) and on the TRON Nile testnet; a TRON send reads the latest block from TronGrid or publicnode and broadcasts once to the same provider. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
+  </details>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
 
@@ -58,8 +62,12 @@
         <button type="submit" class="primary" id="wallet-create">Create vault</button>
       </div>
     </form>
-    <p class="muted" id="wallet-pass-help">Use at least 8 characters. The passphrase derives the AES key with PBKDF2-SHA256 (600,000 iterations); it is kept only in memory while the vault is unlocked.</p>
+    <p class="muted" id="wallet-pass-help">Use at least 8 characters. The passphrase derives the AES key with PBKDF2-SHA256 and stays in memory only while unlocked.</p>
     <p id="wallet-create-error" class="error" role="alert" hidden></p>
+    <details class="muted key-help">
+      <summary>How the passphrase becomes the key</summary>
+      <p>The passphrase derives the AES key with PBKDF2-SHA256 (600,000 iterations); it is kept only in memory while the vault is unlocked.</p>
+    </details>
   </section>
 
   <section class="card" id="wallet-unlock" hidden>
@@ -78,12 +86,16 @@
 
   <section class="card" id="wallet-onboarding">
     <h2>Restore an existing wallet</h2>
-    <p class="muted" id="wallet-onboard-help">Choose what you already have. A seed phrase and a single private key are both first-class here: most wallets accept only a seed phrase, this vault accepts keys too. Either path derives locally in the WASM core and stores only the encrypted result in this browser. The key or phrase is never sent to the server, logged or put in the URL.</p>
+    <p class="muted" id="wallet-onboard-help">Seed phrase or key: derived locally, never sent to the server, logged or put in the URL.</p>
     <div class="wallet-row-actions wallet-onboard-choices" role="group" aria-labelledby="wallet-onboard-help">
       <button type="button" class="chip" id="wallet-onboard-seed" aria-pressed="false">I have a seed phrase</button>
       <button type="button" class="chip" id="wallet-onboard-key" aria-pressed="false">I have a private key / WIF</button>
     </div>
     <p class="muted" id="wallet-onboard-hint" role="status">Create or unlock the vault first; the choice opens the matching form.</p>
+    <details class="muted key-help">
+      <summary>Why a seed phrase and a key are both accepted</summary>
+      <p>A seed phrase and a single private key are both first-class here: most wallets accept only a seed phrase, this vault accepts keys too. Either path derives locally in the WASM core and stores only the encrypted result in this browser. The key or phrase is never sent to the server, logged or put in the URL.</p>
+    </details>
   </section>
 
   <section class="card" id="wallet-panel" hidden>
@@ -99,7 +111,7 @@
       <div class="wallet-assets-head">
         <div>
           <h3 id="wallet-assets-title">Top assets</h3>
-          <p class="muted" id="wallet-assets-help">The ten largest assets with a balance path on the networks this wallet supports, by market-cap rank from <code class="mono">data/assets.json</code>. A value is read only for a network where this vault holds an address, and only after you allow public balance lookups. Prices come from the same public Binance ticker as the key explorer, cached for up to six hours; USDT uses its explicit $1.00 peg. A row that did not load says “not loaded” or “lookup failed” and is never counted as zero; an asset with no balance read path says “unavailable”.</p>
+          <p class="muted" id="wallet-assets-help">The ten largest assets with a balance path on the networks this wallet supports.</p>
         </div>
       </div>
       <p class="muted status-line" id="wallet-assets-status" role="status" aria-live="polite"></p>
@@ -112,6 +124,10 @@
           <tfoot><tr><th colspan="3">Total</th><td id="wallet-assets-total">—</td></tr></tfoot>
         </table>
       </div>
+      <details class="muted key-help">
+        <summary>How balances and prices are read</summary>
+        <p>Ranked by market-cap rank from <code class="mono">data/assets.json</code>. A value is read only for a network where this vault holds an address, and only after you allow public balance lookups. Prices come from the same public Binance ticker as the key explorer, cached for up to six hours; USDT uses its explicit $1.00 peg. A row that did not load says “not loaded” or “lookup failed” and is never counted as zero; an asset with no balance read path says “unavailable”.</p>
+      </details>
     </section>
 
     <h2>Import a key</h2>
@@ -151,7 +167,11 @@
       </div>
     </form>
     <p id="wallet-add-error" class="error" role="alert" hidden></p>
-    <p class="muted" id="wallet-import-help">A WIF is checked and mapped by its version byte: Bitcoin mainnet compressed WIFs use native SegWit and uncompressed ones use legacy P2PKH, Bitcoin testnet WIFs (version 0xEF) use testnet native SegWit (tb1), Litecoin uses native SegWit and Dogecoin uses legacy. Dogecoin testnet (0xF1) is not supported. Any 64-character hex key needs an explicit chain; choose Bitcoin testnet to derive a tb1 address. The address is derived with the local WASM core first (testnet through derive_report_network); a key whose address cannot be derived is not stored.</p>
+    <p class="muted" id="wallet-import-help">WIFs map by version byte; a hex key needs an explicit chain. The address is derived locally before storage.</p>
+    <details class="muted key-help">
+      <summary>How WIFs, hex keys and chains map</summary>
+      <p>A WIF is checked and mapped by its version byte: Bitcoin mainnet compressed WIFs use native SegWit and uncompressed ones use legacy P2PKH, Bitcoin testnet WIFs (version 0xEF) use testnet native SegWit (tb1), Litecoin uses native SegWit and Dogecoin uses legacy. Dogecoin testnet (0xF1) is not supported. Any 64-character hex key needs an explicit chain; choose Bitcoin testnet to derive a tb1 address. The address is derived with the local WASM core first (testnet through derive_report_network); a key whose address cannot be derived is not stored.</p>
+    </details>
 
     <h2>Generate a seed phrase</h2>
     <div class="wallet-row-actions">
@@ -169,24 +189,37 @@
     </label>
     <div class="wallet-row-actions">
       <p class="muted status-line" id="wallet-seed-strength" role="status" aria-live="polite">12 words · 128-bit entropy · generate or paste a phrase</p>
-      <button type="button" id="wallet-seed-info" class="icon-button icon-button--quiet" aria-label="Brute-force estimate" data-tooltip="128-bit ≈ 1.1×10^19 years" aria-describedby="wallet-seed-estimate">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
-      </button>
+      <span class="wallet-seed-info-wrap">
+        <button type="button" id="wallet-seed-info" class="icon-button icon-button--quiet" aria-label="Brute-force estimate" data-tooltip="128-bit ≈ 1.1×10^19 years" aria-expanded="false" aria-controls="wallet-seed-info-popover">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg>
+        </button>
+        <div id="wallet-seed-info-popover" class="key-info-popover" role="dialog" aria-modal="false" aria-labelledby="wallet-seed-info-title" tabindex="-1" hidden>
+          <h3 id="wallet-seed-info-title" class="key-info-title">Brute-force estimate</h3>
+          <p class="muted key-help" id="wallet-seed-estimate">128 bits is 3.4×10^38 keys. At 10^12 guesses per second that is about 1.1×10^19 years — roughly 780 million times the age of the universe. A 24-word phrase is 256 bits (about 3.7×10^57 years).</p>
+        </div>
+      </span>
     </div>
-    <p class="muted" id="wallet-seed-estimate">128 bits is 3.4×10^38 keys. At 10^12 guesses per second that is about 1.1×10^19 years — roughly 780 million times the age of the universe. A 24-word phrase is 256 bits (about 3.7×10^57 years).</p>
     <div class="key-buttons">
       <button type="button" class="primary" id="wallet-seed-add" disabled>Add derived key to vault</button>
     </div>
-    <p class="muted" id="wallet-seed-help">The phrase is generated and shown in this tab only; it is never stored, sent or logged. The vault stores only the derived key for one chain, with the default BIP44 path of the selected chain. Zcash, Solana, Sui and TON have no BIP44 preset here: import a WIF or hex key for those chains instead.</p>
+    <p class="muted" id="wallet-seed-help">Generated and shown in this tab only; the vault stores the derived key for one chain.</p>
+    <details class="muted key-help">
+      <summary>BIP44 paths and chains without a preset</summary>
+      <p>The phrase is generated and shown in this tab only; it is never stored, sent or logged. The vault stores only the derived key for one chain, with the default BIP44 path of the selected chain. Zcash, Solana, Sui and TON have no BIP44 preset here: import a WIF or hex key for those chains instead.</p>
+    </details>
 
     <h2>Addresses</h2>
     <label class="wallet-check"><input type="checkbox" id="wallet-lookup-toggle"> Allow public balance and history lookups</label>
-    <p class="muted" id="wallet-lookup-note">Lookups are off by default, and enabling them makes the Balance and History buttons send only the public address of that row to a public provider, never a key, WIF or passphrase. Bitcoin history is read from mempool.space; TRON history goes through this site's coordinator to TronScan; EVM history is unavailable without an indexer or API key, so no provider is called for it.</p>
+    <p class="muted" id="wallet-lookup-note">Lookups are off by default and send only the public address of that row to the provider, never a key.</p>
+    <details class="muted key-help">
+      <summary>Which provider is called for history</summary>
+      <p>Enabling lookups makes the Balance and History buttons send only the public address of that row to a public provider, never a key, WIF or passphrase. Bitcoin history is read from mempool.space; TRON history goes through this site's coordinator to TronScan; EVM history is unavailable without an indexer or API key, so no provider is called for it.</p>
+    </details>
     <section class="wallet-summary" id="wallet-summary" aria-labelledby="wallet-summary-title" hidden>
       <div class="wallet-summary-head">
         <div>
           <h3 id="wallet-summary-title">Portfolio summary</h3>
-          <p class="muted" id="wallet-summary-help">Only balances that actually loaded are counted; loading, failed or missing rows are not zero. Chains without a public price (for example Bitcoin testnet) are excluded from USD and named. The ticker is the same public Binance source as the key explorer, cached for up to six hours; a stale or offline ticker shows — while the native totals stay.</p>
+          <p class="muted" id="wallet-summary-help">Only balances that actually loaded are counted; loading or failed rows are never zero.</p>
         </div>
         <button type="button" class="icon-button icon-button--quiet" id="wallet-summary-refresh" aria-label="Refresh all loaded balances" data-tooltip="Refresh balances">
           <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-retry"></use></svg>
@@ -206,6 +239,10 @@
           <strong class="stat-value" id="wallet-summary-entries">0</strong>
         </div>
       </div>
+      <details class="muted key-help">
+        <summary>How totals and prices are counted</summary>
+        <p>Loading, failed or missing rows are not counted and are not zero. Chains without a public price (for example Bitcoin testnet) are excluded from USD and named. The ticker is the same public Binance source as the key explorer, cached for up to six hours; a stale or offline ticker shows — while the native totals stay.</p>
+      </details>
       <p class="muted wallet-summary-empty" id="wallet-summary-empty">No balances loaded yet. Use Refresh to read the public addresses you allowed above.</p>
       <ul class="wallet-summary-chains" id="wallet-summary-chains" aria-label="Per-chain native totals" hidden></ul>
       <p class="muted stat__meta" id="wallet-summary-status" role="status" aria-live="polite"></p>
@@ -230,13 +267,17 @@
           <tbody id="wallet-history-rows"></tbody>
         </table>
       </div>
-      <p class="muted" id="wallet-history-help">Shows the latest 50 transactions. Bitcoin is read from mempool.space directly; TRON is read through this site's coordinator (TronScan). EVM chains need an indexer or an API key, which this build does not ship, so no provider is called for them. Amounts are in each chain's native unit; a token transfer that moves no native value shows 0. Bitcoin rows are an observer view of one address: a transaction that mixes inputs from several owners shows the full value sent to other outputs, which can be more than this address contributed.</p>
+      <p class="muted" id="wallet-history-help">Shows the latest 50 transactions; coverage depends on the chain and EVM needs an indexer.</p>
+      <details class="muted key-help">
+        <summary>Where history comes from and how Bitcoin rows are read</summary>
+        <p>Bitcoin is read from mempool.space directly; TRON is read through this site's coordinator (TronScan). EVM chains need an indexer or an API key, which this build does not ship, so no provider is called for them. Amounts are in each chain's native unit; a token transfer that moves no native value shows 0. Bitcoin rows are an observer view of one address: a transaction that mixes inputs from several owners shows the full value sent to other outputs, which can be more than this address contributed.</p>
+      </details>
     </section>
   </section>
 
   <section class="card" id="wallet-signin" hidden>
     <h2>Sign in to the monitor account</h2>
-    <p class="muted" id="wallet-signin-help">Signing in proves that you control the EVM address derived from a key in this vault. The local WASM core signs the coordinator's one-time challenge in this tab and only the EVM address, the challenge and its signature leave it: the key never does. The account identity is that EVM address. Bitcoin, TRON and Solana addresses in this vault stay wallet-derived addresses; this sign-in does not prove control of them. Keys stored only on ed25519 (Solana, Sui, TON) have no EVM derivation and are not listed here.</p>
+    <p class="muted" id="wallet-signin-help">Signing in proves control of the EVM address from this vault; the key never leaves this tab.</p>
     <label>Key to sign in with
       <select id="wallet-signin-entry"></select>
     </label>
@@ -250,13 +291,17 @@
     </div>
     <p class="muted status-line" id="wallet-signin-status" role="status"></p>
     <p id="wallet-signin-error" class="error" role="alert" hidden></p>
+    <details class="muted key-help">
+      <summary>What signing in proves and what it does not</summary>
+      <p>The local WASM core signs the coordinator's one-time challenge in this tab and only the EVM address, the challenge and its signature leave it: the key never does. The account identity is that EVM address. Bitcoin, TRON and Solana addresses in this vault stay wallet-derived addresses; this sign-in does not prove control of them. Keys stored only on ed25519 (Solana, Sui, TON) have no EVM derivation and are not listed here.</p>
+    </details>
   </section>
 
   <section class="wallet-summary" id="wallet-security" aria-labelledby="wallet-security-title" hidden>
     <div class="wallet-summary-head">
       <div>
         <h3 id="wallet-security-title">Security status</h3>
-        <p class="muted" id="wallet-security-help">This panel checks only entries stored in this vault. The advisory list is public data; loading it sends no address. A local check derives addresses in this tab and never sends them anywhere. The Milk Sad scan covers compressed BIP44 derivations only; an uncompressed WIF entry is shown as not checkable. A no-match result covers only the seed range you enter and is not a guarantee that a key is safe.</p>
+        <p class="muted" id="wallet-security-help">Checks only entries in this vault; the advisory list is public data and no address is sent.</p>
       </div>
     </div>
     <div class="stat-grid wallet-summary-stats">
@@ -273,6 +318,10 @@
         <strong class="stat-value small" id="wallet-security-last">—</strong>
       </div>
     </div>
+    <details class="muted key-help">
+      <summary>What the local checks cover</summary>
+      <p>The advisory list is public data; loading it sends no address. A local check derives addresses in this tab and never sends them anywhere. The Milk Sad scan covers compressed BIP44 derivations only; an uncompressed WIF entry is shown as not checkable. A no-match result covers only the seed range you enter and is not a guarantee that a key is safe.</p>
+    </details>
     <p class="muted wallet-summary-empty" id="wallet-security-empty">No reviewed advisory applies to the entries in this vault.</p>
     <div class="wallet-groups" id="wallet-security-list"></div>
     <p class="muted stat__meta" id="wallet-security-status" role="status" aria-live="polite"></p>
@@ -280,7 +329,7 @@
 
   <section class="card" id="wallet-send" hidden>
     <h2>Send an EVM transaction</h2>
-    <p class="muted">The transaction is built from this form, reviewed field by field, signed in this tab by the local WASM core and then broadcast as a signed raw transaction. Public reads and the broadcast go directly from this browser to the chosen public RPC with the browser's real <code class="mono">Origin</code>; the server never sees a key and does not proxy these requests.</p>
+    <p class="muted">Built here, reviewed field by field, signed in WASM and broadcast from your browser; the server never sees a key.</p>
     <form id="wallet-send-form" class="key-form" autocomplete="off">
       <label>From (unlocked vault entry)
         <select id="wallet-send-entry"></select>
@@ -297,7 +346,12 @@
         </label>
       </div>
       <label class="wallet-check" id="wallet-send-armed-row" hidden><input type="checkbox" id="wallet-send-armed"> I understand that a mainnet transaction spends real funds and cannot be reversed; arm mainnet signing for this session.</label>
-      <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. For EVM networks the chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled EVM contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. TRON mainnet and Nile use the same form: the recipient and optional TRC-20 contract are base58 T-addresses, the amount is TRX (or the token's units when a contract is set), and the fee limit is in TRX for a TRC-20 transfer. A TRON review is refused after 60 seconds, is signed locally and is broadcast once to the reviewed provider. The separate ERC-20 approvals panel below reads current allowances, grants a new one (dangerous: it lets the spender move your tokens) and revokes them; other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other EVM chains.</p>
+      <p class="muted">Sepolia is the default; mainnet needs the arm checkbox, which resets on lock/unlock and reload.</p>
+      <details class="muted key-help">
+        <summary>How networks, tokens and fee caps are checked</summary>
+        <p>A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. For EVM networks the chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled EVM contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. TRON mainnet and Nile use the same form: the recipient and optional TRC-20 contract are base58 T-addresses, the amount is TRX (or the token's units when a contract is set), and the fee limit is in TRX for a TRC-20 transfer. A TRON review is refused after 60 seconds, is signed locally and is broadcast once to the reviewed provider. The separate ERC-20 approvals panel below reads current allowances, grants a new one (dangerous: it lets the spender move your tokens) and revokes them; other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other EVM chains.</p>
+        <p>Empty gas limit uses <code class="mono">eth_estimateGas</code>; mainnet adds a 20% buffer. Empty fees use the node's priority fee and 2 × base fee + priority. On mainnet a native send's amount plus the maximum network fee, or a token send's maximum network fee and nothing else, must fit the native balance, and the network fee must stay under the chain cap, or the send is refused before signing. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
+      </details>
 
       <label><span id="wallet-send-to-label">To (0x address; EIP-55 mixed case or all-lowercase)</span>
         <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-send-to-error" aria-invalid="false">
@@ -340,12 +394,15 @@
         <p class="error wallet-field-error" id="wallet-send-gas-error" role="alert" hidden></p>
         <p class="error wallet-field-error" id="wallet-send-priority-error" role="alert" hidden></p>
         <p class="error wallet-field-error" id="wallet-send-max-fee-error" role="alert" hidden></p>
-        <p class="muted">Empty gas limit uses <code class="mono">eth_estimateGas</code>; mainnet adds a 20% buffer. Empty fees use the node's priority fee and 2 × base fee + priority. On mainnet a native send's amount plus the maximum network fee, or a token send's maximum network fee and nothing else, must fit the native balance, and the network fee must stay under the chain cap, or the send is refused before signing. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
       </div>
       <div class="key-buttons">
         <button type="submit" class="primary" id="wallet-send-prepare">Fetch fees and review</button>
       </div>
     </form>
+    <details class="muted key-help">
+      <summary>How the send is built and broadcast</summary>
+      <p>The transaction is built from this form, reviewed field by field, signed in this tab by the local WASM core and then broadcast as a signed raw transaction. Public reads and the broadcast go directly from this browser to the chosen public RPC with the browser's real <code class="mono">Origin</code>; the server never sees a key and does not proxy these requests.</p>
+    </details>
     <p class="muted status-line" id="wallet-send-status" role="status"></p>
     <p id="wallet-send-error" class="error" role="alert" hidden></p>
 
@@ -375,7 +432,7 @@
 
   <section class="card" id="wallet-approvals" hidden>
     <h2>ERC-20 approvals</h2>
-    <p class="muted">See which addresses can spend an ERC-20 token you hold, grant a new allowance and revoke one. The scan reads <code class="mono">Approval(address,address,uint256)</code> logs and then reads the current <code class="mono">allowance(owner,spender)</code> for each spender, so the list shows the live value rather than the value in the log. It uses the network, public RPC and owner selected in “Send an EVM transaction” above, and a mainnet grant or revoke needs the same session arm. There is no indexer: the list covers only the scanned block window, so an approval older than that window needs a larger window on an archive RPC or an indexer. Granting a new allowance is dangerous: it lets another address move your tokens, so only approve a spender you trust, for the smallest amount that works, and revoke it here when you are done.</p>
+    <p class="muted">Granting lets another address move your tokens — smallest allowance, revoke when done.</p>
     <form id="wallet-approvals-form" class="key-form" autocomplete="off">
       <div class="wallet-split">
         <label>Token contract (ERC-20, 0x address)
@@ -387,11 +444,15 @@
       </div>
       <p class="error wallet-field-error" id="wallet-approvals-token-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-approvals-window-error" role="alert" hidden></p>
-      <p class="muted">The contract is checked exactly like a transfer: EIP-55 or all-lowercase, contract code present, 0–24 decimals and a printable symbol of at most 32 characters. A free public RPC may serve only its recent block range; when that happens the panel states the blocks actually scanned. At most 50 spenders are listed, newest approval first.</p>
       <div class="key-buttons">
         <button type="submit" class="primary" id="wallet-approvals-scan">Find approvals</button>
       </div>
     </form>
+    <details class="muted key-help">
+      <summary>How the approval scan works</summary>
+      <p>See which addresses can spend an ERC-20 token you hold, grant a new allowance and revoke one. The scan reads <code class="mono">Approval(address,address,uint256)</code> logs and then reads the current <code class="mono">allowance(owner,spender)</code> for each spender, so the list shows the live value rather than the value in the log. It uses the network, public RPC and owner selected in “Send an EVM transaction” above, and a mainnet grant or revoke needs the same session arm. There is no indexer: the list covers only the scanned block window, so an approval older than that window needs a larger window on an archive RPC or an indexer. Granting a new allowance is dangerous: it lets another address move your tokens, so only approve a spender you trust, for the smallest amount that works, and revoke it here when you are done.</p>
+      <p>The contract is checked exactly like a transfer: EIP-55 or all-lowercase, contract code present, 0–24 decimals and a printable symbol of at most 32 characters. A free public RPC may serve only its recent block range; when that happens the panel states the blocks actually scanned. At most 50 spenders are listed, newest approval first.</p>
+    </details>
     <p class="muted status-line" id="wallet-approvals-status" role="status"></p>
     <p id="wallet-approvals-error" class="error" role="alert" hidden></p>
     <p class="muted" id="wallet-approvals-coverage" hidden></p>
@@ -407,7 +468,7 @@
 
     <form id="wallet-approvals-grant-form" class="key-form" autocomplete="off">
       <h3>Grant a new allowance</h3>
-      <p class="muted">This gives another address permission to move your tokens. It is dangerous: only approve a spender you trust, for the smallest allowance that works, and revoke it here when you are done. The token contract is the one in the scan form above; the wallet re-reads its code, decimals and symbol, parses the allowance exactly with those decimals, builds <code class="mono">approve(spender, amount)</code> locally and uses the network, public RPC, unlocked owner and mainnet arm from the send form.</p>
+      <p class="muted">This gives another address permission to move your tokens. It is dangerous: only approve a spender you trust, for the smallest allowance that works, and revoke it here when you are done.</p>
       <div class="wallet-split">
         <label>Spender (0x address; EIP-55 mixed case or all-lowercase)
           <input id="wallet-approvals-grant-spender" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-approvals-grant-spender-error" aria-invalid="false">
@@ -420,11 +481,15 @@
       <p class="error wallet-field-error" id="wallet-approvals-grant-unlimited-warning" role="alert" hidden>Unlimited allowance: this lets the spender move every token of this contract until you revoke it.</p>
       <p class="error wallet-field-error" id="wallet-approvals-grant-spender-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-approvals-grant-amount-error" role="alert" hidden></p>
-      <p class="muted">A zero allowance is refused here: use the revoke action for that. An allowance above 2^256−1 is refused. Re-check the spender address and the amount on the review screen; editing any field after a review hides it.</p>
       <div class="key-buttons">
         <button type="submit" class="primary" id="wallet-approvals-grant-prepare">Review the grant</button>
       </div>
     </form>
+    <details class="muted key-help">
+      <summary>How the grant is built and checked</summary>
+      <p>The token contract is the one in the scan form above; the wallet re-reads its code, decimals and symbol, parses the allowance exactly with those decimals, builds <code class="mono">approve(spender, amount)</code> locally and uses the network, public RPC, unlocked owner and mainnet arm from the send form.</p>
+      <p>A zero allowance is refused here: use the revoke action for that. An allowance above 2^256−1 is refused. Re-check the spender address and the amount on the review screen; editing any field after a review hides it.</p>
+    </details>
 
     <div id="wallet-approvals-review" hidden>
       <h3 id="wallet-approvals-review-heading">Review revoke before signing</h3>
@@ -453,7 +518,7 @@
 
   <section class="card" id="wallet-btc-send" hidden>
     <h2>Send a Bitcoin testnet transaction</h2>
-    <p class="muted">Only Bitcoin testnet is enabled here; Bitcoin mainnet signing is not available on this page. UTXOs and the recommended fee are read from <code class="mono">mempool.space/testnet/api</code> and the signed raw transaction is posted back there, directly from this browser with its real <code class="mono">Origin</code>. The server never sees a key and does not proxy these requests.</p>
+    <p class="muted">Testnet only; UTXOs and fees come from mempool.space testnet, signed in your browser.</p>
     <form id="wallet-btc-form" class="key-form" autocomplete="off">
       <label>From (unlocked vault entry)
         <select id="wallet-btc-entry"></select>
@@ -473,11 +538,15 @@
       </div>
       <p class="error wallet-field-error" id="wallet-btc-amount-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-btc-fee-rate-error" role="alert" hidden></p>
-      <p class="muted">The amount is parsed to satoshis exactly. Inputs are selected largest-first until the amount plus the estimated P2WPKH fee is covered; change goes back to the signing address. Change below the 294-sat dust limit is not created and is added to the fee. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
       <div class="key-buttons">
         <button type="submit" class="primary" id="wallet-btc-prepare">Fetch UTXOs and review</button>
       </div>
     </form>
+    <details class="muted key-help">
+      <summary>Where UTXOs and fees come from, and how the amount is parsed</summary>
+      <p>Bitcoin mainnet signing is not available on this page. UTXOs and the recommended fee are read from <code class="mono">mempool.space/testnet/api</code> and the signed raw transaction is posted back there, directly from this browser with its real <code class="mono">Origin</code>. The server never sees a key and does not proxy these requests.</p>
+      <p>The amount is parsed to satoshis exactly. Inputs are selected largest-first until the amount plus the estimated P2WPKH fee is covered; change goes back to the signing address. Change below the 294-sat dust limit is not created and is added to the fee. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
+    </details>
     <p class="muted" id="wallet-btc-status" role="status"></p>
     <p id="wallet-btc-error" class="error" role="alert" hidden></p>
 
@@ -507,27 +576,23 @@
 
   <section class="card">
     <h2>Encrypted backup</h2>
-    <div class="wallet-split">
-      <div>
-        <h3>Restore a backup</h3>
-        <p class="muted">Importing replaces this browser's vault. Only an encrypted Crypto wallet blob is accepted.</p>
-        <label class="wallet-row-actions">Backup file
-          <input id="wallet-backup-file" type="file" accept=".txt,.b64,text/plain">
-        </label>
-        <label>Or paste the blob
-          <textarea id="wallet-backup-text" class="wallet-backup-text mono" spellcheck="false" autocomplete="off"></textarea>
-        </label>
-        <div class="wallet-row-actions">
-          <button type="button" id="wallet-backup-import">Import encrypted backup</button>
-        </div>
-        <p class="muted" id="wallet-backup-status" role="status"></p>
-      </div>
-      <div>
-        <h3>What is stored</h3>
-        <p class="muted">IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
-        <p class="muted">This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions and TRX/TRC-20 transfers on TRON mainnet and Nile. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
-      </div>
+    <h3>Restore a backup</h3>
+    <p class="muted">Importing replaces this browser's vault. Only an encrypted Crypto wallet blob is accepted.</p>
+    <label class="wallet-row-actions">Backup file
+      <input id="wallet-backup-file" type="file" accept=".txt,.b64,text/plain">
+    </label>
+    <label>Or paste the blob
+      <textarea id="wallet-backup-text" class="wallet-backup-text mono" spellcheck="false" autocomplete="off"></textarea>
+    </label>
+    <div class="wallet-row-actions">
+      <button type="button" id="wallet-backup-import">Import encrypted backup</button>
     </div>
+    <p class="muted" id="wallet-backup-status" role="status"></p>
+    <details class="muted key-help">
+      <summary>What is stored and what is sent</summary>
+      <p>IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
+      <p>This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions and TRX/TRC-20 transfers on TRON mainnet and Nile. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
+    </details>
   </section>
 
   <p class="muted key-help">Related: <a href="/cabinet">cabinet dashboard</a>, <a href="/key">key explorer</a>, <a href="/docs">documentation</a>.</p>
