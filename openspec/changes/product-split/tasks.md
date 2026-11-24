@@ -67,6 +67,9 @@ server, [wallet] wallet surfaces, [ops] layout/CI/contracts.
       and the core-module imports in `mod.rs`/`orders.rs`) to `rotor-core` +
       `rotor-search`; remove `cli::U256`, `engine`, `bsgs` and
       `field`/`point`/`scalar`/`secp` imports from server modules.
+      Evidence: design.md "P1b evidence"; `cargo test -p rotor-search`
+      (13 passed); `cargo test --release` (443 passed); parity 0 mismatches;
+      `tests/rotor_search.rs` and `tests/coordinator_api.rs` pin the boundary.
 - [x] Repoint `crates/rotor-wasm` to `rotor-core`; remove the six `#[path]`
       includes; the crate keeps compiling for `wasm32-unknown-unknown`.
       Evidence: `crates/rotor-wasm/Cargo.toml` + `src/lib.rs`;

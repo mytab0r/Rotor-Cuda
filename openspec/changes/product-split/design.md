@@ -575,15 +575,19 @@ Run on the P1b worktree:
 
 - `cargo test -p rotor-search`: 13 passed (3 moved chunk-range tests, the new
   golden chunk/manifest/checksum cases, SplitMix64 reference stream).
-- `cargo test --release`: 441 passed / 1 ignored across the library and every
-  integration suite, including `coordinator_api` (38) and
+- `cargo test --release`: 443 passed / 1 ignored across the library and every
+  integration suite, including `coordinator_api` (39) and
   `coordinator_client` (3); 0 failed.
+- `cargo test --release --test rotor_search --test coordinator_api`: 1 + 39
+  passed. `tests/rotor_search.rs` pins the re-export type identity at compile
+  time; the source scan in `tests/coordinator_api.rs` rejects a reintroduced
+  `use crate::{engine,bsgs,cli,field,point,scalar,secp}`.
 - `node tests/parity/parity-test.mjs`: 126 comparable vectors, 399 field
   checks, 392 matched, 7 allowlisted (`ton/address` x7), 0 mismatches;
   committed wasm 506 012 bytes.
 - `node scripts/check-boundaries.mjs`: 4 workspace packages, no cross-product
   dependency, no `#[path]` includes, `rotor-core` clean.
-- `node scripts/check-projects.mjs`: 1014/1015 paths covered (Cargo.lock
+- `node scripts/check-projects.mjs`: 1022/1023 paths covered (Cargo.lock
   ignored).
 - `cargo fmt --all --check` and
   `cargo clippy --workspace --all-targets -- -D warnings`: clean.
@@ -597,6 +601,19 @@ Run on the P1b worktree:
 2. Removing `Split` from the `rotor-search` re-export in `src/engine.rs`:
    `cargo check -p rotor` fails with `E0433: cannot find type Split in this
    scope` at `src/engine.rs:153` and `:154`, exit 101.
+3. Universal revert tier, desktop area
+   (`--projects-area desktop --cmd "cargo test --release"`): reverting the
+   moved hunks leaves the root `U256`/`TableManifest` as local copies, so
+   `tests/rotor_search.rs` fails to type-check (`rotor_search::range::U256`
+   and `rotor::cli::U256` are distinct types) and the script reports
+   `result: test proven`.
+4. Universal revert tier, coordinator area
+   (`--projects-area coordinator --cmd "cargo test --test coordinator_api --test coordinator_client"`):
+   reverting the coordinator sources reintroduces `use crate::engine`, which
+   `coordinator_modules_import_shared_crates_not_desktop_modules` reports as a
+   failure (`38 passed; 1 failed`, `result: test proven`). The wasm-core area
+   also reports `result: test proven` because deleting the new crate leaves the
+   workspace member without a target.
 
 
 ## P1 evidence
