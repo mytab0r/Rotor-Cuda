@@ -354,6 +354,10 @@ impl RegisterLimiter {
 struct App {
     state: Mutex<state::State>,
     admin_token: String,
+    /// Operator login/password from the options or the environment; when the
+    /// password is unset only the coordinator token can open the cabinet.
+    admin_user: Option<String>,
+    admin_password: Option<String>,
     rate: RateLimiter,
     register: RegisterLimiter,
     open_registration: bool,
@@ -545,6 +549,11 @@ pub struct ServerOptions {
     /// `ORDERS_CONFIG` / `ORDERS_HMAC_SECRET` at startup; tests inject a store
     /// here instead of touching the process environment.
     pub orders: Option<Arc<orders::Orders>>,
+    /// Operator login for the cabinet. `None` (the default) reads
+    /// `ROTOR_ADMIN_USER` / `ROTOR_ADMIN_PASSWORD`; when the password is unset
+    /// the cabinet accepts the coordinator token only.
+    pub admin_user: Option<String>,
+    pub admin_password: Option<String>,
 }
 
 impl std::fmt::Debug for ServerOptions {
@@ -578,6 +587,13 @@ impl Default for ServerOptions {
             edge_proxy_url: std::env::var("EDGE_PROXY_URL").ok(),
             edge_proxy_secret: std::env::var("EDGE_PROXY_SECRET").ok(),
             orders: None,
+            admin_user: std::env::var("ROTOR_ADMIN_USER")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            admin_password: std::env::var("ROTOR_ADMIN_PASSWORD")
+                .ok()
+                .filter(|value| !value.is_empty()),
         }
     }
 }
@@ -692,6 +708,18 @@ fn spawn_inner(
     let app = Arc::new(App {
         state: Mutex::new(state),
         admin_token: token,
+        admin_user: options
+            .admin_user
+            .clone()
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                options
+                    .admin_password
+                    .as_ref()
+                    .filter(|value| !value.is_empty())
+                    .map(|_| "owner".to_string())
+            }),
+        admin_password: options.admin_password.clone(),
         rate: RateLimiter::default(),
         register: RegisterLimiter::default(),
         open_registration: options.open_registration,
@@ -1269,7 +1297,35 @@ const ADMIN_PANEL_ROUTES: [&str; 7] = [
 
 #[derive(Deserialize)]
 struct AdminLoginRequest {
-    token: String,
+    #[serde(default)]
+    token: Option<String>,
+    #[serde(default)]
+    user: Option<String>,
+    #[serde(default)]
+    password: Option<String>,
+}
+
+/// True when the body carries either the coordinator token or the configured
+/// operator login. Both comparisons are constant time, and the pair check runs
+/// both halves so a wrong user does not answer faster than a wrong password.
+fn admin_credentials_valid(app: &App, request: &AdminLoginRequest) -> bool {
+    if let Some(token) = request.token.as_deref().filter(|value| !value.is_empty()) {
+        if constant_time_eq(token.as_bytes(), app.admin_token.as_bytes()) {
+            return true;
+        }
+    }
+    match (
+        app.admin_user.as_deref(),
+        app.admin_password.as_deref(),
+        request.user.as_deref(),
+        request.password.as_deref(),
+    ) {
+        (Some(user), Some(password), Some(given_user), Some(given_password)) => {
+            constant_time_eq(given_user.as_bytes(), user.as_bytes())
+                & constant_time_eq(given_password.as_bytes(), password.as_bytes())
+        }
+        _ => false,
+    }
 }
 
 fn admin_login(app: &Arc<App>, mut request: Request) {
@@ -1301,7 +1357,7 @@ fn admin_login(app: &Arc<App>, mut request: Request) {
     let Ok(credentials) = serde_json::from_str::<AdminLoginRequest>(&body) else {
         return respond_admin_json(request, 400, &json!({"error": "invalid JSON body"}));
     };
-    if !constant_time_eq(credentials.token.as_bytes(), app.admin_token.as_bytes()) {
+    if !admin_credentials_valid(app, &credentials) {
         // Fixed delay, then record the failure. The fifth wrong token answers
         // 429, and every later attempt stays locked for the rest of the window.
         thread::sleep(Duration::from_millis(200));

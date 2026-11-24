@@ -30,6 +30,8 @@
   const loginCard = document.getElementById("login-card");
   const dashboard = document.getElementById("dashboard");
   const form = document.getElementById("login-form");
+  const userInput = document.getElementById("admin-user");
+  const passwordInput = document.getElementById("admin-password");
   const tokenInput = document.getElementById("admin-token");
   const loginError = document.getElementById("login-error");
   const loginSubmit = document.getElementById("login-submit");
@@ -482,19 +484,25 @@
     setError(loginError, "");
     if (loginSubmit) loginSubmit.disabled = true;
     try {
+      const token = tokenInput?.value || "";
+      const credentials =
+        token.trim() !== ""
+          ? { token }
+          : { user: userInput?.value || "", password: passwordInput?.value || "" };
       const response = await fetch("/cabinet/admin/login", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: tokenInput?.value || "" }),
+        body: JSON.stringify(credentials),
       });
       if (tokenInput) tokenInput.value = "";
+      if (passwordInput) passwordInput.value = "";
       if (response.status === 429) {
         showLogin("Too many failed attempts. Try again in 15 minutes.");
         return;
       }
       if (!response.ok) {
-        showLogin("That token was not accepted.");
+        showLogin("That login was not accepted.");
         return;
       }
       window.location.assign("/cabinet/admin");
