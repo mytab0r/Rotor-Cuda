@@ -73,8 +73,15 @@ jobs:
                 ;;
               web)
                 npm --prefix web ci
+                (cd web && npx playwright install --with-deps chromium)
+                # The visual baselines are rasterised in the pinned Playwright
+                # image (ui.yml); a bare runner drifts by 2-10%, which would
+                # make the baseline red here. The structural, a11y and
+                # navigation specs do not compare pixels and run unchanged.
                 node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
-                  --projects-area web "${source[@]}"
+                  --projects-area web \
+                  --cmd "npm --prefix web test && npm --prefix web run test:e2e -- --grep-invert 'visual regression'" \
+                  "${source[@]}"
                 ran=$((ran + 1))
                 ;;
               desktop)

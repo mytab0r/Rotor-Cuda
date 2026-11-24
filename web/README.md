@@ -21,10 +21,82 @@ npm test          # tsc -p tsconfig.test.json + node --test (no browser)
 node ../scripts/check-seo.mjs   # after build: chain, presentation, puzzle and 404 SEO gate
 node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools,faq,disclaimer,donate,bitcoin-puzzle,bitcoin-puzzle/71,bitcoin-puzzle/72,bitcoin-puzzle/160
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
+npx playwright install chromium   # once per machine
+npm run test:e2e                  # build + Playwright E2E, axe and visual baselines
+npm run test:e2e:update           # rebuild and rewrite the visual baselines
 ```
 
 Node 22.23.4+ (Astro 7.4.13). Dependencies are pinned exactly and
 `package-lock.json` is committed; use `npm ci`.
+
+## Browser regression tests (Playwright)
+
+`npm run test:e2e` builds `dist/` and runs 222 tests in real Chromium against
+`scripts/serve-dist.mjs`, a zero-dependency local server on
+`127.0.0.1:4391`. Per run: 12 route contracts, 12 axe scans, 12 visual tests
+(six with a second table screenshot) and one navigation test, each in the six
+viewports/schemes below. The suite never reaches the internet: an auto fixture
+overrides `navigator.doNotTrack` and aborts any request whose host is not the
+local dist server, failing the test in teardown if one is attempted.
+
+| Project | Viewport | Colour scheme |
+|---|---|---|
+| `mobile-375-{light,dark}` | 375×812 | light / dark |
+| `tablet-768-{light,dark}` | 768×1024 | light / dark |
+| `desktop-1280-{light,dark}` | 1280×900 | light / dark |
+
+Coverage is the twelve routes this static build owns: `/`, `/private-keys/`,
+`/private-keys/bitcoin/`, `/mnemonic-seeds/`, `/mnemonic-seeds/ethereum/`,
+`/bitcoin-puzzle/`, `/bitcoin-puzzle/1/`, `/docs/`, `/tools/`, `/faq/`,
+`/disclaimer/` and `/donate/`. Every project asserts the exact `<title>` and
+single H1, the expected table row count (`60` keys, `60` seeds, `160` puzzles,
+`18` hub rows), no document-level horizontal overflow, and that the requested
+colour scheme was applied. The narrow-screen navigation test proves there is
+exactly one toggle, the menu opens, Escape closes it and focus returns to the
+trigger; at 1280 the toggle is hidden and the full nav is visible.
+
+`@axe-core/playwright` scans each page in each project. Critical and serious
+findings fail the build; there is no page allowlist. The two real findings the
+first run exposed were fixed in the shared source: in-text links are now
+underlined (`link-in-text-block`) and `.address-link` uses the theme-aware
+`--text-2` instead of the dark-only `#c8d8ea` (`color-contrast` in light
+mode). The `/docs/` code blocks are focusable scroll regions
+(`scrollable-region-focusable`).
+
+### Visual baselines
+
+`toHaveScreenshot` stores one PNG per route and project under
+`web/tests/__screenshots__/<platform>/<project>/<route>.png`, plus
+`<route>-table.png` for the six routes with a data table. Baselines are per
+platform (`win32`, `linux`) because text rasterisation differs between Windows
+and the Linux CI runner by more than a small tolerance; each set is reviewed
+and committed. They are deterministic test fixtures, not evidence: they are
+the only images allowed under `web/tests/` (`scripts/check-screenshots.mjs`
+enforces it), and UI run evidence still belongs in the CI artifact. The footer
+build id is masked because it changes on every commit, and the comparison
+allows a 0.5% pixel ratio inside one platform.
+
+Update the baselines deliberately after a reviewed visual change:
+
+```sh
+npm run test:e2e:update
+git add tests/__screenshots__
+```
+
+On Windows that writes the `win32` set. Regenerate the `linux` set in the same
+image the CI runner uses (the browser and fonts are already installed there):
+
+```sh
+docker run --rm -v "$PWD/..:/work" -w /work/web \
+  mcr.microsoft.com/playwright:v1.65.1-noble \
+  node node_modules/@playwright/test/cli.js test \
+  tests/e2e/visual.spec.ts --update-snapshots
+```
+
+A failing CI run uploads `playwright-report/` and `test-results/` (HTML
+report, traces, actual/expected/diff images) as the
+`playwright-report-<run id>` artifact. Playwright retries once
+(`retries: 1`) to absorb browser timing, not to hide a real diff.
 
 The owner's brief said Node 20+. Astro 5.18.2 was the Node-20 line, but it
 carries open high/critical advisories (`npm audit`: Astro XSS/SSRF and a sharp
@@ -71,6 +143,10 @@ only deviation from the brief and is called out in the PR.
 | `public/` | Byte copies of the current site assets, served at their current URLs. |
 | `public/vendor/` | Byte copies of the crypto engine loaded by the page. |
 | `tests/` | Node tests: fixed vectors from `apps/site/seed-test.mjs` and `apps/site/mnemonic-seeds-test.mjs`. |
+| `tests/e2e/` | Playwright specs: route contract, navigation disclosure, axe scan and visual regression. |
+| `tests/__screenshots__/` | Committed `toHaveScreenshot` baselines, one directory per Playwright project. |
+| `playwright.config.ts` | Three viewports × light/dark, retries 1, the local dist server and the baseline path template. |
+| `scripts/serve-dist.mjs` | Zero-dependency static server for `dist/` used by the Playwright `webServer`. |
 | `scripts/cdp-parity.mjs` | Headless-browser check: convert two fixed phrases at 375/768/1280 light/dark, compare addresses, save screenshots. |
 | `scripts/build-prefix.mjs` | Post-build step: copies the asset files under `a/<build>/` and rewrites every absolute asset reference, matching the coordinator's immutable asset URLs. HTML and sitemap are not copied into the prefix. |
 

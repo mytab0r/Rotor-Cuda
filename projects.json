@@ -133,7 +133,8 @@
         "npm --prefix web ci && npm --prefix web run build"
       ],
       "test": [
-        "npm --prefix web test"
+        "npm --prefix web test",
+        "npm --prefix web run test:e2e"
       ],
       "consumes": [
         "wasm-core"
@@ -288,7 +289,8 @@
         "node --test scripts/check-advisories.test.mjs",
         "node --test scripts/security-alerts.test.mjs",
         "node --test scripts/site-routes.test.mjs",
-    "node --test scripts/ui-audit.test.mjs",
+        "node --test scripts/ui-audit.test.mjs",
+        "node --test scripts/check-screenshots.test.mjs",
         "node scripts/check-advisories.mjs",
         "node scripts/gen-security-page.mjs --check",
         "node scripts/check-projects.mjs",

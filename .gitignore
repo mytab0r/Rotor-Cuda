@@ -7,7 +7,10 @@
 
 # UI evidence lives in CI artifacts, never in the repo: the `ui-audit` workflow
 # uploads it and the PR links the artifact. scripts/check-screenshots.mjs
-# rejects tracked images under docs/.
+# rejects tracked images under docs/ and image files under web/tests/ outside
+# web/tests/__screenshots__/ (the Playwright baselines, which are test fixtures).
+web/playwright-report/
+web/test-results/
 docs/**/screenshots/
 docs/**/evidence/**/*.png
 docs/**/evidence/**/*.jpg
