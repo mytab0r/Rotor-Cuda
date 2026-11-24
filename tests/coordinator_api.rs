@@ -465,6 +465,13 @@ fn html_references_build_fingerprinted_assets() {
             !body.contains(&format!("\"{asset}\"")),
             "{route} must not reference the bare {asset}"
         );
+        let preload = format!(
+            "href=\"/a/{build}/fonts/manrope-latin.woff2\" as=\"font\" type=\"font/woff2\""
+        );
+        assert!(
+            body.contains(&preload),
+            "{route} must preload the Manrope webfont with {preload}"
+        );
     }
 
     let (status, headers, _) = raw(addr, "GET", &format!("/a/{build}/site.css"), None, None);
