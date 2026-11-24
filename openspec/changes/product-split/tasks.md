@@ -58,10 +58,14 @@ server, [wallet] wallet surfaces, [ops] layout/CI/contracts.
       `run_audit`/`run_derive` stay in `src/mnemonic.rs`.
 - [ ] Move `crates/rotor-wasm/src/{keystore,sign}.rs` and the message/tx
       signing paths into core; keep `json.rs` and ABI framing out of core.
-- [ ] Create `crates/rotor-search` for `Split`, `SplitMix64`, `thread_seed`,
-      chunk math, `TableManifest`, checkpoint format and target filtering.
-- [ ] Repoint the pool server (`src/coordinator/{state,chunk_loop}.rs`) to
-      `rotor-core` + `rotor-search`; remove `cli::U256`, `engine`, `bsgs` and
+- [x] Create `crates/rotor-search` for `Split`, `SplitMix64`, `thread_seed`,
+      chunk math (`U256`, `split_range`, `shift_chunk`, `DEFAULT_CHUNK_WIDTH`),
+      `TableManifest`, table identity and the shared stop flag. Target-set
+      filtering and the desktop checkpoint/work-file formats stay in
+      `rotor-desktop`: no `src/coordinator/**` module imports them today.
+- [x] Repoint the pool server (`src/coordinator/{state,chunk_loop,client}.rs`
+      and the core-module imports in `mod.rs`/`orders.rs`) to `rotor-core` +
+      `rotor-search`; remove `cli::U256`, `engine`, `bsgs` and
       `field`/`point`/`scalar`/`secp` imports from server modules.
 - [x] Repoint `crates/rotor-wasm` to `rotor-core`; remove the six `#[path]`
       includes; the crate keeps compiling for `wasm32-unknown-unknown`.

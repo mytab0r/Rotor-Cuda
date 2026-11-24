@@ -500,7 +500,7 @@ impl Orders {
 
         let id = random_hex(16).map_err(CreateError::Store)?;
         let order_token = random_hex(32).map_err(CreateError::Store)?;
-        let order_token_hash = hex(&crate::hashes::sha256(order_token.as_bytes()));
+        let order_token_hash = hex(&rotor_core::hashes::sha256(order_token.as_bytes()));
 
         let mut data = self.lock();
         expire_locked(&mut data, now);
@@ -1046,7 +1046,7 @@ fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
     const BLOCK: usize = 64;
     let mut key_block = [0u8; BLOCK];
     if key.len() > BLOCK {
-        key_block.copy_from_slice(&crate::hashes::sha256(key));
+        key_block.copy_from_slice(&rotor_core::hashes::sha256(key));
     } else {
         key_block[..key.len()].copy_from_slice(key);
     }
@@ -1133,7 +1133,7 @@ fn download_gate(entitlement: &Entitlement, now: u64) -> DownloadGate {
 }
 
 fn token_hash_matches(token: &str, expected: &str) -> bool {
-    let digest = hex(&crate::hashes::sha256(token.as_bytes()));
+    let digest = hex(&rotor_core::hashes::sha256(token.as_bytes()));
     constant_time_eq(digest.as_bytes(), expected.as_bytes())
 }
 
@@ -1223,7 +1223,7 @@ fn mark_paid(
     data.entitlements.push(Entitlement {
         order_id,
         list,
-        token_hash: hex(&crate::hashes::sha256(token.as_bytes())),
+        token_hash: hex(&rotor_core::hashes::sha256(token.as_bytes())),
         nonce,
         expires_at,
         max_downloads: config.max_downloads,
@@ -2241,7 +2241,9 @@ mod tests {
         // The raw order token is never stored, only its hash.
         let text = fs::read_to_string(&store_path).expect("store file");
         assert!(!text.contains(&first.order_token));
-        assert!(text.contains(&hex(&crate::hashes::sha256(first.order_token.as_bytes()))));
+        assert!(text.contains(&hex(&rotor_core::hashes::sha256(
+            first.order_token.as_bytes()
+        ))));
         // Unknown and inactive lists are refused.
         assert!(matches!(
             orders.create(

@@ -1013,6 +1013,7 @@ dependencies = [
  "num-traits",
  "ripemd",
  "rotor-core",
+ "rotor-search",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -1034,6 +1035,13 @@ dependencies = [
  "ripemd",
  "sha2 0.11.1",
  "sha3",
+]
+
+[[package]]
+name = "rotor-search"
+version = "2.1.0"
+dependencies = [
+ "rotor-core",
 ]
 
 [[package]]

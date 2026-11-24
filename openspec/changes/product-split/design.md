@@ -511,6 +511,94 @@ Baseline at capture: 24 wasm exports, `apps/site/rotor_wasm.wasm` = 501 119
 bytes, parity wasm generation ≈60 ms and comparison ≈55 ms on the capture
 machine. These are guardrails, not reproducibility claims.
 
+## P1b evidence
+
+Status: implemented 2026-11-24. P1a extracted `rotor-core`. P1b extracts
+`rotor-search` and removes the coordinator's imports of desktop modules. This
+is still a refactor: no protocol, byte, output or dependency-version change.
+
+### Moved into `crates/rotor-search`
+
+| Item | Old location | New module | Compatibility path |
+|---|---|---|---|
+| `U256` | `src/cli.rs` | `range` | `rotor::cli::U256` re-export |
+| `Split`, `split_range`, `split_ranges`, `shift_chunk`, `DEFAULT_CHUNK_WIDTH` | `src/engine.rs` (constant was `src/coordinator/state.rs`) | `range` | `crate::engine::*` re-export; `DEFAULT_CHUNK_WIDTH` re-exported from `coordinator::state` |
+| `SplitMix64`, `thread_seed` | `src/engine.rs` | `rng` | `crate::engine::*` re-export |
+| `TableManifest`, `BSGS_TABLE_FORMAT_VERSION` | `src/bsgs.rs` | `bsgs` | `rotor::bsgs::*` public re-export |
+| `baby_size_for`, `range_id`, `span_u128`, `scalar_to_u128`, `table_checksum`, `map_from_folds`, `hex_trim` | `src/bsgs.rs` | `bsgs` | `crate::bsgs::*` re-export |
+| FNV-1a/64 and its constants | `src/bsgs.rs`, `src/filter.rs` | `fnv` | desktop modules import the one implementation |
+| Stop flag (`reset`/`request`/`requested`) | `src/engine.rs` | `stop` | `crate::engine::{request_stop, stop_requested}` re-export |
+
+The moved code is byte-for-byte the previous implementation; the only signature
+change is `U256::from_hex` returning `Result<_, String>` instead of
+`Result<_, CliError>`, with the same message text. `cli::hex_part` maps it back
+to `CliError` and keeps the `Invalid --range value ...` prefix.
+
+### Deliberately left in the desktop package
+
+| Item | Why |
+|---|---|
+| `src/filter.rs` (`TargetSet`, Bloom/Fuse, target-set parsing) | No `src/coordinator/**` module imports it. It carries the `xorf` dependency and the `gpu`-only Bloom upload; moving it would add prefilter/GPU state to a crate the server links only for chunk math. |
+| `src/checkpoint.rs` | Desktop-only `Rotor-Cuda_*.bat` resume files with filesystem I/O; no coordinator importer. |
+| `src/bsgs_workfile.rs` | Desktop-only binary work file (FS I/O) built on `BsgsTable`, which stays with the solver. |
+| `src/bsgs.rs` table build/solve, `src/gpu*.rs`, `src/cli.rs` parser | GPU kernels, solver and CLI stay with the desktop product. |
+| `src/coordinator/**` HTTP handlers, state, monitor, orders | Server product logic; it imports `rotor-core`/`rotor-search` data, not the other way round. |
+
+### Dependency edges before/after
+
+Before P1b:
+
+- `rotor` -> `rotor-core`
+- `rotor-wasm` -> `rotor-core`
+- `src/coordinator/{state,chunk_loop,client}.rs` (inside `rotor`) ->
+  `crate::cli::U256`, `crate::engine::{Split, SplitMix64, thread_seed,
+  stop_requested}`, `crate::bsgs::TableManifest`
+- `rotor-search`: absent
+
+After P1b:
+
+- `rotor` -> `rotor-core`, `rotor-search`
+- `rotor-search` -> `rotor-core` only
+- `rotor-wasm` -> `rotor-core` (unchanged)
+- `src/coordinator/{state,chunk_loop,client}.rs` -> `rotor-core`
+  (`base58`, `field`, `hashes`, `point`, `scalar`, `secp`) and `rotor-search`
+  (`bsgs`, `range`, `rng`, `stop`)
+- no product depends on another product; `rotor-search` depends on no product.
+
+`cargo tree -p rotor-search --edges normal` shows `rotor-core` as its only
+direct dependency. `cargo tree -p rotor-wasm --depth 1` is unchanged; removing
+the direct crypto crates there is P2.
+
+### Verification
+
+Run on the P1b worktree:
+
+- `cargo test -p rotor-search`: 13 passed (3 moved chunk-range tests, the new
+  golden chunk/manifest/checksum cases, SplitMix64 reference stream).
+- `cargo test --release`: 441 passed / 1 ignored across the library and every
+  integration suite, including `coordinator_api` (38) and
+  `coordinator_client` (3); 0 failed.
+- `node tests/parity/parity-test.mjs`: 126 comparable vectors, 399 field
+  checks, 392 matched, 7 allowlisted (`ton/address` x7), 0 mismatches;
+  committed wasm 506 012 bytes.
+- `node scripts/check-boundaries.mjs`: 4 workspace packages, no cross-product
+  dependency, no `#[path]` includes, `rotor-core` clean.
+- `node scripts/check-projects.mjs`: 1014/1015 paths covered (Cargo.lock
+  ignored).
+- `cargo fmt --all --check` and
+  `cargo clippy --workspace --all-targets -- -D warnings`: clean.
+
+### Mutation proof
+
+1. `DEFAULT_CHUNK_WIDTH` in `crates/rotor-search/src/range.rs` changed
+   `0x1000_0000` -> `0x2000_0000`: `cargo test -p rotor-search` fails
+   `range::split_ranges_tests::golden_chunk_bounds_match_the_coordinator_protocol`
+   (`left: "70000000"`, `right: "40000000"`), 12 passed / 1 failed.
+2. Removing `Split` from the `rotor-search` re-export in `src/engine.rs`:
+   `cargo check -p rotor` fails with `E0433: cannot find type Split in this
+   scope` at `src/engine.rs:153` and `:154`, exit 101.
+
+
 ## P1 evidence
 
 Status: implemented 2026-11-24 (ROT-488). P1 is a move: no algorithm, address

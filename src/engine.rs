@@ -15,7 +15,6 @@
 
 #![allow(clippy::needless_range_loop)] // fixed-size limb loops read better with indices
 
-use std::cmp::Ordering;
 use std::fmt::Write as FmtWrite;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write as IoWrite};
@@ -36,36 +35,28 @@ use crate::scalar::Scalar;
 use crate::secp;
 use crate::targets_text;
 
+// The shared search math lives in `rotor-search`; these re-exports keep every
+// existing `crate::engine::{...}` path in the desktop code compiling unchanged.
+#[cfg(any(feature = "gpu", test))]
+pub(crate) use rotor_search::range::split_ranges;
+pub(crate) use rotor_search::range::{Split, shift_chunk, split_range};
+pub(crate) use rotor_search::rng::{SplitMix64, thread_seed};
+pub(crate) use rotor_search::stop::{request as request_stop, requested as stop_requested};
+
 /// Number of keys generated and normalized per batch (`CPU_GRP_SIZE` in C++).
 const BATCH_SIZE: usize = 2048;
-
-/// Set by the Ctrl-C handler, checked by every worker before each batch.
-static STOP: AtomicBool = AtomicBool::new(false);
 
 /// `ctrlc::set_handler` can only be installed once per process.
 static HANDLER: Once = Once::new();
 
-/// Clears the stop flag and installs the Ctrl-C handler (idempotent).
+/// Clears the shared stop flag and installs the Ctrl-C handler (idempotent).
 pub(crate) fn prepare_ctrl_c() {
-    STOP.store(false, AtomicOrdering::SeqCst);
+    rotor_search::stop::reset();
     HANDLER.call_once(|| {
         // Never fail the run if the handler cannot be installed; Ctrl-C then
         // keeps the platform default instead of breaking the search.
-        let _ = ctrlc::set_handler(|| {
-            STOP.store(true, AtomicOrdering::SeqCst);
-        });
+        let _ = ctrlc::set_handler(request_stop);
     });
-}
-
-/// Sets the stop flag, ending every worker at its next batch boundary.
-pub(crate) fn request_stop() {
-    STOP.store(true, AtomicOrdering::SeqCst);
-}
-
-/// True once Ctrl-C was pressed.
-#[cfg_attr(not(feature = "gpu"), allow(dead_code))]
-pub(crate) fn stop_requested() -> bool {
-    STOP.load(AtomicOrdering::SeqCst)
 }
 
 /// Result counters returned by [`run`].
@@ -1175,42 +1166,6 @@ fn mask_bits(bytes: &mut [u8; 32], width: u32) {
     }
 }
 
-/// SplitMix64, seeded from the clock and the worker index (no dependencies).
-pub(crate) struct SplitMix64 {
-    state: u64,
-}
-
-impl SplitMix64 {
-    pub(crate) fn new(seed: u64) -> Self {
-        Self { state: seed }
-    }
-
-    pub(crate) fn next_u64(&mut self) -> u64 {
-        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
-        let mut z = self.state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-        z ^ (z >> 31)
-    }
-
-    fn fill32(&mut self) -> [u8; 32] {
-        let mut out = [0u8; 32];
-        for chunk in out.as_chunks_mut::<8>().0 {
-            chunk.copy_from_slice(&self.next_u64().to_le_bytes());
-        }
-        out
-    }
-}
-
-/// Clock-and-thread-index seed shared by the CPU and GPU random workers.
-pub(crate) fn thread_seed(thread_index: u64) -> u64 {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos() as u64)
-        .unwrap_or(0);
-    nanos ^ thread_index.wrapping_mul(0x9E37_79B9_7F4A_7C15)
-}
-
 fn thread_rng(thread_index: u64) -> SplitMix64 {
     SplitMix64::new(thread_seed(thread_index))
 }
@@ -1242,7 +1197,7 @@ fn worker(
     }
 
     loop {
-        if STOP.load(AtomicOrdering::SeqCst) {
+        if stop_requested() {
             break;
         }
 
@@ -1392,7 +1347,7 @@ fn scan_chunk(
     let mut scanned = 0u64;
 
     loop {
-        if STOP.load(AtomicOrdering::SeqCst) {
+        if stop_requested() {
             break;
         }
 
@@ -1460,7 +1415,7 @@ fn seed_worker(
     let mut seed = start.to_bytes32();
 
     loop {
-        if STOP.load(AtomicOrdering::SeqCst) {
+        if stop_requested() {
             break;
         }
 
@@ -1846,25 +1801,6 @@ pub(crate) fn resume_offsets(
     }
 }
 
-/// Slides one chunk window forward by `offset` and clips it at the range end;
-/// `None` means the whole window was scanned already.
-///
-/// Shared with the GPU checkpoint path.
-pub(crate) fn shift_chunk(
-    low: Split,
-    high: Split,
-    offset: u64,
-    end: Split,
-) -> Option<(Split, Split)> {
-    let (low, low_carry) = low.add(Split::from_u64(offset));
-    let (high, high_carry) = high.add(Split::from_u64(offset));
-    let high = if high_carry || high > end { end } else { high };
-    if low_carry || low > high {
-        return None;
-    }
-    Some((low, high))
-}
-
 /// Short chain ticker for the banner (`BTC`, `LTC`, `BCH`, `DOGE`, `ZEC`,
 /// `XRP`). Bitcoin keeps the historical `BTC` label so its output stays
 /// byte-identical.
@@ -1977,198 +1913,6 @@ pub(crate) fn print_banner(
         range.bit_length()
     );
     println!();
-}
-
-/// Little-endian 4x64-bit limbs of a 256-bit range endpoint.
-///
-/// Kept private to the engine: range arithmetic for the split must not depend
-/// on the scalar field (chunk boundaries may equal or approach `2^256`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Split([u64; 4]);
-
-impl Split {
-    pub(crate) fn from_u256(value: &U256) -> Self {
-        let mut limbs = [0u64; 4];
-        for (index, limb) in limbs.iter_mut().enumerate() {
-            let start = (3 - index) * 8;
-            *limb = u64::from_be_bytes(value.0[start..start + 8].try_into().expect("eight bytes"));
-        }
-        Self(limbs)
-    }
-
-    pub(crate) fn to_scalar(self) -> Option<Scalar> {
-        Scalar::from_bytes_be(&self.to_bytes32())
-    }
-
-    /// Big-endian 32 bytes, used as the ed25519 seed for a range position.
-    pub(crate) fn to_bytes32(self) -> [u8; 32] {
-        let mut bytes = [0u8; 32];
-        for (index, limb) in self.0.iter().enumerate() {
-            let start = (3 - index) * 8;
-            bytes[start..start + 8].copy_from_slice(&limb.to_be_bytes());
-        }
-        bytes
-    }
-
-    pub(crate) fn add(self, other: Self) -> (Self, bool) {
-        let mut out = [0u64; 4];
-        let mut carry = false;
-        for index in 0..4 {
-            let (partial, first) = self.0[index].overflowing_add(other.0[index]);
-            let (sum, second) = partial.overflowing_add(u64::from(carry));
-            out[index] = sum;
-            carry = first || second;
-        }
-        (Self(out), carry)
-    }
-
-    pub(crate) fn from_u64(value: u64) -> Self {
-        Self([value, 0, 0, 0])
-    }
-
-    pub(crate) fn from_u128(value: u128) -> Self {
-        Self([value as u64, (value >> 64) as u64, 0, 0])
-    }
-
-    pub(crate) fn add_u64(self, value: u64) -> Self {
-        self.add(Self::from_u64(value)).0
-    }
-
-    /// Low 64 bits; only for spans known to fit (GPU batch windows).
-    #[cfg_attr(not(feature = "gpu"), allow(dead_code))]
-    pub(crate) fn low_u64(self) -> u64 {
-        self.0[0]
-    }
-
-    pub(crate) fn sub(self, other: Self) -> Self {
-        let mut out = [0u64; 4];
-        let mut borrow = false;
-        for index in 0..4 {
-            let (partial, first) = self.0[index].overflowing_sub(other.0[index]);
-            let (difference, second) = partial.overflowing_sub(u64::from(borrow));
-            out[index] = difference;
-            borrow = first || second;
-        }
-        Self(out)
-    }
-
-    pub(crate) fn sub_u64(self, value: u64) -> Self {
-        self.sub(Self([value, 0, 0, 0]))
-    }
-
-    /// Low 256 bits of the product; exact for every value the split produces.
-    fn mul_u64(self, value: u64) -> Self {
-        let mut out = [0u64; 4];
-        let mut carry = 0u128;
-        for index in 0..4 {
-            let product = u128::from(self.0[index]) * u128::from(value) + carry;
-            out[index] = product as u64;
-            carry = product >> 64;
-        }
-        Self(out)
-    }
-
-    pub(crate) fn div_u64(self, value: u64) -> (Self, u64) {
-        debug_assert!(value != 0);
-        let divisor = u128::from(value);
-        let mut quotient = [0u64; 4];
-        let mut remainder = 0u128;
-        for index in (0..4).rev() {
-            let current = (remainder << 64) | u128::from(self.0[index]);
-            quotient[index] = (current / divisor) as u64;
-            remainder = current % divisor;
-        }
-        (Self(quotient), remainder as u64)
-    }
-
-    pub(crate) fn bit_length(self) -> u32 {
-        for index in (0..4).rev() {
-            if self.0[index] != 0 {
-                return index as u32 * 64 + (64 - self.0[index].leading_zeros());
-            }
-        }
-        0
-    }
-
-    /// Uppercase hexadecimal without leading zeros (`Int::GetBase16`).
-    pub(crate) fn to_hex(self) -> String {
-        match self.0.iter().rposition(|&limb| limb != 0) {
-            None => "0".to_owned(),
-            Some(top) => {
-                let mut out = String::with_capacity(64);
-                let _ = write!(out, "{:X}", self.0[top]);
-                for limb in self.0[..top].iter().rev() {
-                    let _ = write!(out, "{limb:016X}");
-                }
-                out
-            }
-        }
-    }
-
-    fn to_f64(self) -> f64 {
-        let mut value = 0.0;
-        for limb in self.0.iter().rev() {
-            value = value * 18_446_744_073_709_551_616.0 + *limb as f64;
-        }
-        value
-    }
-}
-
-impl Ord for Split {
-    fn cmp(&self, other: &Self) -> Ordering {
-        for index in (0..4).rev() {
-            if self.0[index] != other.0[index] {
-                return self.0[index].cmp(&other.0[index]);
-            }
-        }
-        Ordering::Equal
-    }
-}
-
-impl PartialOrd for Split {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-/// Splits the inclusive `[start, end]` range into at most `threads`
-/// contiguous, non-overlapping chunks of `ceil(total / threads)` keys.
-pub(crate) fn split_range(start: Split, end: Split, threads: usize) -> Vec<(Split, Split)> {
-    let total = end.sub(start).add_u64(1);
-    let divisor = threads.max(1) as u64;
-    let (quotient, remainder) = total.div_u64(divisor);
-    let chunk = quotient.add_u64(u64::from(remainder != 0));
-
-    let mut chunks = Vec::new();
-    let mut current = start;
-    for index in 1..=divisor {
-        if current > end {
-            break;
-        }
-        let (next_start, carry) = start.add(chunk.mul_u64(index));
-        let chunk_end = if carry || next_start > end {
-            end
-        } else {
-            next_start.sub_u64(1)
-        };
-        chunks.push((current, chunk_end));
-        if carry {
-            break;
-        }
-        current = next_start;
-    }
-    chunks
-}
-
-/// Partitions the inclusive `[start, end]` range into one contiguous chunk per
-/// device (`ceil(total / devices)` keys each, the last clipped at `end`; fewer
-/// chunks when the range is shorter than the device count).
-///
-/// `devices == 1` returns the whole range unchanged. The chunks cover every key
-/// exactly once and in ascending order.
-#[cfg_attr(not(feature = "gpu"), allow(dead_code))]
-pub(crate) fn split_ranges(start: Split, end: Split, devices: usize) -> Vec<(Split, Split)> {
-    split_range(start, end, devices)
 }
 
 fn scalar_low_u64(value: &Scalar) -> u64 {
@@ -2352,76 +2096,5 @@ mod random_start_tests {
         };
         let err = RandomSpec::from_config(&config).expect_err("zet <= next must fail");
         assert_eq!(err, "ROTOR Random: -n start must be less than -z end");
-    }
-}
-
-#[cfg(test)]
-mod split_ranges_tests {
-    use super::*;
-
-    fn split(value: u64) -> Split {
-        Split::from_u256(&U256::from_u64(value))
-    }
-
-    /// Asserts exact-once, ascending, contiguous coverage of `[start, end]`.
-    fn assert_exact_once(start: Split, end: Split, devices: usize) {
-        let chunks = split_ranges(start, end, devices);
-        assert!(!chunks.is_empty(), "a non-empty range must yield a chunk");
-        assert_eq!(chunks[0].0, start, "first chunk must start at START");
-        assert_eq!(
-            chunks.last().expect("chunks").1,
-            end,
-            "last chunk must end at END"
-        );
-        assert!(chunks.len() <= devices.max(1));
-
-        let mut covered = Split::from_u64(0);
-        for (index, (low, high)) in chunks.iter().enumerate() {
-            assert!(low <= high, "chunk {index} is inverted");
-            covered = covered.add(high.sub(*low).add_u64(1)).0;
-            if let Some((next_low, _)) = chunks.get(index + 1) {
-                assert_eq!(high.add_u64(1), *next_low, "chunks must be adjacent");
-            }
-        }
-        assert_eq!(covered, end.sub(start).add_u64(1), "every key exactly once");
-    }
-
-    #[test]
-    fn one_device_returns_the_whole_range() {
-        assert_eq!(
-            split_ranges(split(10), split(20), 1),
-            vec![(split(10), split(20))]
-        );
-    }
-
-    #[test]
-    fn several_spans_and_device_counts_cover_exactly_once() {
-        for (low, high, devices) in [
-            (0u64, 0u64, 1usize),
-            (0, 0, 4),
-            (1, 10, 3),
-            (5, 6, 2),
-            (7, 7, 8),
-            (0, 1023, 4),
-            (0x1000, 0x11FF, 4),
-            (100, 1099, 7),
-            (0x1F2E_3D4C_5A00, 0x1F2E_3D4C_5A00 + 0x800, 3),
-        ] {
-            assert_exact_once(split(low), split(high), devices);
-        }
-    }
-
-    #[test]
-    fn last_chunk_is_clipped() {
-        // 4 keys over 3 devices -> ceil(4/3) = 2: [10,11], [12,13].
-        assert_eq!(
-            split_ranges(split(10), split(13), 3),
-            vec![(split(10), split(11)), (split(12), split(13))]
-        );
-        // The range is shorter than the device count: only real keys remain.
-        assert_eq!(
-            split_ranges(split(7), split(7), 8),
-            vec![(split(7), split(7))]
-        );
     }
 }

@@ -39,7 +39,7 @@ use state::{
     ERR_MANIFEST_MISMATCH,
 };
 
-use crate::chain::{self, ChainDescriptor};
+use rotor_core::chain::{self, ChainDescriptor};
 
 /// The public site is embedded so the binary stays a single file.
 const LANDING: &str = include_str!("../../apps/site/landing.html");
@@ -1748,7 +1748,7 @@ fn respond_asset(
 const ETAG_BYTES: usize = 8;
 
 fn asset_etag(body: &[u8]) -> String {
-    let digest = crate::hashes::sha256(body);
+    let digest = rotor_core::hashes::sha256(body);
     let hex: String = digest[..ETAG_BYTES]
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -2232,7 +2232,7 @@ impl AddressKind {
 /// Hub pages consume the same descriptor as the engine. Only the page copy
 /// and the address-type family mapping stay local to the coordinator; id,
 /// name, symbol, color, order and explorer come from `data/chains.json`
-/// through [`crate::chain`].
+/// through [`rotor_core::chain`].
 type ChainHub = ChainDescriptor;
 
 const CHAIN_DESCRIPTIONS: &[(&str, &str)] = &[
@@ -2549,7 +2549,7 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
                 .iter()
                 .map(|byte| format!("{byte:02x}"))
                 .collect::<String>();
-            return crate::scalar::Scalar::from_hex(&lower)
+            return rotor_core::scalar::Scalar::from_hex(&lower)
                 .filter(|value| !value.is_zero())
                 .map(|_| lower);
         }
@@ -2560,7 +2560,7 @@ fn normalized_key_hex(hex: &str, curve: &str) -> Option<String> {
         if lower.bytes().all(|byte| byte == b'0') {
             return None;
         }
-    } else if !crate::scalar::Scalar::from_hex(&lower).is_some_and(|value| !value.is_zero()) {
+    } else if !rotor_core::scalar::Scalar::from_hex(&lower).is_some_and(|value| !value.is_zero()) {
         return None;
     }
     Some(lower)
@@ -6094,7 +6094,7 @@ fn tron_hex_address(hex: &str) -> Option<String> {
         let low = hex_digit(*chunk.get(1)?)?;
         payload[index + 1] = (high << 4) | low;
     }
-    Some(crate::base58::encode_check(&payload))
+    Some(rotor_core::base58::encode_check(&payload))
 }
 
 fn tron_amount_string(value: Option<&serde_json::Value>) -> Option<String> {
@@ -7578,7 +7578,7 @@ mod tests {
     /// `apps/site/chains-test.mjs` and `apps/site/search-test.mjs`.
     #[test]
     fn chain_hub_and_descriptor_agree_on_identity() {
-        let descriptors = crate::chain::all();
+        let descriptors = chain::all();
         assert_eq!(descriptors.len(), 18, "one hub per production chain");
 
         let mut seen = Vec::new();
@@ -7598,27 +7598,25 @@ mod tests {
                 "{} has no hub description",
                 hub.id
             );
-            let expected_suffix = if matches!(
-                hub.family,
-                crate::chain::Family::Ed25519 | crate::chain::Family::Ton
-            ) {
-                "?curve=ed25519"
-            } else {
-                ""
-            };
+            let expected_suffix =
+                if matches!(hub.family, chain::Family::Ed25519 | chain::Family::Ton) {
+                    "?curve=ed25519"
+                } else {
+                    ""
+                };
             assert_eq!(chain_curve_suffix(hub), expected_suffix, "{}", hub.id);
             seen.push(hub.id);
         }
         assert_eq!(
             seen,
-            crate::generated::chains::CHAINS_MAINNET,
-            "the coordinator must expose the same canonical order as crate::chain"
+            rotor_core::generated::chains::CHAINS_MAINNET,
+            "the coordinator must expose the same canonical order as rotor-core chain"
         );
     }
 
     #[test]
     fn every_canonical_chain_has_an_address_kind() {
-        for chain in crate::chain::all() {
+        for chain in chain::all() {
             let _ = chain_kind(chain);
         }
     }
@@ -7631,7 +7629,7 @@ mod tests {
 
     #[test]
     fn chain_tabs_and_sitemap_follow_the_canonical_order() {
-        let canonical: Vec<&str> = crate::generated::chains::CHAINS_MAINNET.to_vec();
+        let canonical: Vec<&str> = rotor_core::generated::chains::CHAINS_MAINNET.to_vec();
 
         let tabs = brainwallet_chain_tabs(None);
         let tab_order: Vec<&str> = tabs
@@ -7677,7 +7675,7 @@ mod tests {
         let base = "https://rotor.pxbt.app";
         let (body, _, _) =
             seo_asset(base, "/brainwallet-generator", "").expect("/brainwallet-generator");
-        for chain in crate::chain::all() {
+        for chain in chain::all() {
             let marker = format!("<option value=\"{}\">", chain.id);
             let start = body
                 .find(&marker)
@@ -8986,7 +8984,7 @@ mod tests {
         ));
         let admin = "admin-secret-token";
         let client_token = "client-secret-token";
-        let hash: String = crate::hashes::sha256(client_token.as_bytes())
+        let hash: String = rotor_core::hashes::sha256(client_token.as_bytes())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
@@ -9028,7 +9026,7 @@ mod tests {
     }
 
     fn token_hash(token: &str) -> String {
-        crate::hashes::sha256(token.as_bytes())
+        rotor_core::hashes::sha256(token.as_bytes())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect()

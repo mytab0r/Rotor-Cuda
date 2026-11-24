@@ -88,6 +88,8 @@ jobs:
       - run: cargo test --release
       - name: Shared core unit tests
         run: cargo test --release -p rotor-core
+      - name: Shared search unit tests
+        run: cargo test --release -p rotor-search
       - name: Desktop parity baseline (P0)
         run: cargo test --release --test parity
       - run: cargo build --release
