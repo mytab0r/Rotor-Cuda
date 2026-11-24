@@ -161,7 +161,12 @@ code path with the Nile testnet route, behind the same mainnet arm gate.
   the derived public key in the same call.
 - [ ] Cabinet wallet: TRON mainnet and TRON Nile in the network picker; the
   same armed-session checkbox, reset on lock/unlock/reload; the arm check runs
-  in the codec, not only in the DOM.
+  in the codec, not only in the DOM. The public `/send` page stays testnet-only.
+- [ ] Rebuild `apps/site/rotor_wasm.wasm` in the same change and update
+  `apps/site/tron-tx.js` to send `kind: "trx"`: the request schema is now
+  strict, so a stale adapter would fail at runtime. The Nile `/send/tron` route
+  and `apps/site/tron-tx-test.mjs` must keep passing against the rebuilt
+  binary.
 - [ ] Build from the node (`getnowblock` for `ref_block_bytes`,
   `ref_block_hash`, `timestamp`, `expiration`), refetch immediately before
   signing, refuse an expired review.
