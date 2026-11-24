@@ -12,7 +12,7 @@ use std::sync::LazyLock;
 use crate::address;
 use crate::generated::chains as generated;
 
-pub use crate::address::{DerivedAddress, KeyMaterial};
+pub use crate::address::{DerivedAddress, KeyMaterial, TonWalletVersion};
 
 /// Search primitive a chain shares with its siblings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +25,7 @@ pub enum Family {
     TronKeccak,
     /// 32-byte seed → ed25519 public key (SUI hashes it with BLAKE2b-256).
     Ed25519,
-    /// ed25519 key → wallet v4R2 StateInit hash.
+    /// ed25519 key → the named wallet contract's StateInit hash.
     Ton,
 }
 
@@ -74,8 +74,9 @@ pub enum AddressEncoding {
     SolanaBase58,
     /// `0x` + BLAKE2b-256(0x00 || ed25519 public key).
     SuiHex,
-    /// TON user-friendly form: base64url(flags || workchain || hash || CRC16).
-    TonUserFriendly,
+    /// TON user-friendly form for the named wallet contract:
+    /// base64url(flags || workchain || hash || CRC16).
+    TonUserFriendly(TonWalletVersion),
 }
 
 /// One network the desktop tool can search.
@@ -258,7 +259,7 @@ const DERIVATIONS: &[Derivation] = &[
         id: "ton",
         family: Family::Ton,
         curve: Curve::Ed25519,
-        encoding: AddressEncoding::TonUserFriendly,
+        encoding: AddressEncoding::TonUserFriendly(TonWalletVersion::V4R2),
         hd_path: Some("m/44'/607'/0'/0/0"),
         wif_version: None,
     },

@@ -1012,6 +1012,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "ripemd",
+ "rotor-core",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -1020,6 +1021,19 @@ dependencies = [
  "ureq",
  "windows-sys 0.59.0",
  "xorf",
+]
+
+[[package]]
+name = "rotor-core"
+version = "2.1.0"
+dependencies = [
+ "bip39",
+ "blake2",
+ "bs58",
+ "ed25519-dalek",
+ "ripemd",
+ "sha2 0.11.1",
+ "sha3",
 ]
 
 [[package]]
@@ -1034,6 +1048,7 @@ dependencies = [
  "hmac 0.12.1",
  "pbkdf2",
  "ripemd",
+ "rotor-core",
  "scrypt",
  "serde_json",
  "sha2 0.10.9",

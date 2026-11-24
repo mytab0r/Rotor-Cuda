@@ -241,7 +241,7 @@ fn descriptor_fields_are_populated() {
                 descriptor.encoding,
                 AddressEncoding::SolanaBase58 | AddressEncoding::SuiHex
             ),
-            Family::Ton => descriptor.encoding == AddressEncoding::TonUserFriendly,
+            Family::Ton => matches!(descriptor.encoding, AddressEncoding::TonUserFriendly(_)),
         };
         assert!(
             encoding_matches_family,

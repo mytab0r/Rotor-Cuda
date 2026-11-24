@@ -9,6 +9,7 @@ description = "WebAssembly scan core for Rotor-Cuda"
 crate-type = ["cdylib"]
 
 [dependencies]
+rotor-core = { path = "../rotor-core" }
 sha2 = "0.11"
 # Ethereum keystore KDFs and cipher use the digest 0.10 family (hmac/pbkdf2),
 # which is why sha2 0.10 is pulled in under its own alias.

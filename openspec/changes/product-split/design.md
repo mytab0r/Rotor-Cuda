@@ -502,3 +502,153 @@ Baseline at capture: 24 wasm exports, `apps/site/rotor_wasm.wasm` = 501 119
 bytes, parity wasm generation ≈60 ms and comparison ≈55 ms on the capture
 machine. These are guardrails, not reproducibility claims.
 
+## P1 evidence
+
+Status: implemented 2026-11-24 (ROT-488). P1 is a move: no algorithm, address
+value, JSON field, transaction byte or WASM export changed. Every P0 vector
+still reproduces on both surfaces.
+
+Scope note: this P1 PR extracts `rotor-core` and repoints the WASM adapter. The
+`rotor-search` extraction, the keystore/sign move out of the adapter, and the
+pool-server repoint remain P1 checklist items for later PRs; they are not
+claimed here.
+
+### Dependency graph
+
+Before:
+
+```text
+rotor (lib + rotor + rotor-coord)
+  field, scalar, point, secp, hashes, base58, address, chain, generated, mnemonic
+rotor-wasm (independent workspace member)
+  #[path] ../../../src/{base58,field,hashes,point,scalar,secp}.rs
+  bech32, btc, evm, tron, ton, keystore, sign, derive, json
+```
+
+After:
+
+```text
+rotor-core (no net, GPU, BSGS, CLI, coordinator, FS or clock)
+  field, scalar, point, secp, hashes, base58, address (+ ton), chain, generated,
+  mnemonic (pure BIP39/BIP32)
+
+rotor (desktop)            rotor-wasm (browser adapter)
+  -> rotor-core              -> rotor-core
+  re-exports every module    no #[path] source include
+```
+
+### What moved
+
+| Target | Source | Notes |
+|---|---|---|
+| `crates/rotor-core/src/{field,scalar,point,secp,hashes,base58}.rs` | `src/{...}.rs` | verbatim; internal `crate::` paths unchanged |
+| `crates/rotor-core/src/address/mod.rs` | `src/address/mod.rs` | TON branch now versioned |
+| `crates/rotor-core/src/address/ton.rs` | W5 from `crates/rotor-wasm/src/ton.rs`; v3R2/v4R2 added | one implementation, explicit version |
+| `crates/rotor-core/src/{chain,generated}.rs` | `src/{chain,generated}` | descriptors and generated tables; `gen-ssot.mjs` `RS_PATH` updated |
+| `crates/rotor-core/src/mnemonic.rs` | pure parts of `src/mnemonic.rs` | BIP39/BIP32 helpers and their 11 unit tests |
+
+The TON `w5_address` tests (3) moved from the adapter to core. The
+field/scalar/point/secp/hashes/base58/address/chain modules had no inline unit
+tests; their integration tests (`tests/crypto.rs`, `tests/chain.rs`,
+`tests/parity.rs`) stay in the desktop package and now exercise the
+re-exported core.
+
+### What stayed
+
+- Desktop: CLI (`cli`, `main`, `bin/rotor-coord`), engine, BSGS, workfile,
+  checkpoint, filter, targets, GPU/CUDA, coordinator, monitor, selfcheck,
+  selfupdate, benchmark, and the mnemonic audit driver (`run_audit`,
+  `run_derive`, target loading, progress output).
+- WASM adapter: allocator/ABI, `derive`, `json`, `bech32`, `btc`, `evm`,
+  `tron`, `keystore`, `sign`, and the `ton` call site (now a re-export of
+  `rotor_core::address::ton`). These move in P2.
+- `rotor-search` does not exist yet.
+
+### Module path compatibility
+
+| Public path | Before | After |
+|---|---|---|
+| `rotor::{field,scalar,point,secp,hashes,base58,address,chain,generated}` | modules in `src/` | `pub use rotor_core::<module>;` |
+| `rotor::address::ton_v4r2_address` | `src/address/mod.rs` | `rotor_core::address::ton`, re-exported |
+| `rotor::chain::{ChainDescriptor,Family,AddressEncoding,KeyMaterial,...}` | `src/chain.rs` | `rotor_core::chain`, re-exported |
+| `rotor::generated::chains::*` | `src/generated/chains.rs` | `rotor_core::generated`, re-exported |
+| `rotor::mnemonic::{derive,master_from_seed,derive_path,...}` | `src/mnemonic.rs` | re-exported from `rotor_core::mnemonic`; `run_*` stays local |
+| internal `crate::{field,scalar,...}` in desktop code | unchanged | resolves through the root re-export |
+| internal `crate::{hashes,scalar,secp,...}` in the adapter | `#[path]` modules | `pub(crate) use rotor_core::...` aliases |
+
+### TON wallet versions (owner decision, 2026-11-24)
+
+The core no longer bakes one implicit TON contract into address derivation:
+
+- `rotor_core::address::ton::TonWalletVersion` is a `#[non_exhaustive]` enum
+  with `V3R2`, `V4R2` and `W5`.
+- `ton_address(public_key, version)` is the single entry point;
+  `AddressEncoding::TonUserFriendly(TonWalletVersion)` makes the chain
+  descriptor name its version. Adding a version is a new enum variant plus one
+  code cell, not a signature change.
+- Current outputs are unchanged: the desktop `ton` descriptor selects `V4R2`
+  and the WASM `derive_report` selects `W5`, so the P0 allowlist (issue #330,
+  follow-up #505) still describes the same seven mismatches.
+- v3R2 is implemented from tonweb's `WalletV3ContractR2` code cell; v4R2 is
+  the pinned tonweb/`@ton/ton` cell; W5 is the moved official `wallet_v5` BoC.
+  Core tests pin the code-cell hashes/depths and Tonkeeper, tonweb and
+  `@ton/ton` address vectors for all three versions.
+
+### Verification (2026-11-24)
+
+```text
+cargo test --release                          exit 0; 22 suites, 441 passed, 0 failed, 1 ignored
+cargo test --release -p rotor-core            17 passed, 0 failed
+cargo test -p rotor-wasm                      75 passed, 0 failed
+cargo test --release --test parity            desktop_vectors_match_the_committed_baseline ok
+node tests/parity/parity-test.mjs <fresh>     126 vectors, 399 fields, 392 matched, 7 allowlisted, 0 mismatches
+node tests/parity/parity-test.mjs <P0 artifact> same counts, 0 mismatches
+sh scripts/build-wasm.sh                      506 012 bytes; 24/24 exports unchanged
+node crates/rotor-wasm/smoke.mjs              smoke ok
+node apps/site/worker-test.mjs                PASS
+cargo fmt --all --check                       clean
+cargo clippy --workspace --all-targets -D warnings  clean
+node scripts/check-projects.mjs               OK (1001/1002; Cargo.lock ignored)
+node scripts/gen-ssot.mjs --check             OK (generated Rust path updated)
+node scripts/check-ssot.mjs                   OK
+```
+
+WASM byte identity does **not** hold: the artifact is 506 012 bytes against
+the P0 501 119-byte baseline (+4 893, +0.98%, inside P2's +5% budget), and the
+SHA-256 differs (`0f2447d1…` vs `68d99e44…`). The parity vectors, not the
+bytes, are the authority and are identical. The growth is the crate boundary:
+the primitives now codegen in a separate rlib instead of the adapter crate, and
+`rotor-core` carries the v3R2/v4R2 paths the WASM adapter does not call.
+Disabling `ed25519-dalek`'s default `fast` backend in core removed the browser
+artifact's new feature tables; that change alone moved the size from 538 075
+(+7.4%) to 506 012 (+0.98%). A byte-identical artifact would need an LTO/profile
+change, which P1 does not make.
+
+### Mutation proof
+
+1. Generator-constant flip in `rotor-core`:
+   `0x59F2_815B_16F8_1798` → `…1799` in `crates/rotor-core/src/secp.rs`.
+
+   ```text
+   $ cargo test --release --test parity
+   desktop parity baseline drifted: vector 0 (key-1/bitcoin) differs: ...
+   test result: FAILED. 0 passed; 1 failed
+
+   $ sh scripts/build-wasm.sh && node tests/parity/parity-test.mjs <fresh artifact>
+   ... seed-repeat-11/zksync address: desktop="0x9fE6…" wasm="0x01b8…" ...
+   parity FAILED (exit 1)
+   ```
+
+2. Root re-export removed: `secp` dropped from
+   `pub use rotor_core::{...}` in `src/lib.rs`.
+
+   ```text
+   $ cargo test --release --no-run
+   error[E0432]: unresolved import `crate::secp`
+   error[E0433]: cannot find `secp` in the crate root
+   error: could not compile `rotor` (lib) due to 5 previous errors
+   ```
+
+Both mutations were reverted; the checkout and the committed 506 012-byte
+artifact are the ones measured above.
+

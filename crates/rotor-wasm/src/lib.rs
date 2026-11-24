@@ -1,9 +1,10 @@
 //! WebAssembly scan core for the browser client.
 //!
-//! This crate reuses the pure-Rust secp256k1 modules of the parent package via
-//! `#[path]` includes. It exports a hand-written pointer/length ABI; there is
-//! no wasm-bindgen, no threading and no clock. One instance is driven by one
-//! worker and all calls are sequential.
+//! This crate depends on `rotor-core` for the shared secp256k1, hash and
+//! Base58 primitives; it does not include parent-package source with `#[path]`.
+//! It exports a hand-written pointer/length ABI; there is no wasm-bindgen, no
+//! threading and no clock. One instance is driven by one worker and all calls
+//! are sequential.
 //!
 //! Result blob of [`scan`]: little-endian `u64 scanned`, `u32 found`; when
 //! `found == 1` an `u32 key_len`, the 64-character ASCII hex private key, an
@@ -45,23 +46,16 @@
 //! `signature`.
 
 #![allow(dead_code)]
-// the included parent modules expose more than this ABI uses
-// The parent modules are reused verbatim; this style lint is not worth editing
-// copies of upstream files for.
+// The adapter keeps helpers that not every target path references; the public
+// surface is the pointer/length ABI.
+// The shared primitive modules live in `rotor-core`; this style lint matches
+// their upstream signatures.
 #![allow(clippy::wrong_self_convention)]
 
-#[path = "../../../src/base58.rs"]
-mod base58;
-#[path = "../../../src/field.rs"]
-mod field;
-#[path = "../../../src/hashes.rs"]
-mod hashes;
-#[path = "../../../src/point.rs"]
-mod point;
-#[path = "../../../src/scalar.rs"]
-mod scalar;
-#[path = "../../../src/secp.rs"]
-mod secp;
+// The shared primitives are compiled once in `rotor-core`; these aliases keep
+// the adapter's internal `crate::<module>` paths stable while removing the
+// `#[path]` source includes.
+pub(crate) use rotor_core::{base58, field, hashes, point, scalar, secp};
 
 mod bech32;
 mod btc;
@@ -78,8 +72,8 @@ use std::cell::UnsafeCell;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-use point::{Affine, Jacobian};
-use scalar::Scalar;
+use rotor_core::point::{Affine, Jacobian};
+use rotor_core::scalar::Scalar;
 
 /// Keys chained per batch; one field inversion per batch.
 const BATCH_SIZE: usize = 2048;
