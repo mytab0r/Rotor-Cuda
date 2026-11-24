@@ -2144,6 +2144,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 .key-buttons button { min-height: 44px; padding: 0 16px; }
 .key-buttons #step-down, .key-buttons #step-up { min-width: 44px; padding: 0 10px; font-family: var(--mono); }
 .key-help { max-width: 82ch; margin: 9px 0 0; font-size: 12px; line-height: 1.55; }
+details.key-help > summary:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 
 /* One filter bar: chains, address types, path, presets, export and refresh. */
 .key-filter-bar {

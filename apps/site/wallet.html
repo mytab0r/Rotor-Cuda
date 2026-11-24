@@ -41,7 +41,7 @@
     </div>
   </section>
 
-  <p class="notice" role="note">Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it safe.</p>
+  <p class="notice" role="note">Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe.</p>
   <details class="muted key-help">
     <summary>What this page can send and sign</summary>
     <p>The vault lives in this browser's IndexedDB. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. TRON keys can send TRX and TRC-20 tokens on TRON mainnet (after you arm it for the session) and on the TRON Nile testnet; a TRON send reads the latest block from TronGrid or publicnode and broadcasts once to the same provider. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
@@ -202,7 +202,7 @@
     <div class="key-buttons">
       <button type="button" class="primary" id="wallet-seed-add" disabled>Add derived key to vault</button>
     </div>
-    <p class="muted" id="wallet-seed-help">Generated and shown in this tab only; the vault stores one derived key per chain.</p>
+    <p class="muted" id="wallet-seed-help">Generated and shown in this tab only; the vault stores the derived key for one chain.</p>
     <details class="muted key-help">
       <summary>BIP44 paths and chains without a preset</summary>
       <p>The phrase is generated and shown in this tab only; it is never stored, sent or logged. The vault stores only the derived key for one chain, with the default BIP44 path of the selected chain. Zcash, Solana, Sui and TON have no BIP44 preset here: import a WIF or hex key for those chains instead.</p>
@@ -277,7 +277,7 @@
 
   <section class="card" id="wallet-signin" hidden>
     <h2>Sign in to the monitor account</h2>
-    <p class="muted" id="wallet-signin-help">Sign in proves control of the EVM address from this vault; the key never leaves this tab.</p>
+    <p class="muted" id="wallet-signin-help">Signing in proves control of the EVM address from this vault; the key never leaves this tab.</p>
     <label>Key to sign in with
       <select id="wallet-signin-entry"></select>
     </label>
