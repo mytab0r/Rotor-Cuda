@@ -134,6 +134,7 @@ page-local override.
 | `address-type-width-spread` | Address-type cards in one visual row differ by at most 15%. | all | implemented |
 | `duplicate-address-type-implementation` | One address-type component family is used, not two competing ones. | all | implemented |
 | `mostly-empty-block` | A block taller than 220px is not more than 45% empty. | all | implemented |
+| `card-dead-space` | Repeated landing-directory links are compact rows: at most 64px tall and at most 12px larger than their content. | all | implemented |
 | `manual-balance-control` | Balances must not load automatically. No visible manual balance control is allowed except the single Astro /key privacy control (#key-balance-check, the shared .chip) that starts a lookup after a user action; any other button, checkbox or label that triggers balances fails. | all | implemented |
 | `brainwallet-row-count` | /brainwallet/<chain> renders 60 .bw-row entries. | all | implemented |
 | `puzzle-row-count` | /bitcoin-puzzle renders 160 data-puzzle rows. | all | implemented |

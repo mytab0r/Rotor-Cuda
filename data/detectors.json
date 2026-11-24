@@ -715,6 +715,14 @@
       "status": "implemented"
     },
     {
+      "id": "card-dead-space",
+      "rule": "Repeated landing-directory links are compact rows: at most 64px tall and at most 12px larger than their content.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
+    },
+    {
       "id": "manual-balance-control",
       "rule": "Balances must not load automatically. No visible manual balance control is allowed except the single Astro /key privacy control (#key-balance-check, the shared .chip) that starts a lookup after a user action; any other button, checkbox or label that triggers balances fails.",
       "batch": "all",

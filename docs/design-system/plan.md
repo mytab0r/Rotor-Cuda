@@ -420,6 +420,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `address-type-width-spread` | Address-type cards in one visual row differ by at most 15%. | all | implemented |
 | `duplicate-address-type-implementation` | One address-type component family is used, not two competing ones. | all | implemented |
 | `mostly-empty-block` | A block taller than 220px is not more than 45% empty. | all | implemented |
+| `card-dead-space` | Repeated landing-directory links are compact rows: at most 64px tall and at most 12px larger than their content. | all | implemented |
 | `manual-balance-control` | Balances must not load automatically. No visible manual balance control is allowed except the single Astro /key privacy control (#key-balance-check, the shared .chip) that starts a lookup after a user action; any other button, checkbox or label that triggers balances fails. | all | implemented |
 | `brainwallet-row-count` | /brainwallet/<chain> renders 60 .bw-row entries. | all | implemented |
 | `puzzle-row-count` | /bitcoin-puzzle renders 160 data-puzzle rows. | all | implemented |
@@ -560,6 +561,11 @@ Every added detector gets a ledger entry in the same PR.
   - The audit harness now starts its temporary coordinator with a 3600s monitor
     interval; the old 300s interval made it poll the unreachable test RPC and
     exit before the last routes of a full 192-run pass.
+- Landing directories: the fifteen chain links and six address-database links
+  moved to `.chain-row` inside `.chain-grid--rows` and the
+  `.address-db-links` inline list; `.chain-card` lost its inert `min-height`
+  reservation. Detector `card-dead-space` and ledger entry added. The
+  `/private-keys`, `/brainwallet` and `/wallets` surfaces keep their cards.
 - Batch 4: one card grammar (`.card` pad 20, radius 16; `.card--flat`,
   `.card--stat`), one stat grammar (12px sentence-case label, 24px 600
   tabular value; `.stat--sm`/`.stat-value.small` 20), and the named card

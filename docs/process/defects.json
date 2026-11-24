@@ -66,6 +66,13 @@
       "where": "scripts/ui-audit.mjs"
     },
     {
+      "id": "landing-directory-cards",
+      "reported": "2026-11-25",
+      "symptom": "The landing rendered 15 chain links as 159px cards at 1280 (content 117px) and six address-database links as a 79-96px card grid of identical /wallets destinations; the min-height declaration was inert (content already exceeded 132px), so the padding, 52px icon and stacked lines were the dead space.",
+      "detector": "card-dead-space",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
       "id": "unaudited-page-route",
       "reported": "2026-11-21",
       "symptom": "A public page route could be served without appearing in the UI audit route list (found: /milk-sad had 2 sub-12px exponents).",

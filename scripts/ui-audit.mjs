@@ -1797,6 +1797,47 @@ async function auditPage(args) {
     add("card-padding-scale", `${cardIssues.length} card(s) outside the shared padding/radius scale`, cardIssues.slice(0, 8));
   }
 
+  // 4g-2. Card dead space: a landing directory renders repeated links as
+  //      compact rows, not block cards. At 1280 the pre-fix chain grid reserved
+  //      159px per item for a three-line label (content 117px) and the address
+  //      database grid 79-96px per card; the same links fit a 44px row and one
+  //      inline list. The min-height declaration was not the cause (content
+  //      already exceeded 132/150px), so the check measures the rendered box:
+  //      a container with at least six links may not render one taller than
+  //      64px (two compact lines) or more than 12px above its content.
+  const deadSpaceIssues = [];
+  for (const container of document.querySelectorAll(".landing-page .chain-grid, .landing-page .address-db-grid")) {
+    if (!visible(container)) continue;
+    const links = [...container.children].filter((el) => el.matches("a[href]") && visible(el));
+    if (links.length < 6) continue;
+    for (const link of links) {
+      const box = boxOf(link);
+      const style = getComputedStyle(link);
+      const padY = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+      const borderY = Number.parseFloat(style.borderTopWidth) + Number.parseFloat(style.borderBottomWidth);
+      const gap = Number.parseFloat(style.rowGap) || 0;
+      const kids = [...link.children].filter(visible);
+      const kidHeights = kids.map((kid) => {
+        const kidStyle = getComputedStyle(kid);
+        return kid.getBoundingClientRect().height +
+          Number.parseFloat(kidStyle.marginTop || "0") + Number.parseFloat(kidStyle.marginBottom || "0");
+      });
+      const horizontal = style.flexDirection.startsWith("row");
+      const content = horizontal
+        ? Math.max(0, ...kidHeights)
+        : kidHeights.reduce((sum, height, index) => sum + height + (index ? gap : 0), 0);
+      const reserved = box.height - (content + padY + borderY);
+      const issues = [];
+      if (box.height > 64.5) issues.push(`height ${Math.round(box.height)}px`);
+      if (reserved > 12.5) issues.push(`reserves ${Math.round(reserved)}px`);
+      if (issues.length) deadSpaceIssues.push({ selector: selectorOf(link), issues });
+    }
+  }
+  metrics.cardDeadSpace = deadSpaceIssues;
+  if (deadSpaceIssues.length) {
+    add("card-dead-space", `${deadSpaceIssues.length} landing directory link(s) render as tall cards`, deadSpaceIssues.slice(0, 8));
+  }
+
   // 4h. Stat blocks: 12px sentence-case label, 20/24/28 value with tabular
   //     digits. No fixed empty height (the mostly-empty-block check covers it).
   const statIssues = [];
