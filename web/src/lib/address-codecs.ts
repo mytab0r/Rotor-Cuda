@@ -5,8 +5,17 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export interface DerivedAddressRow {
+  id: string;
+  label: string;
+  address: string;
+  steps?: Record<string, string>;
+}
+
 export interface AddressCodecs {
   cashaddr(hash160: string, type: number): string;
+  /** BCH CashAddr and the uncompressed DOGE/ZEC views the WASM report omits. */
+  derive(report: unknown): Record<string, DerivedAddressRow>;
 }
 
 let codecs: AddressCodecs | null = null;

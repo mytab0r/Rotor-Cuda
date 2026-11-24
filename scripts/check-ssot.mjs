@@ -18,7 +18,7 @@
 //                    data/providers.json / data/chains.json. `RotorChains.order`
 //                    membership checks are validated the same way.
 //   vendor-lock      every data/vendor.lock.json entry matches its source and
-//                    target byte for byte, and every file under web/public is
+//                    target byte for byte, every file under web/public is
 //                    locked or listed as an intentional non-copy.
 //   detector-registry every id emitted by scripts/ui-audit.mjs appears in
 //                    data/detectors.json, every defect-ledger detector names an
@@ -497,10 +497,36 @@ export function validateVendorLock(root = REPO_ROOT) {
     }
   }
 
+  const authored = new Set();
+  const authoredEntries = Array.isArray(json.authored) ? json.authored : [];
+  if (json.authored !== undefined && !Array.isArray(json.authored)) {
+    errors.push(`vendor-lock-digest: ${VENDOR_LOCK_PATH}.authored must be an array`);
+  }
+  for (const [index, entry] of authoredEntries.entries()) {
+    const where = `${VENDOR_LOCK_PATH}.authored[${index}]`;
+    if (!isObject(entry)) {
+      errors.push(`vendor-lock-digest: ${where} must be an object`);
+      continue;
+    }
+    if (typeof entry.reason !== "string" || entry.reason.trim() === "") {
+      errors.push(`vendor-lock-digest: ${where}.reason must explain why the file is authored here`);
+    }
+    if (typeof entry.path !== "string" || !entry.path.startsWith(`${WEB_PUBLIC_DIR}/`)) {
+      errors.push(`vendor-lock-digest: ${where}.path must live under ${WEB_PUBLIC_DIR}/`);
+      continue;
+    }
+    if (authored.has(entry.path)) errors.push(`vendor-lock-digest: ${where}.path repeats ${entry.path}`);
+    if (targets.has(entry.path)) {
+      errors.push(`vendor-lock-digest: ${where}.path is also a copy target: ${entry.path}`);
+    }
+    authored.add(entry.path);
+    errors.push(...relativePathErrors(root, entry.path, `${where}.path`));
+  }
+
   for (const file of walkFiles(root, WEB_PUBLIC_DIR)) {
-    if (!targets.has(file)) {
+    if (!targets.has(file) && !authored.has(file)) {
       errors.push(
-        `vendor-lock-digest: ${file} is not in ${VENDOR_LOCK_PATH}; add the source/digest pair or remove the copy`,
+        `vendor-lock-digest: ${file} is not in ${VENDOR_LOCK_PATH}; add the source/digest pair, an authored entry or remove the copy`,
       );
     }
   }
@@ -524,7 +550,7 @@ export function validateVendorLock(root = REPO_ROOT) {
     errors.push(...relativePathErrors(root, entry.source, `${where}.source`));
   }
 
-  return { errors, entries: json.entries.length, nonCopies: json.nonCopies.length };
+  return { errors, entries: json.entries.length, nonCopies: json.nonCopies.length, authored: authoredEntries.length };
 }
 
 // One detector registry: data/detectors.json. The audit must be covered, a

@@ -22,6 +22,29 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
+
+/* Every balance provider host, read from the one provider data source. A
+ * first-paint probe counts only these origins, so the first-party analytics
+ * beacon and the page's own assets never look like a balance lookup. */
+function providerHosts() {
+  const hosts = new Set();
+  try {
+    const data = JSON.parse(readFileSync(path.join(REPO_ROOT, "data", "providers.json"), "utf8"));
+    for (const list of Object.values(data.chains || {})) {
+      for (const entry of list || []) {
+        try {
+          hosts.add(new URL(entry.url).hostname);
+        } catch {
+          /* A malformed provider URL is check-ssot's problem, not the audit's. */
+        }
+      }
+    }
+  } catch {
+    /* Without the data file the probe counts nothing; check-ssot still gates it. */
+  }
+  return hosts;
+}
+const PROVIDER_HOSTS = providerHosts();
 const DEFAULT_ROUTES = [
   "/",
   "/key",
@@ -2084,7 +2107,9 @@ async function auditPage(args) {
     ];
     metrics.keyBalanceProviders = {};
     for (const entry of providerRows) {
-      const row = document.querySelector(`.key-row[data-id="${entry.rowId}"]`);
+      const row = document.querySelector(
+        `.key-row[data-id="${entry.rowId}"], .key-row[data-address-id="${entry.rowId}"]`,
+      );
       const provider = row ? row.dataset.balanceProvider || "" : "absent";
       metrics.keyBalanceProviders[entry.rowId] = provider;
       if (row && provider !== "sochain") {
@@ -2524,10 +2549,16 @@ async function auditPage(args) {
     add("mostly-empty-block", `${emptyBlocks.length} large block(s) more than 45% empty`, emptyBlocks.slice(0, 8));
   }
 
-  // 8. Visible manual balance controls. Balance must be automatic; these
-  //    controls are the regression this harness exists to catch.
+  // 8. Visible manual balance controls. Balance must not load automatically;
+  //    the one sanctioned exception is the Astro key page's single privacy
+  //    control, which starts the lookup only after the user asks for it.
   const manualIds = new Set(["check-balances", "seed-balances", "online-toggle"]);
   const manualTexts = new Set(["check balances", "check public balances", "online balance lookups"]);
+  const sanctionedBalanceCheck = (el) => {
+    if (!el.closest("main.key-page-v2")) return false;
+    if (el.id === "key-balance-check" && el.tagName === "BUTTON") return true;
+    return el.matches(".key-balance-bar") && Boolean(el.querySelector("#key-balance-check"));
+  };
   const balanceControls = [];
   const seenControl = new Set();
   for (const el of document.querySelectorAll("button, a, label, input, p, span, div")) {
@@ -2540,6 +2571,7 @@ async function auditPage(args) {
       manualTexts.has(lower) ||
       (el.matches("button, a[role='button'], input[type='submit']") && lower.startsWith("check balances"));
     if (!idHit && !textHit) continue;
+    if (sanctionedBalanceCheck(el)) continue;
     const key = id || lower.slice(0, 60);
     if (seenControl.has(key)) continue;
     seenControl.add(key);
@@ -3262,6 +3294,66 @@ async function auditPage(args) {
     metrics.pageInset = { samples, spread };
     if (samples.length >= 2 && spread > 1) {
       add("page-inset-parity", `page content insets drift ${spread}px`, samples);
+    }
+  }
+
+  // 12b. Key-page fold and native-title probe. The target is the visible
+  //     table top and the 44px fact rows, plus the donor defect this migration
+  //     removes: a 507-character native title on a container. Only the Astro
+  //     shell (`main.key-page-v2`) carries this grammar; the coordinator still
+  //     serves its legacy `/key` page until cutover.
+  if ((route === "/key" || route.startsWith("/key/")) && document.querySelector("main.key-page-v2")) {
+    const table = document.getElementById("addr-table");
+    const rows = [...document.querySelectorAll("#addr-rows .key-row")].filter(visible);
+    const factRows = [...document.querySelectorAll(".key-facts .key-fact-row")].filter(visible);
+    const stats = [...document.querySelectorAll(".key-stats .key-stat")].filter(visible);
+    const statusCells = [...document.querySelectorAll("#addr-rows .key-cell-status")].filter(visible);
+    const balanceStates = {};
+    for (const row of rows) {
+      const state = row.dataset.balanceState || "";
+      balanceStates[state] = (balanceStates[state] || 0) + 1;
+    }
+    const balances = [...document.querySelectorAll("#addr-rows .key-balance")]
+      .slice(0, 3)
+      .map((badge) => ({
+        text: (badge.querySelector(".key-balance-text")?.textContent || "").trim(),
+        meta: (badge.querySelector(".key-balance-meta")?.textContent || "").trim(),
+        titleLength: (badge.getAttribute("title") || "").length,
+      }));
+    const longTitles = [...document.querySelectorAll(".key-page [title]")]
+      .filter(visible)
+      .map((el) => ({ selector: selectorOf(el), length: (el.getAttribute("title") || "").length }))
+      .filter((entry) => entry.length > 80);
+    const fold = window.innerHeight;
+    metrics.keyPage = {
+      tableStartY: table ? Math.round(table.getBoundingClientRect().top + window.scrollY) : null,
+      firstRowY: rows.length ? Math.round(rows[0].getBoundingClientRect().top + window.scrollY) : null,
+      rowsAboveFold: rows.filter((row) => row.getBoundingClientRect().top < fold).length,
+      totalRows: rows.length,
+      factRowHeights: [...new Set(factRows.map((row) => Math.round(row.getBoundingClientRect().height)))],
+      factRows: factRows.map((row) => ({ fact: row.dataset.fact || "", height: Math.round(row.getBoundingClientRect().height) })),
+      statHeights: [...new Set(stats.map((stat) => Math.round(stat.getBoundingClientRect().height)))],
+      statusHeights: [...new Set(statusCells.map((cell) => Math.round(cell.getBoundingClientRect().height)))],
+      balanceStates,
+      balances,
+      titleAttrsOver80: longTitles,
+    };
+    if (longTitles.length) {
+      add(
+        "native-title-length",
+        `${longTitles.length} native title attribute(s) over 80 characters`,
+        longTitles.slice(0, 5),
+      );
+    }
+    /* The fold budget is part of the key-page contract: the address table
+     * starts above 700px at 1280 and above 800px at 375. 768 has no budget. */
+    const foldLimit = viewportWidth >= 1024 ? 700 : viewportWidth <= 479 ? 800 : null;
+    if (foldLimit !== null && metrics.keyPage.tableStartY !== null && metrics.keyPage.tableStartY > foldLimit) {
+      add(
+        "key-page-fold",
+        `the address table starts at y=${metrics.keyPage.tableStartY} at ${viewportWidth}px; the limit is ${foldLimit}`,
+        { tableStartY: metrics.keyPage.tableStartY, viewport: viewportWidth, limit: foldLimit },
+      );
     }
   }
 
@@ -5522,27 +5614,110 @@ async function auditKeyAutoDerive(cdp) {
         toggle.dispatchEvent(new Event('change', { bubbles: true }));
       }
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-      setter.call(input, '${"0".repeat(63)}1');
+      // Key 3 is different from the server-rendered default (key 1), so the
+      // table can only pass after the island has run the WASM derivation and
+      // re-rendered the rows. The first Bitcoin legacy address is a fixed
+      // vector from the build (/key/000…003): 1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb.
+      const original = input.value;
+      const rowSelector = '#addr-rows .key-row[data-address-id="btc_p2pkh"], #addr-rows .key-row[data-id="btc_p2pkh"]';
+      const firstRow = () => document.querySelector(rowSelector)?.querySelector('.key-addr') || null;
+      /* The coordinator page renders its rows after a local derive; the Astro
+       * page has them in the first byte. Capture the resting state only after
+       * rows exist, so the restore wait measures the real table. */
+      const rowWait = Date.now();
+      while (!firstRow() && Date.now() - rowWait < 1500) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const originalFirst = (firstRow()?.textContent || '').trim();
+      const originalRows = document.querySelectorAll('#addr-rows .key-row').length;
+      setter.call(input, '${"0".repeat(63)}3');
       input.dispatchEvent(new Event('input', { bubbles: true }));
       const started = Date.now();
-      while (Date.now() - started < 6000) {
-        const card = document.getElementById('summary-card');
-        const rows = document.querySelectorAll('#addr-rows .key-row');
-        if (card && !card.hidden && rows.length > 0) {
-          return { ok: true, rows: rows.length, ms: Date.now() - started };
+      let last = null;
+      while (Date.now() - started < 12000) {
+        const first = firstRow();
+        const facts = document.querySelector('[data-fact="hex"] .key-fact-value');
+        last = {
+          first: first ? first.textContent.trim() : '',
+          hex: facts ? facts.textContent.trim() : '',
+          status: (document.getElementById('key-status-text') || {}).textContent || '',
+        };
+        if (last.first === '1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb' &&
+            last.hex === '${"0".repeat(63)}3') {
+          /* The restore is a second debounced derivation. The resting page
+           * checks (fold, providers, clipping) must see the server-rendered
+           * key again, not the half-restored table. The coordinator page has
+           * no server-rendered key, so leave its derived key in place: the
+           * format-scope probe below needs that report to show its panel. */
+          if (originalFirst) {
+            setter.call(input, original);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const restoreStarted = Date.now();
+            while (Date.now() - restoreStarted < 5000) {
+              const restored = (firstRow()?.textContent || '').trim();
+              const count = document.querySelectorAll('#addr-rows .key-row').length;
+              if (restored === originalFirst && count === originalRows) break;
+              await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+          }
+          return { ok: true, rows: document.querySelectorAll('#addr-rows .key-row').length, ms: Date.now() - started, checked: last };
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (originalFirst) {
+        setter.call(input, original);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
       }
       const card = document.getElementById('summary-card');
       return {
         ok: false,
-        reason: 'no derived rows within 6s',
+        reason: 'the island did not render key 3 within 12s',
         summaryHidden: card ? card.hidden : null,
         rows: document.querySelectorAll('#addr-rows .key-row').length,
-        status: (document.getElementById('key-status-text') || {}).textContent || '',
+        last,
       };
     })()`,
-    10000,
+    20000,
+  );
+}
+
+async function waitForKeyDerived(cdp, hex) {
+  const selector = `#addr-rows[data-derived="${hex}"]`;
+  return evaluate(
+    cdp,
+    `(async () => {
+      const selector = ${JSON.stringify(selector)};
+      const end = Date.now() + 20000;
+      while (Date.now() < end) {
+        if (document.querySelector(selector)) return true;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return false;
+    })()`,
+    25000,
+  ).catch(() => false);
+}
+
+async function waitForKeyBalances(cdp) {
+  return evaluate(
+    cdp,
+    `(async () => {
+      const end = Date.now() + 12000;
+      while (Date.now() < end) {
+        const pending = document.querySelectorAll('#addr-rows .key-row[data-balance-state="pending"]').length;
+        if (pending === 0) {
+          const states = {};
+          for (const row of document.querySelectorAll('#addr-rows .key-row')) {
+            const state = row.dataset.balanceState || '';
+            states[state] = (states[state] || 0) + 1;
+          }
+          return { settled: true, states };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return { settled: false, pending: document.querySelectorAll('#addr-rows .key-row[data-balance-state="pending"]').length };
+    })()`,
+    16000,
   );
 }
 
@@ -6266,8 +6441,34 @@ async function main() {
     let networkErrors = [];
     const baseOrigin = new URL(options.base).origin;
     const requestUrls = new Map();
+    let externalRequests = null;
+    let currentRoutePath = "";
     cdp.on("Network.requestWillBeSent", (params) => {
-      if (params?.request?.url) requestUrls.set(params.requestId, params.request.url);
+      const url = params?.request?.url;
+      if (!url) return;
+      requestUrls.set(params.requestId, url);
+      if (!externalRequests) return;
+      let origin = null;
+      let host = "";
+      try {
+        const parsed = new URL(url);
+        origin = parsed.origin;
+        host = parsed.hostname;
+      } catch {
+        return;
+      }
+      if (origin === baseOrigin || !PROVIDER_HOSTS.has(host)) return;
+      /* Count only subresources of the route being audited; a late request
+       * from the previous page must not land in this run. */
+      let documentPath = "";
+      try {
+        documentPath = params.documentURL ? new URL(params.documentURL).pathname : "";
+      } catch {
+        documentPath = "";
+      }
+      const normalise = (value) => (value.length > 1 ? value.replace(/\/$/, "") : value);
+      if (documentPath && normalise(documentPath) !== normalise(currentRoutePath)) return;
+      externalRequests.push(url);
     });
     cdp.on("Network.responseReceived", (params) => {
       const response = params?.response;
@@ -6368,6 +6569,8 @@ async function main() {
           };
 
           try {
+            externalRequests = [];
+            currentRoutePath = route;
             // The WalletConnect handoff branches on the user agent, so a narrow
             // viewport alone cannot exercise the mobile path. Run /cabinet at
             // 375 as an Android Chrome client; every other run restores the
@@ -6436,6 +6639,45 @@ async function main() {
               }
             }
 
+            if (route === "/key" || route.startsWith("/key/")) {
+              /* The Astro key shell defers balances until the user asks. Let
+               * any first-paint side effect surface, then snapshot before the
+               * audit itself types or clicks. The legacy coordinator page is
+               * still served outside /key's cutover and keeps its own code. */
+              const astroKeyPage = await evaluate(
+                cdp,
+                "Boolean(document.querySelector('main.key-page-v2'))",
+                5000,
+              ).catch(() => false);
+              if (astroKeyPage && route !== "/key") {
+                const routeHex = route.split("/").filter(Boolean).pop() || "";
+                if (/^[0-9a-f]{64}$/i.test(routeHex)) {
+                  const derived = await waitForKeyDerived(cdp, routeHex.toLowerCase());
+                  run.metrics.keyDerived = derived;
+                  if (!derived) {
+                    run.violations.push({
+                      id: "key-url-derive",
+                      message: `/key/${routeHex} did not finish deriving its rows within 20s`,
+                      detail: { route, hex: routeHex },
+                    });
+                  }
+                }
+              }
+              if (astroKeyPage) {
+                await new Promise((resolve) => setTimeout(resolve, 600));
+                const firstPaint = [...new Set(externalRequests || [])];
+                run.metrics.firstPaintProviderRequests = firstPaint;
+                if (firstPaint.length) {
+                  run.violations.push({
+                    id: "key-page-first-paint-requests",
+                    message:
+                      `the key page made ${firstPaint.length} provider request(s) before a user action`,
+                    detail: firstPaint.slice(0, 10),
+                  });
+                }
+              }
+            }
+
             if (route === "/key") {
               const derive = await auditKeyAutoDerive(cdp);
               run.metrics.autoDerive = derive;
@@ -6447,16 +6689,40 @@ async function main() {
                 });
               }
               // Runs after the derive so the chain chips and format cards have
-              // rows to select from.
-              const filterScope = await auditKeyFilterScope(cdp);
-              run.metrics.keyFilterScope = filterScope.evidence;
-              if (!filterScope.ok) {
-                run.violations.push({
-                  id: "key-filter-scope",
-                  message: `/key address-format selector leaked across chains: ${(filterScope.problems || []).join("; ")}`,
-                  detail: filterScope,
-                });
+              // rows to select from. The Astro shell has no #format-panel; this
+              // probe belongs to the coordinator page still serving /key.
+              const astroShell = await evaluate(
+                cdp,
+                "Boolean(document.querySelector('main.key-page-v2'))",
+                5000,
+              ).catch(() => false);
+              if (!astroShell) {
+                const filterScope = await auditKeyFilterScope(cdp);
+                run.metrics.keyFilterScope = filterScope.evidence;
+                if (!filterScope.ok) {
+                  run.violations.push({
+                    id: "key-filter-scope",
+                    message: `/key address-format selector leaked across chains: ${(filterScope.problems || []).join("; ")}`,
+                    detail: filterScope,
+                  });
+                }
               }
+            }
+
+            if (route === "/key" || route.startsWith("/key/")) {
+              /* Balances are a user action on the Astro shell: press the one
+               * Check balances control before waiting for the status cells. */
+              run.metrics.balanceCheckControl = await evaluate(
+                cdp,
+                `(() => {
+                  const button = document.getElementById('key-balance-check');
+                  if (!button || !document.querySelector('main.key-page-v2')) return false;
+                  button.click();
+                  return true;
+                })()`,
+                5000,
+              ).catch(() => false);
+              run.metrics.balancesSettled = await waitForKeyBalances(cdp);
             }
 
             if (route === "/cabinet/wallet") {

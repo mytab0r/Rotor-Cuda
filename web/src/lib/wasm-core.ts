@@ -14,8 +14,16 @@ export type Curve = 0 | 1;
 export interface DeriveReport {
   curve: string;
   priv_hex: string;
+  /** Decimal and binary renderings; the donor key-facts helper reads them. */
+  priv_dec?: string;
+  priv_bin?: string;
   pubkey_compressed?: string;
+  pubkey_uncompressed?: string;
+  x?: string;
+  y?: string;
   ed_pubkey?: string;
+  wif_compressed?: string;
+  wif_uncompressed?: string;
   addresses: Array<{
     id: string;
     label: string;
