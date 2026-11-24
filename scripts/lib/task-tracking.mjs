@@ -375,6 +375,40 @@ export function findDependencyCycles(edges = []) {
   return cycles;
 }
 
+// Project item field values are read into one normalized shape per consumer.
+// `setField` must compare against that shape, not against the raw GitHub field
+// name ("Start date".toLowerCase() is "start date", which the camelCase alias
+// never equals). One map keeps the sync and its dry run on the same key.
+const PROJECT_FIELD_KEYS = {
+  Area: "area",
+  Priority: "priority",
+  Severity: "severity",
+  "Start date": "startDate",
+  "Target date": "targetDate",
+  "Actual start": "actualStart",
+  "Actual end": "actualEnd",
+  Progress: "progress",
+  Status: "status",
+  Milestone: "milestone",
+};
+
+export function projectFieldKey(name) {
+  const text = String(name ?? "");
+  return PROJECT_FIELD_KEYS[text] ?? text.toLowerCase();
+}
+
+// True only when the item carries the field and its value already equals the
+// desired one, so a run (or a dry run) skips a no-op write. `listProjectItems`
+// emits the lowercased field name for the four date fields; fall back to that
+// key so the comparison still matches the real item shape.
+export function fieldIsCurrent(item, field, value) {
+  if (!item || !field) return false;
+  const key = projectFieldKey(field.name);
+  const current =
+    item[key] ?? (typeof field.name === "string" ? item[field.name.toLowerCase()] : undefined);
+  return current !== undefined && String(current) === String(value);
+}
+
 // Plan vs fact: `days` is closedAt minus the milestone due date (negative or
 // zero is on time). The sync reports this; it never writes it back.
 export function targetDelta(targetDate, actualDate) {
