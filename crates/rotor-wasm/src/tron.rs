@@ -201,12 +201,10 @@ impl Tx {
 
         let token_contract_address = match kind {
             Kind::Trx => {
-                if let Some(text) = slots[3] {
-                    if !text.is_empty() {
-                        return Err("token_contract_address is set but kind is \"trx\"; \
-                             use \"kind\":\"trc20\" for a token transfer"
-                            .to_owned());
-                    }
+                if slots[3].is_some_and(|text| !text.is_empty()) {
+                    return Err("token_contract_address is set but kind is \"trx\"; \
+                         use \"kind\":\"trc20\" for a token transfer"
+                        .to_owned());
                 }
                 [0u8; 21]
             }
@@ -944,7 +942,7 @@ mod tests {
 
             // A one-character checksum change.
             let mut flipped = CONTRACT[..CONTRACT.len() - 1].to_owned();
-            flipped.push_str("u");
+            flipped.push('u');
             assert!(unsigned_request(&request(&flipped)).is_err());
 
             // Correct prefix but the wrong payload length.
