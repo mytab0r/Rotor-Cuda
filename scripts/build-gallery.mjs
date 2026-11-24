@@ -311,6 +311,7 @@ export function renderGallery(root = REPO_ROOT) {
 <meta name="robots" content="noindex">
 <title>Crypto - design gallery</title>
 <link rel="stylesheet" href="/site.css">
+<link rel="preload" href="/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/admin.css">
 <script src="/theme.js"></script>
 </head>
