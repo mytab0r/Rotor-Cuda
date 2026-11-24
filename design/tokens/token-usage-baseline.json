@@ -128,7 +128,7 @@
       ]
     },
     "raw-hex-outside-root": {
-      "count": 37,
+      "count": 38,
       "entries": [
         {
           "file": "apps/site/brainwallet.css",
@@ -333,6 +333,12 @@
           "line": 1455,
           "match": "#d3922d",
           "reason": "Legacy gradient/shadow stop with no exact token; mapping it is a restyle outside this change."
+        },
+        {
+          "file": "apps/site/site.css",
+          "line": 1657,
+          "match": "#c8d8ea",
+          "reason": "Legacy palette literal with no exact token; mapping it is a design decision."
         },
         {
           "file": "apps/site/site.css",
