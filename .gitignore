@@ -11,6 +11,7 @@
 # web/tests/__screenshots__/ (the Playwright baselines, which are test fixtures).
 web/playwright-report/
 web/test-results/
+web/test-results-coord/
 docs/**/screenshots/
 docs/**/evidence/**/*.png
 docs/**/evidence/**/*.jpg
