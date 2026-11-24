@@ -38,3 +38,13 @@ test.describe('navigation disclosure', () => {
     await expect(toggle).toBeFocused();
   });
 });
+
+/* ROT-501: the preload is what keeps the landing page's CLS at zero with
+ * font-display: swap. Dropping it from the shared layout would leave the
+ * webfont swapping in after first paint again. */
+test('the landing page preloads the Manrope webfont', async ({ page }) => {
+  await openRoute(page, '/');
+  const preload = page.locator('head link[rel="preload"][as="font"][type="font/woff2"]');
+  await expect(preload).toHaveCount(1);
+  await expect(preload).toHaveAttribute('href', /\/fonts\/manrope-latin\.woff2$/);
+});

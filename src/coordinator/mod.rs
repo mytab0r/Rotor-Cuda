@@ -3013,6 +3013,7 @@ fn html_document(title: &str, head_extra: &str, body: &str) -> String {
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
          <title>{}</title>\n\
          <link rel=\"stylesheet\" href=\"/site.css\">\n\
+         <link rel=\"preload\" href=\"/fonts/manrope-latin.woff2\" as=\"font\" type=\"font/woff2\" crossorigin>\n\
          <script src=\"/theme.js\"></script>\n\
          {head_extra}</head>\n<body>\n{body}\n{footer}\n<script src=\"/search.js\"></script>\n<script src=\"/site.js\"></script>\n</body>\n</html>\n",
         escape_attr(title),
@@ -6980,6 +6981,9 @@ mod tests {
     fn rendered_documents_load_the_theme_script() {
         let page = html_document("Test", "", "");
         assert!(page.contains(r#"<link rel="stylesheet" href="/site.css">"#));
+        assert!(page.contains(
+            r#"<link rel="preload" href="/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>"#
+        ));
         assert!(page.contains(r#"<script src="/theme.js"></script>"#));
         assert!(page.contains(r#"<script src="/search.js"></script>"#));
         assert!(page.contains(r#"<script src="/site.js"></script>"#));

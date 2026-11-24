@@ -575,6 +575,66 @@ function emptyStateViolations() {
   }];
 }
 
+// font-swap-layout-shift: a first-party webfont may not arrive after first
+// paint and re-flow the text. `font-display: swap` is safe only when every
+// document that links site.css preloads the face (ROT-501: without the
+// preload the late swap shifted the Astro landing page by CLS 0.177, and
+// `optional` was worse: a missed block window kept the wider fallback and
+// clipped the nav). The invariant is the preload, not the display mode.
+function fontDisplayViolations() {
+  const siteDir = path.join(REPO_ROOT, "apps", "site");
+  const fontPath = "/fonts/manrope-latin.woff2";
+  const css = readFileSync(path.join(siteDir, "site.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "));
+  if (!css.includes("@font-face")) return [];
+  const issues = [];
+  const preloaded = (text) => text
+    .replace(/\\"/g, '"')
+    .split("\n")
+    .some((line) => line.includes('rel="preload"') && line.includes(fontPath));
+  const report = (text, file, anchor, offset = 0) => {
+    if (preloaded(text)) return;
+    const index = text.indexOf(anchor);
+    const line = index < 0 ? 1 : offset + text.slice(0, index).split("\n").length;
+    issues.push(`${file}:${line} links ${anchor} without preloading ${fontPath}`);
+  };
+
+  for (const name of readdirSync(siteDir).filter((file) => file.endsWith(".html"))) {
+    const text = readFileSync(path.join(siteDir, name), "utf8");
+    if (!text.includes('href="/site.css"')) continue;
+    report(text, `apps/site/${name}`, 'href="/site.css"');
+  }
+
+  const layoutFile = "web/src/layouts/SiteLayout.astro";
+  report(
+    readFileSync(path.join(REPO_ROOT, "web", "src", "layouts", "SiteLayout.astro"), "utf8"),
+    layoutFile,
+    'href="/site.css"',
+  );
+
+  const coordinatorFile = "src/coordinator/mod.rs";
+  const coordinator = readFileSync(path.join(REPO_ROOT, "src", "coordinator", "mod.rs"), "utf8");
+  const documentStart = coordinator.indexOf("fn html_document(");
+  const documentEnd = coordinator.indexOf("\nfn ", documentStart + 1);
+  if (documentStart < 0) {
+    issues.push(`${coordinatorFile}:1 html_document is missing`);
+  } else {
+    report(
+      coordinator.slice(documentStart, documentEnd < 0 ? undefined : documentEnd),
+      coordinatorFile,
+      'href=\\"/site.css\\"',
+      coordinator.slice(0, documentStart).split("\n").length - 1,
+    );
+  }
+
+  if (!issues.length) return [];
+  return [{
+    id: "font-swap-layout-shift",
+    message: `${issues.length} document(s) link site.css without preloading the webfont`,
+    detail: issues.slice(0, 12),
+  }];
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -891,8 +951,9 @@ function slugify(route) {
 // Runs inside the page. Keep every helper inside so the function can be
 // serialized without closing over the Node scope.
 async function auditPage(args) {
-  // Web fonts swap in after the load event (site.css declares
-  // font-display: swap), and a late swap changes line-box height. Measuring
+  // Web fonts swap in after the load event (site.css uses
+  // font-display: swap with a preload, but the face can still land late on a
+  // cold profile), and a late swap changes line-box height. Measuring
   // before the font set settles reported a transient 1-2px cell overflow on
   // /bitcoin-puzzle that the settled layout does not have (ROT-472). Wait for
   // the same font-ready condition goto() uses, then one frame so the final
@@ -6625,6 +6686,7 @@ async function main() {
     globalViolations.push(...legacyTokenViolations());
     globalViolations.push(...litecoinFallbackViolations());
     globalViolations.push(...emptyStateViolations());
+    globalViolations.push(...fontDisplayViolations());
     globalViolations.push(...tableClassViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({

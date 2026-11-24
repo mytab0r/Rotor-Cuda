@@ -834,6 +834,13 @@
       "symptom": "In-text links on the legacy coordinator pages had no underline and differed from body text only by colour (1.16-1.99:1), failing WCAG 1.4.1 (#478); link-only blocks such as chips are exempt because they are controls, not prose.",
       "detector": "link-in-text-block",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "landing-webfont-layout-shift",
+      "reported": "2026-11-24",
+      "symptom": "The Astro landing page declared Manrope with font-display: swap and no preload, so the late font swap re-flowed the hero paragraph: CLS 0.177 on / and 0.085 on /mnemonic-seeds/bitcoin/ in every Lighthouse run.",
+      "detector": "font-swap-layout-shift",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

@@ -182,6 +182,7 @@ page-local override.
 | `key-summary-stack` | At <=560px the key-summary label sits above the value with no 112px label column; above it the dt/dd stay two columns. | 8 | implemented |
 | `legacy-link-contrast` | Every visible legacy .address-link keeps >=4.5:1 contrast on its effective card background. | 8 | implemented |
 | `link-in-text-block` | Every visible in-text link (a link inside a main p/li/dd block that also has text) is underlined, so it is not distinguished from body text by colour alone. | 8 | implemented |
+| `font-swap-layout-shift` | Every document that links /site.css preloads the first-party Manrope woff2, so a late webfont swap cannot shift layout or keep a wider fallback. | 7 | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a

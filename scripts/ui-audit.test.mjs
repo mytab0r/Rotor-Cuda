@@ -70,3 +70,19 @@ test("legacy address links keep 4.5:1 and in-text links are underlined (ROT-478)
   assert.match(auditContrast, /textDecorationLine\.includes\('underline'\)/);
   assert.match(auditContrast, /addressLinks: 0, inTextLinks: 0/);
 });
+
+/* ROT-501: a webfont that swapped in after first paint shifted the landing
+ * page (CLS 0.177). The universal revert tier needs this to go red when the
+ * detector hunk is reverted. */
+test("the font-display detector requires a preload in every document", () => {
+  const start = source.indexOf("function fontDisplayViolations()");
+  assert.ok(start > 0, "fontDisplayViolations is present");
+  const fn = source.slice(start, source.indexOf("function sleep(", start));
+  assert.match(fn, /@font-face/);
+  assert.match(fn, /\/fonts\/manrope-latin\.woff2/);
+  assert.match(fn, /rel="preload"/);
+  assert.match(fn, /SiteLayout\.astro/);
+  assert.match(fn, /html_document/);
+  assert.match(fn, /id: "font-swap-layout-shift"/);
+  assert.match(source, /globalViolations\.push\(\.\.\.fontDisplayViolations\(\)\)/);
+});
