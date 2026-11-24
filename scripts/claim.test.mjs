@@ -7,6 +7,7 @@ import {
   claimState,
   claimsNear,
   latestClaim,
+  mustBackOff,
   parseClaimComment,
 } from "./lib/claims.mjs";
 
@@ -102,4 +103,12 @@ test("claims that land within the window are returned for the tie-break", () => 
   far.createdAt = "2026-11-24T19:00:00.000Z";
   const near = claimsNear([a, b, far], "2026-11-24T18:00:01.000Z");
   assert.deepEqual(near.map((item) => item.session), ["aaa", "bbb"]);
+});
+
+test("the lower session id keeps a near tie and both sides agree", () => {
+  const windowClaims = [{ session: "aaa" }, { session: "bbb" }];
+  assert.equal(mustBackOff(windowClaims, "bbb"), true, "bbb yields to aaa");
+  assert.equal(mustBackOff(windowClaims, "aaa"), false, "aaa keeps the issue");
+  assert.equal(mustBackOff([{ session: "aaa" }], "aaa"), false, "our own claim is not a rival");
+  assert.equal(mustBackOff([{ session: "zzz" }], "aaa"), false, "a higher id yields to us");
 });

@@ -18,6 +18,7 @@ import {
   claimState,
   claimsNear,
   latestClaim,
+  mustBackOff,
   parseClaimComment,
 } from "./lib/claims.mjs";
 
@@ -174,10 +175,9 @@ function start(number, options, session) {
     .filter((item) => item.claim && item.claim.session === session && item.claim.branch === options.branch)
     .pop();
   const ownAt = own?.comment?.createdAt ?? at;
-  const rival = claimsNear(comments, ownAt).find(
-    (item) => item.session !== session && item.session < session,
-  );
-  if (rival) {
+  const window = claimsNear(comments, ownAt);
+  if (mustBackOff(window, session)) {
+    const rival = window.find((item) => item.session !== session && item.session < session);
     console.error(
       `lost the claim race on #${number} to ${rival.session} on ${rival.branch}; backing off.`,
     );

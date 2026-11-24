@@ -97,3 +97,11 @@ export function claimsNear(comments = [], at, windowMs = 5000) {
 export function sameBranch(claim, branch) {
   return Boolean(claim && branch && claim.branch === branch);
 }
+
+// Deterministic tie-break for claims that landed together: the lower session
+// id keeps the issue. A session backs off when a rival with a lower id is in
+// the window. Both sides compute the same winner regardless of read order.
+export function mustBackOff(claims = [], session) {
+  if (!session) return false;
+  return claims.some((item) => item.session && item.session !== session && item.session < session);
+}
