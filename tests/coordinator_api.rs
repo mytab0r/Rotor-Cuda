@@ -2732,14 +2732,20 @@ fn admin_login_accepts_the_operator_password() {
         cookie_pair(&cookies, "rotor_admin").is_some(),
         "sign-in must set the session cookie"
     );
-    assert!(!body.contains("correct horse"), "the response must not echo the password");
+    assert!(
+        !body.contains("correct horse"),
+        "the response must not echo the password"
+    );
 
     for (label, body) in [
         (
             "wrong password",
             json!({"user": "owner", "password": "wrong"}),
         ),
-        ("wrong user", json!({"user": "admin", "password": "correct horse battery"})),
+        (
+            "wrong user",
+            json!({"user": "admin", "password": "correct horse battery"}),
+        ),
         ("empty", json!({"user": "", "password": ""})),
     ] {
         let (status, _, _) = raw(

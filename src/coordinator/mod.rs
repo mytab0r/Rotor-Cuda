@@ -1309,10 +1309,13 @@ struct AdminLoginRequest {
 /// operator login. Both comparisons are constant time, and the pair check runs
 /// both halves so a wrong user does not answer faster than a wrong password.
 fn admin_credentials_valid(app: &App, request: &AdminLoginRequest) -> bool {
-    if let Some(token) = request.token.as_deref().filter(|value| !value.is_empty()) {
-        if constant_time_eq(token.as_bytes(), app.admin_token.as_bytes()) {
-            return true;
-        }
+    if request
+        .token
+        .as_deref()
+        .filter(|value| !value.is_empty())
+        .is_some_and(|token| constant_time_eq(token.as_bytes(), app.admin_token.as_bytes()))
+    {
+        return true;
     }
     match (
         app.admin_user.as_deref(),
