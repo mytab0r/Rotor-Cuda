@@ -23,6 +23,9 @@ const schemes = ['light', 'dark'] as const;
 
 export default defineConfig({
   testDir: './tests/e2e',
+  /* `/key` is coordinator-served; its DOM regression runs under
+   * `playwright.coord.config.ts` against the release binary. */
+  testIgnore: ['**/key-format.spec.ts'],
   /* Baselines live in `tests/__screenshots__/<platform>/<project>/<name>.png`.
    * Text rasterisation differs between Windows and the Linux CI runner by
    * more than a few percent, so each platform keeps its own reviewed set
