@@ -110,6 +110,11 @@ Markdown file at the repository root (`README.md`, `AGENTS.md`,
 (`apps/`, `web/`, `src/`, `crates/`, `data/`, `design/`, `tests/`) requires a
 key.
 
+The PR body also follows `.github/pull_request_template.md`.
+`scripts/check-process.mjs` gates the evidence sections and accepts the same
+docs/process-only reduced contract; see
+[verification.md](verification.md).
+
 ### Branch
 
 ```text
@@ -219,6 +224,28 @@ keep the original commitment. The board gate requires both plan dates on every
 synced issue and both actual dates on every closed one; the allowlist may only
 name historical closed issues.
 
+## Adopted issues
+
+An issue created outside the sync still belongs to the board when its title
+carries a `ROT-<n>` key or it has an `area:*`, `change:*` or `epic` label. The
+sync adopts it instead of ignoring it:
+
+- **Area** comes from the `area:*` label, then from the title, then `site`.
+- **Type**: `fix(...)` in the title is `Bug`; an epic is `Feature`; any other
+  adopted issue is `Task`. An existing native Type is kept.
+- **Priority** defaults to `P2` for adopted non-epic work, unless the epic's
+  body declares `Priority: Pn`; an adopted epic follows the epic rule
+  (`P1` unless declared).
+- **Milestone** follows the normal epic-first, then area mapping.
+- **Plan dates**: `Start date` = the issue `createdAt` date, `Target date` =
+  the milestone due date.
+- **Actual dates** for a closed issue: `Actual start` = `createdAt`,
+  `Actual end` = `closedAt`.
+
+This is why the gate can stay strict: #421, #423 and #425 are adopted and get
+real fields rather than an allowlist entry. Historical allowlist entries remain
+only for issues whose work predates the sync and is not adopted.
+
 ## Native dependencies
 
 The `Blocked by: ROT-7 (#7), ROT-8 (#8)` line stays for humans. The sync also
@@ -282,6 +309,10 @@ node scripts/check-task-links.mjs --board   # native fields, blockers, cycles
 `sync-board` needs `gh` with `repo` and `project` scopes; it also creates the
 `change:<id>` labels and the `Priority` / `Severity` / `Start date` /
 `Target date` / `Actual start` / `Actual end` project fields on demand.
+Projects v2 has its own points budget: project calls retry with 60/120/240/240s
+backoff, and if the quota stays exhausted the sync and the gate exit 0 with
+`sync deferred: Projects quota` (green run, step-summary note) instead of a red
+one. The report prints `project API calls: N`.
 `.github/workflows/board-sync.yml` runs the sync and then
 `check-task-links.mjs --board`; the gate fails when a synced issue (open or
 closed) has no native Type, no Milestone, no Priority or not both plan dates,
@@ -302,7 +333,9 @@ fails when:
 - the closing reference to the keyed issue is missing;
 - `Task: none` has no reason, or is used on a PR that changes product paths.
 
-The workflow needs no secret. If the repository moves under a provider without
+The workflow needs no secret. An automation PR (a `[bot]` or `app/*` author, or
+a `release-please--*` head branch) is skipped with a notice: it has no human
+author to carry a key. If the repository moves under a provider without
 GitHub's issue tracker, the check is replaced by the provider's own status
 context; the text convention does not change.
 

@@ -62,6 +62,18 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}/ui-audit
         run: node scripts/ui-audit.mjs --serve --json "${{ runner.temp }}/ui-audit/report.json"
+      # `/key` is coordinator-served, so its DOM regression cannot run against
+      # the Astro `dist/` in the playwright job. This job already built the
+      # release coordinator above; drive the real page against it.
+      - name: Install the /key DOM regression dependencies
+        working-directory: web
+        run: npm ci
+      - name: Install Chromium for the /key DOM regression
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Run the /key DOM regression
+        working-directory: web
+        run: npx playwright test --config playwright.coord.config.ts
       # Evidence is a CI artifact, never a committed file. Upload on every run
       # (a green run still carries the screenshots a reviewer opens), and keep
       # the failing step's exit code as the gate.
@@ -75,5 +87,44 @@ jobs:
           path: |
             ${{ runner.temp }}/ui-audit/report.json
             ${{ runner.temp }}/ui-audit/rotor-ui-audit-*/screenshots
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Browser-level regression: real Chromium over the built `web/dist`, no
+  # network. Playwright covers structural E2E, axe accessibility and visual
+  # baselines; the custom CDP audit above still owns geometry and density.
+  #
+  # Run in the pinned Playwright image: the committed `linux` baselines are
+  # generated there, so the browser build, font stack and fontconfig match CI.
+  # A bare ubuntu-latest runner measured 2-10% text-rasterisation drift against
+  # those baselines, which is the same order as a real layout regression.
+  playwright:
+    name: playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.1-noble
+      options: --user 1001
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Build the static site
+        working-directory: web
+        run: npm run build
+      # retries: 1 is set in playwright.config.ts; a retry stabilises flaky
+      # browser timing without hiding a real regression from the gate.
+      - name: Run browser regression tests
+        working-directory: web
+        run: npx playwright test
+      - name: Upload the HTML report and failure diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            web/playwright-report
+            web/test-results
           retention-days: 14
           if-no-files-found: ignore

@@ -27,7 +27,30 @@ const SOFT_NOTE_RE = /^(?:follows|after|needs?|depends on|see)\b/i;
 const DOC_PATH_RE = /^(?:docs\/|openspec\/)/i;
 const ROOT_MARKDOWN_RE = /^[^/]+\.(?:md|mdx)$/i;
 const PROCESS_PATH_RE =
-  /^(?:scripts\/|\.github\/)|^(?:projects\.json|AGENTS\.md|PROJECTS\.md)$/;
+  /^(?:scripts\/|\.github\/)|^(?:projects\.json|AGENTS\.md|PROJECTS\.md|\.commitlintrc\.json|lighthouserc\.json|\.gitleaks\.toml)$/;
+
+// A PR opened with `GITHUB_TOKEN` does not trigger `pull_request` workflows, so
+// release-please is given an owner PAT. The resulting PR is a normal PR from a
+// bot/app actor or from the `release-please--*` branch. Automation PRs have no
+// human author to satisfy the PR contract, so the human-facing gates skip them
+// with a printed notice instead of failing on missing sections or a Task line.
+const BOT_LOGIN_RE = /(?:\[bot\]$|^app\/)/i;
+export const RELEASE_PLEASE_HEAD_REF_RE = /^release-please--/;
+
+export function automationPullRequestReason({
+  author = null,
+  isBot = false,
+  headRefName = null,
+} = {}) {
+  const login = String(author ?? "").trim();
+  if (isBot) return `author ${login || "(bot)"} is a bot`;
+  if (login && BOT_LOGIN_RE.test(login)) return `author ${login} is an automation actor`;
+  const head = String(headRefName ?? "").trim();
+  if (RELEASE_PLEASE_HEAD_REF_RE.test(head)) {
+    return `head branch ${head} is a release-please branch`;
+  }
+  return null;
+}
 
 export function taskKey(issueNumber) {
   const number = Number(issueNumber);
@@ -279,12 +302,15 @@ export function boardMetadataFor({
   return { type, milestone, warnings };
 }
 
-// A synced issue is one the board sync owns: an epic or an OpenSpec sub-issue.
-// A manual issue may legitimately carry no type or milestone.
+// A synced issue is one the board sync owns: an epic, an OpenSpec sub-issue,
+// an area-labelled issue, or any issue whose title carries a ROT key. Manual
+// issues without any of those markers are left alone.
 export function isSyncManagedIssue(issue) {
   const names = labelsOf(issue);
   return (
-    names.includes("epic") || names.some((name) => name.startsWith("change:"))
+    names.includes("epic") ||
+    names.some((name) => name.startsWith("change:") || name.startsWith("area:")) ||
+    /(?:^|\s)ROT-[1-9]\d*\b/.test(String(issue?.title ?? ""))
   );
 }
 

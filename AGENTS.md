@@ -43,6 +43,12 @@ the GitHub issue number; an epic per OpenSpec change and a sub-issue per
   issue beyond the sync marker.
 - `node scripts/check-task-links.mjs` is the CI gate; run it locally before
   pushing when the PR body or the task mapping changed.
+- The PR body follows `.github/pull_request_template.md`. `process-contract`
+  fails a product PR without `## Spec`, `## Tests`, `## Mutation proof`,
+  `## Independent review`, `## Verification` or `Task: ROT-<n>`. The role chain
+  (spec and tests before code, author never edits its own tests, reviewer
+  re-runs the mutation proof), the reduced contract and the mutation smoke are
+  in `docs/process/verification.md`.
 
 Reading order: this file -> `PROJECTS.md` -> area `AGENTS.md` -> `openspec/`.
 
@@ -113,8 +119,13 @@ explorer URL or chain identity into a page script.
 
 ## Security alerts
 
-- Code scanning alerts are triaged within one working day. `.github/workflows/codeql-alerts.yml`
-  fails daily while any alert stays open, so an ignored alert turns the monitor red.
+- Every open code scanning, Dependabot and secret scanning alert is routed to
+  one tracking issue by `.github/workflows/security-alerts-sync.yml`; the
+  lifecycle, severity-to-priority mapping and the 24h unassigned escalation are
+  in `docs/process/security-alerts.md`. A dismissed or fixed alert closes its
+  issue with the evidence; a human-closed issue is never reopened.
+- Code scanning alerts are triaged within one working day. The daily sync
+  escalates an open alert older than 24h whose tracking issue has no assignee.
 - Fix a real finding; dismiss a false positive only with `dismissed_reason` and a
   written comment naming the evidence (for example: deterministic test fixture
   inside `#[test]`, never used by production code). Never dismiss silently and

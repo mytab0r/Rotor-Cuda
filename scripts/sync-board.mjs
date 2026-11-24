@@ -28,12 +28,15 @@ import {
   changeIdForIssue,
   closingIssueNumbers,
   declarationLines,
+  declaredPriority,
   epicBody,
   filesBelongToChange,
+  inferIssueType,
   isSyncManagedIssue,
   issueNumberFromKey,
   linkSubIssueToEpic,
   listIssueMetadata,
+  parseBlockedByText,
   parseTaskDirective,
   parseTasksMarkdown,
   priorityFor,
@@ -41,6 +44,14 @@ import {
   syncChangeTasks,
   targetDelta,
 } from "./lib/task-tracking.mjs";
+import {
+  ProjectsRateLimitError,
+  appendRunSummary,
+  isRateLimitError,
+  listProjectItems,
+  projectApiCalls,
+  withProjectsRetry,
+} from "./lib/project-api.mjs";
 
 const REPO = "mytab0r/Rotor-Cuda";
 const [REPO_OWNER, REPO_NAME] = REPO.split("/");
@@ -501,29 +512,34 @@ function main() {
     console.log(`created label ${name}`);
   }
 
-  const project = ghJson([
-    "project",
-    "view",
-    String(PROJECT_NUMBER),
-    "--owner",
-    OWNER,
-    "--format",
-    "json",
-  ]);
-  if (!project?.id) {
+  // One cached read of the project items: only the fields the board uses and
+  // the project id, so the per-issue writes never re-fetch the list.
+  const projectState = listProjectItems({
+    ghJson,
+    owner: OWNER,
+    number: PROJECT_NUMBER,
+    log: (line) => console.log(line),
+  });
+  const project = { id: projectState.projectId };
+  const items = projectState.items;
+  if (!project.id) {
     throw new Error(`cannot read project ${PROJECT_NUMBER} for owner ${OWNER}`);
   }
 
   const fieldList =
-    ghJson([
-      "project",
-      "field-list",
-      String(PROJECT_NUMBER),
-      "--owner",
-      OWNER,
-      "--format",
-      "json",
-    ])?.fields ?? [];
+    withProjectsRetry(
+      () =>
+        ghJson([
+          "project",
+          "field-list",
+          String(PROJECT_NUMBER),
+          "--owner",
+          OWNER,
+          "--format",
+          "json",
+        ]),
+      { label: "project field-list", log: (line) => console.log(line) },
+    )?.fields ?? [];
   const fieldByName = new Map(fieldList.map((field) => [field.name, field]));
 
   function ensureField(name, type, options) {
@@ -568,7 +584,13 @@ function main() {
       "json",
     ];
     if (options) args.push("--single-select-options", options.join(","));
-    const created = ghJson(args);
+    const created = withProjectsRetry(
+      () => ghJson(args),
+      {
+        label: `project field-create ${name}`,
+        log: (line) => console.log(line),
+      },
+    );
     console.log(`created project field ${name} (${type})`);
     fieldByName.set(name, created);
     return created;
@@ -608,18 +630,6 @@ function main() {
     return option;
   };
 
-  const items =
-    ghJson([
-      "project",
-      "item-list",
-      String(PROJECT_NUMBER),
-      "--owner",
-      OWNER,
-      "--limit",
-      "1000",
-      "--format",
-      "json",
-    ])?.items ?? [];
   const itemsByUrl = new Map();
   for (const item of items) {
     const url = itemUrl(item);
@@ -633,26 +643,38 @@ function main() {
       console.log(`[dry-run] add project item ${label}: ${url}`);
       return null;
     }
-    const added = ghJson([
-      "project",
-      "item-add",
-      String(PROJECT_NUMBER),
-      "--owner",
-      OWNER,
-      "--url",
-      url,
-      "--format",
-      "json",
-    ]);
+    const added = withProjectsRetry(
+      () =>
+        ghJson([
+          "project",
+          "item-add",
+          String(PROJECT_NUMBER),
+          "--owner",
+          OWNER,
+          "--url",
+          url,
+          "--format",
+          "json",
+        ]),
+      { label: `project item-add ${label}`, log: (line) => console.log(line) },
+    );
     if (!added?.id) throw new Error(`gh project item-add returned no id for ${url}`);
     const item = { id: added.id, content: { url } };
     itemsByUrl.set(url, item);
+    items.push(item);
     console.log(`added project item ${label}: ${url}`);
     return item;
   }
 
   function setField(item, field, value, valueLabel, kind = null) {
-    if (!item) return;
+    if (!item) {
+      if (DRY_RUN) {
+        console.log(
+          `[dry-run] set ${field?.name ?? "field"}=${valueLabel} on a new project item`,
+        );
+      }
+      return;
+    }
     if (!field) {
       console.log(`[dry-run] set ${valueLabel} on ${itemUrl(item)} (field not created yet)`);
       return;
@@ -686,7 +708,13 @@ function main() {
     } else {
       args.push("--number", String(value));
     }
-    gh(args);
+    withProjectsRetry(
+      () => gh(args),
+      {
+        label: `project item-edit ${field.name}`,
+        log: (line) => console.log(line),
+      },
+    );
   }
 
   const milestones = readMilestones();
@@ -1277,26 +1305,34 @@ function main() {
       }
     }
 
-    // Archived changes no longer appear in openspec/changes, but their issues
-    // can still be project items. Classify those so the board's Type column is
-    // never empty; do not add a closed archived issue that is not an item yet.
-    // A manual item that already has a native Type keeps it and gets a
-    // milestone/priority; an untyped manual issue is left alone.
+    // Adoption pass. An issue created outside the sync is still board work
+    // when its title carries a ROT key or it has an area:/change:/epic label.
+    // Give it the same fields as a synced issue instead of leaving the gate to
+    // fail on it. Newly adopted non-epic work defaults to P2 unless its epic
+    // declares a priority.
     for (const issue of issues) {
       if (processedNumbers.has(issue.number)) continue;
-      const managed = isSyncManagedIssue(issue);
-      if (managed) {
-        if (issue.state !== "OPEN" && !itemsByUrl.has(issue.url)) continue;
-      } else if (!itemsByUrl.has(issue.url)) {
-        continue;
-      }
-      const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
-      if (!managed && !existingType) continue;
+      if (!isSyncManagedIssue(issue)) continue;
       const labels = labelsOf(issue);
       const areaLabel = labels.find((name) => name.startsWith("area:"));
       const area =
         areaLabel?.slice("area:".length) ?? areaFromText(issue.title ?? "") ?? "site";
       const isEpic = labels.includes("epic");
+      const changeId = changeIdForIssue(issue);
+      const epic = changeId ? epicByChange.get(changeId) : null;
+      const epicDeclaredPriority = epic
+        ? declaredPriority(`${epic.title ?? ""}\n${epic.body ?? ""}`)
+        : null;
+      const existingType = issueMetadata.get(issue.number)?.issueType ?? null;
+      const inferred = inferIssueType(issue);
+      const fixTitle = /^fix\(/i.test(String(issue.title ?? ""));
+      // Keep a native Bug (a defect) and a native Feature (an epic); otherwise
+      // the adoption rule is fix( -> Bug, everything else non-epic -> Task.
+      let typeOverride = inferred;
+      if (typeOverride !== "Feature" && existingType === "Bug") {
+        typeOverride = "Bug";
+      }
+      if (!typeOverride) typeOverride = fixTitle ? "Bug" : existingType ?? "Task";
       const item = ensureItem(
         issue.url,
         `${isEpic ? "epic" : "sub-issue"} #${issue.number}`,
@@ -1308,14 +1344,24 @@ function main() {
         body: issue.body ?? "",
         labels,
         state: issue.state,
-        changeId: changeIdForIssue(issue),
+        changeId,
         area,
         isEpic,
-        epicPriority: "P1",
+        epicPriority: isEpic ? "P1" : epicDeclaredPriority ?? "P2",
         epicSeverity: "S-",
         item,
-        typeOverride: managed ? null : existingType,
+        typeOverride,
       });
+      if (issue.state === "OPEN") {
+        const blockers = parseBlockedByText(issue.body ?? "");
+        if (blockers.length > 0) {
+          syncNativeBlockers({
+            number: issue.number,
+            blockedByKeys: blockers.map((number) => `ROT-${number}`),
+            id: issue.id,
+          });
+        }
+      }
     }
 
     const prs = ghJson([
@@ -1418,26 +1464,17 @@ function main() {
       items,
       openPullRequestNumbers: new Set(prs.map((pr) => pr.number)),
       projectId: project.id,
-      ghJson,
+      ghJson: (args) =>
+        withProjectsRetry(() => ghJson(args), {
+          label: "project archive",
+          log: (line) => console.log(line),
+        }),
       repo: REPO,
       dryRun: DRY_RUN,
       log: (line) => console.log(line),
     });
 
-    const projectItems =
-      DRY_RUN
-        ? items.length
-        : ghJson([
-            "project",
-            "item-list",
-            String(PROJECT_NUMBER),
-            "--owner",
-            OWNER,
-            "--limit",
-            "1000",
-            "--format",
-            "json",
-          ])?.items?.length ?? 0;
+    const projectItems = items.length;
 
     // Plan vs fact: plan is Start date -> Target date; facts are Actual start
     // -> Actual end. Actuals are reported only, never written into the plan
@@ -1494,6 +1531,8 @@ function main() {
     for (const edge of dependencyEdges) console.log(`dependency: ${edge}`);
     for (const line of actualLines) console.log(line);
     console.log(`actuals: ${onTime} on time, ${late} late`);
+    console.log(`project API calls: ${projectApiCalls()}`);
+    appendRunSummary(`project API calls: ${projectApiCalls()}`);
     if (metadataWarnings.length > 0) {
       console.log(`board metadata warnings: ${metadataWarnings.length}`);
     }
@@ -1519,7 +1558,21 @@ if (invokedDirectly) {
   try {
     main();
   } catch (error) {
-    console.error(`error: ${error.message}`);
-    process.exit(1);
+    if (error instanceof ProjectsRateLimitError || isRateLimitError(error)) {
+      console.log("warning: sync deferred: Projects quota");
+      console.log(`warning: ${error.message}`);
+      console.log(`project API calls: ${projectApiCalls()}`);
+      appendRunSummary("### sync deferred: Projects quota");
+      appendRunSummary(`project API calls: ${projectApiCalls()}`);
+      if (process.env.GITHUB_ACTIONS) {
+        console.log("::warning::sync deferred: Projects quota");
+      }
+      // A quota deferral is not a product failure: leave the job green and let
+      // the next run finish the idempotent sync.
+      process.exitCode = 0;
+    } else {
+      console.error(`error: ${error.message}`);
+      process.exit(1);
+    }
   }
 }

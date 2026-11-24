@@ -159,7 +159,7 @@ const jsonLd = {
 
       <h2 id="running-a-client">Running a client</h2>
       <p>The client leases disjoint key ranges; point it at this coordinator and pass your token.</p>
-      <pre><code>rotor -m addresses --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
+      <pre tabindex="0"><code>rotor -m addresses --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
   --coordinator https://your-coordinator.example --token &lt;client-token&gt; \
   --client-id my-machine --targets targets.txt</code></pre>
       <p>
@@ -168,7 +168,7 @@ const jsonLd = {
         decides which account receives the work and stats.
       </p>
       <p>Admin-only commands create jobs and manage accounts; a client token cannot create jobs.</p>
-      <pre><code># create a job (admin token)
+      <pre tabindex="0"><code># create a job (admin token)
 rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.1:7878</code></pre>
 
       <h3 id="cpu">CPU</h3>
@@ -180,7 +180,7 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         xpoint searches also accept <code>--gpux</code> for the grid. Each selected
         device runs its own lease loop.
       </p>
-      <pre><code>rotor -g --gpui 0 -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
+      <pre tabindex="0"><code>rotor -g --gpui 0 -m address --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
   --coordinator https://your-coordinator.example --token &lt;client-token&gt; --client-id rig-a \
   GXtpBqxw3xwZ61zZ3f3uWk2dNq6M6j4K6w6yY1R1cGxY...</code></pre>
 
@@ -299,8 +299,8 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
 
       <h2 id="site-map-and-donor-parity">Site map and donor parity</h2>
       <p>
-        The parity audit maps every Crypto route to its privatekeyfinder.io and
-        secretscan.org equivalent. It is internal documentation, kept in
+        The parity audit maps every Crypto route against an internal reference
+        checklist. It is internal documentation, kept in
         <code>docs/site-map/index.html</code> and
         <code>docs/site-map/site-map-data.js</code>, not a public route. The data
         also carries the feature matrix (parity, partial and missing capabilities

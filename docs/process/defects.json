@@ -778,6 +778,13 @@
       "symptom": "Density and layout work measured the donor with ad-hoc commands and left no committed reference, so a later change could move the table start, row height, column widths, controls or fonts without any visible signal. The reference is recorded as docs/parity/donor-layout.json; deltas are warnings, not targets.",
       "detector": "donor-layout-parity",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-format-scope",
+      "reported": "2026-11-24",
+      "symptom": "The /key address-format selector could stay visible with a format pressed under All or a single-format chain and could carry one chain's format across a switch (reported in #452, product fix in #456); the gate now pins panel scope, the per-chain card sets and the cross-chain format reset.",
+      "detector": "key-filter-scope",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

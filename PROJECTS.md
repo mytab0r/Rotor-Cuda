@@ -6,7 +6,7 @@ owned by exactly one area; the most-specific glob wins.
 | Area | Owner | Owns | Build | Test |
 |---|---|---|---|---|
 | `site` | site-ui | `apps/site/**`, `data/**` | `node --check apps/site/*.js` | `node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm` |
-| `web` | site-ui | `web/**` (Astro pilot) | `npm --prefix web ci && npm --prefix web run build` | `npm --prefix web test` |
+| `web` | site-ui | `web/**` (Astro pilot) | `npm --prefix web ci && npm --prefix web run build` | `npm --prefix web test`; `npm --prefix web run test:e2e` (needs `npx playwright install chromium`) |
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
 | `wasm-core` | wasm-core | `crates/rotor-wasm/**` | `sh scripts/build-wasm.sh` | `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
 | `desktop` | desktop-tools | remaining `src/**` and `tests/**`, `Rotor-Cuda/**`, legacy trees, `build.rs`, `Cargo.toml` | `cargo build --release [--features gpu]` | `cargo test --release [--features gpu]` |
@@ -112,7 +112,13 @@ node scripts/ui-audit.mjs --serve                # headless UI self-review (site
 node scripts/density-parity.mjs --donor URL --ours URL [--json PATH]  # donor-vs-ours density
 node scripts/sync-board.mjs [--dry-run]          # epics, sub-issues, blockers, PR links
 node scripts/check-task-links.mjs --pr 123       # PR task key + closing reference gate
+node scripts/revert-fix.mjs --base origin/main --projects-area site  # revert the fix, require a red test
 ```
+
+The full gate inventory (cost, required/advisory) is
+[`docs/process/gates.md`](docs/process/gates.md). `scripts/revert-fix.mjs` is
+the always-on mutation tier: it reverts non-test executable hunks for affected
+areas and requires the area tests to fail.
 
 `scripts/ui-audit.mjs` is the shared UI gate: headless Chrome/Edge over CDP
 (zero dependencies), every route at 375/768/1280 in dark and light, with

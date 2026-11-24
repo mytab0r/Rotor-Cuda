@@ -1,0 +1,73 @@
+name: release-please
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Print the release PR and changelog without creating anything."
+        type: boolean
+        default: false
+
+# release-please authenticates with the owner PAT (`BOARD_SYNC_TOKEN`), not the
+# workflow's GITHUB_TOKEN. A PR opened with GITHUB_TOKEN does not trigger
+# `pull_request` workflows, so its required checks never start and the release
+# PR can never merge. A PAT makes the PR user-authored, so PR events fire.
+#
+# The PAT also creates the tag and the GitHub release, so the tag push triggers
+# rust-release.yml through its `push: tags` trigger; no explicit dispatch is
+# needed. The `GITHUB_TOKEN` permissions below only cover checkout and the
+# read-only dry run.
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The action has no dry-run input; the CLI it wraps does. This path is
+      # manual only and prints the proposed release PR body (the changelog)
+      # without touching labels, commits or tags.
+      - name: Dry run (workflow_dispatch only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npx --yes release-please@17.11.2 release-pr \
+            --dry-run \
+            --token="$GH_TOKEN" \
+            --repo-url="$GITHUB_REPOSITORY" \
+            --target-branch="$GITHUB_REF_NAME" \
+            --config-file=release-please-config.json \
+            --manifest-file=.release-please-manifest.json
+
+      - name: Require the release PAT
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+        env:
+          RELEASE_TOKEN: ${{ secrets.BOARD_SYNC_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::BOARD_SYNC_TOKEN is not set. A release PR opened with GITHUB_TOKEN does not trigger pull_request workflows, so its required checks never start; set the PAT secret instead of falling back silently."
+            exit 1
+          fi
+
+      - name: Open or update the release PR
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.BOARD_SYNC_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main

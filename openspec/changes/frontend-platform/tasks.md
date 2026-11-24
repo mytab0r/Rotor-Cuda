@@ -73,3 +73,24 @@ ship two renderers for the same route.
 - [ ] Update `docs/site-map` (it defers route facts to `data/routes.json`),
       design-system docs and audit routes.
 - [ ] `check-ssot`: forbid new HTML renderers in the coordinator.
+
+## 8. Browser regression gate
+
+- [x] Pin `@playwright/test` and `@axe-core/playwright` as dev dependencies of
+      `web/`; no runtime dependency is added to the site.
+- [x] `web/playwright.config.ts` runs 375×812, 768×1024 and 1280×900 in light
+      and dark against `web/dist` served locally by
+      `web/scripts/serve-dist.mjs`, with no network access and one retry.
+- [x] E2E contract for the twelve routes the static build owns: exact title and
+      H1, expected table rows, no document horizontal overflow, one narrow nav
+      toggle, menu open and Escape close.
+- [x] Axe scan on every route and project; critical and serious findings fail
+      the build, with no allowlist. The first run's real findings (in-text link
+      distinction, light-theme address contrast, focusable docs code blocks)
+      are fixed in the shared source.
+- [x] Visual baselines under `web/tests/__screenshots__/`, footer build id
+      masked, 2% cross-platform pixel tolerance; `npm run test:e2e:update`
+      rewrites them deliberately.
+- [x] CI job builds, serves, runs Playwright and uploads the HTML report and
+      failure diffs; a hidden-column mutation was caught by the visual gate and
+      reverted.

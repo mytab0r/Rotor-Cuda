@@ -12,8 +12,8 @@ on-chain data, a real seed generator, and a reviewed signing path.
 
 ## Why now
 
-- The owner compared the live key page with `privatekeyfinder.io/key/<WIF>` and
-  `secretscan.org/Easy_bitcoin_transaction_online`: the donor is denser,
+- The owner compared the live key page with `ref-site-a/key/<WIF>` and
+  `ref-site-b/Easy_bitcoin_transaction_online`: the donor is denser,
   address rows link to explorers, and data appears in place after a check.
 - Current split: `apps/site/key.html` keeps wallet presets and the curve plot
   in a hidden advanced block, while `apps/site/key.js` renders addresses with a

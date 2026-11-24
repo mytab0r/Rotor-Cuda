@@ -9,7 +9,7 @@ serves a web dashboard for setup and live monitoring.
 ## Why
 
 Ranges like puzzle #71 are too large for one box; Kangaroo already ships
-`-s`/`-c` server/client and work files, and dashboard-style tools (secretscan)
+`-s`/`-c` server/client and work files, and dashboard-style tools (ref-site-b)
 make multi-machine runs observable. Today our Rust port only splits a range
 across local threads and checkpoints locally.
 
