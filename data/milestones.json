@@ -16,6 +16,7 @@
         "wallet-mainnet-signing",
         "wallet-portfolio",
         "wallet-seed-phrase",
+        "wallet-swap",
         "wallet-top-assets-wif",
         "walletconnect-deeplinks"
       ]
