@@ -134,3 +134,51 @@
   broadcast provider, with its own fee cap.
 - [ ] TRON mainnet: requires a TRON provider API key; document the key source
   and never ship it in the static site.
+
+## 8. TRON mainnet slice (ROT-511)
+
+Goal: TRX and USDT TRC-20 transfers from an imported key on TRON mainnet, one
+code path with the Nile testnet route, behind the same mainnet arm gate.
+
+- [ ] Provider data: add `trongrid` (`https://api.trongrid.io`) and
+  `publicnode` (`https://tron-rpc.publicnode.com`) to `data/providers.json`
+  under chain `tron`, both keyless and CORS-enabled; regenerate
+  `chains.generated.js` and `crates/rotor-core/src/generated/chains.rs`
+  (`node scripts/gen-ssot.mjs`). No API key is shipped; document the rate
+  limit and the failover order.
+- [ ] WASM encoder: extend `crates/rotor-wasm/src/tron.rs` with an explicit
+  contract kind (`trx` | `trc20`) and a TRC-20 `token_contract_address`;
+  encode `TriggerSmartContract` (type 31) with the type URL
+  `type.googleapis.com/protocol.TriggerSmartContract`, `owner_address`,
+  `contract_address` (21-byte `0x41` payload) and
+  `data = a9059cbb || pad32(recipient-20-byte) || pad32(amount)`.
+  `amount` stays raw base units; the encoder never converts decimals.
+- [ ] Strict parsing: unknown, duplicate or missing fields are refused, a
+  `trc20` request without a valid token contract is refused, a `trx` request
+  carrying a token contract is refused.
+- [ ] Signing is unchanged: SHA-256 over `raw_data`, RFC 6979 nonce, 65-byte
+  `r || s || v` with `v = 27 + recovery_id`; the signature verifies against
+  the derived public key in the same call.
+- [ ] Cabinet wallet: TRON mainnet and TRON Nile in the network picker; the
+  same armed-session checkbox, reset on lock/unlock/reload; the arm check runs
+  in the codec, not only in the DOM.
+- [ ] Build from the node (`getnowblock` for `ref_block_bytes`,
+  `ref_block_hash`, `timestamp`, `expiration`), refetch immediately before
+  signing, refuse an expired review.
+- [ ] Review screen: network, from, to, kind (TRX / TRC-20), token contract and
+  symbol when known, amount in base units and display units, `fee_limit` in
+  TRX, and the "irreversible" warning. No broadcast without a second
+  confirmation.
+- [ ] Broadcast once through the pinned provider allowlist; show the provider
+  error verbatim; never retry.
+- [ ] Tests: pinned TRC-20 unsigned `raw_data_hex` and `txID` against an
+  independent encoder, a signed vector that verifies, refusals (wrong kind,
+  missing contract, malformed base58, wrong network prefix, zero amount,
+  unarmed mainnet, expired ref block, tampered review), and a mutation that
+  drops the selector, the recipient padding or the amount and fails.
+- [ ] `node apps/site/wallet-tron-test.mjs` registered in `projects.json`;
+  `docs/site-map` note updated; the "TRON mainnet requires an API key" note in
+  section 7 replaced with the measured keyless result.
+- [ ] Verification: cargo tests, the three wallet Node tests, `check-ssot`,
+  `check-projects`, `ui-audit`, and a real mainnet transfer from a funded key
+  with a screenshot kept as a CI artifact only.
