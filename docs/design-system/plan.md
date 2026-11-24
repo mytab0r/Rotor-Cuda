@@ -469,6 +469,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `cell-content-clipped` | Table cell text fits or wraps: no td/th scroll overflow, no overflow:hidden/text-overflow clipping of visible text, and no cell cut by a non-scrolling .table-scroll wrapper. | 8 | implemented |
 | `text-clipped` | Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; there is no ellipsis opt-out. | 8 | implemented |
 | `donor-layout-parity` | Measured layout (table start, row height, column widths, control heights, fonts) is compared with docs/parity/donor-layout.json at 375 and 1280; deltas are warnings, never failures. | 8 | implemented |
+| `key-filter-scope` | The /key address-format selector (#format-panel) is hidden under All and on every single-format chain, renders only the selected chain's format cards (BTC 4, LTC 4, BCH 2), and carries no format across a chain switch. | 8 | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.

@@ -20,7 +20,7 @@ like the reference page, with broadcast through public pools and links to
 decode/preview the transaction, while keeping the private key client-side.
 
 Reference page investigated with `curl` on 2026-11-16
-(`secretscan.org/transaction_to_bitcoin_address_p2pkh`; HTML treated as data):
+(`ref-site-b/transaction_to_bitcoin_address_p2pkh`; HTML treated as data):
 
 - The visible claim is "Build, decode, and understand standard Bitcoin
   transactions entirely offline" (page heading, lines 520-523 of the fetched
@@ -43,7 +43,7 @@ Reference page investigated with `curl` on 2026-11-16
 - It does **not** create change automatically and warns that the remainder
   becomes a miner fee (line 735). It also states the serialized transaction is
   "not broadcast to the Bitcoin Network" (line 742) and only offers external
-  decode links (secretscan.org, blockchain.com, lines 775-778).
+  decode links (ref-site-b, blockchain.com, lines 775-778).
 
 The valuable part to reproduce is the step-by-step builder and the local
 review. The part not to reproduce is sending the private key to a server, the
@@ -281,7 +281,7 @@ Unknowns / not verified (to be checked during implementation):
   (`static_asset`; no CSP today), `:989-996` (asset tests).
 - `apps/site/docs.html:86,95`; `README.md:256,272` (read-only/no-signing claims).
 - `.github/workflows/rust.yml:43-57` (wasm build/test/smoke job).
-- Reference page: `https://secretscan.org/transaction_to_bitcoin_address_p2pkh`
+- Reference page: `ref-site-b/transaction_to_bitcoin_address_p2pkh`
   (fetched 2026-11-16; form lines 551-615, submit lines 818-826, change warning
   line 735, no-broadcast statement line 742, decode links lines 775-778).
 - Public endpoint probes (2026-11-16): mempool.space and blockstream.info

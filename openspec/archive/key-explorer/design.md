@@ -22,12 +22,12 @@ balances", and the UI states which providers are contacted.
 
 ## D2. Research facts
 
-- `privatekeyfinder.io` derives addresses in `app.obf.js` (bundle contains
+- `ref-site-a` derives addresses in `app.obf.js` (bundle contains
   secp256k1, bech32, taproot and ed25519 code) and queries balances through a
   `balance-checker.obf.js` bundle with public endpoints (1rpc/publicnode/drpc,
   Tronscan, XRPScan, BlockCypher, Haskoin, Tatum). Its server exposes a few
   narrow helpers (`/api/evm-activity`, `/api/vf`, `/api/wf`, `/api/xrp`).
-- `secretscan.org/PrivateKeySegwit` computes step-by-step on its PHP backend
+- `ref-site-b/PrivateKeySegwit` computes step-by-step on its PHP backend
   (`calculators/segwit_new.php`, `action=start`) and gets the coin prefix list
   from `calculators/segwit_coins.json`; the browser only renders the JSON.
 - CORS checked 2026-11-16: `mempool.space`, `1rpc.io` and

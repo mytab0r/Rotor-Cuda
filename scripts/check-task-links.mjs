@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  automationPullRequestReason,
   evaluateBoardFields,
   evaluateTaskLinks,
   listIssueMetadata,
@@ -140,7 +141,28 @@ export function checkBoardFields({
 
 // Pure verdict used by the CLI and by tests: the caller supplies the body, the
 // changed paths and (when known) whether the keyed issue exists.
-export function checkPullRequest({ number = null, body, files, issueExists: exists = null }) {
+export function checkPullRequest({
+  number = null,
+  body,
+  files,
+  issueExists: exists = null,
+  author = null,
+  isBot = false,
+  headRefName = null,
+}) {
+  // Automation PRs (release-please, github-actions, app actors) have no human
+  // author to satisfy the task contract. Skip them with a printed notice.
+  const automationReason = automationPullRequestReason({ author, isBot, headRefName });
+  if (automationReason) {
+    return {
+      ok: true,
+      errors: [],
+      skipped: true,
+      automationReason,
+      number,
+      summary: `PR #${number ?? "(local)"} automation PR (${automationReason}); task line not required`,
+    };
+  }
   const result = evaluateTaskLinks({ body, files, issueExists: exists });
   let summary;
   if (!result.ok) summary = null;
@@ -183,12 +205,13 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/check-task-links.mjs --pr <number> [--repo owner/name]",
-    "  node scripts/check-task-links.mjs --body-file <path> --files <a,b> [--issue-exists yes|no|skip]",
+    "  node scripts/check-task-links.mjs --body-file <path> --files <a,b> [--issue-exists yes|no|skip] [--author login] [--head-ref branch]",
     "  node scripts/check-task-links.mjs --board [--repo owner/name]",
     "",
     "Fails when the PR body lacks `Task: ROT-<n>`, when the keyed issue does",
     "not exist, or when the closing reference is missing. Docs/process-only PRs",
-    "may use `Task: none — <reason>`.",
+    "may use `Task: none — <reason>`. Automation PRs (a `[bot]`/`app/*` author",
+    "or a `release-please--*` head branch) are skipped with a notice.",
     "",
     "`--board` fails when a synced issue has no native issue Type, no",
     "Milestone, no Priority, or not both plan dates (Start date, Target",
@@ -267,6 +290,9 @@ function main() {
   let body;
   let files;
   let exists = null;
+  let author = args.author ?? null;
+  let headRefName = args["head-ref"] ?? null;
+  let isBot = false;
 
   if (args.pr) {
     prNumber = Number(args.pr);
@@ -281,10 +307,13 @@ function main() {
       "--repo",
       repo,
       "--json",
-      "number,body,files",
+      "number,body,files,author,headRefName",
     ]);
     body = view?.body ?? "";
     files = (view?.files ?? []).map((file) => file.path);
+    author = view?.author?.login ?? null;
+    headRefName = view?.headRefName ?? null;
+    isBot = view?.author?.is_bot === true;
     const directive = parseTaskDirective(body);
     if (directive.kind === "key") exists = issueExists(repo, directive.number);
   } else if (args["body-file"]) {
@@ -309,12 +338,19 @@ function main() {
     body,
     files,
     issueExists: exists,
+    author,
+    isBot,
+    headRefName,
   });
 
   if (!result.ok) {
     for (const error of result.errors) console.error(`error: ${error}`);
     console.error("task-links FAILED");
     process.exitCode = 1;
+    return;
+  }
+  if (result.skipped) {
+    console.log(`task-links SKIPPED: ${result.summary}`);
     return;
   }
   console.log(`task-links OK: ${result.summary}`);

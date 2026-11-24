@@ -26,3 +26,6 @@ docs/**/evidence/**/*.gif
 /.claude/skills/*
 !/.claude/skills/ui-self-review/
 !/.claude/skills/donor-reverse/
+
+# Private donor refs for the internal site map (never commit real identities).
+docs/site-map/donor-refs.local.js

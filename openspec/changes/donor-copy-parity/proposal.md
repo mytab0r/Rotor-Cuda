@@ -4,7 +4,7 @@
 
 The public site still invents its own layouts where the donor already has a
 proven, dense, structured mechanic. The owner asked for a carbon copy of
-privatekeyfinder.io mechanics (recoloured), then ideas from secretscan.org, and
+ref-site-a mechanics (recoloured), then ideas from ref-site-b, and
 a rename of the product from Rotor to Crypto.
 
 ## What changes
@@ -20,7 +20,7 @@ a rename of the product from Rotor to Crypto.
 2. Donor audit drives every further page: address list columns, chain grouping,
    stats row (TOTAL VALUE / HAS BALANCE / ACTIVE / CHECKED), search modal,
    directory and seed pages.
-3. Secondary reference: secretscan.org — lists/pricing, filters, density.
+3. Secondary reference: ref-site-b — lists/pricing, filters, density.
 4. Product rename Rotor → Crypto in UI (wordmark, titles, meta, docs); domain
    and repository name stay owner decisions.
 5. Paid lists (owner, 2026-11-20): sell access to address datasets and deliver
