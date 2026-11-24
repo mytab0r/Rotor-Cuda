@@ -149,10 +149,257 @@ test("TRX base units are 6 decimals and parse without floats", () => {
   assert.equal(tron.formatTronAmount(1_500_000_000_000_000_000n, 18), "1.5");
 });
 
+/* ------------------------------------------------- network discrimination */
+
+test("the picker value distinguishes TRON from an EVM chain id", () => {
+  assert.equal(tron.tronOptionValue("tron"), "tron:tron");
+  assert.equal(tron.tronNetworkFromOption("tron:tron").slug, "tron");
+  assert.equal(tron.tronNetworkFromOption("tron:tron-nile").testnet, true);
+  assert.equal(tron.tronNetworkFromOption("evm:1"), null);
+  assert.equal(tron.tronNetworkFromOption("11155111"), null);
+  assert.equal(tron.tronNetworkFromOption("tron:tron-shasta"), null);
+  assert.equal(tron.tronNetworkFromOption(undefined), null);
+});
+
+/* ----------------------------------------------------- provider failover */
+
+test("the declared failover order is kept and a preferred provider goes first", () => {
+  const mainnet = tron.tronNetworkBySlug("tron");
+  assert.deepEqual(
+    tron.tronProviderOrder(mainnet, null).map((provider) => provider.id),
+    ["trongrid", "publicnode"]
+  );
+  assert.deepEqual(
+    tron.tronProviderOrder(mainnet, "https://tron-rpc.publicnode.com")
+      .map((provider) => provider.id),
+    ["publicnode", "trongrid"]
+  );
+  assert.throws(
+    () => tron.tronProviderOrder(mainnet, "https://evil.example/rpc"),
+    /not a declared TRON provider/
+  );
+});
+
+test("getnowblock fails over in order and stops at the first valid response", async () => {
+  const mainnet = tron.tronNetworkBySlug("tron");
+  const blockID = "00".repeat(6) + "aabb" + "0102030405060708" + "11".repeat(16);
+  const calls = [];
+  const fetchJson = (url) => {
+    calls.push(url);
+    if (url.indexOf("api.trongrid.io") >= 0) {
+      return Promise.reject(new Error("HTTP 503"));
+    }
+    return Promise.resolve({
+      blockID: blockID.toUpperCase(),
+      block_header: { raw_data: { number: 99, timestamp: 1700000000000 } },
+    });
+  };
+  const result = await tron.fetchNowBlock(mainnet, fetchJson, null);
+  assert.deepEqual(calls, [
+    "https://api.trongrid.io/wallet/getnowblock",
+    "https://tron-rpc.publicnode.com/wallet/getnowblock",
+  ]);
+  assert.equal(result.provider.id, "publicnode");
+  assert.equal(result.block.ref_block_bytes, "aabb");
+});
+
+test("getnowblock reports every declared provider when all fail, with no retry", async () => {
+  const mainnet = tron.tronNetworkBySlug("tron");
+  const calls = [];
+  await assert.rejects(
+    () => tron.fetchNowBlock(mainnet, (url) => {
+      calls.push(url);
+      return Promise.reject(new Error("down"));
+    }, null),
+    /No declared TRON provider answered getnowblock.*tried 2 endpoints/
+  );
+  assert.equal(calls.length, 2);
+});
+
+/* ------------------------------------------------------- ref block parsing */
+
+test("the ref block fields derive from blockID and expiration is 60 s later", () => {
+  const blockID = "00".repeat(6) + "aabb" + "0102030405060708" + "11".repeat(16);
+  assert.equal(blockID.length, 64);
+  const block = tron.parseNowBlock({
+    blockID,
+    block_header: { raw_data: { number: 123456, timestamp: 1700000000000 } },
+  });
+  assert.equal(block.blockID, blockID);
+  assert.equal(block.blockNumber, "123456");
+  assert.equal(block.ref_block_bytes, "aabb");
+  assert.equal(block.ref_block_hash, "0102030405060708");
+  assert.equal(block.timestamp, "1700000000000");
+  assert.equal(block.expiration, "1700000060000");
+  assert.throws(() => tron.parseNowBlock({}), /blockID/);
+  assert.throws(
+    () => tron.parseNowBlock({ blockID: "11".repeat(32), block_header: {} }),
+    /timestamp/
+  );
+});
+
+/* ---------------------------------------------------- trx vs trc20 fields */
+
+test("a trx request omits the token contract and a trc20 request carries it", () => {
+  const block = {
+    ref_block_bytes: "aabb",
+    ref_block_hash: "0102030405060708",
+    timestamp: "1700000000000",
+    expiration: "1700000060000",
+  };
+  const trx = tron.buildTransferRequest({
+    kind: "trx", from: "Tfrom", to: "Tto", amountBase: 1_500_000n,
+    tokenContract: null, feeLimitSun: 0n, block,
+  });
+  assert.equal(trx.kind, "trx");
+  assert.equal(trx.amount, "1500000");
+  assert.equal(trx.fee_limit, "0");
+  assert.equal(Object.prototype.hasOwnProperty.call(trx, "token_contract_address"), false);
+
+  const trc20 = tron.buildTransferRequest({
+    kind: "trc20", from: "Tfrom", to: "Tto", amountBase: 1_000_000n,
+    tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", feeLimitSun: 100_000_000n, block,
+  });
+  assert.equal(trc20.kind, "trc20");
+  assert.equal(trc20.token_contract_address, "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t");
+  assert.equal(trc20.fee_limit, "100000000");
+  assert.throws(
+    () => tron.buildTransferRequest({
+      kind: "trc20", from: "Tfrom", to: "Tto", amountBase: 1n,
+      tokenContract: null, feeLimitSun: 0n, block,
+    }),
+    /token contract/
+  );
+});
+
+test("the form picks the kind and refuses a fee limit on a plain TRX transfer", () => {
+  const plain = tron.validateTronSend({ to: "Tto", token: "", feeLimit: "" });
+  assert.deepEqual(plain.errors, {});
+  assert.equal(plain.values.kind, "trx");
+  assert.equal(plain.values.feeLimitSun, 0n);
+
+  const token = tron.validateTronSend({
+    to: "Tto", token: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", feeLimit: "100",
+  });
+  assert.deepEqual(token.errors, {});
+  assert.equal(token.values.kind, "trc20");
+  assert.equal(token.values.feeLimitSun, 100_000_000n);
+
+  const missingTo = tron.validateTronSend({ to: " ", token: "", feeLimit: "" });
+  assert.match(missingTo.errors.to, /recipient/);
+
+  const trxFee = tron.validateTronSend({ to: "Tto", token: "", feeLimit: "1" });
+  assert.match(trxFee.errors.feeLimit, /TRC-20/);
+
+  const overCap = tron.validateTronSend({
+    to: "Tto", token: "TRtc20", feeLimit: "100.000001",
+  });
+  assert.match(overCap.errors.feeLimit, /100 TRX/);
+});
+
+/* --------------------------------------------------- confirm pin and broadcast */
+
+function confirmReview() {
+  const block = {
+    blockID: "00".repeat(6) + "aabb" + "0102030405060708" + "11".repeat(16),
+    blockNumber: "1",
+    ref_block_bytes: "aabb",
+    ref_block_hash: "0102030405060708",
+    timestamp: "1700000000000",
+    expiration: "1700000060000",
+  };
+  const request = tron.buildTransferRequest({
+    kind: "trx", from: "Tfrom", to: "Tto", amountBase: 1_000_000n,
+    tokenContract: null, feeLimitSun: 0n, block,
+  });
+  return {
+    kind: "trx",
+    networkSlug: "tron",
+    networkName: "TRON",
+    testnet: false,
+    from: "Tfrom",
+    to: "Tto",
+    tokenContract: null,
+    amountBase: 1_000_000n,
+    feeLimitSun: 0n,
+    block,
+    request,
+    builtAt: 1_000,
+    providerUrl: "https://api.trongrid.io",
+    providerLabel: "TronGrid",
+  };
+}
+
+const SIGNED_TRON = JSON.stringify({
+  txID: "aa".repeat(32),
+  raw_data_hex: "00",
+  raw_data: {},
+  signature: "bb".repeat(64) + "1c",
+});
+
+test("a review mutated after preparation is refused before signing", async () => {
+  let signed = false;
+  await assert.rejects(
+    () => tron.confirmTronTransfer({
+      review: Object.assign(confirmReview(), { amountBase: 2_000_000n }),
+      fetchJson: () => Promise.resolve({ result: true }),
+      mainnetArmed: true,
+      now: 2_000,
+      sign: () => { signed = true; return SIGNED_TRON; },
+    }),
+    /do not match the request/
+  );
+  assert.equal(signed, false, "a tampered review must not reach the signer");
+});
+
+test("confirm broadcasts exactly once and surfaces a provider error verbatim", async () => {
+  const calls = [];
+  const ok = await tron.confirmTronTransfer({
+    review: confirmReview(),
+    fetchJson: (url, init) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return Promise.resolve({ result: true, txid: "aa".repeat(32) });
+    },
+    mainnetArmed: true,
+    now: 2_000,
+    sign: () => SIGNED_TRON,
+  });
+  assert.equal(ok.txHash, "aa".repeat(32));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://api.trongrid.io/wallet/broadcasttransaction");
+  assert.deepEqual(calls[0].body.signature, ["bb".repeat(64) + "1c"]);
+
+  let failedCalls = 0;
+  await assert.rejects(
+    () => tron.confirmTronTransfer({
+      review: confirmReview(),
+      fetchJson: () => { failedCalls += 1; return Promise.reject(new Error("HTTP 502")); },
+      mainnetArmed: true,
+      now: 2_000,
+      sign: () => SIGNED_TRON,
+    }),
+    /Broadcasting to TronGrid failed: HTTP 502/
+  );
+  assert.equal(failedCalls, 1, "no retry after a provider error");
+
+  await assert.rejects(
+    () => tron.confirmTronTransfer({
+      review: confirmReview(),
+      fetchJson: () => Promise.resolve({
+        result: false, code: "CONTRACT_VALIDATE_ERROR", message: "energy insufficient",
+      }),
+      mainnetArmed: true,
+      now: 2_000,
+      sign: () => SIGNED_TRON,
+    }),
+    /rejected the transaction \(CONTRACT_VALIDATE_ERROR\) energy insufficient/
+  );
+});
+
 let failed = 0;
 for (const { name, fn } of cases) {
   try {
-    fn();
+    await fn();
     console.log("ok - " + name);
   } catch (err) {
     failed += 1;

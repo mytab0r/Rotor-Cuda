@@ -159,7 +159,7 @@ code path with the Nile testnet route, behind the same mainnet arm gate.
 - [x] Signing is unchanged: SHA-256 over `raw_data`, RFC 6979 nonce, 65-byte
   `r || s || v` with `v = 27 + recovery_id`; the signature verifies against
   the derived public key in the same call.
-- [ ] Cabinet wallet: TRON mainnet and TRON Nile in the network picker; the
+- [x] Cabinet wallet: TRON mainnet and TRON Nile in the network picker; the
   same armed-session checkbox, reset on lock/unlock/reload; the arm check runs
   in the codec, not only in the DOM. The public `/send` page stays testnet-only.
 - [x] Rebuild `apps/site/rotor_wasm.wasm` in the same change and update
@@ -167,14 +167,14 @@ code path with the Nile testnet route, behind the same mainnet arm gate.
   strict, so a stale adapter would fail at runtime. The Nile `/send/tron` route
   and `apps/site/tron-tx-test.mjs` must keep passing against the rebuilt
   binary.
-- [ ] Build from the node (`getnowblock` for `ref_block_bytes`,
+- [x] Build from the node (`getnowblock` for `ref_block_bytes`,
   `ref_block_hash`, `timestamp`, `expiration`), refetch immediately before
   signing, refuse an expired review.
-- [ ] Review screen: network, from, to, kind (TRX / TRC-20), token contract and
+- [x] Review screen: network, from, to, kind (TRX / TRC-20), token contract and
   symbol when known, amount in base units and display units, `fee_limit` in
   TRX, and the "irreversible" warning. No broadcast without a second
   confirmation.
-- [ ] Broadcast once through the pinned provider allowlist; show the provider
+- [x] Broadcast once through the pinned provider allowlist; show the provider
   error verbatim; never retry.
 - [ ] Tests: pinned TRC-20 unsigned `raw_data_hex` and `txID` against an
   independent encoder, a signed vector that verifies, refusals (wrong kind,

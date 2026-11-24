@@ -122,6 +122,7 @@ const WALLET_ASSETS_JS: &str = include_str!("../../apps/site/wallet-assets.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_SIGN_JS: &str = include_str!("../../apps/site/wallet-sign.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
+const WALLET_TRON_JS: &str = include_str!("../../apps/site/wallet-tron.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
 const WALLET_HISTORY_JS: &str = include_str!("../../apps/site/wallet-history.js");
 const WALLET_SECURITY_JS: &str = include_str!("../../apps/site/wallet-security.js");
@@ -1957,6 +1958,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-evm.js" => Some((
             WALLET_EVM_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-tron.js" => Some((
+            WALLET_TRON_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/wallet-btc.js" => Some((

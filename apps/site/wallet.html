@@ -41,7 +41,7 @@
     </div>
   </section>
 
-  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin/TRON mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
+  <p class="notice" role="note">The vault lives in this browser's IndexedDB. Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. TRON keys can send TRX and TRC-20 tokens on TRON mainnet (after you arm it for the session) and on the TRON Nile testnet; a TRON send reads the latest block from TronGrid or publicnode and broadcasts once to the same provider. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
 
@@ -297,7 +297,7 @@
         </label>
       </div>
       <label class="wallet-check" id="wallet-send-armed-row" hidden><input type="checkbox" id="wallet-send-armed"> I understand that a mainnet transaction spends real funds and cannot be reversed; arm mainnet signing for this session.</label>
-      <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. The chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. The separate ERC-20 approvals panel below reads current allowances, grants a new one (dangerous: it lets the spender move your tokens) and revokes them; other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other chains.</p>
+      <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. For EVM networks the chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled EVM contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. TRON mainnet and Nile use the same form: the recipient and optional TRC-20 contract are base58 T-addresses, the amount is TRX (or the token's units when a contract is set), and the fee limit is in TRX for a TRC-20 transfer. A TRON review is refused after 60 seconds, is signed locally and is broadcast once to the reviewed provider. The separate ERC-20 approvals panel below reads current allowances, grants a new one (dangerous: it lets the spender move your tokens) and revokes them; other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other EVM chains.</p>
 
       <label>To (0x address; EIP-55 mixed case or all-lowercase)
         <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-send-to-error" aria-invalid="false">
@@ -313,6 +313,12 @@
       </div>
       <p class="error wallet-field-error" id="wallet-send-token-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-send-value-error" role="alert" hidden></p>
+      <div class="wallet-split">
+        <label id="wallet-send-fee-limit-row" hidden>Fee limit (TRX, TRC-20 only)
+          <input id="wallet-send-fee-limit" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-describedby="wallet-send-fee-limit-error" aria-invalid="false">
+        </label>
+      </div>
+      <p class="error wallet-field-error" id="wallet-send-fee-limit-error" role="alert" hidden></p>
       <label>Data (native testnet only, optional hex; disabled for token sends)
         <input id="wallet-send-data" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x" aria-describedby="wallet-send-data-error" aria-invalid="false">
       </label>
@@ -343,7 +349,7 @@
       <h3>Review before signing</h3>
       <dl class="wallet-review" id="wallet-review-list"></dl>
       <ul class="wallet-warnings" id="wallet-review-warnings" hidden></ul>
-      <p class="muted">Unsigned EIP-1559 type-2 transaction — the exact bytes that will be signed:</p>
+      <p class="muted">Unsigned transaction bytes — the exact bytes that will be signed:</p>
       <code class="mono wallet-hex" id="wallet-review-unsigned"></code>
       <div class="key-buttons">
         <button type="button" class="primary" id="wallet-send-confirm">Sign and broadcast</button>
@@ -515,7 +521,7 @@
       <div>
         <h3>What is stored</h3>
         <p class="muted">IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
-        <p class="muted">This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
+        <p class="muted">This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions and TRX/TRC-20 transfers on TRON mainnet and Nile. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
       </div>
     </div>
   </section>
@@ -531,6 +537,7 @@
 <script src="/wallet-vault.js"></script>
 <script src="/wallet-sign.js"></script>
 <script src="/wallet-evm.js"></script>
+<script src="/wallet-tron.js"></script>
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-history.js"></script>
 <script src="/milk-sad-scan.js"></script>
