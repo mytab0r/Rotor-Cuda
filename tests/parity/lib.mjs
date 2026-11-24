@@ -206,9 +206,15 @@ export function buildWasmVectors(context) {
 function normalizedPublicKeys(desktopVector, wasmVector) {
   const desktop = (desktopVector.public_key ?? "").toLowerCase();
   if (desktop.length === 128) {
-    // EVM/TRON report x || y without the 0x04 prefix.
+    // EVM/TRON report x || y without the 0x04 prefix. Only strip the prefix
+    // when the artifact actually returned the full 65-byte encoding.
     const uncompressed = (wasmVector.public_key_uncompressed ?? "").toLowerCase();
-    return [desktop, uncompressed.startsWith("04") ? uncompressed.slice(2) : uncompressed];
+    return [
+      desktop,
+      uncompressed.length === 130 && uncompressed.startsWith("04")
+        ? uncompressed.slice(2)
+        : uncompressed,
+    ];
   }
   if (desktop.length === 64) {
     return [desktop, (wasmVector.ed_pubkey ?? "").toLowerCase()];
