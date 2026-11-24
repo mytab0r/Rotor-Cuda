@@ -63,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          finding=$(gh issue list --state open --label area:infra --limit 100 \
+          finding=$(gh issue list --state open --search "${ISSUE_TITLE} in:title" --limit 100 \
             --json number,title \
             --jq ".[] | select(.title == \"${ISSUE_TITLE}\") | .number" | head -n1 || true)
           if [ "${{ steps.links.outputs.status }}" = "0" ]; then
@@ -88,5 +88,5 @@ jobs:
           if [ -n "$finding" ]; then
             gh issue edit "$finding" --body-file "$report"
           else
-            gh issue create --title "$ISSUE_TITLE" --body-file "$report" --label area:infra
+            gh issue create --title "$ISSUE_TITLE" --body-file "$report"
           fi

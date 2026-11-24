@@ -1298,10 +1298,10 @@ function main() {
     }
 
     // Adoption pass. An issue created outside the sync is still board work
-    // when its title carries a ROT key or it has an area:/change:/epic label.
-    // Give it the same fields as a synced issue instead of leaving the gate to
-    // fail on it. Newly adopted non-epic work defaults to P2 unless its epic
-    // declares a priority.
+    // when its title carries a ROT key or it has a change:/epic label. Give it
+    // the same fields as a synced issue instead of leaving the gate to fail on
+    // it. Area comes from the project field, then the title. Newly adopted
+    // non-epic work defaults to P2 unless its epic declares a priority.
     const itemAreaByNumber = new Map(
       items
         .filter((item) => item.content?.number)
