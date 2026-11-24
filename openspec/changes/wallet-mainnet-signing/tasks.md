@@ -162,7 +162,7 @@ code path with the Nile testnet route, behind the same mainnet arm gate.
 - [ ] Cabinet wallet: TRON mainnet and TRON Nile in the network picker; the
   same armed-session checkbox, reset on lock/unlock/reload; the arm check runs
   in the codec, not only in the DOM. The public `/send` page stays testnet-only.
-- [ ] Rebuild `apps/site/rotor_wasm.wasm` in the same change and update
+- [x] Rebuild `apps/site/rotor_wasm.wasm` in the same change and update
   `apps/site/tron-tx.js` to send `kind: "trx"`: the request schema is now
   strict, so a stale adapter would fail at runtime. The Nile `/send/tron` route
   and `apps/site/tron-tx-test.mjs` must keep passing against the rebuilt
