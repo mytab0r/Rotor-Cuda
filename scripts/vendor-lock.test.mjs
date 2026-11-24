@@ -28,11 +28,11 @@ function withTempRoot(fn) {
   }
 }
 
-function writeLock(root, entries) {
+function writeLock(root, entries, extra = {}) {
   fs.mkdirSync(path.join(root, "data"), { recursive: true });
   fs.writeFileSync(
     path.join(root, "data", "vendor.lock.json"),
-    `${JSON.stringify({ version: 1, entries, nonCopies: [] }, null, 2)}\n`,
+    `${JSON.stringify({ version: 1, entries, nonCopies: [], ...extra }, null, 2)}\n`,
   );
 }
 
@@ -79,4 +79,42 @@ test("regenerateVendorLock refreshes copies and normalized digests", () => withT
   assert.equal(lock.entries[0].sha256, sha256Vendored(source));
   assert.ok(fs.readFileSync(target).equals(fs.readFileSync(source)), "the copy is byte-for-byte");
   assert.deepEqual(validateVendorLock(root).errors, []);
+}));
+
+test("validateVendorLock allows an authored file under web/public", () => withTempRoot((root) => {
+  fs.mkdirSync(path.join(root, "apps", "site"), { recursive: true });
+  fs.mkdirSync(path.join(root, "web", "public"), { recursive: true });
+  const source = path.join(root, "apps", "site", "a.js");
+  const target = path.join(root, "web", "public", "a.js");
+  fs.writeFileSync(source, "const a = 1;\n");
+  fs.writeFileSync(target, "const a = 1;\n");
+  fs.writeFileSync(path.join(root, "web", "public", "_worker.js"), "export default {};\n");
+  writeLock(root, [
+    { source: "apps/site/a.js", target: "web/public/a.js", sha256: sha256Vendored(source) },
+  ], {
+    authored: [{ path: "web/public/_worker.js", reason: "Pages advanced-mode worker; authored in the frontend area." }],
+  });
+  assert.deepEqual(validateVendorLock(root).errors, []);
+
+  writeLock(root, [
+    { source: "apps/site/a.js", target: "web/public/a.js", sha256: sha256Vendored(source) },
+  ]);
+  const errors = validateVendorLock(root).errors;
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /_worker\.js is not in data\/vendor\.lock\.json/);
+}));
+
+test("validateVendorLock rejects an authored entry without a reason or outside web/public", () => withTempRoot((root) => {
+  fs.mkdirSync(path.join(root, "apps", "site"), { recursive: true });
+  fs.mkdirSync(path.join(root, "web", "public"), { recursive: true });
+  fs.writeFileSync(path.join(root, "web", "public", "_worker.js"), "export default {};\n");
+  writeLock(root, [], {
+    authored: [
+      { path: "web/public/_worker.js", reason: "" },
+      { path: "apps/site/a.js", reason: "wrong area" },
+    ],
+  });
+  const errors = validateVendorLock(root).errors;
+  assert.ok(errors.some((error) => /reason must explain/.test(error)));
+  assert.ok(errors.some((error) => /path must live under web\/public/.test(error)));
 }));

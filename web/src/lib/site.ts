@@ -89,6 +89,7 @@ export const PRERENDERED_ROUTES: readonly string[] = [
   '/docs',
   '/donate',
   '/faq',
+  '/key',
   '/mnemonic-converter',
   '/mnemonic-seeds',
   '/private-keys',
