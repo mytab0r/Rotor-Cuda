@@ -175,6 +175,7 @@ page-local override.
 | `text-clipped` | Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; there is no ellipsis opt-out. | 8 | implemented |
 | `donor-layout-parity` | Measured layout (table start, row height, column widths, control heights, fonts) is compared with docs/parity/donor-layout.json at 375 and 1280; deltas are warnings, never failures. | 8 | implemented |
 | `key-filter-scope` | The /key address-format selector (#format-panel) is hidden under All and on every single-format chain, renders only the selected chain's format cards (BTC 4, LTC 4, BCH 2), and carries no format across a chain switch. | 8 | implemented |
+| `key-summary-stack` | At <=560px the key-summary label sits above the value with no 112px label column; above it the dt/dd stay two columns. | 8 | implemented |
 <!-- END GENERATED detectors:skill -->
 
 Console errors are recorded as warnings, not failures. A warning still needs a

@@ -785,6 +785,13 @@
       "symptom": "The /key address-format selector could stay visible with a format pressed under All or a single-format chain and could carry one chain's format across a switch (reported in #452, product fix in #456); the gate now pins panel scope, the per-chain card sets and the cross-chain format reset.",
       "detector": "key-filter-scope",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "mobile-key-summary-label-column",
+      "reported": "2026-11-23",
+      "symptom": "The 0-3-0 `.key-page .key-summary-group .key-form-row` rule outranked the <=560px stacking rule, so at 375px the summary kept the 112px label column, wrapped the value into a ~159px column and grew rows to 78-203px.",
+      "detector": "key-summary-stack",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

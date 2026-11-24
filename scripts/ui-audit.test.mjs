@@ -20,3 +20,10 @@ test("a table cell is clipped by text rects, not by hit-area scroll overflow", (
   assert.match(auditPage, /textOutside\(cell, cell\.getBoundingClientRect\(\)\)/);
   assert.doesNotMatch(auditPage, /cell\.scrollHeight > cell\.clientHeight \+ 1/);
 });
+
+test("key summary rows stack at <=560px and stay two columns above it", () => {
+  assert.match(auditPage, /"key-summary-stack"/);
+  assert.match(auditPage, /Math\.abs\(ddBox\.left - dtBox\.left\) <= 2 && ddBox\.top >= dtBox\.bottom - 2/);
+  assert.match(auditPage, /ddBox\.left > dtBox\.left \+ 40 && ddBox\.top < dtBox\.bottom - 2 && dtBox\.top < ddBox\.bottom - 2/);
+  assert.match(auditPage, /viewportWidth <= 560 \? !stacked : !beside/);
+});

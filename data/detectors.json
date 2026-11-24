@@ -1137,6 +1137,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"
+    },
+    {
+      "id": "key-summary-stack",
+      "rule": "At <=560px the key-summary label sits above the value with no 112px label column; above it the dt/dd stay two columns.",
+      "batch": "8",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
     }
   ]
 }

@@ -2659,6 +2659,47 @@ async function auditPage(args) {
     }
   }
 
+  // Key facts stack the label above the value at <=560px and stay two columns
+  // above it. A 0-3-0 `.key-page .key-summary-group .key-form-row` rule used to
+  // keep the 112px label column at 375px, wrapping the value into a ~159px
+  // column (ROT-445).
+  if (route === "/key" || route.startsWith("/key/")) {
+    const rows = [];
+    const offenders = [];
+    for (const row of document.querySelectorAll(".key-page .key-summary-group .key-form-row")) {
+      if (!visible(row)) continue;
+      const dt = row.querySelector("dt");
+      const dd = row.querySelector("dd");
+      if (!dt || !dd || !visible(dt) || !visible(dd)) continue;
+      if (!textOf(dd)) continue;
+      const dtBox = boxOf(dt);
+      const ddBox = boxOf(dd);
+      rows.push(row);
+      // <=560px: the value starts below the label, flush with its left edge.
+      const stacked = Math.abs(ddBox.left - dtBox.left) <= 2 && ddBox.top >= dtBox.bottom - 2;
+      // Above 560px: the value sits in its own column, overlapping the label
+      // vertically.
+      const beside =
+        ddBox.left > dtBox.left + 40 && ddBox.top < dtBox.bottom - 2 && dtBox.top < ddBox.bottom - 2;
+      if (viewportWidth <= 560 ? !stacked : !beside) {
+        offenders.push({
+          dtLeft: Math.round(dtBox.left),
+          ddLeft: Math.round(ddBox.left),
+          dtTop: Math.round(dtBox.top),
+          ddTop: Math.round(ddBox.top),
+        });
+      }
+    }
+    metrics.routeChecks.keySummaryStack = { width: viewportWidth, rows: rows.length, offenders: offenders.length };
+    if (offenders.length) {
+      add(
+        "key-summary-stack",
+        `${offenders.length} key summary row(s) do not stack at <=560px (or lose their two columns above it)`,
+        offenders.slice(0, 10),
+      );
+    }
+  }
+
   if (route === "/seed") {
     const checkbox = document.getElementById("seed-balances");
     metrics.routeChecks.seedBalanceCheckbox = Boolean(checkbox && visible(checkbox));
