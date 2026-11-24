@@ -292,6 +292,7 @@
         "node docs/site-map/site-map-test.mjs",
         "node scripts/density-parity.mjs --help",
         "node --test scripts/task-tracking.test.mjs",
+        "node --test scripts/claim.test.mjs",
         "node --test scripts/check-task-links.test.mjs",
         "node --test scripts/check-process.test.mjs",
         "node --test scripts/mutate-changed.test.mjs",

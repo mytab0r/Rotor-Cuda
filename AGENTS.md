@@ -36,6 +36,12 @@ Convention: `docs/process/task-tracking.md`. One key per task: `ROT-<n>` from
 the GitHub issue number; an epic per OpenSpec change and a sub-issue per
 `tasks.md` section.
 
+Concurrent sessions claim the issue before the first edit
+(`docs/process/concurrency.md`): `node scripts/claim.mjs start <n> --session <id>
+--branch <b>`; release it when merged or abandoned; a live claim is skipped, a
+stale one (2 hours without a claim comment, a branch commit or an open PR
+update) may be taken over with a comment naming the previous session.
+
 - Implement work against a sub-issue. End the commit message with
   `Task: ROT-<n>` (a trailer, provider-neutral; no `Closes` in commits).
 - The PR body must contain `Task: ROT-<n>` and a closing reference to the same
