@@ -1193,6 +1193,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
       "status": "implemented"
+    },
+    {
+      "id": "font-swap-layout-shift",
+      "rule": "A first-party @font-face must not use font-display: swap; optional/block only, so a late webfont cannot shift layout.",
+      "batch": "7",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#detectors",
+      "status": "implemented"
     }
   ]
 }

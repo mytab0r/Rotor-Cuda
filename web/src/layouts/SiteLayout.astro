@@ -81,6 +81,7 @@ const buildId = getBuildId();
   <meta name="twitter:image" content={image}>
   <meta name="twitter:image:alt" content={imageAlt}>
   {jsonLd && <JsonLd data={jsonLd} />}
+  <link rel="preload" href="/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/site.css">
   <script is:inline src={themeInitUrl}></script>
   <slot name="head" />

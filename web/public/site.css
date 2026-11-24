@@ -740,7 +740,7 @@ p { text-wrap: pretty; }
   font-family: "Manrope";
   font-style: normal;
   font-weight: 400 800;
-  font-display: swap;
+  font-display: optional;
   src: url("/fonts/manrope-latin.woff2") format("woff2");
 }
 

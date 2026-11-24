@@ -575,6 +575,33 @@ function emptyStateViolations() {
   }];
 }
 
+// font-swap-layout-shift: a first-party webfont may not arrive late and swap.
+// `font-display: swap` on a cold, throttled load re-flows the text that uses
+// the face (ROT-501: CLS 0.177 on the Astro landing page), so only `optional`
+// (with a preload for the normal-connection case) or `block` is allowed.
+function fontDisplayViolations() {
+  const css = readFileSync(path.join(REPO_ROOT, "apps", "site", "site.css"), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "));
+  const issues = [];
+  for (const match of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    const selector = match[1].trim();
+    if (selector !== "@font-face") continue;
+    const line = css.slice(0, match.index + match[1].indexOf("@font-face")).split("\n").length;
+    const body = match[2];
+    const declaration = body.split(";").find((part) => part.trim().startsWith("font-display"));
+    const value = declaration ? declaration.slice(declaration.indexOf(":") + 1).trim() : "unset";
+    if (value !== "optional" && value !== "block") {
+      issues.push(`site.css:${line} @font-face font-display: ${value}`);
+    }
+  }
+  if (!issues.length) return [];
+  return [{
+    id: "font-swap-layout-shift",
+    message: `${issues.length} @font-face rule(s) can shift layout when the webfont arrives late`,
+    detail: issues.slice(0, 12),
+  }];
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -891,8 +918,9 @@ function slugify(route) {
 // Runs inside the page. Keep every helper inside so the function can be
 // serialized without closing over the Node scope.
 async function auditPage(args) {
-  // Web fonts swap in after the load event (site.css declares
-  // font-display: swap), and a late swap changes line-box height. Measuring
+  // Web fonts can swap in after the load event (site.css uses
+  // font-display: optional with a preload; the browser may still pick the
+  // fallback on a cold profile), and a late swap changes line-box height. Measuring
   // before the font set settles reported a transient 1-2px cell overflow on
   // /bitcoin-puzzle that the settled layout does not have (ROT-472). Wait for
   // the same font-ready condition goto() uses, then one frame so the final
@@ -6625,6 +6653,7 @@ async function main() {
     globalViolations.push(...legacyTokenViolations());
     globalViolations.push(...litecoinFallbackViolations());
     globalViolations.push(...emptyStateViolations());
+    globalViolations.push(...fontDisplayViolations());
     globalViolations.push(...tableClassViolations());
     if (siteMapStatus !== 404) {
       globalViolations.push({
