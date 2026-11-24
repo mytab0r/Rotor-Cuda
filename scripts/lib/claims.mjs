@@ -43,11 +43,13 @@ function timeOf(value) {
 }
 
 // `lastCommitAt` and `prUpdatedAt` are ISO strings or null; `now` is injected
-// in tests. A release always wins, whatever the timestamps say.
+// in tests. A release always wins, whatever the timestamps say. The claim's own
+// time is the comment's `createdAt` when the caller has it: a marker whose
+// declared `at` is forged or comes from a skewed clock must not outlive it.
 export function claimState(claim, { now = Date.now(), lastCommitAt = null, prUpdatedAt = null } = {}) {
   if (!claim) return "none";
   if (claim.released) return "released";
-  const times = [timeOf(claim.at), timeOf(lastCommitAt), timeOf(prUpdatedAt)].filter(
+  const times = [timeOf(claim.recordedAt ?? claim.at), timeOf(lastCommitAt), timeOf(prUpdatedAt)].filter(
     (value) => value !== null,
   );
   if (times.length === 0) return "stale";
@@ -56,20 +58,40 @@ export function claimState(claim, { now = Date.now(), lastCommitAt = null, prUpd
 }
 
 // The latest claim marker in a comment list wins; a later release closes it.
+// Ordering uses the comment's `createdAt` when the caller passes it, so the
+// issue timeline, not the marker's self-declared time, decides.
 export function latestClaim(comments = []) {
   let latest = null;
   let latestAt = -Infinity;
   for (const comment of comments) {
     const claim = parseClaimComment(comment?.body ?? comment);
     if (!claim) continue;
-    const at = timeOf(claim.at);
+    const recordedAt = comment?.createdAt ?? null;
+    const at = timeOf(recordedAt) ?? timeOf(claim.at);
     if (at === null) continue;
     if (at >= latestAt) {
-      latest = claim;
+      latest = { ...claim, recordedAt };
       latestAt = at;
     }
   }
   return latest;
+}
+
+// Every claim whose comment landed within `windowMs` of `at`, newest last.
+// Two sessions that start together both see each other here and settle the tie
+// by session id, so equal starts converge on one owner.
+export function claimsNear(comments = [], at, windowMs = 5000) {
+  const target = timeOf(at);
+  if (target === null) return [];
+  const found = [];
+  for (const comment of comments) {
+    const claim = parseClaimComment(comment?.body ?? comment);
+    if (!claim || claim.released) continue;
+    const stamp = timeOf(comment?.createdAt ?? claim.at);
+    if (stamp === null || Math.abs(stamp - target) > windowMs) continue;
+    found.push({ ...claim, recordedAt: comment?.createdAt ?? null });
+  }
+  return found.sort((a, b) => (timeOf(a.recordedAt ?? a.at) ?? 0) - (timeOf(b.recordedAt ?? b.at) ?? 0));
 }
 
 export function sameBranch(claim, branch) {

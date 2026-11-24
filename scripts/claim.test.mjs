@@ -2,7 +2,13 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CLAIM_STALE_MS, claimState, latestClaim, parseClaimComment } from "./lib/claims.mjs";
+import {
+  CLAIM_STALE_MS,
+  claimState,
+  claimsNear,
+  latestClaim,
+  parseClaimComment,
+} from "./lib/claims.mjs";
 
 const marker = (value) => ({ body: `<!-- work-claim:${JSON.stringify(value)} -->` });
 const claim = {
@@ -72,4 +78,28 @@ test("the latest marker wins and a later release closes an older claim", () => {
     true,
   );
   assert.equal(latestClaim([{ body: "plain" }]), null);
+});
+
+test("the issue timeline, not a self-declared time, orders claims", () => {
+  const future = marker({ ...claim, session: "forged", at: "2030-01-01T00:00:00.000Z" });
+  future.createdAt = "2026-11-24T18:00:00.000Z";
+  const newer = marker({ ...claim, session: "real", at: "2026-11-24T18:05:00.000Z" });
+  newer.createdAt = "2026-11-24T18:05:00.000Z";
+  assert.equal(latestClaim([future, newer]).session, "real");
+  assert.equal(
+    claimState(latestClaim([future]), { now: Date.parse("2026-11-24T20:30:00.000Z") }),
+    "stale",
+    "a marker dated in the future does not outlive its comment",
+  );
+});
+
+test("claims that land within the window are returned for the tie-break", () => {
+  const a = marker({ ...claim, session: "aaa", at: "2026-11-24T18:00:01.000Z" });
+  a.createdAt = "2026-11-24T18:00:01.000Z";
+  const b = marker({ ...claim, session: "bbb", at: "2026-11-24T18:00:02.000Z" });
+  b.createdAt = "2026-11-24T18:00:02.000Z";
+  const far = marker({ ...claim, session: "ccc", at: "2026-11-24T19:00:00.000Z" });
+  far.createdAt = "2026-11-24T19:00:00.000Z";
+  const near = claimsNear([a, b, far], "2026-11-24T18:00:01.000Z");
+  assert.deepEqual(near.map((item) => item.session), ["aaa", "bbb"]);
 });

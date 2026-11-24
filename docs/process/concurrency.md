@@ -44,6 +44,18 @@ commits, so a recent pull-request update keeps the claim alive; a finished
 branch with no pull request keeps it alive through its commits; and a crash
 that leaves neither is exactly the case where the 2-hour rule frees the work.
 
+## Two sessions starting at once
+
+GitHub has no compare-and-swap on comments, so the check and the claim cannot
+be one atomic operation. `start` narrows the race: it posts the claim, waits
+two seconds, re-reads the issue, and settles a near tie by session id — claims
+that landed within the same five-second window are compared, the lower session
+id keeps the issue and the other exits with code 2. A residual window of a few
+seconds remains; the worktree rule (one writer per tree) is the backstop.
+
+Ordering uses the comment's `createdAt`, not the timestamp declared inside the
+marker, so a skewed clock or a hand-written marker cannot extend a claim.
+
 ## Rules
 
 - An interactive session claims the issue before the first edit and releases

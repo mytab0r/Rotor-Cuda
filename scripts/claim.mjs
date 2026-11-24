@@ -13,7 +13,13 @@
 // 1 = error.
 
 import { execFileSync } from "node:child_process";
-import { claimState, latestClaim, parseClaimComment, CLAIM_STALE_MS } from "./lib/claims.mjs";
+import {
+  CLAIM_STALE_MS,
+  claimState,
+  claimsNear,
+  latestClaim,
+  parseClaimComment,
+} from "./lib/claims.mjs";
 
 const REPO = process.env.GH_REPO || "mytab0r/Rotor-Cuda";
 
@@ -30,6 +36,10 @@ function gh(args) {
       .join("\n");
     throw new Error(`gh ${args.slice(0, 3).join(" ")} failed: ${detail || error.message}`);
   }
+}
+
+function pause(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function ghJson(args) {
@@ -152,6 +162,27 @@ function start(number, options, session) {
     `Release with \`node scripts/claim.mjs release ${number}\`.`,
   ].join("\n\n");
   gh(["issue", "comment", String(number), "--repo", REPO, "--body", body]);
+  // Two sessions can pass the check together: GitHub has no compare-and-swap
+  // on comments. Re-read after a short grace and settle a near tie by session
+  // id, so both sides pick the same winner. The residual window is documented
+  // in docs/process/concurrency.md; the worktree rule is the backstop.
+  pause(2000);
+  const after = issueView(number);
+  const comments = after.comments ?? [];
+  const own = comments
+    .map((comment) => ({ comment, claim: parseClaimComment(comment.body) }))
+    .filter((item) => item.claim && item.claim.session === session && item.claim.branch === options.branch)
+    .pop();
+  const ownAt = own?.comment?.createdAt ?? at;
+  const rival = claimsNear(comments, ownAt).find(
+    (item) => item.session !== session && item.session < session,
+  );
+  if (rival) {
+    console.error(
+      `lost the claim race on #${number} to ${rival.session} on ${rival.branch}; backing off.`,
+    );
+    return 2;
+  }
   console.log(`claimed #${number}: ${humanClaim({ ...JSON.parse(marker), released: false }, "live")}`);
   return 0;
 }
