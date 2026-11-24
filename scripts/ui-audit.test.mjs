@@ -94,3 +94,13 @@ test("the puzzle summary is not given a reserved height", () => {
   const css = readFileSync(new URL("../apps/site/site.css", import.meta.url), "utf8");
   assert.doesNotMatch(css, /\.puzzle-summary\s*\{[^}]*min-height/);
 });
+
+/* The wallet picker carries `evm:<chainId>` and `tron:<slug>` discriminators.
+ * The audit must resolve both encodings instead of parsing the value as a
+ * number; the revert tier needs this file to go red when that hunk is undone. */
+test("the wallet audit resolves the option discriminator, not a numeric value", () => {
+  assert.match(source, /const optionFor = \(chainId\) => \{/);
+  assert.match(source, /const prefixed = 'evm:' \+ chainId;/);
+  assert.match(source, /network\.value = sepolia;/);
+  assert.match(source, /const networkValue = \(chainId\) => \{/);
+});
