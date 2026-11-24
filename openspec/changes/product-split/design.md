@@ -445,7 +445,12 @@ an open item and is not claimed here.
 
 `tests/parity/chain-map.json` is the one mapping from a chain slug to its wasm
 `derive_report` row, address format and whether the desktop WIF version byte
-equals the Bitcoin mainnet byte exposed by `derive_report`.
+equals the Bitcoin mainnet byte exposed by `derive_report`. Each vector carries
+the canonical `address`, the private key, the public key and WIF where the
+chain defines one, the derivation path and whether it was applied, plus an
+`addresses` map of every format that side exposes (Bitcoin
+P2PKH/uncompressed/P2SH-P2WPKH/P2WPKH/P2TR, Litecoin's four rows, and the
+single canonical row for the other chains).
 
 ### Where the vectors live
 

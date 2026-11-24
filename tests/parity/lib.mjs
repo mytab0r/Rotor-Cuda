@@ -168,6 +168,12 @@ export function buildWasmVectors(context) {
         continue;
       }
 
+      const addresses = {};
+      for (const id of mapping.wasm_rows ?? [mapping.wasm_row]) {
+        const entry = (report.addresses ?? []).find((candidate) => candidate.id === id);
+        if (entry) addresses[id] = entry.address;
+      }
+
       vectors.push({
         key_id: key.id,
         chain: chain.slug,
@@ -187,6 +193,7 @@ export function buildWasmVectors(context) {
         public_key_uncompressed: report.pubkey_uncompressed || "",
         ed_pubkey: report.ed_pubkey || "",
         address: row.address,
+        addresses,
         format: mapping.format,
         wasm_row: mapping.wasm_row,
         wif: report.wif_compressed || null,

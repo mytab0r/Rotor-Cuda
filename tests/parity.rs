@@ -134,6 +134,9 @@ fn desktop_vector(
             .unwrap_or_else(|error| panic!("{key_id}/{}: {error}", descriptor.id))
     };
 
+    let mut addresses = serde_json::Map::new();
+    addresses.insert(format.to_owned(), Value::String(derived.address.clone()));
+
     json!({
         "key_id": key_id,
         "chain": descriptor.id,
@@ -148,6 +151,7 @@ fn desktop_vector(
         "private_key": hex_lower(&key_bytes),
         "public_key": derived.public_hex.to_ascii_lowercase(),
         "address": derived.address,
+        "addresses": addresses,
         "format": format,
         "wif": derived.secret,
         "wif_version": descriptor.wif_version,

@@ -153,6 +153,9 @@
   "vectors": [
     {
       "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "addresses": {
+        "p2pkh": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -171,6 +174,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -189,6 +195,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -207,6 +216,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -225,6 +237,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -243,6 +258,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -261,6 +279,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -279,6 +300,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -297,6 +321,9 @@
     },
     {
       "address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+      "addresses": {
+        "eip55": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -315,6 +342,9 @@
     },
     {
       "address": "6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt",
+      "addresses": {
+        "base58": "6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -333,6 +363,9 @@
     },
     {
       "address": "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC",
+      "addresses": {
+        "base58check": "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -351,6 +384,9 @@
     },
     {
       "address": "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH",
+      "addresses": {
+        "classic": "rBgGZ9tc4him9KBzD8fKFiQz3fSZpaSwMH"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -369,6 +405,9 @@
     },
     {
       "address": "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ",
+      "addresses": {
+        "p2pkh": "LVuDpNCSSj6pQ7t9Pv6d6sUkLKoqDEVUnJ"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -387,6 +426,9 @@
     },
     {
       "address": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+      "addresses": {
+        "p2pkh": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -405,6 +447,9 @@
     },
     {
       "address": "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE",
+      "addresses": {
+        "p2pkh": "DFpN6QqFfUm3gKNaxN6tNcab1FArL9cZLE"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -423,6 +468,9 @@
     },
     {
       "address": "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs",
+      "addresses": {
+        "p2pkh": "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -441,6 +489,9 @@
     },
     {
       "address": "0xd0c2c91eda34bbfbaec6cfb9c7bb913e57dab3cbec4018a4b3f5e55531cd63af",
+      "addresses": {
+        "blake2b": "0xd0c2c91eda34bbfbaec6cfb9c7bb913e57dab3cbec4018a4b3f5e55531cd63af"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -459,6 +510,9 @@
     },
     {
       "address": "EQAkxuybaeBflbgYW3vgQvcFgyAQVcLtXZwdrpeLNqzZ000c",
+      "addresses": {
+        "ton-user-friendly": "EQAkxuybaeBflbgYW3vgQvcFgyAQVcLtXZwdrpeLNqzZ000c"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
@@ -517,6 +571,9 @@
     },
     {
       "address": "1cMh228HTCiwS8ZsaakH8A8wze1JR5ZsP",
+      "addresses": {
+        "p2pkh": "1cMh228HTCiwS8ZsaakH8A8wze1JR5ZsP"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -535,6 +592,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -553,6 +613,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -571,6 +634,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -589,6 +655,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -607,6 +676,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -625,6 +697,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -643,6 +718,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -661,6 +739,9 @@
     },
     {
       "address": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF",
+      "addresses": {
+        "eip55": "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -679,6 +760,9 @@
     },
     {
       "address": "8pM1DN3RiT8vbom5u1sNryaNT1nyL8CTTW3b5PwWXRBH",
+      "addresses": {
+        "base58": "8pM1DN3RiT8vbom5u1sNryaNT1nyL8CTTW3b5PwWXRBH"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -697,6 +781,9 @@
     },
     {
       "address": "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K",
+      "addresses": {
+        "base58check": "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -715,6 +802,9 @@
     },
     {
       "address": "rcM6pp3HTU5AS3Z122kH3w3AzerJRnZ1P",
+      "addresses": {
+        "classic": "rcM6pp3HTU5AS3Z122kH3w3AzerJRnZ1P"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -733,6 +823,9 @@
     },
     {
       "address": "LKqJxEKxN7SnCEpj3ia3Z9DuAD1HNjh1hx",
+      "addresses": {
+        "p2pkh": "LKqJxEKxN7SnCEpj3ia3Z9DuAD1HNjh1hx"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -751,6 +844,9 @@
     },
     {
       "address": "1cMh228HTCiwS8ZsaakH8A8wze1JR5ZsP",
+      "addresses": {
+        "p2pkh": "1cMh228HTCiwS8ZsaakH8A8wze1JR5ZsP"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -769,6 +865,9 @@
     },
     {
       "address": "D5kTEGxmas71USKAcAaJptKjq8NJc6EK8C",
+      "addresses": {
+        "p2pkh": "D5kTEGxmas71USKAcAaJptKjq8NJc6EK8C"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -787,6 +886,9 @@
     },
     {
       "address": "t1JUxhMSGFmzKY5BTp1PsQwG4Ceq642SmnB",
+      "addresses": {
+        "p2pkh": "t1JUxhMSGFmzKY5BTp1PsQwG4Ceq642SmnB"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -805,6 +907,9 @@
     },
     {
       "address": "0x2f86c4ae4c665d3776ad339152c90a4e9ea749c1ed293a6fe2731913965c53cd",
+      "addresses": {
+        "blake2b": "0x2f86c4ae4c665d3776ad339152c90a4e9ea749c1ed293a6fe2731913965c53cd"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -823,6 +928,9 @@
     },
     {
       "address": "EQBpuxKb5zcCDcKk-tJDY2YVM9RuG3igJjhls90VDnMPEVof",
+      "addresses": {
+        "ton-user-friendly": "EQBpuxKb5zcCDcKk-tJDY2YVM9RuG3igJjhls90VDnMPEVof"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
@@ -881,6 +989,9 @@
     },
     {
       "address": "1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb",
+      "addresses": {
+        "p2pkh": "1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -899,6 +1010,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -917,6 +1031,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -935,6 +1052,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -953,6 +1073,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -971,6 +1094,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -989,6 +1115,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1007,6 +1136,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1025,6 +1157,9 @@
     },
     {
       "address": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69",
+      "addresses": {
+        "eip55": "0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1043,6 +1178,9 @@
     },
     {
       "address": "HPYVwAQmskwT1qEEeRzhoomyfyupJGASQQtCXSNG8XS2",
+      "addresses": {
+        "base58": "HPYVwAQmskwT1qEEeRzhoomyfyupJGASQQtCXSNG8XS2"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -1061,6 +1199,9 @@
     },
     {
       "address": "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3",
+      "addresses": {
+        "base58check": "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -1079,6 +1220,9 @@
     },
     {
       "address": "rU74NBjYiU8pyrSd57Mo62K75hAFPspaLb",
+      "addresses": {
+        "classic": "rU74NBjYiU8pyrSd57Mo62K75hAFPspaLb"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1097,6 +1241,9 @@
     },
     {
       "address": "LWhKVQ3Nvs26Dp8ntcM6ybPEvHK6Y4VWZU",
+      "addresses": {
+        "p2pkh": "LWhKVQ3Nvs26Dp8ntcM6ybPEvHK6Y4VWZU"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1115,6 +1262,9 @@
     },
     {
       "address": "1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb",
+      "addresses": {
+        "p2pkh": "1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1133,6 +1283,9 @@
     },
     {
       "address": "DGcTmSgC9cgKW1dET4MNFLV5bCg7em2Bds",
+      "addresses": {
+        "p2pkh": "DGcTmSgC9cgKW1dET4MNFLV5bCg7em2Bds"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1151,6 +1304,9 @@
     },
     {
       "address": "t1VLyEX9gpXZdZeVXeuAvqPRPxj8u8qiVHL",
+      "addresses": {
+        "p2pkh": "t1VLyEX9gpXZdZeVXeuAvqPRPxj8u8qiVHL"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1169,6 +1325,9 @@
     },
     {
       "address": "0xb196e9730f8b67bf20173620fcdfdf9a389f7a6fb53373903f8194c80dcb4ca4",
+      "addresses": {
+        "blake2b": "0xb196e9730f8b67bf20173620fcdfdf9a389f7a6fb53373903f8194c80dcb4ca4"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -1187,6 +1346,9 @@
     },
     {
       "address": "EQC0yNkb4jqLn8ozQK0YkjW7IqWTFRGxJJtfF2nL4Y4wxUxS",
+      "addresses": {
+        "ton-user-friendly": "EQC0yNkb4jqLn8ozQK0YkjW7IqWTFRGxJJtfF2nL4Y4wxUxS"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
@@ -1245,6 +1407,9 @@
     },
     {
       "address": "1DF7Yr4GKWoCXZZZXoEczo9oiokwQe8Urz",
+      "addresses": {
+        "p2pkh": "1DF7Yr4GKWoCXZZZXoEczo9oiokwQe8Urz"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1263,6 +1428,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1281,6 +1449,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1299,6 +1470,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1317,6 +1491,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1335,6 +1512,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1353,6 +1533,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1371,6 +1554,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1389,6 +1575,9 @@
     },
     {
       "address": "0x5044a80bD3eff58302e638018534BbDA8896c48A",
+      "addresses": {
+        "eip55": "0x5044a80bD3eff58302e638018534BbDA8896c48A"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1407,6 +1596,9 @@
     },
     {
       "address": "6q3xqG3JyVkVobenDk8pxGvKtzow26REjfztngQ8NUik",
+      "addresses": {
+        "base58": "6q3xqG3JyVkVobenDk8pxGvKtzow26REjfztngQ8NUik"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -1425,6 +1617,9 @@
     },
     {
       "address": "THHdJjkPUngpM4PdJd8Wq8Rq77CFoKHj1u",
+      "addresses": {
+        "base58check": "THHdJjkPUngpM4PdJd8Wq8Rq77CFoKHj1u"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -1443,6 +1638,9 @@
     },
     {
       "address": "rDEfYihGKWoUXZZZXoNczo9o5okAQe37iz",
+      "addresses": {
+        "classic": "rDEfYihGKWoUXZZZXoNczo9o5okAQe37iz"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1461,6 +1659,9 @@
     },
     {
       "address": "LXU4p4N6QB3FnNFihwDvGpDZw28DU8u6Zp",
+      "addresses": {
+        "p2pkh": "LXU4p4N6QB3FnNFihwDvGpDZw28DU8u6Zp"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1479,6 +1680,9 @@
     },
     {
       "address": "1DF7Yr4GKWoCXZZZXoEczo9oiokwQe8Urz",
+      "addresses": {
+        "p2pkh": "1DF7Yr4GKWoCXZZZXoEczo9oiokwQe8Urz"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1497,6 +1701,9 @@
     },
     {
       "address": "DHPD66zucvhV4ZkAGPEBYZKQbwVEj8sgub",
+      "addresses": {
+        "p2pkh": "DHPD66zucvhV4ZkAGPEBYZKQbwVEj8sgub"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1515,6 +1722,9 @@
     },
     {
       "address": "t1W7iZBUQHqao8CcTUE3k8cFiyTx27kbM5b",
+      "addresses": {
+        "p2pkh": "t1W7iZBUQHqao8CcTUE3k8cFiyTx27kbM5b"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1533,6 +1743,9 @@
     },
     {
       "address": "0xace2d86eb2d2ed175d1eef60dc03224f4e7f2957cc025173cd666427d7b38309",
+      "addresses": {
+        "blake2b": "0xace2d86eb2d2ed175d1eef60dc03224f4e7f2957cc025173cd666427d7b38309"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -1551,6 +1764,9 @@
     },
     {
       "address": "EQCSR221-4iCA9r4mhwTk3HXuk64sP6C2q_ft95eGLR-AboJ",
+      "addresses": {
+        "ton-user-friendly": "EQCSR221-4iCA9r4mhwTk3HXuk64sP6C2q_ft95eGLR-AboJ"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
@@ -1609,6 +1825,9 @@
     },
     {
       "address": "12Etsmqp76ToVNfBZbfwMmhixqc19J7X8g",
+      "addresses": {
+        "p2pkh": "12Etsmqp76ToVNfBZbfwMmhixqc19J7X8g"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1627,6 +1846,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1645,6 +1867,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1663,6 +1888,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1681,6 +1909,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1699,6 +1930,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1717,6 +1951,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1735,6 +1972,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1753,6 +1993,9 @@
     },
     {
       "address": "0x919538116b4F25f1CE01429fd9Ed7964556bf565",
+      "addresses": {
+        "eip55": "0x919538116b4F25f1CE01429fd9Ed7964556bf565"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -1771,6 +2014,9 @@
     },
     {
       "address": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF",
+      "addresses": {
+        "base58": "FAe4sisG95oZ42w7buUn5qEE4TAnfTTFPiguZUHmhiF"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -1789,6 +2035,9 @@
     },
     {
       "address": "TWDz8ZY4KGNzqp8sskaZUKKNkymW3TfU53",
+      "addresses": {
+        "base58check": "TWDz8ZY4KGNzqp8sskaZUKKNkymW3TfU53"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -1807,6 +2056,9 @@
     },
     {
       "address": "rLTb3SEAzRXpKcUt5C74XvcHSZhus5a41X",
+      "addresses": {
+        "classic": "rLTb3SEAzRXpKcUt5C74XvcHSZhus5a41X"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1825,6 +2077,9 @@
     },
     {
       "address": "LMcv1mF76k7DhZiXMCKc5XMxzjfKDRDn93",
+      "addresses": {
+        "p2pkh": "LMcv1mF76k7DhZiXMCKc5XMxzjfKDRDn93"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1843,6 +2098,9 @@
     },
     {
       "address": "1KimeNJcBkSHt6S56kzkUYJetKTv6Em5HE",
+      "addresses": {
+        "p2pkh": "1KimeNJcBkSHt6S56kzkUYJetKTv6Em5HE"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1861,6 +2119,9 @@
     },
     {
       "address": "DPHNNQRC9VRRYPiRoktjvmBRkFByVDPX7p",
+      "addresses": {
+        "p2pkh": "DPHNNQRC9VRRYPiRoktjvmBRkFByVDPX7p"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1879,6 +2140,9 @@
     },
     {
       "address": "t1V9mnyk5Z5cTNMCkLbaDwSskgJZucTLdgW",
+      "addresses": {
+        "p2pkh": "t1V9mnyk5Z5cTNMCkLbaDwSskgJZucTLdgW"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1897,6 +2161,9 @@
     },
     {
       "address": "0x160179a1565ea7cff27ead23f54cc7f50893bf58155cd7285156e57afa31c3ac",
+      "addresses": {
+        "blake2b": "0x160179a1565ea7cff27ead23f54cc7f50893bf58155cd7285156e57afa31c3ac"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -1915,6 +2182,9 @@
     },
     {
       "address": "EQDTcUOcJvwtMx4R6Vbb-uYCtJELCzAAvdD439fc2Y0UNsUJ",
+      "addresses": {
+        "ton-user-friendly": "EQDTcUOcJvwtMx4R6Vbb-uYCtJELCzAAvdD439fc2Y0UNsUJ"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
@@ -1973,6 +2243,9 @@
     },
     {
       "address": "1MPbf2AKrdsKEe7aEBPLRXxQJXonnUedLJ",
+      "addresses": {
+        "p2pkh": "1MPbf2AKrdsKEe7aEBPLRXxQJXonnUedLJ"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -1991,6 +2264,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2009,6 +2285,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2027,6 +2306,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2045,6 +2327,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2063,6 +2348,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2081,6 +2369,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2099,6 +2390,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2117,6 +2411,9 @@
     },
     {
       "address": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8",
+      "addresses": {
+        "eip55": "0x77AcF42e7A6b5957c7625AAd0e34594cA81523E8"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2135,6 +2432,9 @@
     },
     {
       "address": "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z",
+      "addresses": {
+        "base58": "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -2153,6 +2453,9 @@
     },
     {
       "address": "TFgSrRoVjygZfU5Zs4FsuHcDumG2kpvGAo",
+      "addresses": {
+        "base58check": "TFgSrRoVjygZfU5Zs4FsuHcDumG2kpvGAo"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -2171,6 +2474,9 @@
     },
     {
       "address": "rGCH6LKV7kG2MRcJn777RACSz7NMTNj7Y",
+      "addresses": {
+        "classic": "rGCH6LKV7kG2MRcJn777RACSz7NMTNj7Y"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2189,6 +2495,9 @@
     },
     {
       "address": "LbzwsHKYopG2YEXHUgGEuvys9hayUtzRRP",
+      "addresses": {
+        "p2pkh": "LbzwsHKYopG2YEXHUgGEuvys9hayUtzRRP"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2207,6 +2516,9 @@
     },
     {
       "address": "14qTPQM6ycbr7XgLY4zbRHk5kYvbS5ysfp",
+      "addresses": {
+        "p2pkh": "14qTPQM6ycbr7XgLY4zbRHk5kYvbS5ysfp"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2225,6 +2537,9 @@
     },
     {
       "address": "DH4u7PhJjkhfqp713sUD4fzNqrPjXN1W41",
+      "addresses": {
+        "p2pkh": "DH4u7PhJjkhfqp713sUD4fzNqrPjXN1W41"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2243,6 +2558,9 @@
     },
     {
       "address": "t1VLWwY726pHtnm44ojM1cg9ugYXPWzqquZ",
+      "addresses": {
+        "p2pkh": "t1VLWwY726pHtnm44ojM1cg9ugYXPWzqquZ"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2261,6 +2579,9 @@
     },
     {
       "address": "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d",
+      "addresses": {
+        "blake2b": "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -2279,6 +2600,9 @@
     },
     {
       "address": "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv",
+      "addresses": {
+        "ton-user-friendly": "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
@@ -2337,6 +2661,9 @@
     },
     {
       "address": "15cerE5enrxnNezyTa73xsEXKe9DntUjsN",
+      "addresses": {
+        "p2pkh": "15cerE5enrxnNezyTa73xsEXKe9DntUjsN"
+      },
       "chain": "bitcoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2355,6 +2682,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "ethereum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2373,6 +2703,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "bnb",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2391,6 +2724,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "arbitrum",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2409,6 +2745,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "optimism",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2427,6 +2766,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "base",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2445,6 +2787,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "polygon",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2463,6 +2808,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "avalanche",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2481,6 +2829,9 @@
     },
     {
       "address": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC",
+      "addresses": {
+        "eip55": "0x9fE6412B4Ab57954e8F71096A30D15aD842f24BC"
+      },
       "chain": "zksync",
       "curve": "secp256k1",
       "family": "evm-keccak",
@@ -2499,6 +2850,9 @@
     },
     {
       "address": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+      "addresses": {
+        "base58": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+      },
       "chain": "solana",
       "curve": "ed25519",
       "family": "ed25519",
@@ -2517,6 +2871,9 @@
     },
     {
       "address": "TSf81tkM5gRaTPbQddKENmtmbNTU5Zh9B2",
+      "addresses": {
+        "base58check": "TSf81tkM5gRaTPbQddKENmtmbNTU5Zh9B2"
+      },
       "chain": "tron",
       "curve": "secp256k1",
       "family": "tron-keccak",
@@ -2535,6 +2892,9 @@
     },
     {
       "address": "rwtBoACp3vL9o8hzU5QDGZjDPDB2i9Kmjd",
+      "addresses": {
+        "classic": "rwtBoACp3vL9o8hzU5QDGZjDPDB2i9Kmjd"
+      },
       "chain": "xrp",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2553,6 +2913,9 @@
     },
     {
       "address": "LgQoGdH8nNoesaYfiYPd9moQUtYwvmF7eQ",
+      "addresses": {
+        "p2pkh": "LgQoGdH8nNoesaYfiYPd9moQUtYwvmF7eQ"
+      },
       "chain": "litecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2571,6 +2934,9 @@
     },
     {
       "address": "1CGbjxgaMnwLfU2oVPEHpoRAxXVqmTy8wf",
+      "addresses": {
+        "p2pkh": "1CGbjxgaMnwLfU2oVPEHpoRAxXVqmTy8wf"
+      },
       "chain": "bitcoin-cash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2589,6 +2955,9 @@
     },
     {
       "address": "DKPX3fAHAnUQWrZKX43txwog634g8HSkw4",
+      "addresses": {
+        "p2pkh": "DKPX3fAHAnUQWrZKX43txwog634g8HSkw4"
+      },
       "chain": "dogecoin",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2607,6 +2976,9 @@
     },
     {
       "address": "t1gASwBju9UHFeDPQEFuBKbWePSBEF8LMu3",
+      "addresses": {
+        "p2pkh": "t1gASwBju9UHFeDPQEFuBKbWePSBEF8LMu3"
+      },
       "chain": "zcash",
       "curve": "secp256k1",
       "family": "secp-hash160",
@@ -2625,6 +2997,9 @@
     },
     {
       "address": "0x0881c07520943bbf13989b92892093c1b50672156fa5f873c22892701cb2e207",
+      "addresses": {
+        "blake2b": "0x0881c07520943bbf13989b92892093c1b50672156fa5f873c22892701cb2e207"
+      },
       "chain": "sui",
       "curve": "ed25519",
       "family": "ed25519",
@@ -2643,6 +3018,9 @@
     },
     {
       "address": "EQDcB_cHx9Yfwv4b4sLcW2tRg4HNjZJLqjr0TBKCL2-7NaUo",
+      "addresses": {
+        "ton-user-friendly": "EQDcB_cHx9Yfwv4b4sLcW2tRg4HNjZJLqjr0TBKCL2-7NaUo"
+      },
       "chain": "ton",
       "curve": "ed25519",
       "family": "ton-v4",
