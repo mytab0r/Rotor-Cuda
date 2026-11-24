@@ -2,7 +2,7 @@
 
 2026-11-20. Method: `curl -sL -A "Mozilla/5.0"` against public pages only. No form was submitted, no account created, no payment made; POST-only responses (`box/box.php`, `script/offer_order.php`) were read from their callers, not called. Facts below are marked **observed** (page markup/copy) or **inferred** (what the markup implies).
 
-## 1. What secretscan.org actually does
+## 1. What ref-site-b actually does
 
 **`/wallets` ("Buy rich list"). Observed:** each asset row ends with
 `<label class="generate"><input type="radio" name="buysell" value="btc" hidden><span>Buy rich list</span></label>`.
@@ -10,9 +10,9 @@ A click handler POSTs only `{buysell: "<asset>"}` to `box/box.php` and injects t
 
 **`/rent` (capacity rental). Observed:** one `form#form1` with hidden `action`, `packs` (1–999), `pay` (coin amount) and `coin` (7 options: BTC, ETH, LTC, USDT TRC20/BEP20/ERC20, USDC ERC20). Defaults: 1 pack, **79 USD**, USDT BEP20, `100.000.000.000.000` keys checked in 7 days. Every change AJAX-POSTs the serialized form to `script/offer_order.php`; the JSON reply selects one of four states: `mistake` (red), `order` (grey, button hidden), `payment` (purple, button hidden), or a price refresh. **There is no e-mail, wallet-address or memo field.** Copy says results and logs are stored "privately in your account" and the job starts after earlier orders in the queue; the CTA points to `/results`. **Inferred:** the order is bound to the logged-in account/session, not to a paying wallet.
 
-**Identification. Observed:** `/register` requires username, e-mail, password, confirmation and a policy checkbox, then a 6-digit e-mail code. `/login` accepts username-or-email, password and optional 2FA. `/profile` redirects to `/login` when logged out. Footer contact is `info@secretscan.org` (copy-to-clipboard). `/terms`, `/faq` and `/payment` return HTTP 404; the registration checkbox names four policies but has no links to them.
+**Identification. Observed:** `/register` requires username, e-mail, password, confirmation and a policy checkbox, then a 6-digit e-mail code. `/login` accepts username-or-email, password and optional 2FA. `/profile` redirects to `/login` when logged out. Footer contact is `info@<ref-site-b>` (copy-to-clipboard). `/terms`, `/faq` and `/payment` return HTTP 404; the registration checkbox names four policies but has no links to them.
 
-**Other surfaces. Observed:** `/programs` is a free direct ZIP (`/program/SecretScan2.05.zip`) with version and SHA-256; `/dashboard` is a zeroed rig dashboard whose identity is the client flag `-user YourLogin.RigName`. Neither is a paid-delivery page. `/results` is an account/session table with a 1-year retention note.
+**Other surfaces. Observed:** `/programs` is a free direct ZIP (`/program/<ref-site-b>-2.05.zip`) with version and SHA-256; `/dashboard` is a zeroed rig dashboard whose identity is the client flag `-user YourLogin.RigName`. Neither is a paid-delivery page. `/results` is an account/session table with a 1-year retention note.
 
 ## 2. Weaknesses and risks for us
 
@@ -20,7 +20,7 @@ A click handler POSTs only `{buysell: "<asset>"}` to `box/box.php` and injects t
 - **Identity and payment matching are not demonstrated.** The rich-list trigger carries only an asset code. If the unseen widget does not collect a contact, the operator cannot know who paid; if it does, that mapping is manual. `/rent` has no contact field at all, so its order is account-bound and a payment from an unrelated wallet is unattributable.
 - **Static addresses and bearer links.** A reused deposit address cannot distinguish two buyers; an unexpiring download link can be forwarded, indexed or leaked. Nothing public shows per-order expiry or revocation.
 - **Chargebacks** apply only if cards are added; crypto removes them but adds underpayment, wrong-chain, wrong-token, exchange-withheld-fee, reorg and price-drift cases.
-- **The product itself is the biggest risk for Rotor.** `src/coordinator/wallets.rs` already serves six rich lists under the MIT License at `/api/v1/wallets/<slug>/download`, and `privatekeyfinder.io/downloads` gives ten comparable files (15.30 GB) as direct links, marked `isAccessibleForFree: true` and CC0. Selling those same raw snapshots would be both undercut and legally muddled. The paid item must be a distinct artifact: packaged/historical snapshots, cleaned/normalised data, custom extraction, freshness or support — with its own licence.
+- **The product itself is the biggest risk for Rotor.** `src/coordinator/wallets.rs` already serves six rich lists under the MIT License at `/api/v1/wallets/<slug>/download`, and `ref-site-a/downloads` gives ten comparable files (15.30 GB) as direct links, marked `isAccessibleForFree: true` and CC0. Selling those same raw snapshots would be both undercut and legally muddled. The paid item must be a distinct artifact: packaged/historical snapshots, cleaned/normalised data, custom extraction, freshness or support — with its own licence.
 - **Account coupling** (password, optional 2FA, e-mail verification) is unnecessary for a one-off download and creates PII and takeover risk.
 
 ## 3. Recommended flow

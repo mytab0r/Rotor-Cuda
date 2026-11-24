@@ -3,7 +3,7 @@
 ## Goal
 
 Turn the coordinator dashboard into a proper public resource like
-secretscan.org: a landing page, an app section with live global stats, a
+ref-site-b: a landing page, an app section with live global stats, a
 leaderboard, self-service registration (admin-issued tokens or open signup), and
 a personal cabinet with each user's contribution.
 

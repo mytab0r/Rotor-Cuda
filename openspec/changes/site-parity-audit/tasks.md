@@ -188,8 +188,8 @@
   `providerMetaFor`), `apps/site/browse.js` (`providerMeta`),
   `apps/site/mnemonic-seeds-test.mjs` (config/derive, one-POST mapping,
   malformed-body and TonAPI meta cases; `balance-state-attribute` stays green),
-  donor source `https://privatekeyfinder.io/mnemonic-seeds/ton`
-  (`window.MNEMONIC_SEEDS_PRESETS`, `PKF_CONFIG.type = null`). Deliberate derivation deviation, recorded rather
+  donor source `ref-site-a/mnemonic-seeds/ton`
+  (`window.MNEMONIC_SEEDS_PRESETS`, the donor's `CONFIG.type = null`). Deliberate derivation deviation, recorded rather
   than copied: the donor takes the BIP32 secp256k1 master bytes and feeds them
   to the v4R2 builder (row 0 abandon…about, master preset: key
   `1837c1be8e2995ec11cda2b066151be2cfb48adf9e47b151d46adab3a21cdf67`,
@@ -321,7 +321,7 @@
   Discussion link (its target is not recorded) and the blocked Solution field;
   the wrong `parity` cells for the brainwallet generator and pubkey-add are
   fixed.
-- [x] Ledger honesty pass for ZEC (2026-11-22, docs-only): the seven secretscan
+- [x] Ledger honesty pass for ZEC (2026-11-22, docs-only): the seven ref-site-b
   `/PrivateKey*`/`/Bech32` donor rows, the `/key` route entry and the three
   `/key/<format>` aliases still said ZEC had no keyless provider and stayed
   `partial`. PR #237 wired SoChain (`apps/site/key.js`, dispatch)
@@ -453,7 +453,7 @@ follow-ups were code-only.
   `coordinator::tests::bitcoin_puzzle_browser_routes_are_served`. The donor
   `Solution` field (solved private key) stays out of scope by policy.
 - [x] Puzzle detail solver tool links (2026-11-22, code-only, issue #396): the
-  live donor capture (`https://privatekeyfinder.io/bitcoin-puzzle/<n>`, puzzles
+  live donor capture (`ref-site-a/bitcoin-puzzle/<n>`, puzzles
   #71/#72) renders three external tool links in the action row only on unsolved
   puzzles; solved #67–#70 and #80 do not. `render_puzzle_detail` now appends
   `BitCrack` → https://github.com/brichard19/BitCrack,
@@ -468,7 +468,7 @@ follow-ups were code-only.
 
 - [x] One filter bar (search + type + chain chips + reset), pager separate,
   stats in the table footer. The directory type select is donor parity, not a
-  duplicate: privatekeyfinder renders `#searchType` and syncs it with
+  duplicate: ref-site-a renders `#searchType` and syncs it with
   `.address-type-selector` (`docs/donor-parity/directory-pages.md` §1). `/key`
   renders one `.key-filter-bar` and a separate pager, and the audit
   `duplicate-preset-control` detector fails a second copy of the same control.

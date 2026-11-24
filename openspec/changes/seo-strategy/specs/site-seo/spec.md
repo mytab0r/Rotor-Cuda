@@ -119,7 +119,7 @@ sitewide link farm.
 ### Requirement: content safety
 The site MUST NOT publish an index or paginated list of real private keys,
 derived addresses or balances, and MUST NOT target theft or recovery intent
-("private key finder", "find lost bitcoin", "recover wallet"). Programmatic
+("lost private key", "find lost bitcoin", "recover wallet"). Programmatic
 explainer pages MUST use deterministic published test vectors, contain unique
 explanation with a citation, and pass review before publication. Keys, seeds
 and WIFs MUST NOT be received, logged or put into analytics.

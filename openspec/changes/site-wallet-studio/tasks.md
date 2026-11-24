@@ -231,7 +231,7 @@ browser capture in the PR.
 - Evidence: puzzle #71 random run for 60s; start/stop/reset; match fixture;
       mobile 375 capture; no key leaves the browser.
 
-## 14. Secretscan calculator catalogue (from donor-map.md)
+## 14. ref-site-b calculator catalogue (from donor-map.md)
 - [ ] `/monero-address-generator`; decide whether view-key/spend-key derivation
       or only address encoding is in scope.
 - [x] Per-chain address-generator pages that reuse `/key` with a chain preset:
@@ -264,7 +264,7 @@ browser capture in the PR.
       standard 32-byte MAC (geth/MetaMask) and the 16-byte legacy MAC are
       accepted, and the legacy positional scrypt `kdfparams` array `[n, r, p]`
       is parsed.
-- [ ] Transaction builders/decoders per secretscan route, reusing the
+- [ ] Transaction builders/decoders per ref-site-b route, reusing the
       tx-sign-broadcast review gate; no server-side signing.
 - [ ] `/wallets` in-site rich-list catalogue with search/filter and explicit
       price/terms; data source and resale rights must be confirmed first.

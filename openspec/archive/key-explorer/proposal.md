@@ -12,8 +12,8 @@ are queried, and only when the visitor asks.
 ## Why
 
 Reference resources split into two useful ideas: a minimal, fast key page
-(privatekeyfinder.io derives addresses in the browser and queries public
-balance APIs) and a step-by-step calculator (secretscan.org explains every
+(ref-site-a derives addresses in the browser and queries public
+balance APIs) and a step-by-step calculator (ref-site-b explains every
 conversion but computes on its server). This change combines them: local
 derivation for speed and privacy, expandable calculations for education, and
 an honest interface that also lets the visitor pick the curve instead of
