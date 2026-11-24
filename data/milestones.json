@@ -22,6 +22,15 @@
     }
   },
   {
+    "title": "Product split: site, desktop and wallet",
+    "due": "2027-03-31",
+    "description": "One shared core and three products — the static site, the standalone desktop tool and the anonymous wallet; the pool/API stays a versioned contract.",
+    "match": {
+      "areas": [],
+      "epics": ["product-split"]
+    }
+  },
+  {
     "title": "Desktop and coordinator parity",
     "due": "2027-03-31",
     "description": "Keep the native CLI, the GPU/BSGS desktop and the coordinator on the same chain and API contracts.",

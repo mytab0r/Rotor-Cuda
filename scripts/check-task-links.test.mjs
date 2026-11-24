@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import {
   checkBoardFields,
   checkPullRequest,
-  findDuplicateTypeLabels,
+  findDuplicateFieldLabels,
 } from "./check-task-links.mjs";
 
 const product = ["apps/site/site.js", "src/coordinator/mod.rs"];
@@ -270,11 +270,19 @@ test("board gate honors a reasoned allowlist entry", () => {
   assert.equal(result.skipped, 1);
 });
 
-test("labels that duplicate the native Type fail the board gate", () => {
-  assert.deepEqual(findDuplicateTypeLabels(["bug", "type:bug", "epic"]), [
-    "bug",
-    "type:bug",
-  ]);
+test("labels that duplicate a native or project field fail the board gate", () => {
+  assert.deepEqual(
+    findDuplicateFieldLabels([
+      "bug",
+      "type:bug",
+      "area:site",
+      "priority:P1",
+      "severity:S2",
+      "epic",
+      "change:demo",
+    ]),
+    ["bug", "type:bug", "area:site", "priority:P1", "severity:S2"],
+  );
   const result = checkBoardFields({
     issues: [
       {
@@ -297,5 +305,8 @@ test("labels that duplicate the native Type fail the board gate", () => {
     labels: ["bug", "epic", "area:site"],
   });
   assert.equal(result.ok, false);
-  assert.match(result.errors.join("\n"), /labels duplicate the native issue Type/);
+  assert.match(
+    result.errors.join("\n"),
+    /labels duplicate a native or project field/,
+  );
 });

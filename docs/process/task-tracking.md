@@ -41,7 +41,7 @@ Bitbucket Cloud's issue tracker or Jira without a second identifier.
 ### Epic
 
 - Title: `[<change-id>] <first heading of tasks.md>`.
-- Labels: `epic`, `area:<area>`.
+- Labels: `epic`.
 - Marker: `<!-- openspec-change: <change-id> -->` (idempotency).
 - Body: folder link, `Progress: <closed>/<total> sub-issues closed (<p>%)`, the
   sub-issue list, unresolved blockers and `Source of truth: tasks.md`.
@@ -51,7 +51,7 @@ Bitbucket Cloud's issue tracker or Jira without a second identifier.
 ### Sub-issue
 
 - Title: `ROT-<n> — <task title>` (for example `ROT-12 — Providers and watcher`).
-- Labels: `change:<change-id>`, `area:<area>`.
+- Labels: `change:<change-id>`.
 - Marker: `<!-- openspec-task: <change-id>/<slug> -->`, where the slug is the
   heading without its number, tags or `blocked by:` parenthetical.
 - Body: epic reference, source path and section, checkbox counts,
@@ -158,10 +158,12 @@ Priority and Severity are Project v2 single-select fields, not labels:
 - The sync never leaves `Priority` empty for a synced issue; the board gate
   fails otherwise.
 
-Labels `epic`, `area:<area>` and `change:<id>` stay because no native field
-expresses the OpenSpec grouping or the board area. Labels that duplicate a
-native field (`bug`, `enhancement`, `type:bug`, `type:feature`) are not used;
-they were audited and removed. `documentation`, `question`, `duplicate`,
+Labels `epic` and `change:<id>` stay because no field expresses the OpenSpec
+grouping. Every native or project field is authoritative on its own: a label
+must not restate the issue Type (`bug`, `enhancement`, `type:bug`,
+`type:feature`), the project Area (`area:<area>`), Priority (`priority:Pn`) or
+Severity (`severity:Sn`). `scripts/check-task-links.mjs --board` fails on any
+such label, so a new one cannot creep back in. `documentation`, `question`, `duplicate`,
 `invalid`, `wontfix`, `good first issue` and `help wanted` remain: they carry
 triage information that the three native types cannot express.
 
@@ -186,6 +188,7 @@ Release plan:
 | Wallet: signing, history and portfolio | cabinet-wallet, product-strategy, send-wif-keys, site-wallet-studio, tx-sign-broadcast, wallet-account-link, wallet-history, wallet-mainnet-signing, wallet-portfolio, wallet-seed-phrase, wallet-top-assets-wif, walletconnect-deeplinks | 2027-03-31 |
 | Desktop and coordinator parity | key-leak-monitor, rust-desktop-all-chains | 2027-03-31 |
 | Astro frontend cutover | admin-cabinet, donor-copy-parity, frontend-platform, seo-strategy, site-parity-audit | 2026-12-31 |
+| Product split: site, desktop and wallet | product-split | 2027-03-31 |
 | Design system and process foundations | design-system-process, edge-privacy, repo-structure, security-advisories, ssot, task-tracking | 2027-03-31 |
 
 The dates are planning defaults at quarter ends, not promises; change them in
@@ -227,10 +230,11 @@ name historical closed issues.
 ## Adopted issues
 
 An issue created outside the sync still belongs to the board when its title
-carries a `ROT-<n>` key or it has an `area:*`, `change:*` or `epic` label. The
-sync adopts it instead of ignoring it:
+carries a `ROT-<n>` key or it has a `change:*` or `epic` label. The sync adopts
+it instead of ignoring it:
 
-- **Area** comes from the `area:*` label, then from the title, then `site`.
+- **Area** comes from the project's `Area` field, then from the title, then
+  `site`.
 - **Type**: `fix(...)` in the title is `Bug`; an epic is `Feature`; any other
   adopted issue is `Task`. An existing native Type is kept.
 - **Priority** defaults to `P2` for adopted non-epic work, unless the epic's

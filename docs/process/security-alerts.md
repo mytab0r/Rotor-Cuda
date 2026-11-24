@@ -47,7 +47,7 @@ The body carries severity, rule, path, first-seen, a direct link to the alert
 page, the required action and a standalone `Priority: Pn` declaration so the
 board sync preserves the value when it adopts the issue.
 
-Labels are `security` plus one `area:*`:
+The label is `security`; the path picks the project `Area`:
 
 | Path | Area | Milestone (`data/milestones.json`) |
 | --- | --- | --- |
@@ -191,7 +191,7 @@ create plan was produced against the live repository. The planner path is
 covered by the unit tests, and a fixture simulation shows the create plan:
 
 ```text
-[simulated] create "[security] rust/sql-injection in src/coordinator/query.rs:42" labels=[security,area:coordinator] priority=P0 milestone="Desktop and coordinator parity"
+[simulated] create "[security] rust/sql-injection in src/coordinator/query.rs:42" labels=[security] priority=P0 milestone="Desktop and coordinator parity"
 ```
 
 `node scripts/security-alerts-sync.mjs --check-escalation` exits `0` with

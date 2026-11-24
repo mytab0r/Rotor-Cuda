@@ -484,7 +484,7 @@ function main() {
 
   const labels = ghJson(["label", "list", "--repo", REPO, "--limit", "200", "--json", "name"]) ?? [];
   const labelNames = new Set(labels.map((label) => label.name));
-  for (const required of ["epic", ...AREA_OPTIONS.map((area) => `area:${area}`)]) {
+  for (const required of ["epic"]) {
     if (!labelNames.has(required)) {
       throw new Error(`missing label "${required}" in ${REPO}; create it before syncing`);
     }
@@ -1058,14 +1058,13 @@ function main() {
         epicsCreated += 1;
         if (DRY_RUN) {
           console.log(
-            `[dry-run] create epic issue ${change.title} ` +
-              `[epic, area:${change.area}]`,
+            `[dry-run] create epic issue ${change.title} [epic]`,
           );
           const plannedBody = provisionalEpicBody(change);
           applyIssueMetadata({
             title: change.title,
             body: plannedBody,
-            labels: ["epic", `area:${change.area}`],
+            labels: ["epic"],
             changeId: change.id,
             area: change.area,
             isEpic: true,
@@ -1093,8 +1092,6 @@ function main() {
             bodyPath,
             "--label",
             "epic",
-            "--label",
-            `area:${change.area}`,
           ]);
           if (!url) throw new Error(`gh issue create returned no URL for ${change.id}`);
           const number = issueNumberFromUrl(url);
@@ -1114,7 +1111,7 @@ function main() {
             title: change.title,
             body: provisionalEpicBody(change),
             state: "OPEN",
-            labels: ["epic", `area:${change.area}`],
+            labels: ["epic"],
           };
           console.log(`created epic issue ${url}`);
         }
@@ -1123,7 +1120,7 @@ function main() {
       const epicIssue = epic ?? {
         title: change.title,
         body: provisionalEpicBody(change),
-        labels: ["epic", `area:${change.area}`],
+        labels: ["epic"],
       };
       const epicPriority = priorityFor({ issue: epicIssue, isEpic: true });
       const epicSeverity = severityFor({ issue: epicIssue, issueType: "Feature" });
@@ -1151,7 +1148,7 @@ function main() {
           applyIssueMetadata({
             title: planned.title,
             body: "",
-            labels: [`change:${change.id}`, `area:${area}`],
+            labels: [`change:${change.id}`],
             changeId: change.id,
             area,
             isEpic: false,
@@ -1180,14 +1177,11 @@ function main() {
           declarations: declarationLines(epic.body),
         });
         const currentLabels = labelsOf(epic);
-        const areaToRemove = currentLabels.filter(
-          (name) => name.startsWith("area:") && name !== `area:${change.area}`,
-        );
+        const areaToRemove = currentLabels.filter((name) => name.startsWith("area:"));
         const needsEdit =
           epic.title !== change.title ||
           (epic.body ?? "").trim() !== body.trim() ||
           !currentLabels.includes("epic") ||
-          !currentLabels.includes(`area:${change.area}`) ||
           areaToRemove.length > 0;
 
         if (needsEdit) {
@@ -1208,8 +1202,6 @@ function main() {
               bodyPath,
               "--add-label",
               "epic",
-              "--add-label",
-              `area:${change.area}`,
             ];
             for (const label of areaToRemove) args.push("--remove-label", label);
             gh(args);
@@ -1263,7 +1255,7 @@ function main() {
           number: issue.number,
           title: issue.title,
           body: issueByNumber.get(issue.number)?.body ?? "",
-          labels: [`change:${change.id}`, `area:${area}`],
+          labels: [`change:${change.id}`],
           state: issue.state,
           changeId: change.id,
           area,
@@ -1306,17 +1298,23 @@ function main() {
     }
 
     // Adoption pass. An issue created outside the sync is still board work
-    // when its title carries a ROT key or it has an area:/change:/epic label.
-    // Give it the same fields as a synced issue instead of leaving the gate to
-    // fail on it. Newly adopted non-epic work defaults to P2 unless its epic
-    // declares a priority.
+    // when its title carries a ROT key or it has a change:/epic label. Give it
+    // the same fields as a synced issue instead of leaving the gate to fail on
+    // it. Area comes from the project field, then the title. Newly adopted
+    // non-epic work defaults to P2 unless its epic declares a priority.
+    const itemAreaByNumber = new Map(
+      items
+        .filter((item) => item.content?.number)
+        .map((item) => [item.content.number, item.area ?? null]),
+    );
     for (const issue of issues) {
       if (processedNumbers.has(issue.number)) continue;
       if (!isSyncManagedIssue(issue)) continue;
       const labels = labelsOf(issue);
-      const areaLabel = labels.find((name) => name.startsWith("area:"));
       const area =
-        areaLabel?.slice("area:".length) ?? areaFromText(issue.title ?? "") ?? "site";
+        itemAreaByNumber.get(issue.number) ??
+        areaFromText(issue.title ?? "") ??
+        "site";
       const isEpic = labels.includes("epic");
       const changeId = changeIdForIssue(issue);
       const epic = changeId ? epicByChange.get(changeId) : null;
