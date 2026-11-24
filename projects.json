@@ -161,6 +161,7 @@
         "cargo build --release --bin rotor-coord"
       ],
       "test": [
+        "cargo test --lib",
         "cargo test --test coordinator_api --test coordinator_client"
       ],
       "consumes": [
