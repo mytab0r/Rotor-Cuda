@@ -867,7 +867,18 @@ function slugify(route) {
 
 // Runs inside the page. Keep every helper inside so the function can be
 // serialized without closing over the Node scope.
-function auditPage(args) {
+async function auditPage(args) {
+  // Web fonts swap in after the load event (site.css declares
+  // font-display: swap), and a late swap changes line-box height. Measuring
+  // before the font set settles reported a transient 1-2px cell overflow on
+  // /bitcoin-puzzle that the settled layout does not have (ROT-472). Wait for
+  // the same font-ready condition goto() uses, then one frame so the final
+  // layout is the one measured.
+  await Promise.race([
+    (document.fonts && document.fonts.ready) || Promise.resolve(),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
   const { route, theme } = args;
   const viewportWidth = args.width || document.documentElement.clientWidth || window.innerWidth;
   const pointerFine = Boolean(window.matchMedia && window.matchMedia("(pointer: fine)").matches);
@@ -1059,12 +1070,38 @@ function auditPage(args) {
     }
     return false;
   };
+  // Text-node rects, not the cell's scroll box. An invisible 44px hit-area
+  // pseudo-element on a 28px row action inflates scrollHeight past a 40px row
+  // without cutting a glyph, and the scroll box cannot tell that apart from
+  // clipped text (ROT-472). A real cut still moves the text rects past the box.
+  const textOutside = (el, box) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!node.nodeValue || !node.nodeValue.trim()) continue;
+      if (node.parentElement && skipClip(node.parentElement)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) {
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        if (
+          rect.left < box.left - 1 ||
+          rect.right > box.right + 1 ||
+          rect.top < box.top - 1 ||
+          rect.bottom > box.bottom + 1
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
   for (const cell of document.querySelectorAll("td, th, div.key-row")) {
     if (!visible(cell) || skipClip(cell)) continue;
     const cellText = textOf(cell);
     if (!cellText) continue;
     const isCell = cell.matches("td, th");
-    if (isCell && (cell.scrollWidth > cell.clientWidth + 1 || cell.scrollHeight > cell.clientHeight + 1)) {
+    if (isCell && textOutside(cell, cell.getBoundingClientRect())) {
       cellClips.push(
         `${selectorOf(cell)} "${cellText.slice(0, 42)}" ${cell.scrollWidth}x${cell.scrollHeight} in ` +
           `${cell.clientWidth}x${cell.clientHeight}`,
