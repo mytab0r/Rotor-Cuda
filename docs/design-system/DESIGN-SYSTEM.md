@@ -842,6 +842,7 @@ standalone freshness gate.
 | `key-page-fold` | The /key address table starts at or above y=700 at 1280 and above y=800 at 375; a longer hero/facts stack fails the audit. | density | implemented |
 | `key-page-first-paint-requests` | An Astro /key page makes no request to a balance-provider host before a user action; only typing a key or pressing Check balances starts a lookup. | density | implemented |
 | `key-url-derive` | A worker-synthesized /key/<hex> page finishes deriving its own rows (including the optional V4R2 row) within 20s and marks #addr-rows with the requested key. | density | implemented |
+| `key-summary-stack` | At <=560px the key-summary label sits above the value with no 112px label column; above it the dt/dd stay two columns. | 8 | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in
