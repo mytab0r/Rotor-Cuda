@@ -3,7 +3,8 @@
 Status: adopted 2026-11-24. Owner: `ops` area. This is the source of truth for
 what a pull request must prove, which agent may edit what, and what CI checks.
 UI evidence rules stay in [review-and-skills.md](review-and-skills.md); task
-keys stay in [task-tracking.md](task-tracking.md).
+keys stay in [task-tracking.md](task-tracking.md); the full gate inventory with
+cost and required/advisory status is [gates.md](gates.md).
 
 ## 1. The failure modes this closes
 
@@ -130,6 +131,25 @@ cargo mutants --in-diff target/changed.diff --jobs 2 --timeout 120
 - A surviving mutant is reported by cargo-mutants; add or strengthen a test,
   or mark the line with a documented `#[mutants::skip]` when the mutation is
   genuinely equivalent.
+
+### Universal: `scripts/revert-fix.mjs`
+
+```sh
+node scripts/revert-fix.mjs --base origin/main --cmd "npm --prefix web test"
+node scripts/revert-fix.mjs --base origin/main --projects-area site
+node scripts/revert-fix.mjs --base origin/main --projects-area desktop \
+  --cmd "cargo test --release"
+```
+
+The always-on tier. It diffs `base...HEAD`, excludes test paths
+(`tests/**`, `**/tests/**`, `**/*.test.*`, `**/*-test.mjs`, `**/*_test.go`,
+`**/test_*.py`, `crates/**/tests/**`; `--test-glob` adds more), reverts the
+remaining executable hunks (`--source-glob` keeps docs/workflows/data out),
+runs the command once on the clean branch, requires it to fail after the
+revert, and restores the tree in `finally`. It refuses a dirty tree and a red
+baseline, because neither lets the run attribute a failure to the revert. It
+prints `result: test proven` or `result: test did not catch the change`. The
+mutation workflow runs it per affected area from `projects.json`.
 
 ### JavaScript: `scripts/mutate-changed.mjs`
 
