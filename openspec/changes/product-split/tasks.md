@@ -10,23 +10,38 @@ server, [wallet] wallet surfaces, [ops] layout/CI/contracts.
 
 ## P0 - baseline and freeze (blocked by: none) [ops][wasm][desktop]
 
-- [ ] Freeze new first-party crypto implementations: no new address codec,
+- [x] Freeze new first-party crypto implementations: no new address codec,
       BIP32 path, hash, KDF, keystore decoder or signature outside the target
       `rotor-core` boundary. Reviewers reject a duplicate; the rule is recorded
       in the change and later in `openspec/specs/architecture/spec.md`.
-- [ ] Capture golden vectors from the current `main`, in the test tree (not
+      Evidence: `design.md` section "P0 freeze".
+- [x] Capture golden vectors from the current `main`, in the test tree (not
       `docs/`): key `0x...01`, ed25519 seed 1, RFC8032, TON v4R2 and W5,
       keystore scrypt and PBKDF2 frames, EIP-191, BIP143 P2WPKH, TRON
       TransferContract, scan/samples jobs.
-- [ ] Record the baseline: 24 WASM exports, `apps/site/rotor_wasm.wasm` =
+      Evidence: `tests/vectors/*.json`; `cargo test --release --test golden_vectors`
+      (3 passed); `cargo test -p rotor-wasm` (83 passed, 5 vector tests).
+- [x] Record the baseline: 24 WASM exports, `apps/site/rotor_wasm.wasm` =
       501 119 bytes, test counts, `cargo test --release` duration.
-- [ ] Add the ABI snapshot skeleton (`wasm-abi.json`) and a Node test that
+      Evidence: `baseline.md` (SHA-256
+      `68d99e442e0ce9837b3102842a89822a9ebe67d7f9bcbbd323a6b0f1c5a0afdf`;
+      455 passed / 1 ignored in 42 s; wasm 83 passed).
+- [x] Add the ABI snapshot skeleton (`wasm-abi.json`) and a Node test that
       compares it with the built artifact.
-- [ ] Add the architecture boundary check skeleton (`cargo metadata` based):
+      Evidence: `crates/rotor-wasm/wasm-abi.json`;
+      `node scripts/check-wasm-abi.mjs` (24 exports);
+      `node --test scripts/check-wasm-abi.test.mjs` (4 passed).
+- [x] Add the architecture boundary check skeleton (`cargo metadata` based):
       core has no network/GPU/server crates; no product depends on another.
-- [ ] Acceptance evidence: the vectors reproduce on current `main`; the ABI
+      Evidence: `scripts/check-boundaries.mjs` (2 packages, 6 frozen `#[path]`
+      includes); `node --test scripts/check-boundaries.test.mjs` (7 passed).
+- [x] Acceptance evidence: the vectors reproduce on current `main`; the ABI
       snapshot matches the committed artifact; the boundary check passes on the
       current layout (with the expected exceptions listed).
+      Evidence: `cargo test --release --test golden_vectors`;
+      `cargo test -p rotor-wasm`; `node scripts/check-wasm-abi.mjs`;
+      `node scripts/check-boundaries.mjs`; both gates wired into
+      `.github/workflows/rust.yml` (`projects` job).
 
 ## P1 - extract `rotor-core` (blocked by: P0) [core][desktop][wasm][server]
 

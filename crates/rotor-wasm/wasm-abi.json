@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "description": "Frozen pointer/length ABI of apps/site/rotor_wasm.wasm at P0. Names, parameter counts and result arity are checked against the committed artifact by scripts/check-wasm-abi.mjs. `result` is the one-line buffer/return semantics; it documents the contract, the binary cannot check it. The memory export is required but is not a function and is not listed here.",
+  "exports": [
+    {
+      "name": "alloc",
+      "params": 1,
+      "results": 1,
+      "result": "u32 pointer to `len` zero-initialized bytes (8 for zero length, 0 on failure)"
+    },
+    {
+      "name": "dealloc",
+      "params": 2,
+      "results": 0,
+      "result": "no return; frees an `alloc` pointer/length pair (no-op for 0/0)"
+    },
+    {
+      "name": "set_job",
+      "params": 4,
+      "results": 1,
+      "result": "i32 status: 0 ok; nonzero with the error buffer set"
+    },
+    {
+      "name": "scan",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result blob = u64 scanned + u32 found [+ u32 len/key + u32 len/address]"
+    },
+    {
+      "name": "samples",
+      "params": 3,
+      "results": 1,
+      "result": "i32 status: 0 ok; result blob = u32 count then per sample u32 length + bytes"
+    },
+    {
+      "name": "derive_report",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 derivation-report JSON"
+    },
+    {
+      "name": "derive_report_network",
+      "params": 4,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 derivation-report JSON with a network field"
+    },
+    {
+      "name": "public_key_report",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 public-key report JSON"
+    },
+    {
+      "name": "public_key_add",
+      "params": 4,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 point-report JSON for P + Q"
+    },
+    {
+      "name": "public_key_subtract",
+      "params": 4,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 point-report JSON for P - Q"
+    },
+    {
+      "name": "public_key_mul",
+      "params": 4,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 point-report JSON for k * P"
+    },
+    {
+      "name": "keystore_decrypt",
+      "params": 16,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = 64-character hex private key"
+    },
+    {
+      "name": "evm_sign_tx",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = 0x-prefixed raw EIP-1559 type-2 transaction"
+    },
+    {
+      "name": "evm_unsigned_tx",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = 0x-prefixed unsigned type-2 payload"
+    },
+    {
+      "name": "evm_sign_message",
+      "params": 4,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = 0x-prefixed 65-byte EIP-191 signature"
+    },
+    {
+      "name": "btc_sign_tx",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = unprefixed lower-case hex of the signed P2WPKH transaction"
+    },
+    {
+      "name": "btc_unsigned_tx",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = unprefixed lower-case hex of the unsigned P2WPKH transaction"
+    },
+    {
+      "name": "tron_sign_tx",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 TRON review JSON with a signature"
+    },
+    {
+      "name": "tron_unsigned_tx",
+      "params": 2,
+      "results": 1,
+      "result": "i32 status: 0 ok; result buffer = UTF-8 TRON review JSON without a signature"
+    },
+    {
+      "name": "result_ptr",
+      "params": 0,
+      "results": 1,
+      "result": "u32 pointer to the last result blob (0 and length 0 when empty)"
+    },
+    {
+      "name": "result_len",
+      "params": 0,
+      "results": 1,
+      "result": "u32 byte length of the last result blob"
+    },
+    {
+      "name": "clear_result",
+      "params": 0,
+      "results": 0,
+      "result": "no return; zeroes and clears the result blob"
+    },
+    {
+      "name": "error_ptr",
+      "params": 0,
+      "results": 1,
+      "result": "u32 pointer to the last error text (0 and length 0 when empty)"
+    },
+    {
+      "name": "error_len",
+      "params": 0,
+      "results": 1,
+      "result": "u32 byte length of the last error text"
+    }
+  ]
+}

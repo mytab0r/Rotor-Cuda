@@ -274,6 +274,8 @@
         "node --check deploy/cloudflare/provider-proxy/src/worker.mjs",
         "node --check deploy/cloudflare/provider-proxy/src/upstreams.mjs",
         "node --check scripts/security-audit.mjs",
+        "node --check scripts/check-wasm-abi.mjs",
+        "node --check scripts/check-boundaries.mjs",
         "node scripts/check-projects.mjs"
       ],
       "test": [
@@ -298,7 +300,11 @@
         "node scripts/check-projects.mjs",
         "node scripts/check-screenshots.mjs",
         "node scripts/security-audit.mjs --help",
-        "node --test scripts/security-audit.test.mjs"
+        "node --test scripts/security-audit.test.mjs",
+        "node --test scripts/check-wasm-abi.test.mjs",
+        "node --test scripts/check-boundaries.test.mjs",
+        "node scripts/check-wasm-abi.mjs",
+        "node scripts/check-boundaries.mjs"
       ],
       "consumes": [],
       "contracts": [
