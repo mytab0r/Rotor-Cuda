@@ -866,8 +866,7 @@ mod tests {
 
             // An unsigned request never carries a signature.
             let unsigned_result = unsigned_request(&unsigned("trc20", Some(CONTRACT))).unwrap();
-            let unsigned_value: serde_json::Value =
-                serde_json::from_str(&unsigned_result).unwrap();
+            let unsigned_value: serde_json::Value = serde_json::from_str(&unsigned_result).unwrap();
             assert!(unsigned_value.get("signature").is_none());
         }
 
@@ -884,11 +883,17 @@ mod tests {
             assert_eq!(trx["txID"], TX_ID);
 
             let err = unsigned_request(&unsigned("trc21", Some(CONTRACT))).unwrap_err();
-            assert!(err.contains("kind"), "unknown kind must name the field: {err}");
+            assert!(
+                err.contains("kind"),
+                "unknown kind must name the field: {err}"
+            );
 
             let missing = unsigned("trc20", Some(CONTRACT)).replace(r#""kind":"trc20","#, "");
             let err = unsigned_request(&missing).unwrap_err();
-            assert!(err.contains("kind"), "a missing kind must name the field: {err}");
+            assert!(
+                err.contains("kind"),
+                "a missing kind must name the field: {err}"
+            );
 
             let duplicate_kind = format!("{{{},\"kind\":\"trx\"}}", body("trc20", Some(CONTRACT)));
             assert!(unsigned_request(&duplicate_kind).is_err());
