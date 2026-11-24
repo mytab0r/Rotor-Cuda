@@ -21,6 +21,15 @@ Four decisions carry the rest:
 4. Pool and site API changes are versioned contracts, tested across products,
    never in-place field renames.
 
+## P0 freeze
+
+Until P1 lands, no new first-party address codec, BIP32 path, hash, KDF,
+keystore decoder or signature is added outside the future `rotor-core`
+boundary. A reviewer rejects a change that duplicates one of these in a product
+or adapter crate; extend the existing implementation and its vectors instead.
+The P0 vectors in `tests/vectors/` are the reference every later phase must
+reproduce byte for byte.
+
 ## Target layering
 
 ```

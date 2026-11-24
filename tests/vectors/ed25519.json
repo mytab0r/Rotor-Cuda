@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "description": "P0 golden vectors for ed25519 seeds. Desktop values come from crate::address (Solana, Sui, TON v4R2); ton_w5 comes from crates/rotor-wasm/src/ton.rs through derive_report.",
+  "seed_1": {
+    "seed": "0000000000000000000000000000000000000000000000000000000000000001",
+    "public": "4cb5abf6ad79fbf5abbccafcc269d85cd2651ed4b885b5869f241aedf0a5ba29",
+    "solana": "6ASf5EcmmEHTgDJ4X4ZT5vT6iHVJBXPg5AN5YoTCpGWt",
+    "sui": "0xd0c2c91eda34bbfbaec6cfb9c7bb913e57dab3cbec4018a4b3f5e55531cd63af",
+    "ton_v4r2": "EQAkxuybaeBflbgYW3vgQvcFgyAQVcLtXZwdrpeLNqzZ000c",
+    "ton_w5": "EQCcCUPw6Gl_Q9MuCKaOFkqCJAnwNqDO-Tt_y4sIUdpyT_5l"
+  },
+  "rfc8032_test1": {
+    "seed": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "public": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "solana": "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z",
+    "sui": "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d",
+    "ton_v4r2": "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv",
+    "ton_w5": "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td"
+  }
+}

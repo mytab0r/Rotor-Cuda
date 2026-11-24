@@ -90,8 +90,13 @@ jobs:
                 ran=$((ran + 1))
                 ;;
               wasm-core)
+                # The P0 golden vectors live in a `#[cfg(test)]` module of the
+                # cdylib crate, so reverting that wiring keeps the suite green.
+                # Requiring the vector tests to be listed makes the removal red.
                 node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
-                  --projects-area wasm-core --cmd "cargo test -p rotor-wasm" "${source[@]}"
+                  --projects-area wasm-core \
+                  --cmd "cargo test -p rotor-wasm && cargo test -p rotor-wasm -- --list | grep -q 'golden_vectors::'" \
+                  "${source[@]}"
                 ran=$((ran + 1))
                 ;;
               *)
