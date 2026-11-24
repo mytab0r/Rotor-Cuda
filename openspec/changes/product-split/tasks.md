@@ -45,13 +45,17 @@ server, [wallet] wallet surfaces, [ops] layout/CI/contracts.
 
 ## P1 - extract `rotor-core` (blocked by: P0) [core][desktop][wasm][server]
 
-- [ ] Create `crates/rotor-core` and move `field`, `scalar`, `point`, `secp`,
+- [x] Create `crates/rotor-core` and move `field`, `scalar`, `point`, `secp`,
       `hashes`, `base58` into it; keep public API names or re-export them.
+      Evidence: `crates/rotor-core/src/`; `src/lib.rs` re-exports every moved
+      module (design.md "Module path compatibility").
 - [ ] Move `src/address/mod.rs` and the WASM codecs (`bech32`, `btc`, `evm`,
       `tron`, `ton`) into one core `address` module with explicit
       `TonWallet::V4R2` and `TonWallet::W5`. One implementation per encoding.
-- [ ] Split `src/mnemonic.rs`: BIP39/BIP32/WIF helpers go to core; the entropy
+- [x] Split `src/mnemonic.rs`: BIP39/BIP32/WIF helpers go to core; the entropy
       audit, `TargetSet` usage and CLI driver stay in desktop.
+      Evidence: `crates/rotor-core/src/mnemonic.rs` (11 unit tests moved);
+      `run_audit`/`run_derive` stay in `src/mnemonic.rs`.
 - [ ] Move `crates/rotor-wasm/src/{keystore,sign}.rs` and the message/tx
       signing paths into core; keep `json.rs` and ABI framing out of core.
 - [ ] Create `crates/rotor-search` for `Split`, `SplitMix64`, `thread_seed`,
@@ -59,11 +63,16 @@ server, [wallet] wallet surfaces, [ops] layout/CI/contracts.
 - [ ] Repoint the pool server (`src/coordinator/{state,chunk_loop}.rs`) to
       `rotor-core` + `rotor-search`; remove `cli::U256`, `engine`, `bsgs` and
       `field`/`point`/`scalar`/`secp` imports from server modules.
-- [ ] Repoint `crates/rotor-wasm` to `rotor-core`; remove the six `#[path]`
+- [x] Repoint `crates/rotor-wasm` to `rotor-core`; remove the six `#[path]`
       includes; the crate keeps compiling for `wasm32-unknown-unknown`.
+      Evidence: `crates/rotor-wasm/Cargo.toml` + `src/lib.rs`;
+      `node scripts/check-boundaries.mjs` reports no `#[path]` includes;
+      `wasm-build-test` green.
 - [ ] Update the workspace `Cargo.toml` and the 17 test files that use
       `rotor::...`; no test may reach into a product crate from another.
-- [ ] Delete the moved modules from the root package in the same change.
+- [x] Delete the moved modules from the root package in the same change.
+      Evidence: the six modules, `address/`, `chain`, `generated` and the pure
+      mnemonic helpers no longer exist under `src/`.
 - [ ] Acceptance evidence: `cargo build --workspace`;
       `cargo test --release`; `cargo test --release --features gpu` on the GPU
       runner; `cargo test -p rotor-wasm`; every P0 vector byte-identical;
