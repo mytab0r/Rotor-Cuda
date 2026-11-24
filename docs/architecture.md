@@ -84,7 +84,7 @@ template. The operator view is `/cabinet/admin/site-map` behind the admin
 session; the coordinator embeds the JSON and serves the page, not the docs copy.
 
 The donor-parity audit (every Crypto route and feature compared with
-privatekeyfinder.io and secretscan.org) is internal documentation, not a public
+ref-site-a and ref-site-b) is internal documentation, not a public
 route. It lives at `docs/site-map/index.html` and is opened directly or through
 a local static server; it covers donor parity only and defers route facts to
 `data/routes.json`. The coordinator does not embed or serve the docs page.
