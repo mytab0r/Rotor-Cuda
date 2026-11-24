@@ -96,21 +96,21 @@ const jsonLd = {
       Deterministic example keys and address formats for every supported chain.
       Prefer one key? <a href="/key">Open the key calculator</a>.
     </p>
-    <div class="chain-grid">
+    <div class="chain-grid chain-grid--rows">
       {chains.map((chain) => {
         const formatCount = formatsFor(chain.slug).length;
         return (
           <a
-            class="chain-card"
+            class="chain-row"
             href={`/private-keys/${chain.slug}`}
             style={`--chain: var(--chain-${chain.slug})`}
           >
-            <span class="chain-icon-wrap">
-              <svg class="chain-card-icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
+            <span class="chain-row-icon">
+              <svg class="icon" aria-hidden="true"><use href={`/icons.svg#chain-${chain.slug}`}></use></svg>
             </span>
-            <span class="chain-name">{chain.name}</span>
-            <span class="chain-meta">
-              {chain.symbol} · {formatCount} address {formatCount === 1 ? 'type' : 'types'}
+            <span class="chain-row-name">{chain.name}</span>
+            <span class="chain-row-meta">
+              {chain.symbol} · {formatCount} {formatCount === 1 ? 'type' : 'types'}
             </span>
           </a>
         );
@@ -124,32 +124,14 @@ const jsonLd = {
       Mirrors of the MIT-licensed Rich-Address-Wallet dataset for Bitcoin,
       Ethereum, Litecoin, Dogecoin, Bitcoin Cash and Dash, served from this site.
     </p>
-    <div class="address-db-grid">
-      <a class="address-db-card" href="/wallets">
-        <span class="address-db-name">Bitcoin</span>
-        <span class="address-db-meta">P2PKH · P2SH · Bech32 · rich addresses</span>
-      </a>
-      <a class="address-db-card" href="/wallets">
-        <span class="address-db-name">Ethereum</span>
-        <span class="address-db-meta">Rich account list</span>
-      </a>
-      <a class="address-db-card" href="/wallets">
-        <span class="address-db-name">Litecoin</span>
-        <span class="address-db-meta">Rich addresses</span>
-      </a>
-      <a class="address-db-card" href="/wallets">
-        <span class="address-db-name">Dogecoin</span>
-        <span class="address-db-meta">Rich addresses</span>
-      </a>
-      <a class="address-db-card" href="/wallets">
-        <span class="address-db-name">Bitcoin Cash</span>
-        <span class="address-db-meta">Rich addresses</span>
-      </a>
-      <a class="address-db-card" href="/wallets">
-        <span class="address-db-name">Dash</span>
-        <span class="address-db-meta">Rich addresses</span>
-      </a>
-    </div>
+    <ul class="address-db-links">
+      <li><a class="address-db-link" href="/wallets"><span class="address-db-name">Bitcoin</span> <span class="address-db-meta">P2PKH · P2SH · Bech32</span></a></li>
+      <li><a class="address-db-link" href="/wallets"><span class="address-db-name">Ethereum</span> <span class="address-db-meta">Rich account list</span></a></li>
+      <li><a class="address-db-link" href="/wallets"><span class="address-db-name">Litecoin</span> <span class="address-db-meta">Rich addresses</span></a></li>
+      <li><a class="address-db-link" href="/wallets"><span class="address-db-name">Dogecoin</span> <span class="address-db-meta">Rich addresses</span></a></li>
+      <li><a class="address-db-link" href="/wallets"><span class="address-db-name">Bitcoin Cash</span> <span class="address-db-meta">Rich addresses</span></a></li>
+      <li><a class="address-db-link" href="/wallets"><span class="address-db-name">Dash</span> <span class="address-db-meta">Rich addresses</span></a></li>
+    </ul>
     <p class="muted landing-lead">
       <a href="/wallets">Open the wallet database</a> to download a chain or request access.
     </p>

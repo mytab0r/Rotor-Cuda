@@ -1,6 +1,6 @@
 # Card
 
-Status: stable · Version: 0.1.0 · Owner: site-ui (design system).
+Status: stable · Version: 0.2.0 · Owner: site-ui (design system).
 Source of truth: `design/components/card.json` · Gallery: `/cabinet/admin/design` (family
 `card`).
 
@@ -20,6 +20,13 @@ already render (`.chain-card`, `.tool-card`, `.tool-family`,
 `.address-db-card`, `.tool-index-card`, `.pz-picker-card`) share the padding and
 radius scale. `.card--flat` and `.card--stat` exist in CSS but no page renders
 them; they are reserved and not in the manifest.
+
+A repeated navigation directory is not a card grid. `.chain-row` inside
+`.chain-grid--rows` is the compact one-line form (44px control floor,
+`--radius-m`) and `.address-db-links` is an inline list of destinations; the
+landing renders both. The browsing directories keep `.chain-card`, and the
+`/wallets` storefront keeps `.address-db-card` because each card carries its
+own download actions.
 
 ## API
 
@@ -53,6 +60,9 @@ reduced-motion rule covers child primitives. Do not add a translateY hover.
 - Contrast: `--ink-1` heading and `--ink-2` body on `--surface-1`.
 - Space: no fixed height; `mostly-empty-block` reports a section or card taller
   than 220px with less than 55% of its box covered by visible children.
+  `card-dead-space` reports a landing directory container with six or more
+  links where one renders taller than 64px or reserves more than 12px above its
+  content.
 
 ## Copy rules
 
@@ -71,10 +81,15 @@ reduced-motion rule covers child primitives. Do not add a translateY hover.
 
 `card-padding-scale` (padding 16/20/24, radius 12/16; `.card--flat` and the
 boxless strip cells are the documented exceptions) and `mostly-empty-block`.
-The named card surfaces share the same detector.
+`card-dead-space` keeps a repeated landing directory on `.chain-row` /
+`.address-db-links` instead of a card grid. The named card surfaces share the
+same detectors.
 
 ## Owner and changelog
 
 - Owner: site-ui.
+- 0.2.0 (2026-11-25): the landing chain and address-database directories moved
+  to `.chain-row` / `.address-db-links`; the shared `.chain-card` min-height
+  reservation was removed. Added `card-dead-space`.
 - 0.1.0 (2026-11-21): normalized the batch-4 card surface. `.card--flat` and
   `.card--stat` are reserved CSS with no page consumer.

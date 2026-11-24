@@ -65,11 +65,10 @@
 }
 .tool-card h3 a:hover { color: var(--signal); }
 
-/* Balanced last rows at desktop: six database cards make two rows of three,
- * eight tool cards two rows of four. Narrow widths keep the shared auto-fit
- * rhythm from /site.css. */
+/* Balanced last rows at desktop: eight tool cards make two rows of four.
+ * Narrow widths keep the shared auto-fit rhythm from /site.css. The landing
+ * address databases are one inline list, not a card grid. */
 @media (min-width: 1121px) {
-  .landing-page .address-db-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .landing-page .tool-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 

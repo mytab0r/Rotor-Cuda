@@ -1,6 +1,6 @@
 {
   "name": "card",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "status": "stable",
   "element": "section",
   "variants": [
@@ -54,6 +54,6 @@
     "--text-xl",
     "--weight-semibold"
   ],
-  "detectors": ["card-padding-scale", "mostly-empty-block"],
+  "detectors": ["card-padding-scale", "mostly-empty-block", "card-dead-space"],
   "docs": "docs/design-system/components/card.md"
 }

@@ -1450,7 +1450,6 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 150px;
   padding: 22px 16px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1847,9 +1846,45 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .landing-section > h2 { font-size: 22px; }
 .landing-lead { margin: -4px 0 14px; color: var(--muted); font-size: 13.5px; }
 .landing-page .chain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 11px; }
-.landing-page .chain-card { min-height: 132px; }
-.landing-page .chain-card .chain-icon-wrap { width: 52px; height: 52px; }
-.landing-page .chain-card .chain-card-icon { width: 26px; height: 26px; }
+/* Landing directory: the same fifteen links read as one-line rows. The
+ * browsing directories keep `.chain-card`; this row form exists only on the
+ * marketing page, where a 159px card reserved 40px of padding and a 52px icon
+ * around a three-line label. */
+.landing-page .chain-grid--rows {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-2);
+}
+.chain-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-m);
+  background: var(--surface-1);
+  color: var(--ink-1);
+  transition:
+    border-color var(--duration-base) var(--ease-standard),
+    background var(--duration-base) var(--ease-standard);
+}
+.chain-row:hover {
+  border-color: color-mix(in srgb, var(--chain, var(--signal)) 55%, var(--line-subtle));
+  background: var(--surface-2);
+  text-decoration: none;
+}
+.chain-row:focus-visible { outline: 2px solid var(--chain, var(--signal)); outline-offset: 2px; }
+.chain-row-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--space-6);
+  height: var(--space-6);
+  color: var(--chain, var(--signal));
+}
+.chain-row-icon .icon { width: var(--icon-size-md); height: var(--icon-size-md); }
+.chain-row-name { font-size: var(--text-sm); font-weight: var(--weight-semibold); white-space: nowrap; }
+.chain-row-meta { margin-left: auto; color: var(--ink-3); font-size: var(--text-xs); white-space: nowrap; }
 
 .tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 11px; }
 .tool-card { display: block; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--panel-2); color: var(--text); }
@@ -1969,7 +2004,6 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
 @media (max-width: 560px) {
   .directory-hero { padding: 28px 18px; }
   .directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-  .chain-card { min-height: 132px; }
   .chain-icon-wrap { width: 50px; height: 50px; }
   .chain-card-icon { width: 26px; height: 26px; }
   .chain-card .chain-name { font-size: 14px; }
@@ -1981,7 +2015,7 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   .page-jump input { width: 100%; flex: 1; }
   .page-info-text { align-items: flex-start; }
 
-  .landing-page .chain-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-page .chain-grid--rows { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2757,6 +2791,23 @@ details.key-help > summary:focus-visible { outline: 2px solid var(--signal); out
 .address-db-card:hover { border-color: var(--border-strong); background: var(--panel-3); text-decoration: none; }
 .address-db-name { font-size: 15px; font-weight: 750; }
 .address-db-meta { color: var(--muted); font-size: 12px; line-height: 1.45; }
+/* Landing address databases: one inline list of six links to the same
+ * destination, not a grid of six cards. `.address-db-grid` stays for the
+ * /wallets storefront, whose cards carry download actions. */
+.address-db-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+.address-db-links li { display: block; }
+.address-db-link { display: inline; }
+.address-db-link .address-db-name { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.address-db-link .address-db-meta { color: var(--ink-3); font-size: var(--text-xs); }
+.address-db-link:hover { text-decoration: none; }
+.address-db-link:hover .address-db-name { color: var(--accent); text-decoration: underline; }
 
 .global-search-title { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 15px; font-weight: 750; padding: 0 2px 4px; }
 .global-search-title .icon { color: var(--accent); }

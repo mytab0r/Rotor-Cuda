@@ -114,7 +114,8 @@
         "node apps/site/qr-test.mjs",
         "node apps/site/site-nav-test.mjs",
         "node apps/site/wc-links-test.mjs",
-        "node apps/site/chains-test.mjs"
+        "node apps/site/chains-test.mjs",
+        "node apps/site/landing-test.mjs"
       ],
       "consumes": [
         "wasm-core"

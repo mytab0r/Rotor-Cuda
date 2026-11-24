@@ -360,7 +360,7 @@ Component pages: [button](components/button.md),
 - Header `h2`: `--text-xl`, weight 600. One primary action; secondary actions
   quieter.
 - No fixed heights that leave empty space; the audit's `mostly-empty-block`
-  check applies.
+  and `card-dead-space` checks apply.
 - Page-scoped overrides (`.key-page > .card`) are deleted; use a named variant.
 - Named card surfaces share the scale: `.chain-card` (20/16, no translateY
   hover), `.tool-card`/`.address-db-card` (16/12), `.tool-index-card`,
@@ -368,6 +368,13 @@ Component pages: [button](components/button.md),
   `scripts/ui-audit.mjs` `card-padding-scale`: padding in {16,20,24}, radius in
   {12,16}; `.card--flat` and the boxless `.stat-card`/`.card--stat` strip cell
   are the documented exceptions.
+- A repeated navigation directory is a compact row list, not a grid of cards:
+  `.chain-row` (44px control floor, `--radius-m`) inside
+  `.chain-grid--rows`, and the `.address-db-links` inline list. The landing
+  uses both; the browsing directories keep `.chain-card` and the `/wallets`
+  storefront keeps `.address-db-card`. Enforced by `card-dead-space`: a
+  container with six or more links may not render one taller than 64px or more
+  than 12px above its content.
 
 ### 3.9 Stat
 
@@ -826,6 +833,7 @@ standalone freshness gate.
 | `address-type-width-spread` | Address-type cards in one visual row differ by at most 15%. | all | implemented |
 | `duplicate-address-type-implementation` | One address-type component family is used, not two competing ones. | all | implemented |
 | `mostly-empty-block` | A block taller than 220px is not more than 45% empty. | all | implemented |
+| `card-dead-space` | Repeated landing-directory links are compact rows: at most 64px tall and at most 12px larger than their content. | all | implemented |
 | `manual-balance-control` | Balances must not load automatically. No visible manual balance control is allowed except the single Astro /key privacy control (#key-balance-check, the shared .chip) that starts a lookup after a user action; any other button, checkbox or label that triggers balances fails. | all | implemented |
 | `brainwallet-row-count` | /brainwallet/<chain> renders 60 .bw-row entries. | all | implemented |
 | `puzzle-row-count` | /bitcoin-puzzle renders 160 data-puzzle rows. | all | implemented |

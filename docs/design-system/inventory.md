@@ -153,8 +153,10 @@ Each row cites the declaration that defines the look and a representative usage.
 | `.pz-stat` | pad 14/16, radius 12, bordered (`site.css:3060-3084`) | Puzzle browser | Value clamp 20–27/750; label uppercase .06em. |
 | `.vanity-stat` | font 26/750; group pad 12/14 (`site.css:2589-2595`) | Vanity page | Another value size/weight. |
 | `.tool-card` | pad 12/13 radius 8 (`site.css:963-973`); pad 16 radius 12 (`site.css:1774-1777`) | Landing/tool index | Two definitions for the same card. |
-| `.chain-card` | min-h 132, radius? (`site.css:882,1361-1400,1756-1758`) | Landing/private keys | Three definitions; icon wrap 52/60. |
-| `.address-db-card` | pad 14/15, radius 12 (`site.css:2858-2868`) | Landing address DB | Another card size. |
+| `.chain-card` | no fixed height, pad 20, radius 16 (`site.css:1447,4123`) | `/private-keys`, `/brainwallet` | Two definitions (structure + surface); the landing uses `.chain-row`. |
+| `.chain-row` | min-h 44, pad 8/12, radius 10 (`site.css:1858`) | Landing chain directory | Compact row form; icon slot 24. |
+| `.address-db-card` | pad 16, radius 12 (`site.css:2782,4143`) | `/wallets` storefront | The landing uses `.address-db-links` instead. |
+| `.address-db-links` | inline list, 8/20 gap (`site.css:2798`) | Landing address databases | One list of six links to `/wallets`. |
 | `.tool-index-card` | pad 16, radius 16, lift on hover (`site.css:2631-2645`) | Tool index | Only card with a translateY hover. |
 | `.address-type-card` | min-h 66, pad 11/14, radius 11 (`site.css:1587-1611`) | Key/seed filters | A control styled as a card. |
 | `.monitor-provider` | min-h 58, pad 9/12, radius 8 (`site.css:487-504`; redefined `1825,1996`) | Monitor | Three definitions. |
