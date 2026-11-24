@@ -2089,6 +2089,8 @@ fn wallet_catalog_is_public_and_downloads_stream_through_our_origin() {
             edge_proxy_url: None,
             edge_proxy_secret: None,
             orders: None,
+            admin_user: None,
+            admin_password: None,
         },
         Arc::clone(&store),
     )
@@ -2687,6 +2689,84 @@ fn admin_login_sets_signed_cookie_and_csrf() {
     let now = now_secs();
     assert!(expires_at > now);
     assert!(expires_at <= now + 12 * 60 * 60 + 5, "{expires_at}");
+
+    handle.shutdown();
+}
+
+#[test]
+fn admin_login_accepts_the_operator_password() {
+    let coordinator_state = TempState::new("admin-password");
+    let monitor_state = TempState::new("admin-password-monitor");
+    let store = Arc::new(MonitorStore::open(monitor_state.path()).expect("monitor store"));
+    let handle = spawn_with_monitor_options(
+        "127.0.0.1:0",
+        coordinator_state.path(),
+        TOKEN.to_string(),
+        Clients::default(),
+        ServerOptions {
+            open_registration: false,
+            trust_proxy: false,
+            monitor_domain: "127.0.0.1".to_string(),
+            wallets_upstream: None,
+            tronscan_api_key: None,
+            edge_proxy_url: None,
+            edge_proxy_secret: None,
+            orders: None,
+            admin_user: Some("owner".to_string()),
+            admin_password: Some("correct horse battery".to_string()),
+        },
+        Arc::clone(&store),
+    )
+    .expect("spawn coordinator");
+    let addr = handle.addr;
+
+    let (status, head, body) = raw(
+        addr,
+        "POST",
+        "/cabinet/admin/login",
+        None,
+        Some(&json!({"user": "owner", "password": "correct horse battery"}).to_string()),
+    );
+    assert_eq!(status, 200, "{body}");
+    let cookies = response_headers(&head, "set-cookie");
+    assert!(
+        cookie_pair(&cookies, "rotor_admin").is_some(),
+        "sign-in must set the session cookie"
+    );
+    assert!(
+        !body.contains("correct horse"),
+        "the response must not echo the password"
+    );
+
+    for (label, body) in [
+        (
+            "wrong password",
+            json!({"user": "owner", "password": "wrong"}),
+        ),
+        (
+            "wrong user",
+            json!({"user": "admin", "password": "correct horse battery"}),
+        ),
+        ("empty", json!({"user": "", "password": ""})),
+    ] {
+        let (status, _, _) = raw(
+            addr,
+            "POST",
+            "/cabinet/admin/login",
+            None,
+            Some(&body.to_string()),
+        );
+        assert_eq!(status, 401, "{label} must be refused");
+    }
+
+    let (status, _, body) = raw(
+        addr,
+        "POST",
+        "/cabinet/admin/login",
+        None,
+        Some(&json!({"token": TOKEN}).to_string()),
+    );
+    assert_eq!(status, 200, "the coordinator token still signs in: {body}");
 
     handle.shutdown();
 }

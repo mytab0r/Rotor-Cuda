@@ -6,9 +6,15 @@ later phases.
 
 ## Sign in and sessions
 
-- `POST /cabinet/admin/login` with `{"token": "<ROTOR_COORD_TOKEN>"}` sets two
-  cookies: `rotor_admin` (HttpOnly, signed, 12 h) and `rotor_admin_csrf`
+- Sign in on the page with the operator user and password: set
+  `ROTOR_ADMIN_USER` (default `owner` when only the password is set) and
+  `ROTOR_ADMIN_PASSWORD` in the coordinator environment. `POST
+  /cabinet/admin/login` accepts `{"user": "...", "password": "..."}` and mints
+  two cookies: `rotor_admin` (HttpOnly, signed, 12 h) and `rotor_admin_csrf`
   (readable by `admin.js`). Both are scoped to `Path=/cabinet/admin`.
+- Scripts keep using the token: `{"token": "<ROTOR_COORD_TOKEN>"}` on the same
+  endpoint, or `Authorization: Bearer <ROTOR_COORD_TOKEN>` on the API. A wrong
+  user and a wrong password take the same constant time and the same limiter.
 - The cookie is stateless: there is no server-side session registry. Logging
   out clears the browser cookies; a copied cookie stays valid until its `exp`
   (12 h) or until `ROTOR_COORD_TOKEN` is rotated. Rotation is the revocation
