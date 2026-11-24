@@ -86,3 +86,11 @@ test("the font-display detector requires a preload in every document", () => {
   assert.match(fn, /id: "font-swap-layout-shift"/);
   assert.match(source, /globalViolations\.push\(\.\.\.fontDisplayViolations\(\)\)/);
 });
+
+/* A card must not reserve space for content that is absent in every real
+ * state. The landing puzzle summary renders one line when empty; a min-height
+ * here is dead space (ROT-533). */
+test("the puzzle summary is not given a reserved height", () => {
+  const css = readFileSync(new URL("../apps/site/site.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /\.puzzle-summary\s*\{[^}]*min-height/);
+});
