@@ -199,9 +199,9 @@ export function evaluateTaskLinks({ body, files, issueExists = null }) {
 
 // --- Board metadata: issue type, milestone, priority, severity -------------
 //
-// GitHub issue types (Task/Bug/Feature) and milestones are native fields, so a
-// label must not duplicate them. `epic`, `area:<area>` and `change:<id>` stay:
-// no native field expresses the OpenSpec grouping or the board area.
+// GitHub issue types (Task/Bug/Feature), milestones, the project Area,
+// Priority and Severity are native fields, so a label must not duplicate them.
+// `epic` and `change:<id>` stay: no field expresses the OpenSpec grouping.
 
 export function inferIssueType({ title = "", body = "", labels = [] } = {}) {
   const titleText = String(title);
@@ -309,7 +309,7 @@ export function isSyncManagedIssue(issue) {
   const names = labelsOf(issue);
   return (
     names.includes("epic") ||
-    names.some((name) => name.startsWith("change:") || name.startsWith("area:")) ||
+    names.some((name) => name.startsWith("change:")) ||
     /(?:^|\s)ROT-[1-9]\d*\b/.test(String(issue?.title ?? ""))
   );
 }
@@ -987,9 +987,7 @@ export function syncChangeTasks({
         onPlanned({ changeId, slug: task.slug, title: task.title, task });
         issue = { number: null, url: null, state: "OPEN", title: "", body: "" };
       } else {
-        const area = areaForTask(task) ?? null;
         const labels = [`change:${changeId}`];
-        if (area) labels.push(`area:${area}`);
         for (const label of labels) ensureLabel(label);
         const bodyPath = path.join(tempDir, `sub-${changeId}-${task.slug}.md`);
         fs.writeFileSync(
@@ -1070,7 +1068,7 @@ export function syncChangeTasks({
       record.issue.title !== title ||
       (record.issue.body ?? "").trim() !== body.trim() ||
       !currentLabels.includes(`change:${changeId}`) ||
-      (area && !currentLabels.includes(`area:${area}`));
+      currentLabels.some((name) => name.startsWith("area:"));
 
     if (needsEdit) {
       updated += 1;
@@ -1095,9 +1093,8 @@ export function syncChangeTasks({
           "--add-label",
           `change:${changeId}`,
         ];
-        if (area) args.push("--add-label", `area:${area}`);
         for (const label of currentLabels) {
-          if (label.startsWith("area:") && label !== `area:${area}`) {
+          if (label.startsWith("area:")) {
             args.push("--remove-label", label);
           }
         }

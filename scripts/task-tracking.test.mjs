@@ -448,7 +448,7 @@ test("syncChangeTasks creates once, updates nothing on a second run and writes b
     assert.equal(first.created, 3, "only sections with unchecked boxes are created");
     assert.equal(first.planned, 0);
     assert.equal(fake.issues.size, 3);
-    assert.deepEqual([...new Set(labels)].sort(), ["area:site", "change:demo"]);
+    assert.deepEqual([...new Set(labels)].sort(), ["change:demo"]);
 
     const second = fake.issues.get(101);
     assert.equal(second.title, "ROT-101 — Second");
@@ -458,7 +458,7 @@ test("syncChangeTasks creates once, updates nothing on a second run and writes b
     );
     assert.match(second.body, /<!-- openspec-task: demo\/second -->/);
     assert.equal(second.labels.includes("change:demo"), true);
-    assert.equal(second.labels.includes("area:site"), true);
+    assert.equal(second.labels.some((name) => name.startsWith("area:")), false);
 
     const rerun = syncChangeTasks({
       ...options,
@@ -960,14 +960,11 @@ test("board metadata warns when no type or milestone rule matches", () => {
   assert.match(result.warnings[1], /#9 "loose issue": no milestone rule/);
 });
 
-test("sync-managed detection adopts ROT titles and area-labelled issues", () => {
+test("sync-managed detection adopts ROT titles and change labels, not area labels", () => {
   assert.equal(isSyncManagedIssue({ title: "[demo] Epic", labels: ["epic"] }), true);
-  assert.equal(
-    isSyncManagedIssue({ title: "ROT-421 — Page", labels: ["area:site"] }),
-    true,
-  );
   assert.equal(isSyncManagedIssue({ title: "ROT-421 — Page", labels: [] }), true);
-  assert.equal(isSyncManagedIssue({ title: "manual", labels: ["area:site"] }), true);
+  assert.equal(isSyncManagedIssue({ title: "manual", labels: ["change:demo"] }), true);
+  assert.equal(isSyncManagedIssue({ title: "manual", labels: ["area:site"] }), false);
   assert.equal(isSyncManagedIssue({ title: "manual", labels: [] }), false);
 });
 

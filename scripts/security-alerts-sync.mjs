@@ -574,8 +574,6 @@ function applyAction(action, context) {
       action.body,
       "--label",
       "security",
-      "--label",
-      `area:${action.area}`,
     ]);
     const number = issueNumberFromUrl(url);
     const viewed = ghJson([

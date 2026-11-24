@@ -249,7 +249,7 @@ test("an open alert with no tracking issue plans one create action", () => {
   assert.equal(plan.actions[0].area, "desktop");
   assert.equal(plan.actions[0].priority, "P0");
   assert.equal(plan.actions[0].milestone.title, "Desktop and coordinator parity");
-  assert.deepEqual(plan.actions[0].labels, ["security", "area:desktop"]);
+  assert.deepEqual(plan.actions[0].labels, ["security"]);
 });
 
 test("an open alert with a matching open issue reconciles without a duplicate", () => {
@@ -379,7 +379,7 @@ test("an issue closed by the sync is reopened when the alert returns", () => {
   assert.equal(plan.actions[0].type, "reopen");
   assert.match(plan.actions[0].comment, /security-alert-reopen-alert:code-scanning:16/);
   assert.deepEqual(plan.actions[0].changes, []);
-  assert.deepEqual(plan.actions[0].labels, ["security", "area:desktop"]);
+  assert.deepEqual(plan.actions[0].labels, ["security"]);
 });
 
 test("duplicate markers produce one warning and no new issue", () => {

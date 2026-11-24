@@ -44,8 +44,25 @@ const PROJECT_NUMBER = 3;
 // removed. Keep the list empty or the board gate fails.
 export const DUPLICATE_TYPE_LABELS = ["bug", "enhancement", "type:bug", "type:feature"];
 
-export function findDuplicateTypeLabels(names = []) {
-  return DUPLICATE_TYPE_LABELS.filter((name) => names.includes(name));
+// A label must not restate any native or project field. Type, Area, Priority
+// and Severity are fields, so `area:site`, `priority:P1` and `severity:S2`
+// are the same duplication as a `bug` label.
+const DUPLICATE_FIELD_LABEL_RE =
+  /^(?:area:.+|priority:p[0-3]|severity:s[1-4]|type:(?:bug|feature|task))$/i;
+
+export function findDuplicateFieldLabels(names = []) {
+  const found = [];
+  const seen = new Set();
+  for (const name of names) {
+    if (!DUPLICATE_TYPE_LABELS.includes(name) && !DUPLICATE_FIELD_LABEL_RE.test(name)) {
+      continue;
+    }
+    if (!seen.has(name)) {
+      seen.add(name);
+      found.push(name);
+    }
+  }
+  return found;
 }
 
 function gh(args) {
@@ -126,10 +143,10 @@ export function checkBoardFields({
   labels = [],
 }) {
   const result = evaluateBoardFields({ issues, allowlist, milestones, projectItems });
-  const duplicates = findDuplicateTypeLabels(labels);
+  const duplicates = findDuplicateFieldLabels(labels);
   if (duplicates.length > 0) {
     result.errors.push(
-      `labels duplicate the native issue Type and must not exist: ${duplicates.join(", ")}.`,
+      `labels duplicate a native or project field and must not exist: ${duplicates.join(", ")}.`,
     );
   }
   const ok = result.errors.length === 0;

@@ -492,7 +492,7 @@ export function planSync({
           milestone,
           title,
           body,
-          labels: ["security", `area:${area}`],
+          labels: ["security"],
         });
         continue;
       }
@@ -539,7 +539,7 @@ export function planSync({
           title,
           body,
           changes,
-          labels: ["security", `area:${area}`],
+          labels: ["security"],
           comment: reopenAlertComment(facts),
         });
         continue;

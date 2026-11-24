@@ -9,10 +9,10 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
 
 - **One epic issue per OpenSpec change** that has at least one checkbox in
   `openspec/changes/<id>/tasks.md`. The issue title is
-  `[<id>] <first heading>`; labels are `epic` plus one `area:*`.
+  `[<id>] <first heading>`; the label is `epic`.
 - **One sub-issue per task section** that still has an unchecked box (or already
-  has a sub-issue). The title is `ROT-<n> — <task>`, labels are
-  `change:<id>` and `area:<area>`. Idempotency uses the body marker
+  has a sub-issue). The title is `ROT-<n> — <task>`, the label is
+  `change:<id>`. Idempotency uses the body marker
   `<!-- openspec-task: <change>/<slug> -->`.
 - **Blockers** from the section's `(blocked by: ...)` line become
   `Blocked by: ROT-7 (#7), ROT-8 (#8)`. Section numbers and ranges (`1-5`,
@@ -47,7 +47,7 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
   the sync also creates GitHub `addBlockedBy` links, removes a link the text no
   longer lists and prints every edge in its report.
 - **Adoption**: an issue created outside the sync that carries a `ROT-<n>`
-  title or an `area:*` / `change:*` / `epic` label gets the same Type,
+  title or a `change:*` / `epic` label gets the same Type,
   Milestone, Priority and plan/actual dates. New adopted non-epic work defaults
   to `P2` unless its epic declares a priority.
 - **Plan vs actual**: `Start date` → `Target date` is the plan; `Actual start`
