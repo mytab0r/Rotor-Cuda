@@ -156,7 +156,11 @@
         toPlaceholder: 'T...',
         tokenLabel: 'Token contract (optional; TRC-20, T address)',
         tokenPlaceholder: 'Leave empty for TRX',
-        dataHidden: true
+        dataHidden: true,
+        /* Gas limit, max fee and priority fee are EVM-only; the TRX fee limit
+         * takes their place. */
+        evmFeeFieldsHidden: true,
+        feeLimitHidden: false
       };
     }
     return {
@@ -164,7 +168,9 @@
       toPlaceholder: '0x...',
       tokenLabel: 'Token contract (optional ERC-20, 0x address)',
       tokenPlaceholder: 'Leave empty for the native coin',
-      dataHidden: false
+      dataHidden: false,
+      evmFeeFieldsHidden: false,
+      feeLimitHidden: true
     };
   }
 

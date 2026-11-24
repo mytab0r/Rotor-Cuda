@@ -325,21 +325,23 @@
         </label>
         <p class="error wallet-field-error" id="wallet-send-data-error" role="alert" hidden></p>
       </div>
-      <div class="wallet-split">
-        <label>Gas limit (empty = estimate + 20%)
-          <input id="wallet-send-gas" type="text" inputmode="numeric" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-gas-error" aria-invalid="false">
-        </label>
-        <label>Priority fee (gwei, empty = network)
-          <input id="wallet-send-priority" type="text" inputmode="decimal" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-priority-error" aria-invalid="false">
-        </label>
-        <label>Max fee (gwei, empty = 2 × base + priority)
-          <input id="wallet-send-max-fee" type="text" inputmode="decimal" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-max-fee-error" aria-invalid="false">
-        </label>
+      <div id="wallet-send-evm-fee-fields">
+        <div class="wallet-split">
+          <label>Gas limit (empty = estimate + 20%)
+            <input id="wallet-send-gas" type="text" inputmode="numeric" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-gas-error" aria-invalid="false">
+          </label>
+          <label>Priority fee (gwei, empty = network)
+            <input id="wallet-send-priority" type="text" inputmode="decimal" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-priority-error" aria-invalid="false">
+          </label>
+          <label>Max fee (gwei, empty = 2 × base + priority)
+            <input id="wallet-send-max-fee" type="text" inputmode="decimal" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-max-fee-error" aria-invalid="false">
+          </label>
+        </div>
+        <p class="error wallet-field-error" id="wallet-send-gas-error" role="alert" hidden></p>
+        <p class="error wallet-field-error" id="wallet-send-priority-error" role="alert" hidden></p>
+        <p class="error wallet-field-error" id="wallet-send-max-fee-error" role="alert" hidden></p>
+        <p class="muted">Empty gas limit uses <code class="mono">eth_estimateGas</code>; mainnet adds a 20% buffer. Empty fees use the node's priority fee and 2 × base fee + priority. On mainnet a native send's amount plus the maximum network fee, or a token send's maximum network fee and nothing else, must fit the native balance, and the network fee must stay under the chain cap, or the send is refused before signing. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
       </div>
-      <p class="error wallet-field-error" id="wallet-send-gas-error" role="alert" hidden></p>
-      <p class="error wallet-field-error" id="wallet-send-priority-error" role="alert" hidden></p>
-      <p class="error wallet-field-error" id="wallet-send-max-fee-error" role="alert" hidden></p>
-      <p class="muted">Empty gas limit uses <code class="mono">eth_estimateGas</code>; mainnet adds a 20% buffer. Empty fees use the node's priority fee and 2 × base fee + priority. On mainnet a native send's amount plus the maximum network fee, or a token send's maximum network fee and nothing else, must fit the native balance, and the network fee must stay under the chain cap, or the send is refused before signing. Editing any field after a review hides it, so the signature always covers exactly what was reviewed.</p>
       <div class="key-buttons">
         <button type="submit" class="primary" id="wallet-send-prepare">Fetch fees and review</button>
       </div>

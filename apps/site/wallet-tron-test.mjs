@@ -161,7 +161,7 @@ test("the picker value distinguishes TRON from an EVM chain id", () => {
   assert.equal(tron.tronNetworkFromOption(undefined), null);
 });
 
-test("the TRON state swaps the recipient/token labels and hides the Data field", () => {
+test("the TRON state swaps the labels, hides the EVM-only fields and shows the fee limit", () => {
   const tronLabels = tron.sendFieldLabels(true);
   assert.match(tronLabels.toLabel, /TRON address/);
   assert.doesNotMatch(tronLabels.toLabel, /0x address/);
@@ -170,12 +170,17 @@ test("the TRON state swaps the recipient/token labels and hides the Data field",
   assert.doesNotMatch(tronLabels.tokenLabel, /ERC-20/);
   assert.equal(tronLabels.tokenPlaceholder, "Leave empty for TRX");
   assert.equal(tronLabels.dataHidden, true);
+  // Gas limit, max fee and priority fee are EVM-only; the TRX fee limit shows.
+  assert.equal(tronLabels.evmFeeFieldsHidden, true);
+  assert.equal(tronLabels.feeLimitHidden, false);
 
   const evmLabels = tron.sendFieldLabels(false);
   assert.match(evmLabels.toLabel, /0x address/);
   assert.equal(evmLabels.toPlaceholder, "0x...");
   assert.match(evmLabels.tokenLabel, /ERC-20/);
   assert.equal(evmLabels.dataHidden, false);
+  assert.equal(evmLabels.evmFeeFieldsHidden, false);
+  assert.equal(evmLabels.feeLimitHidden, true);
 });
 
 /* ----------------------------------------------------- provider failover */

@@ -255,6 +255,7 @@
   var sendToLabel = byId('wallet-send-to-label');
   var sendTokenLabel = byId('wallet-send-token-label');
   var sendDataRow = byId('wallet-send-data-row');
+  var sendEvmFeeFields = byId('wallet-send-evm-fee-fields');
   var sendStatus = byId('wallet-send-status');
   var sendPrepareButton = byId('wallet-send-prepare');
   var sendReviewBox = byId('wallet-send-review');
@@ -3195,9 +3196,11 @@
 
   var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
 
-  /* Swap the recipient/token captions and placeholders with the same family
-   * switch that selects the fields: a TRON recipient is a base58 T-address,
-   * not a 0x address, and the free-form Data field has no TRON meaning. */
+  /* Swap the recipient/token captions and placeholders, and the field
+   * visibility, with the same family switch that selects the fields: a TRON
+   * recipient is a base58 T-address, not a 0x address; the free-form Data
+   * field and the EVM gas/max-fee/priority-fee rows have no TRON meaning, and
+   * the TRX fee limit takes their place. */
   function applySendFieldLabels(isTron) {
     if (!tronWallet) return;
     var labels = tronWallet.sendFieldLabels(isTron);
@@ -3206,6 +3209,12 @@
     if (sendTokenLabel) sendTokenLabel.textContent = labels.tokenLabel;
     if (sendTokenInput) sendTokenInput.placeholder = labels.tokenPlaceholder;
     if (sendDataRow) sendDataRow.hidden = labels.dataHidden;
+    if (sendEvmFeeFields) sendEvmFeeFields.hidden = labels.evmFeeFieldsHidden;
+    if (sendFeeLimitRow) sendFeeLimitRow.hidden = labels.feeLimitHidden;
+    if (sendFeeLimitInput) sendFeeLimitInput.disabled = labels.feeLimitHidden;
+    if (sendGasInput) sendGasInput.disabled = labels.evmFeeFieldsHidden;
+    if (sendPriorityInput) sendPriorityInput.disabled = labels.evmFeeFieldsHidden;
+    if (sendMaxFeeInput) sendMaxFeeInput.disabled = labels.evmFeeFieldsHidden;
   }
 
   /* A token send builds its own calldata, so the free-form data field is
@@ -3218,13 +3227,6 @@
     var isTron = !!(network && network.kind === 'tron');
     applySendFieldLabels(isTron);
     var hasToken = !!(sendTokenInput && sendTokenInput.value.trim() !== '');
-    if (sendFeeLimitRow) {
-      sendFeeLimitRow.hidden = !isTron;
-      if (sendFeeLimitInput) sendFeeLimitInput.disabled = !isTron;
-    }
-    if (sendGasInput) sendGasInput.disabled = isTron;
-    if (sendPriorityInput) sendPriorityInput.disabled = isTron;
-    if (sendMaxFeeInput) sendMaxFeeInput.disabled = isTron;
     if (!sendTokenInput || !sendDataInput) return;
     sendDataInput.disabled = isTron || hasToken;
     var box = byId('wallet-send-data-error');
