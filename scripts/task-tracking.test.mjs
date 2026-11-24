@@ -19,6 +19,7 @@ import {
   epicBody,
   evaluateBoardFields,
   evaluateTaskLinks,
+  fieldIsCurrent,
   filesBelongToChange,
   findDependencyCycles,
   inferIssueType,
@@ -34,6 +35,7 @@ import {
   parseTaskDirective,
   parseTasksMarkdown,
   priorityFor,
+  projectFieldKey,
   resolveBlockedBy,
   severityFor,
   slugify,
@@ -1426,6 +1428,62 @@ test("listProjectItems requests only the board fields and normalizes them", () =
   assert.match(calls[0].join(" "), /user\(login/);
   assert.match(calls[0].join(" "), /items\(first:100/);
   assert.match(calls[0].join(" "), /fieldValueByName\(name:"Actual end"\)/);
+});
+
+test("projectFieldKey maps every board field name to its item key", () => {
+  assert.equal(projectFieldKey("Area"), "area");
+  assert.equal(projectFieldKey("Priority"), "priority");
+  assert.equal(projectFieldKey("Severity"), "severity");
+  assert.equal(projectFieldKey("Start date"), "startDate");
+  assert.equal(projectFieldKey("Target date"), "targetDate");
+  assert.equal(projectFieldKey("Actual start"), "actualStart");
+  assert.equal(projectFieldKey("Actual end"), "actualEnd");
+  assert.equal(projectFieldKey("Progress"), "progress");
+  assert.equal(projectFieldKey("Status"), "status");
+  assert.equal(projectFieldKey("Milestone"), "milestone");
+  assert.equal(projectFieldKey("Some future field"), "some future field");
+});
+
+test("fieldIsCurrent skips only an item value that already matches", () => {
+  const field = { name: "Priority" };
+  assert.equal(fieldIsCurrent({ priority: "P1" }, field, "P1"), true);
+  assert.equal(fieldIsCurrent({ priority: "P1" }, field, "P2"), false);
+  assert.equal(fieldIsCurrent({ progress: 0 }, { name: "Progress" }, "0"), true);
+  // A missing item, field or value must not look current.
+  assert.equal(fieldIsCurrent(null, field, "P1"), false);
+  assert.equal(fieldIsCurrent({ priority: "P1" }, null, "P1"), false);
+  assert.equal(fieldIsCurrent({}, field, "P1"), false);
+  assert.equal(fieldIsCurrent({ other: "P1" }, field, "P1"), false);
+});
+
+test("fieldIsCurrent matches the bug fixture: a spaced field name vs a camelCase item", () => {
+  assert.equal(
+    fieldIsCurrent(
+      { startDate: "2026-01-01" },
+      { name: "Start date" },
+      "2026-01-01",
+    ),
+    true,
+  );
+});
+
+test("fieldIsCurrent matches the item shape listProjectItems emits (lowercased name)", () => {
+  assert.equal(
+    fieldIsCurrent(
+      { "start date": "2026-01-01", "actual end": "2026-02-01" },
+      { name: "Start date" },
+      "2026-01-01",
+    ),
+    true,
+  );
+  assert.equal(
+    fieldIsCurrent(
+      { "actual end": "2026-02-01" },
+      { name: "Actual end" },
+      "2026-01-01",
+    ),
+    false,
+  );
 });
 
 test("readChanges never reports the archive container as a change", () => {
