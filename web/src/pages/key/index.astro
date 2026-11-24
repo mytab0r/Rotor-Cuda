@@ -1,0 +1,26 @@
+---
+/* /key: the calculator hub with the first curated key server-rendered.
+ *
+ * The shell and the island are shared with `/key/<hex>`; this page owns the
+ * hub metadata, the curated-key links and the indexable WebPage JSON-LD. */
+import KeyPage from '../../components/KeyPage.astro';
+import { deriveKeyPage } from '../../lib/key-core.js';
+import { DEFAULT_KEY } from '../../lib/key-curated.js';
+
+const data = await deriveKeyPage(DEFAULT_KEY.hex);
+
+const TITLE = 'Private key explorer: 30 addresses on 18 chains | Crypto';
+const DESCRIPTION =
+  'Derive 30 addresses on 18 chains from any 64-character private key in your browser: Bitcoin, EVM, TRON, Solana, TON, XRP and more. Nothing is uploaded.';
+---
+
+<KeyPage
+  hex={DEFAULT_KEY.hex}
+  data={data}
+  h1="Private-key explorer"
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical="/key"
+  robots="index,follow"
+  hub
+/>

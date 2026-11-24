@@ -785,6 +785,34 @@
       "symptom": "The /key address-format selector could stay visible with a format pressed under All or a single-format chain and could carry one chain's format across a switch (reported in #452, product fix in #456); the gate now pins panel scope, the per-chain card sets and the cross-chain format reset.",
       "detector": "key-filter-scope",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-native-title-attributes",
+      "reported": "2026-11-23",
+      "symptom": "The live /key page put 507-character native title attributes on the counters and summary containers, so every fact was duplicated as an unreadable hover string and the real captions were hidden from assistive technology.",
+      "detector": "native-title-length",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-fold-unchecked",
+      "reported": "2026-11-24",
+      "symptom": "The key-page audit recorded `metrics.keyPage.tableStartY` but never compared it with the 700px/800px fold budget, so a taller hero or fact stack could push the address table below the fold without failing any gate.",
+      "detector": "key-page-fold",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-first-paint-provider-requests",
+      "reported": "2026-11-24",
+      "symptom": "The server-rendered key island fetched ~10 public-provider balances and ~141 KB of helpers at first paint before any user action, so simply opening /key or a curated key page disclosed the addresses to third-party providers.",
+      "detector": "key-page-first-paint-requests",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-url-derive-race",
+      "reported": "2026-11-24",
+      "symptom": "The audit clicked the balance control on a synthesized /key/<hex> page while the island was still deriving that key, so a settled state could describe the hub's key 1 rows instead of the requested key.",
+      "detector": "key-url-derive",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }

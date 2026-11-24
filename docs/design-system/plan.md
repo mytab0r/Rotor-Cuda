@@ -420,7 +420,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `address-type-width-spread` | Address-type cards in one visual row differ by at most 15%. | all | implemented |
 | `duplicate-address-type-implementation` | One address-type component family is used, not two competing ones. | all | implemented |
 | `mostly-empty-block` | A block taller than 220px is not more than 45% empty. | all | implemented |
-| `manual-balance-control` | No visible manual balance button or checkbox; balances load automatically. | all | implemented |
+| `manual-balance-control` | Balances must not load automatically. No visible manual balance control is allowed except the single Astro /key privacy control (#key-balance-check, the shared .chip) that starts a lookup after a user action; any other button, checkbox or label that triggers balances fails. | all | implemented |
 | `brainwallet-row-count` | /brainwallet/<chain> renders 60 .bw-row entries. | all | implemented |
 | `puzzle-row-count` | /bitcoin-puzzle renders 160 data-puzzle rows. | all | implemented |
 | `site-map-still-served` | /site-map answers 404 after the docs move. | all | implemented |
@@ -470,6 +470,10 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `text-clipped` | Visible text fits its box: no hidden/clip scroll overflow, no line box outside a clipping ancestor, and no flex/grid child escaping its parent padding box; there is no ellipsis opt-out. | 8 | implemented |
 | `donor-layout-parity` | Measured layout (table start, row height, column widths, control heights, fonts) is compared with docs/parity/donor-layout.json at 375 and 1280; deltas are warnings, never failures. | 8 | implemented |
 | `key-filter-scope` | The /key address-format selector (#format-panel) is hidden under All and on every single-format chain, renders only the selected chain's format cards (BTC 4, LTC 4, BCH 2), and carries no format across a chain switch. | 8 | implemented |
+| `native-title-length` | No /key page carries a native title attribute longer than 80 characters; long values live in visible text or data-tooltip, never in a container title. | density | implemented |
+| `key-page-fold` | The /key address table starts at or above y=700 at 1280 and above y=800 at 375; a longer hero/facts stack fails the audit. | density | implemented |
+| `key-page-first-paint-requests` | An Astro /key page makes no request to a balance-provider host before a user action; only typing a key or pressing Check balances starts a lookup. | density | implemented |
+| `key-url-derive` | A worker-synthesized /key/<hex> page finishes deriving its own rows (including the optional V4R2 row) within 20s and marks #addr-rows with the requested key. | density | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.

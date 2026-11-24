@@ -290,6 +290,8 @@
         "node --test scripts/security-alerts.test.mjs",
         "node --test scripts/site-routes.test.mjs",
         "node --test scripts/ui-audit.test.mjs",
+        "node --test scripts/check-seo.test.mjs",
+        "node --test scripts/check-ssot.test.mjs",
         "node --test scripts/check-screenshots.test.mjs",
         "node scripts/check-advisories.mjs",
         "node scripts/gen-security-page.mjs --check",

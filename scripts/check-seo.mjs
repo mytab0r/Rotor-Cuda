@@ -132,7 +132,6 @@ const PRESENTATION_PAGES = [
  * reason is mandatory and a target that already exists in `dist` fails as a
  * stale entry, so the list is shrink-only. */
 const pendingCutover = new Map([
-  ['/key', 'Key explorer and /key/<hex> calculators are still served by the coordinator (frontend-platform phase 3).'],
   ['/key/hex', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
   ['/key/wif', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
   ['/key/decimal', 'Named calculator entry under the /key family; the coordinator serves it today (phase 3).'],
@@ -1336,6 +1335,255 @@ async function checkNotFound(dist) {
   return { file, robots, h1s: visibleH1s.length, failures };
 }
 
+
+/* ------------------------------------------------------------------ /key */
+/* The key explorer is one hub plus the curated `/key/<hex>` pages. The hub
+ * and the curated set are indexable; every other 64-hex key is served by
+ * `_worker.js` with noindex and must never be built or listed in the sitemap.
+ * The facts table is server-rendered for the route's own key, so the rows and
+ * the key text must be present in the first HTML byte. */
+const KEY_DIR = 'key';
+const KEY_MIN_ROWS = 30;
+const KEY_TITLE_MIN = TITLE_MIN;
+const KEY_TITLE_MAX = TITLE_MAX;
+const MAX_TITLE_ATTR = 80;
+
+async function curatedKeys() {
+  const file = path.join(REPO_ROOT, 'data', 'key-curated.json');
+  let data;
+  try {
+    data = JSON.parse(await readFile(file, 'utf8'));
+  } catch (error) {
+    throw new Error(`cannot read data/key-curated.json: ${error.message}`);
+  }
+  if (!Array.isArray(data.keys) || data.keys.length < 3) {
+    throw new Error('data/key-curated.json must list at least 3 keys');
+  }
+  const seen = new Set();
+  return data.keys.map((hex) => {
+    if (typeof hex !== 'string' || !/^[0-9a-f]{64}$/.test(hex)) {
+      throw new Error(`data/key-curated.json key is not 64 lowercase hex: ${String(hex)}`);
+    }
+    if (seen.has(hex)) throw new Error(`data/key-curated.json repeats ${hex}`);
+    seen.add(hex);
+    return {
+      hex,
+      value: BigInt(`0x${hex}`).toString(),
+      display: `0x${hex.slice(0, 4)}…${hex.slice(-4)}`,
+      path: `/key/${hex}`,
+      file: path.join(KEY_DIR, hex, 'index.html'),
+    };
+  });
+}
+
+function titleAttrsOver(html, limit) {
+  const out = [];
+  for (const match of html.matchAll(/\btitle\s*=\s*(["'])([\s\S]*?)\1/gi)) {
+    const value = decodeEntities(match[2]);
+    if (value.length > limit) out.push({ length: value.length, value: `${value.slice(0, 40)}…` });
+  }
+  return out;
+}
+
+async function checkKeyPage(spec, dist, distFiles, curated) {
+  const failures = [];
+  const fail = (id, message) => failures.push(`[${id}] ${spec.label}: ${message}`);
+  const filePath = path.join(dist, spec.file);
+  let html;
+  let bytes = 0;
+  try {
+    html = await readFile(filePath, 'utf8');
+    bytes = (await stat(filePath)).size;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      fail('seo-page-set', `missing built page ${spec.file}; run the Astro build first`);
+      return { ...spec, bytes, failures };
+    }
+    throw error;
+  }
+
+  const title = attr(html, /<title>([\s\S]*?)<\/title>/i);
+  const description = attr(html, /<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  const canonical = attr(html, /<link\s+rel=["']canonical["']\s+href=(["'])([\s\S]*?)\1/i);
+  const robots = attr(html, /<meta\s+name=["']robots["']\s+content=(["'])([\s\S]*?)\1/i);
+  const ogImageAlt = attr(html, /<meta\s+property=["']og:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+  const twitterImageAlt = attr(html, /<meta\s+name=["']twitter:image:alt["']\s+content=(["'])([\s\S]*?)\1/i);
+
+  if (!title) fail('seo-metadata-bounds', 'missing <title>');
+  else if (title.length < KEY_TITLE_MIN || title.length > KEY_TITLE_MAX) {
+    fail('seo-metadata-bounds', `title length ${title.length} outside ${KEY_TITLE_MIN}-${KEY_TITLE_MAX}: ${title}`);
+  } else if (!title.endsWith('| Crypto')) {
+    fail('seo-metadata-bounds', `title does not end with the brand: ${title}`);
+  } else if (spec.hub && !/^private key explorer/i.test(title)) {
+    fail('seo-metadata-bounds', `hub title does not start with the intent: ${title}`);
+  } else if (!spec.hub && !title.startsWith(`Private key ${spec.value}:`)) {
+    fail('seo-metadata-bounds', `curated title does not name key ${spec.value}: ${title}`);
+  }
+
+  if (!description) fail('seo-metadata-bounds', 'missing meta description');
+  else if (description.length < DESCRIPTION_MIN || description.length > DESCRIPTION_MAX) {
+    fail('seo-metadata-bounds', `description length ${description.length} outside ${DESCRIPTION_MIN}-${DESCRIPTION_MAX}`);
+  } else if (!/\d/.test(description)) {
+    fail('seo-metadata-bounds', 'description has no concrete number');
+  }
+
+  const expectedCanonical = `${SITE_ORIGIN}${spec.path}`;
+  if (!canonical) fail('seo-canonical-robots', 'missing canonical');
+  else if (canonical !== expectedCanonical) fail('seo-canonical-robots', `canonical ${canonical} is not ${expectedCanonical}`);
+
+  if (!robots) fail('seo-canonical-robots', 'missing robots meta');
+  else if (!/index\s*,\s*follow/i.test(robots)) fail('seo-canonical-robots', `robots is not index,follow: ${robots}`);
+
+  if (!ogImageAlt || !/private key/i.test(ogImageAlt)) fail('seo-og-image-alt', 'og:image:alt does not describe the key page');
+  if (!twitterImageAlt || !/private key/i.test(twitterImageAlt)) fail('seo-og-image-alt', 'twitter:image:alt does not describe the key page');
+
+  const allHeadings = headings(html);
+  const h1s = allHeadings.filter((heading) => heading.level === 1);
+  const visibleH1s = h1s.filter((heading) => !heading.hidden && heading.text);
+  const expectedH1 = spec.hub ? 'Private-key explorer' : `Private key ${spec.display}`;
+  if (h1s.length === 0) fail('seo-hidden-heading', 'missing H1');
+  else if (h1s.some((heading) => heading.hidden)) fail('seo-hidden-heading', 'H1 is visually hidden');
+  if (visibleH1s.length !== 1) fail('seo-hidden-heading', `expected exactly one visible H1, found ${visibleH1s.length}`);
+  else if (visibleH1s[0].text !== expectedH1) {
+    fail('seo-hidden-heading', `H1 is "${visibleH1s[0].text}", expected "${expectedH1}"`);
+  }
+
+  const proseH2s = proseSections(html)
+    .flatMap((section) => headings(section))
+    .filter((heading) => heading.level === 2 && !heading.hidden && heading.text);
+  if (proseH2s.length < 2) {
+    fail('seo-hidden-heading', `only ${proseH2s.length} visible prose H2(s), need at least 2`);
+  }
+
+  const rows = rowsOf(html, 'data-address-id');
+  if (rows < KEY_MIN_ROWS) fail('seo-rendered-rows', `only ${rows} rendered address rows, need at least ${KEY_MIN_ROWS}`);
+
+  if (!spec.hub) {
+    if (!html.includes(spec.hex)) fail('seo-rendered-rows', `the page does not render the key hex ${spec.hex}`);
+    if (!html.includes(spec.display)) fail('seo-rendered-rows', `the page does not render the key display ${spec.display}`);
+    if (!/<a\b[^>]*\bhref=["']\/key\/?["']/i.test(html)) fail('seo-internal-link', 'curated page does not link back to /key');
+  } else {
+    for (const key of curated) {
+      if (!html.includes(`href="${key.path}"`)) fail('seo-hub-links', `hub does not link to curated ${key.path}`);
+    }
+  }
+
+  const titleAttrs = titleAttrsOver(html, MAX_TITLE_ATTR);
+  if (titleAttrs.length) {
+    fail('seo-title-attribute', `${titleAttrs.length} native title attribute(s) over ${MAX_TITLE_ATTR} characters`, titleAttrs.slice(0, 5));
+  }
+
+  const seenTargets = new Set();
+  for (const href of anchorsIn(mainHtml(html))) {
+    const pathname = internalPath(href);
+    if (!pathname || seenTargets.has(pathname)) continue;
+    seenTargets.add(pathname);
+    if (resolvesInDist(distFiles, pathname)) continue;
+    if (pendingCutover.has(pathname)) continue;
+    if (pendingChainTarget(pathname)) continue;
+    fail('seo-internal-link', `${href} is not built and is not in the pendingCutover allowlist`);
+  }
+
+  const blocks = jsonLdBlocks(html);
+  const types = new Set();
+  for (const block of blocks) {
+    try {
+      typesOf(JSON.parse(block), types);
+    } catch (error) {
+      fail('seo-structured-data', `JSON-LD does not parse: ${error.message}`);
+    }
+  }
+  for (const type of ['WebPage', 'BreadcrumbList']) {
+    if (!types.has(type)) fail('seo-structured-data', `JSON-LD is missing ${type}`);
+  }
+
+  return {
+    ...spec,
+    bytes,
+    title,
+    titleLength: title?.length ?? 0,
+    description,
+    descriptionLength: description?.length ?? 0,
+    canonical,
+    robots,
+    rows,
+    proseH2s: proseH2s.length,
+    internalLinks: seenTargets.size,
+    failures,
+  };
+}
+
+async function checkKeyFamily(dist, keys, distFiles) {
+  const failures = [];
+  let entries = [];
+  try {
+    entries = await readdir(path.join(dist, KEY_DIR), { withFileTypes: true });
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    failures.push('[seo-page-set] missing built directory key/; run the Astro build first');
+  }
+  const dirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  const curatedHex = new Set(keys.map((key) => key.hex));
+  for (const dir of dirs) {
+    if (!curatedHex.has(dir)) failures.push(`[seo-page-set] unexpected built key page: ${dir} (only curated keys may be static)`);
+  }
+  const results = [];
+  results.push(await checkKeyPage({
+    label: 'key hub',
+    path: '/key',
+    file: path.join(KEY_DIR, 'index.html'),
+    hub: true,
+    display: keys[0]?.display ?? '',
+  }, dist, distFiles, keys));
+  for (const key of keys) {
+    results.push(await checkKeyPage({
+      label: `key/${key.value}`,
+      path: key.path,
+      file: key.file,
+      hub: false,
+      hex: key.hex,
+      value: key.value,
+      display: key.display,
+    }, dist, distFiles, keys));
+  }
+  for (const result of results) failures.push(...result.failures);
+  return { results, failures };
+}
+
+async function checkKeySitemap(dist, keys) {
+  const file = path.join(dist, 'sitemap.xml');
+  const failures = [];
+  let xml;
+  try {
+    xml = await readFile(file, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') return { paths: 0, failures: ['[seo-sitemap] missing built sitemap.xml'] };
+    throw error;
+  }
+  const paths = [...xml.matchAll(/<loc>([\s\S]*?)<\/loc>/gi)].map((match) => {
+    try {
+      return new URL(decodeEntities(match[1].trim())).pathname;
+    } catch {
+      return '';
+    }
+  });
+  if (!paths.includes('/key')) failures.push('[seo-sitemap] sitemap is missing /key');
+  const curated = new Set(keys.map((key) => key.path));
+  for (const key of keys) {
+    if (!paths.includes(key.path)) failures.push(`[seo-sitemap] sitemap is missing curated ${key.path}`);
+  }
+  for (const pathname of paths) {
+    if (/^\/key\/[0-9a-fA-F]{64}$/.test(pathname) && !curated.has(pathname)) {
+      failures.push(`[seo-sitemap] non-curated key ${pathname} is in the sitemap; worker pages are noindex`);
+    }
+  }
+  return {
+    paths: paths.length,
+    keyPaths: paths.filter((pathname) => pathname.startsWith('/key')).length,
+    failures,
+  };
+}
+
 function formatTable(rows) {
   const header = ['chain', 'title', 'desc', 'H2', 'rows', 'words', 'bytes'];
   const lines = [header.join('\t')];
@@ -1470,6 +1718,11 @@ async function main() {
   const puzzleSitemap = await checkPuzzleSitemap(options.dist, puzzleData);
   for (const failure of puzzleSitemap.failures) failures.push(failure);
 
+  const keys = await curatedKeys();
+  const keyFamily = await checkKeyFamily(options.dist, keys, distFiles);
+  const keySitemap = await checkKeySitemap(options.dist, keys);
+  failures.push(...keyFamily.failures, ...keySitemap.failures);
+
   for (const [target, reason] of pendingCutover) {
     if (!reason || !reason.trim()) {
       failures.push(`[seo-pending-cutover] ${target}: allowlist entry has no reason`);
@@ -1530,6 +1783,11 @@ async function main() {
       title: result.title,
       description: result.description,
     })),
+    ...keyFamily.results.map((result) => ({
+      label: result.label,
+      title: result.title,
+      description: result.description,
+    })),
     ...(puzzleHub ? [{ label: 'puzzle-hub', title: puzzleHub.title, description: puzzleHub.description }] : []),
     ...(hub ? [{ label: 'private-keys hub', title: hub.title, description: hub.description }] : []),
     ...(seedHub ? [{ label: 'mnemonic-seeds hub', title: seedHub.title, description: seedHub.description }] : []),
@@ -1559,6 +1817,14 @@ async function main() {
   console.log(`private-keys:\n${formatTable(privateFamily.results)}`);
   console.log(`\nmnemonic-seeds:\n${formatTable(seedFamily.results)}`);
   console.log(`\n${formatPresentationTable(presentationResults)}`);
+  console.log('\nkey pages:');
+  for (const row of keyFamily.results) {
+    console.log(
+      `  ${row.label}: title ${row.titleLength}, desc ${row.descriptionLength}, ` +
+        `rows ${row.rows ?? 0}, prose H2 ${row.proseH2s ?? 0}, links ${row.internalLinks ?? 0}, bytes ${row.bytes ?? 0}`,
+    );
+  }
+  console.log(`  sitemap: ${keySitemap.keyPaths ?? 0} key path(s) of ${keySitemap.paths ?? 0}`);
   for (const [label, page] of [['private-keys hub', hub], ['mnemonic-seeds hub', seedHub]]) {
     if (!page) continue;
     console.log(
@@ -1602,6 +1868,8 @@ async function main() {
     puzzleHub,
     puzzles: puzzleResults,
     puzzleSitemap,
+    keyPages: keyFamily.results,
+    keySitemap,
     pendingCutover: [...pendingCutover].map(([target, reason]) => ({ target, reason })),
     pendingChainPrefixes: [...pendingChainPrefixes].map(([prefix, reason]) => ({ prefix, reason })),
     hub,
@@ -1621,7 +1889,8 @@ async function main() {
     `\nSEO gate passed: ${privateFamily.results.length} private-key pages, ` +
       `${seedFamily.results.length} mnemonic-seed pages, both hubs, ` +
       `${presentationResults.length} presentation pages, the ${PUZZLE_HUB_ROUTE} hub, ` +
-      `${puzzleResults.length} puzzle detail pages, the sitemap and the root 404 page.`,
+      `${puzzleResults.length} puzzle detail pages, ` +
+      `${keyFamily.results.length} key pages, the sitemap and the root 404 page.`,
   );
 }
 

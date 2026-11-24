@@ -20,3 +20,24 @@ test("a table cell is clipped by text rects, not by hit-area scroll overflow", (
   assert.match(auditPage, /textOutside\(cell, cell\.getBoundingClientRect\(\)\)/);
   assert.doesNotMatch(auditPage, /cell\.scrollHeight > cell\.clientHeight \+ 1/);
 });
+
+/* The three key-page gates behind the Astro migration. The universal revert
+ * tier needs these to go red when the audit hunks are reverted. */
+test("the key-page fold budget fails above 700 at 1280 and 800 at 375", () => {
+  assert.match(auditPage, /key-page-fold/);
+  assert.match(auditPage, /viewportWidth >= 1024 \? 700 : viewportWidth <= 479 \? 800 : null/);
+  assert.match(auditPage, /metrics\.keyPage\.tableStartY > foldLimit/);
+});
+
+test("a server-rendered key page is probed for zero first-paint provider requests", () => {
+  assert.match(source, /PROVIDER_HOSTS/);
+  assert.match(source, /firstPaintProviderRequests/);
+  assert.match(source, /key-page-first-paint-requests/);
+  assert.match(source, /document\.getElementById\('key-balance-check'\)/);
+});
+
+test("the format-scope probe is coordinator-only and keeps the coordinator report", () => {
+  assert.match(source, /const astroShell = await evaluate/);
+  assert.match(source, /if \(!astroShell\) \{/);
+  assert.match(source, /if \(originalFirst\) \{\r?\n\s*setter\.call\(input, original\)/);
+});

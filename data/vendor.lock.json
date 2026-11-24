@@ -1,11 +1,26 @@
 {
   "version": 1,
-  "description": "Files the Astro pilot serves from web/public/ as copies of apps/site/. Vendored identity is content after EOL normalization (CRLF folded to LF), not raw bytes: Windows checkouts write CRLF while Linux CI reads the committed LF blob. scripts/check-ssot.mjs verifies every normalized digest against both files and fails when a copy drifts or a new file appears under web/public without a lock entry. Regenerate with `node scripts/gen-ssot.mjs --vendor-lock` after editing apps/site or merging main; never edit the web/public copy.",
+  "description": "Files the Astro pilot serves from web/public/ as copies of apps/site/. Vendored identity is content after EOL normalization (CRLF folded to LF), not raw bytes: Windows checkouts write CRLF while Linux CI reads the committed LF blob. scripts/check-ssot.mjs verifies every normalized digest against both files and fails when a copy drifts or a new file appears under web/public without a lock entry or an `authored` entry (a file written in the frontend area, such as the Pages `_worker.js`). Regenerate with `node scripts/gen-ssot.mjs --vendor-lock` after editing apps/site or merging main; never edit the web/public copy.",
   "entries": [
+    {
+      "source": "apps/site/address-codecs.js",
+      "target": "web/public/address-codecs.js",
+      "sha256": "10b5c3e2eaa220cb0dab2d869a976f4deeba7b796e9f73a49e1414eb77e37a9d"
+    },
     {
       "source": "apps/site/amount.js",
       "target": "web/public/amount.js",
       "sha256": "c9fc73033f90cf0e9a29e0949d4c7406fe2b3a178354837dc80f3fefce1a6a20"
+    },
+    {
+      "source": "apps/site/balance-cache.js",
+      "target": "web/public/balance-cache.js",
+      "sha256": "3f21181b849e44522b9ffdc9aea2a90e0baaf7ba44c701b20823c7f82a6c45cd"
+    },
+    {
+      "source": "apps/site/balance-providers.js",
+      "target": "web/public/balance-providers.js",
+      "sha256": "5d701189ed0676459c2322fd43a7e31477993a31fdbad0ec4a017e593010fdc3"
     },
     {
       "source": "apps/site/chains.generated.js",
@@ -33,24 +48,19 @@
       "sha256": "e5f3cd07395ef1562adc66eeb25eb0f273f584f039500ed2c42012d739fee2ee"
     },
     {
+      "source": "apps/site/key-tools.js",
+      "target": "web/public/key-tools.js",
+      "sha256": "5d3edee72c19864f4af693f2ce65d466eab45fddc7a12f4f6c681b2713ff6e9d"
+    },
+    {
       "source": "apps/site/rotor_wasm.wasm",
       "target": "web/public/rotor_wasm.wasm",
       "sha256": "ca930076bd7b552b992bcff8f7a12c5f28c4a2bb797bed294e8800a419a09a6c"
     },
     {
-      "source": "apps/site/seed-crypto.js",
-      "target": "web/public/vendor/seed-crypto.js",
-      "sha256": "3b444f307120b2653651eda769e8e63a8360ee7b2204d878d16166d2ce98b636"
-    },
-    {
       "source": "apps/site/seed-studio.css",
       "target": "web/public/seed-studio.css",
       "sha256": "f776e8ce9e4a124abc789bf86c4e42faf56d2684a3077d1bf4802f50a5d9e5cc"
-    },
-    {
-      "source": "apps/site/seed.js",
-      "target": "web/public/vendor/seed.js",
-      "sha256": "55af6b8ae205f7fb659d675453dcdb3f1c2de221b48ba3e5c0b1d9fe300d9d4b"
     },
     {
       "source": "apps/site/site.css",
@@ -66,6 +76,21 @@
       "source": "apps/site/theme.js",
       "target": "web/public/theme.js",
       "sha256": "53184e0302cd46b9ca736c92b6edcfdcd75a17d6fe5e17a5df668b50c0b7d4e4"
+    },
+    {
+      "source": "apps/site/ton.js",
+      "target": "web/public/ton.js",
+      "sha256": "b23d06cc16e4f500138646a197c3f8e9bfa45e03feb961b30449440da4b3ebbc"
+    },
+    {
+      "source": "apps/site/seed-crypto.js",
+      "target": "web/public/vendor/seed-crypto.js",
+      "sha256": "3b444f307120b2653651eda769e8e63a8360ee7b2204d878d16166d2ce98b636"
+    },
+    {
+      "source": "apps/site/seed.js",
+      "target": "web/public/vendor/seed.js",
+      "sha256": "55af6b8ae205f7fb659d675453dcdb3f1c2de221b48ba3e5c0b1d9fe300d9d4b"
     }
   ],
   "nonCopies": [
@@ -78,12 +103,14 @@
       "reason": "License text that accompanies the vendored TON bundle; the pilot never serves it."
     },
     {
-      "source": "apps/site/ton.js",
-      "reason": "Vendored TON SDK used only by the TON send flow; the pilot serves /mnemonic-converter and never loads it."
-    },
-    {
       "source": "apps/site/walletconnect.js",
       "reason": "Vendored WalletConnect bundle used only by the cabinet wallet flow; the pilot never loads it."
+    }
+  ],
+  "authored": [
+    {
+      "path": "web/public/_worker.js",
+      "reason": "Cloudflare Pages advanced-mode worker for /key/<64-hex>; authored in the frontend area, not copied from apps/site."
     }
   ]
 }
