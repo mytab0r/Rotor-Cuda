@@ -603,6 +603,44 @@ desktop tier so data pages read like a bank app rather than a phone layout.
 - Enforced by `desktop-control-height`, `table-row-density`,
   `row-action-reveal` and `page-inset-parity`.
 
+### 3.19 Progressive disclosure
+
+An Operate surface — any card whose purpose is a control the user acts on —
+guides, it does not explain. Explanation is one click away, not in the way.
+
+- **Inline budget:** at most one sentence of guidance inline in a card, ≤140
+  characters, placed where the user reads it before acting (before the form,
+  beside the toggle, under the heading). No card renders two or more guidance
+  paragraphs before its first control.
+- **Longer explanation** (anything over the budget: mechanics, provider names,
+  edge cases, parsing rules) goes into one of two sinks, below the card's
+  controls:
+  - a `<details><summary>` block — the summary is a short label ("How the send
+    is checked", "What is stored"), styled `--text-sm`, with a chevron and a
+    44px touch target; or
+  - a `.popover` (§3.14) anchored to an info `.icon-button` (§3.2): the trigger
+    carries `aria-label` naming the popover content, `data-tooltip` is
+    optional, a native `title` is never added beside it.
+- **Safety-critical text stays inline** and is never demoted, even over
+  budget: the mainnet arm label ("…cannot be reversed"), "losing the
+  passphrase loses the keys", "importing replaces this browser's vault". One
+  sentence each; the `<details>` behind them may elaborate.
+- **375px rule:** at 375px width the first interactive control of every card
+  is reachable without scrolling past more than one line of prose (~80
+  characters of wrapped text) after the card heading.
+- **`<details>` accessibility:** the `<summary>` is the only focusable child;
+  it keeps the 2px `--signal` `:focus-visible` ring (offset 2) and a min-height
+  44px target on touch. The block is hidden by default unless the text answers
+  a question the user has already hit.
+- Enforcement: `scripts/ui-audit.mjs` does not cover the vault-gated wallet
+  page (`/cabinet/wallet` needs a vault session), so this family on that page
+  is covered by the independent visual check only (375/768/1280 screenshots in
+  the PR). On audited pages a `prose-before-control` detector can enforce the
+  rule mechanically: per card, at most one `.muted`/guidance `<p>` before the
+  first interactive control, ≤140 characters, plus the `<summary>` 44px target
+  and focus ring. Until that detector exists in `data/detectors.json`, the
+  audited-page share of this family is also review-checked, not machine-green.
+
 ## 4. State matrix
 
 | Component | Default | Hover | Focus-visible | Active/Selected | Disabled | Loading |
