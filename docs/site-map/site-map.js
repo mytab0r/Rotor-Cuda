@@ -27,13 +27,14 @@
     partial: 'partial',
     missing: 'missing'
   };
-  var SOURCE_ORIGINS = {
-    pkf: 'https://ref-site-a',
-    ss: 'https://ref-site-b'
-  };
+  /* Donor origins are private. A git-ignored donor-refs.local.js may set
+   * window.RotorDonorRefs = { donors: [{ token, hosts }] } before this file;
+   * without it donor rows keep the token and the path but render no external
+   * link. See docs/process/private-references.md. */
+  var DONOR_REFS = window.RotorDonorRefs || null;
   var SOURCE_LABELS = {
-    pkf: 'ref-site-a',
-    ss: 'ref-site-b'
+    'ref-site-a': 'ref-site-a',
+    'ref-site-b': 'ref-site-b'
   };
   /* The docs page is not served by the coordinator, so internal route links
    * open the live site rather than a path relative to this file. */
@@ -88,9 +89,17 @@
     return SOURCE_LABELS[String(id).split(':')[0]] || String(id).split(':')[0];
   }
 
+  function donorOrigin(source) {
+    if (!DONOR_REFS || !Array.isArray(DONOR_REFS.donors)) return null;
+    var donor = DONOR_REFS.donors.filter(function (item) { return item.token === source; })[0];
+    if (!donor || !Array.isArray(donor.hosts) || !donor.hosts.length) return null;
+    return 'https://' + donor.hosts[0];
+  }
+
   function donorHref(donor) {
     var path = donor.href || donor.path;
-    return SOURCE_ORIGINS[donor.source] + encodeURI(path);
+    var origin = donorOrigin(donor.source);
+    return origin ? origin + encodeURI(path) : null;
   }
 
   function routeHref(route) {
@@ -191,10 +200,14 @@
 
   function actionLink(href, label, iconName, external) {
     var link = el('a', 'sitemap-action');
-    link.href = href;
+    if (href) {
+      link.href = href;
+    } else {
+      link.setAttribute('aria-disabled', 'true');
+    }
     link.setAttribute('aria-label', label);
-    link.title = label;
-    if (external) {
+    link.title = href ? label : label + ' (set donor refs locally to open)';
+    if (external && href) {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
     }
@@ -212,8 +225,12 @@
 
     var main = el('div', 'sitemap-row-main');
     var titleLink = el('a', 'sitemap-row-title');
-    titleLink.href = titleHref;
-    if (external) {
+    if (titleHref) {
+      titleLink.href = titleHref;
+    } else {
+      titleLink.setAttribute('aria-disabled', 'true');
+    }
+    if (external && titleHref) {
       titleLink.target = '_blank';
       titleLink.rel = 'noopener noreferrer';
       titleLink.appendChild(document.createTextNode(title + ' '));

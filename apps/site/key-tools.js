@@ -969,6 +969,53 @@
     return text.replace(/_/g, ' ');
   }
 
+  /* Address-format selector scope. Only a chain tab with more than one address
+   * format gets the control; `all` and single-format chains get no options.
+   * The ids are the derived row ids the selector highlights, and the labels
+   * are the short card names (the table keeps ADDRESS_TYPE_LABELS). LTC
+   * mirrors BTC; BCH exposes legacy and CashAddr. */
+  var CHAIN_FORMATS = {
+    btc: [
+      { id: 'btc_p2pkh', label: 'Legacy' },
+      { id: 'btc_p2wpkh', label: 'SegWit' },
+      { id: 'btc_p2sh_p2wpkh', label: 'Nested SegWit' },
+      { id: 'btc_p2tr', label: 'Taproot' }
+    ],
+    ltc: [
+      { id: 'ltc_p2pkh', label: 'Legacy' },
+      { id: 'ltc_p2wpkh', label: 'SegWit' },
+      { id: 'ltc_p2sh_p2wpkh', label: 'Nested SegWit' },
+      { id: 'ltc_p2tr', label: 'Taproot' }
+    ],
+    bch: [
+      { id: 'bch_legacy', label: 'Legacy' },
+      { id: 'bch_cashaddr', label: 'CashAddr' }
+    ]
+  };
+
+  function chainFormatOptions(chain) {
+    var list = CHAIN_FORMATS[String(chain == null ? '' : chain)] || [];
+    return list.map(function (option) {
+      return { id: option.id, label: option.label };
+    });
+  }
+
+  /* A chain switch keeps the current format only when the new chain offers it.
+   * A format id from another chain is dropped (no format filter); a focus that
+   * is not a format (summary, a path chip) is left alone. */
+  function resolveChainFormat(current, chain) {
+    var text = String(current == null ? '' : current);
+    if (!text) return '';
+    var options = chainFormatOptions(chain);
+    for (var index = 0; index < options.length; index += 1) {
+      if (options[index].id === text) return text;
+    }
+    var known = Object.keys(CHAIN_FORMATS).some(function (key) {
+      return CHAIN_FORMATS[key].some(function (option) { return option.id === text; });
+    });
+    return known ? '' : text;
+  }
+
   /* One key per chain group in the counters: 18 in total (BTC, LTC, BCH,
    * DOGE, TON, ZEC, TRX, SOL, SUI, XRP + eight EVM networks). The generic 0x
    * parent row is not a chain. */
@@ -1375,6 +1422,8 @@
     expandEvmAddresses: expandEvmAddresses,
     groupAddressRows: groupAddressRows,
     addressTypeLabel: addressTypeLabel,
+    chainFormatOptions: chainFormatOptions,
+    resolveChainFormat: resolveChainFormat,
     counterChainKey: counterChainKey,
     balanceCounters: balanceCounters,
     explorerFor: explorerFor,

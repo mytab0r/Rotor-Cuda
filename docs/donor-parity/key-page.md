@@ -44,7 +44,7 @@ None on the key page: zero `<input>`/`<select>`, no path editor, no tabs. Legacy
 
 Per address: balance plus activity signal (tx count / `wasUsed` / EVM nonce as statuses). EVM batches one `eth_call` to helper `0xDe3d4d3BdF0a0d948AA3CD030E77120d49f9955d` (`balances(address[],address[])`); RPCs from `/assets/data/rpcs.json` (DefiLlama chainlist). Other chains: `blockchain.info/balance?cors=true&active=` (BTC), TronGrid/Tronscan, `tonapi.io/v2`, `fullnode.mainnet.sui.io`, Chainz + Tatum (LTC), Haskoin + `/api/bch`, BlockCypher/Tatum/DogeBlocks (DOGE), and same-origin `/api/solana`, `/api/solana-activity`, `/api/xrp`, `/api/zec`. Balances are mostly third-party; only Solana/XRP/ZEC/BCH go through their own `/api/*`.
 
-USD prices come from `https://api.binance.com/api/v3/ticker/price?symbols=[…]`, cached in `localStorage.pkf_prices` for 6 h, with hardcoded fallbacks.
+USD prices come from `https://api.binance.com/api/v3/ticker/price?symbols=[…]`, cached in `localStorage.<ref-site-a>_prices` for 6 h, with hardcoded fallbacks.
 
 Status states: green amount (full precision in `title`, e.g. `10343.145665`, displayed `10343.15`); amber check for active/no balance; `-` for checked-empty; red `!` on error; spinner pending. Row tints: `has-balance`, `is-active`. All 18 chain groups have a provider; a failure shows `!`, there is no separate "no provider" state.
 

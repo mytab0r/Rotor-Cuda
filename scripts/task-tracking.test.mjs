@@ -24,6 +24,7 @@ import {
   inferIssueType,
   isDocsOnly,
   isProcessOnly,
+  isSyncManagedIssue,
   issueNumberFromKey,
   linkSubIssueToEpic,
   listIssueMetadata,
@@ -42,6 +43,15 @@ import {
   taskKey,
 } from "./lib/task-tracking.mjs";
 import { readChanges } from "./sync-board.mjs";
+import {
+  ProjectsRateLimitError,
+  __resetProjectApiCalls,
+  __setForcedRateLimit,
+  isRateLimitError,
+  listProjectItems,
+  projectApiCalls,
+  withProjectsRetry,
+} from "./lib/project-api.mjs";
 
 function withTempDir(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rotor-task-tracking-"));
@@ -950,6 +960,17 @@ test("board metadata warns when no type or milestone rule matches", () => {
   assert.match(result.warnings[1], /#9 "loose issue": no milestone rule/);
 });
 
+test("sync-managed detection adopts ROT titles and area-labelled issues", () => {
+  assert.equal(isSyncManagedIssue({ title: "[demo] Epic", labels: ["epic"] }), true);
+  assert.equal(
+    isSyncManagedIssue({ title: "ROT-421 — Page", labels: ["area:site"] }),
+    true,
+  );
+  assert.equal(isSyncManagedIssue({ title: "ROT-421 — Page", labels: [] }), true);
+  assert.equal(isSyncManagedIssue({ title: "manual", labels: ["area:site"] }), true);
+  assert.equal(isSyncManagedIssue({ title: "manual", labels: [] }), false);
+});
+
 test("parseBlockedByText reads the human line only", () => {
   assert.deepEqual(parseBlockedByText("Blocked by: ROT-7 (#7), ROT-8 (#8)\n"), [7, 8]);
   assert.deepEqual(parseBlockedByText("Blocked by (unresolved): demand gate"), []);
@@ -1271,6 +1292,111 @@ test("listIssueMetadata paginates over GraphQL and normalizes blockedBy", () => 
     { number: 2, state: "OPEN", title: "b" },
   ]);
   assert.deepEqual(issues[1].labels, ["change:x"]);
+});
+
+test("Projects retry backs off twice and succeeds on the third attempt", () => {
+  __resetProjectApiCalls();
+  __setForcedRateLimit(2);
+  const lines = [];
+  const value = withProjectsRetry(() => "ok", {
+    label: "test read",
+    baseMs: 1,
+    log: (line) => lines.push(line),
+  });
+  assert.equal(value, "ok");
+  assert.equal(projectApiCalls(), 3);
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], /Projects quota on test read; retrying/);
+  __setForcedRateLimit(0);
+});
+
+test("Projects retry raises a deferrable error after four retries", () => {
+  __resetProjectApiCalls();
+  __setForcedRateLimit(99);
+  assert.throws(
+    () => withProjectsRetry(() => "ok", { label: "test read", baseMs: 0 }),
+    ProjectsRateLimitError,
+  );
+  assert.equal(projectApiCalls(), 5);
+  __setForcedRateLimit(0);
+});
+
+test("rate-limit detection matches the Projects and GraphQL messages", () => {
+  assert.equal(isRateLimitError(new Error("API rate limit exceeded")), true);
+  assert.equal(isRateLimitError(new Error("GraphQL: RATE_LIMITED")), true);
+  assert.equal(isRateLimitError(new Error("boom")), false);
+});
+
+test("listProjectItems requests only the board fields and normalizes them", () => {
+  __resetProjectApiCalls();
+  __setForcedRateLimit(0);
+  const calls = [];
+  const page = {
+    data: {
+      user: {
+        projectV2: {
+          id: "P_1",
+          items: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            totalCount: 1,
+            nodes: [
+              {
+                id: "PVTI_1",
+                content: {
+                  __typename: "Issue",
+                  number: 7,
+                  url: "https://github.com/o/r/issues/7",
+                  state: "OPEN",
+                },
+                fieldValues: {
+                  nodes: [
+                    {
+                      __typename: "ProjectV2ItemFieldSingleSelectValue",
+                      name: "P1",
+                      field: { name: "Priority" },
+                    },
+                    {
+                      __typename: "ProjectV2ItemFieldDateValue",
+                      date: "2027-03-31",
+                      field: { name: "Target date" },
+                    },
+                    {
+                      __typename: "ProjectV2ItemFieldNumberValue",
+                      number: 0,
+                      field: { name: "Progress" },
+                    },
+                  ],
+                },
+                priority: { name: "P1" },
+                targetDate: { date: "2027-03-31" },
+                progress: { number: 0 },
+              },
+            ],
+          },
+        },
+      },
+    },
+  };
+  const result = listProjectItems({
+    ghJson: (args) => {
+      calls.push(args);
+      return page;
+    },
+    owner: "o",
+    number: 3,
+    baseMs: 0,
+  });
+  assert.equal(result.projectId, "P_1");
+  assert.equal(result.totalCount, 1);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].priority, "P1");
+  assert.equal(result.items[0]["target date"], "2027-03-31");
+  assert.equal(result.items[0].progress, 0);
+  assert.equal(result.items[0].content.url, "https://github.com/o/r/issues/7");
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].join(" "), /user\(login/);
+  assert.match(calls[0].join(" "), /items\(first:100/);
+  assert.match(calls[0].join(" "), /fieldValueByName\(name:"Actual end"\)/);
 });
 
 test("readChanges never reports the archive container as a change", () => {

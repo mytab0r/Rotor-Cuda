@@ -4917,7 +4917,7 @@ fn render_puzzle_home(base: &str) -> String {
          <div class=\"pz-intro\">\
          <section class=\"card\"><h2>What is a Bitcoin puzzle?</h2>\
          <p>Each puzzle is a public Bitcoin address whose private key sits inside a known bit range. Puzzle n covers every key from 2^(n−1) to 2^n−1, so the search space doubles with every step. A match is the single key whose public key hashes to the target address.</p>\
-         <p class=\"puzzle-note\">The embedded target list contains {solved} solved and {unsolved} unsolved puzzles, sourced from the public dataset (ref-site-a, crawled 2026-11-19). Prize totals assume the classic n × 0.1 BTC funding.</p></section>\
+         <p class=\"puzzle-note\">The embedded target list contains {solved} solved and {unsolved} unsolved puzzles, sourced from a public dataset (crawled 2026-11-19). Prize totals assume the classic n × 0.1 BTC funding.</p></section>\
          <section class=\"card\"><h2>Popular tools</h2>\
          <div class=\"pz-tools\">\
          <a class=\"pz-tool\" href=\"/private-keys\"><span>Private key browser</span><small>Derive addresses chain by chain</small></a>\
@@ -7187,13 +7187,17 @@ mod tests {
         }
         for needle in [
             "<div class=\"address-type-panel key-address-panel\"",
-            "class=\"address-type-card\"",
-            "class=\"type-name\"",
-            "class=\"type-desc\"",
-            "data-row=\"btc_p2pkh\"",
-            "id=\"btc-panel\"",
+            "id=\"format-panel\"",
+            "id=\"format-cards\"",
+            "aria-label=\"Address format\"",
         ] {
             assert!(KEY_PAGE.contains(needle), "key page misses {needle}");
+        }
+        for needle in ["address-type-card", "type-name"] {
+            assert!(
+                KEY_JS.contains(needle),
+                "key script misses the shared card markup {needle}"
+            );
         }
         for legacy in ["key-type", "key-types", "key-btc-panel"] {
             assert!(!KEY_PAGE.contains(legacy), "key page still uses {legacy}");

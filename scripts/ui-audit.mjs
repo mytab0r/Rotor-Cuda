@@ -867,7 +867,18 @@ function slugify(route) {
 
 // Runs inside the page. Keep every helper inside so the function can be
 // serialized without closing over the Node scope.
-function auditPage(args) {
+async function auditPage(args) {
+  // Web fonts swap in after the load event (site.css declares
+  // font-display: swap), and a late swap changes line-box height. Measuring
+  // before the font set settles reported a transient 1-2px cell overflow on
+  // /bitcoin-puzzle that the settled layout does not have (ROT-472). Wait for
+  // the same font-ready condition goto() uses, then one frame so the final
+  // layout is the one measured.
+  await Promise.race([
+    (document.fonts && document.fonts.ready) || Promise.resolve(),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
   const { route, theme } = args;
   const viewportWidth = args.width || document.documentElement.clientWidth || window.innerWidth;
   const pointerFine = Boolean(window.matchMedia && window.matchMedia("(pointer: fine)").matches);
@@ -1059,12 +1070,38 @@ function auditPage(args) {
     }
     return false;
   };
+  // Text-node rects, not the cell's scroll box. An invisible 44px hit-area
+  // pseudo-element on a 28px row action inflates scrollHeight past a 40px row
+  // without cutting a glyph, and the scroll box cannot tell that apart from
+  // clipped text (ROT-472). A real cut still moves the text rects past the box.
+  const textOutside = (el, box) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!node.nodeValue || !node.nodeValue.trim()) continue;
+      if (node.parentElement && skipClip(node.parentElement)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) {
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        if (
+          rect.left < box.left - 1 ||
+          rect.right > box.right + 1 ||
+          rect.top < box.top - 1 ||
+          rect.bottom > box.bottom + 1
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
   for (const cell of document.querySelectorAll("td, th, div.key-row")) {
     if (!visible(cell) || skipClip(cell)) continue;
     const cellText = textOf(cell);
     if (!cellText) continue;
     const isCell = cell.matches("td, th");
-    if (isCell && (cell.scrollWidth > cell.clientWidth + 1 || cell.scrollHeight > cell.clientHeight + 1)) {
+    if (isCell && textOutside(cell, cell.getBoundingClientRect())) {
       cellClips.push(
         `${selectorOf(cell)} "${cellText.slice(0, 42)}" ${cell.scrollWidth}x${cell.scrollHeight} in ` +
           `${cell.clientWidth}x${cell.clientHeight}`,
@@ -5509,6 +5546,160 @@ async function auditKeyAutoDerive(cdp) {
   );
 }
 
+/* The address-format selector (#format-panel) is scoped to the selected chain:
+ * hidden under All and on every single-format chain, rendering the BTC/LTC/BCH
+ * format cards only for their own chain, with no format carried across a chain
+ * switch. Real chip and card clicks exercise the page logic instead of reading
+ * markup, so a default or stale format focus is caught. */
+async function auditKeyFilterScope(cdp) {
+  return evaluate(
+    cdp,
+    `(async () => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const panel = document.getElementById('format-panel');
+      const evidence = {};
+      const problems = [];
+      if (!panel) return { evidence, problems: ['#format-panel is missing'] };
+      // Selecting a format opens its details row and scrolls it into view. The
+      // layout audit and the resting screenshot run after this probe, so
+      // suppress that scroll and restore the page view before returning.
+      const scrollBefore = window.scrollY;
+      const nativeScrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = function () {};
+
+      const shown = () => {
+        const style = getComputedStyle(panel);
+        return !panel.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+      };
+      const cards = () => Array.from(document.querySelectorAll('.address-type-card'));
+      const rowIds = () => cards().map((el) => el.getAttribute('data-row'));
+      const pressedRows = () => cards()
+        .filter((el) => el.getAttribute('aria-pressed') === 'true')
+        .map((el) => el.getAttribute('data-row'));
+      const activeChains = () => Array.from(document.querySelectorAll('.key-chain[aria-pressed="true"]'))
+        .map((el) => el.getAttribute('data-chain'));
+      const chip = (chain) => document.querySelector('.key-chain[data-chain="' + chain + '"]');
+      // The derive probe that runs before this one can finish asynchronously and
+      // move the format focus, so wait until the pressed set stops changing
+      // instead of trusting one fixed timeout.
+      const settle = async () => {
+        let last = null;
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+          const current = pressedRows().join(',');
+          if (current === last) return current;
+          last = current;
+          await sleep(40);
+        }
+        return last;
+      };
+      const clickChip = async (chain) => {
+        const el = chip(chain);
+        if (!el) {
+          problems.push('missing .key-chain[data-chain="' + chain + '"]');
+          return false;
+        }
+        el.click();
+        await settle();
+        return true;
+      };
+      const record = (step, chain, wantVisible, wantPressed, want) => {
+        const visible = shown();
+        const rows = rowIds();
+        const pressed = pressedRows();
+        const prefix = want && want.prefix ? want.prefix : null;
+        const foreignFocus = Array.from(document.querySelectorAll('.key-row.key-row-focus'))
+          .map((el) => el.getAttribute('data-id'))
+          .filter((id) => !prefix || !id || id.indexOf(prefix) !== 0);
+        evidence[step] = {
+          chain,
+          activeChains: activeChains(),
+          hidden: panel.hidden,
+          display: getComputedStyle(panel).display,
+          visible,
+          count: rows.length,
+          rows,
+          pressed,
+          foreignFocus
+        };
+        if (visible !== wantVisible) {
+          problems.push(step + ': #format-panel ' + (wantVisible ? 'hidden' : 'visible') + ' on chain ' + chain);
+        }
+        if (wantPressed === undefined) {
+          // A format this chain owns may already be selected (the panel is
+          // hidden under All, so a prior probe can leave it in place); a
+          // foreign one never may.
+          const foreign = pressed.filter((id) => !prefix || !id || id.indexOf(prefix) !== 0);
+          if (foreign.length) problems.push(step + ': foreign format card(s) pressed on chain ' + chain + ': ' + foreign.join(', '));
+        } else if (wantPressed === null) {
+          if (pressed.length) problems.push(step + ': format card(s) pressed on chain ' + chain + ': ' + pressed.join(', '));
+        } else if (pressed.length !== 1 || pressed[0] !== wantPressed) {
+          problems.push(step + ': expected only ' + wantPressed + ' pressed on chain ' + chain + ', got [' + pressed.join(', ') + ']');
+        }
+        if (want && want.count !== undefined && rows.length !== want.count) {
+          problems.push(step + ': expected ' + want.count + ' format card(s) on chain ' + chain + ', got ' + rows.length);
+        }
+        if (want && want.rows) {
+          const expected = want.rows.join(',');
+          if (rows.join(',') !== expected) {
+            problems.push(step + ': expected format rows [' + expected + '] on chain ' + chain + ', got [' + rows.join(', ') + ']');
+          }
+        }
+        if (want && want.prefix && rows.some((id) => !id || id.indexOf(want.prefix) !== 0)) {
+          problems.push(step + ': format card(s) outside ' + want.prefix + ' on chain ' + chain + ': ' + rows.join(', '));
+        }
+        if (foreignFocus.length) {
+          problems.push(step + ': format focus leaked across chains on ' + chain + ': ' + foreignFocus.join(', '));
+        }
+      };
+
+      // a. The default view is All: the selector is hidden, no format is pressed.
+      record('all-default', 'all', false, null);
+
+      // b. Bitcoin shows its four cards and never a card from another chain; a
+      // card selects exactly one format.
+      if (await clickChip('btc')) {
+        record('btc', 'btc', true, undefined, { count: 4, prefix: 'btc_' });
+        const card = document.querySelector('.address-type-card[data-row="btc_p2wpkh"]');
+        if (!card) {
+          problems.push('missing .address-type-card[data-row="btc_p2wpkh"]');
+        } else {
+          card.click();
+          await settle();
+          record('btc-segwit', 'btc', true, 'btc_p2wpkh', { count: 4, prefix: 'btc_' });
+        }
+      }
+
+      // c. Single-format chains hide the selector and clear the format.
+      if (await clickChip('evm')) record('evm', 'evm', false, null, { prefix: 'evm' });
+      if (await clickChip('tron')) record('tron', 'tron', false, null, { prefix: 'tron' });
+
+      // d. All hides the selector and clears the format.
+      if (await clickChip('all')) record('all-again', 'all', false, null);
+
+      // e. Returning to Bitcoin shows the selector with no stale format pressed.
+      if (await clickChip('btc')) record('btc-revisit', 'btc', true, null, { count: 4, prefix: 'btc_' });
+
+      // f. Litecoin has its own four cards, none of them Bitcoin.
+      if (await clickChip('ltc')) record('ltc', 'ltc', true, null, { count: 4, prefix: 'ltc_' });
+
+      // g. Bitcoin Cash has exactly its legacy and CashAddr cards.
+      if (await clickChip('bch')) {
+        record('bch', 'bch', true, null, { count: 2, prefix: 'bch_', rows: ['bch_legacy', 'bch_cashaddr'] });
+      }
+
+      // Restore the default view so later probes and the screenshot see All.
+      await clickChip('all');
+      Element.prototype.scrollIntoView = nativeScrollIntoView;
+      Array.from(document.querySelectorAll('.key-details-toggle[aria-expanded="true"]'))
+        .forEach((toggle) => toggle.click());
+      window.scrollTo(0, scrollBefore);
+
+      return { ok: problems.length === 0, evidence, problems };
+    })()`,
+    10000,
+  );
+}
+
 async function auditKeyTooltips(cdp) {
   return evaluate(
     cdp,
@@ -6253,6 +6444,17 @@ async function main() {
                   id: "key-auto-derive",
                   message: `/key did not derive from the input: ${derive.reason}`,
                   detail: derive,
+                });
+              }
+              // Runs after the derive so the chain chips and format cards have
+              // rows to select from.
+              const filterScope = await auditKeyFilterScope(cdp);
+              run.metrics.keyFilterScope = filterScope.evidence;
+              if (!filterScope.ok) {
+                run.violations.push({
+                  id: "key-filter-scope",
+                  message: `/key address-format selector leaked across chains: ${(filterScope.problems || []).join("; ")}`,
+                  detail: filterScope,
                 });
               }
             }

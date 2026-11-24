@@ -46,6 +46,10 @@ The task-tracking convention itself is `docs/process/task-tracking.md`.
 - **Native dependencies**: the `Blocked by:` text line stays for humans, and
   the sync also creates GitHub `addBlockedBy` links, removes a link the text no
   longer lists and prints every edge in its report.
+- **Adoption**: an issue created outside the sync that carries a `ROT-<n>`
+  title or an `area:*` / `change:*` / `epic` label gets the same Type,
+  Milestone, Priority and plan/actual dates. New adopted non-epic work defaults
+  to `P2` unless its epic declares a priority.
 - **Plan vs actual**: `Start date` → `Target date` is the plan; `Actual start`
   → `Actual end` is the fact. The native `createdAt` / `closedAt` are only
   reported. The sync prints one
@@ -106,12 +110,41 @@ node scripts/sync-board.mjs             # create/update issues and project items
 The script exits non-zero and prints the `gh` error text when a call fails. It
 uses Node 20 built-ins only and no npm dependency.
 
+### Projects quota
+
+Projects v2 has a points budget separate from the core GraphQL budget. Every
+project read and write goes through `scripts/lib/project-api.mjs`:
+
+- a rate-limit error is retried up to four times with 60s / 120s / 240s / 240s
+  backoff (≤ 15 minutes total);
+- if the quota is still exhausted, the sync and the board gate exit **0** with
+  `warning: sync deferred: Projects quota`, write `sync deferred: Projects
+  quota` to the GitHub step summary and leave the run green; the next daily run
+  finishes the idempotent sync;
+- a real error is not retried and still fails the job.
+
+The item list is read once per run with only the fields the board uses (`Area`,
+`Progress`, `Status`, `Priority`, `Severity`, `Start date`, `Target date`,
+`Actual start`, `Actual end`) and cached in memory; the item count comes from
+that cache, so a run does not re-fetch the project. The report prints
+`project API calls: N` in the log and the step summary.
+
+Local simulation:
+
+```sh
+BOARD_SYNC_FORCE_RATE_LIMIT=2 BOARD_SYNC_RETRY_BASE_MS=100 \
+  node scripts/sync-board.mjs --dry-run   # first two project attempts fail, third succeeds
+BOARD_SYNC_FORCE_RATE_LIMIT=99 BOARD_SYNC_RETRY_BASE_MS=10 \
+  node scripts/sync-board.mjs --dry-run   # exits 0 with "sync deferred"
+```
+
 ## CI
 
 `.github/workflows/task-links.yml` runs `scripts/check-task-links.mjs` on every
 `pull_request` event with the default `GITHUB_TOKEN` (read-only `issues` and
-`pull-requests`) and no secret. See `docs/process/task-tracking.md` for the PR
-rules.
+`pull-requests`) and no secret. Automation PRs (a `[bot]`/`app/*` author or a
+`release-please--*` head branch) are skipped with a notice. See
+`docs/process/task-tracking.md` for the PR rules.
 
 `.github/workflows/board-sync.yml` runs `scripts/sync-board.mjs` daily at 03:17
 UTC and on `workflow_dispatch`, so the board cannot lag behind merged PRs. A

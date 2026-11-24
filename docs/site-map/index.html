@@ -26,7 +26,7 @@
       <span class="key-hero-icon"><svg class="icon" aria-hidden="true"><use href="icons.svg#ui-grid"></use></svg></span>
       <div>
         <h1>Site map and donor parity</h1>
-        <p class="key-tagline">Every Crypto route in one place, mapped to its equivalent on ref-site-a and ref-site-b. The feature matrix marks what is actually built, what is partial, and what is still a gap. Donor links open in a new tab.</p>
+        <p class="key-tagline">Every Crypto route in one place, mapped to its equivalent on ref-site-a and ref-site-b. The feature matrix marks what is actually built, what is partial, and what is still a gap. Donor links open in a new tab when the local donor refs file is present (see <code>docs/process/private-references.md</code>).</p>
         <div class="key-badges"><span>Internal docs</span><span>2 donor sites</span><span>Updated 2026-11-19</span></div>
       </div>
     </div>
@@ -107,6 +107,7 @@
   <noscript><p class="sitemap-empty">This page needs JavaScript to build the map from site-map-data.js.</p></noscript>
 </main>
 
+<script src="donor-refs.local.js"></script>
 <script src="site-map-data.js"></script>
 <script src="site-map.js"></script>
 </body>

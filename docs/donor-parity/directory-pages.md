@@ -24,9 +24,9 @@
 
 Stats labels are Balance/Received/TX on UTXO chains and Balance/Active on ETH/TRON.
 
-**Address types** — BTC/LTC only: `.address-type-selector` with four `.address-type-card` — `Legacy P2PKH · 1...`, `SegWit P2WPKH · bc1q...`, `Nested SegWit P2SH · 3...`, `Taproot P2TR · bc1p...` (LTC: L/M/ltc1q/ltc1p). `PKF.changeAddressType('segwit')` navigates `?type=segwit`, swaps rows (`1BgGZ9…` → `bc1qw508…`), toggles `active`, syncs `#searchType`. DOGE has no selector.
+**Address types** — BTC/LTC only: `.address-type-selector` with four `.address-type-card` — `Legacy P2PKH · 1...`, `SegWit P2WPKH · bc1q...`, `Nested SegWit P2SH · 3...`, `Taproot P2TR · bc1p...` (LTC: L/M/ltc1q/ltc1p). `donor.changeAddressType('segwit')` navigates `?type=segwit`, swaps rows (`1BgGZ9…` → `bc1qw508…`), toggles `active`, syncs `#searchType`. DOGE has no selector.
 
-**Search bar** — `.search-bar` with `#searchInput`, optional `#searchType` select (BTC/LTC), button → `PKF.searchKey()`. Hint "Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet". Decoder: optional `0x` + 1–64 hex → pad 64; WIF `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$`; Solana keypair; XRP secret; JSON byte array 32/64 → first 32 bytes hex; else SHA-256 of text. It does not open `/key/`: it navigates to the same path with `?key=<64hex>[&type=<non-default>]`. `?key=` jumps to the containing page: key 1 → `#1`, `0xdeadbeef` → `Bitcoin key page #62265476` (first row `…deadbeb5`), `hello world` → `?key=b94d27b9…`. No banner/highlight.
+**Search bar** — `.search-bar` with `#searchInput`, optional `#searchType` select (BTC/LTC), button → `donor.searchKey()`. Hint "Supports 64-char HEX, WIF (5.../K.../L...), or any text as brainwallet". Decoder: optional `0x` + 1–64 hex → pad 64; WIF `^[5KLT6Q][1-9A-HJ-NP-Za-km-z]{50,51}$`; Solana keypair; XRP secret; JSON byte array 32/64 → first 32 bytes hex; else SHA-256 of text. It does not open `/key/`: it navigates to the same path with `?key=<64hex>[&type=<non-default>]`. `?key=` jumps to the containing page: key 1 → `#1`, `0xdeadbeef` → `Bitcoin key page #62265476` (first row `…deadbeb5`), `hello world` → `?key=b94d27b9…`. No banner/highlight.
 
 ## 2. `/mnemonic-seeds/<chain>`
 

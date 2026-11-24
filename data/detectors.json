@@ -1108,7 +1108,7 @@
     },
     {
       "id": "cell-content-clipped",
-      "rule": "Table cell text fits or wraps: no td/th scroll overflow, no overflow:hidden/text-overflow clipping of visible text, and no cell cut by a non-scrolling .table-scroll wrapper.",
+      "rule": "Table cell text fits or wraps: no td/th text rect escapes the cell box, no overflow:hidden/text-overflow clipping of visible text, and no cell cut by a non-scrolling .table-scroll wrapper. An invisible hit-area pseudo-element that inflates the scroll box is not text overflow.",
       "batch": "8",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
@@ -1125,6 +1125,14 @@
     {
       "id": "donor-layout-parity",
       "rule": "Measured layout (table start, row height, column widths, control heights, fonts) is compared with docs/parity/donor-layout.json at 375 and 1280; deltas are warnings, never failures.",
+      "batch": "8",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",
+      "status": "implemented"
+    },
+    {
+      "id": "key-filter-scope",
+      "rule": "The /key address-format selector (#format-panel) is hidden under All and on every single-format chain, renders only the selected chain's format cards (BTC 4, LTC 4, BCH 2), and carries no format across a chain switch.",
       "batch": "8",
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#8-gate-coverage",

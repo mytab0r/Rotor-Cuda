@@ -7,7 +7,7 @@
   "method": "Headless Chrome 131, normal desktop user agent, DevTools device metrics, 8 s post-load settle; one load per page and viewport. Row heights are the median of rendered row boxes; column widths come from the table header, or from the first row when the mobile layout hides the header; control heights are getBoundingClientRect heights of the first rendered match; fonts are computed font-size.",
   "pages": {
     "chain-directory": {
-      "donorUrl": "https://ref-site-a/private-keys/bitcoin",
+      "donorUrl": "ref-site-a/private-keys/bitcoin",
       "oursRoute": "/private-keys/bitcoin",
       "note": "Per-chain directory. At 375 px the donor hides .keys-header, so column widths come from the first .key-row's three cells, which stack; at 1280 px they come from .keys-header > div.",
       "tolerance": {
@@ -67,7 +67,7 @@
       }
     },
     "key-page": {
-      "donorUrl": "https://ref-site-a/key/1",
+      "donorUrl": "ref-site-a/key/1",
       "oursRoute": "/key/0000000000000000000000000000000000000000000000000000000000000001",
       "note": "Key details page. The donor address table keeps all five columns at 375 px, so the 375 px column widths are genuinely narrow; at 1280 px the address column takes the free space.",
       "tolerance": {

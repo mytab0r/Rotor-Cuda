@@ -1,0 +1,193 @@
+name: mutation
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # Always-on tier: revert the changed executable hunks per affected area and
+  # require that area's test command to go red. The area test list comes from
+  # projects.json; two commands are narrowed on Linux because the desktop GPU
+  # feature and the built wasm artifact are not available here (the rust and
+  # wasm jobs cover those). The adapters below stay optional and timeboxed.
+  revert-fix:
+    name: revert-fix (universal tier)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests for the revert tier
+        run: node --test scripts/revert-fix.test.mjs
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+      - name: Revert non-test hunks for every affected area
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          # A PR must not weaken the gate that judges it: run the base branch's
+          # script once it exists (first introduction uses the PR copy).
+          script="$RUNNER_TEMP/revert-fix.mjs"
+          if git show "$base:scripts/revert-fix.mjs" > "$script" 2>/dev/null; then
+            echo "revert-fix source: $base"
+          else
+            script="$GITHUB_WORKSPACE/scripts/revert-fix.mjs"
+            echo "revert-fix source: PR copy (first introduction)"
+          fi
+
+          node scripts/affected-areas.mjs --diff "$base...HEAD" --json > "$RUNNER_TEMP/affected.json"
+          mapfile -t ids < <(node -e '
+            const plan = require(process.argv[1]);
+            for (const area of plan.areas) console.log(area.id);
+          ' "$RUNNER_TEMP/affected.json")
+
+          source=(
+            --source-glob '**/*.rs'
+            --source-glob '**/*.js'
+            --source-glob '**/*.mjs'
+            --source-glob '**/*.ts'
+            --source-glob '**/*.tsx'
+            --source-glob '**/*.astro'
+            --source-glob '**/*.go'
+            --source-glob '**/*.py'
+          )
+          # CUDA/C/C++ kernels are covered by gpu-bsgs-compile.yml, not by the
+          # Linux unit tests; reverting them would always report "did not catch".
+
+          ran=0
+          for id in "${ids[@]}"; do
+            case "$id" in
+              site|ops|coordinator)
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area "$id" "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              web)
+                npm --prefix web ci
+                (cd web && npx playwright install --with-deps chromium)
+                # The visual baselines are rasterised in the pinned Playwright
+                # image (ui.yml); a bare runner drifts by 2-10%, which would
+                # make the baseline red here. The structural, a11y and
+                # navigation specs do not compare pixels and run unchanged.
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area web \
+                  --cmd "npm --prefix web test && npm --prefix web run test:e2e -- --grep-invert 'visual regression'" \
+                  "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              desktop)
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area desktop --cmd "cargo test --release" "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              wasm-core)
+                node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
+                  --projects-area wasm-core --cmd "cargo test -p rotor-wasm" "${source[@]}"
+                ran=$((ran + 1))
+                ;;
+              *)
+                echo "::notice::no universal test command for area $id; skipped"
+                ;;
+            esac
+          done
+          if [ "$ran" -eq 0 ]; then
+            echo "no executable change in an affected area; the universal tier is a no-op"
+          fi
+
+  rust-mutation:
+    name: rust mutation (cargo-mutants, changed lines)
+    runs-on: ubuntu-latest
+    # Observation window: PR-only, changed lines only, timeboxed below.
+    # Remove `continue-on-error` on 2026-12-08 (two weeks after 2026-11-24)
+    # and make this job a required status check. Until then a red or timeboxed
+    # run is visible but does not block a merge.
+    continue-on-error: true
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch the base branch and list changed Rust files
+        id: changed
+        shell: bash
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          git diff --name-only "$base...HEAD" -- '*.rs' > "$RUNNER_TEMP/changed-rs.txt"
+          cat "$RUNNER_TEMP/changed-rs.txt"
+          if [ -s "$RUNNER_TEMP/changed-rs.txt" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "no Rust changes; skipping cargo-mutants"
+          fi
+      - name: Install cargo-mutants
+        if: steps.changed.outputs.present == 'true'
+        run: cargo install cargo-mutants --locked
+      - name: Mutate only the changed lines (15-minute timebox)
+        if: steps.changed.outputs.present == 'true'
+        shell: bash
+        run: |
+          mkdir -p target
+          git diff "origin/${{ github.base_ref }}...HEAD" -- '*.rs' > target/changed.diff
+          set +e
+          timeout 900 cargo mutants --in-diff target/changed.diff --jobs 2 --timeout 120 2>&1 | tee target/mutants.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -eq 124 ]; then
+            echo "::warning::cargo-mutants reached the 15-minute timebox; treat the partial log as advisory"
+          fi
+          exit "$status"
+      - name: Upload the cargo-mutants log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-log-${{ github.run_id }}
+          path: |
+            target/mutants.log
+            target/changed.diff
+          retention-days: 7
+          if-no-files-found: ignore
+
+  js-mutation:
+    name: js mutation (changed comparison/return)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests for the mutation selector
+        run: node --test scripts/mutate-changed.test.mjs
+      - name: Fetch the base branch
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+      # Scans changed apps/site/*.js, flips one changed comparison or return per
+      # file and runs its *-test.mjs. Exit 0 only when every mutation was caught.
+      # The script comes from the base branch when it exists, so a PR cannot
+      # weaken the mutation it is judged by; first introduction falls back to
+      # the PR copy.
+      - name: Mutate one changed expression per touched source
+        shell: bash
+        run: |
+          base="origin/${{ github.base_ref }}"
+          script="$RUNNER_TEMP/mutate-changed.mjs"
+          if ! git show "$base:scripts/mutate-changed.mjs" > "$script" 2>/dev/null; then
+            script="$GITHUB_WORKSPACE/scripts/mutate-changed.mjs"
+            echo "mutation source: PR copy (first introduction)"
+          else
+            echo "mutation source: $base"
+          fi
+          node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base"

@@ -886,6 +886,10 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 
 a { color: var(--accent-2); text-decoration: none; text-underline-offset: 3px; }
+/* In-text links must be distinguishable without colour: the accent pair is
+ * below the 3:1 ratio against both body and muted text in either theme, so a
+ * sentence link carries an underline (axe `link-in-text-block`). */
+main p a, main li a, main dd a { text-decoration: underline; }
 a:hover { color: var(--accent); text-decoration: underline; }
 
 h1, h2, h3, h4 { color: var(--text); font-weight: 750; letter-spacing: -.025em; }
@@ -1772,7 +1776,7 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 }
 .private-key:hover { color: var(--accent-2); }
 
-.address-link { display: block; min-height: 44px; padding-block: 12px; overflow-wrap: anywhere; white-space: normal; color: #c8d8ea; font-size: 12.5px; }
+.address-link { display: block; min-height: 44px; padding-block: 12px; overflow-wrap: anywhere; white-space: normal; color: var(--text-2); font-size: 12.5px; }
 .address-link:hover { color: var(--accent-2); }
 .col-balance { text-align: right; color: var(--muted); font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .col-balance.has-balance { color: var(--ok); }
@@ -2164,6 +2168,9 @@ code { font-family: var(--mono); font-size: max(12px, .92em); }
   background: var(--input-bg);
   overflow: visible;
 }
+/* The selector renders only for a multi-format chain; the track count follows
+ * the option count so a two-format chain (BCH) leaves no empty column. */
+.key-filter-bar .address-type-cards[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .key-filter-bar .address-type-card {
   min-height: 44px;
   padding: 4px 10px;
