@@ -75,6 +75,7 @@
         "node scripts/check-components.mjs"
       ],
       "test": [
+        "node apps/site/admin-test.mjs",
         "node scripts/ui-audit.mjs --help",
         "node --test scripts/build-tokens.test.mjs",
         "node --test scripts/check-token-usage.test.mjs",

@@ -589,13 +589,28 @@ impl Default for ServerOptions {
             orders: None,
             admin_user: std::env::var("ROTOR_ADMIN_USER")
                 .ok()
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty()),
+                .and_then(trimmed_non_empty),
             admin_password: std::env::var("ROTOR_ADMIN_PASSWORD")
                 .ok()
-                .filter(|value| !value.is_empty()),
+                .and_then(non_empty),
         }
     }
+}
+
+/// Environment values that are empty after trimming are treated as unset.
+fn trimmed_non_empty(value: String) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+/// A password is used verbatim: an empty value means "not configured", and a
+/// leading or trailing space is part of the secret.
+fn non_empty(value: String) -> Option<String> {
+    if value.is_empty() { None } else { Some(value) }
 }
 
 /// Bind and serve with accounts, tokens and optional open registration.
@@ -6837,6 +6852,18 @@ fn respond_empty(request: Request, status: u16) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn admin_env_values_drop_empty_strings_and_keep_password_spaces() {
+        assert_eq!(
+            trimmed_non_empty("  owner ".to_string()).as_deref(),
+            Some("owner")
+        );
+        assert_eq!(trimmed_non_empty("   ".to_string()), None);
+        assert_eq!(trimmed_non_empty(String::new()), None);
+        assert_eq!(non_empty("secret ".to_string()).as_deref(), Some("secret "));
+        assert_eq!(non_empty(String::new()), None);
+    }
     use super::*;
 
     #[test]
