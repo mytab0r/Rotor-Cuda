@@ -24,6 +24,41 @@ test("passes a keyed PR with a closing reference", () => {
   assert.equal(result.summary, "PR #77 Task: ROT-12, closes #12");
 });
 
+test("automation PRs are skipped with a notice", () => {
+  const cases = [
+    { author: "github-actions[bot]" },
+    { author: "release-please[bot]" },
+    { author: "app/github-actions" },
+    { author: "mytab0r", isBot: true },
+    { author: "mytab0r", headRefName: "release-please--branches--main--components--rotor" },
+  ];
+  for (const overrides of cases) {
+    const result = checkPullRequest({
+      number: 78,
+      body: "",
+      files: product,
+      ...overrides,
+    });
+    assert.equal(result.ok, true, result.errors.join("\n"));
+    assert.equal(result.skipped, true);
+    assert.match(result.summary, /automation PR/);
+    assert.match(result.summary, /task line not required/);
+  }
+});
+
+test("a human PR without a Task line still fails", () => {
+  const result = checkPullRequest({
+    number: 79,
+    body: "",
+    files: product,
+    author: "mytab0r",
+    headRefName: "fix/release-please-pat",
+  });
+  assert.equal(result.ok, false);
+  assert.notEqual(result.skipped, true);
+  assert.match(result.errors[0], /Task:/);
+});
+
 test("fails when the Task line is missing", () => {
   const result = checkPullRequest({
     number: 1,

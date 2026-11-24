@@ -8,25 +8,32 @@ Neither has a public source, clone or template.
 
 | Candidate | Stars | Last push | Licence | Verdict / evidence |
 |---|---:|---|---|---|
-| `bbb0302/privatekeyfinder` | 24 | 2024-02-21 | none | No. Node CLI checking ETH/BNB; `index.js`, `privatekeys`, no web assets. |
-| `Startlife5000/privateKeyFinder` | 2 | 2022-04-01 | none | No. Node script + `addresses.txt`. |
-| `HappyMicky0317/bep39-privatekeyfinder` | 11 | 2023-02-22 | MIT | No. Python GUI (`src`, `libs`). |
-| `PieterValentijn/PrivateKeyFinder` | 0 | 2024-08-28 | none | No. Delphi desktop app. |
-| `nicoduchR/privateKeyFinder` | 0 | 2026-10-18 | none | No. Docker/K8s Node scanner. |
-| `smallkiller1/Ai-privatekeyfinder` | 0 | 2025-10-27 | none | No. Python/Streamlit app. |
-| `irwingato/BTC_Finder…` | 0 | 2024-05-07 | none | Only cites `ref-site-a/brainwallet-generator` in README. |
+| repository hit 1 | 24 | 2024-02-21 | none | No. Node CLI checking ETH/BNB; `index.js`, `privatekeys`, no web assets. |
+| repository hit 2 | 2 | 2022-04-01 | none | No. Node script + `addresses.txt`. |
+| repository hit 3 | 11 | 2023-02-22 | MIT | No. Python GUI (`src`, `libs`). |
+| repository hit 4 | 0 | 2024-08-28 | none | No. Delphi desktop app. |
+| repository hit 5 | 0 | 2026-10-18 | none | No. Docker/K8s Node scanner. |
+| repository hit 6 | 0 | 2025-10-27 | none | No. Python/Streamlit app. |
+| repository hit 7 | 0 | 2024-05-07 | none | Only cites the ref-site-a brainwallet generator in its README. |
 
-`secretscan` repo search returns 200+ unrelated secret-scanner tools; none maps to the domain. Exact repo searches for `ref-site-a`, `ref-site-b`, `privatekeys.lol` return zero.
+Repository names are omitted on purpose: each one contains the donor brand. A
+repository search for the ref-site-b brand returns 200+ unrelated
+secret-scanner tools; none maps to the domain. Exact repository searches for
+the two reference names and for a sibling explorer site return zero.
 
-Evidence of closed source: all five PKF bundles are obfuscated with a plaintext string-array (`javascript-obfuscator` style). `*.js.map` URLs answer `200` but return the SPA HTML, not JSON — there are no source maps. Assets carry `?v=6a18dc52`; `window.PKF_CONFIG` exposes only module/chain config.
+Evidence of closed source: all five ref-site-a bundles are obfuscated with a
+plaintext string-array (`javascript-obfuscator` style). `*.js.map` URLs answer
+`200` but return the SPA HTML, not JSON — there are no source maps. Assets
+carry `?v=6a18dc52`; the donor's `CONFIG` object exposes only module/chain
+config.
 
 Two useful archived/sibling artifacts:
 - Wayback has a readable 2022 `app.js?v=2.2` (49,887 B uncompressed) — the old site used server APIs `/api/cache_handle`, `/api/brainwallet-convert` and third-party balance endpoints. This proves the current client-side design is a later rewrite.
-- `privatekeys.lol` is a sibling (PKF footer: "privatekeys.lol © 2026"); its `assets/js/app.min.js` is readable, but it is a simpler explorer, not the PKF source.
+- A sibling explorer site (named in the ref-site-a footer) has a readable `assets/js/app.min.js`, but it is simpler, not the ref-site-a source.
 
 ## 2. ref-site-a mechanics
 
-Architecture: Cloudflare front; server-rendered pages plus obfuscated modules (`ui`, `theme`, `crypto-loader`, `balance-checker`, `app`, page modules). `PKF_CONFIG` sets `apiBaseUrl`/`apiSocketUrl` (empty = same origin), `module`, `action`, `chain`, `page`, `type`.
+Architecture: Cloudflare front; server-rendered pages plus obfuscated modules (`ui`, `theme`, `crypto-loader`, `balance-checker`, `app`, page modules). The donor's `CONFIG` sets `apiBaseUrl`/`apiSocketUrl` (empty = same origin), `module`, `action`, `chain`, `page`, `type`.
 
 **Endpoints**
 - `/api/vf`, `/api/wf` — POST JSON "found wallet"/verify results; `/api/wf` is called by `sendViaApi`.
@@ -57,7 +64,7 @@ Architecture: nginx, server-rendered PHP + jQuery; no bundler, maps or repo. Pag
 
 **Scanner** (`/scaner`): server-side worker; UI shows "Addresses database (bn) 2.78", 106 coins, full/start/±1/random/puzzle-range 1–160 controls, live counters via `centrifuge.min.js` websocket, optional e-mail + captcha. **Puzzle**: one 160-row table — #, Range, Address, Private key (Hex), Public key, Solve date, Balance — solved keys published in bulk. **Wallets store**: Rank/Pic/Ticker/Coin/Price/24h volume/Address dump/Market Cap, 25/50/100 selector; "Buy rich list" posts to `box/box.php` (price by request). **Results**: sortable by date/percent via `?sorting=&column=`, 40–100% partial-match metric. **Rent**: quantity × crypto payment, queued scans.
 
-**What it does better than PKF:** denser, sortable tables (`th.sortable` + `data-type`, server-side sort), 25/50/100 page size, one consolidated solved-puzzle table with dates/keys, integrated send/decode transaction tools, 360-coin prefix catalogue, GPU dashboard/benchmark/programs, and rental pricing page. Weaker: no canonical key URL, key material posted to the server, older UI and heavy ads.
+**What it does better than ref-site-a:** denser, sortable tables (`th.sortable` + `data-type`, server-side sort), 25/50/100 page size, one consolidated solved-puzzle table with dates/keys, integrated send/decode transaction tools, 360-coin prefix catalogue, GPU dashboard/benchmark/programs, and rental pricing page. Weaker: no canonical key URL, key material posted to the server, older UI and heavy ads.
 
 ## 4. What to reuse
 
@@ -68,9 +75,9 @@ Architecture: nginx, server-rendered PHP + jQuery; no bundler, maps or repo. Pag
 | `bitcoinjs-lib` / `bip39` | MIT | Base58/bech32/cashaddr/taproot, mnemonics (verify wordlist terms). |
 | `qrcode` library | MIT | Paper-wallet QR. |
 | DefiLlama chainlist RPC catalogue | GPL-3.0 | Fetch with attribution; do not vendor. |
-| PKF datasets | none ("educational") | Do not copy; rebuild from public APIs. |
+| ref-site-a datasets | none ("educational") | Do not copy; rebuild from public APIs. |
 | Blockchair dump | terms unverified | Do not copy; check before use. |
-| SecretScan rich lists/PHP | proprietary | Do not copy or scrape; rebuild. |
+| ref-site-b rich lists/PHP | proprietary | Do not copy or scrape; rebuild. |
 | BTC puzzle facts | public | Rebuild from the public thread/chain. |
 | Brainwallet list | none | Rebuild from compatible public sources. |
 

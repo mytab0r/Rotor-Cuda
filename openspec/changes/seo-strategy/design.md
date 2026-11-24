@@ -251,7 +251,7 @@ Forbidden, at any phase:
 
 - An index or paginated list of real private keys, derived addresses, or
   balances ("browse all keys", `/private-keys/<coin>/<key>`).
-- Pages targeting "private key finder", "find lost bitcoin", "recover wallet",
+- Pages targeting "lost private key", "find lost bitcoin", "recover wallet",
   "check private key balance", or similar theft/recovery intent.
 - Publishing any real funded key/address as an example.
 - Server-side receipt, logging or analytics capture of keys, seeds, WIFs or

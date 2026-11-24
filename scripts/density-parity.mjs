@@ -17,11 +17,16 @@
 //
 // Usage:
 //   node scripts/density-parity.mjs \
-//     --donor https://ref-site-a/private-keys/tron \
+//     --donor ref-site-a/private-keys/tron \
 //     --ours  http://127.0.0.1:7913/private-keys/tron \
 //     --json .claude/density-parity/tron.json
 //
-// Selectors are per side. The defaults fit ref-site-a's browse page
+// The donor is a token path. Tokens resolve from DONOR_REFS_JSON or
+// ~/.rotor-donor-refs.json (see docs/process/private-references.md). Output,
+// JSON and errors redact every resolved host back to its token. A full URL is
+// still accepted for a one-off measurement and is redacted the same way.
+//
+// Selectors are per side. The defaults fit the ref-site-a browse page
 // and the Rotor coordinator's /private-keys/<chain> page; override when the
 // markup changes:
 //   --rows-donor "table tbody tr" --rows-ours ".key-row"
@@ -42,10 +47,104 @@
 // Exit codes: 0 = report produced (donor may be unreachable), 2 = harness error.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+
+const REFS_PATH = path.join(homedir(), ".rotor-donor-refs.json");
+
+// Private donor refs. The env var wins so CI and unattended runs never depend
+// on a home-directory file; the file is for local measurement.
+function readDonorRefs() {
+  const raw = process.env.DONOR_REFS_JSON;
+  if (raw && raw.trim()) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new Error("DONOR_REFS_JSON is not valid JSON");
+    }
+  }
+  if (existsSync(REFS_PATH)) {
+    try {
+      return JSON.parse(readFileSync(REFS_PATH, "utf8"));
+    } catch (error) {
+      throw new Error(`cannot read ${REFS_PATH}: ${error.code || "read error"}`);
+    }
+  }
+  return null;
+}
+
+function donorHost(donor) {
+  const hosts = Array.isArray(donor.hosts) ? donor.hosts.filter(Boolean) : [];
+  return hosts.find((host) => !host.startsWith("www.")) || hosts[0] || null;
+}
+
+// Resolve "ref-site-a/private-keys/tron" to an origin plus path. A full URL is
+// accepted unchanged; redaction still applies to everything written out.
+function resolveDonor(value, refs) {
+  if (/^https?:\/\//i.test(value)) return { url: value, token: null };
+  const match = /^([a-z0-9][a-z0-9-]*)(\/.*)?$/i.exec(value);
+  if (!match) throw new Error("--donor must be a URL or a ref token such as ref-site-a/private-keys/tron");
+  const token = match[1];
+  const suffix = match[2] || "/";
+  if (!refs || !Array.isArray(refs.donors)) {
+    throw new Error(
+      `cannot resolve --donor ${token}: set DONOR_REFS_JSON or create ${REFS_PATH}, or pass a full URL`,
+    );
+  }
+  const donor = refs.donors.find((item) => item && item.token === token);
+  const host = donor && donorHost(donor);
+  if (!host) {
+    const known = refs.donors.map((item) => item && item.token).filter(Boolean).join(", ");
+    throw new Error(`unknown --donor token ${token}; available tokens: ${known || "(none)"}`);
+  }
+  return { url: `https://${host}${suffix}`, token };
+}
+
+// Redact the real host and name back to the token. Longest pattern first so
+// "https://www.host" wins over "host".
+function makeRedactor(refs) {
+  const pairs = [];
+  if (refs && Array.isArray(refs.donors)) {
+    for (const donor of refs.donors) {
+      if (!donor || !donor.token) continue;
+      for (const host of donor.hosts || []) {
+        if (!host) continue;
+        pairs.push([`https://${host}`, donor.token]);
+        pairs.push([`http://${host}`, donor.token]);
+        pairs.push([host, donor.token]);
+      }
+      if (donor.name) {
+        pairs.push([donor.name, donor.token]);
+        const stem = donor.name.replace(/\.[a-z0-9-]+$/i, "");
+        if (stem && stem !== donor.name) pairs.push([stem, donor.token]);
+      }
+    }
+  }
+  pairs.sort((a, b) => b[0].length - a[0].length);
+  return function redact(value) {
+    if (typeof value !== "string") return value;
+    let text = value;
+    for (const [from, to] of pairs) {
+      if (!from) continue;
+      const pattern = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+      text = text.replace(pattern, to);
+    }
+    return text;
+  };
+}
+
+function redactDeep(value, redact) {
+  if (typeof value === "string") return redact(value);
+  if (Array.isArray(value)) return value.map((item) => redactDeep(item, redact));
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [key, item] of Object.entries(value)) out[key] = redactDeep(item, redact);
+    return out;
+  }
+  return value;
+}
 
 const DEFAULT_VIEWPORTS = [
   { width: 1440, height: 900 },
@@ -94,7 +193,9 @@ const DEFAULT_ROWS = {
 const HELP = `density-parity - measure donor vs Rotor page density
 
 Options:
-  --donor URL            donor page (required; may be unreachable)
+  --donor URL|TOKEN[/path] donor page or ref token (required; may be unreachable)
+                         tokens resolve from DONOR_REFS_JSON or
+                         ~/.rotor-donor-refs.json
   --ours URL             our page (required)
   --viewports WxH,...    default 1440x900,1280x800,375x812
   --themes dark,light    default dark; pass light,dark to compare both
@@ -885,9 +986,10 @@ function table(headers, rows) {
 }
 
 async function measureSide(cdp, side, options, browserState) {
-  const url = options[side];
+  const url = side === "donor" ? options.donorUrl : options.ours;
+  const redact = options.redact || ((value) => value);
   const result = {
-    url,
+    url: redact(url),
     status: "not-run",
     error: null,
     httpStatus: null,
@@ -914,7 +1016,7 @@ async function measureSide(cdp, side, options, browserState) {
           if (params.type !== "Document") return;
           const status = params.response?.status;
           if (Number.isFinite(status)) {
-            httpStatuses.push({ url: params.response.url, status });
+            httpStatuses.push({ url: redact(params.response.url), status });
             mainStatus = status;
           }
         });
@@ -959,7 +1061,7 @@ async function measureSide(cdp, side, options, browserState) {
             blocked,
             loadTimedOut: nav.loadTimedOut,
             readyState: nav.readyState,
-            finalUrl: nav.finalUrl,
+            finalUrl: redact(nav.finalUrl),
             durationMs: nav.durationMs,
           };
           result.httpStatus = mainStatus;
@@ -1006,10 +1108,10 @@ async function measureSide(cdp, side, options, browserState) {
           result.runs.push({ viewport, theme, status: result.status, error: result.error, measured });
           break;
         } catch (error) {
-          result.attempts.push({ viewport, theme, userAgent: result.userAgent, error: error.message });
-          result.error = error.message;
+          result.attempts.push({ viewport, theme, userAgent: result.userAgent, error: redact(error.message) });
+          result.error = redact(error.message);
           if (side === "donor" && options.uaRetry && result.userAgent === "headless" && attempt === 1) {
-            log(`donor load failed (${error.message}); retrying once with a normal user agent`);
+            log(`donor load failed (${redact(error.message)}); retrying once with a normal user agent`);
             result.userAgent = "normal";
             continue;
           }
@@ -1204,6 +1306,26 @@ async function main() {
     return 0;
   }
 
+  // Resolve the donor token before launching a browser. A missing refs source
+  // is a harness error, not an unreachable donor: the caller asked for a token.
+  const donorIsUrl = /^https?:\/\//i.test(options.donor);
+  const refs = readDonorRefs();
+  const resolved = resolveDonor(options.donor, refs);
+  options.donorUrl = resolved.url;
+  options.donorToken = resolved.token;
+  const redact = makeRedactor(refs);
+  options.redact = redact;
+  if (donorIsUrl) {
+    // A one-off full URL may point outside the refs source. Redact its host
+    // too, so no origin reaches stdout, JSON or an error message.
+    try {
+      const host = new URL(options.donor).host;
+      if (host) options.redact = (value) => redact(value).split(host).join("donor");
+    } catch {
+      /* resolveDonor already validated the scheme; leave the refs redactor */
+    }
+  }
+
   const browserPath = findBrowser();
   if (!browserPath) {
     throw new Error("no Chrome/Edge found; set CHROME_PATH or install Chrome/Chromium/Microsoft Edge");
@@ -1228,7 +1350,7 @@ async function main() {
 
     const sides = {};
     sides.ours = await measureSide(cdp, "ours", options);
-    sides.donor = await measureSide(cdp, "donor", options);
+    sides.donor = redactDeep(await measureSide(cdp, "donor", options), options.redact);
 
     const report = {
       generatedAt: new Date().toISOString(),
@@ -1236,6 +1358,7 @@ async function main() {
       viewports: options.viewports,
       themes: options.themes,
       allowEmpty: options.allowEmpty,
+      donorToken: options.donorToken,
       selectors: {
         rows: options.rows,
         blocks: Object.fromEntries(

@@ -281,7 +281,7 @@ Unknowns / not verified (to be checked during implementation):
   (`static_asset`; no CSP today), `:989-996` (asset tests).
 - `apps/site/docs.html:86,95`; `README.md:256,272` (read-only/no-signing claims).
 - `.github/workflows/rust.yml:43-57` (wasm build/test/smoke job).
-- Reference page: `https://ref-site-b/transaction_to_bitcoin_address_p2pkh`
+- Reference page: `ref-site-b/transaction_to_bitcoin_address_p2pkh`
   (fetched 2026-11-16; form lines 551-615, submit lines 818-826, change warning
   line 735, no-broadcast statement line 742, decode links lines 775-778).
 - Public endpoint probes (2026-11-16): mempool.space and blockstream.info

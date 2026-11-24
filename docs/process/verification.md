@@ -53,6 +53,11 @@ A **`process-exempt` label** skips the five sections only when the body carries
 a one-line `Process-exempt: <reason>`. An empty, placeholder (`<...>`) or
 `TODO` reason fails, and the label never waives the `Task:` line.
 
+An **automation PR** (a `[bot]` or `app/*` author, or a head branch matching
+`release-please--*`) is skipped with a printed notice: it has no human author to
+sign the contract. The release PR depends on this; it is what a PAT-authored
+release-please PR looks like.
+
 HTML comments are stripped before every check, including fenced code inside a
 comment. Headings inside a fenced block are not sections. These rules are unit
 tested in `scripts/check-process.test.mjs`.
