@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.2.0...v2.2.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **board:** labels must not duplicate native or project fields ([#515](https://github.com/mytab0r/Rotor-Cuda/issues/515)) ([334ceb9](https://github.com/mytab0r/Rotor-Cuda/commit/334ceb9a84efe220b9361d48bc072795f0c44786))
+* **board:** map wallet-swap to the wallet milestone ([#522](https://github.com/mytab0r/Rotor-Cuda/issues/522)) ([91d118f](https://github.com/mytab0r/Rotor-Cuda/commit/91d118f24a7f650ce08b6c4aa12c86b56879bfbf))
+
+
+### Documentation
+
+* **spec:** propose the wallet swap slice ([#517](https://github.com/mytab0r/Rotor-Cuda/issues/517)) ([48a8358](https://github.com/mytab0r/Rotor-Cuda/commit/48a8358d13b9440ea5f1b2f818466f07b8058ecb))
+
 ## [2.2.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.1.0...v2.2.0) (2026-11-24)
 
 
