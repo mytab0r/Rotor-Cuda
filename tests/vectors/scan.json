@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "description": "P0 golden vector for one fixed scan job: Bitcoin address mode, compressed, target key 1. Both blobs are the rotor-wasm result buffer for the stated call.",
+  "job": {
+    "mode": 0,
+    "comp": 0,
+    "targets": "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH\n"
+  },
+  "scan": {
+    "start": "1",
+    "end": "2",
+    "result_hex": "010000000000000001000000400000003030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303122000000314267475a3974634e34726d394b427a446e374b7072517a3837535a323653414d48"
+  },
+  "samples": {
+    "start": "1",
+    "offsets": [0, 1],
+    "result_hex": "0200000014000000751e76e8199196d454941c45d1b3a323f1433bd61400000006afd46bcdfd22ef94ac122aa11f241244a37ecc"
+  }
+}

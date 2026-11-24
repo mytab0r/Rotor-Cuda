@@ -19,7 +19,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
       - run: node scripts/check-projects.mjs
+      - name: WASM ABI snapshot
+        run: node scripts/check-wasm-abi.mjs
+      - name: Architecture boundaries
+        run: node scripts/check-boundaries.mjs
+      - name: ABI and boundary gate tests
+        run: node --test scripts/check-wasm-abi.test.mjs scripts/check-boundaries.test.mjs
       - name: Task-tracking unit tests
         run: node --test scripts/task-tracking.test.mjs scripts/check-task-links.test.mjs
       - name: No screenshots or test evidence committed under docs/

@@ -67,6 +67,9 @@ mod sign;
 mod ton;
 mod tron;
 
+#[cfg(test)]
+mod golden_vectors;
+
 use std::alloc::{Layout, alloc as rust_alloc, dealloc as rust_dealloc};
 use std::cell::UnsafeCell;
 use std::cmp::Ordering;
