@@ -419,3 +419,81 @@ cannot delete the old path is not finished.
    own release tag? (Recommendation: separate after P6's trigger.)
 7. Can CodeQL be centralized across the four repositories without losing
    per-repo alerts? **Not verified.**
+
+## P0 evidence
+
+Status: implemented 2026-11-24. This section records the behaviour-parity
+baseline that every later phase must preserve.
+
+### Fixed inputs and coverage
+
+`tests/parity/keys.json` holds seven deterministic 32-byte inputs: secp256k1
+keys `0x01`, `0x02`, `0x03`, `0xff`, and three seeds
+(`000102…1e1f`, the RFC 8032 seed, and `11…11`). Every chain in
+`data/chains.json` is covered — the 18 mainnet chains through the desktop
+descriptor and the four testnet entries as wasm-only records, because the
+desktop chain table registers mainnet chains only.
+
+For a secp256k1 full key, both cores derive from the key directly. For a seed,
+the desktop core derives the per-chain key with BIP32 along the descriptor's
+`hd_path` (the path and `path_applied` flag are recorded), and the same derived
+key is fed to the wasm `derive_report`; ed25519 chains use the 32 bytes as the
+ed25519 seed. `crates/rotor-wasm` has no BIP32/SLIP-0010 implementation, so P0
+compares address and public-key derivation on identical key material, not the
+two BIP32 implementations. `apps/site/seed-crypto.js` BIP32/SLIP-0010 parity is
+an open item and is not claimed here.
+
+`tests/parity/chain-map.json` is the one mapping from a chain slug to its wasm
+`derive_report` row, address format and whether the desktop WIF version byte
+equals the Bitcoin mainnet byte exposed by `derive_report`.
+
+### Where the vectors live
+
+| Path | Role |
+|---|---|
+| `tests/parity/keys.json` | fixed inputs |
+| `tests/parity/chain-map.json` | chain → wasm row / format / WIF comparability |
+| `tests/parity/desktop-vectors.json` | golden desktop output (`src/`) |
+| `tests/parity/wasm-vectors.json` | golden wasm output (`crates/rotor-wasm`) |
+| `tests/parity/parity-allowlist.json` | accepted divergences with reason + issue |
+| `tests/parity.rs` | recomputes desktop live and fails on golden drift |
+| `tests/parity/parity-test.mjs` | recomputes wasm live, compares both baselines |
+| `tests/parity/generate-wasm.mjs` | regenerates the wasm golden |
+| `tests/parity/regenerate.mjs` | runs the whole regeneration + gate |
+
+Both golden files are small text JSON; nothing binary or secret is recorded
+(only fixed test vectors).
+
+### Mismatch inventory
+
+The baseline compares 126 desktop/wasm vectors (7 keys × 18 mainnet chains) and
+399 fields (private key, address, public key, and WIF where the versions are
+comparable). 392 fields match exactly; the 7 remaining are the TON address for
+all seven keys:
+
+| Chain | Field | Desktop | Wasm | Decision |
+|---|---|---|---|---|
+| `ton` | address | wallet v4R2 (`src/address/mod.rs`) | wallet W5 (`crates/rotor-wasm/src/ton.rs`) | allowlisted, issue #330; P1 exposes both explicitly, the product choice is separate |
+
+No other chain diverges on address, public key, private key or WIF. The
+allowlist test also fails when an entry stops matching a real mismatch, so the
+list can only shrink.
+
+### Regenerate and run
+
+```sh
+# after an intentional src/ or crates/rotor-wasm change
+sh scripts/build-wasm.sh
+node tests/parity/regenerate.mjs --wasm target/wasm32-unknown-unknown/release/rotor_wasm.wasm
+```
+
+The gate runs in `.github/workflows/rust.yml`: `cargo test --release` executes
+the desktop golden test, and the `wasm-build-test` job runs
+`node tests/parity/parity-test.mjs` against both the fresh and the committed
+artifact. The workflow has no path filter, so any PR that touches `src/**`,
+`crates/rotor-wasm/**`, `data/chains.json` or `tests/parity/**` runs it.
+
+Baseline at capture: 24 wasm exports, `apps/site/rotor_wasm.wasm` = 501 119
+bytes, parity wasm generation ≈60 ms and comparison ≈55 ms on the capture
+machine. These are guardrails, not reproducibility claims.
+
