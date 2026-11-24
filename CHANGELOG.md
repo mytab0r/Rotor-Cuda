@@ -1,5 +1,45 @@
 # Changelog
 
+## [2.2.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.1.0...v2.2.0) (2026-11-24)
+
+
+### Features
+
+* **ops:** capture the product-split P0 baseline (ROT-487) ([#506](https://github.com/mytab0r/Rotor-Cuda/issues/506)) ([2686e59](https://github.com/mytab0r/Rotor-Cuda/commit/2686e59652c2413a87a78a02c64d2e60ec7f90f6))
+* **web:** migrate /key to Astro with curated pages and a Pages worker ([#451](https://github.com/mytab0r/Rotor-Cuda/issues/451)) ([65eea06](https://github.com/mytab0r/Rotor-Cuda/commit/65eea061a4eb18127e0327fc81c32bad0edcfae7))
+
+
+### Bug Fixes
+
+* **audit:** settle fonts before measuring cell boxes ([#483](https://github.com/mytab0r/Rotor-Cuda/issues/483)) ([7360124](https://github.com/mytab0r/Rotor-Cuda/commit/73601242058176f5467459078ac31383b6523b45))
+* **site:** preload the webfont on every site.css document (ROT-501) ([#502](https://github.com/mytab0r/Rotor-Cuda/issues/502)) ([f5941ae](https://github.com/mytab0r/Rotor-Cuda/commit/f5941ae2ecb112827f1e1a41d703de1907b33637))
+* **site:** recover legacy link contrast and underlines (ROT-478) ([#500](https://github.com/mytab0r/Rotor-Cuda/issues/500)) ([3a8ca0b](https://github.com/mytab0r/Rotor-Cuda/commit/3a8ca0bc945574cc7fbe1ad7dc580bbea2f2a368))
+* **web:** keep a11y overrides in the Astro shell only ([#484](https://github.com/mytab0r/Rotor-Cuda/issues/484)) ([c919dd9](https://github.com/mytab0r/Rotor-Cuda/commit/c919dd911f0baf8d0ba5ab98f1274c2132fc4b32))
+
+
+### Code Refactoring
+
+* **core:** extract rotor-core and make the wasm adapter depend on it ([#507](https://github.com/mytab0r/Rotor-Cuda/issues/507)) ([2e30339](https://github.com/mytab0r/Rotor-Cuda/commit/2e30339ecbe7ded71fbbc20d421c8fde6ffa0f4b))
+* **core:** extract rotor-search shared planning crate (ROT-488) ([#508](https://github.com/mytab0r/Rotor-Cuda/issues/508)) ([082d006](https://github.com/mytab0r/Rotor-Cuda/commit/082d006ae944b3cb6c7aa4c05be2e91c4c017551))
+
+
+### Documentation
+
+* **spec:** product split architecture and migration order ([#480](https://github.com/mytab0r/Rotor-Cuda/issues/480)) ([1e41833](https://github.com/mytab0r/Rotor-Cuda/commit/1e41833994753de5fbcfe007cb6064cf37622ab5))
+
+
+### Tests
+
+* **audit:** pin mobile key-summary stacking (ROT-445) ([#499](https://github.com/mytab0r/Rotor-Cuda/issues/499)) ([0a4a75c](https://github.com/mytab0r/Rotor-Cuda/commit/0a4a75ce6a4c13e3c1929cbce2f55b44dceefbf3))
+* **parity:** P0 baseline vectors for desktop and WASM cores ([#497](https://github.com/mytab0r/Rotor-Cuda/issues/497)) ([f3d3670](https://github.com/mytab0r/Rotor-Cuda/commit/f3d3670384deb016bc44ffd35335f76237e9b2f9))
+* **web:** browser E2E, axe and visual regression gate ([#462](https://github.com/mytab0r/Rotor-Cuda/issues/462)) ([30072bf](https://github.com/mytab0r/Rotor-Cuda/commit/30072bf56867164758982ac8a6fa4eca07da3136))
+* **web:** pin /key address-format scope in the browser (ROT-468) ([#477](https://github.com/mytab0r/Rotor-Cuda/issues/477)) ([fc0400a](https://github.com/mytab0r/Rotor-Cuda/commit/fc0400a718c8923326aa57297d89e0d56d01ab79))
+
+
+### Miscellaneous Chores
+
+* **ui:** persist the narrow cramped-padding exceptions for shared table pages ([#509](https://github.com/mytab0r/Rotor-Cuda/issues/509)) ([df37d3b](https://github.com/mytab0r/Rotor-Cuda/commit/df37d3b3c38ac4e2ec292aea951901cdbf2c9a32))
+
 ## [2.1.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.0.0...v2.1.0) (2026-11-24)
 
 
