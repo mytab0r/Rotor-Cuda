@@ -183,7 +183,9 @@
       "paths": [
         "crates/rotor-core/**",
         "crates/rotor-search/**",
-        "crates/rotor-wasm/**"
+        "crates/rotor-wasm/**",
+        "tests/vectors/**",
+        "tests/parity/**"
       ],
       "build": [
         "cargo build -p rotor-core",
