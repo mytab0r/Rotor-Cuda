@@ -707,7 +707,7 @@
   }
 
   /* The tooltip primitive is a short hover/focus label; the long estimate is
-   * visible text (see #wallet-seed-estimate). */
+   * the body of the info popover (see #wallet-seed-estimate). */
   function updateSeedTooltip(bits) {
     if (!seedInfo) return;
     if (bits >= 256) seedInfo.setAttribute('data-tooltip', '256-bit ≈ 3.7×10^57 years');
@@ -1626,6 +1626,40 @@
 
   if (seedAdd) {
     seedAdd.addEventListener('click', function () { addSeedKey(); });
+  }
+
+  /* Seed info popover (§3.14): an absolutely positioned card anchored to the
+   * info icon-button, so the long estimate is one click away, not inline. */
+  var seedInfoPopover = byId('wallet-seed-info-popover');
+  function closeSeedInfo(returnFocus) {
+    if (!seedInfoPopover || seedInfoPopover.hidden) return;
+    seedInfoPopover.hidden = true;
+    seedInfo.setAttribute('aria-expanded', 'false');
+    if (returnFocus) seedInfo.focus();
+  }
+  if (seedInfo && seedInfoPopover) {
+    seedInfo.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (seedInfoPopover.hidden) {
+        if (window.RotorTooltip) window.RotorTooltip.hide();
+        seedInfoPopover.hidden = false;
+        seedInfo.setAttribute('aria-expanded', 'true');
+        seedInfoPopover.focus({ preventScroll: true });
+      } else {
+        closeSeedInfo(true);
+      }
+    });
+    document.addEventListener('click', function (event) {
+      if (seedInfoPopover.hidden) return;
+      if (seedInfoPopover.contains(event.target) || seedInfo.contains(event.target)) return;
+      closeSeedInfo(false);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !seedInfoPopover.hidden) {
+        event.preventDefault();
+        closeSeedInfo(true);
+      }
+    });
   }
 
   /* ---------------------------------------------------------------- removal */

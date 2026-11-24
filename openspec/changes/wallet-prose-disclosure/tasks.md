@@ -8,7 +8,7 @@ DOM check, not `ui-audit`.
 
 ## 1. Top of page
 
-- [ ] Rewrite the top `p.notice` to the single safety sentence
+- [x] Rewrite the top `p.notice` to the single safety sentence
       ("Losing the passphrase loses the keys: there is no recovery and the
       server cannot help.", 86 chars) plus an encrypted-backup pointer; move
       the chains/tokens/allowance/fee-cap body into a `<details>` directly
@@ -20,43 +20,43 @@ DOM check, not `ui-audit`.
 
 ## 2. Vault cards
 
-- [ ] Shorten `#wallet-onboard-help` to a ≤140-char one-liner; move the
+- [x] Shorten `#wallet-onboard-help` to a ≤140-char one-liner; move the
       derivation/server claims into a `<details>` below the chip pair.
       Acceptance: chips reachable within one prose line at 375px; `<summary>`
       has a 44px target and focus ring.
-- [ ] Shorten `#wallet-pass-help` to ≤140 characters (drop the PBKDF2
+- [x] Shorten `#wallet-pass-help` to ≤140 characters (drop the PBKDF2
       iteration count into a `title`-free `aria-describedby` short form or
       `details`).
       Acceptance: inline text ≤140 chars, key derivation facts preserved.
-- [ ] Leave the unlock card note inline (already ≤140 and safety-relevant);
+- [x] Leave the unlock card note inline (already ≤140 and safety-relevant);
       verify it stays under budget.
       Acceptance: no change unless a rewrite is needed; measured ≤140.
 
 ## 3. Vault panel (assets, import, seed, addresses, summary, history)
 
-- [ ] `#wallet-assets-help`: one-liner ("The ten largest supported assets with
+- [x] `#wallet-assets-help`: one-liner ("The ten largest supported assets with
       a balance path…") + `<details>` for price source, caching and the
       not-loaded rules.
       Acceptance: table header visible within one prose line at 375px.
-- [ ] `#wallet-import-help`: one-liner ("WIFs map by version byte; hex keys
+- [x] `#wallet-import-help`: one-liner ("WIFs map by version byte; hex keys
       need an explicit chain…") + `<details>` for the per-chain mapping.
       Acceptance: the "Add to vault" button reachable within one prose line.
-- [ ] Move `#wallet-seed-estimate` into a `.popover` anchored to the existing
+- [x] Move `#wallet-seed-estimate` into a `.popover` anchored to the existing
       `#wallet-seed-info` icon-button (`aria-label` present, add
       `aria-expanded` handling, no native `title`); delete the always-visible
       paragraph.
       Acceptance: no `#wallet-seed-estimate` paragraph in the default DOM;
       popover opens from keyboard and closes on Esc/outside click.
-- [ ] `#wallet-seed-help`: one-liner ("Generated and shown in this tab only;
+- [x] `#wallet-seed-help`: one-liner ("Generated and shown in this tab only;
       the vault stores one derived key per chain…") + `<details>` for the
       BIP44/no-preset chains.
       Acceptance: "Add derived key to vault" reachable within one prose line.
-- [ ] `#wallet-lookup-note`: one-liner beside the checkbox ("Lookups are off by
+- [x] `#wallet-lookup-note`: one-liner beside the checkbox ("Lookups are off by
       default and send only the public address…") + `<details>` for the
       per-provider detail.
       Acceptance: checkbox and first entry row reachable within one prose
       line at 375px.
-- [ ] `#wallet-summary-help` and `#wallet-history-help`: one-liners +
+- [x] `#wallet-summary-help` and `#wallet-history-help`: one-liners +
       `<details>` (price/stale rules; provider coverage and the Bitcoin
       observer-view warning).
       Acceptance: stat strip visible within one prose line; the observer-view
@@ -64,53 +64,53 @@ DOM check, not `ui-audit`.
 
 ## 4. Sign-in and security cards
 
-- [ ] `#wallet-signin-help`: one-liner ("Sign in proves control of the EVM
+- [x] `#wallet-signin-help`: one-liner ("Sign in proves control of the EVM
       address; the key never leaves this tab…") + `<details>` for the
       non-EVM caveats.
       Acceptance: "Sign in with this wallet" button reachable within one
       prose line.
-- [ ] `#wallet-security-help`: one-liner + `<details>` (scan scope,
+- [x] `#wallet-security-help`: one-liner + `<details>` (scan scope,
       uncompressed-WIF and seed-range caveats).
       Acceptance: stat strip visible within one prose line at 375px.
 
 ## 5. Send, approvals and BTC cards
 
-- [ ] Send intro: one-liner ("Built here, reviewed field by field, signed in
+- [x] Send intro: one-liner ("Built here, reviewed field by field, signed in
       WASM and broadcast from your browser; the server never sees a key") +
       `<details>`.
       Acceptance: the "From" select is the first prose-free control after the
       heading at 375px.
-- [ ] Network/arm paragraph: keep the arm checkbox label verbatim inline
+- [x] Network/arm paragraph: keep the arm checkbox label verbatim inline
       (safety); replace the 873-char paragraph with a ≤140-char one-liner
       ("Sepolia is the default; mainnet needs the arm checkbox, which resets
       on lock/unlock and reload") and move the chain-id/token/fee-cap body
       into a `<details>` above the "To" field's form section.
       Acceptance: the arm checkbox label text contains "cannot be reversed"
       unchanged; token and cap facts intact in the `details`.
-- [ ] Gas/fee paragraph ("Empty gas limit uses…"): move wholesale into the
+- [x] Gas/fee paragraph ("Empty gas limit uses…"): move wholesale into the
       same `<details>`.
       Acceptance: no guidance paragraph between the fee fields and "Fetch
       fees and review".
-- [ ] Approvals intro: one-liner carrying the danger sentence ("Granting lets
+- [x] Approvals intro: one-liner carrying the danger sentence ("Granting lets
       another address move your tokens — smallest allowance, revoke when
       done") + `<details>` for logs/window/indexer mechanics.
       Acceptance: the token field reachable within one prose line; danger
       sentence inline.
-- [ ] Approvals validation and grant-constraint paragraphs: move into
+- [x] Approvals validation and grant-constraint paragraphs: move into
       `<details>` blocks; grant intro one-liner stays inline (safety).
       Acceptance: "Find approvals" and "Review the grant" reachable within
       one prose line each.
-- [ ] BTC intro and parsing paragraphs: one-liner ("Testnet only; UTXOs and
+- [x] BTC intro and parsing paragraphs: one-liner ("Testnet only; UTXOs and
       fees come from mempool.space testnet, signed in your browser") +
       `<details>`.
       Acceptance: "Fetch UTXOs and review" reachable within one prose line.
 
 ## 6. Backup card
 
-- [ ] Keep "Importing replaces this browser's vault…" inline verbatim
+- [x] Keep "Importing replaces this browser's vault…" inline verbatim
       (safety).
       Acceptance: unchanged text, still before the file input.
-- [ ] Move "What is stored" and "What this page signs" into one
+- [x] Move "What is stored" and "What this page signs" into one
       `<details>` ("What is stored and what is sent") at the bottom of the
       backup card.
       Acceptance: card renders as heading, inline note, two forms, one

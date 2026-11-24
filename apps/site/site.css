@@ -4223,6 +4223,9 @@ details > summary { min-height: 44px; }
 .wallet-address-line code { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
 .wallet-address-line a, .wallet-address-line button { flex: 0 0 auto; }
 .wallet-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: 6px; }
+/* Anchor for the seed brute-force popover (§3.14): the popover is absolute,
+ * so the wrapping span is the positioned ancestor. Layout only, no size. */
+.wallet-seed-info-wrap { position: relative; display: inline-flex; align-items: center; }
 .wallet-check { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); min-height: var(--control-h); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
 .wallet-check input { width: 18px; height: 18px; flex: 0 0 auto; }
 /* The EVM address is one unbreakable token; let it wrap inside the card. */
