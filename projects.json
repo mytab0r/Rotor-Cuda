@@ -299,6 +299,8 @@
         "node --test scripts/check-screenshots.test.mjs",
         "node scripts/check-advisories.mjs",
         "node scripts/gen-security-page.mjs --check",
+        "node scripts/gen-ssot.mjs --check",
+        "node scripts/check-ssot.mjs",
         "node scripts/check-projects.mjs",
         "node scripts/check-screenshots.mjs",
         "node scripts/security-audit.mjs --help",
