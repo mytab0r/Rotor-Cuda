@@ -701,7 +701,6 @@ p { text-wrap: pretty; }
 .chain-name { font-size: 14px; font-weight: 700; }
 .chain-meta { font-size: 12px; color: var(--muted); }
 
-.puzzle-card .puzzle-summary { min-height: 86px; }
 .puzzle-updated { margin: 8px 0 0; font-size: 12px; }
 .puzzle-state { margin: 0; font-size: 13px; color: var(--muted); }
 .puzzle-state.err { color: var(--err); }
@@ -1862,7 +1861,6 @@ form.compact { display: flex; flex-wrap: wrap; align-items: center; }
 .stat-value { display: block; margin-top: 5px; color: var(--text); font-size: 23px; font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .stat-value.small { font-size: 17px; }
 .puzzle-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
-.puzzle-summary { min-height: 40px; }
 .puzzle-state { color: var(--muted); font-size: 13px; }
 
 .token-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
