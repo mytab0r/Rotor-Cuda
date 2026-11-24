@@ -132,8 +132,11 @@
   `wallet-approvals-surface` detector covering the grant form and review.
 - [ ] Bitcoin mainnet: UTXO/fee source, mainnet WIF policy, address type and
   broadcast provider, with its own fee cap.
-- [ ] TRON mainnet: requires a TRON provider API key; document the key source
-  and never ship it in the static site.
+- [x] TRON mainnet: shipped in section 8 with keyless TronGrid and publicnode
+  (`GET /wallet/getnowblock` and an `OPTIONS` preflight for
+  `POST /wallet/broadcasttransaction` both answer `Access-Control-Allow-Origin: *`
+  on 2026-11-24). No API key is shipped; the keyless rate limit and the
+  TronGrid → publicnode failover order are documented in `wallet-tron.js`.
 
 ## 8. TRON mainnet slice (ROT-511)
 
@@ -176,12 +179,12 @@ code path with the Nile testnet route, behind the same mainnet arm gate.
   confirmation.
 - [x] Broadcast once through the pinned provider allowlist; show the provider
   error verbatim; never retry.
-- [ ] Tests: pinned TRC-20 unsigned `raw_data_hex` and `txID` against an
+- [x] Tests: pinned TRC-20 unsigned `raw_data_hex` and `txID` against an
   independent encoder, a signed vector that verifies, refusals (wrong kind,
   missing contract, malformed base58, wrong network prefix, zero amount,
   unarmed mainnet, expired ref block, tampered review), and a mutation that
   drops the selector, the recipient padding or the amount and fails.
-- [ ] `node apps/site/wallet-tron-test.mjs` registered in `projects.json`;
+- [x] `node apps/site/wallet-tron-test.mjs` registered in `projects.json`;
   `docs/site-map` note updated; the "TRON mainnet requires an API key" note in
   section 7 replaced with the measured keyless result.
 - [ ] Verification: cargo tests, the three wallet Node tests, `check-ssot`,
