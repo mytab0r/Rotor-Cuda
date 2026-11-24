@@ -122,6 +122,7 @@ const WALLET_ASSETS_JS: &str = include_str!("../../apps/site/wallet-assets.js");
 const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_SIGN_JS: &str = include_str!("../../apps/site/wallet-sign.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
+const WALLET_TRON_JS: &str = include_str!("../../apps/site/wallet-tron.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
 const WALLET_HISTORY_JS: &str = include_str!("../../apps/site/wallet-history.js");
 const WALLET_SECURITY_JS: &str = include_str!("../../apps/site/wallet-security.js");
@@ -2031,6 +2032,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-evm.js" => Some((
             WALLET_EVM_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-tron.js" => Some((
+            WALLET_TRON_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/wallet-btc.js" => Some((
@@ -8424,6 +8429,14 @@ mod tests {
         assert!(btc.contains("RotorBtcSend"));
         assert!(btc.contains("RotorProviders"));
         assert!(btc.contains("btc_sign_tx"));
+
+        let (tron, content_type) =
+            static_asset("/wallet-tron.js").expect("/wallet-tron.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let tron = std::str::from_utf8(tron).expect("wallet-tron.js is utf-8");
+        assert!(tron.contains("RotorTronWallet"));
+        assert!(tron.contains("assertTronMainnetArmed"));
+        assert!(tron.contains("TRON_REVIEW_TTL_MS"));
 
         let (history, content_type) =
             static_asset("/wallet-history.js").expect("/wallet-history.js is embedded");

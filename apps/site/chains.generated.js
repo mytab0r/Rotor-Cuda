@@ -483,6 +483,16 @@
     ],
     "tron": [
       {
+        "id": "trongrid",
+        "url": "https://api.trongrid.io",
+        "label": "TronGrid"
+      },
+      {
+        "id": "publicnode",
+        "url": "https://tron-rpc.publicnode.com",
+        "label": "publicnode.com"
+      },
+      {
         "id": "tronscan",
         "url": "https://apilist.tronscanapi.com/api",
         "label": "Tronscan"

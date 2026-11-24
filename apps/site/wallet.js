@@ -161,6 +161,7 @@
 
   var vault = window.RotorWalletVault;
   var evmSend = window.RotorEvmSend;
+  var tronWallet = window.RotorTronWallet;
   var btcSend = window.RotorBtcSend;
   var historyApi = window.RotorWalletHistory;
   var signApi = window.RotorWalletSign;
@@ -249,6 +250,12 @@
   var sendGasInput = byId('wallet-send-gas');
   var sendPriorityInput = byId('wallet-send-priority');
   var sendMaxFeeInput = byId('wallet-send-max-fee');
+  var sendFeeLimitInput = byId('wallet-send-fee-limit');
+  var sendFeeLimitRow = byId('wallet-send-fee-limit-row');
+  var sendToLabel = byId('wallet-send-to-label');
+  var sendTokenLabel = byId('wallet-send-token-label');
+  var sendDataRow = byId('wallet-send-data-row');
+  var sendEvmFeeFields = byId('wallet-send-evm-fee-fields');
   var sendStatus = byId('wallet-send-status');
   var sendPrepareButton = byId('wallet-send-prepare');
   var sendReviewBox = byId('wallet-send-review');
@@ -3097,7 +3104,8 @@
     data: 'wallet-send-data-error',
     gasLimit: 'wallet-send-gas-error',
     maxFee: 'wallet-send-max-fee-error',
-    priorityFee: 'wallet-send-priority-error'
+    priorityFee: 'wallet-send-priority-error',
+    feeLimit: 'wallet-send-fee-limit-error'
   };
 
   var SEND_INPUTS = {
@@ -3107,7 +3115,8 @@
     data: sendDataInput,
     gasLimit: sendGasInput,
     maxFee: sendMaxFeeInput,
-    priorityFee: sendPriorityInput
+    priorityFee: sendPriorityInput,
+    feeLimit: sendFeeLimitInput
   };
 
   function entryById(id) {
@@ -3122,6 +3131,22 @@
     return state.entries.filter(function (entry) {
       return evmSend.EVM_CHAIN_SLUGS.indexOf(entry.chain) >= 0;
     });
+  }
+
+  /* Every key the send form can use: the EVM keys plus TRON keys (mainnet and
+   * Nile share the same address and the same key entry). */
+  function allSendEntries() {
+    return state.entries.filter(function (entry) {
+      return entry.chain === 'tron' ||
+        (evmSend && evmSend.EVM_CHAIN_SLUGS.indexOf(entry.chain) >= 0);
+    });
+  }
+
+  function sendEntriesFor(network) {
+    if (network && network.kind === 'tron') {
+      return state.entries.filter(function (entry) { return entry.chain === 'tron'; });
+    }
+    return sendEntries();
   }
 
   function selectedSendEntry() {
@@ -3141,10 +3166,29 @@
     showSendFieldErrors({});
   }
 
+  /* The picker value carries an explicit family discriminator instead of a
+   * fake numeric id for a non-EVM chain: `evm:<chainId>` or `tron:<slug>`. */
   function selectedNetwork() {
+    if (!sendNetworkSelect) {
+      if (!evmSend) return null;
+      return Object.assign({}, evmSend.SEPOLIA, { kind: 'evm' });
+    }
+    var value = sendNetworkSelect.value;
+    if (tronWallet) {
+      var tron = tronWallet.tronNetworkFromOption(value);
+      if (tron) return Object.assign({}, tron, { kind: 'tron' });
+    }
     if (!evmSend) return null;
-    if (!sendNetworkSelect) return evmSend.SEPOLIA;
-    return evmSend.networkById(Number(sendNetworkSelect.value)) || evmSend.SEPOLIA;
+    var evmValue = value.indexOf('evm:') === 0 ? value.slice(4) : value;
+    var network = evmSend.networkById(Number(evmValue)) || evmSend.SEPOLIA;
+    return Object.assign({}, network, { kind: 'evm' });
+  }
+
+  /* The approvals pipeline needs the numeric EVM chain id; the picker value
+   * carries a family discriminator, so it must never be parsed directly. */
+  function selectedEvmChainId() {
+    var network = selectedNetwork();
+    return network && network.kind === 'evm' ? Number(network.chainId) : NaN;
   }
 
   function isMainnetArmed() {
@@ -3159,17 +3203,42 @@
 
   var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
 
+  /* Swap the recipient/token captions and placeholders, and the field
+   * visibility, with the same family switch that selects the fields: a TRON
+   * recipient is a base58 T-address, not a 0x address; the free-form Data
+   * field and the EVM gas/max-fee/priority-fee rows have no TRON meaning, and
+   * the TRX fee limit takes their place. */
+  function applySendFieldLabels(isTron) {
+    if (!tronWallet) return;
+    var labels = tronWallet.sendFieldLabels(isTron);
+    if (sendToLabel) sendToLabel.textContent = labels.toLabel;
+    if (sendToInput) sendToInput.placeholder = labels.toPlaceholder;
+    if (sendTokenLabel) sendTokenLabel.textContent = labels.tokenLabel;
+    if (sendTokenInput) sendTokenInput.placeholder = labels.tokenPlaceholder;
+    if (sendDataRow) sendDataRow.hidden = labels.dataHidden;
+    if (sendEvmFeeFields) sendEvmFeeFields.hidden = labels.evmFeeFieldsHidden;
+    if (sendFeeLimitRow) sendFeeLimitRow.hidden = labels.feeLimitHidden;
+    if (sendFeeLimitInput) sendFeeLimitInput.disabled = labels.feeLimitHidden;
+    if (sendGasInput) sendGasInput.disabled = labels.evmFeeFieldsHidden;
+    if (sendPriorityInput) sendPriorityInput.disabled = labels.evmFeeFieldsHidden;
+    if (sendMaxFeeInput) sendMaxFeeInput.disabled = labels.evmFeeFieldsHidden;
+  }
+
   /* A token send builds its own calldata, so the free-form data field is
    * disabled while a token contract is set. The typed data is kept: entering
    * a token does not destroy it, and the error says why it must be cleared
-   * before review. */
+   * before review. TRON uses none of the EVM gas/fee/data fields; only the
+   * TRX fee limit applies, and only to a TRC-20 transfer. */
   function updateSendTokenState() {
+    var network = selectedNetwork();
+    var isTron = !!(network && network.kind === 'tron');
+    applySendFieldLabels(isTron);
+    var hasToken = !!(sendTokenInput && sendTokenInput.value.trim() !== '');
     if (!sendTokenInput || !sendDataInput) return;
-    var hasToken = sendTokenInput.value.trim() !== '';
-    sendDataInput.disabled = hasToken;
+    sendDataInput.disabled = isTron || hasToken;
     var box = byId('wallet-send-data-error');
     var showingTokenDataError = !!(box && !box.hidden && box.textContent === TOKEN_DATA_ERROR);
-    if (hasToken && sendDataInput.value.trim() && TOKEN_DATA_ERROR) {
+    if (!isTron && hasToken && sendDataInput.value.trim() && TOKEN_DATA_ERROR) {
       setError('wallet-send-data-error', TOKEN_DATA_ERROR);
       sendDataInput.setAttribute('aria-invalid', 'true');
     } else if (!hasToken && showingTokenDataError) {
@@ -3179,19 +3248,39 @@
   }
 
   function renderSendNetworks() {
-    if (!evmSend || !sendNetworkSelect) return;
+    if (!sendNetworkSelect || (!evmSend && !tronWallet)) return;
     var previous = sendNetworkSelect.value;
     sendNetworkSelect.textContent = '';
-    evmSend.walletNetworks().forEach(function (network) {
-      var option = document.createElement('option');
-      option.value = String(network.chainId);
-      option.textContent = network.name + ' — ' +
-        (network.testnet ? 'testnet' : 'mainnet') +
-        ' (chain id ' + network.chainId + ')';
-      sendNetworkSelect.appendChild(option);
-    });
-    var known = previous && evmSend.networkById(Number(previous));
-    sendNetworkSelect.value = known ? previous : String(evmSend.SEPOLIA.chainId);
+    if (evmSend) {
+      evmSend.walletNetworks().forEach(function (network) {
+        var option = document.createElement('option');
+        option.value = 'evm:' + network.chainId;
+        option.textContent = network.name + ' — ' +
+          (network.testnet ? 'testnet' : 'mainnet') +
+          ' (chain id ' + network.chainId + ')';
+        sendNetworkSelect.appendChild(option);
+      });
+    }
+    if (tronWallet) {
+      tronWallet.tronNetworks().forEach(function (network) {
+        var option = document.createElement('option');
+        option.value = tronWallet.tronOptionValue(network.slug);
+        option.textContent = network.name + ' — ' +
+          (network.testnet ? 'testnet' : 'mainnet');
+        sendNetworkSelect.appendChild(option);
+      });
+    }
+    var known = false;
+    for (var i = 0; i < sendNetworkSelect.options.length; i += 1) {
+      if (sendNetworkSelect.options[i].value === previous) {
+        known = true;
+        break;
+      }
+    }
+    var fallback = evmSend
+      ? 'evm:' + evmSend.SEPOLIA.chainId
+      : tronWallet.tronOptionValue('tron');
+    sendNetworkSelect.value = known ? previous : fallback;
     renderProviders();
     updateSendArmedRow();
   }
@@ -3224,9 +3313,13 @@
 
   function updateSendFrom() {
     if (!sendFromLine) return;
+    var network = selectedNetwork();
+    var isTron = !!(network && network.kind === 'tron');
     var entry = selectedSendEntry();
     if (!entry) {
-      sendFromLine.textContent = 'Select a key to see its EVM address.';
+      sendFromLine.textContent = isTron
+        ? 'Import or select a TRON key to see its address.'
+        : 'Select a key to see its EVM address.';
       return;
     }
     var derived = state.derived[entry.id];
@@ -3245,18 +3338,21 @@
   function renderSend() {
     renderBtcSend();
     renderApprovals();
-    if (!sendCard || !evmSend) return;
-    var entries = sendEntries();
-    if (state.review && !entries.some(function (entry) { return entry.id === state.reviewEntryId; })) {
+    if (!sendCard || (!evmSend && !tronWallet)) return;
+    var available = allSendEntries();
+    if (state.review && !available.some(function (entry) {
+      return entry.id === state.reviewEntryId;
+    })) {
       invalidateSendReview();
     }
-    if (!state.unlocked || !entries.length) {
+    if (!state.unlocked || !available.length) {
       sendCard.hidden = true;
       return;
     }
     sendCard.hidden = false;
     updateSendTokenState();
     renderSendNetworks();
+    var entries = sendEntriesFor(selectedNetwork());
     var previous = sendEntrySelect.value;
     sendEntrySelect.textContent = '';
     entries.forEach(function (entry) {
@@ -3268,7 +3364,7 @@
     if (previous && entries.some(function (entry) { return entry.id === previous; })) {
       sendEntrySelect.value = previous;
     }
-    if (!sendEntrySelect.value) sendEntrySelect.value = entries[0].id;
+    if (!sendEntrySelect.value && entries.length) sendEntrySelect.value = entries[0].id;
     updateSendFrom();
   }
 
@@ -3295,7 +3391,8 @@
       data: sendDataInput.value,
       gasLimit: sendGasInput.value,
       maxFee: sendMaxFeeInput.value,
-      priorityFee: sendPriorityInput.value
+      priorityFee: sendPriorityInput.value,
+      feeLimit: sendFeeLimitInput ? sendFeeLimitInput.value : ''
     };
   }
 
@@ -3415,12 +3512,162 @@
     sendProviderNote.textContent = 'Sent to ' + result.providerLabel + ' · ' +
       result.providerUrl + '. Crypto did not proxy or store the transaction.';
     sendHashEl.textContent = result.txHash;
-    sendExplorerLink.href = result.explorerUrl;
-    sendExplorerLink.textContent = 'Open on the ' + (result.chainName || 'chain') + ' explorer';
+    if (result.explorerUrl) {
+      sendExplorerLink.hidden = false;
+      sendExplorerLink.href = result.explorerUrl;
+      sendExplorerLink.textContent = 'Open on the ' + (result.chainName || 'chain') + ' explorer';
+    } else {
+      sendExplorerLink.hidden = true;
+      sendExplorerLink.removeAttribute('href');
+      sendExplorerLink.textContent = '';
+    }
     sendSignedEl.textContent = result.signedHex;
     sendResultBox.hidden = false;
     if (sendStatus) sendStatus.textContent = 'The RPC accepted the signed transaction.';
-    sendExplorerLink.focus();
+    if (result.explorerUrl) sendExplorerLink.focus();
+  }
+
+  /* ------------------------------------------------------------- TRON send */
+
+  /* The unsigned and signed TRON calls use the same WASM string entry points
+   * as the EVM/Bitcoin flows. The key exists only inside signTronWithEntry. */
+  function unsignedTronTx(request) {
+    return loadWasm().then(function (wasm) {
+      return evmSend.callWasmString(wasm, 'tron_unsigned_tx', JSON.stringify(request));
+    });
+  }
+
+  async function signTronWithEntry(entry, request) {
+    var parsed = await parseEntry(entry);
+    var keyHex = bytesToHex(parsed.key);
+    var full = {};
+    Object.keys(request).forEach(function (key) { full[key] = request[key]; });
+    full.private_key = '0x' + keyHex;
+    var text = JSON.stringify(full);
+    try {
+      var wasm = await loadWasm();
+      return evmSend.callWasmString(wasm, 'tron_sign_tx', text);
+    } finally {
+      parsed.key.fill(0);
+      keyHex = null;
+      full = null;
+      text = null;
+    }
+  }
+
+  function renderTronReview(review) {
+    var isToken = review.kind === 'trc20';
+    sendReviewList.textContent = '';
+    addReviewRow('Network', review.networkName + (review.testnet ? ' · testnet' : ' · MAINNET'));
+    addReviewRow('From', review.from, true);
+    addReviewRow('To (recipient)', review.to, true);
+    addReviewRow('Kind', isToken ? 'TRC-20 token transfer' : 'TRX transfer');
+    if (isToken) {
+      addReviewRow('Token contract', review.tokenContract, true);
+      addReviewRow('Token symbol', review.tokenSymbol || 'unknown (the token did not return a symbol)');
+      addReviewRow('Token decimals', String(review.tokenDecimals));
+      addReviewRow('Amount', review.amountDisplay + ' ' + (review.tokenSymbol || 'token units') +
+        ' (' + review.amountBase + ' base units)');
+    } else {
+      addReviewRow('Amount', review.amountDisplay + ' TRX (' + review.amountBase + ' sun)');
+    }
+    addReviewRow('Fee limit', AMOUNT.formatUnits(review.feeLimitSun, 6) + ' TRX' +
+      (isToken ? '' : ' (a plain TRX transfer pays bandwidth)'));
+    addReviewRow('Reference block', review.block.blockID +
+      (review.block.blockNumber ? ' (#' + review.block.blockNumber + ')' : ''));
+    addReviewRow('Expiration', review.block.expiration + ' ms since the Unix epoch');
+    addReviewRow('Provider', review.providerLabel + ' · ' + review.providerUrl);
+    addReviewRow('Transaction ID', review.tx.txID, true);
+
+    var warnings = review.warnings.slice();
+    if (isToken) {
+      warnings.push('A TRC-20 transfer moves token units, not TRX; the fee limit caps the ' +
+        'energy fee in TRX.');
+    }
+    sendReviewWarnings.textContent = '';
+    warnings.forEach(function (warning) {
+      var item = document.createElement('li');
+      item.textContent = warning;
+      sendReviewWarnings.appendChild(item);
+    });
+    sendReviewWarnings.hidden = warnings.length === 0;
+
+    sendReviewUnsigned.textContent = review.tx.raw_data_hex;
+    sendReviewBox.hidden = false;
+    if (sendStatus) sendStatus.textContent = 'Review ready. Check every field, then sign.';
+    if (sendConfirmButton) sendConfirmButton.focus();
+  }
+
+  async function prepareTronSend(entry, network) {
+    if (entry.chain !== 'tron') {
+      setError('wallet-send-error', 'Select a TRON key for a TRON send.');
+      return;
+    }
+    state.preparing = true;
+    var generation = state.generation;
+    setSendBusy(true, 'Reading the latest block and token info, then building the transaction…');
+    try {
+      var from = await ensureDerivedAddress(entry);
+      var review = await tronWallet.prepareTronTransfer({
+        network: network,
+        form: {
+          to: sendToInput.value,
+          token: sendTokenInput.value,
+          amount: sendValueInput.value,
+          feeLimit: sendFeeLimitInput ? sendFeeLimitInput.value : ''
+        },
+        from: from,
+        fetchJson: rpcFetchJson,
+        providerUrl: sendProviderSelect.value || null,
+        mainnetArmed: isMainnetArmed(),
+        unsigned: unsignedTronTx
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      state.review = review;
+      state.reviewEntryId = entry.id;
+      renderTronReview(review);
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (err.fieldErrors) showSendFieldErrors(err.fieldErrors);
+      setError('wallet-send-error', errorText(err));
+      if (sendReviewBox) sendReviewBox.hidden = true;
+      if (sendStatus) sendStatus.textContent = '';
+    } finally {
+      state.preparing = false;
+      setSendBusy(false);
+      if (state.review && state.review.family === 'tron' && sendConfirmButton &&
+          !sendConfirmButton.disabled) {
+        sendConfirmButton.focus();
+      }
+    }
+  }
+
+  async function confirmTronSend(review, entry) {
+    state.sending = true;
+    var generation = state.generation;
+    setError('wallet-send-confirm-error', '');
+    setSendBusy(true, 'Signing locally and broadcasting once…');
+    try {
+      var result = await tronWallet.confirmTronTransfer({
+        review: review,
+        fetchJson: rpcFetchJson,
+        mainnetArmed: isMainnetArmed(),
+        sign: function (request) { return signTronWithEntry(entry, request); }
+      });
+      if (generation !== state.generation || !state.unlocked) return;
+      state.review = null;
+      state.reviewEntryId = null;
+      if (sendReviewBox) sendReviewBox.hidden = true;
+      renderSendResult(result);
+    } catch (err) {
+      if (generation === state.generation && state.unlocked) {
+        setError('wallet-send-confirm-error', errorText(err));
+        if (sendStatus) sendStatus.textContent = 'Signing or broadcast failed.';
+      }
+    } finally {
+      state.sending = false;
+      setSendBusy(false);
+    }
   }
 
   function resetSend() {
@@ -3477,14 +3724,17 @@
       setError('wallet-send-error', 'Unlock the vault first.');
       return;
     }
-    if (!evmSend) {
-      setError('wallet-send-error', 'The EVM send module did not load. Reload the page.');
+    if (state.preparing || state.sending) return;
+    var network = selectedNetwork();
+    if (!network) {
+      setError('wallet-send-error', 'The send modules did not load. Reload the page.');
       return;
     }
-    if (state.preparing || state.sending) return;
     var entry = selectedSendEntry();
     if (!entry) {
-      setError('wallet-send-error', 'Import an EVM key and select it first.');
+      setError('wallet-send-error', network.kind === 'tron'
+        ? 'Import a TRON key and select it first.'
+        : 'Import an EVM key and select it first.');
       return;
     }
     clearSendFieldErrors();
@@ -3492,6 +3742,19 @@
     setError('wallet-send-confirm-error', '');
     invalidateSendReview();
     if (sendReviewBox) sendReviewBox.hidden = true;
+
+    if (network.kind === 'tron') {
+      if (!tronWallet) {
+        setError('wallet-send-error', 'The TRON send module did not load. Reload the page.');
+        return;
+      }
+      await prepareTronSend(entry, network);
+      return;
+    }
+    if (!evmSend || typeof evmSend.validateForm !== 'function') {
+      setError('wallet-send-error', 'The EVM send module did not load. Reload the page.');
+      return;
+    }
 
     var local = evmSend.validateForm(readSendForm());
     if (Object.keys(local.errors).length) {
@@ -3512,7 +3775,7 @@
         from: from,
         fetchJson: rpcFetchJson,
         providerUrl: sendProviderSelect.value || null,
-        expectedChainId: Number(sendNetworkSelect.value),
+        expectedChainId: network.chainId,
         mainnetArmed: isMainnetArmed(),
         unsigned: unsignedTx
       });
@@ -3551,7 +3814,9 @@
     invalidateApprovalsScan('The selected key changed; run "Find approvals" again.');
   });
   sendNetworkSelect.addEventListener('change', function () {
-    renderProviders();
+    /* The key list is family-specific (EVM vs TRON), so a network change
+     * rebuilds the picker as well as the provider list. */
+    renderSend();
     updateSendArmedRow();
     invalidateSendReview();
     invalidateApprovalsScan('The network changed; run "Find approvals" again.');
@@ -3593,6 +3858,15 @@
     }
     if (!selected || selected.id !== entry.id) {
       setError('wallet-send-confirm-error', 'The selected key changed; prepare a new review.');
+      return;
+    }
+
+    if (review.family === 'tron') {
+      if (!tronWallet) {
+        setError('wallet-send-confirm-error', 'The TRON send module did not load. Reload the page.');
+        return;
+      }
+      await confirmTronSend(review, entry);
       return;
     }
 
@@ -3978,6 +4252,13 @@
 
   function renderApprovals() {
     if (!approvalsCard || !evmSend) return;
+    /* Approvals are an EVM token surface; hide the panel while a TRON network
+     * is selected in the send form. */
+    var selected = selectedNetwork();
+    if (!selected || selected.kind !== 'evm') {
+      approvalsCard.hidden = true;
+      return;
+    }
     var entries = sendEntries();
     if (!state.unlocked || !entries.length) {
       approvalsCard.hidden = true;
@@ -4156,7 +4437,7 @@
         windowBlocks: windowText,
         fetchJson: rpcFetchJson,
         providerUrl: sendProviderSelect.value || null,
-        expectedChainId: Number(sendNetworkSelect.value),
+        expectedChainId: selectedEvmChainId(),
         networkName: selectedNetwork().name
       });
       if (generation !== state.generation || !state.unlocked) return;
@@ -4164,7 +4445,7 @@
        * flight makes this result stale: do not show it over the new selection. */
       var stillSelected = selectedSendEntry();
       if (!stillSelected || stillSelected.id !== entry.id) return;
-      if (Number(sendNetworkSelect.value) !== Number(scan.chainId)) return;
+      if (selectedEvmChainId() !== Number(scan.chainId)) return;
       var chosenProvider = sendProviderSelect.value;
       if (chosenProvider && chosenProvider !== scan.providerUrl) return;
       if (approvalsTokenInput.value !== tokenText || approvalsWindowInput.value !== windowText) return;
@@ -4260,7 +4541,7 @@
         from: owner,
         fetchJson: rpcFetchJson,
         providerUrl: sendProviderSelect.value || null,
-        expectedChainId: Number(sendNetworkSelect.value),
+        expectedChainId: selectedEvmChainId(),
         networkName: selectedNetwork().name,
         mainnetArmed: isMainnetArmed(),
         unsigned: unsignedTx
@@ -4270,7 +4551,7 @@
        * in flight makes this review stale: never show it over the new input. */
       var stillSelected = selectedSendEntry();
       if (!stillSelected || stillSelected.id !== entry.id) return;
-      if (Number(sendNetworkSelect.value) !== Number(review.chainId)) return;
+      if (selectedEvmChainId() !== Number(review.chainId)) return;
       var chosenProvider = sendProviderSelect.value;
       if (chosenProvider && chosenProvider !== review.providerUrl) return;
       if (approvalsTokenInput.value.trim().toLowerCase() !== tokenText.toLowerCase()) return;
