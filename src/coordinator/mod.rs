@@ -1321,7 +1321,7 @@ fn admin_credentials_valid(app: &App, request: &AdminLoginRequest) -> bool {
         request.password.as_deref(),
     ) {
         (Some(user), Some(password), Some(given_user), Some(given_password)) => {
-            constant_time_eq(given_user.as_bytes(), user.as_bytes())
+            constant_time_eq(given_user.trim().as_bytes(), user.as_bytes())
                 & constant_time_eq(given_password.as_bytes(), password.as_bytes())
         }
         _ => false,
