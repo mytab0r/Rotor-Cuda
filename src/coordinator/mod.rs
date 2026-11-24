@@ -8344,6 +8344,14 @@ mod tests {
         assert!(btc.contains("RotorProviders"));
         assert!(btc.contains("btc_sign_tx"));
 
+        let (tron, content_type) =
+            static_asset("/wallet-tron.js").expect("/wallet-tron.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let tron = std::str::from_utf8(tron).expect("wallet-tron.js is utf-8");
+        assert!(tron.contains("RotorTronWallet"));
+        assert!(tron.contains("assertTronMainnetArmed"));
+        assert!(tron.contains("TRON_REVIEW_TTL_MS"));
+
         let (history, content_type) =
             static_asset("/wallet-history.js").expect("/wallet-history.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");
