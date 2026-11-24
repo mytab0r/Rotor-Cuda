@@ -161,6 +161,23 @@ test("the picker value distinguishes TRON from an EVM chain id", () => {
   assert.equal(tron.tronNetworkFromOption(undefined), null);
 });
 
+test("the TRON state swaps the recipient/token labels and hides the Data field", () => {
+  const tronLabels = tron.sendFieldLabels(true);
+  assert.match(tronLabels.toLabel, /TRON address/);
+  assert.doesNotMatch(tronLabels.toLabel, /0x address/);
+  assert.equal(tronLabels.toPlaceholder, "T...");
+  assert.match(tronLabels.tokenLabel, /TRC-20/);
+  assert.doesNotMatch(tronLabels.tokenLabel, /ERC-20/);
+  assert.equal(tronLabels.tokenPlaceholder, "Leave empty for TRX");
+  assert.equal(tronLabels.dataHidden, true);
+
+  const evmLabels = tron.sendFieldLabels(false);
+  assert.match(evmLabels.toLabel, /0x address/);
+  assert.equal(evmLabels.toPlaceholder, "0x...");
+  assert.match(evmLabels.tokenLabel, /ERC-20/);
+  assert.equal(evmLabels.dataHidden, false);
+});
+
 /* ----------------------------------------------------- provider failover */
 
 test("the declared failover order is kept and a preferred provider goes first", () => {

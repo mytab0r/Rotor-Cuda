@@ -299,12 +299,12 @@
       <label class="wallet-check" id="wallet-send-armed-row" hidden><input type="checkbox" id="wallet-send-armed"> I understand that a mainnet transaction spends real funds and cannot be reversed; arm mainnet signing for this session.</label>
       <p class="muted">Sepolia is the default. A mainnet network is only signable after you tick the arm checkbox; the arm resets when the vault locks or unlocks and on page reload. For EVM networks the chain id is read with <code class="mono">eth_chainId</code> before review and again before signing; a mismatch, or an id outside the wallet chain table, refuses the send. Leave the token contract empty to send the native coin. A filled EVM contract must return code, report 0–24 decimals and a printable symbol of at most 32 characters, and hold at least the amount; the wallet reads <code class="mono">decimals()</code>, <code class="mono">symbol()</code> and <code class="mono">balanceOf()</code> and builds <code class="mono">transfer(address,uint256)</code> locally. TRON mainnet and Nile use the same form: the recipient and optional TRC-20 contract are base58 T-addresses, the amount is TRX (or the token's units when a contract is set), and the fee limit is in TRX for a TRC-20 transfer. A TRON review is refused after 60 seconds, is signed locally and is broadcast once to the reviewed provider. The separate ERC-20 approvals panel below reads current allowances, grants a new one (dangerous: it lets the spender move your tokens) and revokes them; other token methods are not part of this slice. The per-transaction fee cap is 0.05 ETH on Ethereum mainnet and 0.01 native on the other EVM chains.</p>
 
-      <label>To (0x address; EIP-55 mixed case or all-lowercase)
+      <label><span id="wallet-send-to-label">To (0x address; EIP-55 mixed case or all-lowercase)</span>
         <input id="wallet-send-to" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x…" aria-describedby="wallet-send-to-error" aria-invalid="false">
       </label>
       <p class="error wallet-field-error" id="wallet-send-to-error" role="alert" hidden></p>
       <div class="wallet-split">
-        <label>Token contract (optional ERC-20, 0x address)
+        <label><span id="wallet-send-token-label">Token contract (optional ERC-20, 0x address)</span>
           <input id="wallet-send-token" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="Leave empty for the native coin" aria-describedby="wallet-send-token-error" aria-invalid="false">
         </label>
         <label>Amount (native unit, or token units when a token is set)
@@ -319,10 +319,12 @@
         </label>
       </div>
       <p class="error wallet-field-error" id="wallet-send-fee-limit-error" role="alert" hidden></p>
-      <label>Data (native testnet only, optional hex; disabled for token sends)
-        <input id="wallet-send-data" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x" aria-describedby="wallet-send-data-error" aria-invalid="false">
-      </label>
-      <p class="error wallet-field-error" id="wallet-send-data-error" role="alert" hidden></p>
+      <div id="wallet-send-data-row">
+        <label>Data (native testnet only, optional hex; disabled for token sends)
+          <input id="wallet-send-data" class="mono" type="text" spellcheck="false" autocomplete="off" placeholder="0x" aria-describedby="wallet-send-data-error" aria-invalid="false">
+        </label>
+        <p class="error wallet-field-error" id="wallet-send-data-error" role="alert" hidden></p>
+      </div>
       <div class="wallet-split">
         <label>Gas limit (empty = estimate + 20%)
           <input id="wallet-send-gas" type="text" inputmode="numeric" autocomplete="off" placeholder="auto" aria-describedby="wallet-send-gas-error" aria-invalid="false">

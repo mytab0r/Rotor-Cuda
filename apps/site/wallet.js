@@ -252,6 +252,9 @@
   var sendMaxFeeInput = byId('wallet-send-max-fee');
   var sendFeeLimitInput = byId('wallet-send-fee-limit');
   var sendFeeLimitRow = byId('wallet-send-fee-limit-row');
+  var sendToLabel = byId('wallet-send-to-label');
+  var sendTokenLabel = byId('wallet-send-token-label');
+  var sendDataRow = byId('wallet-send-data-row');
   var sendStatus = byId('wallet-send-status');
   var sendPrepareButton = byId('wallet-send-prepare');
   var sendReviewBox = byId('wallet-send-review');
@@ -3192,6 +3195,19 @@
 
   var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
 
+  /* Swap the recipient/token captions and placeholders with the same family
+   * switch that selects the fields: a TRON recipient is a base58 T-address,
+   * not a 0x address, and the free-form Data field has no TRON meaning. */
+  function applySendFieldLabels(isTron) {
+    if (!tronWallet) return;
+    var labels = tronWallet.sendFieldLabels(isTron);
+    if (sendToLabel) sendToLabel.textContent = labels.toLabel;
+    if (sendToInput) sendToInput.placeholder = labels.toPlaceholder;
+    if (sendTokenLabel) sendTokenLabel.textContent = labels.tokenLabel;
+    if (sendTokenInput) sendTokenInput.placeholder = labels.tokenPlaceholder;
+    if (sendDataRow) sendDataRow.hidden = labels.dataHidden;
+  }
+
   /* A token send builds its own calldata, so the free-form data field is
    * disabled while a token contract is set. The typed data is kept: entering
    * a token does not destroy it, and the error says why it must be cleared
@@ -3200,6 +3216,7 @@
   function updateSendTokenState() {
     var network = selectedNetwork();
     var isTron = !!(network && network.kind === 'tron');
+    applySendFieldLabels(isTron);
     var hasToken = !!(sendTokenInput && sendTokenInput.value.trim() !== '');
     if (sendFeeLimitRow) {
       sendFeeLimitRow.hidden = !isTron;

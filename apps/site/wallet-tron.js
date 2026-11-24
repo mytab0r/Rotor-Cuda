@@ -146,6 +146,28 @@
     return tronNetworkBySlug(value.slice(TRON_OPTION_PREFIX.length));
   }
 
+  /* The send form caption/placeholder set for each family. The cabinet swaps
+   * these with the same isTron switch that selects the fields; a TRON
+   * recipient is a base58 T-address, not a 0x address. */
+  function sendFieldLabels(isTron) {
+    if (isTron) {
+      return {
+        toLabel: 'To (TRON address, T...)',
+        toPlaceholder: 'T...',
+        tokenLabel: 'Token contract (optional; TRC-20, T address)',
+        tokenPlaceholder: 'Leave empty for TRX',
+        dataHidden: true
+      };
+    }
+    return {
+      toLabel: 'To (0x address; EIP-55 mixed case or all-lowercase)',
+      toPlaceholder: '0x...',
+      tokenLabel: 'Token contract (optional ERC-20, 0x address)',
+      tokenPlaceholder: 'Leave empty for the native coin',
+      dataHidden: false
+    };
+  }
+
   function errorText(err) {
     return err && err.message ? err.message : String(err);
   }
@@ -600,6 +622,7 @@
     formatTronAmount: formatTronAmount,
     tronOptionValue: tronOptionValue,
     tronNetworkFromOption: tronNetworkFromOption,
+    sendFieldLabels: sendFieldLabels,
     tronProviderOrder: tronProviderOrder,
     parseNowBlock: parseNowBlock,
     fetchNowBlock: fetchNowBlock,
