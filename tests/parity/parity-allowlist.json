@@ -6,7 +6,7 @@
       "chain": "ton",
       "field": "address",
       "key_id": "*",
-      "reason": "The desktop chain descriptor implements TON wallet v4R2 (src/address/mod.rs); the wasm derive_report implements wallet W5 (crates/rotor-wasm/src/ton.rs). P0 records both outputs; P1 exposes both encodings explicitly and the product decision is separate.",
+      "reason": "The desktop chain descriptor selects TON wallet v4R2 (crates/rotor-core/src/chain.rs); the wasm derive_report selects W5 (crates/rotor-wasm/src/derive.rs). P0 records both outputs; P1 exposes both encodings explicitly through TonWalletVersion and the product decision is separate.",
       "issue": "https://github.com/mytab0r/Rotor-Cuda/issues/330",
       "owner": "product-split"
     }
