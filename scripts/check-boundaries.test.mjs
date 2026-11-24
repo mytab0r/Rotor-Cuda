@@ -47,11 +47,8 @@ test("rotor-core with a gpu feature fails", () => {
   );
 });
 
-test("the exact frozen #[path] include set passes", () => {
-  const source = EXPECTED_PATH_INCLUDES.map(
-    (include) => `#[path = "${include}"]\nmod module;`,
-  ).join("\n");
-  assert.deepEqual(evaluatePathIncludes(source), []);
+test("a wasm adapter without #[path] includes passes", () => {
+  assert.deepEqual(evaluatePathIncludes(""), []);
 });
 
 test("a new cross-product #[path] include fails", () => {
@@ -65,13 +62,11 @@ test("a new cross-product #[path] include fails", () => {
   );
 });
 
-test("a missing frozen #[path] include fails until the exception list shrinks", () => {
-  const source = EXPECTED_PATH_INCLUDES.slice(1)
-    .map((include) => `#[path = "${include}"]\nmod module;`)
-    .join("\n");
+test("a root-crate #[path] include fails now that P1 removed the exceptions", () => {
+  const source = `#[path = "../../../src/base58.rs"]\nmod base58;`;
   const errors = evaluatePathIncludes(source);
   assert.ok(
-    errors.some((error) => error.includes("missing expected #[path] include")),
+    errors.some((error) => error.includes("unexpected #[path] include") && error.includes("base58.rs")),
     errors.join("\n"),
   );
 });

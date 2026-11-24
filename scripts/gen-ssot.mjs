@@ -10,7 +10,7 @@
 // Outputs:
 //   - apps/site/chains.generated.js  ES5 globals for the build-less site
 //   - apps/site/assets.generated.js  ES5 global for the top-10 asset list
-//   - src/generated/chains.rs        Rust constants for the coordinator/CLI
+//   - crates/rotor-core/src/generated/chains.rs  Rust constants for the core
 //   - apps/site/site.css             the marked `chains:start` region only
 //
 // `--check` regenerates every output in memory and exits 1 with a line diff
@@ -40,7 +40,7 @@ const ASSETS_PATH = "data/assets.json";
 const VENDOR_LOCK_PATH = "data/vendor.lock.json";
 const JS_PATH = "apps/site/chains.generated.js";
 const ASSETS_JS_PATH = "apps/site/assets.generated.js";
-const RS_PATH = "src/generated/chains.rs";
+const RS_PATH = "crates/rotor-core/src/generated/chains.rs";
 const CSS_PATH = "apps/site/site.css";
 const CSS_START = CHAINS_REGION.start;
 const CSS_END = CHAINS_REGION.end;

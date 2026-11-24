@@ -8,7 +8,7 @@ owned by exactly one area; the most-specific glob wins.
 | `site` | site-ui | `apps/site/**`, `data/**` | `node --check apps/site/*.js` | `node apps/site/worker-test.mjs apps/site/rotor_wasm.wasm` |
 | `web` | site-ui | `web/**` (Astro pilot) | `npm --prefix web ci && npm --prefix web run build` | `npm --prefix web test`; `npm --prefix web run test:e2e` (needs `npx playwright install chromium`) |
 | `coordinator` | coordinator | `src/coordinator/**`, `src/bin/rotor-coord.rs`, `tests/coordinator_*` | `cargo build --release --bin rotor-coord` | `cargo test --test coordinator_api --test coordinator_client` |
-| `wasm-core` | wasm-core | `crates/rotor-wasm/**` | `sh scripts/build-wasm.sh` | `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
+| `wasm-core` | wasm-core | `crates/rotor-core/**`, `crates/rotor-wasm/**` | `cargo build -p rotor-core`; `sh scripts/build-wasm.sh` | `cargo test -p rotor-core`; `cargo test -p rotor-wasm`; `smoke.mjs`; `worker-test.mjs` |
 | `desktop` | desktop-tools | remaining `src/**` and `tests/**`, `Rotor-Cuda/**`, legacy trees, `build.rs`, `Cargo.toml` | `cargo build --release [--features gpu]` | `cargo test --release [--features gpu]` |
 | `ops` | ops/docs | `.github/**`, `.claude/skills/**`, `deploy/**`, `scripts/**`, `openspec/**`, `docs/**`, `Dockerfile`, root docs | `node scripts/check-projects.mjs` | `node docs/site-map/site-map-test.mjs`; `node scripts/check-projects.mjs` |
 
@@ -18,6 +18,12 @@ owned by exactly one area; the most-specific glob wins.
   embeds `apps/site/*.html`, `site.css`, `site.js`, `theme.js`, `key.js`,
   `rotor-worker.js` with `include_str!`/`include_bytes!`. The coordinator
   cannot build if a site file is missing or renamed.
+- **Core -> desktop/wasm.** `crates/rotor-core` is the one implementation of
+  curve arithmetic, hashes, Base58/WIF, chain descriptors, address encoders and
+  BIP39/BIP32. The root `rotor` crate re-exports every module, so
+  `rotor::<module>` paths stay valid; `crates/rotor-wasm` depends on the crate
+  and must not `#[path]`-include `src/` files. Core has no network, GPU, BSGS,
+  coordinator, CLI or filesystem dependency.
 - **Wasm -> site -> coordinator.** `apps/site/rotor_wasm.wasm` is a committed
   artifact rebuilt by `scripts/build-wasm.sh` from `crates/rotor-wasm`, then
   embedded by the coordinator. The `Dockerfile` rebuilds it during the image

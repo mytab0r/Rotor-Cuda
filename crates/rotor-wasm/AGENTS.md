@@ -1,12 +1,14 @@
 # Wasm core area (owner: wasm-core)
 
-Owns `crates/rotor-wasm/**`. Read `../../PROJECTS.md` first.
+Owns `crates/rotor-wasm/**`. The shared crypto and address layer lives in
+`crates/rotor-core/**` (same area). Read `../../PROJECTS.md` first.
 
 ## Commands
 
 ```sh
 cargo build -p rotor-wasm --target wasm32-unknown-unknown --release
 sh scripts/build-wasm.sh
+cargo test -p rotor-core
 cargo test -p rotor-wasm
 node crates/rotor-wasm/smoke.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
 node apps/site/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.wasm
@@ -14,6 +16,8 @@ node apps/site/worker-test.mjs target/wasm32-unknown-unknown/release/rotor_wasm.
 
 ## Gotchas
 
+- `crates/rotor-wasm` depends on `rotor-core`; it must not `#[path]`-include
+  `src/` files or add a second hash/curve/address implementation.
 - `scripts/build-wasm.sh` copies the artifact to `apps/site/rotor_wasm.wasm`. That
   committed file is embedded by the coordinator and served to the browser, so
   rebuild and commit it in the same change.

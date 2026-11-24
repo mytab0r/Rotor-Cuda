@@ -14,6 +14,10 @@ Area map: [PROJECTS.md](PROJECTS.md); machine-readable map: `projects.json`.
   and `scripts/ui-audit.mjs` fails on a bare asset reference.
 - `crates/rotor-wasm` change: run `sh scripts/build-wasm.sh`, run both JS
   tests, commit `apps/site/rotor_wasm.wasm`.
+- Shared crypto and address code lives in `crates/rotor-core`; the root crate
+  re-exports it and `crates/rotor-wasm` depends on it. Do not add a second
+  hash, curve, Base58/Bech32, address codec, BIP32, keystore or signature
+  implementation outside the core, and do not `#[path]`-include `src/` files.
 - Run the area test commands from `projects.json`; then
   `node scripts/check-projects.mjs`.
 - Design tokens: `design/tokens/tokens.json` is the source. After editing it run
@@ -60,7 +64,7 @@ explorer URL or chain identity into a page script.
 
 - Generate the consumers with `node scripts/gen-ssot.mjs`:
   `apps/site/chains.generated.js` (`window.RotorChains`,
-  `window.RotorProviders`) and `src/generated/chains.rs`.
+  `window.RotorProviders`) and `crates/rotor-core/src/generated/chains.rs`.
 - `data/assets.json` is the one top-10 asset list. `gen-ssot.mjs` validates it
   (ranks, supported chains, contracts, price source) and generates
   `apps/site/assets.generated.js` (`window.RotorAssetsData`); `--check` fails

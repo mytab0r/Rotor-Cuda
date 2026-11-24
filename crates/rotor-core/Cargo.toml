@@ -1,0 +1,18 @@
+[package]
+name = "rotor-core"
+version = "2.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Product-neutral cryptographic and address core for Rotor products"
+
+[dependencies]
+sha2 = "0.11"
+ripemd = "0.2"
+sha3 = "0.11"
+bs58 = { version = "0.5", features = ["check"] }
+bip39 = "2"
+blake2 = "0.10"
+# Match the wasm adapter's feature set: the core only needs key parsing and
+# verification, so the default `fast` backend tables must not leak into the
+# browser artifact. The desktop crate enables its own defaults when it builds.
+ed25519-dalek = { version = "2", default-features = false }

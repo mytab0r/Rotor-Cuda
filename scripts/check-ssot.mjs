@@ -5,7 +5,8 @@
 //   data-shape       data/chains.json and data/providers.json pass the
 //                    generator's schema validation (unique slugs, required
 //                    fields, https URLs, no private hosts).
-//   generated-fresh  apps/site/chains.generated.js and src/generated/chains.rs
+//   generated-fresh  apps/site/chains.generated.js and
+//                    crates/rotor-core/src/generated/chains.rs
 //                    match what `node scripts/gen-ssot.mjs` would write.
 //   provider-literal no first-party apps/site/*.js file carries a provider or
 //                    explorer hostname that already lives in the canonical

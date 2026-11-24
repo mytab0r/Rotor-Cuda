@@ -7,10 +7,9 @@
 //      directly.
 //   2. Once `rotor-core` exists it must have no network, GPU or server
 //      dependency and no `gpu`/`network`/`server` feature.
-//   3. The one current exception is explicit: `crates/rotor-wasm` includes six
-//      root modules with `#[path]`. The expected set is frozen here, so a new
-//      cross-product include fails until P1 replaces it with a `rotor-core`
-//      dependency and shrinks this list.
+//   3. `crates/rotor-wasm` must not reach into the root crate with `#[path]`.
+//      P0 froze the six pre-P1 includes; P1 replaced them with a `rotor-core`
+//      dependency, so the exception set is empty and stays that way.
 //
 // Input is `cargo metadata --format-version 1 --no-deps`; stdlib only.
 // Exit: 0 = pass, 1 = boundary violation, 2 = cannot inspect the workspace.
@@ -38,16 +37,9 @@ export const CORE_FORBIDDEN_DEPENDENCIES = [
 export const CORE_FORBIDDEN_FEATURES = ["gpu", "network", "server"];
 export const WASM_LIB = "crates/rotor-wasm/src/lib.rs";
 
-// Exact exception set for the pre-P1 layout. Shrink-only: P1 removes all six
-// and this list becomes empty.
-export const EXPECTED_PATH_INCLUDES = [
-  "../../../src/base58.rs",
-  "../../../src/field.rs",
-  "../../../src/hashes.rs",
-  "../../../src/point.rs",
-  "../../../src/scalar.rs",
-  "../../../src/secp.rs",
-];
+// Exact exception set. Shrink-only: P1 removed all six includes, so any
+// `#[path]` include into the root crate is now a boundary break.
+export const EXPECTED_PATH_INCLUDES = [];
 
 /** Cross-product and core-dependency rules over parsed cargo metadata. */
 export function evaluateMetadata(metadata) {
@@ -95,8 +87,7 @@ export function evaluatePathIncludes(source) {
   for (const expected of EXPECTED_PATH_INCLUDES) {
     if (!found.includes(expected)) {
       errors.push(
-        `missing expected #[path] include ${expected}; P1 must replace the includes with a ` +
-          `${CORE_PACKAGE} dependency and remove the entry from this check`,
+        `missing expected #[path] include ${expected}; every frozen exception must stay in place`,
       );
     }
   }
@@ -120,7 +111,7 @@ const USAGE = `Usage: node scripts/check-boundaries.mjs
 Checks the workspace layout with cargo metadata:
   - no product depends on another product;
   - ${CORE_PACKAGE} (once present) has no network/GPU/server dependency or feature;
-  - ${WASM_LIB} has exactly the ${EXPECTED_PATH_INCLUDES.length} frozen #[path] includes.
+  - ${WASM_LIB} has no #[path] include into the root crate.
 Exit: 0 pass, 1 violation, 2 cannot inspect the workspace.`;
 
 export function main() {
@@ -154,7 +145,7 @@ export function main() {
   const core = metadata.packages.some((pkg) => pkg.name === CORE_PACKAGE);
   console.log(
     `boundaries: OK (${metadata.packages.length} workspace package(s); no cross-product dependency; ` +
-      `${EXPECTED_PATH_INCLUDES.length} frozen #[path] includes; ` +
+      `no #[path] includes; ` +
       `${CORE_PACKAGE} ${core ? "present and clean" : "not created yet"})`,
   );
   return 0;

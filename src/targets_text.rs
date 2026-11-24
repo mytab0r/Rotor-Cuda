@@ -155,7 +155,7 @@ fn decode_for_chain(text: &str, chain: &ChainDescriptor) -> Result<Vec<u8>, Stri
         }
         AddressEncoding::SolanaBase58
         | AddressEncoding::SuiHex
-        | AddressEncoding::TonUserFriendly => Err(format!(
+        | AddressEncoding::TonUserFriendly(_) => Err(format!(
             "chain '{}' compares {}-byte targets; text address targets for the {} family \
              are not implemented yet",
             chain.id,
