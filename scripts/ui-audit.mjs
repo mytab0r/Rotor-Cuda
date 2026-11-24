@@ -6686,15 +6686,23 @@ async function main() {
                 });
               }
               // Runs after the derive so the chain chips and format cards have
-              // rows to select from.
-              const filterScope = await auditKeyFilterScope(cdp);
-              run.metrics.keyFilterScope = filterScope.evidence;
-              if (!filterScope.ok) {
-                run.violations.push({
-                  id: "key-filter-scope",
-                  message: `/key address-format selector leaked across chains: ${(filterScope.problems || []).join("; ")}`,
-                  detail: filterScope,
-                });
+              // rows to select from. The Astro shell has no #format-panel; this
+              // probe belongs to the coordinator page still serving /key.
+              const astroShell = await evaluate(
+                cdp,
+                "Boolean(document.querySelector('main.key-page-v2'))",
+                5000,
+              ).catch(() => false);
+              if (!astroShell) {
+                const filterScope = await auditKeyFilterScope(cdp);
+                run.metrics.keyFilterScope = filterScope.evidence;
+                if (!filterScope.ok) {
+                  run.violations.push({
+                    id: "key-filter-scope",
+                    message: `/key address-format selector leaked across chains: ${(filterScope.problems || []).join("; ")}`,
+                    detail: filterScope,
+                  });
+                }
               }
             }
 
