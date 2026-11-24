@@ -887,6 +887,38 @@ test("milestone matching uses the epic first, then the area", () => {
   assert.equal(milestoneFor({ changeId: "brand-new", area: "unknown", milestones }), null);
 });
 
+test("every epic in data/milestones.json belongs to exactly one milestone", () => {
+  const file = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "data",
+    "milestones.json",
+  );
+  const milestones = JSON.parse(fs.readFileSync(file, "utf8"));
+  const owners = new Map();
+  for (const milestone of milestones) {
+    for (const epic of milestone.match?.epics ?? []) {
+      const list = owners.get(epic) ?? [];
+      list.push(milestone.title);
+      owners.set(epic, list);
+    }
+  }
+  for (const [epic, titles] of owners) {
+    assert.equal(titles.length, 1, `epic ${epic} is listed under ${titles.join(", ")}`);
+  }
+  const walletSwap = milestoneFor({ changeId: "wallet-swap", milestones });
+  assert.ok(walletSwap, "wallet-swap must map to a milestone");
+  assert.equal(
+    walletSwap.title,
+    "Wallet: signing, history and portfolio",
+    "a swap proposal is wallet work, not an Astro cutover",
+  );
+  assert.equal(
+    milestoneFor({ changeId: "product-split", milestones }).title,
+    "Product split: site, desktop and wallet",
+  );
+});
+
 test("priority and severity defaults, inheritance and explicit declarations", () => {
   assert.equal(priorityFor({ issue: { title: "epic" }, isEpic: true }), "P1");
   assert.equal(
