@@ -31,6 +31,7 @@ import {
   declaredPriority,
   epicBody,
   filesBelongToChange,
+  fieldIsCurrent,
   inferIssueType,
   isSyncManagedIssue,
   issueNumberFromKey,
@@ -667,6 +668,9 @@ function main() {
   }
 
   function setField(item, field, value, valueLabel, kind = null) {
+    // Skip a no-op before the dry-run log and the real write, so a dry run on
+    // an up-to-date board reports only genuine drift.
+    if (fieldIsCurrent(item, field, value)) return;
     if (!item) {
       if (DRY_RUN) {
         console.log(
@@ -683,10 +687,6 @@ function main() {
       console.log(`[dry-run] set ${field.name}=${valueLabel} on ${itemUrl(item)}`);
       return;
     }
-    // item-list exposes custom fields by lowercased name; skip an unchanged
-    // value so a daily run only writes what drifted.
-    const current = item[field.name.toLowerCase()];
-    if (current !== undefined && String(current) === String(value)) return;
     const args = [
       "project",
       "item-edit",
