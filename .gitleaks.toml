@@ -10,6 +10,12 @@
 # Production keys never come from a literal: they are generated with the OS RNG
 # (AGENTS.md, "Security alerts"). Regexes are prefixes so this file does not
 # contain a complete secret-looking literal itself.
+#
+# `tests/parity/{desktop,wasm}-vectors.json` are generated, deterministic P0
+# parity fixtures: keys 1/2/3/0xff, three fixed seeds and the keys derived from
+# them. They are test-only, never read by production code, and are regenerated
+# from those fixed inputs by tests/parity/regenerate.mjs. The path allowlist
+# below is limited to those two files; do not widen it.
 
 [extend]
 useDefault = true
@@ -28,4 +34,7 @@ regexes = [
   '''0x7E5F4552091A69125d5DfCb7b8C2659029''',
   '''TMVQGm1qAQYVdetCeGRRkTWYYrLXu''',
   '''^my-secret$''',
+]
+paths = [
+  '''^tests/parity/(desktop|wasm)-vectors\.json$''',
 ]
