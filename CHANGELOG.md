@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.3.0...v2.3.1) (2026-11-24)
+
+
+### Documentation
+
+* **design-system:** rule for progressive disclosure on functional pages ([#531](https://github.com/mytab0r/Rotor-Cuda/issues/531)) ([eedf75d](https://github.com/mytab0r/Rotor-Cuda/commit/eedf75deb7f635f85e3832d0b695b6b7ed830c29))
+
 ## [2.3.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.2.1...v2.3.0) (2026-11-24)
 
 
