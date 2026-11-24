@@ -820,6 +820,20 @@
       "symptom": "The 0-3-0 `.key-page .key-summary-group .key-form-row` rule outranked the <=560px stacking rule, so at 375px the summary kept the 112px label column, wrapped the value into a ~159px column and grew rows to 78-203px.",
       "detector": "key-summary-stack",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "legacy-link-contrast",
+      "reported": "2026-11-24",
+      "symptom": "The legacy coordinator pages hard-coded `.address-link` to #c8d8ea, which measures 1.45:1 on the white card in the light theme (required 4.5:1) and failed on every /private-keys/<chain> and /mnemonic-seeds/<chain> page (#478).",
+      "detector": "legacy-link-contrast",
+      "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "in-text-link-colour-only",
+      "reported": "2026-11-24",
+      "symptom": "In-text links on the legacy coordinator pages had no underline and differed from body text only by colour (1.16-1.99:1), failing WCAG 1.4.1 (#478); link-only blocks such as chips are exempt because they are controls, not prose.",
+      "detector": "link-in-text-block",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
