@@ -88,6 +88,7 @@ function openPrUpdatedAt(branch) {
 }
 
 function evaluate(claim) {
+  if (!claim) return "none";
   return claimState(claim, {
     lastCommitAt: lastCommitAt(claim.branch),
     prUpdatedAt: openPrUpdatedAt(claim.branch),
