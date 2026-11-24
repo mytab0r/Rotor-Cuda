@@ -28,10 +28,16 @@
    * decimals, which the caller supplies. */
   var TRON_DECIMALS = SSOT_CHAINS.bySlug.tron.decimals;
 
-  /* A review older than the node's expiration window is refused at confirm
-   * and rebuilt from fresh node data. 60 seconds matches the TRON expiration
-   * window this wallet requests. */
+  /* A review older than this is refused at confirm and rebuilt from fresh
+   * node data. The on-chain expiration is deliberately longer (see
+   * TRON_EXPIRATION_MS) so a confirm near the end of the review window still
+   * produces a transaction the node accepts. */
   var TRON_REVIEW_TTL_MS = 60000;
+
+  /* The transaction's on-chain expiration window. It must be strictly longer
+   * than the review window: otherwise a review confirmed at second 59 would
+   * build a transaction that is already expired. */
+  var TRON_EXPIRATION_MS = 90000;
 
   /* One descriptor per signable TRON network. The provider lists are the
    * declared nodes from data/providers.json, never a page-local copy. The
@@ -186,7 +192,8 @@
 
   /* Derive the TAPOS reference fields from a `getnowblock` response:
    * ref_block_bytes = blockID bytes 6-7, ref_block_hash = bytes 8-15, and a
-   * 60-second expiration from the block timestamp. */
+   * 90-second expiration from the block timestamp (longer than the 60-second
+   * review window, so a late confirm is still valid on chain). */
   function parseNowBlock(block) {
     var blockId = block && block.blockID;
     if (typeof blockId !== 'string' || !/^[0-9a-fA-F]{64}$/.test(blockId)) {
@@ -207,7 +214,7 @@
       ref_block_bytes: id.slice(12, 16),
       ref_block_hash: id.slice(16, 32),
       timestamp: String(timestamp),
-      expiration: String(BigInt(timestamp) + BigInt(TRON_REVIEW_TTL_MS))
+      expiration: String(BigInt(timestamp) + BigInt(TRON_EXPIRATION_MS))
     };
   }
 
@@ -534,6 +541,13 @@
     if (typeof signed.signature !== 'string' || !/^[0-9a-f]{130}$/.test(signed.signature)) {
       throw new Error('The local core returned no TRON signature.');
     }
+    /* What you see is what you sign: the signed bytes must be exactly the
+     * reviewed bytes. A signer that returns different raw_data (a swapped
+     * recipient, amount or token) is refused before anything is broadcast. */
+    if (!review.tx || signed.raw_data_hex !== review.tx.raw_data_hex) {
+      throw new Error('The signed transaction bytes do not match the reviewed bytes. ' +
+        'Refusing to broadcast.');
+    }
     /* One broadcast, no retry: the provider error is surfaced verbatim. */
     var response;
     try {
@@ -576,6 +590,7 @@
     TRON_NETWORKS: TRON_NETWORKS,
     TRON_DECIMALS: TRON_DECIMALS,
     TRON_REVIEW_TTL_MS: TRON_REVIEW_TTL_MS,
+    TRON_EXPIRATION_MS: TRON_EXPIRATION_MS,
     tronNetworks: tronNetworks,
     tronNetworkBySlug: tronNetworkBySlug,
     assertTronMainnetArmed: assertTronMainnetArmed,

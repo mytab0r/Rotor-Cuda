@@ -218,7 +218,7 @@ test("getnowblock reports every declared provider when all fail, with no retry",
 
 /* ------------------------------------------------------- ref block parsing */
 
-test("the ref block fields derive from blockID and expiration is 60 s later", () => {
+test("the ref block fields derive from blockID and the on-chain window beats the review TTL", () => {
   const blockID = "00".repeat(6) + "aabb" + "0102030405060708" + "11".repeat(16);
   assert.equal(blockID.length, 64);
   const block = tron.parseNowBlock({
@@ -230,7 +230,11 @@ test("the ref block fields derive from blockID and expiration is 60 s later", ()
   assert.equal(block.ref_block_bytes, "aabb");
   assert.equal(block.ref_block_hash, "0102030405060708");
   assert.equal(block.timestamp, "1700000000000");
-  assert.equal(block.expiration, "1700000060000");
+  assert.equal(block.expiration, "1700000090000");
+  assert.ok(
+    BigInt(block.expiration) - BigInt(block.timestamp) > BigInt(tron.TRON_REVIEW_TTL_MS),
+    "a late confirm must still produce a transaction the node accepts"
+  );
   assert.throws(() => tron.parseNowBlock({}), /blockID/);
   assert.throws(
     () => tron.parseNowBlock({ blockID: "11".repeat(32), block_header: {} }),
@@ -306,13 +310,14 @@ function confirmReview() {
     ref_block_bytes: "aabb",
     ref_block_hash: "0102030405060708",
     timestamp: "1700000000000",
-    expiration: "1700000060000",
+    expiration: "1700000090000",
   };
   const request = tron.buildTransferRequest({
     kind: "trx", from: "Tfrom", to: "Tto", amountBase: 1_000_000n,
     tokenContract: null, feeLimitSun: 0n, block,
   });
   return {
+    family: "tron",
     kind: "trx",
     networkSlug: "tron",
     networkName: "TRON",
@@ -324,6 +329,7 @@ function confirmReview() {
     feeLimitSun: 0n,
     block,
     request,
+    tx: { txID: "aa".repeat(32), raw_data_hex: "00" },
     builtAt: 1_000,
     providerUrl: "https://api.trongrid.io",
     providerLabel: "TronGrid",
@@ -350,6 +356,27 @@ test("a review mutated after preparation is refused before signing", async () =>
     /do not match the request/
   );
   assert.equal(signed, false, "a tampered review must not reach the signer");
+});
+
+test("signed bytes that differ from the reviewed bytes are refused before broadcast", async () => {
+  let broadcast = 0;
+  const mutated = JSON.stringify({
+    txID: "cc".repeat(32),
+    raw_data_hex: "ff",
+    raw_data: {},
+    signature: "bb".repeat(64) + "1c",
+  });
+  await assert.rejects(
+    () => tron.confirmTronTransfer({
+      review: confirmReview(),
+      fetchJson: () => { broadcast += 1; return Promise.resolve({ result: true }); },
+      mainnetArmed: true,
+      now: 2_000,
+      sign: () => mutated,
+    }),
+    /signed transaction bytes do not match the reviewed bytes/
+  );
+  assert.equal(broadcast, 0, "nothing may be broadcast when the bytes differ");
 });
 
 test("confirm broadcasts exactly once and surfaces a provider error verbatim", async () => {
