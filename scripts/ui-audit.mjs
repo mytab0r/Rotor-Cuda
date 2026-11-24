@@ -5644,13 +5644,14 @@ async function auditKeyAutoDerive(cdp) {
         };
         if (last.first === '1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb' &&
             last.hex === '${"0".repeat(63)}3') {
-          setter.call(input, original);
-          input.dispatchEvent(new Event('input', { bubbles: true }));
           /* The restore is a second debounced derivation. The resting page
            * checks (fold, providers, clipping) must see the server-rendered
            * key again, not the half-restored table. The coordinator page has
-           * no server-rendered key, so there is nothing to restore to. */
+           * no server-rendered key, so leave its derived key in place: the
+           * format-scope probe below needs that report to show its panel. */
           if (originalFirst) {
+            setter.call(input, original);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
             const restoreStarted = Date.now();
             while (Date.now() - restoreStarted < 5000) {
               const restored = (firstRow()?.textContent || '').trim();
@@ -5663,8 +5664,10 @@ async function auditKeyAutoDerive(cdp) {
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      setter.call(input, original);
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+      if (originalFirst) {
+        setter.call(input, original);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       const card = document.getElementById('summary-card');
       return {
         ok: false,
