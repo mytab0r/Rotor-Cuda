@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.2.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.1.0...v2.2.0) (2026-11-24)
+
+
+### Features
+
+* **web:** migrate /key to Astro with curated pages and a Pages worker ([#451](https://github.com/mytab0r/Rotor-Cuda/issues/451)) ([685c25a](https://github.com/mytab0r/Rotor-Cuda/commit/685c25a061d8428616c7cae9413dc87d779222ac))
+
+
+### Bug Fixes
+
+* **audit:** settle fonts before measuring cell boxes ([#483](https://github.com/mytab0r/Rotor-Cuda/issues/483)) ([a28b42a](https://github.com/mytab0r/Rotor-Cuda/commit/a28b42a1a600068167b4f3bb5fe9896bbdae5df2))
+* **web:** keep a11y overrides in the Astro shell only ([#484](https://github.com/mytab0r/Rotor-Cuda/issues/484)) ([c0d0ee1](https://github.com/mytab0r/Rotor-Cuda/commit/c0d0ee110e4417f4b6cd2286a84de3cb57863b25))
+
+
+### Documentation
+
+* **spec:** product split architecture and migration order ([#480](https://github.com/mytab0r/Rotor-Cuda/issues/480)) ([d0e52b5](https://github.com/mytab0r/Rotor-Cuda/commit/d0e52b586ae9e728b52b3bd2040a55bb4a138508))
+
+
+### Tests
+
+* **web:** browser E2E, axe and visual regression gate ([#462](https://github.com/mytab0r/Rotor-Cuda/issues/462)) ([0c7b2e7](https://github.com/mytab0r/Rotor-Cuda/commit/0c7b2e7fa488e514d00d4eeed916b89d298c12a4))
+* **web:** pin /key address-format scope in the browser (ROT-468) ([#477](https://github.com/mytab0r/Rotor-Cuda/issues/477)) ([4660071](https://github.com/mytab0r/Rotor-Cuda/commit/46600719e5f5ebed6b3219e7d3332ae6c34c4917))
+
 ## [2.1.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.0.0...v2.1.0) (2026-11-24)
 
 

@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "rotor"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "bip39",
  "blake2",
@@ -1024,7 +1024,7 @@ dependencies = [
 
 [[package]]
 name = "rotor-wasm"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "aes",
  "blake2",
