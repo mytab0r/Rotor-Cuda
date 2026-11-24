@@ -112,7 +112,13 @@ node scripts/ui-audit.mjs --serve                # headless UI self-review (site
 node scripts/density-parity.mjs --donor URL --ours URL [--json PATH]  # donor-vs-ours density
 node scripts/sync-board.mjs [--dry-run]          # epics, sub-issues, blockers, PR links
 node scripts/check-task-links.mjs --pr 123       # PR task key + closing reference gate
+node scripts/revert-fix.mjs --base origin/main --projects-area site  # revert the fix, require a red test
 ```
+
+The full gate inventory (cost, required/advisory) is
+[`docs/process/gates.md`](docs/process/gates.md). `scripts/revert-fix.mjs` is
+the always-on mutation tier: it reverts non-test executable hunks for affected
+areas and requires the area tests to fail.
 
 `scripts/ui-audit.mjs` is the shared UI gate: headless Chrome/Edge over CDP
 (zero dependencies), every route at 375/768/1280 in dark and light, with
