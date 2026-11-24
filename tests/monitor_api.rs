@@ -615,6 +615,8 @@ fn monitor_api_end_to_end() {
             edge_proxy_url: None,
             edge_proxy_secret: None,
             orders: None,
+            admin_user: None,
+            admin_password: None,
         },
         Arc::clone(&store),
     )

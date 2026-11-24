@@ -27,13 +27,24 @@
 <main class="admin-main">
   <section class="card admin-login" id="login-card">
     <h1>Operator sign in</h1>
-    <p class="muted">The admin token is the coordinator token from <code>--token</code> or <code>ROTOR_COORD_TOKEN</code>. It is sent once and never written into this page.</p>
+    <p class="muted">Use the operator login. Server scripts may still call the API with the coordinator token instead.</p>
     <form id="login-form" novalidate>
       <label class="field">
-        <span class="field__label">Admin token</span>
-        <input class="field__control" id="admin-token" name="token" type="password" autocomplete="current-password" required aria-describedby="login-hint">
+        <span class="field__label">User</span>
+        <input class="field__control" id="admin-user" name="user" type="text" autocomplete="username" placeholder="owner" required aria-describedby="login-hint">
+      </label>
+      <label class="field">
+        <span class="field__label">Password</span>
+        <input class="field__control" id="admin-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-hint">
         <span class="field__hint" id="login-hint">Five wrong attempts lock this address for 15 minutes.</span>
       </label>
+      <details class="admin-token-fallback">
+        <summary>Use an API token instead</summary>
+        <label class="field">
+          <span class="field__label">Admin token</span>
+          <input class="field__control" id="admin-token" name="token" type="password" autocomplete="off">
+        </label>
+      </details>
       <p class="error" id="login-error" role="alert" hidden></p>
       <button class="btn primary" type="submit" id="login-submit">Sign in</button>
     </form>

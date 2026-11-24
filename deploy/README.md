@@ -17,6 +17,7 @@ sudo install -m 0755 rotor-coord-linux-x86_64 /opt/rotor/rotor-coord
 sudo install -m 0644 deploy/rotor-coord.service /etc/systemd/system/
 sudo install -m 0640 -o root -g rotor deploy/rotor-coord.env.example /etc/rotor/rotor-coord.env
 # edit /etc/rotor/rotor-coord.env: ROTOR_COORD_TOKEN=<openssl rand -hex 32>
+#   and set the operator login: ROTOR_ADMIN_USER=owner, ROTOR_ADMIN_PASSWORD=<a long password>
 ```
 
 ### Client accounts and tokens
