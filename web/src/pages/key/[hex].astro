@@ -1,0 +1,38 @@
+---
+/* /key/<hex>: the curated static key pages.
+ *
+ * Only the keys in `data/key-curated.json` are built and indexable. Every
+ * other 64-hex key is served by `web/public/_worker.js` with the same shell,
+ * per-key metadata and noindex. The Rust coordinator still serves the route
+ * until the frontend-platform cutover. */
+import KeyPage from '../../components/KeyPage.astro';
+import { deriveKeyPage } from '../../lib/key-core.js';
+import { CURATED_KEYS, type CuratedKey } from '../../lib/key-curated.js';
+
+export interface Props {
+  key: CuratedKey;
+}
+
+export function getStaticPaths() {
+  return CURATED_KEYS.map((key) => ({
+    params: { hex: key.hex },
+    props: { key },
+  }));
+}
+
+const { key } = Astro.props as Props;
+const data = await deriveKeyPage(key.hex);
+
+const TITLE = `Private key ${key.value}: every address format on 18 chains | Crypto`;
+const DESCRIPTION = `The 256-bit key ${key.display} and all 30 addresses it derives on 18 chains, with WIF, public key, decimal and XRP secret. Computed in your browser.`;
+---
+
+<KeyPage
+  hex={key.hex}
+  data={data}
+  h1={`Private key ${key.display}`}
+  title={TITLE}
+  description={DESCRIPTION}
+  canonical={key.path}
+  robots="index,follow"
+/>

@@ -3,12 +3,13 @@
 Static Astro build for the public site. Phase 1 migrated `/mnemonic-converter`;
 phase 2 adds the shared `SiteLayout` and the landing page (`/`), then the
 presentation pages `/docs`, `/tools`, `/faq`, `/disclaimer` and `/donate`; phase
-3 adds the `/private-keys/<chain>` page-1 template for all 18 mainnet chains;
-phase 4 adds the `/mnemonic-seeds` hub and its 18 chain pages, and the
-`/bitcoin-puzzle` hub and its 160 `/bitcoin-puzzle/<n>` detail pages. Every page
-is built in `dist/` but **not routed**: the Rust coordinator keeps serving the
-route until the frontend-platform cutover, and `data/routes.json` still names
-the coordinator as the renderer.
+3 adds the `/private-keys/<chain>` page-1 template for all 18 mainnet chains,
+the `/key` hub, three curated `/key/<hex>` pages and the `_worker.js` route for
+every other key; phase 4 adds the `/mnemonic-seeds` hub and its 18 chain pages,
+and the `/bitcoin-puzzle` hub and its 160 `/bitcoin-puzzle/<n>` detail pages.
+Every page is built in `dist/` but **not routed**: the Rust coordinator keeps
+serving the route until the frontend-platform cutover, and `data/routes.json`
+still names the coordinator as the renderer.
 
 ## Commands
 
@@ -18,8 +19,8 @@ npm run check     # astro check + tsc --noEmit
 npm run build     # static output in dist/, then /a/<build>/ asset prefixing
 npm run preview -- --host 127.0.0.1 --port 4321
 npm test          # tsc -p tsconfig.test.json + node --test (no browser)
-node ../scripts/check-seo.mjs   # after build: chain, presentation, puzzle and 404 SEO gate
-node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools,faq,disclaimer,donate,bitcoin-puzzle,bitcoin-puzzle/71,bitcoin-puzzle/72,bitcoin-puzzle/160
+node ../scripts/check-seo.mjs   # after build: chain, presentation, puzzle, /key and 404 SEO gate
+node ../scripts/ui-audit.mjs --base http://127.0.0.1:4321 --routes docs,tools,faq,disclaimer,donate,bitcoin-puzzle,bitcoin-puzzle/71,bitcoin-puzzle/72,bitcoin-puzzle/160,key,key/0000000000000000000000000000000000000000000000000000000000000001
 npm run verify:cdp -- --base http://127.0.0.1:4321   # browser parity + screenshots
 npx playwright install chromium   # once per machine
 npm run test:e2e                  # build + Playwright E2E, axe and visual baselines
@@ -126,6 +127,11 @@ only deviation from the brief and is called out in the PR.
 | `src/pages/bitcoin-puzzle/index.astro` | Puzzle hub: all 160 public targets with address type, range, solved status and a copy control; built but not routed until cutover. |
 | `src/pages/bitcoin-puzzle/[puzzle].astro` | One static detail page per puzzle: target, status, inclusive range, keyspace and the honest derivation explanation. Unsolved pages render no key. |
 | `src/lib/puzzles.ts` | Typed view of `data/puzzles.json`, the `2^(n-1)..2^n-1` range arithmetic, the indexability rule and the bounded title/description builders. |
+| `src/pages/key/index.astro`, `src/pages/key/[hex].astro` | `/key` and the curated `/key/<hex>` pages. Each is server-rendered for its own key: one H1, four 36px counters, eight 44px donor facts, four point facts behind a disclosure, 30 address rows and balances checked on request with reserved height. Built but not routed until cutover. |
+| `src/components/KeyPage.astro`, `src/styles/key-page.css` | The shared key-page shell, the facts/table markup and the token-only layout. |
+| `src/lib/key-core.ts`, `src/lib/key-curated.ts`, `src/lib/key-model.ts` | Build-time derivation through the existing WASM report, `address-codecs.js`, `key-tools.js` and `ton.js`; the curated key list read from `data/key-curated.json`; the row vocabulary shared with the island. |
+| `src/scripts/key-page.ts` | The only key-page island: parses a 64-hex input or the worker's `key-request` JSON, loads the existing helpers on the first derivation, re-renders the facts and 30 rows, and fills the status/balance cells from the shared providers only when the user types a key or presses Check balances. It makes no provider request on first paint. |
+| `public/_worker.js` | Cloudflare Pages advanced-mode worker. Static assets always win; only a missing 64-hex `/key/<hex>` page is synthesized from `/key/index.html` with per-key title, description, canonical, robots and the `key-request` JSON block. |
 | `src/pages/mnemonic-seeds/index.astro` | Hub for the 18 seed directories: chain list from `data/chains.json`, path/format counts, three content H2s and `CollectionPage` + `ItemList` + `BreadcrumbList` JSON-LD. |
 | `src/pages/mnemonic-seeds/[chain].astro` | Seed directory page 1 for the 18 mainnet slugs: 60 deterministic 12-word phrases, the first address in every supported format, a shared safety block and static balance placeholders. Built but not routed until cutover. |
 | `src/content.config.ts`, `src/content/chains/*.md`, `src/content/seeds/*.md` | One Markdown entry per chain per family: unique prose, content H2s, title and description. |
@@ -245,6 +251,40 @@ The table uses the shared `.data-table` inside `.table-scroll`, the shared
 with a 44px hit area on a fine desktop pointer, 44px on touch). No page-local
 control size, pill, radius or card override is introduced.
 
+## Key explorer (built, not routed)
+
+`npm run build` emits `/key/index.html` and one static page per key in
+`data/key-curated.json`. The server renders the key's eight donor facts (HEX,
+Decimal, WIF, WIF (u), Keypair (SOL), Secret (XRP), PubKey, Page), the four
+point facts behind a disclosure and all 30 address rows, so the first HTML byte
+already has content; a single island derives a different key on input, and the
+status column is filled from the shared public balance providers only after a
+user action: typing a key or pressing Check balances. A server-rendered page
+makes no third-party request and loads no balance helper before that action,
+and its rows keep a static `Not checked` placeholder. At 1280 the address
+table starts at y=689 with four rows above the fold; at 375 it starts at y=721
+with one row. Facts are 44px, counters 36px, and the status cell reserves its
+two-line height (amount, then tx/nonce/age) before the first provider answers.
+The UI audit fails a key page whose table starts below y=700 at 1280 or y=800
+at 375. TRON is the one row that stays unqueried: its public API sends no CORS header
+and the shared provider reaches it through the coordinator's
+`/api/v1/chain/tron/address` proxy, which the static Pages target does not
+serve. The row shows no provider rather than issuing a 404.
+
+A `/key/<hex>` page states in its safety card that the key is already in the
+page URL and therefore in browser history and server logs. The synthesized
+worker page unhides the same notice from the hub shell.
+
+Every other 64-hex key is served by `public/_worker.js` (Cloudflare Pages
+advanced mode). The worker asks the asset layer first, so curated pages,
+redirects, 404s and every non-key path are the static file byte for byte. Only
+a missing 64-hex key page is synthesized from the hub shell: title,
+description, canonical and robots are rewritten to the key, the hub JSON-LD is
+removed, and a `#key-request` JSON block carries the hex to the island. The
+synthesized page is `noindex`; the sitemap lists the hub and the curated keys
+only. `web/tests/worker.test.ts` proves the passthrough byte-for-byte and the
+injection metadata.
+
 ## Provenance of copied assets
 
 `web/public/` holds copies of the current `apps/site/` assets. Vendored
@@ -271,11 +311,12 @@ digest is stale, or when `web/public/` contains a file the lock does not cover.
 | `icons.svg` | `apps/site/icons.svg` |
 | `fonts/manrope-latin.woff2` | `apps/site/fonts/manrope-latin.woff2` |
 | `rotor_wasm.wasm` | `apps/site/rotor_wasm.wasm` |
+| `key-tools.js` | `apps/site/key-tools.js` |
+| `address-codecs.js` | `apps/site/address-codecs.js` |
+| `ton.js` | `apps/site/ton.js` |
 | `favicon.ico`, `favicon.png` | `apps/site/favicon.*` |
 
-The pilot loads only `/vendor/seed.js` and `/vendor/seed-crypto.js`; the shared
-layout owns the header, nav, theme and tooltips, and the derivation core owns
-chain and amount data. `chains.generated.js`, `amount.js` and `site.js` stay in
+The pilot loads only `/vendor/seed.js` and `/vendor/seed-crypto.js` on first paint; `/key` loads `key-tools.js`, `address-codecs.js` and (once a key is derived) `ton.js` lazily. `public/_worker.js` is authored in the frontend area, not a copy; it is listed under `authored` in `data/vendor.lock.json`. The shared layout owns the header, nav, theme and tooltips, and the derivation core owns chain and amount data. `chains.generated.js`, `amount.js` and `site.js` stay in
 `web/public/` as locked copies for the coordinator-served pages but are not
 loaded by the Astro pilot. The vendored WalletConnect and TON bundles are
 deliberately not copied; the reason for each is in `data/vendor.lock.json`

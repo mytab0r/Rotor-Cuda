@@ -51,7 +51,7 @@ Measured problems in the current setup:
 | Landing, docs, faq, disclaimer, donate, tools, converters, tx, vanity, milk-sad | Astro prerender | index |
 | `/private-keys`, `/private-keys/<chain>` page 1, `/mnemonic-seeds*`, `/brainwallet` page 1, `/bitcoin-puzzle*`, curated `/keys/<chain>/1-64` | Astro prerender | index |
 | Listing pages >= 2, `/keys/<chain>/<other>` | Astro `prerender=false`, same component | noindex |
-| `/key/<hex>` | 64 curated static; others 301 to `/key#<hex>` | noindex |
+| `/key/<hex>` | curated static (data/key-curated.json); other 64-hex keys worker-injected from the hub shell | curated index, others noindex |
 | `/app`, `/run`, `/me`, `/cabinet`, `/cabinet/wallet` | Astro app shell calling the API | noindex |
 | `/robots.txt`, `/sitemap.xml` | Astro endpoints | — |
 | `/api/v1/*` | Rust, unchanged | — |
@@ -83,8 +83,10 @@ Measured problems in the current setup:
 
 ## Security requirements
 
-- Private key never in the request path, query or referrer: `/key#<hex>`;
-  legacy `/key/<hex>` answers 301 and stops being linked.
+- Private-key pages keep the donor's legacy `/key/<hex>` path. Curated keys are
+  static and indexable; every other 64-hex key is worker-injected with `noindex`
+  and a per-key canonical, and the page states that the URL exposes the key to
+  browser history and logs. The hub never puts a user-entered key in the path.
 - CSP on every HTML response: `default-src 'self'; script-src 'self'
   'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self';
   connect-src 'self' <provider list>; frame-ancestors 'none'; base-uri 'none';

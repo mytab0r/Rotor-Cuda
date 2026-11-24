@@ -34,7 +34,7 @@ ship two renderers for the same route.
 
 ## 3. Key and directory
 
-- [ ] `/key`, `/key/<hex>` (curated static, others 301 to `/key#<hex>`).
+- [x] `/key` and the curated `/key/<hex>` set built in Astro; every other 64-hex key is served by `web/public/_worker.js` with per-key metadata and `noindex`. The coordinator still serves the route until cutover.
 - [ ] `/private-keys` and chain pages (page 1 prerendered, later pages on edge).
       Page 1 is built for all 18 mainnet slugs in
       `web/src/pages/private-keys/[chain].astro` with a content collection and
@@ -64,6 +64,8 @@ ship two renderers for the same route.
 - [ ] Pages serves the whole `web/dist` tree, including `a/<sha>/`; the
       prerendered HTML, sitemap and `og:image` URLs depend on those immutable
       asset paths.
+- [ ] Pages needs a `_headers` CSP whose `connect-src` carries the same
+      provider allowlist the coordinator sets today.
 - [ ] Origin switch: Pages/Functions serve HTML, Rust serves `/api/v1/*` only.
 - [ ] Rust HTML routes return 410; `include_str!` HTML removed.
 
