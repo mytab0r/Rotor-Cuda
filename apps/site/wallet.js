@@ -3184,6 +3184,13 @@
     return Object.assign({}, network, { kind: 'evm' });
   }
 
+  /* The approvals pipeline needs the numeric EVM chain id; the picker value
+   * carries a family discriminator, so it must never be parsed directly. */
+  function selectedEvmChainId() {
+    var network = selectedNetwork();
+    return network && network.kind === 'evm' ? Number(network.chainId) : NaN;
+  }
+
   function isMainnetArmed() {
     return state.mainnetArmed === true && !!sendArmedCheckbox && sendArmedCheckbox.checked;
   }
@@ -4430,7 +4437,7 @@
         windowBlocks: windowText,
         fetchJson: rpcFetchJson,
         providerUrl: sendProviderSelect.value || null,
-        expectedChainId: Number(sendNetworkSelect.value),
+        expectedChainId: selectedEvmChainId(),
         networkName: selectedNetwork().name
       });
       if (generation !== state.generation || !state.unlocked) return;
@@ -4438,7 +4445,7 @@
        * flight makes this result stale: do not show it over the new selection. */
       var stillSelected = selectedSendEntry();
       if (!stillSelected || stillSelected.id !== entry.id) return;
-      if (Number(sendNetworkSelect.value) !== Number(scan.chainId)) return;
+      if (selectedEvmChainId() !== Number(scan.chainId)) return;
       var chosenProvider = sendProviderSelect.value;
       if (chosenProvider && chosenProvider !== scan.providerUrl) return;
       if (approvalsTokenInput.value !== tokenText || approvalsWindowInput.value !== windowText) return;
@@ -4534,7 +4541,7 @@
         from: owner,
         fetchJson: rpcFetchJson,
         providerUrl: sendProviderSelect.value || null,
-        expectedChainId: Number(sendNetworkSelect.value),
+        expectedChainId: selectedEvmChainId(),
         networkName: selectedNetwork().name,
         mainnetArmed: isMainnetArmed(),
         unsigned: unsignedTx
@@ -4544,7 +4551,7 @@
        * in flight makes this review stale: never show it over the new input. */
       var stillSelected = selectedSendEntry();
       if (!stillSelected || stillSelected.id !== entry.id) return;
-      if (Number(sendNetworkSelect.value) !== Number(review.chainId)) return;
+      if (selectedEvmChainId() !== Number(review.chainId)) return;
       var chosenProvider = sendProviderSelect.value;
       if (chosenProvider && chosenProvider !== review.providerUrl) return;
       if (approvalsTokenInput.value.trim().toLowerCase() !== tokenText.toLowerCase()) return;

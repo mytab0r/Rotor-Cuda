@@ -3802,16 +3802,28 @@ async function auditWalletMainnetArm(cdp) {
       }
       evidence.defaultNetwork = network.value;
       evidence.options = [...network.options].map((option) => option.value);
-      if (network.value !== '11155111') {
+      // EVM options carry an evm:<chainId> discriminator so TRON networks can
+      // share the picker; accept the bare chain id too for an older build.
+      const optionFor = (chainId) => {
+        const prefixed = 'evm:' + chainId;
+        if (evidence.options.includes(prefixed)) return prefixed;
+        if (evidence.options.includes(String(chainId))) return String(chainId);
+        return null;
+      };
+      const sepolia = optionFor('11155111');
+      if (sepolia === null || network.value !== sepolia) {
         problems.push('Sepolia is not the default network: ' + network.value);
       }
       for (const id of ['1', '56', '42161', '10', '8453', '137', '43114', '324']) {
-        if (!evidence.options.includes(id)) problems.push('mainnet chain id ' + id + ' is missing');
+        if (optionFor(id) === null) problems.push('mainnet chain id ' + id + ' is missing');
       }
       if (armed.type !== 'checkbox') problems.push('the arm control is not a checkbox');
       if (armed.checked) problems.push('the mainnet arm is checked before the user arms it');
-      network.value = '1';
-      network.dispatchEvent(new Event('change', { bubbles: true }));
+      const ethereum = optionFor('1');
+      if (ethereum !== null) {
+        network.value = ethereum;
+        network.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       await sleep(0);
       if (row.hidden) problems.push('the arm row stays hidden on Ethereum mainnet');
       const label = armed.closest('label');
@@ -3829,8 +3841,11 @@ async function auditWalletMainnetArm(cdp) {
         }
       }
       if (armed.checked) problems.push('the arm control became checked without user input');
-      network.value = '11155111';
-      network.dispatchEvent(new Event('change', { bubbles: true }));
+      // Restore the default so the next probe reads the Sepolia route.
+      if (sepolia !== null) {
+        network.value = sepolia;
+        network.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       return { evidence, problems };
     })()`,
     60000,
@@ -3947,7 +3962,16 @@ async function auditWalletApprovals(cdp) {
         return { evidence, problems: ['the approvals form controls are missing'] };
       }
       if (entry.options.length && !entry.value) entry.value = entry.options[0].value;
-      network.value = '11155111';
+      // The picker may carry an evm:<chainId> discriminator; fall back to the
+      // bare id for an older build.
+      const networkValue = (chainId) => {
+        const prefixed = 'evm:' + chainId;
+        for (const option of network.options) {
+          if (option.value === prefixed) return prefixed;
+        }
+        return String(chainId);
+      };
+      network.value = networkValue('11155111');
       network.dispatchEvent(new Event('change', { bubbles: true }));
       tokenInput.value = token;
       windowInput.value = '10000';
