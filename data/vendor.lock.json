@@ -50,7 +50,7 @@
     {
       "source": "apps/site/key-tools.js",
       "target": "web/public/key-tools.js",
-      "sha256": "f07ad8832e4dec0bafe79403c5c2a5e799b2ed8f409426a7359a4b9ea545d5a5"
+      "sha256": "5d3edee72c19864f4af693f2ce65d466eab45fddc7a12f4f6c681b2713ff6e9d"
     },
     {
       "source": "apps/site/rotor_wasm.wasm",
