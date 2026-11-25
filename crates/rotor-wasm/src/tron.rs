@@ -380,9 +380,6 @@ impl Tx {
 
         let amount_in = parse_amount(required(6)?, "amount_in")?;
         let amount_out_min = parse_u64_checked(required(7)?, "amount_out_min")?;
-        if token_in.is_some() && amount_out_min > amount_in {
-            return Err("amount_out_min must not exceed amount_in for a token-in swap".to_owned());
-        }
 
         let deadline = parse_timestamp(required(8)?, "deadline")?;
         let timestamp = parse_timestamp(required(12)?, "timestamp")?;
@@ -1585,14 +1582,6 @@ mod swap_tests {
         );
         let err = unsigned_request(&stale).unwrap_err();
         assert!(err.contains("deadline"), "stale deadline: {err}");
-
-        // For a token-in swap the minimum output above the input is nonsense.
-        let token = unsigned(&token_swap_body()).replace(
-            r#""amount_out_min":"5000""#,
-            r#""amount_out_min":"1000001""#,
-        );
-        let err = unsigned_request(&token).unwrap_err();
-        assert!(err.contains("amount_out_min"), "min above amount_in: {err}");
     }
 
     #[test]
@@ -1667,6 +1656,77 @@ mod swap_tests {
         recovered_payload[0] = ADDRESS_PREFIX;
         recovered_payload[1..].copy_from_slice(&secp::eth_address(&recovered));
         assert_eq!(base58::encode_check(&recovered_payload), OWNER);
+    }
+
+    /// Regression guard for ROT-520: a token-in swap spends `amount_in` of one
+    /// token and returns `amount_out_min` of another, so comparing raw base
+    /// units across the two tokens is wrong. 1 USDT (1_000_000 base units)
+    /// legitimately buys ~5 TRX (5_000_000 base units) on a WTRX path.
+    mod swap_amount_guard_tests {
+        use super::*;
+
+        // Pinned tronweb 6.5.2 output, 2026-11-25, built offline with
+        // `transactionBuilder.triggerSmartContract(..., { txLocal: true,
+        // blockHeader: ... })` and the same fixed ref block/timestamp as the
+        // vectors above. Path USDT -> WTRX, amountIn 1_000_000, amountOutMin
+        // 5_000_000 (WTRX), which is greater than amountIn in base units.
+        const TOKEN_MIN_ABOVE_IN_DATA: &str = "38ed173900000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000000000004c4b4000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf0000000000000000000000000000000000000000000000000000018bcfe9fbe00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000891cdb91d149f23b1a45d9c5ca78a88d0cb44c18";
+        const TOKEN_MIN_ABOVE_IN_TX_ID: &str =
+            "a59a410b99b44bc94d7eba78aabce28bd7e851dd2c4e22fbc701ce73a4805fe4";
+        const TOKEN_MIN_ABOVE_IN_RAW_DATA_HEX: &str = "0a0212ab2208001122334455667740e0a499ffbc315af002081f12eb020a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412b5020a15417e5f4552091a69125d5dfcb7b8c2659029395bdf1215416e0617948fe030a7e4970f8389d4ad295f249b7e22840238ed173900000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000000000004c4b4000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf0000000000000000000000000000000000000000000000000000018bcfe9fbe00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000891cdb91d149f23b1a45d9c5ca78a88d0cb44c187080d095ffbc31900180c2d72f";
+
+        fn token_body(amount_out_min: &str) -> String {
+            format!(
+                r#""kind":"swap","owner_address":"{OWNER}","to_address":"{TO}","token_contract_address":"{USDT}","router_address":"{ROUTER}","path":"{USDT},{WTRX}","amount_in":"1000000","amount_out_min":"{amount_out_min}","deadline":"1700000300000","ref_block_bytes":"12ab","ref_block_hash":"0011223344556677","expiration":"1700000060000","timestamp":"1700000000000","fee_limit":"100000000""#
+            )
+        }
+
+        #[test]
+        fn token_in_min_out_above_amount_in_is_accepted() {
+            let result = unsigned_request(&unsigned(&token_body("5000000")))
+                .expect("a token-in swap with a larger minimum output in base units is valid");
+            let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+            assert_eq!(value["txID"], TOKEN_MIN_ABOVE_IN_TX_ID);
+            assert_eq!(value["raw_data_hex"], TOKEN_MIN_ABOVE_IN_RAW_DATA_HEX);
+
+            let payload = &value["raw_data"]["contract"][0]["parameter"]["value"];
+            assert_eq!(payload["contract_address"], ROUTER_HEX);
+            assert_eq!(payload["data"], TOKEN_MIN_ABOVE_IN_DATA);
+            assert!(payload.get("call_value").is_none());
+            assert_eq!(&TOKEN_MIN_ABOVE_IN_DATA[..8], "38ed1739");
+            assert_eq!(
+                &TOKEN_MIN_ABOVE_IN_DATA[8..8 + 64],
+                word("f4240"),
+                "amountIn"
+            );
+            assert_eq!(
+                &TOKEN_MIN_ABOVE_IN_DATA[8 + 64..8 + 2 * 64],
+                word("4c4b40"),
+                "amountOutMin above amountIn"
+            );
+        }
+
+        #[test]
+        fn zero_min_out_is_accepted() {
+            let result = unsigned_request(&unsigned(&token_body("0")))
+                .expect("a zero minimum output is a valid swap");
+            let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+            let data = value["raw_data"]["contract"][0]["parameter"]["value"]["data"]
+                .as_str()
+                .expect("swap data");
+
+            assert_eq!(&data[8..8 + 64], word("f4240"), "amountIn");
+            assert_eq!(&data[8 + 64..8 + 2 * 64], word("0"), "amountOutMin");
+        }
+
+        #[test]
+        fn zero_amount_in_is_still_refused() {
+            let zero =
+                token_body("5000000").replace(r#""amount_in":"1000000""#, r#""amount_in":"0""#);
+            let err = unsigned_request(&unsigned(&zero)).unwrap_err();
+            assert!(err.contains("amount_in"), "zero amount_in: {err}");
+        }
     }
 }
 
