@@ -5023,7 +5023,7 @@ fn render_puzzle_home(base: &str) -> String {
          <div data-puzzle-summary></div>\
          <div data-puzzle-jobs></div>\
          <noscript><p>Enable JavaScript to load live job statistics, or read the JSON at <a href=\"/api/v1/jobs/public\">/api/v1/jobs/public</a>.</p></noscript>\
-         <p class=\"puzzle-actions\"><a class=\"button\" href=\"/run\">Run a worker</a> <a class=\"button\" href=\"/cabinet\">Open the cabinet</a> <a class=\"button\" href=\"/docs\">Read the docs</a></p></section>\
+         <div class=\"puzzle-actions\"><a class=\"button\" href=\"/run\">Run a worker</a> <a class=\"button\" href=\"/cabinet\">Open the cabinet</a> <a class=\"button\" href=\"/docs\">Read the docs</a></div></section>\
          </main>\
          <script src=\"/puzzle-browser.js\" defer></script>\
          <script src=\"/puzzle.js\" defer></script>",
