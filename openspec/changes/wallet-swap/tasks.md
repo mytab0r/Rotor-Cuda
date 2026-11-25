@@ -15,9 +15,9 @@
 
 ## 2. Cross-chain aggregator (blocked by: section 1)
 
-- [ ] Measure three aggregators on real TRON → USDC/USDT routes: fee, rate,
+- [x] Measure three aggregators on real TRON → USDC/USDT routes: fee, rate,
   minimum and maximum amount, KYC threshold, terms, rate limits.
-- [ ] Record the measurement and the choice in `design.md` before writing code.
+- [x] Record the measurement and the choice in `design.md` before writing code.
 - [ ] Integrate the chosen API behind the same review screen; the destination
   address is free-form and does not have to be the source wallet.
 - [ ] State in the UI exactly which fields leave the device and to whom.
