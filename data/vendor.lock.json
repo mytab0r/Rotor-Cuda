@@ -55,7 +55,7 @@
     {
       "source": "apps/site/rotor_wasm.wasm",
       "target": "web/public/rotor_wasm.wasm",
-      "sha256": "d464436578291dc4bf91f6e0ea4920621556a573d31c5ca25b4b877038d8ab3a"
+      "sha256": "256ba1b429c0493195ce02d3f8e2b85c48f7af818bd63d145cd19477f8f03151"
     },
     {
       "source": "apps/site/seed-studio.css",

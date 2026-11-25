@@ -372,6 +372,11 @@ impl Tx {
         if path.len() < 2 {
             return Err("path must contain at least two addresses".to_owned());
         }
+        /* The wallet approves the token contract and the router then pulls
+         * `path[0]`; if they differ the swap reverts on chain. */
+        if token_in.is_some_and(|token| path[0] != token) {
+            return Err("token_contract_address must match path[0] for a token-in swap".to_owned());
+        }
 
         let amount_in = parse_amount(required(6)?, "amount_in")?;
         let amount_out_min = parse_u64_checked(required(7)?, "amount_out_min")?;
@@ -1662,5 +1667,40 @@ mod swap_tests {
         recovered_payload[0] = ADDRESS_PREFIX;
         recovered_payload[1..].copy_from_slice(&secp::eth_address(&recovered));
         assert_eq!(base58::encode_check(&recovered_payload), OWNER);
+    }
+}
+
+/// Regression for the ROT-520 review: a token-in swap must pull the token the
+/// wallet approved, so `token_contract_address` has to equal `path[0]`.
+#[cfg(test)]
+mod swap_token_contract_regression {
+    use super::*;
+
+    const OWNER: &str = "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC";
+    const TO: &str = "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K";
+    const ROUTER: &str = "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax";
+    const WTRX: &str = "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR";
+    const USDT: &str = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+    const USDC: &str = "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8";
+
+    fn body(token: &str, path: &str) -> String {
+        format!(
+            r#""kind":"swap","owner_address":"{OWNER}","to_address":"{TO}","token_contract_address":"{token}","router_address":"{ROUTER}","path":"{path}","amount_in":"1000000","amount_out_min":"5000","deadline":"1700000300000","ref_block_bytes":"12ab","ref_block_hash":"0011223344556677","expiration":"1700000060000","timestamp":"1700000000000","fee_limit":"100000000""#
+        )
+    }
+
+    #[test]
+    fn the_approved_token_must_be_path_zero() {
+        // USDC approved, but the router would pull USDT: refuse.
+        let mismatch = format!("{{{}}}", body(USDC, &format!("{USDT},{WTRX},{USDC}")));
+        let error = unsigned_request(&mismatch).unwrap_err();
+        assert!(
+            error.contains("token_contract_address"),
+            "a mismatch must name the field: {error}"
+        );
+
+        // The matching request stays accepted.
+        let matching = format!("{{{}}}", body(USDT, &format!("{USDT},{WTRX},{USDC}")));
+        assert!(unsigned_request(&matching).is_ok());
     }
 }
