@@ -103,7 +103,7 @@
 
   <section class="card" id="summary-card" hidden>
     <h2>Keys</h2>
-    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols." hidden>
+    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" hidden>
       <div class="key-stat">
         <span class="key-stat-label">Total value</span>
         <strong class="key-stat-value empty" id="stat-total" title="Waiting for balances and prices.">—</strong>
@@ -121,7 +121,7 @@
         <strong class="key-stat-value" id="stat-checked" title="Chain groups whose checkable rows all settled, out of 18 chain groups.">0/18</strong>
       </div>
     </div>
-    <p class="muted key-help key-stats-note" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols.">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value sums the loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title.</p>
+    <p class="muted key-help key-stats-note">Counts chain groups, not addresses, for the rows visible under the current chain tab.</p>
     <div class="key-summary" id="summary">
       <p class="muted empty-state">Derive a key to see its numeric forms and public point.</p>
     </div>
@@ -194,7 +194,7 @@
       </div>
     </div>
     <details class="muted key-help key-balance-help" id="balance-help">
-      <summary title="Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.">How balances are checked</summary>
+      <summary>How balances are checked</summary>
       <p>Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
     </details>
     <p class="muted key-help key-export-status" id="key-export-status" role="status"></p>

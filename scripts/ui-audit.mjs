@@ -1838,6 +1838,26 @@ async function auditPage(args) {
     add("card-dead-space", `${deadSpaceIssues.length} landing directory link(s) render as tall cards`, deadSpaceIssues.slice(0, 8));
   }
 
+  // 4g-3. Repeated help copy: an element may not carry its own paragraph twice,
+  //      once as text and once as a title. /key rendered a ~90-word stats note
+  //      in the paragraph and again in that paragraph's title attribute, so the
+  //      reader met the same wall of text on hover. Short control tooltips are
+  //      not affected: both the title and the element text must reach 120
+  //      characters before the pair counts.
+  const duplicateHelpIssues = [];
+  for (const el of document.querySelectorAll("[title]")) {
+    if (!visible(el)) continue;
+    const title = (el.getAttribute("title") || "").trim();
+    const text = (el.textContent || "").trim();
+    if (title.length < 120 || text.length < 120) continue;
+    if (!text.includes(title) && !title.includes(text)) continue;
+    duplicateHelpIssues.push({ selector: selectorOf(el), chars: title.length });
+  }
+  metrics.duplicateHelpTitle = duplicateHelpIssues;
+  if (duplicateHelpIssues.length) {
+    add("duplicate-help-title", `${duplicateHelpIssues.length} element(s) repeat a paragraph-length note in their title`, duplicateHelpIssues.slice(0, 8));
+  }
+
   // 4h. Stat blocks: 12px sentence-case label, 20/24/28 value with tabular
   //     digits. No fixed empty height (the mostly-empty-block check covers it).
   const statIssues = [];

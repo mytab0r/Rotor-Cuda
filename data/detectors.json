@@ -1209,6 +1209,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/DESIGN-SYSTEM.md#detectors",
       "status": "implemented"
+    },
+    {
+      "id": "duplicate-help-title",
+      "rule": "An element never repeats its own paragraph-length note (120+ characters) in a title attribute.",
+      "batch": "all",
+      "implemented_in": "scripts/ui-audit.mjs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
     }
   ]
 }
