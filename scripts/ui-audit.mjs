@@ -6848,14 +6848,16 @@ async function main() {
               await waitForSelector(cdp, ".bw-row", SELECTOR_TIMEOUT_MS);
             } else if (route === "/bitcoin-puzzle") {
               await waitForSelector(cdp, "[data-puzzle-row]", SELECTOR_TIMEOUT_MS);
-              // The jobs board renders from an async fetch; --serve seeds one
+            } else if (route === "/run") {
+              // The pooled public job board lives on /run; --serve seeds one
               // public job, so its table must be present before measuring
-              // (issue #261). An external --base store may be empty.
+              // (issue #261, moved off the SEO puzzle page in #541).
+              // An external --base store may be empty.
               if (options.serve) {
                 const rendered = await waitForSelector(cdp, ".puzzle-table", SELECTOR_TIMEOUT_MS);
                 if (!rendered) {
                   throw new Error(
-                    "--serve seeded a public job, but /bitcoin-puzzle rendered no .puzzle-table",
+                    "--serve seeded a public job, but /run rendered no .puzzle-table",
                   );
                 }
               }

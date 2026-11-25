@@ -1217,6 +1217,14 @@
       "implemented_in": "scripts/ui-audit.mjs",
       "doc_anchor": "docs/design-system/components/card.md#detectors",
       "status": "implemented"
+    },
+    {
+      "id": "puzzle_console_lives_on_run_not_the_seo_hub",
+      "rule": "The /bitcoin-puzzle SEO hub carries one line pointing contributors at /run and no pool console (no id=team, data-puzzle-jobs or #team anchor); /run carries the Team mode explanation and the public job board containers.",
+      "batch": "phase 4",
+      "implemented_in": "tests/coordinator_api.rs",
+      "doc_anchor": "docs/design-system/components/card.md#detectors",
+      "status": "implemented"
     }
   ]
 }

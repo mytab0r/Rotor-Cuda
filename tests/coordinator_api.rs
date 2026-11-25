@@ -1440,7 +1440,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 11] = [
+    let checks: [(&str, &[&str]); 12] = [
         (
             "/",
             &[
@@ -1464,6 +1464,10 @@ fn public_pages_and_assets_are_served() {
                 "--coordinator",
                 "/api/v1/register",
                 "/api/v1/summary",
+                "Team mode — pooled chunk leasing",
+                "data-puzzle-summary",
+                "data-puzzle-jobs",
+                "/puzzle.js",
             ],
         ),
         (
@@ -1500,7 +1504,17 @@ fn public_pages_and_assets_are_served() {
         ),
         (
             "/bitcoin-puzzle",
-            &["<div class=\"puzzle-actions\">", "Run a worker"],
+            &[
+                "Contributing? The pooled job board and the lease worker live on the",
+                "href=\"/run\"",
+            ],
+        ),
+        (
+            "/bitcoin-puzzle/71",
+            &[
+                "class=\"puzzle-tabs\" aria-label=\"Puzzle views\"",
+                "href=\"/run\">Team</a>",
+            ],
         ),
         (
             "/key",
@@ -1577,6 +1591,48 @@ fn public_pages_and_assets_are_served() {
     // The authenticated API is still protected.
     let (status, _, _) = raw(addr, "GET", "/api/v1/status", None, None);
     assert_eq!(status, 401);
+
+    handle.shutdown();
+}
+
+/// The contributor pool console lives on /run, not on the /bitcoin-puzzle SEO
+/// hub: the hub only carries one line pointing contributors at /run. Fails if
+/// the console (or a `#team` anchor) drifts back onto the search page.
+#[test]
+fn puzzle_console_lives_on_run_not_the_seo_hub() {
+    let temp = TempState::new("puzzle-console");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let (status, _, puzzle) = raw(addr, "GET", "/bitcoin-puzzle", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        puzzle.contains("Contributing? The pooled job board and the lease worker live on the"),
+        "/bitcoin-puzzle must point contributors at /run"
+    );
+    assert!(
+        !puzzle.contains("id=\"team\""),
+        "/bitcoin-puzzle must not host the pool console"
+    );
+    assert!(
+        !puzzle.contains("data-puzzle-jobs"),
+        "/bitcoin-puzzle must not render the public job board"
+    );
+    assert!(
+        !puzzle.contains("#team"),
+        "/bitcoin-puzzle must not carry a #team anchor"
+    );
+
+    let (status, _, run) = raw(addr, "GET", "/run", None, None);
+    assert_eq!(status, 200);
+    assert!(
+        run.contains("Team mode — pooled chunk leasing"),
+        "/run owns the pool console"
+    );
+    assert!(run.contains("id=\"team\""));
+    assert!(run.contains("data-puzzle-jobs"));
+    assert!(run.contains("data-puzzle-summary"));
+    assert!(run.contains("/puzzle.js"));
 
     handle.shutdown();
 }
