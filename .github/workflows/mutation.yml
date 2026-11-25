@@ -95,7 +95,7 @@ jobs:
                 # Requiring the vector tests to be listed makes the removal red.
                 node "$script" --repo-root "$GITHUB_WORKSPACE" --base "$base" \
                   --projects-area wasm-core \
-                  --cmd "cargo test -p rotor-wasm && cargo test -p rotor-wasm -- --list | grep -q 'golden_vectors::'" \
+                  --cmd "cargo test -p rotor-wasm && cargo test -p rotor-wasm -- --list | grep -q 'golden_vectors::' && cargo test -p rotor-wasm -- --list | grep -q 'swap_tests::'" \
                   "${source[@]}"
                 ran=$((ran + 1))
                 ;;
