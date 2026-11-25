@@ -151,6 +151,13 @@ baseline, because neither lets the run attribute a failure to the revert. It
 prints `result: test proven` or `result: test did not catch the change`. The
 mutation workflow runs it per affected area from `projects.json`.
 
+The tier reverts whole files, so a `#[cfg(test)]` module inside a source file
+reverts together with the code it guards and can never catch the change. A
+coordinator change that embeds, serves or injects an asset therefore also needs
+a needle in `tests/coordinator_api.rs` (a test path, so it stays in place): the
+page carries the id or script URL, and `static_asset` serves it with the
+expected content type.
+
 ### JavaScript: `scripts/mutate-changed.mjs`
 
 ```sh

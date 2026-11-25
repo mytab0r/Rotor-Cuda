@@ -16,6 +16,10 @@ answer).
   The Nile testnet route stays available without arming. The key never leaves
   the browser; the page reads the latest block from TronGrid (publicnode as
   failover) and broadcasts once. (ROT-513)
+- **Swap on TRON mainnet** from the same wallet: pick TRX, USDT or USDC in and
+  out, get a SunSwap V2 quote with the route, the expected and minimum amount
+  at your slippage, then review and sign. A token-in swap asks you to approve
+  the router first and says so on the review screen. (ROT-520)
 
 ### Site
 

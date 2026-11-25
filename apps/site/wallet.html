@@ -36,7 +36,7 @@
       <div>
         <h1>Cabinet wallet</h1>
         <p class="key-tagline">Keep WIF and hex keys in an encrypted vault on this device and watch the addresses they control. The vault is encrypted with a passphrase you choose; the server never receives the passphrase, a private key or a WIF.</p>
-        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia EVM send</span><span>EVM mainnet (armed per session)</span><span>Bitcoin testnet send</span></div>
+        <div class="key-badges"><span>Local vault</span><span>PBKDF2 + AES-GCM</span><span>Watch-only until you sign</span><span>Sepolia EVM send</span><span>EVM mainnet (armed per session)</span><span>Bitcoin testnet send</span><span>TRON swap (mainnet)</span></div>
       </div>
     </div>
   </section>
@@ -44,7 +44,7 @@
   <p class="notice" role="note">Losing the passphrase loses the keys: there is no recovery and the server cannot help. Export an encrypted backup and keep it somewhere safe.</p>
   <details class="muted key-help">
     <summary>What this page can send and sign</summary>
-    <p>The vault lives in this browser's IndexedDB. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. TRON keys can send TRX and TRC-20 tokens on TRON mainnet (after you arm it for the session) and on the TRON Nile testnet; a TRON send reads the latest block from TronGrid or publicnode and broadcasts once to the same provider. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
+    <p>The vault lives in this browser's IndexedDB. EVM keys can send native coin and ERC-20 tokens on Ethereum Sepolia and, after you arm mainnet for the session, on Ethereum, BNB Chain, Arbitrum, Optimism, Base, Polygon, Avalanche and zkSync. Bitcoin keys can send on Bitcoin testnet. TRON keys can send TRX and TRC-20 tokens on TRON mainnet (after you arm it for the session) and on the TRON Nile testnet, and can swap on TRON mainnet through the SunSwap V2 router (SunSwap has no Nile deployment); a TRON send reads the latest block from TronGrid or publicnode and broadcasts once to the same provider. The page builds and reviews the transaction, signs it locally in WASM and broadcasts the signed raw transaction directly to a public provider. This phase covers native-coin transfers, the ERC-20 transfer(address,uint256) method, and ERC-20 approvals read, grant (approve(spender, amount)) and revoke (approve(spender, 0)); granting is dangerous because it lets the spender move your tokens, so use the smallest allowance that works and revoke it when done. Other token methods and Bitcoin mainnet are not part of it. Per-transaction fee caps: 0.05 ETH on Ethereum mainnet and 0.01 native on every other mainnet chain.</p>
   </details>
 
   <p id="wallet-unavailable" class="error" role="alert" hidden></p>
@@ -430,6 +430,86 @@
     </div>
   </section>
 
+  <section class="card" id="wallet-swap" hidden>
+    <h2>Swap on TRON (SunSwap V2)</h2>
+    <p class="muted">Quote, approve and swap through the SunSwap router; the key stays in this tab.</p>
+    <form id="wallet-swap-form" class="key-form" autocomplete="off">
+      <label>From (unlocked vault entry)
+        <select id="wallet-swap-entry"></select>
+      </label>
+      <p class="muted" id="wallet-swap-from" role="status">Select a TRON key to see its address.</p>
+      <div class="wallet-split">
+        <label>Network
+          <select id="wallet-swap-network">
+            <option value="tron">TRON mainnet</option>
+            <option value="tron-nile">TRON Nile — testnet</option>
+          </select>
+        </label>
+        <label>Amount (in the from token)
+          <input id="wallet-swap-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="10" aria-describedby="wallet-swap-amount-error" aria-invalid="false">
+        </label>
+      </div>
+      <div class="wallet-split">
+        <label>From token
+          <select id="wallet-swap-from-token"></select>
+        </label>
+        <label>To token
+          <select id="wallet-swap-to-token"></select>
+        </label>
+      </div>
+      <div class="wallet-split">
+        <label>Slippage (%)
+          <input id="wallet-swap-slippage" type="text" inputmode="decimal" autocomplete="off" value="0.5" aria-describedby="wallet-swap-slippage-error" aria-invalid="false">
+        </label>
+      </div>
+      <p class="error wallet-field-error" id="wallet-swap-amount-error" role="alert" hidden></p>
+      <p class="error wallet-field-error" id="wallet-swap-slippage-error" role="alert" hidden></p>
+      <p class="muted" id="wallet-swap-nile-note" hidden>SunSwap V2 has no deployment on the TRON Nile testnet, so the swap card is unavailable there. Select TRON mainnet to swap.</p>
+      <details class="muted key-help">
+        <summary>How the quote, approve and swap are built</summary>
+        <p>The quote is the router's <code class="mono">getAmountsOut(uint256,address[])</code> constant call; TRX is wrapped as WTRX in the path. The minimum received is the quote floored by your slippage in basis points and is enforced on chain. A quote older than 60 seconds is refused before signing. When the from token is a TRC-20, the wallet reads <code class="mono">allowance(owner,router)</code> and, if it is below the amount, signs and broadcasts an approve first, waits for it to be confirmed, then signs the swap. TRX in skips the approve. Each signed transaction is broadcast once; a provider error is shown verbatim and is never retried. Mainnet needs the arm checkbox, which resets on lock/unlock and reload.</p>
+      </details>
+      <div class="key-buttons">
+        <button type="submit" class="primary" id="wallet-swap-quote">Get quote</button>
+      </div>
+    </form>
+    <p class="muted status-line" id="wallet-swap-status" role="status"></p>
+    <p id="wallet-swap-error" class="error" role="alert" hidden></p>
+
+    <div id="wallet-swap-quote-box" hidden>
+      <h3>Quote</h3>
+      <dl class="wallet-review" id="wallet-swap-quote-list"></dl>
+      <p class="muted status-line" id="wallet-swap-quote-age" role="status"></p>
+      <div class="key-buttons">
+        <button type="button" class="primary" id="wallet-swap-review">Review swap</button>
+      </div>
+    </div>
+
+    <div id="wallet-swap-review-box" hidden>
+      <h3>Review before signing</h3>
+      <dl class="wallet-review" id="wallet-swap-review-list"></dl>
+      <ul class="wallet-warnings" id="wallet-swap-review-warnings" hidden></ul>
+      <p class="muted">Unsigned transaction bytes — the exact bytes that will be signed (approve first when present):</p>
+      <code class="mono wallet-hex" id="wallet-swap-review-unsigned"></code>
+      <div class="key-buttons">
+        <button type="button" class="primary" id="wallet-swap-confirm">Sign and broadcast</button>
+        <button type="button" id="wallet-swap-cancel">Back to edit</button>
+      </div>
+      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transactions to the reviewed provider.</p>
+      <p class="error" id="wallet-swap-confirm-error" role="alert" hidden></p>
+    </div>
+
+    <div id="wallet-swap-result" hidden>
+      <h3>Broadcast result</h3>
+      <p class="muted" id="wallet-swap-provider-note"></p>
+      <p>Swap transaction: <code class="mono" id="wallet-swap-hash"></code></p>
+      <p id="wallet-swap-approve-result" hidden>Approve transaction: <code class="mono" id="wallet-swap-approve-hash"></code></p>
+      <p><a id="wallet-swap-explorer" target="_blank" rel="noopener noreferrer">Open the swap in the chain explorer</a></p>
+      <p class="muted">Signed raw transactions:</p>
+      <code class="mono wallet-hex" id="wallet-swap-signed"></code>
+    </div>
+  </section>
+
   <section class="card" id="wallet-approvals" hidden>
     <h2>ERC-20 approvals</h2>
     <p class="muted">Granting lets another address move your tokens — smallest allowance, revoke when done.</p>
@@ -591,7 +671,7 @@
     <details class="muted key-help">
       <summary>What is stored and what is sent</summary>
       <p>IndexedDB database <code class="mono">rotor-wallet</code>, store <code class="mono">vault</code>: one versioned record with a random 16-byte salt, PBKDF2-SHA256 with 600,000 iterations, AES-GCM-256 and a fresh 12-byte IV on every save. The record holds only ciphertext; the passphrase and the keys are never written to localStorage, the URL, logs or the network.</p>
-      <p>This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions and TRX/TRC-20 transfers on TRON mainnet and Nile. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
+      <p>This page can sign and broadcast EVM transfers on Sepolia and, after you arm mainnet for the session, native-token transfers on eight EVM mainnets, plus Bitcoin testnet transactions and TRX/TRC-20 transfers on TRON mainnet and Nile, and SunSwap V2 swaps on TRON mainnet. The signatures and the raw transactions are created in this tab; only signed raw transactions are sent to public providers. Watch-only still means address display and opt-in balances without signing.</p>
     </details>
   </section>
 
@@ -607,6 +687,7 @@
 <script src="/wallet-sign.js"></script>
 <script src="/wallet-evm.js"></script>
 <script src="/wallet-tron.js"></script>
+<script src="/wallet-swap.js"></script>
 <script src="/wallet-btc.js"></script>
 <script src="/wallet-history.js"></script>
 <script src="/milk-sad-scan.js"></script>

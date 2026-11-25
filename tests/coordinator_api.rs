@@ -1499,6 +1499,9 @@ fn public_pages_and_assets_are_served() {
                 "/wallet-summary.js",
                 "/wallet-assets.js",
                 "/wallet-vault.js",
+                "/wallet-swap.js",
+                "id=\"wallet-swap\"",
+                "id=\"wallet-swap-quote\"",
                 "/theme.js",
             ],
         ),
@@ -1554,6 +1557,7 @@ fn public_pages_and_assets_are_served() {
         ("/wallet-vault.js", "PBKDF2-SHA256"),
         ("/wallet-btc.js", "RotorBtcSend"),
         ("/wallet-tron.js", "RotorTronWallet"),
+        ("/wallet-swap.js", "RotorSwap"),
         ("/vanity-worker.js", "derive_report"),
     ] {
         let (status, headers, body) = raw(addr, "GET", path, None, None);
