@@ -104,3 +104,10 @@ test("the wallet audit resolves the option discriminator, not a numeric value", 
   assert.match(source, /network\.value = sepolia;/);
   assert.match(source, /const networkValue = \(chainId\) => \{/);
 });
+
+/* The pooled job board moved from the SEO puzzle hub to /run; the audit must
+ * check the seeded job table there. The revert tier reverts ui-audit.mjs. */
+test("the pooled job board is checked on the run page", () => {
+  assert.match(source, /else if \(route === "\/run"\) \{/);
+  assert.match(source, /--serve seeded a public job, but \/run rendered no \.puzzle-table/);
+});
