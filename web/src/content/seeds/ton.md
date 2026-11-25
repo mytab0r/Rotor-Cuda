@@ -1,6 +1,6 @@
 ---
 chain: ton
-title: "TON seed phrases: SLIP-0010 v3R2, v4R2 and W5 wallets | Crypto"
+title: "TON seed phrases: v3R2, v4R2 and W5 wallets | Crypto"
 description: "60 deterministic 12-word TON phrases derived with SLIP-0010 at m/44'/607'/0' into v3R2, v4R2 and W5 wallet contract addresses."
 ---
 
