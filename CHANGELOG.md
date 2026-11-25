@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.4.0...v2.5.0) (2026-11-25)
+
+
+### Features
+
+* **site:** one Contribute entry and real tools on the landing ([#544](https://github.com/mytab0r/Rotor-Cuda/issues/544)) ([1cdf938](https://github.com/mytab0r/Rotor-Cuda/commit/1cdf93872f057c86baba4823e6af232a86cf41e3))
+
 ## [2.4.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.3.1...v2.4.0) (2026-11-25)
 
 
