@@ -82,7 +82,7 @@ test("the landing keeps one Contribute entry, not four coordinator blocks", () =
     /Run a client to lease a key range and report verified completions; the coordinator ranks contributors\./,
     "Contribute states the pool model in one sentence",
   );
-  assert.match(block, /<a href="\/run">Run a client<\/a>/, "Contribute links to /run");
+  assert.match(block, /class="button primary" href="\/run">Run a client<\/a>/, "Contribute links to /run as a primary action");
   assert.equal((landing.match(/id="contribute"/g) || []).length, 1, "exactly one Contribute entry");
 });
 
@@ -108,7 +108,7 @@ test("the Astro landing mirrors the Contribute entry and the tools demotion", ()
   const start = astro.indexOf('id="contribute"');
   assert.notEqual(start, -1, "Astro has one Contribute entry");
   const block = astro.slice(start, astro.indexOf("</section>", start));
-  assert.match(block, /<a href="\/run">Run a client<\/a>/, "Astro Contribute links to /run");
+  assert.match(block, /class="btn primary" href="\/run">Run a client<\/a>/, "Astro Contribute links to /run as a primary action");
   const toolsStart = astro.indexOf('id="landing-tools"');
   const tools = astro.slice(toolsStart, astro.indexOf("</section>", toolsStart));
   assert.equal(tools.includes('href="/tools"'), false, "Astro drops the calculator index card");

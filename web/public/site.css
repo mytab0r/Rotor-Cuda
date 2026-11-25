@@ -1167,6 +1167,7 @@ a.button,
   color: var(--text);
   font-weight: 650;
   font-size: 14px;
+  text-decoration: none;
   cursor: pointer;
   transition: background .16s ease, border-color .16s ease, transform .16s ease, color .16s ease;
 }
