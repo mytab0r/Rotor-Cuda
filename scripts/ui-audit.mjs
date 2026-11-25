@@ -66,8 +66,8 @@ const DEFAULT_ROUTES = [
   "/mnemonic-seeds/bitcoin-cash",
   // Solana renders through one batched getMultipleAccounts POST per page (60 addresses); a 403 from the public RPC on hosts that refuse the browser is a console warning, not a violation.
   "/mnemonic-seeds/solana",
-  // TON derives at the donor path m/44'/607'/0' and renders v3R2 + v4R2 + W5
-  // rows with balances from one batched TonAPI POST per page; a provider error is the
+  // TON derives at the donor path m/44'/607'/0' and renders v4R2 + W5 rows with
+  // balances from one batched TonAPI POST per page; a provider error is the
   // honest retryable state, not a violation.
   "/mnemonic-seeds/ton",
   "/brainwallet",
