@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.4.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.3.1...v2.4.0) (2026-11-25)
+
+
+### Features
+
+* **admin:** sign in with a login and password ([#539](https://github.com/mytab0r/Rotor-Cuda/issues/539)) ([ea01a32](https://github.com/mytab0r/Rotor-Cuda/commit/ea01a327448a14910a9fd38a71f3f097bb3e1ee8))
+* **wallet:** move long explanations behind disclosures (ROT-528) ([#540](https://github.com/mytab0r/Rotor-Cuda/issues/540)) ([4115357](https://github.com/mytab0r/Rotor-Cuda/commit/41153576eec991e14e3ca895090ff378425f84a4))
+* **wallet:** TRON mainnet TRX and TRC-20 send ([#525](https://github.com/mytab0r/Rotor-Cuda/issues/525)) ([5809751](https://github.com/mytab0r/Rotor-Cuda/commit/5809751a996603fbc67de711b5c655cc535ef9b6))
+
+
+### Bug Fixes
+
+* **site:** render the landing directories as compact rows ([#542](https://github.com/mytab0r/Rotor-Cuda/issues/542)) ([b1d1062](https://github.com/mytab0r/Rotor-Cuda/commit/b1d10625522b4a2842eeddb496fcff73ec4f94b8))
+* **site:** stop reserving dead space in the puzzle card ([#534](https://github.com/mytab0r/Rotor-Cuda/issues/534)) ([b39bd41](https://github.com/mytab0r/Rotor-Cuda/commit/b39bd4187f54dddf6d5a2ec15daf6f9399723736))
+* **site:** trim the duplicated /key stats note ([#543](https://github.com/mytab0r/Rotor-Cuda/issues/543)) ([3eeba27](https://github.com/mytab0r/Rotor-Cuda/commit/3eeba271705123a7d54b8a3faeb6a8f17fed9fe7))
+
+
+### Documentation
+
+* add the human-readable changelog ([#535](https://github.com/mytab0r/Rotor-Cuda/issues/535)) ([a6ac537](https://github.com/mytab0r/Rotor-Cuda/commit/a6ac5371b9432adc1f18d107738d7455bfc22a53))
+
 ## [2.3.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.3.0...v2.3.1) (2026-11-24)
 
 
