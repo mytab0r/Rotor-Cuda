@@ -21,40 +21,21 @@ const ogImageUrl = new URL(ogImage.src, SITE_ORIGIN).href;
 interface TocItem {
   id: string;
   label: string;
-  children?: TocItem[];
 }
 
-/* One entry per anchored H2/H3. The ids here and in the prose are the same
- * strings; scripts/check-seo.mjs fails when a TOC href has no matching id. */
+/* One entry per anchored section card. The ids here and in the markup are the
+ * same strings; scripts/check-seo.mjs fails when a TOC href has no matching id
+ * and when a content H2 is not covered by an anchored section. */
 const TOC: TocItem[] = [
   { id: 'getting-a-token', label: 'Getting a token' },
-  {
-    id: 'running-a-client',
-    label: 'Running a client',
-    children: [
-      { id: 'cpu', label: 'CPU' },
-      { id: 'gpu', label: 'GPU' },
-      { id: 'bsgs', label: 'BSGS' },
-      { id: 'browser-client', label: 'Browser client' },
-    ],
-  },
+  { id: 'running-a-client', label: 'Running a client' },
   { id: 'private-key-explorer', label: 'Private-key explorer' },
   { id: 'public-key-pages', label: 'Public key pages' },
   { id: 'derivation-paths-and-address-formats', label: 'Derivation paths and address formats' },
   { id: 'address-monitor', label: 'Address monitor' },
   { id: 'transaction-decoders', label: 'Transaction decoders' },
-  { id: 'site-map-and-donor-parity', label: 'Site map and donor parity' },
   { id: 'security-and-disclaimer', label: 'Security and disclaimer' },
-  {
-    id: 'common-questions',
-    label: 'Common questions',
-    children: [
-      { id: 'does-the-site-receive-my-private-key', label: 'Does the site receive my private key?' },
-      { id: 'can-i-use-this-as-a-wallet', label: 'Can I use this as a wallet?' },
-      { id: 'what-does-a-balance-lookup-send', label: 'What does a balance lookup send?' },
-      { id: 'what-are-the-client-requirements', label: 'What are the client requirements?' },
-    ],
-  },
+  { id: 'common-questions', label: 'Common questions' },
 ];
 
 const jsonLd = {
@@ -127,26 +108,18 @@ const jsonLd = {
   </section>
 
   <div class="docs-layout">
-    <nav class="docs-toc" aria-label="On this page" data-docs-toc>
+    <nav class="card docs-toc" aria-label="On this page" data-docs-toc>
       <p class="docs-toc__title" id="toc-title">On this page</p>
       <ol>
         {TOC.map((item) => (
-          <li>
-            <a href={`#${item.id}`}>{item.label}</a>
-            {item.children && (
-              <ol>
-                {item.children.map((child) => (
-                  <li><a href={`#${child.id}`}>{child.label}</a></li>
-                ))}
-              </ol>
-            )}
-          </li>
+          <li><a href={`#${item.id}`}>{item.label}</a></li>
         ))}
       </ol>
     </nav>
 
-    <article class="card docs-prose">
-      <h2 id="getting-a-token">Getting a token</h2>
+    <div class="docs-sections">
+    <section class="card docs-prose" id="getting-a-token">
+      <h2>Getting a token</h2>
       <p>
         A client token identifies you to the coordinator and ties heartbeats and
         accepted results to your cabinet and leaderboard entry.
@@ -156,8 +129,10 @@ const jsonLd = {
         <li><strong>Closed registration:</strong> ask the operator to create an account for you. The operator can issue a token from the admin API.</li>
       </ul>
       <p class="muted">Paste the token into the <a href="/me">cabinet</a> to see your personal stats.</p>
+    </section>
 
-      <h2 id="running-a-client">Running a client</h2>
+    <section class="card docs-prose" id="running-a-client">
+      <h2>Running a client</h2>
       <p>The client leases disjoint key ranges; point it at this coordinator and pass your token.</p>
       <pre tabindex="0"><code>rotor -m addresses --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
   --coordinator https://your-coordinator.example --token &lt;client-token&gt; \
@@ -206,8 +181,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         <li>The page requires HTTPS or localhost.</li>
         <li>The token is stored in this browser's <code>localStorage</code> and sent only in the <code>Authorization</code> header.</li>
       </ul>
+    </section>
 
-      <h2 id="private-key-explorer">Private-key explorer</h2>
+    <section class="card docs-prose" id="private-key-explorer">
+      <h2>Private-key explorer</h2>
       <p>
         <a href="/key">/key</a> is a read-only private-key explorer. Derivation
         runs in this browser in the same WASM artifact the worker uses; the
@@ -221,8 +198,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         <li>The private key never leaves the browser and is not stored in the URL, history or local storage.</li>
         <li>This is not a wallet: no signing or sweeping. Handle any key that holds funds offline on an air-gapped machine, never on an online page.</li>
       </ul>
+    </section>
 
-      <h2 id="public-key-pages">Public key pages</h2>
+    <section class="card docs-prose" id="public-key-pages">
+      <h2>Public key pages</h2>
       <p>
         <a href="/private-keys">/private-keys</a> is the directory of 18 chains.
         Every chain page shows 60 keys at a time with First/Previous/Random/Next/
@@ -244,8 +223,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         opened a page containing their address. Typing a key locally on
         <a href="/key">/key</a> is checked only if you tick the opt-in box.
       </p>
+    </section>
 
-      <h2 id="derivation-paths-and-address-formats">Derivation paths and address formats</h2>
+    <section class="card docs-prose" id="derivation-paths-and-address-formats">
+      <h2>Derivation paths and address formats</h2>
       <p>
         The key explorer and the seed tools derive in this browser. The
         <a href="/mnemonic-converter">mnemonic converter</a> turns BIP39, Electrum
@@ -256,8 +237,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         P2SH, native segwit and taproot forms; account chains show one address
         per key.
       </p>
+    </section>
 
-      <h2 id="address-monitor">Address monitor</h2>
+    <section class="card docs-prose" id="address-monitor">
+      <h2>Address monitor</h2>
       <p>
         <a href="/cabinet">/cabinet</a> watches addresses you control: connect an
         EVM wallet, sign the one-time SIWE challenge, and the coordinator stores
@@ -271,8 +254,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         <li>Alerts are early warning, not protection: an idle stolen key is not observable, and delivery can be delayed or missed.</li>
         <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
       </ul>
+    </section>
 
-      <h2 id="transaction-decoders">Transaction decoders</h2>
+    <section class="card docs-prose" id="transaction-decoders">
+      <h2>Transaction decoders</h2>
       <p>
         <a href="/tx/bitcoin">/tx/bitcoin</a> decodes a raw Bitcoin legacy or
         SegWit transaction in the browser: version, SegWit marker and flag, every
@@ -296,18 +281,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         Both pages are client-side only: no key, network request, storage or URL
         payload. <a href="/tx">/tx</a> is the shared index.
       </p>
+    </section>
 
-      <h2 id="site-map-and-donor-parity">Site map and donor parity</h2>
-      <p>
-        The parity audit maps every Crypto route against an internal reference
-        checklist. It is internal documentation, kept in
-        <code>docs/site-map/index.html</code> and
-        <code>docs/site-map/site-map-data.js</code>, not a public route. The data
-        also carries the feature matrix (parity, partial and missing capabilities
-        with a priority), so a gap closes only when the data says so.
-      </p>
-
-      <h2 id="security-and-disclaimer">Security and disclaimer</h2>
+    <section class="card docs-prose" id="security-and-disclaimer">
+      <h2>Security and disclaimer</h2>
       <ul>
         <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
         <li>Use HTTPS: put the coordinator behind a TLS-terminating reverse proxy. Never send a token over plain HTTP to a remote host.</li>
@@ -315,8 +292,10 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
         <li>This is a puzzle-only tool. Search only keys and ranges you are authorized to search; do not target live wallets or funds you do not own.</li>
         <li>Progress and results are public aggregates. Job targets and found keys are visible to authenticated clients and the operator.</li>
       </ul>
+    </section>
 
-      <h2 id="common-questions">Common questions</h2>
+    <section class="card docs-prose" id="common-questions">
+      <h2>Common questions</h2>
       <div class="faq-item">
         <h3 id="does-the-site-receive-my-private-key">Does the site receive my private key?</h3>
         <p>
@@ -359,6 +338,7 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
           <code>Authorization</code> header.
         </p>
       </div>
-    </article>
+    </section>
+    </div>
   </div>
 </SiteLayout>
