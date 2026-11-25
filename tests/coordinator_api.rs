@@ -1440,7 +1440,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 11] = [
+    let checks: [(&str, &[&str]); 12] = [
         (
             "/",
             &[
@@ -1507,6 +1507,11 @@ fn public_pages_and_assets_are_served() {
             &[
                 "Contributing? The pooled job board and the lease worker live on the",
                 "href=\"/run\"",
+            ],
+        ),
+        (
+            "/bitcoin-puzzle/71",
+            &[
                 "class=\"puzzle-tabs\" aria-label=\"Puzzle views\"",
                 "href=\"/run\">Team</a>",
             ],
