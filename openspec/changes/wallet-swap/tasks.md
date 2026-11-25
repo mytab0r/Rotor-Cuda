@@ -10,7 +10,7 @@
   `amountOutMin` from the user's slippage and a deadline; TRC-20 input needs
   an `approve` step with its own review.
 - [x] Review screen: pay, receive, route, slippage, minimum received, fee limit.
-- [ ] Tests: calldata vectors for both directions, slippage and deadline
+- [x] Tests: calldata vectors for both directions, slippage and deadline
   refusals, a mutation that drops `amountOutMin` and fails.
 
 ## 2. Cross-chain aggregator (blocked by: section 1)
