@@ -6401,8 +6401,24 @@ async function auditQuietIconHover(cdp) {
     for (const target of targets) {
       const nodeId = nodeIds[target.index];
       if (nodeId === undefined) continue;
-      await cdp.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: ["hover"] });
-      forced.push({ target, nodeId });
+      try {
+        await cdp.send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: ["hover"] });
+        forced.push({ target, nodeId });
+      } catch (error) {
+        // A balancing page re-renders its rows after the node query, which
+        // invalidates the node id. Re-query once and force the same index on
+        // the fresh node instead of failing the whole run.
+        if (!/Could not find node with given id/.test(error.message)) throw error;
+        const { root: freshRoot } = await cdp.send("DOM.getDocument", { depth: 0, pierce: false });
+        const { nodeIds: freshIds } = await cdp.send("DOM.querySelectorAll", {
+          nodeId: freshRoot.nodeId,
+          selector: "button.icon-button--quiet",
+        });
+        const freshId = freshIds[target.index];
+        if (freshId === undefined) continue;
+        await cdp.send("CSS.forcePseudoState", { nodeId: freshId, forcedPseudoClasses: ["hover"] });
+        forced.push({ target, nodeId: freshId });
+      }
     }
     const measured = await evaluate(
       cdp,

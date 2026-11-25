@@ -67,8 +67,8 @@ fn ton_rows_prove_distinct_contracts_and_state_init_hash() {
         .as_array()
         .expect("addresses must be an array");
 
-    for index in 2..5 {
-        let state_init_hash = addresses[index]["steps"]["state_init_hash"]
+    for (index, entry) in addresses.iter().enumerate().take(5).skip(2) {
+        let state_init_hash = entry["steps"]["state_init_hash"]
             .as_str()
             .expect("each TON row carries a state_init_hash step");
         assert_eq!(
@@ -76,7 +76,7 @@ fn ton_rows_prove_distinct_contracts_and_state_init_hash() {
             64,
             "row {} ({}) state_init_hash must be 64 hex characters, got {:?}",
             index,
-            addresses[index]["id"],
+            entry["id"],
             state_init_hash
         );
         assert!(
