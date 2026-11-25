@@ -1507,6 +1507,8 @@ fn public_pages_and_assets_are_served() {
             &[
                 "Contributing? The pooled job board and the lease worker live on the",
                 "href=\"/run\"",
+                "class=\"puzzle-tabs\" aria-label=\"Puzzle views\"",
+                "href=\"/run\">Team</a>",
             ],
         ),
         (
