@@ -380,9 +380,6 @@ impl Tx {
 
         let amount_in = parse_amount(required(6)?, "amount_in")?;
         let amount_out_min = parse_u64_checked(required(7)?, "amount_out_min")?;
-        if token_in.is_some() && amount_out_min > amount_in {
-            return Err("amount_out_min must not exceed amount_in for a token-in swap".to_owned());
-        }
 
         let deadline = parse_timestamp(required(8)?, "deadline")?;
         let timestamp = parse_timestamp(required(12)?, "timestamp")?;
