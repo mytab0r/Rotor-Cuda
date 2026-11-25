@@ -170,7 +170,32 @@
       "explorerPrefix": "https://tronscan.org/#/address/",
       "explorerTx": null,
       "explorerTxPrefix": null,
-      "wtrx": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR"
+      "wtrx": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
+      "swap": {
+        "router": "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax",
+        "tokens": [
+          {
+            "symbol": "TRX",
+            "address": "",
+            "decimals": 6
+          },
+          {
+            "symbol": "USDT",
+            "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+            "decimals": 6
+          },
+          {
+            "symbol": "USDC",
+            "address": "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
+            "decimals": 6
+          },
+          {
+            "symbol": "WTRX",
+            "address": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
+            "decimals": 6
+          }
+        ]
+      }
     },
     "xrp": {
       "slug": "xrp",

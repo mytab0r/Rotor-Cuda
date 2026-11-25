@@ -542,6 +542,36 @@
     };
   }
 
+  /* Broadcast one already-signed transaction to a declared provider, once.
+   * The body, the verbatim provider error and the no-retry rule are shared by
+   * the transfer and the swap flow. */
+  async function broadcastTronSigned(network, providerUrl, signed, fetchJson) {
+    var provider = assertTronProvider(network, providerUrl);
+    if (typeof fetchJson !== 'function') {
+      throw new Error('The TRON provider is missing from the review.');
+    }
+    var response;
+    try {
+      response = await fetchJsonPost(fetchJson,
+        tronEndpoint(provider, '/wallet/broadcasttransaction'), {
+          txID: signed.txID,
+          raw_data: signed.raw_data,
+          raw_data_hex: signed.raw_data_hex,
+          signature: [signed.signature]
+        });
+    } catch (err) {
+      throw new Error('Broadcasting to ' + (provider.label || provider.url) +
+        ' failed: ' + errorText(err));
+    }
+    if (!response || response.result !== true) {
+      var detail = '';
+      if (response && response.code) detail += ' (' + response.code + ')';
+      if (response && response.message) detail += ' ' + response.message;
+      throw new Error((provider.label || provider.url) + ' rejected the transaction' + detail + '.');
+    }
+    return { txID: signed.txID, provider: provider };
+  }
+
   /* Sign the reviewed request and broadcast exactly once to the reviewed
    * provider. A stale review or an unarmed mainnet is refused before signing.
    * options: { review, fetchJson, sign(request) -> JSON text, mainnetArmed?,
@@ -577,25 +607,7 @@
         'Refusing to broadcast.');
     }
     /* One broadcast, no retry: the provider error is surfaced verbatim. */
-    var response;
-    try {
-      response = await fetchJsonPost(settings.fetchJson,
-        tronEndpoint(provider, '/wallet/broadcasttransaction'), {
-          txID: signed.txID,
-          raw_data: signed.raw_data,
-          raw_data_hex: signed.raw_data_hex,
-          signature: [signed.signature]
-        });
-    } catch (err) {
-      throw new Error('Broadcasting to ' + (provider.label || provider.url) +
-        ' failed: ' + errorText(err));
-    }
-    if (!response || response.result !== true) {
-      var detail = '';
-      if (response && response.code) detail += ' (' + response.code + ')';
-      if (response && response.message) detail += ' ' + response.message;
-      throw new Error((provider.label || provider.url) + ' rejected the transaction' + detail + '.');
-    }
+    await broadcastTronSigned(network, provider.url, signed, settings.fetchJson);
     return {
       txHash: signed.txID,
       txID: signed.txID,
@@ -630,6 +642,7 @@
     tronNetworkFromOption: tronNetworkFromOption,
     sendFieldLabels: sendFieldLabels,
     tronProviderOrder: tronProviderOrder,
+    tronEndpoint: tronEndpoint,
     parseNowBlock: parseNowBlock,
     fetchNowBlock: fetchNowBlock,
     validateTronSend: validateTronSend,
@@ -637,6 +650,8 @@
     decodeTokenDecimals: decodeTokenDecimals,
     decodeTokenSymbol: decodeTokenSymbol,
     assertReviewedTron: assertReviewedTron,
+    parseTxResult: parseTxResult,
+    broadcastTronSigned: broadcastTronSigned,
     prepareTronTransfer: prepareTronTransfer,
     confirmTronTransfer: confirmTronTransfer
   };

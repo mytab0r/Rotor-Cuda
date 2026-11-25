@@ -134,6 +134,12 @@
     review: null,
     reviewEntryId: null,
     mainnetArmed: false,
+    swapArmed: false,
+    swapQuote: null,
+    swapReview: null,
+    swapReviewEntryId: null,
+    swapPreparing: false,
+    swapSending: false,
     approvalsScanning: false,
     approvalsScan: null,
     approvalsScanEntryId: null,
@@ -162,6 +168,7 @@
   var vault = window.RotorWalletVault;
   var evmSend = window.RotorEvmSend;
   var tronWallet = window.RotorTronWallet;
+  var swap = window.RotorSwap;
   var btcSend = window.RotorBtcSend;
   var historyApi = window.RotorWalletHistory;
   var signApi = window.RotorWalletSign;
@@ -270,6 +277,40 @@
   var sendExplorerLink = byId('wallet-send-explorer');
   var sendSignedEl = byId('wallet-send-signed');
 
+  /* TRON swap card. It reuses the TRON codec and the session arm; nothing in
+   * this block holds a private key. */
+  var swapCard = byId('wallet-swap');
+  var swapForm = byId('wallet-swap-form');
+  var swapEntrySelect = byId('wallet-swap-entry');
+  var swapFromLine = byId('wallet-swap-from');
+  var swapNetworkSelect = byId('wallet-swap-network');
+  var swapAmountInput = byId('wallet-swap-amount');
+  var swapSlippageInput = byId('wallet-swap-slippage');
+  var swapFromTokenSelect = byId('wallet-swap-from-token');
+  var swapToTokenSelect = byId('wallet-swap-to-token');
+  var swapNileNote = byId('wallet-swap-nile-note');
+  var swapArmedRow = byId('wallet-swap-armed-row');
+  var swapArmedCheckbox = byId('wallet-swap-armed');
+  var swapQuoteButton = byId('wallet-swap-quote');
+  var swapStatus = byId('wallet-swap-status');
+  var swapQuoteBox = byId('wallet-swap-quote-box');
+  var swapQuoteList = byId('wallet-swap-quote-list');
+  var swapQuoteAge = byId('wallet-swap-quote-age');
+  var swapReviewButton = byId('wallet-swap-review');
+  var swapReviewBox = byId('wallet-swap-review-box');
+  var swapReviewList = byId('wallet-swap-review-list');
+  var swapReviewWarnings = byId('wallet-swap-review-warnings');
+  var swapReviewUnsigned = byId('wallet-swap-review-unsigned');
+  var swapConfirmButton = byId('wallet-swap-confirm');
+  var swapCancelButton = byId('wallet-swap-cancel');
+  var swapResultBox = byId('wallet-swap-result');
+  var swapProviderNote = byId('wallet-swap-provider-note');
+  var swapHashEl = byId('wallet-swap-hash');
+  var swapApproveResult = byId('wallet-swap-approve-result');
+  var swapApproveHashEl = byId('wallet-swap-approve-hash');
+  var swapExplorerLink = byId('wallet-swap-explorer');
+  var swapSignedEl = byId('wallet-swap-signed');
+
   /* ERC-20 approvals panel. It reuses the send entry, network and provider
    * controls; it never holds a private key. */
   var approvalsCard = byId('wallet-approvals');
@@ -360,6 +401,9 @@
   }
   if (!btcSend) {
     if (btcCard) btcCard.hidden = true;
+  }
+  if (!swap) {
+    if (swapCard) swapCard.hidden = true;
   }
   if (!summaryHelper && summaryBlock) {
     /* The vault still works without the portfolio math; the summary says so
@@ -1353,6 +1397,8 @@
     state.lastActivity = Date.now();
     state.mainnetArmed = false;
     if (sendArmedCheckbox) sendArmedCheckbox.checked = false;
+    state.swapArmed = false;
+    if (swapArmedCheckbox) swapArmedCheckbox.checked = false;
     if (setupCard) setupCard.hidden = true;
     if (unlockCard) unlockCard.hidden = true;
     if (panel) panel.hidden = false;
@@ -1923,6 +1969,9 @@
     }
     if (state.unlocked && btcEntrySelect && btcEntrySelect.value === entry.id) {
       updateBtcFrom();
+    }
+    if (state.unlocked && swapEntrySelect && swapEntrySelect.value === entry.id) {
+      updateSwapFrom();
     }
     if (!securityRunning && securityCatalog && state.unlocked) renderSecurity();
   }
@@ -3372,6 +3421,7 @@
   function renderSend() {
     renderBtcSend();
     renderApprovals();
+    renderSwap();
     if (!sendCard || (!evmSend && !tronWallet)) return;
     var available = allSendEntries();
     if (state.review && !available.some(function (entry) {
@@ -3704,6 +3754,808 @@
     }
   }
 
+  /* ------------------------------------------------------------- TRON swap */
+
+  /* The swap card quotes and swaps on TRON mainnet only: SunSwap V2 has no
+   * Nile deployment, so the card disables itself on the testnet rather than
+   * signing a call that would revert. The router and the curated token table
+   * come from data/chains.json through chains.generated.js. */
+  var SWAP_FEE_LIMIT_SUN = 30000000n;
+  var SWAP_APPROVE_FEE_LIMIT_SUN = 10000000n;
+  var SWAP_APPROVE_WAIT_MS = 90000;
+  var SWAP_APPROVE_POLL_MS = 3000;
+  var swapAgeTimer = null;
+
+  function swapConfig() {
+    var chain = SSOT_CHAINS && SSOT_CHAINS.bySlug ? SSOT_CHAINS.bySlug.tron : null;
+    var config = chain && chain.swap;
+    if (!config || typeof config.router !== 'string' || !config.router ||
+        !Array.isArray(config.tokens) || config.tokens.length < 2) {
+      return null;
+    }
+    return config;
+  }
+
+  function findSwapToken(config, address) {
+    for (var i = 0; i < config.tokens.length; i += 1) {
+      if (config.tokens[i].address === address) return config.tokens[i];
+    }
+    return null;
+  }
+
+  function tokenByIndex(config, index) {
+    var token = config.tokens[Number(index)];
+    if (!token) throw new Error('Select a swap token.');
+    return token;
+  }
+
+  function tokenCaption(token) {
+    if (!token.address) return token.symbol + ' · native';
+    return token.symbol + ' · ' + token.address.slice(0, 4) + '…' + token.address.slice(-4);
+  }
+
+  function selectedSwapEntry() {
+    if (!swapEntrySelect) return null;
+    return entryById(swapEntrySelect.value);
+  }
+
+  function selectedSwapNetwork() {
+    if (!tronWallet || !swapNetworkSelect) return null;
+    return tronWallet.tronNetworkBySlug(swapNetworkSelect.value) ||
+      tronWallet.tronNetworkBySlug('tron');
+  }
+
+  function swapIsTestnet() {
+    var network = selectedSwapNetwork();
+    return !network || network.testnet;
+  }
+
+  function swapArmed() {
+    return state.swapArmed === true && !!swapArmedCheckbox && swapArmedCheckbox.checked;
+  }
+
+  function renderSwapTokens(config) {
+    if (!swapFromTokenSelect || !swapToTokenSelect) return;
+    var fromPrevious = swapFromTokenSelect.value;
+    var toPrevious = swapToTokenSelect.value;
+    [swapFromTokenSelect, swapToTokenSelect].forEach(function (select) {
+      select.textContent = '';
+      config.tokens.forEach(function (token, index) {
+        var option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = tokenCaption(token);
+        select.appendChild(option);
+      });
+    });
+    if (fromPrevious !== '' && config.tokens[Number(fromPrevious)]) {
+      swapFromTokenSelect.value = fromPrevious;
+    }
+    if (toPrevious !== '' && config.tokens[Number(toPrevious)]) {
+      swapToTokenSelect.value = toPrevious;
+    }
+    if (swapFromTokenSelect.value === swapToTokenSelect.value &&
+        config.tokens.length > 1) {
+      swapToTokenSelect.value = swapFromTokenSelect.value === '0' ? '1' : '0';
+    }
+  }
+
+  function updateSwapFrom() {
+    if (!swapFromLine) return;
+    var entry = selectedSwapEntry();
+    if (!entry) {
+      swapFromLine.textContent = 'Select a TRON key to see its address.';
+      return;
+    }
+    var derived = state.derived[entry.id];
+    if (derived && derived.address) {
+      swapFromLine.textContent = 'From: ' + derived.address;
+      return;
+    }
+    if (derived && derived.error) {
+      swapFromLine.textContent = 'Address unavailable: ' + derived.error;
+      return;
+    }
+    swapFromLine.textContent = 'Deriving address…';
+    deriveEntry(entry, state.generation);
+  }
+
+  function updateSwapNetworkState() {
+    if (!swapNetworkSelect) return;
+    var nile = swapIsTestnet();
+    if (swapNileNote) swapNileNote.hidden = !nile;
+    if (swapArmedRow) swapArmedRow.hidden = nile;
+    [swapEntrySelect, swapAmountInput, swapSlippageInput, swapFromTokenSelect,
+      swapToTokenSelect].forEach(function (control) {
+      if (control) control.disabled = nile;
+    });
+    if (swapQuoteButton) swapQuoteButton.disabled = nile || state.swapPreparing || state.swapSending;
+  }
+
+  function renderSwap() {
+    if (!swapCard) return;
+    var config = swapConfig();
+    var tronEntries = state.entries.filter(function (entry) {
+      return entry.chain === 'tron';
+    });
+    if (!swap || !tronWallet || !config || !state.unlocked || !tronEntries.length) {
+      swapCard.hidden = true;
+      if (state.swapQuote || state.swapReview) invalidateSwapQuote('');
+      return;
+    }
+    swapCard.hidden = false;
+    renderSwapTokens(config);
+    var previous = swapEntrySelect.value;
+    swapEntrySelect.textContent = '';
+    tronEntries.forEach(function (entry) {
+      var option = document.createElement('option');
+      option.value = entry.id;
+      option.textContent = (entry.label || 'TRON key') + ' · TRON';
+      swapEntrySelect.appendChild(option);
+    });
+    if (previous && tronEntries.some(function (entry) {
+      return entry.id === previous;
+    })) {
+      swapEntrySelect.value = previous;
+    }
+    if (!swapEntrySelect.value && tronEntries.length) {
+      swapEntrySelect.value = tronEntries[0].id;
+    }
+    updateSwapFrom();
+    updateSwapNetworkState();
+  }
+
+  function showSwapFieldErrors(errors) {
+    setError('wallet-swap-amount-error', errors.amount || '');
+    setError('wallet-swap-slippage-error', errors.slippage || '');
+    if (swapAmountInput) {
+      swapAmountInput.setAttribute('aria-invalid', errors.amount ? 'true' : 'false');
+    }
+    if (swapSlippageInput) {
+      swapSlippageInput.setAttribute('aria-invalid', errors.slippage ? 'true' : 'false');
+    }
+  }
+
+  function setSwapBusy(busy, message) {
+    var blocked = !!busy || state.swapSending;
+    var nile = swapIsTestnet();
+    if (swapQuoteButton) swapQuoteButton.disabled = blocked || nile;
+    if (swapReviewButton) swapReviewButton.disabled = blocked;
+    if (swapConfirmButton) swapConfirmButton.disabled = blocked;
+    if (swapStatus && message !== undefined) swapStatus.textContent = message;
+  }
+
+  function stopSwapAge() {
+    if (swapAgeTimer !== null) {
+      clearInterval(swapAgeTimer);
+      swapAgeTimer = null;
+    }
+  }
+
+  function updateSwapQuoteAge() {
+    if (!swapQuoteAge || !state.swapQuote) return;
+    var age = Math.max(0, Math.floor((Date.now() - state.swapQuote.fetchedAt) / 1000));
+    swapQuoteAge.textContent = 'Quote fetched ' + age + 's ago; a quote older than 60s is refused before signing.';
+  }
+
+  function startSwapAge() {
+    stopSwapAge();
+    updateSwapQuoteAge();
+    swapAgeTimer = setInterval(updateSwapQuoteAge, 1000);
+  }
+
+  function clearSwapBoxes() {
+    stopSwapAge();
+    if (swapQuoteBox) swapQuoteBox.hidden = true;
+    if (swapReviewBox) swapReviewBox.hidden = true;
+    if (swapResultBox) swapResultBox.hidden = true;
+    if (swapQuoteList) swapQuoteList.textContent = '';
+    if (swapReviewList) swapReviewList.textContent = '';
+    if (swapReviewWarnings) swapReviewWarnings.textContent = '';
+    if (swapReviewUnsigned) swapReviewUnsigned.textContent = '';
+    if (swapProviderNote) swapProviderNote.textContent = '';
+    if (swapHashEl) swapHashEl.textContent = '';
+    if (swapApproveResult) swapApproveResult.hidden = true;
+    if (swapApproveHashEl) swapApproveHashEl.textContent = '';
+    if (swapSignedEl) swapSignedEl.textContent = '';
+    if (swapExplorerLink) swapExplorerLink.removeAttribute('href');
+    setError('wallet-swap-confirm-error', '');
+  }
+
+  function invalidateSwapReview(message) {
+    state.swapReview = null;
+    state.swapReviewEntryId = null;
+    if (swapReviewBox) swapReviewBox.hidden = true;
+    if (swapReviewUnsigned) swapReviewUnsigned.textContent = '';
+    setError('wallet-swap-confirm-error', '');
+    if (message && swapStatus) swapStatus.textContent = message;
+  }
+
+  function invalidateSwapQuote(message) {
+    var had = !!state.swapQuote || !!state.swapReview || (swapQuoteBox && !swapQuoteBox.hidden) ||
+      (swapReviewBox && !swapReviewBox.hidden);
+    state.swapQuote = null;
+    state.swapReview = null;
+    state.swapReviewEntryId = null;
+    stopSwapAge();
+    if (swapQuoteBox) swapQuoteBox.hidden = true;
+    if (swapReviewBox) swapReviewBox.hidden = true;
+    if (swapReviewUnsigned) swapReviewUnsigned.textContent = '';
+    setError('wallet-swap-confirm-error', '');
+    if (message && swapStatus && had) swapStatus.textContent = message;
+  }
+
+  function resetSwap() {
+    state.swapArmed = false;
+    state.swapPreparing = false;
+    state.swapSending = false;
+    state.swapQuote = null;
+    state.swapReview = null;
+    state.swapReviewEntryId = null;
+    if (swapArmedCheckbox) swapArmedCheckbox.checked = false;
+    if (swapArmedRow) swapArmedRow.hidden = true;
+    if (swapForm) swapForm.reset();
+    if (swapSlippageInput) swapSlippageInput.value = '0.5';
+    showSwapFieldErrors({});
+    setError('wallet-swap-error', '');
+    clearSwapBoxes();
+    if (swapStatus) swapStatus.textContent = '';
+    if (swapEntrySelect) swapEntrySelect.textContent = '';
+    if (swapCard) swapCard.hidden = true;
+    setSwapBusy(false);
+  }
+
+  /* ABI words for the two constant calls the quote needs: the router's
+   * getAmountsOut(uint256,address[]) and the token's allowance(address,address).
+   * TRON ABI addresses are the 20-byte body, left-padded to 32 bytes; the 0x41
+   * prefix and the base58 checksum stay out of the parameter. */
+  function swapAbiWord(value) {
+    return BigInt(value).toString(16).padStart(64, '0');
+  }
+
+  function swapAddressWord(address) {
+    var raw = base58Decode(String(address));
+    if (raw.length !== 25 || raw[0] !== 0x41) {
+      throw new Error('Not a TRON base58 address: ' + address);
+    }
+    return '0'.repeat(24) + bytesToHex(raw.slice(1, 21));
+  }
+
+  /* The node's hex address form (`41` + 20-byte body) for a `visible: false`
+   * request. A base58 address under `visible: false` is parsed as hex and
+   * rejected, so the constant calls send hex explicitly. */
+  function swapHexAddress(address) {
+    return '41' + swapAddressWord(address).slice(24);
+  }
+
+  function encodeGetAmountsOut(amountIn, path) {
+    var words = [swapAbiWord(amountIn), swapAbiWord(64), swapAbiWord(path.length)];
+    path.forEach(function (address) {
+      words.push(swapAddressWord(address));
+    });
+    return words.join('');
+  }
+
+  function encodeAllowance(owner, spender) {
+    return swapAddressWord(owner) + swapAddressWord(spender);
+  }
+
+  function decodeUint256(hex) {
+    var value = String(hex || '').replace(/^0x/i, '').toLowerCase();
+    if (!/^[0-9a-f]{64}/.test(value)) {
+      throw new Error('The call returned no uint256 value.');
+    }
+    return BigInt('0x' + value.slice(0, 64));
+  }
+
+  /* One allowlisted provider call. The provider is refused unless it is a
+   * declared node for this network; an error is shown verbatim and never
+   * retried. */
+  function swapConstantCall(network, providerUrl, owner, contract, selector, parameter) {
+    var provider = tronWallet.assertTronProvider(network, providerUrl);
+    return Promise.resolve(rpcFetchJson(
+      tronWallet.tronEndpoint(provider, '/wallet/triggerconstantcontract'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          owner_address: swapHexAddress(owner),
+          contract_address: swapHexAddress(contract),
+          function_selector: selector,
+          parameter: parameter,
+          visible: false
+        })
+      })).then(function (response) {
+      if (response && typeof response.error === 'string' && response.error) {
+        throw new Error('The ' + selector + ' call failed: ' + response.error);
+      }
+      var results = response && response.constant_result;
+      if (!Array.isArray(results) || typeof results[0] !== 'string' || !results[0]) {
+        var message = response && response.result && response.result.message
+          ? ' (' + response.result.message + ')'
+          : '';
+        throw new Error('The ' + selector + ' call returned no data' + message + '.');
+      }
+      return results[0];
+    });
+  }
+
+  async function getSwapQuote(entry) {
+    if (state.swapPreparing || state.swapSending) return;
+    if (entry.chain !== 'tron') {
+      setError('wallet-swap-error', 'Select a TRON key for a TRON swap.');
+      return;
+    }
+    var network = selectedSwapNetwork();
+    var config = swapConfig();
+    if (!network || !config) {
+      setError('wallet-swap-error', 'The TRON swap module did not load. Reload the page.');
+      return;
+    }
+    if (network.testnet) {
+      setError('wallet-swap-error', 'SunSwap V2 has no deployment on the TRON Nile testnet. Select TRON mainnet.');
+      return;
+    }
+    showSwapFieldErrors({});
+    setError('wallet-swap-error', '');
+    invalidateSwapReview('');
+    state.swapPreparing = true;
+    var generation = state.generation;
+    setSwapBusy(true, 'Reading the latest block and quoting the router…');
+    try {
+      var fromToken = tokenByIndex(config, swapFromTokenSelect.value);
+      var toToken = tokenByIndex(config, swapToTokenSelect.value);
+      if (fromToken.address === toToken.address) {
+        throw new Error('The from token and the to token must differ.');
+      }
+      var slippageBps;
+      try {
+        slippageBps = swap.parseSlippage(swapSlippageInput.value);
+      } catch (err) {
+        var slippageError = new Error('Fix the highlighted fields before quoting.');
+        slippageError.fieldErrors = { slippage: errorText(err) };
+        throw slippageError;
+      }
+      var amountIn;
+      try {
+        amountIn = tronWallet.parseTronAmount(swapAmountInput.value, fromToken.decimals);
+      } catch (err) {
+        var amountError = new Error('Fix the highlighted fields before quoting.');
+        amountError.fieldErrors = {
+          amount: 'Enter the amount as a plain decimal with at most ' +
+            fromToken.decimals + ' decimal places.'
+        };
+        throw amountError;
+      }
+      if (amountIn <= 0n) {
+        var zeroError = new Error('Fix the highlighted fields before quoting.');
+        zeroError.fieldErrors = { amount: 'The amount must be greater than zero.' };
+        throw zeroError;
+      }
+      var path = swap.buildPath({
+        from: fromToken.address,
+        to: toToken.address,
+        wtrx: swap.WTRX
+      });
+      var fresh = await tronWallet.fetchNowBlock(network, rpcFetchJson);
+      var from = await ensureDerivedAddress(entry);
+      var parameter = encodeGetAmountsOut(amountIn, path);
+      var resultHex = await swapConstantCall(network, fresh.providerUrl, from,
+        config.router, 'getAmountsOut(uint256,address[])', parameter);
+      var amounts = swap.parseAmountsOut(resultHex, path.length);
+      if (amounts[0] !== amountIn) {
+        throw new Error('The router quote does not start with the input amount; refusing a malformed route.');
+      }
+      var expectedOut = amounts[amounts.length - 1];
+      if (expectedOut <= 0n) {
+        throw new Error('The router returned no output for this route; there is no liquidity.');
+      }
+      var allowance = null;
+      if (fromToken.address) {
+        var allowanceHex = await swapConstantCall(network, fresh.providerUrl, from,
+          fromToken.address, 'allowance(address,address)',
+          encodeAllowance(from, config.router));
+        allowance = decodeUint256(allowanceHex);
+      }
+      if (generation !== state.generation || !state.unlocked) return;
+      var symbols = path.map(function (address, index) {
+        if (address === swap.WTRX) {
+          if ((index === 0 && !fromToken.address) ||
+              (index === path.length - 1 && !toToken.address)) return 'TRX';
+          return 'WTRX';
+        }
+        var token = findSwapToken(config, address);
+        return token ? token.symbol : address;
+      });
+      state.swapQuote = {
+        from: from,
+        networkSlug: network.slug,
+        networkName: network.name,
+        testnet: network.testnet,
+        providerUrl: fresh.providerUrl,
+        providerLabel: fresh.providerLabel,
+        block: fresh.block,
+        router: config.router,
+        fromToken: fromToken,
+        toToken: toToken,
+        amountIn: amountIn,
+        expectedOut: expectedOut,
+        path: path,
+        routeText: swap.formatRoute(path, symbols),
+        slippageBps: slippageBps,
+        allowance: allowance,
+        fetchedAt: Date.now()
+      };
+      renderSwapQuote(state.swapQuote);
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      if (err.fieldErrors) showSwapFieldErrors(err.fieldErrors);
+      setError('wallet-swap-error', errorText(err));
+      if (swapQuoteBox) swapQuoteBox.hidden = true;
+      if (swapStatus) swapStatus.textContent = '';
+    } finally {
+      state.swapPreparing = false;
+      setSwapBusy(false);
+      if (state.swapQuote && swapReviewButton && !swapReviewButton.disabled) {
+        swapReviewButton.focus();
+      }
+    }
+  }
+
+  function appendSwapRow(list, label, value, asCode) {
+    var term = document.createElement('dt');
+    term.textContent = label;
+    var detail = document.createElement('dd');
+    if (asCode) {
+      var code = document.createElement('code');
+      code.className = 'mono';
+      code.textContent = value;
+      detail.appendChild(code);
+    } else {
+      detail.textContent = value;
+    }
+    list.appendChild(term);
+    list.appendChild(detail);
+  }
+
+  function swapReviewRow(label, value, asCode) {
+    appendSwapRow(swapReviewList, label, value, asCode);
+  }
+
+  function swapAmountText(value, token) {
+    return AMOUNT.formatUnits(value, token.decimals) + ' ' + token.symbol;
+  }
+
+  function renderSwapQuote(quote) {
+    if (!swapQuoteList) return;
+    if (swapReviewBox) swapReviewBox.hidden = true;
+    swapQuoteList.textContent = '';
+    var minimum = swap.minReceived(quote.expectedOut, quote.slippageBps);
+    appendSwapRow(swapQuoteList, 'Network', quote.networkName + ' · MAINNET');
+    appendSwapRow(swapQuoteList, 'Pay', swapAmountText(quote.amountIn, quote.fromToken));
+    appendSwapRow(swapQuoteList, 'Route', quote.routeText);
+    appendSwapRow(swapQuoteList, 'Expected receive', swapAmountText(quote.expectedOut, quote.toToken));
+    appendSwapRow(swapQuoteList, 'Minimum received', swapAmountText(minimum, quote.toToken));
+    appendSwapRow(swapQuoteList, 'Slippage', (quote.slippageBps / 100) + '% (' + quote.slippageBps + ' bps)');
+    if (!quote.fromToken.address) {
+      appendSwapRow(swapQuoteList, 'Approval', 'Not needed — TRX in');
+    } else if (swap.approveNeeded(quote.allowance, quote.amountIn)) {
+      appendSwapRow(swapQuoteList, 'Approval', 'Needed — the review adds one approve before the swap');
+    } else {
+      appendSwapRow(swapQuoteList, 'Approval', 'Allowance already covers the amount');
+    }
+    appendSwapRow(swapQuoteList, 'Provider', quote.providerLabel + ' · ' + quote.providerUrl);
+    swapQuoteBox.hidden = false;
+    if (swapStatus) swapStatus.textContent = 'Quote ready. Review it, then sign.';
+    startSwapAge();
+  }
+
+  /* Build both signed steps from the quote: the approve only when the token
+   * allowance is below the amount (TRX in never needs one). Nothing is signed
+   * here; the review pins the exact unsigned bytes. */
+  async function prepareSwapReview(entry) {
+    if (state.swapPreparing || state.swapSending) return;
+    var quote = state.swapQuote;
+    if (!quote) {
+      setError('wallet-swap-error', 'Get a fresh quote first.');
+      return;
+    }
+    if (!entry || entry.chain !== 'tron') {
+      setError('wallet-swap-error', 'Select a TRON key for a TRON swap.');
+      return;
+    }
+    state.swapPreparing = true;
+    var generation = state.generation;
+    setError('wallet-swap-error', '');
+    setSwapBusy(true, 'Building the swap transaction locally…');
+    try {
+      var from = await ensureDerivedAddress(entry);
+      if (from !== quote.from) {
+        throw new Error('The selected key changed; get a fresh quote.');
+      }
+      swap.assertQuoteFresh(quote);
+      var minimum = swap.minReceived(quote.expectedOut, quote.slippageBps);
+      if (minimum <= 0n) {
+        throw new Error('The slippage leaves a zero minimum received; lower the slippage.');
+      }
+      var deadline = swap.deadlineFrom(Number(quote.block.timestamp));
+      var common = {
+        ref_block_bytes: quote.block.ref_block_bytes,
+        ref_block_hash: quote.block.ref_block_hash,
+        expiration: quote.block.expiration,
+        timestamp: quote.block.timestamp
+      };
+      var approve = null;
+      if (quote.fromToken.address &&
+          swap.approveNeeded(quote.allowance, quote.amountIn)) {
+        var approveRequest = {
+          kind: 'approve',
+          owner_address: from,
+          token_contract_address: quote.fromToken.address,
+          spender_address: quote.router,
+          amount: quote.amountIn.toString(),
+          ref_block_bytes: common.ref_block_bytes,
+          ref_block_hash: common.ref_block_hash,
+          expiration: common.expiration,
+          timestamp: common.timestamp,
+          fee_limit: SWAP_APPROVE_FEE_LIMIT_SUN.toString()
+        };
+        approve = {
+          request: approveRequest,
+          tx: tronWallet.parseTxResult(await unsignedTronTx(approveRequest)),
+          feeLimitSun: SWAP_APPROVE_FEE_LIMIT_SUN
+        };
+      }
+      var swapRequest = {
+        kind: 'swap',
+        owner_address: from,
+        to_address: from,
+        token_contract_address: quote.fromToken.address,
+        router_address: quote.router,
+        path: quote.path.join(','),
+        amount_in: quote.amountIn.toString(),
+        amount_out_min: minimum.toString(),
+        deadline: deadline,
+        ref_block_bytes: common.ref_block_bytes,
+        ref_block_hash: common.ref_block_hash,
+        expiration: common.expiration,
+        timestamp: common.timestamp,
+        fee_limit: SWAP_FEE_LIMIT_SUN.toString()
+      };
+      var swapStep = {
+        request: swapRequest,
+        tx: tronWallet.parseTxResult(await unsignedTronTx(swapRequest)),
+        feeLimitSun: SWAP_FEE_LIMIT_SUN
+      };
+      if (generation !== state.generation || !state.unlocked) return;
+      var review = {
+        family: 'tron-swap',
+        entryId: entry.id,
+        networkSlug: quote.networkSlug,
+        networkName: quote.networkName,
+        testnet: quote.testnet,
+        from: from,
+        providerUrl: quote.providerUrl,
+        providerLabel: quote.providerLabel,
+        quote: quote,
+        approve: approve,
+        swap: swapStep,
+        minimum: minimum,
+        deadline: deadline,
+        builtAt: Date.now()
+      };
+      state.swapReview = review;
+      state.swapReviewEntryId = entry.id;
+      renderSwapReview(review);
+    } catch (err) {
+      if (generation !== state.generation || !state.unlocked) return;
+      setError('wallet-swap-error', errorText(err));
+      if (swapReviewBox) swapReviewBox.hidden = true;
+    } finally {
+      state.swapPreparing = false;
+      setSwapBusy(false);
+      if (state.swapReview && swapConfirmButton && !swapConfirmButton.disabled) {
+        swapConfirmButton.focus();
+      }
+    }
+  }
+
+  function renderSwapReview(review) {
+    if (!swapReviewList) return;
+    var quote = review.quote;
+    swapReviewList.textContent = '';
+    swapReviewRow('Network', review.networkName + ' · MAINNET');
+    swapReviewRow('From', review.from, true);
+    swapReviewRow('Pay', swapAmountText(quote.amountIn, quote.fromToken));
+    swapReviewRow('Receive (quoted)', swapAmountText(quote.expectedOut, quote.toToken));
+    swapReviewRow('Route', quote.routeText);
+    swapReviewRow('Minimum received', swapAmountText(review.minimum, quote.toToken));
+    swapReviewRow('Slippage', (quote.slippageBps / 100) + '% (' + quote.slippageBps + ' bps)');
+    swapReviewRow('Deadline (UTC)', new Date(Number(review.deadline)).toISOString());
+    if (review.approve) {
+      swapReviewRow('1) Approve', swapAmountText(quote.amountIn, quote.fromToken) +
+        ' to the router (fee limit ' + AMOUNT.formatUnits(review.approve.feeLimitSun, 6) + ' TRX)');
+    }
+    swapReviewRow(review.approve ? '2) Swap' : 'Swap',
+      'fee limit ' + AMOUNT.formatUnits(review.swap.feeLimitSun, 6) + ' TRX');
+    swapReviewRow('Provider', review.providerLabel + ' · ' + review.providerUrl);
+    if (review.approve) swapReviewRow('Approve transaction ID', review.approve.tx.txID, true);
+    swapReviewRow('Swap transaction ID', review.swap.tx.txID, true);
+
+    var warnings = [
+      'A swap executes at the router price; the minimum received is the on-chain bound ' +
+        'and the transaction is irreversible once it is broadcast.'
+    ];
+    if (review.approve) {
+      warnings.push('The approve transaction is signed and broadcast first; the swap is ' +
+        'signed only after the approve is confirmed on chain.');
+    }
+    swapReviewWarnings.textContent = '';
+    warnings.forEach(function (warning) {
+      var item = document.createElement('li');
+      item.textContent = warning;
+      swapReviewWarnings.appendChild(item);
+    });
+    swapReviewWarnings.hidden = warnings.length === 0;
+
+    swapReviewUnsigned.textContent = (review.approve
+      ? 'approve: ' + review.approve.tx.raw_data_hex + '\n'
+      : '') + 'swap: ' + review.swap.tx.raw_data_hex;
+    if (swapQuoteBox) swapQuoteBox.hidden = true;
+    swapReviewBox.hidden = false;
+    if (swapStatus) swapStatus.textContent = 'Review ready. Check every field, then sign.';
+    if (swapConfirmButton) swapConfirmButton.focus();
+  }
+
+  function signReviewedTronStep(step, entry) {
+    return signTronWithEntry(entry, step.request).then(function (text) {
+      var signed = tronWallet.parseTxResult(text);
+      if (typeof signed.signature !== 'string' || !/^[0-9a-f]{130}$/.test(signed.signature)) {
+        throw new Error('The local core returned no TRON signature.');
+      }
+      /* What you see is what you sign: the signed bytes must be the reviewed
+       * bytes, so a mutated review cannot broadcast a different call. */
+      if (!step.tx || signed.raw_data_hex !== step.tx.raw_data_hex) {
+        throw new Error('The signed transaction bytes do not match the reviewed bytes. ' +
+          'Refusing to broadcast.');
+      }
+      return signed;
+    });
+  }
+
+  /* Poll the reviewed provider until the approve appears in a block. A failed
+   * receipt stops the flow before the swap is signed; a timeout does the same
+   * and names the transaction so the user can check it. */
+  async function waitForTronReceipt(network, providerUrl, txID, fetchJson, waitMs) {
+    var provider = tronWallet.assertTronProvider(network, providerUrl);
+    var url = tronWallet.tronEndpoint(provider, '/wallet/gettransactioninfobyid');
+    var deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      var info;
+      try {
+        info = await rpcFetchJson(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ value: txID })
+        });
+      } catch (err) {
+        throw new Error('Checking the approve transaction failed: ' + errorText(err));
+      }
+      var reported = info && (info.Error || info.error);
+      if (reported) throw new Error('The node reported: ' + reported);
+      var receipt = info && info.receipt;
+      if (receipt && receipt.result && receipt.result !== 'SUCCESS') {
+        throw new Error('The approve transaction ' + txID + ' failed on chain (' +
+          receipt.result + '); the swap was not signed.');
+      }
+      if (info && (Number(info.blockNumber) > 0 || Number(info.blockTimeStamp) > 0)) {
+        return;
+      }
+      await new Promise(function (resolve) {
+        setTimeout(resolve, SWAP_APPROVE_POLL_MS);
+      });
+    }
+    throw new Error('The approve transaction ' + txID + ' was not confirmed within ' +
+      Math.round(waitMs / 1000) + 's; the swap was not signed. Check the transaction in the explorer.');
+  }
+
+  async function confirmSwap(review, entry) {
+    state.swapSending = true;
+    var generation = state.generation;
+    setError('wallet-swap-confirm-error', '');
+    setSwapBusy(true, 'Signing locally and broadcasting once…');
+    var approveHash = null;
+    var signedParts = [];
+    try {
+      var network = tronWallet.tronNetworkBySlug(review.networkSlug);
+      if (!network) throw new Error('The reviewed TRON network is unknown.');
+      tronWallet.assertTronMainnetArmed(network, swapArmed());
+      swap.assertQuoteFresh(review.quote);
+      tronWallet.assertTronProvider(network, review.providerUrl);
+      if (review.approve) {
+        var signedApprove = await signReviewedTronStep(review.approve, entry);
+        await tronWallet.broadcastTronSigned(network, review.providerUrl,
+          signedApprove, rpcFetchJson);
+        approveHash = signedApprove.txID;
+        signedParts.push(JSON.stringify({
+          txID: signedApprove.txID,
+          raw_data: signedApprove.raw_data,
+          raw_data_hex: signedApprove.raw_data_hex,
+          signature: [signedApprove.signature]
+        }));
+        if (swapStatus) {
+          swapStatus.textContent = 'Approve broadcast; waiting for it to be confirmed on chain…';
+        }
+        await waitForTronReceipt(network, review.providerUrl, signedApprove.txID,
+          rpcFetchJson, SWAP_APPROVE_WAIT_MS);
+        if (generation !== state.generation || !state.unlocked) return;
+      }
+      /* The session arm can be cleared while the approve is confirming; the
+       * swap must not be signed after a disarm. */
+      tronWallet.assertTronMainnetArmed(network, swapArmed());
+      var signedSwap = await signReviewedTronStep(review.swap, entry);
+      await tronWallet.broadcastTronSigned(network, review.providerUrl,
+        signedSwap, rpcFetchJson);
+      signedParts.push(JSON.stringify({
+        txID: signedSwap.txID,
+        raw_data: signedSwap.raw_data,
+        raw_data_hex: signedSwap.raw_data_hex,
+        signature: [signedSwap.signature]
+      }));
+      if (generation !== state.generation || !state.unlocked) return;
+      state.swapReview = null;
+      state.swapReviewEntryId = null;
+      state.swapQuote = null;
+      stopSwapAge();
+      if (swapReviewBox) swapReviewBox.hidden = true;
+      renderSwapResult({
+        txID: signedSwap.txID,
+        approveHash: approveHash,
+        networkName: network.name,
+        network: network,
+        providerUrl: review.providerUrl,
+        providerLabel: review.providerLabel,
+        signedHex: signedParts.join('\n')
+      });
+    } catch (err) {
+      if (generation === state.generation && state.unlocked) {
+        setError('wallet-swap-confirm-error', errorText(err));
+        if (swapStatus) swapStatus.textContent = 'Signing or broadcast failed.';
+      }
+    } finally {
+      state.swapSending = false;
+      setSwapBusy(false);
+    }
+  }
+
+  function renderSwapResult(result) {
+    if (!swapResultBox) return;
+    swapProviderNote.textContent = 'Sent to ' + result.providerLabel + ' · ' +
+      result.providerUrl + '. Crypto did not proxy or store the transaction.';
+    swapHashEl.textContent = result.txID;
+    if (result.approveHash) {
+      swapApproveResult.hidden = false;
+      swapApproveHashEl.textContent = result.approveHash;
+    } else {
+      swapApproveResult.hidden = true;
+      swapApproveHashEl.textContent = '';
+    }
+    var explorer = result.network && result.network.explorerTx
+      ? result.network.explorerTx + result.txID
+      : null;
+    if (explorer) {
+      swapExplorerLink.hidden = false;
+      swapExplorerLink.href = explorer;
+      swapExplorerLink.textContent = 'Open the swap on the ' + result.networkName + ' explorer';
+    } else {
+      swapExplorerLink.hidden = true;
+      swapExplorerLink.removeAttribute('href');
+      swapExplorerLink.textContent = '';
+    }
+    swapSignedEl.textContent = result.signedHex;
+    swapResultBox.hidden = false;
+    if (swapStatus) swapStatus.textContent = 'The provider accepted the signed transactions.';
+    if (explorer) swapExplorerLink.focus();
+  }
+
   function resetSend() {
     state.preparing = false;
     state.review = null;
@@ -3730,6 +4582,7 @@
     if (sendCard) sendCard.hidden = true;
     resetBtcSend();
     resetApprovals();
+    resetSwap();
     setSendBusy(false);
   }
 
@@ -3931,6 +4784,104 @@
       setSendBusy(false);
     }
   });
+
+  /* ------------------------------------------------------------- swap events */
+
+  if (swapForm) {
+    swapForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      if (!state.unlocked) {
+        setError('wallet-swap-error', 'Unlock the vault first.');
+        return;
+      }
+      if (state.swapPreparing || state.swapSending) return;
+      if (!swap || !tronWallet) {
+        setError('wallet-swap-error', 'The TRON swap module did not load. Reload the page.');
+        return;
+      }
+      var entry = selectedSwapEntry();
+      if (!entry) {
+        setError('wallet-swap-error', 'Import a TRON key and select it first.');
+        return;
+      }
+      await getSwapQuote(entry);
+    });
+  }
+  if (swapEntrySelect) {
+    swapEntrySelect.addEventListener('change', function () {
+      updateSwapFrom();
+      invalidateSwapQuote('The selected key changed; get a fresh quote.');
+    });
+  }
+  if (swapNetworkSelect) {
+    swapNetworkSelect.addEventListener('change', function () {
+      updateSwapNetworkState();
+      invalidateSwapQuote('The network changed; get a fresh quote.');
+    });
+  }
+  [swapAmountInput, swapSlippageInput, swapFromTokenSelect, swapToTokenSelect]
+    .forEach(function (control) {
+      if (!control) return;
+      control.addEventListener('input', function () {
+        showSwapFieldErrors({});
+        setError('wallet-swap-error', '');
+        invalidateSwapQuote('The form changed; get a fresh quote.');
+      });
+      control.addEventListener('change', function () {
+        showSwapFieldErrors({});
+        setError('wallet-swap-error', '');
+        invalidateSwapQuote('The form changed; get a fresh quote.');
+      });
+    });
+  if (swapArmedCheckbox) {
+    swapArmedCheckbox.addEventListener('change', function () {
+      state.swapArmed = swapArmedCheckbox.checked;
+      invalidateSwapReview('The session arm changed; review the swap again.');
+    });
+  }
+  if (swapReviewButton) {
+    swapReviewButton.addEventListener('click', function () {
+      if (state.swapPreparing || state.swapSending) return;
+      var entry = selectedSwapEntry();
+      if (!entry) {
+        setError('wallet-swap-error', 'Select a TRON key first.');
+        return;
+      }
+      prepareSwapReview(entry);
+    });
+  }
+  if (swapCancelButton) {
+    swapCancelButton.addEventListener('click', function () {
+      invalidateSwapReview('');
+      if (swapStatus) swapStatus.textContent = '';
+      if (state.swapQuote) renderSwapQuote(state.swapQuote);
+      if (swapQuoteButton) swapQuoteButton.focus();
+    });
+  }
+  if (swapConfirmButton) {
+    swapConfirmButton.addEventListener('click', async function () {
+      if (!state.unlocked) {
+        setError('wallet-swap-confirm-error', 'Unlock the vault first.');
+        return;
+      }
+      if (state.swapSending || state.swapPreparing) {
+        setError('wallet-swap-confirm-error', 'A swap is already in flight.');
+        return;
+      }
+      var review = state.swapReview;
+      var entry = entryById(state.swapReviewEntryId);
+      var selected = selectedSwapEntry();
+      if (!review || !entry) {
+        setError('wallet-swap-confirm-error', 'Build a new review first.');
+        return;
+      }
+      if (!selected || selected.id !== entry.id) {
+        setError('wallet-swap-confirm-error', 'The selected key changed; build a new review.');
+        return;
+      }
+      await confirmSwap(review, entry);
+    });
+  }
 
   /* ------------------------------------------------------ ERC-20 approvals */
 

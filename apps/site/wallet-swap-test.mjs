@@ -102,6 +102,27 @@ test("buildPath wraps TRX at both ends and goes through WTRX between tokens", ()
   ]);
 });
 
+test("buildPath never inserts WTRX twice when WTRX is a selected token", () => {
+  // WTRX is in the curated token list, so it can be the route end itself.
+  assert.deepEqual(swap.buildPath({ from: WTRX_ADDRESS, to: USDT, wtrx: WTRX_ADDRESS }), [
+    WTRX_ADDRESS,
+    USDT,
+  ]);
+  assert.deepEqual(swap.buildPath({ from: USDT, to: WTRX_ADDRESS, wtrx: WTRX_ADDRESS }), [
+    USDT,
+    WTRX_ADDRESS,
+  ]);
+  // TRX <-> WTRX is wrapping, not a swap.
+  assert.throws(
+    () => swap.buildPath({ from: "", to: WTRX_ADDRESS, wtrx: WTRX_ADDRESS }),
+    /same|wtrx|route/i
+  );
+  assert.throws(
+    () => swap.buildPath({ from: WTRX_ADDRESS, to: "", wtrx: WTRX_ADDRESS }),
+    /same|wtrx|route/i
+  );
+});
+
 test("buildPath refuses a route whose ends are the same asset", () => {
   assert.throws(
     () => swap.buildPath({ from: USDT, to: USDT, wtrx: WTRX_ADDRESS }),

@@ -123,6 +123,7 @@ const WALLET_VAULT_JS: &str = include_str!("../../apps/site/wallet-vault.js");
 const WALLET_SIGN_JS: &str = include_str!("../../apps/site/wallet-sign.js");
 const WALLET_EVM_JS: &str = include_str!("../../apps/site/wallet-evm.js");
 const WALLET_TRON_JS: &str = include_str!("../../apps/site/wallet-tron.js");
+const WALLET_SWAP_JS: &str = include_str!("../../apps/site/wallet-swap.js");
 const WALLET_BTC_JS: &str = include_str!("../../apps/site/wallet-btc.js");
 const WALLET_HISTORY_JS: &str = include_str!("../../apps/site/wallet-history.js");
 const WALLET_SECURITY_JS: &str = include_str!("../../apps/site/wallet-security.js");
@@ -2036,6 +2037,10 @@ fn static_asset(path: &str) -> Option<(&'static [u8], &'static str)> {
         )),
         "/wallet-tron.js" => Some((
             WALLET_TRON_JS.as_bytes(),
+            "application/javascript; charset=utf-8",
+        )),
+        "/wallet-swap.js" => Some((
+            WALLET_SWAP_JS.as_bytes(),
             "application/javascript; charset=utf-8",
         )),
         "/wallet-btc.js" => Some((
@@ -8384,7 +8389,11 @@ mod tests {
         assert!(html.contains("<script src=\"/milk-sad-scan.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-security.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet-summary.js\"></script>"));
+        assert!(html.contains("<script src=\"/wallet-swap.js\"></script>"));
         assert!(html.contains("<script src=\"/wallet.js\"></script>"));
+        assert!(html.contains("id=\"wallet-swap\""));
+        assert!(html.contains("id=\"wallet-swap-quote\""));
+        assert!(html.contains("id=\"wallet-swap-confirm\""));
         assert!(html.contains("id=\"wallet-btc-send\""));
         assert!(html.contains("id=\"wallet-btc-form\""));
         assert!(html.contains("id=\"wallet-approvals\""));
@@ -8435,6 +8444,14 @@ mod tests {
         assert!(tron.contains("RotorTronWallet"));
         assert!(tron.contains("assertTronMainnetArmed"));
         assert!(tron.contains("TRON_REVIEW_TTL_MS"));
+
+        let (swap, content_type) =
+            static_asset("/wallet-swap.js").expect("/wallet-swap.js is embedded");
+        assert_eq!(content_type, "application/javascript; charset=utf-8");
+        let swap = std::str::from_utf8(swap).expect("wallet-swap.js is utf-8");
+        assert!(swap.contains("RotorSwap"));
+        assert!(swap.contains("parseAmountsOut"));
+        assert!(swap.contains("assertQuoteFresh"));
 
         let (history, content_type) =
             static_asset("/wallet-history.js").expect("/wallet-history.js is embedded");

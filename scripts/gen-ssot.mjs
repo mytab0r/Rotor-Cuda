@@ -135,6 +135,55 @@ function unique(values, where) {
   }
 }
 
+// The SunSwap token table under a chain entry. One source for the router and
+// the curated tokens: the page and the tests read this through the generated
+// globals and never carry a second copy. An empty address is native TRX; WTRX
+// must reuse the chain's `wtrx` contract so the wrapped asset has one value.
+function validateSwap(chain, where) {
+  const at = `${where}.swap`;
+  const swap = chain.swap;
+  if (!isObject(swap)) fail(`${at} must be an object`);
+  if (typeof swap.router !== "string" || !TRON_ADDRESS_RE.test(swap.router)) {
+    fail(`${at}.router must be a base58 TRON T-address: ${swap.router}`);
+  }
+  if (!Array.isArray(swap.tokens) || swap.tokens.length < 2) {
+    fail(`${at}.tokens must be an array of at least two tokens`);
+  }
+  const symbols = new Set();
+  const addresses = new Set();
+  let native = 0;
+  const tokens = [];
+  for (const [index, token] of swap.tokens.entries()) {
+    const tokenAt = `${at}.tokens[${index}]`;
+    if (!isObject(token)) fail(`${tokenAt} must be an object`);
+    if (!isNonEmptyString(token.symbol)) fail(`${tokenAt}.symbol must be a non-empty string`);
+    if (typeof token.address !== "string") fail(`${tokenAt}.address must be a string (empty for native TRX)`);
+    if (token.address) {
+      if (!TRON_ADDRESS_RE.test(token.address)) {
+        fail(`${tokenAt}.address must be a base58 TRON T-address: ${token.address}`);
+      }
+    } else {
+      native += 1;
+      if (token.symbol !== chain.symbol) fail(`${tokenAt} is the native token and must be ${chain.symbol}`);
+    }
+    if (!Number.isInteger(token.decimals) || token.decimals < 0 || token.decimals > 24) {
+      fail(`${tokenAt}.decimals must be an integer between 0 and 24`);
+    }
+    if (token.symbol === "WTRX" && token.address !== chain.wtrx) {
+      fail(`${tokenAt}.address must equal ${where}.wtrx so the wrapped contract has one value`);
+    }
+    if (symbols.has(token.symbol)) fail(`${at}.tokens repeats symbol ${token.symbol}`);
+    symbols.add(token.symbol);
+    if (token.address) {
+      if (addresses.has(token.address)) fail(`${at}.tokens repeats address ${token.address}`);
+      addresses.add(token.address);
+    }
+    tokens.push({ symbol: token.symbol, address: token.address, decimals: token.decimals });
+  }
+  if (native > 1) fail(`${at}.tokens carries more than one native token`);
+  return { router: swap.router, tokens };
+}
+
 export function loadData(root = REPO_ROOT) {
   const chainsJson = readJson(root, CHAINS_PATH);
   const providersJson = readJson(root, PROVIDERS_PATH);
@@ -183,6 +232,10 @@ export function loadData(root = REPO_ROOT) {
         (typeof chain.wtrx !== "string" || !TRON_ADDRESS_RE.test(chain.wtrx))) {
       fail(`${where}.wtrx must be a base58 TRON T-address: ${chain.wtrx}`);
     }
+    if (chain.swap !== undefined) {
+      if (chain.family !== "tron") fail(`${where}.swap is only meaningful for the tron family`);
+    }
+    const swap = chain.swap === undefined ? null : validateSwap(chain, where);
     const entry = {
       slug: chain.slug,
       name: chain.name,
@@ -196,6 +249,7 @@ export function loadData(root = REPO_ROOT) {
       explorerTx: chain.explorerTx ?? null,
     };
     if (chain.wtrx !== undefined) entry.wtrx = chain.wtrx;
+    if (swap) entry.swap = swap;
     chains.push(entry);
   }
   chains.sort((left, right) => left.order - right.order);
@@ -351,6 +405,7 @@ function renderJs(data, eol = "\n") {
       explorerTxPrefix: chain.explorerTx ? prefixOf(chain.explorerTx) : null,
     };
     if (chain.wtrx) entry.wtrx = chain.wtrx;
+    if (chain.swap) entry.swap = chain.swap;
     bySlug[chain.slug] = entry;
   }
   const byChain = {};

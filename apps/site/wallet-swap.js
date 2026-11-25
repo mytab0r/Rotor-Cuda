@@ -44,7 +44,8 @@
   /* The router path. An empty address means native TRX, which the router
    * only sees as WTRX: before a token and after it (token -> TRX unwraps at
    * the end). The caller supplies the wtrx contract explicitly so the module
-   * never carries a second copy of it. */
+   * never carries a second copy of it. WTRX is a selectable token too, so it
+   * is never inserted twice: a WTRX end is already the wrapped hop. */
   function buildPath(route) {
     var input = route || {};
     var from = input.from;
@@ -59,6 +60,12 @@
     if (from === to) {
       throw new Error('The swap route starts and ends at the same asset; there is no swap.');
     }
+    /* TRX and WTRX are the same underlying asset; wrapping is not a swap. */
+    if ((!from && to === wtrx) || (from === wtrx && !to)) {
+      throw new Error('TRX and WTRX are the same asset; there is no swap.');
+    }
+    if (from === wtrx) return [wtrx, to];
+    if (to === wtrx) return [from, wtrx];
     if (!from) return [wtrx, to];
     if (!to) return [from, wtrx];
     return [from, wtrx, to];

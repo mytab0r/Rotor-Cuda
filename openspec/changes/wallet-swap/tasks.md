@@ -2,14 +2,14 @@
 
 ## 1. Same-chain SunSwap (blocked by: ROT-511)
 
-- [ ] Read the router address and the WTRX address from `data/` (one source),
+- [x] Read the router address and the WTRX address from `data/` (one source),
   never from page code.
-- [ ] Quote with `getAmountsOut` through `TriggerSmartContract` constant call;
+- [x] Quote with `getAmountsOut` through `TriggerSmartContract` constant call;
   refuse a zero route, a stale block and a quote older than its validity.
-- [ ] Build `swapExactTRXForTokens` / `swapExactTokensForTokens` with
+- [x] Build `swapExactTRXForTokens` / `swapExactTokensForTokens` with
   `amountOutMin` from the user's slippage and a deadline; TRC-20 input needs
   an `approve` step with its own review.
-- [ ] Review screen: pay, receive, route, slippage, minimum received, fee limit.
+- [x] Review screen: pay, receive, route, slippage, minimum received, fee limit.
 - [ ] Tests: calldata vectors for both directions, slippage and deadline
   refusals, a mutation that drops `amountOutMin` and fails.
 

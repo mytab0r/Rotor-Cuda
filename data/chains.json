@@ -119,7 +119,32 @@
       "order": 11,
       "family": "tron",
       "explorer": "https://tronscan.org/#/address/{address}",
-      "wtrx": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR"
+      "wtrx": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
+      "swap": {
+        "router": "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax",
+        "tokens": [
+          {
+            "symbol": "TRX",
+            "address": "",
+            "decimals": 6
+          },
+          {
+            "symbol": "USDT",
+            "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+            "decimals": 6
+          },
+          {
+            "symbol": "USDC",
+            "address": "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
+            "decimals": 6
+          },
+          {
+            "symbol": "WTRX",
+            "address": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",
+            "decimals": 6
+          }
+        ]
+      }
     },
     {
       "slug": "xrp",
