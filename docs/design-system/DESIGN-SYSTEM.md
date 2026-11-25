@@ -893,6 +893,7 @@ standalone freshness gate.
 | `link-in-text-block` | Every visible in-text link (a link inside a main p/li/dd block that also has text) is underlined, so it is not distinguished from body text by colour alone. | 8 | implemented |
 | `font-swap-layout-shift` | Every document that links /site.css preloads the first-party Manrope woff2, so a late webfont swap cannot shift layout or keep a wider fallback. | 7 | implemented |
 | `duplicate-help-title` | An element never repeats its own paragraph-length note (120+ characters and 20+ words) in a title attribute; a machine value repeated in its title is allowed. | all | implemented |
+| `puzzle_console_lives_on_run_not_the_seo_hub` | The /bitcoin-puzzle SEO hub carries one line pointing contributors at /run and no pool console (no id=team, data-puzzle-jobs or #team anchor); /run carries the Team mode explanation and the public job board containers. | phase 4 | implemented |
 <!-- END GENERATED detectors:design-system -->
 
 Known debt that needs a design decision is listed in

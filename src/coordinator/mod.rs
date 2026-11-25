@@ -4671,7 +4671,7 @@ fn puzzle_tabs(number: u32, active: &str) -> String {
             "Unsolved",
             "/bitcoin-puzzle/unsolved".to_string(),
         ),
-        ("team", "Team", "/bitcoin-puzzle#team".to_string()),
+        ("team", "Team", "/run".to_string()),
     ];
     let mut out = String::from("<nav class=\"puzzle-tabs\" aria-label=\"Puzzle views\">");
     for (key, label, href) in entries {
@@ -5017,16 +5017,9 @@ fn render_puzzle_home(base: &str) -> String {
          <p class=\"puzzle-note\">Balances and transaction counts load live from mempool.space as rows scroll into view. Range is the inclusive bit span of each puzzle.</p></div>\
          <span class=\"pz-live\">live via mempool.space</span></div>\
          {filters}{table}</section>\
-         <section class=\"card\" id=\"team\"><h2>Team mode — pooled chunk leasing</h2>\
-         <p>Team mode is Crypto's coordinator pool: a job is split into fixed-size chunks, each contributor leases one chunk and scans it on their own hardware. A worker receives only its slice of the range, and an expired lease returns the chunk to the pool. This is separate from the local puzzle browser above; the two never mix in one run.</p>\
-         <h3>Live public jobs</h3>\
-         <div data-puzzle-summary></div>\
-         <div data-puzzle-jobs></div>\
-         <noscript><p>Enable JavaScript to load live job statistics, or read the JSON at <a href=\"/api/v1/jobs/public\">/api/v1/jobs/public</a>.</p></noscript>\
-         <div class=\"puzzle-actions\"><a class=\"button\" href=\"/run\">Run a worker</a> <a class=\"button\" href=\"/cabinet\">Open the cabinet</a> <a class=\"button\" href=\"/docs\">Read the docs</a></div></section>\
+         <p class=\"puzzle-note\">Contributing? The pooled job board and the lease worker live on the <a href=\"/run\">run page</a>.</p>\
          </main>\
-         <script src=\"/puzzle-browser.js\" defer></script>\
-         <script src=\"/puzzle.js\" defer></script>",
+         <script src=\"/puzzle-browser.js\" defer></script>",
         site_header(),
         solved = solved,
         unsolved = unsolved,
@@ -5379,7 +5372,7 @@ fn render_puzzle_random(
          <button type=\"button\" data-puzzle-stop-btn disabled>Stop</button>\
          </div>\
          <p class=\"puzzle-state\" data-puzzle-state role=\"status\" aria-live=\"polite\">Ready. Press Start or Space.</p>\
-         <div class=\"puzzle-team-note\" data-puzzle-team-note hidden>Team mode is the coordinator pool, not this local scan. <a href=\"/bitcoin-puzzle#team\">Open the pooled job board</a> or <a href=\"/run\">run a lease worker</a>. Local and leased work never mix.</div>\
+         <div class=\"puzzle-team-note\" data-puzzle-team-note hidden>Team mode is the coordinator pool, not this local scan. <a href=\"/run\">Open the pooled job board and run a lease worker</a>. Local and leased work never mix.</div>\
          <div class=\"pz-metrics\">\
          <div class=\"pz-metric\"><span class=\"pz-k\">Generated</span><strong data-puzzle-generated>0</strong></div>\
          <div class=\"pz-metric\"><span class=\"pz-k\">Speed</span><strong><span data-puzzle-speed>0</span> <small>keys/s</small></strong></div>\
@@ -6888,6 +6881,11 @@ mod tests {
         let (body, content_type) = static_asset("/run").expect("/run is embedded");
         assert_eq!(content_type, "text/html; charset=utf-8");
         assert!(!body.is_empty());
+        let run_html = std::str::from_utf8(body).expect("/run is utf-8");
+        assert!(run_html.contains("Team mode — pooled chunk leasing"));
+        assert!(run_html.contains("data-puzzle-summary"));
+        assert!(run_html.contains("data-puzzle-jobs"));
+        assert!(run_html.contains("<script src=\"/puzzle.js\" defer></script>"));
 
         let (body, content_type) =
             static_asset("/rotor-worker.js").expect("/rotor-worker.js is embedded");
@@ -8793,14 +8791,18 @@ mod tests {
         assert!(body.contains("data-balance-address"));
         assert!(body.contains("data-tx-address"));
         assert!(body.contains("data-copy"));
-        assert!(body.contains("data-puzzle-jobs"));
-        assert!(body.contains("data-puzzle-summary"));
-        assert!(body.contains("<script src=\"/puzzle.js\" defer></script>"));
+        assert!(
+            body.contains("Contributing? The pooled job board and the lease worker live on the")
+        );
+        assert!(!body.contains("id=\"team\""));
+        assert!(!body.contains("data-puzzle-jobs"));
+        assert!(!body.contains("data-puzzle-summary"));
+        assert!(!body.contains("#team"));
+        assert!(!body.contains("<script src=\"/puzzle.js\" defer></script>"));
         assert!(body.contains("<script src=\"/puzzle-browser.js\" defer></script>"));
         assert!(body.contains("href=\"/run\""));
         assert!(body.contains("href=\"/cabinet\""));
         assert!(body.contains("href=\"/docs\""));
-        assert!(body.contains("/api/v1/jobs/public"));
 
         let (js, content_type) = static_asset("/puzzle.js").expect("/puzzle.js is embedded");
         assert_eq!(content_type, "application/javascript; charset=utf-8");

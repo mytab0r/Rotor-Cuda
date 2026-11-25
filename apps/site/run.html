@@ -54,6 +54,15 @@
     <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
   </section>
 
+  <section class="card" id="team">
+    <h2>Team mode — pooled chunk leasing</h2>
+    <p>Team mode is the coordinator pool: a job is split into fixed-size chunks, each contributor leases one chunk and scans it on their own hardware. A worker receives only its slice of the range, and an expired lease returns the chunk to the pool. This is separate from the local puzzle browser; the two never mix in one run.</p>
+    <h3>Live public jobs</h3>
+    <div data-puzzle-summary></div>
+    <div data-puzzle-jobs></div>
+    <noscript><p>Enable JavaScript to load live job statistics, or read the JSON at <a href="/api/v1/jobs/public">/api/v1/jobs/public</a>.</p></noscript>
+  </section>
+
   <section class="card">
     <h2>Get a client token</h2>
     <p id="join-closed" class="muted" hidden>
@@ -150,6 +159,7 @@
   </section>
 </main>
 
+<script src="/puzzle.js" defer></script>
 <script src="/site.js"></script>
 <script>
 (function () {

@@ -17,6 +17,11 @@ test.describe('static routes', () => {
       await expect(headings).toHaveCount(1);
       await expect(headings).toHaveText(route.h1);
 
+      if (route.path === '/docs/') {
+        await expect(page.locator('.docs-toc a')).toHaveCount(9);
+        await expect(page.locator('main section.card[id]')).toHaveCount(9);
+      }
+
       if (route.rows > 0) {
         await expect(page.locator('table.data-table tbody tr')).toHaveCount(route.rows);
       } else {

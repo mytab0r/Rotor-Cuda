@@ -35,7 +35,7 @@
       "family": "app-shell",
       "template": "apps/site/run.html",
       "renderer": "client-only",
-      "data_sources": ["apps/site/site.js", "/api/v1/me", "/api/v1/lease", "/api/v1/heartbeat", "/api/v1/result"],
+      "data_sources": ["apps/site/puzzle.js", "apps/site/site.js", "/api/v1/me", "/api/v1/lease", "/api/v1/heartbeat", "/api/v1/result", "/api/v1/jobs/public", "/api/v1/summary"],
       "auth": "public",
       "status": "planned",
       "notes": "Worker client shell; the coordinator credential is entered in the browser. Phase 5."
@@ -395,7 +395,7 @@
       "family": "puzzle",
       "template": "src/coordinator/mod.rs#render_puzzle_home",
       "renderer": "coordinator",
-      "data_sources": ["apps/site/puzzle.js", "src/coordinator/puzzles.rs", "data/chains.json"],
+      "data_sources": ["apps/site/puzzle-browser.js", "src/coordinator/puzzles.rs", "data/chains.json"],
       "auth": "public",
       "status": "planned",
       "notes": "Phase 4."

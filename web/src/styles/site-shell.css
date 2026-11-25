@@ -292,12 +292,17 @@
   align-items: start;
 }
 
+/* The docs page is a reading surface: one compact "On this page" card, then
+ * one card per section. The section cards share one scrollable column. */
+.docs-sections {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  max-width: 78ch;
+}
+
 .docs-toc {
   min-width: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-l);
-  background: var(--surface-1);
 }
 .docs-toc__title {
   margin: 0 0 var(--space-2);
