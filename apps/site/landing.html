@@ -165,10 +165,6 @@
   <section class="card landing-section">
     <h2>Tools</h2>
     <div class="tool-grid">
-      <a class="tool-card" href="/tools">
-        <h3>All calculators</h3>
-        <p>Hex, WIF, decimal, brainwallet, seed phrase and vanity tools in one index.</p>
-      </a>
       <a class="tool-card" href="/milk-sad">
         <h3>Milk Sad</h3>
         <p>What the Libbitcoin <code>bx seed</code> weak-entropy issue means and how an owner should respond.</p>
@@ -185,74 +181,14 @@
         <h3>Brainwallet</h3>
         <p>Browse 18,890 deterministic passphrases on 18 chains, 60 per page, or open the single-passphrase generator. Educational only; never use a memorable phrase for real funds.</p>
       </a>
-      <a class="tool-card" href="/faq">
-        <h3>FAQ</h3>
-        <p>Safety, derivation and puzzle questions answered.</p>
-      </a>
-      <a class="tool-card" href="/donate">
-        <h3>Donate</h3>
-        <p>Support the coordinator and the puzzle research.</p>
-      </a>
     </div>
+    <p class="muted landing-lead"><a href="/faq">FAQ</a> · <a href="/donate">Donate</a></p>
   </section>
 
-  <section class="card" id="totals-card">
-    <h2>Live totals</h2>
-    <div class="stat-grid">
-      <div class="stat"><span class="stat-label">Keys scanned</span><span class="stat-value" id="totals-scanned">0</span></div>
-      <div class="stat"><span class="stat-label">Active clients</span><span class="stat-value" id="totals-clients">0</span></div>
-      <div class="stat"><span class="stat-label">Results</span><span class="stat-value" id="totals-results">0</span></div>
-      <div class="stat"><span class="stat-label">Jobs</span><span class="stat-value" id="totals-jobs">0</span></div>
-    </div>
-    <p class="muted" id="totals-status">connecting...</p>
-  </section>
-
-  <section class="card">
-    <h2>Leaderboard</h2>
-    <div class="table-scroll">
-      <table class="data-table">
-        <thead>
-          <tr><th class="rank">#</th><th>Contributor</th><th>Scanned</th><th>Chunks</th><th>Found</th></tr>
-        </thead>
-        <tbody id="leaderboard-body">
-          <tr><td colspan="5" class="muted">no contributors yet</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="card" id="join-card">
-    <h2>Join</h2>
-    <p id="join-closed" class="muted" hidden>
-      Registration is closed. Ask the operator for a client token.
-    </p>
-    <form id="join-form">
-      <label>Display name
-        <input id="join-name" maxlength="64" placeholder="your name" autocomplete="off">
-      </label>
-      <button type="submit" class="primary">Get a token</button>
-    </form>
-    <div id="join-result" hidden>
-      <p class="ok">Account created. Copy this token now: it is shown only once.</p>
-      <div class="token-row">
-        <code id="join-token" class="mono"></code>
-        <button type="button" id="join-copy">Copy</button>
-      </div>
-      <p class="muted">Run a client with <code>--token &lt;token&gt;</code>, or save it in your <a href="/cabinet">cabinet</a>.</p>
-      <p id="join-id" class="muted mono"></p>
-    </div>
-    <p id="join-error" class="error" hidden></p>
-  </section>
-
-  <section class="card">
-    <h2>How it works</h2>
-    <ol>
-      <li>Register here (when open) or ask the operator for a token.</li>
-      <li>Run <code class="mono">rotor</code> with <code class="mono">--coordinator</code> and <code class="mono">--token</code>; it leases a key range.</li>
-      <li>The client scans and sends heartbeats plus a verified completion sample.</li>
-      <li>The coordinator counts accepted work and ranks every contributor.</li>
-    </ol>
-    <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
+  <section class="card landing-section" id="contribute">
+    <h2>Contribute</h2>
+    <p>Run a client to lease a key range and report verified completions; the coordinator ranks contributors.</p>
+    <p class="landing-actions"><a class="button primary" href="/run">Run a client</a></p>
   </section>
 </main>
 
@@ -262,52 +198,7 @@
 <script>
 (function () {
   'use strict';
-  var R = window.Rotor;
   var byId = function (id) { return document.getElementById(id); };
-  var registrationOpen = false;
-  var pollTimer = null;
-
-  function setText(id, value) { byId(id).textContent = value; }
-
-  function renderLeaderboard(rows) {
-    var body = byId('leaderboard-body');
-    if (!rows || !rows.length) {
-      body.innerHTML = '<tr><td colspan="5" class="muted">no contributors yet</td></tr>';
-      return;
-    }
-    body.innerHTML = rows.map(function (row, index) {
-      return '<tr>' +
-        '<td class="rank">' + (index + 1) + '</td>' +
-        '<td>' + R.escapeHtml(row.name) + '</td>' +
-        '<td>' + R.formatNumber(row.scanned) + '</td>' +
-        '<td>' + R.formatNumber(row.chunks_done) + '</td>' +
-        '<td>' + R.formatNumber(row.found) + '</td>' +
-        '</tr>';
-    }).join('');
-  }
-
-  function showRegistration(open) {
-    registrationOpen = open;
-    byId('join-form').hidden = !open;
-    byId('join-closed').hidden = open;
-    if (!open) byId('join-result').hidden = true;
-  }
-
-  async function refresh() {
-    try {
-      var summary = await R.request('/api/v1/summary', { token: '' });
-      var totals = summary.totals || {};
-      setText('totals-scanned', R.formatNumber(totals.scanned));
-      setText('totals-clients', R.formatNumber(totals.clients_active));
-      setText('totals-results', R.formatNumber(totals.results));
-      setText('totals-jobs', R.formatNumber(totals.jobs));
-      setText('totals-status', 'live, refreshed every 2 s');
-      renderLeaderboard(summary.leaderboard || []);
-      showRegistration(summary.registration_open === true);
-    } catch (err) {
-      setText('totals-status', 'coordinator unavailable: ' + err.message);
-    }
-  }
 
   /* Search: only a 64-hex key has a /key/<hex> page. Everything else gets a
    * hint with a link to the right tool. */
@@ -365,63 +256,6 @@
       ]);
     });
   });
-
-  function showError(message) {
-    var box = byId('join-error');
-    box.textContent = message || '';
-    box.hidden = !message;
-  }
-
-  byId('join-form').addEventListener('submit', async function (event) {
-    event.preventDefault();
-    var name = byId('join-name').value;
-    if (!name.trim()) {
-      showError('enter a display name');
-      return;
-    }
-    showError('');
-    try {
-      var created = await R.request('/api/v1/register', {
-        method: 'POST',
-        token: '',
-        body: JSON.stringify({ name: name })
-      });
-      byId('join-form').hidden = true;
-      byId('join-result').hidden = false;
-      byId('join-token').textContent = created.token;
-      byId('join-id').textContent = 'client id: ' + created.id;
-      R.setToken(created.token);
-    } catch (err) {
-      if (err.status === 403) {
-        showRegistration(false);
-        showError('registration is closed');
-        return;
-      }
-      if (err.status === 429) {
-        showError('too many registrations from this address; try again in a minute');
-        return;
-      }
-      showError(err.message);
-    }
-  });
-
-  byId('join-copy').addEventListener('click', async function () {
-    var text = byId('join-token').textContent;
-    try {
-      await navigator.clipboard.writeText(text);
-      byId('join-copy').textContent = 'Copied';
-    } catch (err) {
-      var range = document.createRange();
-      range.selectNodeContents(byId('join-token'));
-      var selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-      byId('join-copy').textContent = 'Ctrl+C';
-    }
-  });
-
-  refresh();
-  pollTimer = window.setInterval(refresh, 2000);
 })();
 </script>
 </body>

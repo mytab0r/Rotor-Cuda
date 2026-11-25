@@ -1440,18 +1440,30 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 9] = [
+    let checks: [(&str, &[&str]); 11] = [
         (
             "/",
             &[
                 "Crypto",
-                "id=\"totals-scanned\"",
-                "id=\"join-form\"",
+                "id=\"contribute\"",
+                "href=\"/run\"",
+                "class=\"tool-card\" href=\"/seed\"",
                 "href=\"/private-keys\"",
                 "href=\"/bitcoin-puzzle\"",
                 "href=\"/brainwallet\"",
                 "href=\"/cabinet\"",
                 "href=\"/docs\"",
+            ],
+        ),
+        (
+            "/run",
+            &[
+                "id=\"join-form\"",
+                "id=\"leaderboard-body\"",
+                "How it works",
+                "--coordinator",
+                "/api/v1/register",
+                "/api/v1/summary",
             ],
         ),
         (
@@ -1485,6 +1497,10 @@ fn public_pages_and_assets_are_served() {
                 "/wallet-vault.js",
                 "/theme.js",
             ],
+        ),
+        (
+            "/bitcoin-puzzle",
+            &["<div class=\"puzzle-actions\">", "Run a worker"],
         ),
         (
             "/key",

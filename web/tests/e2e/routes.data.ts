@@ -24,7 +24,7 @@ export const ROUTES: RouteCase[] = [
     name: 'home',
     title: 'Private key explorer and Bitcoin puzzle search | Crypto',
     h1: 'Private key explorer and Bitcoin puzzle search',
-    rows: 1,
+    rows: 0,
     kind: 'landing',
   },
   {

@@ -1,9 +1,10 @@
 ---
 /* Landing page, content-equivalent to the coordinator's `/` but rebuilt as a
  * presentation page: one H1 for the page intent, one primary route into the
- * wallet, and honest security wording. Dynamic coordinator surfaces (live
- * totals, leaderboard, registration) link to the pages that own them instead
- * of rendering fake or stale numbers in static HTML. */
+ * wallet, and honest security wording. The coordinator's live totals,
+ * leaderboard, token issuance and CLI walkthrough live on `/run` and
+ * `#team` on `/bitcoin-puzzle`; the landing keeps one Contribute entry that
+ * points at `/run`. */
 import SiteLayout from '../layouts/SiteLayout.astro';
 import ogImage from '../assets/og-landing.png';
 import chainsData from '../../../data/chains.json';
@@ -155,10 +156,6 @@ const jsonLd = {
     <h2 id="landing-tools">Tools</h2>
     <div class="tool-grid">
       <div class="tool-card">
-        <h3><a href="/tools">All calculators</a></h3>
-        <p>Hex, WIF, decimal, brainwallet, seed phrase and vanity tools in one index.</p>
-      </div>
-      <div class="tool-card">
         <h3><a href="/milk-sad">Milk Sad</a></h3>
         <p>What the Libbitcoin <code>bx seed</code> weak-entropy issue means and how an owner should respond.</p>
       </div>
@@ -178,80 +175,13 @@ const jsonLd = {
         <h3><a href="/security">Security advisories</a></h3>
         <p>Published wallet vulnerabilities and threat classes with plain-language impact and actions. Documentation, not a protection service.</p>
       </div>
-      <div class="tool-card">
-        <h3><a href="/faq">FAQ</a></h3>
-        <p>Safety, derivation and puzzle questions answered.</p>
-      </div>
-      <div class="tool-card">
-        <h3><a href="/donate">Donate</a></h3>
-        <p>Support the coordinator and the puzzle research.</p>
-      </div>
     </div>
+    <p class="muted landing-lead"><a href="/faq">FAQ</a> · <a href="/donate">Donate</a></p>
   </section>
 
-  <section class="card landing-section" aria-labelledby="landing-totals">
-    <h2 id="landing-totals">Live totals</h2>
-    <ul class="landing-facts">
-      <li><span class="landing-facts__label">Keys scanned</span><a href="/app">Global totals in the operator console</a></li>
-      <li><span class="landing-facts__label">Active clients</span><a href="/app">Global totals in the operator console</a></li>
-      <li><span class="landing-facts__label">Results and jobs</span><a href="/app">Global totals in the operator console</a></li>
-    </ul>
-    <p class="muted landing-lead">The coordinator serves these counts; this static page renders no stale copy of them.</p>
-  </section>
-
-  <section class="card" aria-labelledby="landing-leaderboard">
-    <h2 id="landing-leaderboard">Leaderboard</h2>
-    <div class="table-scroll">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th class="rank" scope="col">#</th>
-            <th scope="col">Contributor</th>
-            <th scope="col">Scanned</th>
-            <th scope="col">Chunks</th>
-            <th scope="col">Found</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td colspan="4" class="muted">Live rankings are shown in the operator console.</td>
-            <td>
-              <a
-                class="icon-button icon-button--quiet icon-button--sm"
-                href="/app"
-                aria-label="Open the live leaderboard"
-                data-tooltip="Open the live leaderboard"
-              >
-                <svg class="icon" aria-hidden="true"><use href="/icons.svg#ui-arrow-right"></use></svg>
-              </a>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="card" id="join" aria-labelledby="landing-join">
-    <h2 id="landing-join">Join</h2>
-    <p>
-      Registration is controlled by the coordinator: when it is open, the
-      cabinet creates the client account and shows the token once, at creation.
-    </p>
-    <ul class="landing-facts">
-      <li><span class="landing-facts__label">Get a token</span><a href="/cabinet">Create or manage it in the cabinet</a></li>
-      <li><span class="landing-facts__label">Store the token</span><a href="/run">Paste it on the client page</a></li>
-      <li><span class="landing-facts__label">Run the client</span><a href="/docs">CPU and GPU commands in the docs</a></li>
-    </ul>
-  </section>
-
-  <section class="card" aria-labelledby="landing-how">
-    <h2 id="landing-how">How it works</h2>
-    <ol>
-      <li>Register when open, or ask the operator for a token.</li>
-      <li>Run <code class="mono">rotor</code> with <code class="mono">--coordinator</code> and <code class="mono">--token</code>; it leases a key range.</li>
-      <li>The client scans and sends heartbeats plus a verified completion sample.</li>
-      <li>The coordinator counts accepted work and ranks every contributor.</li>
-    </ol>
-    <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
+  <section class="card landing-section" id="contribute" aria-labelledby="landing-contribute">
+    <h2 id="landing-contribute">Contribute</h2>
+    <p>Run a client to lease a key range and report verified completions; the coordinator ranks contributors.</p>
+    <div class="landing-actions"><a class="btn primary" href="/run">Run a client</a></div>
   </section>
 </SiteLayout>

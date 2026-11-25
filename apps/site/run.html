@@ -43,6 +43,40 @@
     it submits results through the same verified protocol as the native client.
   </section>
 
+  <section class="card">
+    <h2>How it works</h2>
+    <ol>
+      <li>Register below (when open) or ask the operator for a token.</li>
+      <li>Run <code class="mono">rotor</code> with <code class="mono">--coordinator</code> and <code class="mono">--token</code>; it leases a key range.</li>
+      <li>The client scans and sends heartbeats plus a verified completion sample.</li>
+      <li>The coordinator counts accepted work and ranks every contributor.</li>
+    </ol>
+    <p class="muted">Read <a href="/docs">the docs</a> for CPU/GPU commands and the puzzle-only disclaimer.</p>
+  </section>
+
+  <section class="card">
+    <h2>Get a client token</h2>
+    <p id="join-closed" class="muted" hidden>
+      Registration is closed. Ask the operator for a client token.
+    </p>
+    <form id="join-form">
+      <label>Display name
+        <input id="join-name" maxlength="64" placeholder="your name" autocomplete="off">
+      </label>
+      <button type="submit" class="primary">Get a token</button>
+    </form>
+    <div id="join-result" hidden>
+      <p class="ok">Account created. Copy this token now: it is shown only once.</p>
+      <div class="token-row">
+        <code id="join-token" class="mono"></code>
+        <button type="button" id="join-copy">Copy</button>
+      </div>
+      <p class="muted">Run a client with <code>--token &lt;token&gt;</code>, or save it in your <a href="/cabinet">cabinet</a>.</p>
+      <p id="join-id" class="muted mono"></p>
+    </div>
+    <p id="join-error" class="error" hidden></p>
+  </section>
+
   <p id="run-error" class="error" hidden></p>
   <p id="run-insecure" class="notice" hidden>This page needs a secure context
   (HTTPS or localhost) before it will start the worker.</p>
@@ -98,6 +132,21 @@
   <section class="card">
     <h2>Activity</h2>
     <div id="run-log" class="mono muted" style="max-height:160px;overflow:auto"></div>
+  </section>
+
+  <section class="card">
+    <h2>Contributors</h2>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr><th class="rank">#</th><th>Contributor</th><th>Scanned</th><th>Chunks</th><th>Found</th></tr>
+        </thead>
+        <tbody id="leaderboard-body">
+          <tr><td colspan="5" class="muted">no contributors yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" id="contrib-status">connecting...</p>
   </section>
 </main>
 
@@ -173,6 +222,46 @@
 
   function updateTokenState() {
     byId('run-token-state').textContent = R.token() ? 'token stored' : 'no token';
+  }
+
+  function showJoinError(message) {
+    var box = byId('join-error');
+    box.textContent = message || '';
+    box.hidden = !message;
+  }
+
+  function renderContributors(rows) {
+    var body = byId('leaderboard-body');
+    if (!rows || !rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="muted">no contributors yet</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map(function (row, index) {
+      return '<tr>' +
+        '<td class="rank">' + (index + 1) + '</td>' +
+        '<td>' + R.escapeHtml(row.name) + '</td>' +
+        '<td>' + R.formatNumber(row.scanned) + '</td>' +
+        '<td>' + R.formatNumber(row.chunks_done) + '</td>' +
+        '<td>' + R.formatNumber(row.found) + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function showRegistration(open) {
+    byId('join-form').hidden = !open;
+    byId('join-closed').hidden = open;
+    if (!open) byId('join-result').hidden = true;
+  }
+
+  async function refreshSummary() {
+    try {
+      var summary = await R.request('/api/v1/summary', { token: '' });
+      renderContributors(summary.leaderboard || []);
+      showRegistration(summary.registration_open === true);
+      byId('contrib-status').textContent = 'live, refreshed every 2 s';
+    } catch (err) {
+      byId('contrib-status').textContent = 'coordinator unavailable: ' + err.message;
+    }
   }
 
   function secureContext() {
@@ -392,6 +481,55 @@
     appendLog('token saved in this browser');
   });
 
+  byId('join-form').addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var name = byId('join-name').value;
+    if (!name.trim()) {
+      showJoinError('enter a display name');
+      return;
+    }
+    showJoinError('');
+    try {
+      var created = await R.request('/api/v1/register', {
+        method: 'POST',
+        token: '',
+        body: JSON.stringify({ name: name })
+      });
+      byId('join-form').hidden = true;
+      byId('join-result').hidden = false;
+      byId('join-token').textContent = created.token;
+      byId('join-id').textContent = 'client id: ' + created.id;
+      R.setToken(created.token);
+      updateTokenState();
+    } catch (err) {
+      if (err.status === 403) {
+        showRegistration(false);
+        showJoinError('registration is closed');
+        return;
+      }
+      if (err.status === 429) {
+        showJoinError('too many registrations from this address; try again in a minute');
+        return;
+      }
+      showJoinError(err.message);
+    }
+  });
+
+  byId('join-copy').addEventListener('click', async function () {
+    var text = byId('join-token').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      byId('join-copy').textContent = 'Copied';
+    } catch (err) {
+      var range = document.createRange();
+      range.selectNodeContents(byId('join-token'));
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      byId('join-copy').textContent = 'Ctrl+C';
+    }
+  });
+
   byId('run-controls').addEventListener('submit', function (event) {
     event.preventDefault();
     startWorker();
@@ -436,6 +574,8 @@
     setButtons(false);
   };
 
+  refreshSummary();
+  window.setInterval(refreshSummary, 2000);
   updateTokenState();
   setButtons(false);
   if (!secureContext()) byId('run-insecure').hidden = false;

@@ -78,7 +78,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['ref-site-a:/'],
-    note: 'Astro landing at `web/src/pages/index.astro` on the shared `SiteLayout`; the Rust renderer still serves the route until the phase-6 cutover. One H1 for the page intent, a wallet CTA and a directory CTA, 18 chain cards, the six address-database links, the tool index and honest security wording. Static HTML renders no live counters: totals and the leaderboard link to the operator console, and registration links to the cabinet, which owns the token flow.'
+    note: 'Astro landing at `web/src/pages/index.astro` on the shared `SiteLayout`; the Rust renderer still serves the route until the phase-6 cutover. One H1 for the page intent, a wallet CTA and a directory CTA, 18 chain cards, the six address-database links, the real tool cards (Milk Sad, seed phrase, vanity, brainwallet, security advisories) with FAQ and Donate as a plain link row, and honest security wording. One compact Contribute entry links to `/run`, which owns token issuance, the CLI walkthrough and the contributor leaderboard; the live pool totals stay on `/bitcoin-puzzle#team`. Static HTML renders no live counters.'
   });
 
   oursRoute({
