@@ -855,6 +855,13 @@
       "symptom": "The /key stats card repeated one ~90-word explanation three times: a title on the counter group, a title on the note paragraph, and the paragraph text itself. The same wall of text met the reader on hover and the DOM carried three copies (#541).",
       "detector": "duplicate-help-title",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "puzzle-pool-console-on-seo-hub",
+      "reported": "2026-11-25",
+      "symptom": "The /bitcoin-puzzle SEO hub hosted the contributor pool console: a Team mode card with the live public job board, so a page written for puzzle searchers carried a coordinator contributor surface (#541).",
+      "detector": "puzzle_console_lives_on_run_not_the_seo_hub",
+      "where": "tests/coordinator_api.rs"
     }
   ]
 }

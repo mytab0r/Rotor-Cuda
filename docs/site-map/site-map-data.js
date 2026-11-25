@@ -78,7 +78,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['ref-site-a:/'],
-    note: 'Astro landing at `web/src/pages/index.astro` on the shared `SiteLayout`; the Rust renderer still serves the route until the phase-6 cutover. One H1 for the page intent, a wallet CTA and a directory CTA, 18 chain cards, the six address-database links, the real tool cards (Milk Sad, seed phrase, vanity, brainwallet, security advisories) with FAQ and Donate as a plain link row, and honest security wording. One compact Contribute entry links to `/run`, which owns token issuance, the CLI walkthrough and the contributor leaderboard; the live pool totals stay on `/bitcoin-puzzle#team`. Static HTML renders no live counters.'
+    note: 'Astro landing at `web/src/pages/index.astro` on the shared `SiteLayout`; the Rust renderer still serves the route until the phase-6 cutover. One H1 for the page intent, a wallet CTA and a directory CTA, 18 chain cards, the six address-database links, the real tool cards (Milk Sad, seed phrase, vanity, brainwallet, security advisories) with FAQ and Donate as a plain link row, and honest security wording. One compact Contribute entry links to `/run`, which owns token issuance, the CLI walkthrough, the contributor leaderboard, the pool totals and the public job board; the puzzle card keeps its compact live summary. Static HTML renders no live counters.'
   });
 
   oursRoute({
@@ -204,7 +204,7 @@
     status: 'parity',
     priority: '-',
     donorIds: ['ref-site-a:/bitcoin-puzzle', 'ref-site-b:/bitcoin-puzzle'],
-    note: '160-puzzle table with All/Solved/Unsolved filters, search, Balance/TX/Actions columns and BTC claimed/left stats.'
+    note: '160-puzzle table with All/Solved/Unsolved filters, search, Balance/TX/Actions columns and BTC claimed/left stats. One line points contributors to the pooled job board and lease worker on `/run`; the coordinator console is not on this SEO page.'
   });
 
   oursRoute({
