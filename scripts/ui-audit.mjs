@@ -1844,13 +1844,16 @@ async function auditPage(args) {
   //      reader met the same wall of text on hover. Short control tooltips are
   //      not affected: both the title and the element text must reach 120
   //      characters. The two copies drift by a word, so the pair counts when
-  //      one contains the other or they share their first 60 characters.
+  //      one contains the other or they share their first 60 characters. A
+  //      truncated machine value (a key, an xpub) repeats itself in its title on
+  //      purpose, so the text must also read as prose: 20 words or more.
   const duplicateHelpIssues = [];
   for (const el of document.querySelectorAll("[title]")) {
     if (!visible(el)) continue;
     const title = (el.getAttribute("title") || "").trim();
     const text = (el.textContent || "").trim();
     if (title.length < 120 || text.length < 120) continue;
+    if (text.split(/\s+/).length < 20) continue;
     let shared = 0;
     while (shared < Math.min(title.length, text.length) && title[shared] === text[shared]) shared++;
     if (shared < 60 && !text.includes(title) && !title.includes(text)) continue;
