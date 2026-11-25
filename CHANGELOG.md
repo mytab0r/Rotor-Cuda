@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.7.0...v2.7.1) (2026-11-25)
+
+
+### Documentation
+
+* **changelog:** backfill 2.4.0–2.7.0 sections ([b31dec5](https://github.com/mytab0r/Rotor-Cuda/commit/b31dec5a61c6a28944c201278de02661e32ce7ae))
+
 ## [2.7.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.6.0...v2.7.0) (2026-11-25)
 
 
