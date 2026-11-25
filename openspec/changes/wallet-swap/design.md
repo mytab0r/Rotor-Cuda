@@ -31,7 +31,11 @@ the absolute USDC figure.
 "USDC per TRX debited" is what the user actually pays: received USDC divided
 by the TRX the provider debits, including any operating expense added on top
 of the typed amount. A quoted output with a hidden debit is not a price, so
-that ratio, not the quoted rate, is what selects the provider.
+that ratio, not the quoted rate, is what selects the provider. Symbiosis's
+returned `tx.value` equals the typed amount (`metaRoute(...)` call, checked
+100 TRX → `value: 100000000`), so its ratio is the quoted output over the
+input; deBridge's `srcChainTokenIn.amount` is the same, but the prepended
+operating expense is debited on top.
 
 | Provider | Fee | USDC per TRX debited (100 / 1k / 100k TRX) | 100 USDT-TRC20 → USDC | Limits | KYC | Arbitrary recipient |
 | --- | --- | --- | --- | --- | --- | --- |
