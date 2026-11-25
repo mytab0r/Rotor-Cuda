@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.6.0...v2.7.0) (2026-11-25)
+
+
+### Features
+
+* **wallet:** TRON SunSwap swap card (ROT-520) ([1bd2f38](https://github.com/mytab0r/Rotor-Cuda/commit/1bd2f38cc8139a5c595558395e37794c12c86306))
+
+
+### Bug Fixes
+
+* **tron:** allow a token-in swap whose output exceeds its input units ([#550](https://github.com/mytab0r/Rotor-Cuda/issues/550)) ([1c1385c](https://github.com/mytab0r/Rotor-Cuda/commit/1c1385c94febd33f33eefc4f1a09c7c93c2c7181))
+
 ## [2.6.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.5.0...v2.6.0) (2026-11-25)
 
 
