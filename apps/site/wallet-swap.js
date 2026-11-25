@@ -230,6 +230,70 @@
     return labels.join(' → ');
   }
 
+  /* ---------------------------------------------------- rebuild after approve */
+
+  /* The economic fields a swap may never change after the review: the owner,
+   * the recipient, the token contract, the router, the path and both amounts.
+   * The ref block and the deadline are deliberately not part of the pin. */
+  function fixedSwapFields(request) {
+    if (!request || typeof request !== 'object') {
+      throw new Error('The swap request is missing.');
+    }
+    return [
+      request.owner_address,
+      request.to_address,
+      request.token_contract_address,
+      request.router_address,
+      request.path,
+      request.amount_in,
+      request.amount_out_min
+    ].join('\u0000');
+  }
+
+  /* After an approve is confirmed the reviewed ref block may already be too
+   * old for the node, so the swap is rebuilt from a fresh block while its
+   * amounts, path, router and addresses stay exactly as reviewed. The quote
+   * TTL is not re-applied here: this is not a new review, and the on-chain
+   * amount_out_min stays the economic guard. A block older than the reviewed
+   * one is refused instead of producing an already stale transaction. */
+  function rebuildSwapStep(review, freshBlock) {
+    var step = review && review.swap;
+    var request = step && step.request;
+    if (!request || request.kind !== 'swap') {
+      throw new Error('The reviewed swap step is missing; rebuild the review first.');
+    }
+    if (!freshBlock || typeof freshBlock.ref_block_bytes !== 'string' ||
+        typeof freshBlock.ref_block_hash !== 'string' ||
+        typeof freshBlock.timestamp !== 'string' ||
+        typeof freshBlock.expiration !== 'string') {
+      throw new Error('The fresh block has no ref fields.');
+    }
+    var freshTimestamp = Number(freshBlock.timestamp);
+    if (!Number.isFinite(freshTimestamp) || freshTimestamp <= 0) {
+      throw new Error('The fresh block has no safe timestamp.');
+    }
+    var reviewedBlock = review.quote && review.quote.block;
+    var reviewedTimestamp = reviewedBlock ? Number(reviewedBlock.timestamp) : 0;
+    if (Number.isFinite(reviewedTimestamp) && reviewedTimestamp > 0 &&
+        freshTimestamp < reviewedTimestamp) {
+      throw new Error('The fresh block is older than the reviewed block; refusing to rebuild the swap.');
+    }
+    var rebuilt = {};
+    Object.keys(request).forEach(function (key) {
+      rebuilt[key] = request[key];
+    });
+    rebuilt.ref_block_bytes = freshBlock.ref_block_bytes;
+    rebuilt.ref_block_hash = freshBlock.ref_block_hash;
+    rebuilt.timestamp = freshBlock.timestamp;
+    rebuilt.expiration = freshBlock.expiration;
+    rebuilt.deadline = deadlineFrom(freshTimestamp);
+    return {
+      request: rebuilt,
+      feeLimitSun: step.feeLimitSun,
+      fixed: fixedSwapFields(rebuilt)
+    };
+  }
+
   return {
     WTRX: WTRX,
     MAX_SLIPPAGE_BPS: MAX_SLIPPAGE_BPS,
@@ -242,6 +306,8 @@
     assertQuoteFresh: assertQuoteFresh,
     approveNeeded: approveNeeded,
     parseAmountsOut: parseAmountsOut,
-    formatRoute: formatRoute
+    formatRoute: formatRoute,
+    fixedSwapFields: fixedSwapFields,
+    rebuildSwapStep: rebuildSwapStep
   };
 });

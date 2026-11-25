@@ -262,6 +262,72 @@ test("parseAmountsOut refuses a length that does not match the path", () => {
   assert.throws(() => swap.parseAmountsOut("zz".repeat(128), 2), /hex|abi|amounts/i);
 });
 
+/* ------------------------------------------- rebuild after the approve */
+
+function swapReview() {
+  return {
+    quote: { block: { timestamp: "1700000000000" } },
+    swap: {
+      feeLimitSun: 30000000n,
+      request: {
+        kind: "swap",
+        owner_address: "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax",
+        to_address: "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax",
+        token_contract_address: "",
+        router_address: "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax",
+        path: [WTRX_ADDRESS, USDT].join(","),
+        amount_in: "1000000",
+        amount_out_min: "300000",
+        deadline: "1700001200000",
+        ref_block_bytes: "aaaa",
+        ref_block_hash: "0102030405060708",
+        expiration: "1700000090000",
+        timestamp: "1700000000000",
+        fee_limit: "30000000",
+      },
+    },
+  };
+}
+
+function freshBlock(timestamp) {
+  return {
+    ref_block_bytes: "bbbb",
+    ref_block_hash: "1112131415161718",
+    timestamp: String(timestamp),
+    expiration: String(timestamp + 90000),
+  };
+}
+
+test("rebuildSwapStep keeps the reviewed amounts and path with fresh ref fields", () => {
+  const review = swapReview();
+  const out = swap.rebuildSwapStep(review, freshBlock(1_700_000_100_000));
+  // Economic fields stay exactly as reviewed.
+  for (const field of ["owner_address", "to_address", "token_contract_address",
+    "router_address", "path", "amount_in", "amount_out_min"]) {
+    assert.equal(out.request[field], review.swap.request[field], field);
+  }
+  assert.equal(out.request.fee_limit, review.swap.request.fee_limit);
+  // Only the ref block and the deadline move.
+  assert.equal(out.request.ref_block_bytes, "bbbb");
+  assert.equal(out.request.ref_block_hash, "1112131415161718");
+  assert.equal(out.request.timestamp, "1700000100000");
+  assert.equal(out.request.expiration, "1700000190000");
+  assert.equal(out.request.deadline, "1700001300000");
+  assert.equal(out.feeLimitSun, review.swap.feeLimitSun);
+  assert.equal(out.fixed, swap.fixedSwapFields(review.swap.request));
+  // A mutated amount is a different pin.
+  const mutated = swapReview();
+  mutated.swap.request.amount_in = "2000000";
+  assert.notEqual(swap.fixedSwapFields(mutated.swap.request), out.fixed);
+});
+
+test("rebuildSwapStep refuses a block older than the reviewed one", () => {
+  assert.throws(
+    () => swap.rebuildSwapStep(swapReview(), freshBlock(1_699_999_999_999)),
+    /older|block|refus/i
+  );
+});
+
 /* ---------------------------------------------------------------- route */
 
 test("formatRoute renders the hop symbols with arrows", () => {

@@ -4345,7 +4345,8 @@
       var swapStep = {
         request: swapRequest,
         tx: tronWallet.parseTxResult(await unsignedTronTx(swapRequest)),
-        feeLimitSun: SWAP_FEE_LIMIT_SUN
+        feeLimitSun: SWAP_FEE_LIMIT_SUN,
+        fixed: swap.fixedSwapFields(swapRequest)
       };
       if (generation !== state.generation || !state.unlocked) return;
       var review = {
@@ -4510,10 +4511,34 @@
           rpcFetchJson, SWAP_APPROVE_WAIT_MS);
         if (generation !== state.generation || !state.unlocked) return;
       }
+      /* The 60 s quote TTL above guards the review→confirm window. After an
+       * approve the swap is rebuilt from a fresh block from the same provider
+       * with new TAPOS fields and a new deadline: this is not a new review, so
+       * the TTL is not reapplied — the on-chain amount_out_min is the economic
+       * guard, and the amount/path/recipient pin below still runs. */
+      var swapStep = review.swap;
+      if (review.approve) {
+        var fresh = await tronWallet.fetchNowBlock(network, rpcFetchJson, review.providerUrl);
+        if (fresh.providerUrl !== review.providerUrl) {
+          throw new Error('The fresh block came from a different provider than the reviewed one; ' +
+            'refusing to sign the swap.');
+        }
+        var rebuilt = swap.rebuildSwapStep(review, fresh.block);
+        if (typeof review.swap.fixed !== 'string' || rebuilt.fixed !== review.swap.fixed) {
+          throw new Error('The swap amount, recipient or route changed after the review; ' +
+            'refusing to sign.');
+        }
+        swapStep = {
+          request: rebuilt.request,
+          tx: tronWallet.parseTxResult(await unsignedTronTx(rebuilt.request)),
+          feeLimitSun: rebuilt.feeLimitSun
+        };
+        if (generation !== state.generation || !state.unlocked) return;
+      }
       /* The session arm can be cleared while the approve is confirming; the
        * swap must not be signed after a disarm. */
       tronWallet.assertTronMainnetArmed(network, isMainnetArmed());
-      var signedSwap = await signReviewedTronStep(review.swap, entry);
+      var signedSwap = await signReviewedTronStep(swapStep, entry);
       await tronWallet.broadcastTronSigned(network, review.providerUrl,
         signedSwap, rpcFetchJson);
       signedParts.push(JSON.stringify({

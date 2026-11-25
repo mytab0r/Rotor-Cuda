@@ -11,7 +11,12 @@ real contract before a third party enters the path.
 
 `amountOutMin` is computed from the quote and the user's slippage and is part
 of the signed calldata. A review older than the quote validity is rebuilt, not
-signed. This mirrors the unsigned-pin rule of the EVM send path.
+signed. This mirrors the unsigned-pin rule of the EVM send path. The 60 s TTL
+guards the review→confirm window only: after an approve is confirmed the swap
+step is rebuilt from a fresh block from the same provider (new TAPOS fields
+and deadline) without a new review or a second TTL check, because the on-chain
+`amountOutMin` is the economic guard and the amount/path/recipient pin still
+runs at signing.
 
 ## D3. Cross-chain: one aggregator, measured
 
