@@ -53,6 +53,17 @@ for (const route of data.ours) {
   }
 }
 
+// TON keys expose three wallet contract versions; the published ledger must
+// name all three on the key page and on the directories.
+assert.ok(
+  data.features.some((feature) => /TON v3R2, v4R2 and W5/.test(feature.note || '')),
+  'the key-page feature note must list TON v3R2, v4R2 and W5',
+);
+assert.ok(
+  data.features.some((feature) => /v3R2\/v4R2\/W5/.test(feature.note || '')),
+  'the directory feature note must list v3R2/v4R2/W5',
+);
+
 for (const donor of data.donors) {
   assert.ok(donor.source === 'ref-site-a' || donor.source === 'ref-site-b', `donor source: ${donor.id}`);
   assert.ok(allowed.has(donor.status), `bad donor status: ${donor.id} ${donor.status}`);

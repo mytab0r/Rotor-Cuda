@@ -89,7 +89,11 @@ fn ton_rows_prove_distinct_contracts_and_state_init_hash() {
 
     let ton_addresses: Vec<&str> = addresses[2..5]
         .iter()
-        .map(|entry| entry["address"].as_str().expect("TON rows have a string address"))
+        .map(|entry| {
+            entry["address"]
+                .as_str()
+                .expect("TON rows have a string address")
+        })
         .collect();
     for first in 0..ton_addresses.len() {
         for second in (first + 1)..ton_addresses.len() {
