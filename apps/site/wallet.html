@@ -465,7 +465,6 @@
       <p class="error wallet-field-error" id="wallet-swap-amount-error" role="alert" hidden></p>
       <p class="error wallet-field-error" id="wallet-swap-slippage-error" role="alert" hidden></p>
       <p class="muted" id="wallet-swap-nile-note" hidden>SunSwap V2 has no deployment on the TRON Nile testnet, so the swap card is unavailable there. Select TRON mainnet to swap.</p>
-      <label class="wallet-check" id="wallet-swap-armed-row" hidden><input type="checkbox" id="wallet-swap-armed"> I understand that a mainnet swap spends real funds and cannot be reversed; arm mainnet swap signing for this session.</label>
       <details class="muted key-help">
         <summary>How the quote, approve and swap are built</summary>
         <p>The quote is the router's <code class="mono">getAmountsOut(uint256,address[])</code> constant call; TRX is wrapped as WTRX in the path. The minimum received is the quote floored by your slippage in basis points and is enforced on chain. A quote older than 60 seconds is refused before signing. When the from token is a TRC-20, the wallet reads <code class="mono">allowance(owner,router)</code> and, if it is below the amount, signs and broadcasts an approve first, waits for it to be confirmed, then signs the swap. TRX in skips the approve. Each signed transaction is broadcast once; a provider error is shown verbatim and is never retried. Mainnet needs the arm checkbox, which resets on lock/unlock and reload.</p>
@@ -496,7 +495,7 @@
         <button type="button" class="primary" id="wallet-swap-confirm">Sign and broadcast</button>
         <button type="button" id="wallet-swap-cancel">Back to edit</button>
       </div>
-      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transactions to the reviewed provider. No key leaves this tab.</p>
+      <p class="muted">Confirm signs these exact reviewed values in the local WASM core and sends only the signed raw transactions to the reviewed provider. Only the signed raw transactions reach the provider.</p>
       <p class="error" id="wallet-swap-confirm-error" role="alert" hidden></p>
     </div>
 

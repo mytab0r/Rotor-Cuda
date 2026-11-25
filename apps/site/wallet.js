@@ -134,7 +134,6 @@
     review: null,
     reviewEntryId: null,
     mainnetArmed: false,
-    swapArmed: false,
     swapQuote: null,
     swapReview: null,
     swapReviewEntryId: null,
@@ -276,6 +275,9 @@
   var sendHashEl = byId('wallet-send-hash');
   var sendExplorerLink = byId('wallet-send-explorer');
   var sendSignedEl = byId('wallet-send-signed');
+  /* The send arm row is the single mainnet arm control. Its home is the send
+   * form; keep the anchor so it can be moved into the swap card and back. */
+  var sendArmAnchor = sendArmedRow ? sendArmedRow.nextSibling : null;
 
   /* TRON swap card. It reuses the TRON codec and the session arm; nothing in
    * this block holds a private key. */
@@ -289,8 +291,6 @@
   var swapFromTokenSelect = byId('wallet-swap-from-token');
   var swapToTokenSelect = byId('wallet-swap-to-token');
   var swapNileNote = byId('wallet-swap-nile-note');
-  var swapArmedRow = byId('wallet-swap-armed-row');
-  var swapArmedCheckbox = byId('wallet-swap-armed');
   var swapQuoteButton = byId('wallet-swap-quote');
   var swapStatus = byId('wallet-swap-status');
   var swapQuoteBox = byId('wallet-swap-quote-box');
@@ -1397,8 +1397,6 @@
     state.lastActivity = Date.now();
     state.mainnetArmed = false;
     if (sendArmedCheckbox) sendArmedCheckbox.checked = false;
-    state.swapArmed = false;
-    if (swapArmedCheckbox) swapArmedCheckbox.checked = false;
     if (setupCard) setupCard.hidden = true;
     if (unlockCard) unlockCard.hidden = true;
     if (panel) panel.hidden = false;
@@ -3278,10 +3276,33 @@
     return state.mainnetArmed === true && !!sendArmedCheckbox && sendArmedCheckbox.checked;
   }
 
+  /* One arm control for every mainnet signer. The send row is shown when the
+   * send network is mainnet or when the swap card (mainnet only) is visible,
+   * and it moves into the swap card when the send card is hidden. */
   function updateSendArmedRow() {
     if (!sendArmedRow) return;
     var network = selectedNetwork();
-    sendArmedRow.hidden = !network || network.testnet;
+    var sendNeedsArm = !!network && !network.testnet;
+    var swapNeedsArm = !!(swapCard && !swapCard.hidden && !swapIsTestnet() && state.unlocked);
+    sendArmedRow.hidden = !(sendNeedsArm || swapNeedsArm);
+  }
+
+  /* Keep the arm row reachable when the send card is hidden: append the same
+   * node to the swap card, then move it back before its original anchor. The
+   * element is never cloned, so there is exactly one checkbox and one state. */
+  function placeSendArmRow() {
+    if (!sendArmedRow || !swapCard || !sendForm) return;
+    var intoSwap = !!(sendCard && sendCard.hidden && !swapCard.hidden);
+    if (intoSwap) {
+      if (sendArmedRow.parentNode !== swapCard) {
+        swapCard.insertBefore(sendArmedRow, swapForm || null);
+      }
+    } else if (sendArmedRow.parentNode !== sendForm) {
+      var anchor = sendArmAnchor && sendArmAnchor.parentNode === sendForm
+        ? sendArmAnchor
+        : null;
+      sendForm.insertBefore(sendArmedRow, anchor);
+    }
   }
 
   var TOKEN_DATA_ERROR = evmSend ? evmSend.TOKEN_DATA_ERROR : '';
@@ -3431,6 +3452,8 @@
     }
     if (!state.unlocked || !available.length) {
       sendCard.hidden = true;
+      placeSendArmRow();
+      updateSendArmedRow();
       return;
     }
     sendCard.hidden = false;
@@ -3450,6 +3473,8 @@
     }
     if (!sendEntrySelect.value && entries.length) sendEntrySelect.value = entries[0].id;
     updateSendFrom();
+    placeSendArmRow();
+    updateSendArmedRow();
   }
 
   async function ensureDerivedAddress(entry) {
@@ -3810,10 +3835,6 @@
     return !network || network.testnet;
   }
 
-  function swapArmed() {
-    return state.swapArmed === true && !!swapArmedCheckbox && swapArmedCheckbox.checked;
-  }
-
   function renderSwapTokens(config) {
     if (!swapFromTokenSelect || !swapToTokenSelect) return;
     var fromPrevious = swapFromTokenSelect.value;
@@ -3863,12 +3884,12 @@
     if (!swapNetworkSelect) return;
     var nile = swapIsTestnet();
     if (swapNileNote) swapNileNote.hidden = !nile;
-    if (swapArmedRow) swapArmedRow.hidden = nile;
     [swapEntrySelect, swapAmountInput, swapSlippageInput, swapFromTokenSelect,
       swapToTokenSelect].forEach(function (control) {
       if (control) control.disabled = nile;
     });
     if (swapQuoteButton) swapQuoteButton.disabled = nile || state.swapPreparing || state.swapSending;
+    updateSendArmedRow();
   }
 
   function renderSwap() {
@@ -3880,6 +3901,8 @@
     if (!swap || !tronWallet || !config || !state.unlocked || !tronEntries.length) {
       swapCard.hidden = true;
       if (state.swapQuote || state.swapReview) invalidateSwapQuote('');
+      placeSendArmRow();
+      updateSendArmedRow();
       return;
     }
     swapCard.hidden = false;
@@ -3902,6 +3925,8 @@
     }
     updateSwapFrom();
     updateSwapNetworkState();
+    placeSendArmRow();
+    updateSendArmedRow();
   }
 
   function showSwapFieldErrors(errors) {
@@ -3985,14 +4010,11 @@
   }
 
   function resetSwap() {
-    state.swapArmed = false;
     state.swapPreparing = false;
     state.swapSending = false;
     state.swapQuote = null;
     state.swapReview = null;
     state.swapReviewEntryId = null;
-    if (swapArmedCheckbox) swapArmedCheckbox.checked = false;
-    if (swapArmedRow) swapArmedRow.hidden = true;
     if (swapForm) swapForm.reset();
     if (swapSlippageInput) swapSlippageInput.value = '0.5';
     showSwapFieldErrors({});
@@ -4467,7 +4489,7 @@
     try {
       var network = tronWallet.tronNetworkBySlug(review.networkSlug);
       if (!network) throw new Error('The reviewed TRON network is unknown.');
-      tronWallet.assertTronMainnetArmed(network, swapArmed());
+      tronWallet.assertTronMainnetArmed(network, isMainnetArmed());
       swap.assertQuoteFresh(review.quote);
       tronWallet.assertTronProvider(network, review.providerUrl);
       if (review.approve) {
@@ -4490,7 +4512,7 @@
       }
       /* The session arm can be cleared while the approve is confirming; the
        * swap must not be signed after a disarm. */
-      tronWallet.assertTronMainnetArmed(network, swapArmed());
+      tronWallet.assertTronMainnetArmed(network, isMainnetArmed());
       var signedSwap = await signReviewedTronStep(review.swap, entry);
       await tronWallet.broadcastTronSigned(network, review.providerUrl,
         signedSwap, rpcFetchJson);
@@ -4717,6 +4739,7 @@
       state.mainnetArmed = sendArmedCheckbox.checked;
       invalidateSendReview();
       invalidateApprovalsReview();
+      invalidateSwapReview('The session arm changed; review the swap again.');
     });
   }
 
@@ -4833,12 +4856,6 @@
         invalidateSwapQuote('The form changed; get a fresh quote.');
       });
     });
-  if (swapArmedCheckbox) {
-    swapArmedCheckbox.addEventListener('change', function () {
-      state.swapArmed = swapArmedCheckbox.checked;
-      invalidateSwapReview('The session arm changed; review the swap again.');
-    });
-  }
   if (swapReviewButton) {
     swapReviewButton.addEventListener('click', function () {
       if (state.swapPreparing || state.swapSending) return;

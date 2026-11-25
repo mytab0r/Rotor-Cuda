@@ -17,6 +17,7 @@
 // below is the real SunSwap WTRX contract.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -70,6 +71,26 @@ const cases = [];
 function test(name, fn) {
   cases.push({ name, fn });
 }
+
+/* ------------------------------------------------- one mainnet arm control */
+
+const walletSource = readFileSync(new URL("./wallet.js", import.meta.url), "utf8");
+const walletHtml = readFileSync(new URL("./wallet.html", import.meta.url), "utf8");
+
+test("the swap flow has no second mainnet arm state", () => {
+  // One control per purpose: the send card's checkbox and state.mainnetArmed
+  // are the only arm. The swap confirm calls the send gate's isMainnetArmed.
+  assert.equal(walletSource.includes("swapArmed"), false,
+    "wallet.js must not carry a second swap arm state");
+  assert.equal(walletSource.includes("wallet-swap-armed"), false,
+    "wallet.js must not reference a swap arm control");
+  assert.match(walletSource, /assertTronMainnetArmed\(network, isMainnetArmed\(\)\)/,
+    "the swap confirm must use the send gate's isMainnetArmed");
+  assert.equal(walletHtml.includes("wallet-swap-armed"), false,
+    "wallet.html must not render a swap arm control");
+  assert.equal((walletHtml.match(/id="wallet-send-armed"/g) || []).length, 1,
+    "wallet.html must render exactly one arm checkbox");
+});
 
 /* ------------------------------------------------------------- WTRX source */
 
