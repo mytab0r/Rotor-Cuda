@@ -39,8 +39,8 @@ operating expense is debited on top.
 
 | Provider | Fee | USDC per TRX debited (100 / 1k / 100k TRX) | 100 USDT-TRC20 → USDC | Limits | KYC | Arbitrary recipient |
 | --- | --- | --- | --- | --- | --- | --- |
-| Symbiosis `/v2/quote` | flat 0.25 USDC on the output; destination gas withheld inside the quote, not itemized | 0.301449 / 0.305940 / 0.307599 | 99.219958 | 0.3–200 000 USDT per swap | none in docs or terms | yes, `to` separate from `from` |
-| deBridge `/v1.0/dln/order/create-tx` | 4 TRX fixFee + prepended operating expense (6.13 TRX on a 100 TRX order) + 4 bps protocolFee on USDT input | 0.289088 / 0.304879 / 0.306661 | 99.790070 (101.879981 debited) | 1 USD – 5.5M USD, documented | none, but address screening | yes, `dstChainTokenOutRecipient` |
+| Symbiosis `/v2/quote` | flat 0.25 USDC on the output; the rest of the 1.9 % gap at 100 TRX is impact (0.58 %) plus a remainder the response does not itemize | 0.301449 / 0.305940 / 0.307599 | 99.219958 | 0.3–200 000 USDT per swap | none in docs or terms | yes, `to` separate from `from` |
+| deBridge `/v1.0/dln/order/create-tx` | 4 TRX fixFee + prepended operating expense (6.13 TRX on a 100 TRX order) + 4 bps protocolFee on USDT input | 0.289088 / 0.304879 / 0.306661 | 99.790070 (101.879981 debited) | 1 USD – 5.5M USD, documented | none; a recipient can be refused at quote time | yes, `dstChainTokenOutRecipient` |
 | LI.FI `/v1/quote` | 0.25 USDT fixed + 0.36 % bridge fee; source gas 0.99 TRX listed separately | refused: native TRX is not a supported source | 99.272523 (min 98.279798), 21 s | 0.1 USDT returns no route at all; 100 USDT quotes; max not probed | none in the measured path | yes, `toAddress` |
 
 Rejected on the live API, not on reputation:
@@ -94,7 +94,9 @@ Risks:
 - **Quote movement.** 35 s ETA with calldata regenerated every 30 s. The
   signed calldata carries the provider's own `tokenAmountOutMin`; we never
   compute it locally from `tokenAmountOut`. A review past the TTL is refused
-  and rebuilt (D2).
+  and rebuilt (D2). The 60 s TTL in D2 runs from the quote, so a reviewed
+  calldata is at most two provider refreshes old; inside that window the
+  signed minimum, not the TTL, is what protects the trade.
 - **Bridge status.** The source broadcast is not the swap: value arrives when
   the destination tx confirms. Status comes from
   `GET /v2/tx/{chainId}/{txHash}`; the UI must poll it and show a pending
@@ -108,9 +110,10 @@ Risks:
   per rebuild. No key material, no signature, no address book. The provider
   sees the IP, both addresses and the amount; the review screen must say so.
 - **A flat fee is not free at small sizes.** A 100 TRX order loses 1.9 % in
-  total: 0.81 % is the 0.25 USDC fee, the rest is price impact (0.58 %) plus
-  destination gas withheld inside the quote. The review must show the
-  effective loss, not just the fee line.
+  total: 0.81 % is the 0.25 USDC fee, 0.58 % is the quoted impact, and the
+  remaining ~0.5 % is not itemized anywhere in the response. The destination
+  gas reading is a deduction from that gap, not a field we read; the review
+  must show the effective loss, not just the fee line.
 - **A meta-aggregator hides the counterparty.** LI.FI's measured USDT route
   ran through LayerSwap, and `includedSteps[].tool` can change per quote: the
   bridge we vet is not necessarily the bridge that executes. Symbiosis names
@@ -118,8 +121,11 @@ Risks:
 
 **deBridge is rejected, not found unsafe.** It debits 6.1 % on a 100 TRX
 order (operating expense prepended to the typed amount), and it refused
-`0x1111…1111` with `COMPLIANCE_ADDRESS_BLOCKED`: a free-form recipient can be
-rejected by address screening at quote time. Its 5.5M USD ceiling is the
+`0x1111…1111` twice on the measurement day, with two different answers:
+`COMPLIANCE_ADDRESS_BLOCKED` (errorCode 123) and errorCode 86
+`Token address can't be used as a recipient or authority`. Either way a
+free-form recipient can be refused before anything is signed, and the wallet
+must surface that refusal instead of retrying. Its 5.5M USD ceiling is the
 reason to revisit it if large transfers become a requirement.
 
 Sources: [Symbiosis API](https://docs.symbiosis.finance/developer-tools/symbiosis-api),
