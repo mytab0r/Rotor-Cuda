@@ -959,3 +959,362 @@ mod tests {
         }
     }
 }
+
+/// SunSwap V2 swap and TRC-20 approve coverage for the ROT-520 slice.
+///
+/// Oracle: tronweb 6.5.2 installed outside the repository (temp directory,
+/// 2026-11-25) and run offline against the host Node runtime. The transaction
+/// bytes come from `utils.transaction.txJsonToPb` / `txPbToRawDataHex` /
+/// `txPbToTxID`; the calldata from `utils.abi.encodeParams` and the signature
+/// from `utils.crypto.signTransaction`. The path array is passed to the coder
+/// as 20-byte address bodies (no `0x41` prefix), which is exactly the ABI
+/// encoding this module pins. The same signer reproduces the TRX and TRC-20
+/// vectors already pinned above, so the oracle is cross-checked against an
+/// independent slice.
+#[cfg(test)]
+mod swap_tests {
+    use super::*;
+    use crate::scalar::Scalar;
+    use crate::secp;
+
+    const KEY1: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+    const OWNER: &str = "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC";
+    const TO: &str = "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K";
+    /// SunSwap V2 router on TRON mainnet.
+    const ROUTER: &str = "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax";
+    const WTRX: &str = "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR";
+    const USDT: &str = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+    const USDC: &str = "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8";
+
+    const OWNER_HEX: &str = "417e5f4552091a69125d5dfcb7b8c2659029395bdf";
+    const ROUTER_HEX: &str = "416e0617948fe030a7e4970f8389d4ad295f249b7e";
+    const USDT_HEX: &str = "41a614f803b6fd780986a42c78ec9c7f77e6ded13c";
+
+    // Address bodies as the ABI coder sees them (no 0x41 prefix).
+    const TO_BODY: &str = "2b5ad5c4795c026514f8317c7a215e218dccd6cf";
+    const WTRX_BODY: &str = "891cdb91d149f23b1a45d9c5ca78a88d0cb44c18";
+    const USDT_BODY: &str = "a614f803b6fd780986a42c78ec9c7f77e6ded13c";
+    const USDC_BODY: &str = "3487b63d30b5b2c87fb7ffa8bcfade38eaac1abe";
+
+    // ---- Pinned tronweb output, 2026-11-25 ----
+
+    /// TRX in: `swapExactETHForTokens(uint256,address[],address,uint256)`,
+    /// `call_value` 1,000,000 sun, two-address path WTRX -> USDT.
+    const SWAP_TRX_DATA: &str = "7ff36ab500000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000000800000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf0000000000000000000000000000000000000000000000000000018bcfe9fbe00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000891cdb91d149f23b1a45d9c5ca78a88d0cb44c18000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c";
+    const SWAP_TRX_TX_ID: &str = "e45d986fe4947d2098a0a114b5a935b9af6f26495cedb579b2080a34b47705f1";
+    const SWAP_TRX_SIGNATURE: &str = "1162fbfb4aba8ec720e520892bbf0848b28c704fdc1751be24329b14565cc3b37cd17fe7367cf8c98ec47d8031dcc62d8f0e67b510823a63efa3bc8f757035da1b";
+    const SWAP_TRX_RAW_DATA_HEX: &str = "0a0212ab2208001122334455667740e0a499ffbc315ad402081f12cf020a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e74726163741299020a15417e5f4552091a69125d5dfcb7b8c2659029395bdf1215416e0617948fe030a7e4970f8389d4ad295f249b7e18c0843d22e4017ff36ab500000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000000800000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf0000000000000000000000000000000000000000000000000000018bcfe9fbe00000000000000000000000000000000000000000000000000000000000000002000000000000000000000000891cdb91d149f23b1a45d9c5ca78a88d0cb44c18000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c7080d095ffbc31900180c2d72f";
+
+    /// TRC-20 in: `swapExactTokensForTokens(uint256,uint256,address[],address,uint256)`,
+    /// no `call_value`, three-address path USDT -> WTRX -> USDC.
+    const SWAP_TOKEN_DATA: &str = "38ed173900000000000000000000000000000000000000000000000000000000000f4240000000000000000000000000000000000000000000000000000000000000138800000000000000000000000000000000000000000000000000000000000000a00000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf0000000000000000000000000000000000000000000000000000018bcfe9fbe00000000000000000000000000000000000000000000000000000000000000003000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000891cdb91d149f23b1a45d9c5ca78a88d0cb44c180000000000000000000000003487b63d30b5b2c87fb7ffa8bcfade38eaac1abe";
+    const SWAP_TOKEN_TX_ID: &str =
+        "37f9a13f12723bbb7584a12034e7b5148b6a6cfc4cc2c758a1717b2eebc44880";
+    const SWAP_TOKEN_SIGNATURE: &str = "d6ec62be29bf746a08b27eb08114b7c361639ea46a21ac2a0e926a342969f7147952e28194cf8025bb3d88c469aebfe639262c86db508773e0f35747506f24911b";
+    const SWAP_TOKEN_RAW_DATA_HEX: &str = "0a0212ab2208001122334455667740e0a499ffbc315a9003081f128b030a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412d5020a15417e5f4552091a69125d5dfcb7b8c2659029395bdf1215416e0617948fe030a7e4970f8389d4ad295f249b7e22a40238ed173900000000000000000000000000000000000000000000000000000000000f4240000000000000000000000000000000000000000000000000000000000000138800000000000000000000000000000000000000000000000000000000000000a00000000000000000000000002b5ad5c4795c026514f8317c7a215e218dccd6cf0000000000000000000000000000000000000000000000000000018bcfe9fbe00000000000000000000000000000000000000000000000000000000000000003000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c000000000000000000000000891cdb91d149f23b1a45d9c5ca78a88d0cb44c180000000000000000000000003487b63d30b5b2c87fb7ffa8bcfade38eaac1abe7080d095ffbc31900180c2d72f";
+
+    /// `approve(address,uint256)` on USDT with the router as spender.
+    const APPROVE_DATA: &str = "095ea7b30000000000000000000000006e0617948fe030a7e4970f8389d4ad295f249b7e00000000000000000000000000000000000000000000000000000000000f4240";
+    const APPROVE_TX_ID: &str = "f11c9463b458c4a54169496feca0bc9dccb326262b0874c64f02158c81cf548b";
+    const APPROVE_SIGNATURE: &str = "7f48bec592b5acc292246d77a87581bb058f8af0ad77aa7b0eb3055a8d8e5d056c441554a7428df77bf7891285a4d7be16f43ec88b31455e87b478f3f4f148141b";
+    const APPROVE_RAW_DATA_HEX: &str = "0a0212ab2208001122334455667740e0a499ffbc315aae01081f12a9010a31747970652e676f6f676c65617069732e636f6d2f70726f746f636f6c2e54726967676572536d617274436f6e747261637412740a15417e5f4552091a69125d5dfcb7b8c2659029395bdf121541a614f803b6fd780986a42c78ec9c7f77e6ded13c2244095ea7b30000000000000000000000006e0617948fe030a7e4970f8389d4ad295f249b7e00000000000000000000000000000000000000000000000000000000000f42407080d095ffbc31900180c2d72f";
+
+    fn swap_body() -> String {
+        format!(
+            r#""kind":"swap","owner_address":"{OWNER}","to_address":"{TO}","token_contract_address":"","router_address":"{ROUTER}","path":"{WTRX},{USDT}","amount_in":"1000000","amount_out_min":"1000","deadline":"1700000300000","ref_block_bytes":"12ab","ref_block_hash":"0011223344556677","expiration":"1700000060000","timestamp":"1700000000000","fee_limit":"100000000""#
+        )
+    }
+
+    fn token_swap_body() -> String {
+        format!(
+            r#""kind":"swap","owner_address":"{OWNER}","to_address":"{TO}","token_contract_address":"{USDT}","router_address":"{ROUTER}","path":"{USDT},{WTRX},{USDC}","amount_in":"1000000","amount_out_min":"5000","deadline":"1700000300000","ref_block_bytes":"12ab","ref_block_hash":"0011223344556677","expiration":"1700000060000","timestamp":"1700000000000","fee_limit":"100000000""#
+        )
+    }
+
+    fn approve_body() -> String {
+        format!(
+            r#""kind":"approve","owner_address":"{OWNER}","token_contract_address":"{USDT}","spender_address":"{ROUTER}","amount":"1000000","ref_block_bytes":"12ab","ref_block_hash":"0011223344556677","expiration":"1700000060000","timestamp":"1700000000000","fee_limit":"100000000""#
+        )
+    }
+
+    fn unsigned(body: &str) -> String {
+        format!("{{{body}}}")
+    }
+
+    fn signed(body: &str) -> String {
+        format!(r#"{{{},"private_key":"0x{KEY1}"}}"#, body)
+    }
+
+    /// A right-aligned 32-byte ABI word, as lowercase hex.
+    fn word(value: &str) -> String {
+        format!("{value:0>64}")
+    }
+
+    /// A 32-byte ABI word holding an address body (no `0x41` prefix).
+    fn address_word(body: &str) -> String {
+        word(body)
+    }
+
+    #[test]
+    fn trx_in_swap_matches_the_independent_encoding() {
+        let result = unsigned_request(&unsigned(&swap_body())).expect("unsigned swap");
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert_eq!(value["txID"], SWAP_TRX_TX_ID);
+        assert_eq!(value["raw_data_hex"], SWAP_TRX_RAW_DATA_HEX);
+        assert!(value.get("signature").is_none());
+
+        let raw = &value["raw_data"];
+        assert_eq!(raw["fee_limit"], 100_000_000u64);
+        let contract = &raw["contract"][0];
+        assert_eq!(contract["type"], "TriggerSmartContract");
+        assert_eq!(
+            contract["parameter"]["type_url"],
+            "type.googleapis.com/protocol.TriggerSmartContract"
+        );
+        let payload = &contract["parameter"]["value"];
+        assert_eq!(payload["owner_address"], OWNER_HEX);
+        // The call target is the router, not `path[0]`.
+        assert_eq!(payload["contract_address"], ROUTER_HEX);
+        assert_eq!(payload["data"], SWAP_TRX_DATA);
+
+        // Selector and ABI layout: 4 static words, then the dynamic path.
+        assert_eq!(&SWAP_TRX_DATA[..8], "7ff36ab5");
+        assert_eq!(SWAP_TRX_DATA.len(), 8 + 4 * 64 + (1 + 2) * 64);
+        assert_eq!(&SWAP_TRX_DATA[8..8 + 64], word("3e8"), "amountOutMin");
+        assert_eq!(
+            &SWAP_TRX_DATA[8 + 64..8 + 2 * 64],
+            word("80"),
+            "path offset"
+        );
+        assert_eq!(
+            &SWAP_TRX_DATA[8 + 2 * 64..8 + 3 * 64],
+            address_word(TO_BODY),
+            "recipient"
+        );
+        assert_eq!(
+            &SWAP_TRX_DATA[8 + 3 * 64..8 + 4 * 64],
+            word("18bcfe9fbe0"),
+            "deadline"
+        );
+        assert_eq!(
+            &SWAP_TRX_DATA[8 + 4 * 64..8 + 5 * 64],
+            word("2"),
+            "path length"
+        );
+        assert_eq!(
+            &SWAP_TRX_DATA[8 + 5 * 64..8 + 6 * 64],
+            address_word(WTRX_BODY),
+            "path[0]"
+        );
+        assert_eq!(
+            &SWAP_TRX_DATA[8 + 6 * 64..8 + 7 * 64],
+            address_word(USDT_BODY),
+            "path[1]"
+        );
+    }
+
+    #[test]
+    fn trc20_in_swap_pins_the_three_address_path_encoding() {
+        let result = unsigned_request(&unsigned(&token_swap_body())).expect("unsigned token swap");
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert_eq!(value["txID"], SWAP_TOKEN_TX_ID);
+        assert_eq!(value["raw_data_hex"], SWAP_TOKEN_RAW_DATA_HEX);
+        assert!(value.get("signature").is_none());
+
+        let payload = &value["raw_data"]["contract"][0]["parameter"]["value"];
+        assert_eq!(payload["owner_address"], OWNER_HEX);
+        assert_eq!(payload["contract_address"], ROUTER_HEX);
+        assert_eq!(payload["data"], SWAP_TOKEN_DATA);
+        // No `call_value` for a token-in swap (field 3 is absent from the raw
+        // bytes, which the pinned hex above already proves).
+        assert!(payload.get("call_value").is_none());
+
+        assert_eq!(&SWAP_TOKEN_DATA[..8], "38ed1739");
+        assert_eq!(SWAP_TOKEN_DATA.len(), 8 + 5 * 64 + (1 + 3) * 64);
+        assert_eq!(&SWAP_TOKEN_DATA[8..8 + 64], word("f4240"), "amountIn");
+        assert_eq!(
+            &SWAP_TOKEN_DATA[8 + 64..8 + 2 * 64],
+            word("1388"),
+            "amountOutMin"
+        );
+        assert_eq!(
+            &SWAP_TOKEN_DATA[8 + 2 * 64..8 + 3 * 64],
+            word("a0"),
+            "path offset: five head words"
+        );
+        assert_eq!(
+            &SWAP_TOKEN_DATA[8 + 3 * 64..8 + 4 * 64],
+            address_word(TO_BODY),
+            "recipient"
+        );
+        assert_eq!(
+            &SWAP_TOKEN_DATA[8 + 4 * 64..8 + 5 * 64],
+            word("18bcfe9fbe0"),
+            "deadline"
+        );
+        assert_eq!(
+            &SWAP_TOKEN_DATA[8 + 5 * 64..8 + 6 * 64],
+            word("3"),
+            "path length"
+        );
+        for (index, body) in [USDT_BODY, WTRX_BODY, USDC_BODY].iter().enumerate() {
+            let start = 8 + (6 + index) * 64;
+            let element = &SWAP_TOKEN_DATA[start..start + 64];
+            assert_eq!(element, address_word(body), "path[{index}]");
+            assert!(
+                element.starts_with("000000000000000000000000"),
+                "an ABI address is 12 zero bytes + the 20-byte body"
+            );
+            assert!(
+                !element.contains("41"),
+                "the 0x41 prefix must not appear inside an ABI address word"
+            );
+        }
+    }
+
+    #[test]
+    fn approve_matches_the_independent_encoding() {
+        let result = unsigned_request(&unsigned(&approve_body())).expect("unsigned approve");
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert_eq!(value["txID"], APPROVE_TX_ID);
+        assert_eq!(value["raw_data_hex"], APPROVE_RAW_DATA_HEX);
+        assert!(value.get("signature").is_none());
+
+        let payload = &value["raw_data"]["contract"][0]["parameter"]["value"];
+        assert_eq!(payload["owner_address"], OWNER_HEX);
+        assert_eq!(payload["contract_address"], USDT_HEX);
+        assert_eq!(payload["data"], APPROVE_DATA);
+        assert_eq!(&APPROVE_DATA[..8], "095ea7b3");
+        assert_eq!(APPROVE_DATA.len(), 8 + 2 * 64);
+        assert_eq!(
+            &APPROVE_DATA[8..8 + 64],
+            address_word("6e0617948fe030a7e4970f8389d4ad295f249b7e"),
+            "spender"
+        );
+        assert_eq!(&APPROVE_DATA[8 + 64..], word("f4240"), "amount");
+    }
+
+    #[test]
+    fn swap_refuses_invalid_routes_and_amounts() {
+        let valid = unsigned(&swap_body());
+
+        // A path with a single address cannot route.
+        let single = valid.replace(
+            &format!(r#""path":"{WTRX},{USDT}""#),
+            &format!(r#""path":"{WTRX}""#),
+        );
+        let err = unsigned_request(&single).unwrap_err();
+        assert!(err.contains("path"), "single-element path: {err}");
+
+        // The router is the call target; without it the request has no target.
+        let no_router = valid.replace(&format!(r#","router_address":"{ROUTER}""#), "");
+        let err = unsigned_request(&no_router).unwrap_err();
+        assert!(err.contains("router_address"), "missing router: {err}");
+
+        // A zero input amount is not a swap.
+        let zero_in = valid.replace(r#""amount_in":"1000000""#, r#""amount_in":"0""#);
+        let err = unsigned_request(&zero_in).unwrap_err();
+        assert!(err.contains("amount_in"), "zero amount_in: {err}");
+
+        // A path member must be a valid TRON base58 address.
+        let bad_path = valid.replace(
+            &format!(r#""path":"{WTRX},{USDT}""#),
+            &format!(r#""path":"not-an-address,{USDT}""#),
+        );
+        let err = unsigned_request(&bad_path).unwrap_err();
+        assert!(err.contains("path"), "invalid path element: {err}");
+
+        // The deadline is milliseconds and must be in the future of timestamp.
+        let stale = valid.replace(
+            r#""deadline":"1700000300000""#,
+            r#""deadline":"1699999999999""#,
+        );
+        let err = unsigned_request(&stale).unwrap_err();
+        assert!(err.contains("deadline"), "stale deadline: {err}");
+
+        // For a token-in swap the minimum output above the input is nonsense.
+        let token = unsigned(&token_swap_body()).replace(
+            r#""amount_out_min":"5000""#,
+            r#""amount_out_min":"1000001""#,
+        );
+        let err = unsigned_request(&token).unwrap_err();
+        assert!(err.contains("amount_out_min"), "min above amount_in: {err}");
+    }
+
+    #[test]
+    fn approve_refuses_a_zero_spender() {
+        let mut payload = [0u8; 21];
+        payload[0] = ADDRESS_PREFIX;
+        let zero = base58::encode_check(&payload);
+
+        let request = unsigned(&approve_body()).replace(ROUTER, &zero);
+        let err = unsigned_request(&request).unwrap_err();
+        assert!(
+            err.contains("spender_address") && !err.contains("unknown request field"),
+            "zero spender: {err}"
+        );
+    }
+
+    #[test]
+    fn signed_swap_verifies_and_never_contains_the_key() {
+        // An unsigned request must reject a key field outright.
+        assert!(unsigned_request(&signed(&swap_body())).is_err());
+
+        let unsigned_result = unsigned_request(&unsigned(&swap_body())).expect("unsigned swap");
+        assert!(
+            !unsigned_result.contains(KEY1),
+            "no key in the unsigned result"
+        );
+        assert!(!unsigned_result.contains("private_key"));
+
+        let first = sign_request(&signed(&swap_body())).expect("sign swap");
+        let second = sign_request(&signed(&swap_body())).expect("sign again");
+        assert_eq!(first, second, "RFC 6979 is deterministic");
+        assert!(!first.contains(KEY1), "no key in the signed result");
+        assert!(!first.contains("private_key"));
+
+        let value: serde_json::Value = serde_json::from_str(&first).unwrap();
+        assert_eq!(value["txID"], SWAP_TRX_TX_ID);
+        assert_eq!(value["raw_data_hex"], SWAP_TRX_RAW_DATA_HEX);
+        let signature_hex = value["signature"].as_str().expect("signature");
+        assert_eq!(signature_hex, SWAP_TRX_SIGNATURE);
+        assert_eq!(signature_hex.len(), 130, "65 bytes r||s||v");
+
+        let bytes: Vec<u8> = (0..signature_hex.len())
+            .step_by(2)
+            .map(|index| u8::from_str_radix(&signature_hex[index..index + 2], 16).unwrap())
+            .collect();
+        assert!(matches!(bytes[64], 27 | 28), "v = 27 + recovery_id");
+
+        let mut r = [0u8; 32];
+        r.copy_from_slice(&bytes[..32]);
+        let mut s = [0u8; 32];
+        s.copy_from_slice(&bytes[32..64]);
+        let signature = sign::Signature {
+            r: Scalar::from_bytes_be(&r).unwrap(),
+            s: Scalar::from_bytes_be(&s).unwrap(),
+            recovery: bytes[64] - 27,
+        };
+
+        let mut tx_id = [0u8; 32];
+        tx_id.copy_from_slice(&json::parse_bytes(SWAP_TRX_TX_ID, "txID").unwrap());
+        assert!(
+            sign::verify(
+                &secp::mul_g(&Scalar::from_u64(1)),
+                &tx_id,
+                &signature.r,
+                &signature.s
+            ),
+            "the signature must verify against the public key of key 1"
+        );
+
+        let recovered = sign::recover(&tx_id, &signature).expect("recover");
+        let mut recovered_payload = [0u8; 21];
+        recovered_payload[0] = ADDRESS_PREFIX;
+        recovered_payload[1..].copy_from_slice(&secp::eth_address(&recovered));
+        assert_eq!(base58::encode_check(&recovered_payload), OWNER);
+    }
+}
