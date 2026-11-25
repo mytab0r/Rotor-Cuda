@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.6.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.5.0...v2.6.0) (2026-11-25)
+
+
+### Features
+
+* **site:** move the pool console from the puzzle hub to /run ([#547](https://github.com/mytab0r/Rotor-Cuda/issues/547)) ([8bd9362](https://github.com/mytab0r/Rotor-Cuda/commit/8bd93620777689a7c0629f3e9b4f87fe4294b983))
+* **site:** split /docs into sections with a table of contents ([#545](https://github.com/mytab0r/Rotor-Cuda/issues/545)) ([ca70afe](https://github.com/mytab0r/Rotor-Cuda/commit/ca70afeda48876170d5dcc2492d48b3197721841))
+* **tron:** encode SunSwap V2 swap and approve calls (ROT-520) ([#548](https://github.com/mytab0r/Rotor-Cuda/issues/548)) ([fc05982](https://github.com/mytab0r/Rotor-Cuda/commit/fc05982d31d7d0231b3c4e34f57fa720d59b423f))
+
 ## [2.5.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.4.0...v2.5.0) (2026-11-25)
 
 
