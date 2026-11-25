@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.8.0...v2.8.1) (2026-11-25)
+
+
+### Documentation
+
+* **spec:** measure cross-chain aggregators for the swap (ROT-521) ([1ac4601](https://github.com/mytab0r/Rotor-Cuda/commit/1ac46017c139e1e716abf2f8f21b66d98c770b1a))
+
 ## [2.8.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.7.1...v2.8.0) (2026-11-25)
 
 
