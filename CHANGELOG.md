@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/mytab0r/Rotor-Cuda/compare/v2.7.1...v2.8.0) (2026-11-25)
+
+
+### Features
+
+* **ton:** every wallet contract version on both cores (ROT-505) ([#555](https://github.com/mytab0r/Rotor-Cuda/issues/555)) ([332c8c5](https://github.com/mytab0r/Rotor-Cuda/commit/332c8c556f509c61434a90bed97e5ffe58cc2c8d))
+
 ## [2.7.1](https://github.com/mytab0r/Rotor-Cuda/compare/v2.7.0...v2.7.1) (2026-11-25)
 
 
