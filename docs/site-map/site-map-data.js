@@ -505,7 +505,7 @@
     status: 'ours-only',
     priority: '-',
     donorIds: [],
-    note: 'Operator and client documentation; no donor equivalent.'
+    note: 'Operator and client documentation; no donor equivalent. It is a reading surface of section cards with a TOC; the internal parity audit is not repeated on the public page, because the operator route map (/cabinet/admin/site-map) requires sign-in.'
   });
 
   oursRoute({

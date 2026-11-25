@@ -18,7 +18,8 @@
 //   - 5-gram Jaccard similarity >= 0.50 between two chain pages' prose;
 //   - a missing CollectionPage/BreadcrumbList JSON-LD or chain-named og:image:alt;
 //   - on /docs and /tools: a TOC anchor that does not resolve to an existing
-//     id, or a TOC that omits a content H2;
+//     id, or a TOC that omits a content H2 (a content H2 may be anchored by its
+//     own id or by the id of the section card that contains it);
 //   - on every presentation page: an internal link target that neither exists
 //     in `dist` nor is listed in the explicit `pendingCutover` allowlist below
 //     (with a reason);
@@ -295,19 +296,33 @@ function sectionByMarker(html, marker) {
 
 function headings(fragment) {
   const out = [];
-  const re = /<h([123])\b([^>]*)>([\s\S]*?)<\/h\1>/gi;
+  /* Section ids are tracked so a content H2 can be anchored by its enclosing
+   * section card (`<section class="card" id="...">` + bare `<h2>`), which is
+   * how the /docs reading surface is built. The heading still needs an id or
+   * an anchored section that the TOC links to. */
+  const openSections = [];
+  const re = /<section\b([^>]*)>|<\/section\s*>|<h([123])\b([^>]*)>([\s\S]*?)<\/h\2>/gi;
   let match;
   while ((match = re.exec(fragment)) !== null) {
-    const attrs = match[2] ?? '';
+    if (match[1] !== undefined) {
+      openSections.push(attr(match[1], /\bid\s*=\s*["']([^"']*)["']/i));
+      continue;
+    }
+    if (match[2] === undefined) {
+      openSections.pop();
+      continue;
+    }
+    const attrs = match[3] ?? '';
     const hidden = /\bhidden\b/i.test(attrs) ||
       /\baria-hidden\s*=\s*["']true["']/i.test(attrs) ||
       /\bclass\s*=\s*["'][^"']*visually-hidden/i.test(attrs) ||
       /\bstyle\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(attrs);
     out.push({
-      level: Number(match[1]),
+      level: Number(match[2]),
       hidden,
-      text: visibleText(match[3]),
+      text: visibleText(match[4]),
       id: attr(attrs, /\bid\s*=\s*["']([^"']*)["']/i),
+      sectionId: [...openSections].reverse().find(Boolean) ?? null,
     });
   }
   return out;
@@ -475,10 +490,11 @@ async function checkPresentationPage(spec, dist, distFiles) {
         if (!idCounts.has(anchor)) fail('seo-toc-anchor', `TOC anchor #${anchor} has no matching id`);
       }
       for (const heading of contentH2s) {
-        if (!heading.id) {
-          fail('seo-toc-anchor', `content H2 "${heading.text}" has no id`);
-        } else if (!tocHrefs.includes(heading.id)) {
-          fail('seo-toc-anchor', `content H2 "${heading.text}" (#${heading.id}) is missing from the TOC`);
+        const anchors = [heading.id, heading.sectionId].filter(Boolean);
+        if (anchors.length === 0) {
+          fail('seo-toc-anchor', `content H2 "${heading.text}" has no id and no anchored section`);
+        } else if (!anchors.some((anchor) => tocHrefs.includes(anchor))) {
+          fail('seo-toc-anchor', `content H2 "${heading.text}" (#${anchors.join(', #')}) is missing from the TOC`);
         }
       }
       if (tocHrefs.length < spec.minContentH2) {
