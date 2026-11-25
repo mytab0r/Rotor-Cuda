@@ -1,6 +1,6 @@
 [package]
 name = "rotor-core"
-version = "2.4.0"
+version = "2.5.0"
 edition = "2024"
 license = "GPL-3.0-only"
 description = "Product-neutral cryptographic and address core for Rotor products"
