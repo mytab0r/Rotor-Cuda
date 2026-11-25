@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
 const landing = read("./landing.html");
 const astro = read("../../web/src/pages/index.astro");
+const run = read("./run.html");
 const css = read("./site.css");
 
 let failed = 0;
@@ -64,6 +65,69 @@ test("the Astro mirror carries the same two surfaces", () => {
   assert.match(astro, /class="chain-row"/, "Astro renders chain rows");
   assert.match(astro, /<ul class="address-db-links">/, "Astro renders one address list");
   assert.equal((astro.match(/class="address-db-card"/g) || []).length, 0, "Astro keeps no address cards");
+});
+
+/* ROT-541: the four internal coordinator blocks on a public SEO page become
+ * one Contribute entry; the token issuance, CLI walkthrough and leaderboard
+ * are owned by /run. */
+test("the landing keeps one Contribute entry, not four coordinator blocks", () => {
+  for (const gone of ["id=\"totals-card\"", "id=\"join-card\"", "id=\"leaderboard-body\"", "<h2>How it works</h2>"]) {
+    assert.equal(landing.includes(gone), false, `landing still renders ${gone}`);
+  }
+  const start = landing.indexOf('id="contribute"');
+  assert.notEqual(start, -1, "one Contribute entry");
+  const block = landing.slice(start, landing.indexOf("</section>", start));
+  assert.match(
+    block,
+    /Run a client to lease a key range and report verified completions; the coordinator ranks contributors\./,
+    "Contribute states the pool model in one sentence",
+  );
+  assert.match(block, /<a href="\/run">Run a client<\/a>/, "Contribute links to /run");
+  assert.equal((landing.match(/id="contribute"/g) || []).length, 1, "exactly one Contribute entry");
+});
+
+test("the landing tools keep real tools and demote FAQ/Donate to a link row", () => {
+  const start = landing.indexOf("<h2>Tools</h2>");
+  const block = landing.slice(start, landing.indexOf("</section>", start));
+  assert.equal(block.includes('href="/tools"'), false, "the calculator index repeats the nav item");
+  for (const href of ["/milk-sad", "/seed", "/vanity", "/brainwallet"]) {
+    assert.match(block, new RegExp(`class="tool-card" href="${href}"`), `${href} stays a tool card`);
+  }
+  assert.equal((block.match(/class="tool-card"/g) || []).length, 4, "four real tool cards");
+  assert.match(
+    block,
+    /class="muted landing-lead"><a href="\/faq">FAQ<\/a> · <a href="\/donate">Donate<\/a><\/p>/,
+    "FAQ and Donate are one plain link row",
+  );
+});
+
+test("the Astro landing mirrors the Contribute entry and the tools demotion", () => {
+  for (const gone of ['id="landing-totals"', 'id="landing-leaderboard"', 'id="join"', 'id="landing-how"']) {
+    assert.equal(astro.includes(gone), false, `Astro still renders ${gone}`);
+  }
+  const start = astro.indexOf('id="contribute"');
+  assert.notEqual(start, -1, "Astro has one Contribute entry");
+  const block = astro.slice(start, astro.indexOf("</section>", start));
+  assert.match(block, /<a href="\/run">Run a client<\/a>/, "Astro Contribute links to /run");
+  const toolsStart = astro.indexOf('id="landing-tools"');
+  const tools = astro.slice(toolsStart, astro.indexOf("</section>", toolsStart));
+  assert.equal(tools.includes('href="/tools"'), false, "Astro drops the calculator index card");
+  assert.match(tools, /<a href="\/faq">FAQ<\/a> · <a href="\/donate">Donate<\/a>/, "Astro demotes FAQ/Donate");
+});
+
+test("/run owns the token issuance, CLI walkthrough and leaderboard", () => {
+  for (const needle of [
+    "<h2>How it works</h2>",
+    "--coordinator",
+    "--token",
+    "id=\"join-form\"",
+    "id=\"join-token\"",
+    "/api/v1/register",
+    "id=\"leaderboard-body\"",
+    "/api/v1/summary",
+  ]) {
+    assert.ok(run.includes(needle), `/run misses ${needle}`);
+  }
 });
 
 function declarations(selector) {
