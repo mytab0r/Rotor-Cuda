@@ -230,7 +230,7 @@ fn parse_tx(slots: &[Option<&str>]) -> Result<Tx2, String> {
 }
 
 /// Parse a flat JSON object whose values are all strings without escapes.
-fn parse_flat_object(text: &str) -> Result<Vec<(&str, &str)>, String> {
+pub(crate) fn parse_flat_object(text: &str) -> Result<Vec<(&str, &str)>, String> {
     let bytes = text.as_bytes();
     let mut at = skip_whitespace(bytes, 0);
     if bytes.get(at) != Some(&b'{') {
