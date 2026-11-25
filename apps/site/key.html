@@ -83,6 +83,7 @@
         <h2 id="key-info-title" class="key-info-title">Formats and behaviour</h2>
         <p id="key-format" class="muted key-help">Derives automatically as you type: 64 hex characters (optional 0x), a decimal integer, a Bitcoin WIF, a Solana keypair JSON array, or any other text as a brainwallet phrase (key = SHA-256 of the text). The key stays in memory only and is cleared when you leave the page.</p>
         <p class="muted key-help">Use only keys you control. If a key holds funds, keep it offline or air-gapped — this page never asks for a seed phrase.</p>
+        <p class="muted key-help">Total value prices the loaded balances from a public ticker cached for up to six hours; rows without a price or a balance are excluded.</p>
         <p class="muted key-help">A key in the page URL is already exposed to browser history and server logs. On /key/&lt;key&gt; the derived public addresses are checked once against the Crypto registry so a registered owner can be warned; the key itself never leaves this page.</p>
       </div>
     </div>
@@ -103,7 +104,7 @@
 
   <section class="card" id="summary-card" hidden>
     <h2>Keys</h2>
-    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols." hidden>
+    <div class="key-stats" id="key-stats" role="group" aria-label="Key counters" hidden>
       <div class="key-stat">
         <span class="key-stat-label">Total value</span>
         <strong class="key-stat-value empty" id="stat-total" title="Waiting for balances and prices.">—</strong>
@@ -121,7 +122,7 @@
         <strong class="key-stat-value" id="stat-checked" title="Chain groups whose checkable rows all settled, out of 18 chain groups.">0/18</strong>
       </div>
     </div>
-    <p class="muted key-help key-stats-note" title="Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value is the sum of loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title. The price request carries only ticker symbols.">Has balance and Active count chain groups, not addresses, and follow the rows visible under the current chain tab and wallet preset. Active uses a balance where a provider has no activity signal. Checked is the number of chain groups whose checkable rows all settled (ok or failed) out of 18. Total value sums the loaded balances at a public ticker price cached for up to six hours; rows without a price or a balance are excluded and counted in the title.</p>
+    <p class="muted key-help key-stats-note">Counts chain groups, not addresses, for the rows visible under the current chain tab.</p>
     <div class="key-summary" id="summary">
       <p class="muted empty-state">Derive a key to see its numeric forms and public point.</p>
     </div>
@@ -194,7 +195,7 @@
       </div>
     </div>
     <details class="muted key-help key-balance-help" id="balance-help">
-      <summary title="Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.">How balances are checked</summary>
+      <summary>How balances are checked</summary>
       <p>Balances load automatically from public providers after a key is derived; only the shown public addresses are sent. The key never leaves this page.</p>
     </details>
     <p class="muted key-help key-export-status" id="key-export-status" role="status"></p>

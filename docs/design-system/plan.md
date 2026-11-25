@@ -479,6 +479,7 @@ the `status` column distinguishes an implemented rule from a planned one.
 | `legacy-link-contrast` | Every visible legacy .address-link keeps >=4.5:1 contrast on its effective card background. | 8 | implemented |
 | `link-in-text-block` | Every visible in-text link (a link inside a main p/li/dd block that also has text) is underlined, so it is not distinguished from body text by colour alone. | 8 | implemented |
 | `font-swap-layout-shift` | Every document that links /site.css preloads the first-party Manrope woff2, so a late webfont swap cannot shift layout or keep a wider fallback. | 7 | implemented |
+| `duplicate-help-title` | An element never repeats its own paragraph-length note (120+ characters and 20+ words) in a title attribute; a machine value repeated in its title is allowed. | all | implemented |
 <!-- END GENERATED detectors:plan -->
 
 Every added detector gets a ledger entry in the same PR.

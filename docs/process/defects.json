@@ -848,6 +848,13 @@
       "symptom": "The Astro landing page declared Manrope with font-display: swap and no preload, so the late font swap re-flowed the hero paragraph: CLS 0.177 on / and 0.085 on /mnemonic-seeds/bitcoin/ in every Lighthouse run.",
       "detector": "font-swap-layout-shift",
       "where": "scripts/ui-audit.mjs"
+    },
+    {
+      "id": "key-stats-note-duplicate",
+      "reported": "2026-11-25",
+      "symptom": "The /key stats card repeated one ~90-word explanation three times: a title on the counter group, a title on the note paragraph, and the paragraph text itself. The same wall of text met the reader on hover and the DOM carried three copies (#541).",
+      "detector": "duplicate-help-title",
+      "where": "scripts/ui-audit.mjs"
     }
   ]
 }
