@@ -349,21 +349,27 @@ wasm.dealloc(edPtr, 32);
 const expectedEdPubkey =
   "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a";
 const expectedSolana = "FVen3X669xLzsi6N2V91DoiyzHzg1uAgqiT8jZ9nS96Z";
+const expectedTonV3R2 = "EQB3V1d93mD6v4qWoRPnlm0UrYpcHZz2lCD_10u84NHWuX1P";
+const expectedTonV4R2 = "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv";
 const expectedTonW5 = "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td";
 if (
   edReport.curve !== "ed25519" ||
   edReport.ed_pubkey !== expectedEdPubkey ||
-  edReport.addresses.length !== 3 ||
+  edReport.addresses.length !== 5 ||
   edReport.addresses[0].id !== "solana" ||
   edReport.addresses[0].address !== expectedSolana ||
   edReport.addresses[1].id !== "sui" ||
   edReport.addresses[1].address !== "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d" ||
-  edReport.addresses[2].id !== "ton_w5" ||
-  edReport.addresses[2].address !== expectedTonW5
+  edReport.addresses[2].id !== "ton_v3r2" ||
+  edReport.addresses[2].address !== expectedTonV3R2 ||
+  edReport.addresses[3].id !== "ton_v4r2" ||
+  edReport.addresses[3].address !== expectedTonV4R2 ||
+  edReport.addresses[4].id !== "ton_w5" ||
+  edReport.addresses[4].address !== expectedTonW5
 ) {
   throw new Error("derive_report: unexpected ed25519 report");
 }
-console.log(`derive_report ed25519: solana=${edReport.addresses[0].address} sui=${edReport.addresses[1].address} ton_w5=${edReport.addresses[2].address}`);
+console.log(`derive_report ed25519: solana=${edReport.addresses[0].address} sui=${edReport.addresses[1].address} ton_v3r2=${edReport.addresses[2].address} ton_v4r2=${edReport.addresses[3].address} ton_w5=${edReport.addresses[4].address}`);
 
 // Invalid keys are rejected with a nonzero status and an error message.
 const zeroPtr = wasm.alloc(32);

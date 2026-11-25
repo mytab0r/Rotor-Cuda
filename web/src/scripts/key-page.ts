@@ -1,5 +1,5 @@
 /* The /key island: derive a 64-hex private key into the donor fact set and the
- * 30-row address table, and fill the status cells from the shared balance
+ * 31-row address table, and fill the status cells from the shared balance
  * providers.
  *
  * The page is server-rendered for a known key, so the facts and rows exist on
@@ -14,7 +14,6 @@
  *   - /key-tools.js             the donor fact set, row order and balance line
  *   - /balance-cache.js         provider response codecs and cache policy
  *   - /balance-providers.js     the shared public balance fetchers
- *   - /ton.js                   TON v4R2 (the WASM report carries W5 only)
  * The helpers are loaded lazily, so the prerendered page loads no derivation
  * code before it needs it. The key never enters storage, logs or a network
  * request; only public addresses and balances leave the page. */
@@ -109,10 +108,6 @@ interface AddressCodecs {
   derive(report: unknown): Record<string, ReportAddress>;
 }
 
-interface TonApi {
-  address(edPubkeyHex: string): Promise<string>;
-}
-
 interface WasmExports {
   memory: WebAssembly.Memory;
   alloc(length: number): number;
@@ -127,7 +122,6 @@ interface WasmExports {
 interface RotorWindow extends Window {
   RotorKeyTools?: KeyToolsApi;
   RotorAddressCodecs?: AddressCodecs;
-  RotorTon?: TonApi;
   RotorBalanceProviders?: BalanceProvidersApi;
   RotorBalanceCache?: unknown;
   RotorChains?: unknown;
@@ -165,7 +159,6 @@ const modelById = new Map(modelRows.map((row) => [row.id, row]));
 
 let wasmPromise: Promise<WasmExports> | null = null;
 let depsPromise: Promise<KeyDeps> | null = null;
-let tonPromise: Promise<TonApi> | null = null;
 let timer = 0;
 let sequence = 0;
 let balanceSequence = 0;
@@ -240,19 +233,6 @@ function loadDeps(): Promise<KeyDeps> {
     depsPromise = null;
   });
   return depsPromise;
-}
-
-function loadTon(): Promise<TonApi> {
-  if (root.RotorTon) return Promise.resolve(root.RotorTon);
-  if (tonPromise) return tonPromise;
-  tonPromise = loadScript(asset('/ton.js')).then(() => {
-    if (!root.RotorTon) throw new Error('The TON helper did not initialise.');
-    return root.RotorTon;
-  });
-  tonPromise.catch(() => {
-    tonPromise = null;
-  });
-  return tonPromise;
 }
 
 function reportOf(wasm: WasmExports, key: Uint8Array, curve: number): unknown {
@@ -637,9 +617,8 @@ async function derive(hex: string, seq: number, withBalances = true): Promise<vo
   if (seq !== sequence) return;
   const wasm = await loadWasm();
   if (seq !== sequence) return;
-  /* Marks the table as belonging to this key once the final render (including
-   * the optional V4R2 row) is in place. The audit and any later observer can
-   * wait for it instead of racing the island. */
+  /* Marks the table as belonging to this key once the render is in place. The
+   * audit and any later observer can wait for it instead of racing the island. */
   const markDerived = (): void => {
     if (seq === sequence && rowsEl) rowsEl.dataset.derived = hex;
   };
@@ -694,35 +673,7 @@ async function derive(hex: string, seq: number, withBalances = true): Promise<vo
     'derived',
     `${secpError ? 'Secp256k1 is out of range; showing ed25519 rows. ' : ''}Derived ${ordered.length} addresses from 0x${hex.slice(0, 8)}…${hex.slice(-4)}.`,
   );
-
-  /* TON v4R2 is a large existing bundle; load it after the table is usable and
-   * add the row when it answers. W5 already comes from the WASM report. */
-  if (!secpError) {
-    loadTon()
-      .then((ton) => ton.address(ed.ed_pubkey || ''))
-      .then((address) => {
-        if (seq !== sequence || !address) return;
-        const withTon = tools.mergeCurveAddresses(secp, ed, {
-          secp: Object.values(extras),
-          ed25519: [{ id: 'ton', label: 'TON wallet v4R2', address, steps: {}, curve: 'ed25519' }],
-        });
-        const finalRows = tools.orderAddressRows(tools.expandEvmAddresses(withTon, EVM_NETWORKS, 'EVM (shared 0x address)'));
-        renderRows(finalRows);
-        markDerived();
-        if (withBalances) {
-          fillBalances(++balanceSequence).catch(() => {
-            /* The rest of the table stays usable without the TON bundle. */
-          });
-        }
-        setStatus('derived', `Derived ${finalRows.length} addresses from 0x${hex.slice(0, 8)}…${hex.slice(-4)}.`);
-      })
-      .catch(() => {
-        /* The rest of the table stays usable without the TON bundle. */
-        markDerived();
-      });
-  } else {
-    markDerived();
-  }
+  markDerived();
 }
 
 function normalize(raw: string): string | null {

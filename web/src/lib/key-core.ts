@@ -2,10 +2,10 @@
  *
  * The crypto is the existing Rust/WASM core (`derive_report`) and the existing
  * browser helpers: `apps/site/address-codecs.js` supplies the BCH CashAddr and
- * the uncompressed DOGE/ZEC views, `apps/site/key-tools.js` supplies the donor
- * fact set and the row order, and `apps/site/ton.js` supplies the TON v4R2
- * address (the WASM report carries W5 only). Nothing here recomputes a hash,
- * a curve point or an address.
+ * the uncompressed DOGE/ZEC views, and `apps/site/key-tools.js` supplies the
+ * donor fact set and the row order. Every TON wallet version (v3R2, v4R2, W5)
+ * comes from the WASM report like the other rows. Nothing here recomputes a
+ * hash, a curve point or an address.
  *
  * This module is imported only by the Astro pages at build time. The browser
  * island loads the same three helpers and drives the same WASM ABI; it never
@@ -14,7 +14,6 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 import { loadAddressCodecs } from './address-codecs.js';
@@ -89,10 +88,6 @@ interface KeyToolsApi {
   chainMeta(id: string): { ticker: string; icon: string; decimals: number };
 }
 
-interface TonApi {
-  address(edPubkeyHex: string): Promise<string>;
-}
-
 const ROW_CHAIN_SLUGS: Record<string, string> = {
   btc: 'bitcoin',
   evm: 'ethereum',
@@ -112,7 +107,8 @@ const ROW_CHAIN_SLUGS: Record<string, string> = {
   xrp: 'xrp',
   zcash: 'zcash',
   sui: 'sui',
-  ton: 'ton',
+  ton_v3r2: 'ton',
+  ton_v4r2: 'ton',
   ton_w5: 'ton',
 };
 
@@ -144,7 +140,8 @@ const ROW_PROVIDERS: Record<string, string> = {
   xrp: 'xrpscan',
   zcash: 'sochain',
   sui: 'sui',
-  ton: 'tonapi',
+  ton_v3r2: 'tonapi',
+  ton_v4r2: 'tonapi',
   ton_w5: 'tonapi',
 };
 
@@ -163,7 +160,6 @@ const FACT_ORDER = ['hex', 'decimal', 'wif', 'wif_u', 'keypair', 'xrp', 'pubkey'
 const ED_PREFERRED = new Set(['keypair']);
 
 let toolsPromise: KeyToolsApi | null = null;
-let tonPromise: Promise<TonApi> | null = null;
 
 function siteRoot(): string {
   const candidates = [
@@ -192,23 +188,6 @@ function loadKeyTools(): KeyToolsApi {
   const api = require(path.join(root, 'key-tools.js')) as KeyToolsApi;
   toolsPromise = api;
   return api;
-}
-
-function loadTon(): Promise<TonApi> {
-  if (tonPromise) return tonPromise;
-  tonPromise = (async () => {
-    const root = siteRoot();
-    const global = globalThis as unknown as { window?: unknown; RotorTon?: TonApi };
-    if (!global.window) global.window = globalThis;
-    if (!global.RotorTon) {
-      vm.runInThisContext(readFileSync(path.join(root, 'ton.js'), 'utf8'), {
-        filename: 'ton.js',
-      });
-    }
-    if (!global.RotorTon) throw new Error('apps/site/ton.js did not expose RotorTon');
-    return global.RotorTon;
-  })();
-  return tonPromise;
 }
 
 function doubleSha256(bytes: Uint8Array): Promise<Uint8Array> {
@@ -349,19 +328,6 @@ function rowsFor(
   return decorate(tools.orderAddressRows(expanded));
 }
 
-function tonV4R2(ed: DeriveReport | null): Promise<unknown[]> {
-  const pubkey = ed?.ed_pubkey;
-  if (!pubkey) return Promise.resolve([]);
-  return loadTon()
-    .then((ton) => ton.address(pubkey))
-    .then((address) =>
-      address
-        ? [{ id: 'ton', label: 'TON wallet v4R2', address, steps: {}, curve: 'ed25519' }]
-        : [],
-    )
-    .catch(() => []);
-}
-
 const CACHE = new Map<string, Promise<KeyPageData>>();
 
 export function deriveKeyPage(hex: string): Promise<KeyPageData> {
@@ -388,7 +354,9 @@ export function deriveKeyPage(hex: string): Promise<KeyPageData> {
     const secpFacts = secp ? await tools.buildKeyFacts(secp, doubleSha256) : [];
     const facts = mergeFacts(secpFacts, edFacts).map(pageFactDisplay);
     const extras = pointFacts(secp);
-    const rows = rowsFor(secp, ed, await tonV4R2(ed));
+    /* `mergeCurveAddresses` filters the ed25519 report through its
+     * ED25519_ONLY_IDS list, so the TON ids must stay listed there. */
+    const rows = rowsFor(secp, ed, []);
     if (rows.length === 0) throw new Error(`no address rows for ${hex}`);
     return { hex, facts, extras, rows, model: modelFor(rows), secpError };
   })();

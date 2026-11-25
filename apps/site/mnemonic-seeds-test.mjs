@@ -627,10 +627,16 @@ test("mnemonic-ton-seeds: the config matches the donor path, types and presets",
   assertEqual(
     JSON.stringify(config.types.map((type) => [type.value, type.field, type.path])),
     JSON.stringify([
-      ["ton", "ton", "m/44'/607'/0'"],
+      ["ton_v4r2", "ton_v4r2", "m/44'/607'/0'"],
       ["ton_w5", "ton_w5", "m/44'/607'/0'"],
+      ["ton_v3r2", "ton_v3r2", "m/44'/607'/0'"],
     ]),
-    "the donor path serves both the v4R2 and the W5 address type"
+    "the donor path serves the three wallet contract versions"
+  );
+  assertEqual(
+    JSON.stringify(config.types.map((type) => type.label)),
+    JSON.stringify(["Wallet v4R2", "Wallet W5", "Wallet v3R2"]),
+    "each TON version has its own column label"
   );
   assertEqual(
     JSON.stringify(config.presets.map((preset) => [preset.id, preset.label, preset.path])),
@@ -640,35 +646,33 @@ test("mnemonic-ton-seeds: the config matches the donor path, types and presets",
     ]),
     "preset ids, labels and paths are identical to the donor"
   );
+  const tonMap = { ton_v3r2: "EQv3", ton_v4r2: "EQv4", ton_w5: "EQw5" };
   assertEqual(
-    JSON.stringify(api.addressEntriesFor("ton", "ton_w5", { ton: "EQv4", ton_w5: "EQw5" }, "ton_w5")),
+    JSON.stringify(api.addressEntriesFor("ton", "ton_v3r2", tonMap, "ton_v3r2")),
+    JSON.stringify([{ prefix: "", address: "EQv3" }]),
+    "the v3R2 row reads the report's ton_v3r2 address as-is"
+  );
+  assertEqual(
+    JSON.stringify(api.addressEntriesFor("ton", "ton_w5", tonMap, "ton_w5")),
     JSON.stringify([{ prefix: "", address: "EQw5" }]),
     "the W5 row reads the report's ton_w5 address as-is"
   );
 });
 
-test("mnemonic-ton-seeds: deriveEntry builds v4R2 through /ton.js and keeps W5 from the report", async () => {
+test("mnemonic-ton-seeds: every version comes from the WASM report, not /ton.js", async () => {
   const source = await readFile(scriptPath, "utf8");
   assert(
-    source.includes("entry.addressMap.ton = await ton.address(report.ed_pubkey)"),
-    "the v4R2 row must be built by the TON bundle, not faked"
+    !source.includes("/ton.js"),
+    "the TON page must not load the v4R2-only bundle"
   );
   assert(
-    source.includes("script.src = window.RotorAssets && typeof window.RotorAssets.url === 'function'"),
-    "the TON bundle URL must use the build-prefixed asset URL"
-  );
-  assert(
-    source.includes("if (chain === 'ton' && !entry.addressMap.ton)"),
-    "the TON augmentation must be gated to the TON page"
-  );
-  assert(
-    !source.includes("TON mnemonic seeds need the wallet contract builder"),
-    "the old unsupported message must be gone"
+    !source.includes("entry.addressMap.ton ="),
+    "no address may be built outside the WASM report"
   );
   assertEqual(
-    JSON.stringify(api.addressEntriesFor("ton", "ton", { ton: "EQv4", ton_w5: "EQw5" }, "ton")),
+    JSON.stringify(api.addressEntriesFor("ton", "ton_v4r2", { ton_v3r2: "EQv3", ton_v4r2: "EQv4", ton_w5: "EQw5" }, "ton_v4r2")),
     JSON.stringify([{ prefix: "", address: "EQv4" }]),
-    "the v4R2 rows read the bundle-built address"
+    "the v4R2 rows read the report's ton_v4r2 address"
   );
 });
 

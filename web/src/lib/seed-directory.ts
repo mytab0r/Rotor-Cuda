@@ -8,8 +8,9 @@
  * No crypto is implemented here. The phrase, PBKDF2 seed and BIP32 keys come
  * from `apps/site/seed.js` and `apps/site/seed-crypto.js`; SLIP-0010 ed25519
  * keys come from `slip10PrivateKey` in the same crypto module; every address
- * comes from the vendored WASM `derive_report` core. Bitcoin Cash CashAddr and
- * TON v4R2 reuse the browser encoders the key page uses.
+ * comes from the vendored WASM `derive_report` core, including the three TON
+ * wallet contract versions. Bitcoin Cash CashAddr reuses the browser encoder
+ * the key page uses.
  *
  * This module runs in Node at Astro build time and is not imported by a page
  * script. */
@@ -39,7 +40,7 @@ export interface SeedFormatSpec {
   curve: Curve;
   /** BIP32 / SLIP-0010 path this project derives for the format. */
   path: string;
-  /** Report address id, or `cashaddr` / `ton_v4` for the browser encoders. */
+  /** Report address id, or `cashaddr` for the browser encoder. */
   addressId: string;
 }
 
@@ -111,8 +112,9 @@ const FORMATS: Record<string, SeedFormatSpec[]> = {
     { id: 'sui', label: 'Sui account (0x…)', curve: 1, path: "m/44'/784'/0'/0'/0'", addressId: 'sui' },
   ],
   ton: [
-    { id: 'ton', label: 'Wallet v4R2 (EQ…)', curve: 1, path: "m/44'/607'/0'", addressId: 'ton_v4' },
+    { id: 'ton_v4r2', label: 'Wallet v4R2 (EQ…)', curve: 1, path: "m/44'/607'/0'", addressId: 'ton_v4r2' },
     { id: 'ton_w5', label: 'Wallet W5 (EQ…/UQ…)', curve: 1, path: "m/44'/607'/0'", addressId: 'ton_w5' },
+    { id: 'ton_v3r2', label: 'Wallet v3R2 (EQ…)', curve: 1, path: "m/44'/607'/0'", addressId: 'ton_v3r2' },
   ],
 };
 
@@ -139,10 +141,6 @@ interface CryptoApi {
 
 interface SeedApi {
   entropyToMnemonic(entropyHex: string): string;
-}
-
-interface TonApi {
-  address(publicKeyHex: string): Promise<string>;
 }
 
 function siteFileCandidates(name: string): string[] {
@@ -219,26 +217,9 @@ function loadCryptoApi(): CryptoApi {
   throw new Error(`could not load apps/site/seed-crypto.js:\n${failures.join('\n')}`);
 }
 
-let tonApiPromise: Promise<TonApi> | null = null;
-
-async function loadTonApi(): Promise<TonApi> {
-  if (tonApiPromise) return tonApiPromise;
-  tonApiPromise = (async () => {
-    const { source, file } = await readSiteFile('ton.js');
-    const sandbox = browserSandbox();
-    vm.createContext(sandbox);
-    vm.runInContext(source, sandbox, { filename: file });
-    const ton = sandbox.RotorTon as TonApi | undefined;
-    if (!ton || typeof ton.address !== 'function') {
-      throw new Error('apps/site/ton.js did not expose RotorTon.address');
-    }
-    return ton;
-  })();
-  return tonApiPromise;
-}
-
-/* All three caches are keyed by inputs, not by page, so 18 pages share one
- * phrase list, one PBKDF2 seed and one key per (curve, path) and index. */
+/* All four caches are keyed by inputs, not by page, so 18 pages share one
+ * phrase list, one PBKDF2 seed, one key per (curve, path) and index, and one
+ * report per (curve, key). */
 const phraseCache = new Map<number, Promise<string>>();
 const seedCache = new Map<number, Promise<Uint8Array>>();
 const keyCache = new Map<string, Promise<string>>();
@@ -308,18 +289,12 @@ async function reportOf(
 async function addressFor(
   report: DeriveReport,
   format: SeedFormatSpec,
-  ton: TonApi | null,
 ): Promise<string> {
   if (format.addressId === 'cashaddr') {
     const legacy = report.addresses.find((entry) => entry.id === 'bch_legacy');
     const hash160 = legacy?.steps?.hash160;
     if (!hash160) throw new Error('BCH report has no legacy hash160 step');
     return loadAddressCodecs().cashaddr(hash160, 0);
-  }
-  if (format.addressId === 'ton_v4') {
-    if (!ton) throw new Error('TON v4R2 needs the ton.js encoder');
-    if (!report.ed_pubkey) throw new Error('TON report has no ed25519 public key');
-    return ton.address(report.ed_pubkey);
   }
   const entry = report.addresses.find((item) => item.id === format.addressId);
   if (!entry || !entry.address) {
@@ -336,7 +311,6 @@ export async function deriveSeedRows(
 ): Promise<SeedRow[]> {
   const formats = seedFormatsFor(slug);
   const wasm = await loadWasm();
-  const ton = slug === 'ton' ? await loadTonApi() : null;
   const rows: SeedRow[] = [];
   for (let index = 0; index < count; index += 1) {
     const phrase = await phraseFor(index);
@@ -350,7 +324,7 @@ export async function deriveSeedRows(
         formatId: format.id,
         label: format.label,
         path: format.path,
-        address: await addressFor(report, format, ton),
+        address: await addressFor(report, format),
       });
     }
     if (!firstKey) throw new Error(`chain "${slug}" has no seed format`);

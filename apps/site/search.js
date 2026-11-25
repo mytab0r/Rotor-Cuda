@@ -80,7 +80,7 @@
     xrp: 'xrp_classic',
     zcash: 'zcash_p2pkh',
     sui: 'sui',
-    ton: 'ton'
+    ton: 'ton_v4r2'
   };
 
   var TYPE_LABELS = {
@@ -104,8 +104,9 @@
     zcash_p2pkh: 'Transparent',
     zcash_p2pkh_uncompressed: 'Transparent (uncompressed)',
     sui: 'Sui',
-    ton: 'v4R2',
-    ton_w5: 'W5'
+    ton_v4r2: 'v4R2',
+    ton_w5: 'W5',
+    ton_v3r2: 'v3R2'
   };
 
   function cryptoObject() {
@@ -373,8 +374,9 @@
   /* ------------------------------------------------------- result shaping */
 
   function familyOf(id) {
-    if (id === 'evm' || id === 'tron' || id === 'solana' || id === 'sui' || id === 'ton') return id;
     if (typeof id !== 'string') return '';
+    if (id === 'evm' || id === 'tron' || id === 'solana' || id === 'sui') return id;
+    if (id.indexOf('ton_') === 0) return 'ton';
     if (id.indexOf('btc_') === 0) return 'btc';
     if (id.indexOf('ltc_') === 0) return 'ltc';
     if (id.indexOf('doge_') === 0) return 'doge';
@@ -393,14 +395,6 @@
       address: addr.address,
       explorer: chain.explorer ? chain.explorer + encodeURIComponent(addr.address) : ''
     };
-  }
-
-  function appendTonRow(report, address) {
-    if (!report || !Array.isArray(report.addresses) || !address) return report;
-    var hasTon = report.addresses.some(function (row) { return row && row.id === 'ton'; });
-    if (hasTon) return report;
-    report.addresses.push({ id: 'ton', label: 'TON wallet v4R2', address: address, steps: {} });
-    return report;
   }
 
   /**
@@ -547,8 +541,7 @@
       } else if (chain.family === 'solana' || chain.family === 'sui') {
         rows = cardRows(edReport, chain.family);
       } else if (chain.family === 'ton') {
-        rows = cardRowsById(edReport, ['ton', 'ton_w5']);
-        if (!rows.length) rows = cardRows(secpReport, 'ton');
+        rows = cardRowsById(edReport, ['ton_v4r2', 'ton_w5', 'ton_v3r2']);
       } else {
         rows = cardRows(secpReport, chain.family).concat(cardRows({ addresses: extra }, chain.family));
       }
@@ -626,7 +619,6 @@
     hexToBytes: hexToBytes,
     deriveReport: deriveReport,
     shapeReport: shapeReport,
-    appendTonRow: appendTonRow,
     toCsv: toCsv,
     buildCards: buildCards,
     cardsToTsv: cardsToTsv,

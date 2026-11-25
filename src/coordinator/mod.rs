@@ -2268,12 +2268,27 @@ const SUI_TYPES: &[AddressType] = &[AddressType {
     desc: "0x…",
     field: "sui",
 }];
-const TON_TYPES: &[AddressType] = &[AddressType {
-    value: "legacy",
-    label: "Wallet v4R2",
-    desc: "EQ…",
-    field: "ton",
-}];
+const TON_TYPES: &[AddressType] = &[
+    // v4R2 stays first because it is the donor's format and the default tab.
+    AddressType {
+        value: "ton_v4r2",
+        label: "Wallet v4R2",
+        desc: "EQ…",
+        field: "ton_v4r2",
+    },
+    AddressType {
+        value: "ton_w5",
+        label: "Wallet W5",
+        desc: "EQ…/UQ…",
+        field: "ton_w5",
+    },
+    AddressType {
+        value: "ton_v3r2",
+        label: "Wallet v3R2",
+        desc: "EQ…",
+        field: "ton_v3r2",
+    },
+];
 
 impl AddressKind {
     fn curve(self) -> u32 {
@@ -2345,7 +2360,7 @@ const CHAIN_DESCRIPTIONS: &[(&str, &str)] = &[
     ),
     (
         "ton",
-        "TON Wallet v4R2 addresses derived from the ed25519 public key.",
+        "TON wallet addresses (v4R2, W5, v3R2) derived from the ed25519 public key.",
     ),
     ("sui", "Sui ed25519 accounts hashed with BLAKE2b-256."),
     (
@@ -3773,7 +3788,16 @@ fn brainwallet_warning() -> String {
 
 fn brainwallet_address_types(chain: &ChainHub) -> String {
     let types = chain_kind(chain).types();
-    if types.len() <= 1 {
+    // The brainwallet directory switches address type through the shared
+    // engine, whose type table covers Bitcoin and Litecoin only. TON rows are
+    // built by the RotorTon bundle (v4R2), so the new TON wallet versions must
+    // not surface as controls this page cannot honour.
+    if types.len() <= 1
+        || !matches!(
+            chain_kind(chain),
+            AddressKind::Bitcoin | AddressKind::Litecoin
+        )
+    {
         return String::new();
     }
     let mut out = String::from(
@@ -4150,7 +4174,13 @@ fn browse_page_href(chain: &ChainHub, page: &BigUint, address_type: &str) -> Str
     } else {
         format!("/private-keys/{}/{}", chain.id, page)
     };
-    if address_type == "legacy" {
+    // The first type is the page default (`?type=legacy` on most chains,
+    // `ton_v4r2` on TON), so its links stay on the bare route.
+    let is_default = chain_kind(chain)
+        .types()
+        .first()
+        .is_some_and(|kind| kind.value == address_type);
+    if is_default {
         base
     } else {
         format!("{base}?type={address_type}")
@@ -4202,7 +4232,10 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         .type_by_value(address_type)
         .unwrap_or(&chain_kind(chain).types()[0]);
     let canonical = format!("{base}/private-keys/{}", chain.id);
-    let self_url = format!("{base}{}", browse_page_href(chain, &page, "legacy"));
+    let self_url = format!(
+        "{base}{}",
+        browse_page_href(chain, &page, chain_kind(chain).types()[0].value)
+    );
     let page_text = page.to_string();
     let total_text = format_page_count(&total);
     let percent = page_percent(&page, &total);
@@ -4511,14 +4544,7 @@ fn render_browse_page(base: &str, chain: &ChainHub, requested: &str, address_typ
         browse_page_href(chain, &prev, active_type.value),
         prev_disabled,
         ui_icon("ui-prev", "icon"),
-        if active_type.value == "legacy" {
-            format!("/private-keys/{}/{}", chain.id, random)
-        } else {
-            format!(
-                "/private-keys/{}/{}?type={}",
-                chain.id, random, active_type.value
-            )
-        },
+        browse_page_href(chain, &random, active_type.value),
         ui_icon("ui-random", "icon"),
         browse_page_href(chain, &next, active_type.value),
         next_disabled,

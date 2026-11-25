@@ -30,7 +30,8 @@ use crate::secp;
 
 pub mod ton;
 pub use ton::{
-    TonAddress, TonWalletVersion, ton_address, ton_v3r2_address, ton_v4r2_address, ton_w5_address,
+    TON_WALLET_VERSIONS, TonAddress, TonWalletVersion, ton_address, ton_addresses,
+    ton_v3r2_address, ton_v4r2_address, ton_w5_address,
 };
 
 /// Key material accepted by [`derive`].

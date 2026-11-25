@@ -1,7 +1,7 @@
 ---
 chain: ton
-title: "TON seed phrases: SLIP-0010 W5 and v4R2 wallets | Crypto"
-description: "60 deterministic 12-word TON phrases derived with SLIP-0010 at m/44'/607'/0' into v4R2 and W5 wallet contract addresses."
+title: "TON seed phrases: SLIP-0010 v3R2, v4R2 and W5 wallets | Crypto"
+description: "60 deterministic 12-word TON phrases derived with SLIP-0010 at m/44'/607'/0' into v3R2, v4R2 and W5 wallet contract addresses."
 ---
 
 ## What a TON seed phrase controls
@@ -16,12 +16,12 @@ therefore have different addresses.
 
 ## Paths used on this page
 
-The table derives the same SLIP-0010 key once and renders two contracts from
-it: the older v4R2 wallet and the current W5 wallet. `m/44'/607'/0'` is the
-branch the seed directory uses and its tests pin; this page does not claim a
-BIP32 secp256k1 derivation for TON. The v4R2 address comes from the wallet
-contract builder, while W5 comes from the WASM report. Both are shown because a
-holder may meet either version in a wallet import flow.
+The table derives the same SLIP-0010 key once and renders three contracts from
+it: the older v3R2 and v4R2 wallets and the current W5 wallet. `m/44'/607'/0'`
+is the branch the seed directory uses and its tests pin; this page does not
+claim a BIP32 secp256k1 derivation for TON. All three addresses come from the
+WASM report. They are shown together because a holder may meet any of these
+versions in a wallet import flow.
 
 ## Address formats and limits
 

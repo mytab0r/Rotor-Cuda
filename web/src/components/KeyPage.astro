@@ -3,7 +3,7 @@
  *
  * The document is server-rendered for a known key (the curated default on
  * `/key`, the route's key on `/key/<hex>`), so the H1, the eight donor facts
- * and all 30 address rows exist in the first HTML byte. The single island
+ * and all 31 address rows exist in the first HTML byte. The single island
  * (`src/scripts/key-page.ts`) derives a different key on input, or hydrates a
  * worker-injected arbitrary key from the `#key-request` JSON block.
  *
@@ -47,7 +47,7 @@ const display = `0x${hex.slice(0, 4)}…${hex.slice(-4)}`;
 const rowModelJson = JSON.stringify(data.model).replace(/</g, '\\u003c');
 
 /* Contiguous chain groups share one Chain cell with a rowspan, matching the
- * live table (BTC 5, LTC 4, BCH 2, DOGE 2, TON 2, ZEC 2; each EVM id is its
+ * live table (BTC 5, LTC 4, BCH 2, DOGE 2, TON 3, ZEC 2; each EVM id is its
  * own group). `groupRows` is the same pass the island uses. */
 const rendered = groupRows(data.rows);
 
@@ -103,7 +103,7 @@ const jsonLd = {
   description={description}
   canonical={canonical}
   image={ogImageUrl}
-  imageAlt={`Private key ${display} — 30 derived addresses on 18 chains | Crypto`}
+  imageAlt={`Private key ${display} — 31 derived addresses on 18 chains | Crypto`}
   imageWidth={1200}
   imageHeight={630}
   robots={robots}
@@ -355,7 +355,7 @@ const jsonLd = {
     <h2 id="key-what">{hub ? 'What the key explorer derives' : `What ${display} derives`}</h2>
     <p>
       {hub
-        ? 'A private key is a 256-bit number. The browser derives its secp256k1 public key for the UTXO, EVM, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin and Zcash formats, and separately treats the same 32 bytes as an ed25519 seed for Solana, Sui and the two TON wallets. The table lists the resulting address for every supported format, grouped by chain and type.'
+        ? 'A private key is a 256-bit number. The browser derives its secp256k1 public key for the UTXO, EVM, TRON, XRP, Litecoin, Bitcoin Cash, Dogecoin and Zcash formats, and separately treats the same 32 bytes as an ed25519 seed for Solana, Sui and the v4R2, W5 and v3R2 TON wallets. The table lists the resulting address for every supported format, grouped by chain and type.'
         : `${display} is the decimal integer ${data.facts.find((fact) => fact.id === 'decimal')?.value || 'value'}. Its secp256k1 public key produces the Bitcoin, Litecoin, Bitcoin Cash, Dogecoin, Zcash, XRP, TRON and EVM rows; the same 32 bytes as an ed25519 seed produce the Solana, Sui and TON rows. Every address on this page is derived from this one number, and every value is reproducible in the browser with the same WASM core.`}
     </p>
     <p>
@@ -372,7 +372,7 @@ const jsonLd = {
       The Chain column groups rows by network; a shared EVM 0x address is shown once as the
       parent row and repeated on the eight EVM networks with “↑ same”, because one secp256k1
       key controls all of them. The Type column names the address format — Legacy, SegWit,
-      P2SH, Taproot, CashAddr, Base58, t1, W5 and so on. Every address also has an explorer
+      P2SH, Taproot, CashAddr, Base58, t1, v4R2, W5, v3R2 and so on. Every address also has an explorer
       action, and the address text stays selectable and scrollable rather than being shortened.
     </p>
     <p>

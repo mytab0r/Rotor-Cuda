@@ -233,7 +233,10 @@ function normalizedPublicKeys(desktopVector, wasmVector) {
  * Compare the committed desktop and wasm vectors.
  *
  * A field that differs is accepted only when an allowlist entry names the
- * chain, the field and (optionally) the key. The result also fails when an
+ * chain, the field and (optionally) the key. A chain with `address_set: true`
+ * (TON) has no single canonical address: its scalar `address` field is not
+ * compared, and the values of the `addresses` maps are compared as a set, so a
+ * missing or extra version is a mismatch. The result also fails when an
  * allowlist entry no longer matches a real mismatch, so fixing a divergence
  * forces the entry to be removed.
  */
@@ -287,12 +290,16 @@ export function compareVectors({ desktop, wasm, allowlist, chainMap }) {
       desktopVector,
       wasmVector,
     );
+    const mapping = chainMap.chains[desktopVector.chain] ?? {};
+    const addressSet = mapping.address_set === true;
     const checks = [
       ["private_key", desktopVector.private_key, wasmVector.private_key],
-      ["address", desktopVector.address, wasmVector.address],
       ["public_key", desktopPublicKey, wasmPublicKey],
     ];
-    if (chainMap.chains[desktopVector.chain]?.wif_comparable) {
+    if (!addressSet) {
+      checks.splice(1, 0, ["address", desktopVector.address, wasmVector.address]);
+    }
+    if (mapping.wif_comparable) {
       checks.push(["wif", desktopVector.wif, wasmVector.wif]);
     }
     for (const [field, left, right] of checks) {
@@ -310,6 +317,32 @@ export function compareVectors({ desktop, wasm, allowlist, chainMap }) {
       }
       errors.push(
         `${key} ${field}: desktop=${JSON.stringify(left)} wasm=${JSON.stringify(right)}`,
+      );
+    }
+
+    if (addressSet) {
+      fields += 1;
+      const desktopSet = Object.values(desktopVector.addresses ?? {}).sort();
+      const wasmSet = Object.values(wasmVector.addresses ?? {}).sort();
+      const sameSet =
+        desktopSet.length === wasmSet.length &&
+        desktopSet.every((value, index) => value === wasmSet[index]);
+      if (sameSet) {
+        matched += 1;
+        continue;
+      }
+      const entry = allowlisted(desktopVector.chain, desktopVector.key_id, "address");
+      if (entry) {
+        allowed += 1;
+        const label = `${desktopVector.chain}/address`;
+        allowedDetails.set(label, (allowedDetails.get(label) ?? 0) + 1);
+        continue;
+      }
+      const missing = desktopSet.filter((value) => !wasmSet.includes(value));
+      const extra = wasmSet.filter((value) => !desktopSet.includes(value));
+      errors.push(
+        `${key} address set: missing=${JSON.stringify(missing)} ` +
+          `extra=${JSON.stringify(extra)}`,
       );
     }
   }

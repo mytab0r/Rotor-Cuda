@@ -14,7 +14,7 @@ test('formats match the address families the page documents', () => {
   assert.equal(formatsFor('bitcoin-cash').length, 2);
   assert.equal(formatsFor('ethereum').length, 1);
   assert.equal(formatsFor('solana').length, 1);
-  assert.equal(formatsFor('ton').length, 1);
+  assert.equal(formatsFor('ton').length, 3);
   assert.throws(() => formatsFor('bitcoin-testnet'), /no address formats/);
 });
 
@@ -36,7 +36,7 @@ test('Bitcoin Cash keeps the legacy and CashAddr views of one hash160', async ()
   assert.match(rows[1]?.address ?? '', /^bitcoincash:q[0-9a-z]+$/);
 });
 
-test('ed25519 chains render a base58 account and a TON W5 address', async () => {
+test('ed25519 chains render a base58 account and the three TON wallet versions', async () => {
   const solana = await deriveDirectoryRows('solana', 1);
   assert.match(solana[0]?.address ?? '', /^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 
@@ -44,7 +44,9 @@ test('ed25519 chains render a base58 account and a TON W5 address', async () => 
   assert.match(sui[0]?.address ?? '', /^0x[0-9a-f]{64}$/);
 
   const ton = await deriveDirectoryRows('ton', 1);
-  assert.match(ton[0]?.address ?? '', /^[A-Za-z0-9_-]{48}$/);
+  assert.deepEqual(ton.map((row) => row.formatId), ['ton_v4r2', 'ton_w5', 'ton_v3r2']);
+  for (const row of ton) assert.match(row.address, /^[A-Za-z0-9_-]{48}$/);
+  assert.equal(new Set(ton.map((row) => row.address)).size, 3);
 });
 
 test('a page group is key-major and deterministic', async () => {
