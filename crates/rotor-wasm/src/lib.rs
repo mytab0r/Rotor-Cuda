@@ -661,6 +661,17 @@ impl Session {
     }
 }
 
+/// Host-only view of [`Session::derive_report`] for integration tests.
+///
+/// The wasm ABI returns a pointer/length blob through wasm linear memory;
+/// a native integration test cannot call it, so this wrapper exposes the same
+/// JSON report directly. It is compiled out of the wasm build.
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub fn derive_report_json(key: &[u8; 32], curve: u32) -> Result<String, String> {
+    derive::report(key, curve)
+}
+
 /// Walk `[start, end)` and return how many keys were checked plus the found
 /// key/address pair.
 fn scan_range(job: &Job, start: &Scalar, end: &Scalar) -> (u64, Option<(Scalar, String)>) {
