@@ -169,7 +169,8 @@
       "explorer": "https://tronscan.org/#/address/{address}",
       "explorerPrefix": "https://tronscan.org/#/address/",
       "explorerTx": null,
-      "explorerTxPrefix": null
+      "explorerTxPrefix": null,
+      "wtrx": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR"
     },
     "xrp": {
       "slug": "xrp",

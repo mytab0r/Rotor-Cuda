@@ -118,7 +118,8 @@
       "decimals": 6,
       "order": 11,
       "family": "tron",
-      "explorer": "https://tronscan.org/#/address/{address}"
+      "explorer": "https://tronscan.org/#/address/{address}",
+      "wtrx": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR"
     },
     {
       "slug": "xrp",

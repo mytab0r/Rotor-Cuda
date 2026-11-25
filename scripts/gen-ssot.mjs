@@ -47,6 +47,9 @@ const CSS_END = CHAINS_REGION.end;
 const COLOR_RE = /^#[0-9a-f]{6}$/;
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// A TRON base58check address: `T`, then 33 base58 characters. `wtrx` is the
+// wrapped-TRX (WTRX) contract the SunSwap router path uses.
+const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 const FAMILIES = new Set([
   "btc",
   "evm",
@@ -176,7 +179,11 @@ export function loadData(root = REPO_ROOT) {
     }
     assertTemplate(`${where}.explorer`, chain.explorer, "address");
     if (chain.explorerTx !== undefined) assertTemplate(`${where}.explorerTx`, chain.explorerTx, "tx");
-    chains.push({
+    if (chain.wtrx !== undefined &&
+        (typeof chain.wtrx !== "string" || !TRON_ADDRESS_RE.test(chain.wtrx))) {
+      fail(`${where}.wtrx must be a base58 TRON T-address: ${chain.wtrx}`);
+    }
+    const entry = {
       slug: chain.slug,
       name: chain.name,
       symbol: chain.symbol,
@@ -187,7 +194,9 @@ export function loadData(root = REPO_ROOT) {
       testnet: chain.testnet === true,
       explorer: chain.explorer,
       explorerTx: chain.explorerTx ?? null,
-    });
+    };
+    if (chain.wtrx !== undefined) entry.wtrx = chain.wtrx;
+    chains.push(entry);
   }
   chains.sort((left, right) => left.order - right.order);
 
@@ -326,7 +335,7 @@ function renderJs(data, eol = "\n") {
     .map((chain) => chain.slug);
   const bySlug = {};
   for (const chain of data.chains) {
-    bySlug[chain.slug] = {
+    const entry = {
       slug: chain.slug,
       name: chain.name,
       symbol: chain.symbol,
@@ -341,6 +350,8 @@ function renderJs(data, eol = "\n") {
       explorerTx: chain.explorerTx,
       explorerTxPrefix: chain.explorerTx ? prefixOf(chain.explorerTx) : null,
     };
+    if (chain.wtrx) entry.wtrx = chain.wtrx;
+    bySlug[chain.slug] = entry;
   }
   const byChain = {};
   for (const [slug, list] of data.providers) {
