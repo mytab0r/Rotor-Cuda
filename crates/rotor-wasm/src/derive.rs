@@ -11,6 +11,7 @@ use ed25519_dalek::SigningKey;
 
 use crate::point::Affine;
 use crate::scalar::Scalar;
+use crate::ton::TonWalletVersion;
 use crate::{base58, bech32, hashes, secp};
 
 /// secp256k1 curve order n, big-endian.
@@ -695,12 +696,10 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
     let digest = hasher.finalize();
     let sui_address = format!("0x{}", hex(&digest));
 
-    // TON wallet v5 (W5): StateInit code is the official wallet_v5 cell and
-    // the data cell stores this public key under the default mainnet wallet id.
-    let ton = crate::ton::w5_address(&public)?;
-    let ton_state_init_hex = hex(&ton.state_init_hash);
-
-    let addresses = [
+    // TON: every supported wallet contract version shares this public key, but
+    // the version selects the StateInit code cell and data layout, so each one
+    // is a distinct address. The ordered version list lives in rotor-core.
+    let mut addresses = vec![
         address_object(
             "solana",
             "Solana (ed25519)",
@@ -713,17 +712,31 @@ fn ed25519_report(key: &[u8; 32]) -> Result<String, String> {
             &sui_address,
             &[("pubkey", &public_hex), ("blake2b", &sui_address)],
         ),
-        address_object(
-            "ton_w5",
-            "TON wallet W5",
+    ];
+    for (version, ton) in crate::ton::addresses(&public)? {
+        let (id, label) = match version {
+            TonWalletVersion::V3R2 => ("ton_v3r2", "TON wallet v3R2"),
+            TonWalletVersion::V4R2 => ("ton_v4r2", "TON wallet v4R2"),
+            TonWalletVersion::W5 => ("ton_w5", "TON wallet W5"),
+            other => {
+                return Err(format!(
+                    "unsupported TON wallet version {} in the derive report",
+                    other.label()
+                ));
+            }
+        };
+        let state_init_hex = hex(&ton.state_init_hash);
+        addresses.push(address_object(
+            id,
+            label,
             &ton.address,
             &[
                 ("pubkey", &public_hex),
-                ("state_init_hash", &ton_state_init_hex),
+                ("state_init_hash", &state_init_hex),
                 ("address", &ton.address),
             ],
-        ),
-    ];
+        ));
+    }
 
     let mut out = String::with_capacity(1024);
     out.push('{');

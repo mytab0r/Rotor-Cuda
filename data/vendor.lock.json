@@ -50,12 +50,12 @@
     {
       "source": "apps/site/key-tools.js",
       "target": "web/public/key-tools.js",
-      "sha256": "5d3edee72c19864f4af693f2ce65d466eab45fddc7a12f4f6c681b2713ff6e9d"
+      "sha256": "c632284e18a212b2cf61fbaab956918d78b673f46b3bbabaab762c360b242746"
     },
     {
       "source": "apps/site/rotor_wasm.wasm",
       "target": "web/public/rotor_wasm.wasm",
-      "sha256": "de006b047a0ab3cbb8331f6b0cbff1f3f835235e35644190ab60fb37391162df"
+      "sha256": "2f03cb86cb15cee730514416ebe5f19330218a66795af06be694d1c1fd8ef8f3"
     },
     {
       "source": "apps/site/seed-studio.css",

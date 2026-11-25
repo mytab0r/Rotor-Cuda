@@ -661,6 +661,17 @@ impl Session {
     }
 }
 
+/// Host-only view of [`Session::derive_report`] for integration tests.
+///
+/// The wasm ABI returns a pointer/length blob through wasm linear memory;
+/// a native integration test cannot call it, so this wrapper exposes the same
+/// JSON report directly. It is compiled out of the wasm build.
+#[cfg(not(target_arch = "wasm32"))]
+#[doc(hidden)]
+pub fn derive_report_json(key: &[u8; 32], curve: u32) -> Result<String, String> {
+    derive::report(key, curve)
+}
+
 /// Walk `[start, end)` and return how many keys were checked plus the found
 /// key/address pair.
 fn scan_range(job: &Job, start: &Scalar, end: &Scalar) -> (u64, Option<(Scalar, String)>) {
@@ -1926,7 +1937,7 @@ mod tests {
         );
 
         let addresses = value["addresses"].as_array().unwrap();
-        assert_eq!(addresses.len(), 3);
+        assert_eq!(addresses.len(), 5);
         assert_eq!(addresses[0]["id"], "solana");
         assert_eq!(addresses[0]["label"], "Solana (ed25519)");
         assert_eq!(
@@ -1942,22 +1953,34 @@ mod tests {
             addresses[1]["address"],
             "0x304af458e90e97c841685b8cbbc59b909f3e2cf150df590ada4c81452c29737d"
         );
-        assert_eq!(addresses[2]["id"], "ton_w5");
-        assert_eq!(addresses[2]["label"], "TON wallet W5");
+        assert_eq!(addresses[2]["id"], "ton_v3r2");
+        assert_eq!(addresses[2]["label"], "TON wallet v3R2");
         assert_eq!(
             addresses[2]["address"],
+            "EQB3V1d93mD6v4qWoRPnlm0UrYpcHZz2lCD_10u84NHWuX1P"
+        );
+        assert_eq!(addresses[3]["id"], "ton_v4r2");
+        assert_eq!(addresses[3]["label"], "TON wallet v4R2");
+        assert_eq!(
+            addresses[3]["address"],
+            "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv"
+        );
+        assert_eq!(addresses[4]["id"], "ton_w5");
+        assert_eq!(addresses[4]["label"], "TON wallet W5");
+        assert_eq!(
+            addresses[4]["address"],
             "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td"
         );
         assert_eq!(
-            addresses[2]["steps"]["pubkey"],
+            addresses[4]["steps"]["pubkey"],
             "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
         );
         assert_eq!(
-            addresses[2]["steps"]["address"],
+            addresses[4]["steps"]["address"],
             "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td"
         );
         assert_eq!(
-            addresses[2]["steps"]["state_init_hash"]
+            addresses[4]["steps"]["state_init_hash"]
                 .as_str()
                 .unwrap()
                 .len(),
@@ -2174,8 +2197,8 @@ mod tests {
     }
 
     /// `derive_report` must keep emitting a stable byte layout. The hashes were
-    /// recaptured when the Litecoin taproot row was added (SHA-256 of the whole
-    /// JSON blob).
+    /// recaptured when the TON v3R2/v4R2 rows joined the ed25519 report
+    /// (SHA-256 of the whole JSON blob).
     #[test]
     fn derive_report_stays_byte_identical() {
         for (curve, expected_len, expected_hash) in [
@@ -2186,8 +2209,8 @@ mod tests {
             ),
             (
                 1u32,
-                1379usize,
-                "74ed658f529f52b0ea6e5bc7c24c7303feb66b1ddf08fee3eb133e6400fe0968",
+                2053usize,
+                "5c38ce87f50aa1c03ea19408c6653c0f7fcb7dab287b6953826f07336e34e5c3",
             ),
         ] {
             let mut session = Session::new();

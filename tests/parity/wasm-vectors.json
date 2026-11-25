@@ -584,6 +584,8 @@
       "ed_pubkey": "4cb5abf6ad79fbf5abbccafcc269d85cd2651ed4b885b5869f241aedf0a5ba29",
       "address": "EQCcCUPw6Gl_Q9MuCKaOFkqCJAnwNqDO-Tt_y4sIUdpyT_5l",
       "addresses": {
+        "ton_v3r2": "EQCmIF9iG5IVwOWUPmPELRcJ09QTolmd6ETbwpbqhokjHG2U",
+        "ton_v4r2": "EQAkxuybaeBflbgYW3vgQvcFgyAQVcLtXZwdrpeLNqzZ000c",
         "ton_w5": "EQCcCUPw6Gl_Q9MuCKaOFkqCJAnwNqDO-Tt_y4sIUdpyT_5l"
       },
       "format": "ton-user-friendly",
@@ -1122,6 +1124,8 @@
       "ed_pubkey": "7422b9887598068e32c4448a949adb290d0f4e35b9e01b0ee5f1a1e600fe2674",
       "address": "EQBMHpXEs6r9Ucc3tlHmSYjXvXmBFG2mCZ4s_tzADsNXZUJe",
       "addresses": {
+        "ton_v3r2": "EQDx1seKiXSPwdIcvCRNBd7W3gEj4Fmf722hakW6zighIe5w",
+        "ton_v4r2": "EQBpuxKb5zcCDcKk-tJDY2YVM9RuG3igJjhls90VDnMPEVof",
         "ton_w5": "EQBMHpXEs6r9Ucc3tlHmSYjXvXmBFG2mCZ4s_tzADsNXZUJe"
       },
       "format": "ton-user-friendly",
@@ -1660,6 +1664,8 @@
       "ed_pubkey": "f381626e41e7027ea431bfe3009e94bdd25a746beec468948d6c3c7c5dc9a54b",
       "address": "EQAZZPWZf42j_VckiEZmCAgDWg8UA8-tfB_QEaogrX0D0hrp",
       "addresses": {
+        "ton_v3r2": "EQDMgD2BZL896AUJvGWwRjVgyw0bI1ttLsGQAdmAx03KVquF",
+        "ton_v4r2": "EQC0yNkb4jqLn8ozQK0YkjW7IqWTFRGxJJtfF2nL4Y4wxUxS",
         "ton_w5": "EQAZZPWZf42j_VckiEZmCAgDWg8UA8-tfB_QEaogrX0D0hrp"
       },
       "format": "ton-user-friendly",
@@ -2198,6 +2204,8 @@
       "ed_pubkey": "5699a9cef870e2ff0c022b67689cc76fe05e90915c5f0143f9356ca72f4aff99",
       "address": "EQBmnbRnOu39hC64VADr7irmdkqz7ceq1smZyX5t2lGGWB3U",
       "addresses": {
+        "ton_v3r2": "EQBTq3Di1R2d2VwCg0KnDY5CuJvvgeSF4uZzr0OYfSt0UHf2",
+        "ton_v4r2": "EQCSR221-4iCA9r4mhwTk3HXuk64sP6C2q_ft95eGLR-AboJ",
         "ton_w5": "EQBmnbRnOu39hC64VADr7irmdkqz7ceq1smZyX5t2lGGWB3U"
       },
       "format": "ton-user-friendly",
@@ -2736,6 +2744,8 @@
       "ed_pubkey": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8",
       "address": "EQDygBQZqqGzcEoNULWIjcy1UR7W4xkbmdFEoE6p6jkMUpdb",
       "addresses": {
+        "ton_v3r2": "EQDk-73OzZiv_ffXAbZVEGZOcjbIwBA-6CzHu9U46xUjmnZY",
+        "ton_v4r2": "EQDTcUOcJvwtMx4R6Vbb-uYCtJELCzAAvdD439fc2Y0UNsUJ",
         "ton_w5": "EQDygBQZqqGzcEoNULWIjcy1UR7W4xkbmdFEoE6p6jkMUpdb"
       },
       "format": "ton-user-friendly",
@@ -3274,6 +3284,8 @@
       "ed_pubkey": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
       "address": "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td",
       "addresses": {
+        "ton_v3r2": "EQB3V1d93mD6v4qWoRPnlm0UrYpcHZz2lCD_10u84NHWuX1P",
+        "ton_v4r2": "EQDNrJfJFisuFBrURjgosqcO_fh2K5foNWPzUr7PkC6Ipopv",
         "ton_w5": "EQCUp64SJJ505dIdcgHDG1oD8JKMLXpQzu5W6lLFdQGtA5Td"
       },
       "format": "ton-user-friendly",
@@ -3812,6 +3824,8 @@
       "ed_pubkey": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
       "address": "EQA6mmlmbvTArSX2TKXXLms7q7saf0UZzGu3Ub66VXPZHY3B",
       "addresses": {
+        "ton_v3r2": "EQCYE45Fgmwj9X3IsPsoKQ30cL0oNH3smgBAkM9R-ucJVXpm",
+        "ton_v4r2": "EQDcB_cHx9Yfwv4b4sLcW2tRg4HNjZJLqjr0TBKCL2-7NaUo",
         "ton_w5": "EQA6mmlmbvTArSX2TKXXLms7q7saf0UZzGu3Ub66VXPZHY3B"
       },
       "format": "ton-user-friendly",

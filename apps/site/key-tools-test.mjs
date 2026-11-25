@@ -773,7 +773,9 @@ const TYPE_CASES = [
   ["doge_p2pkh_uncompressed", "Legacy (u)"],
   ["zcash_p2pkh", "t1 (c)"],
   ["zcash_p2pkh_uncompressed", "t1 (u)"],
-  ["ton", "V4R2"],
+  ["ton_v3r2", "V3R2"],
+  ["ton_v4r2", "V4R2"],
+  ["ton_w5", "W5"],
   ["sui", "0x"],
   ["tron", "Base58"],
   ["solana", "Base58"],
@@ -831,15 +833,19 @@ for (const id of ["evm", "evm_arbitrum", "evm_optimism", "evm_base", "evm_zksync
 assert(tools.chainMeta("evm_bnb").ticker === "BNB", "BNB key row prints BNB");
 assert(tools.chainMeta("evm_polygon").ticker === "POL", "Polygon key row prints POL");
 assert(tools.chainMeta("tron").ticker === "TRX" && tools.chainMeta("tron").decimals === 6, "TRON unit");
-assert(tools.chainMeta("ton_w5").icon === "chain-ton", "the W5 row keeps the TON icon");
+assert(
+  ["ton_v3r2", "ton_v4r2", "ton_w5"].every((id) => tools.chainMeta(id).icon === "chain-ton"),
+  "every TON row keeps the TON icon",
+);
 assert(tools.chainUnit("bitcoin").symbol === "BTC" && tools.chainUnit("bitcoin").decimals === 8, "BTC unit");
 assert(tools.chainSlug("evm_arbitrum") === "arbitrum" && tools.chainSlug("btc_p2tr") === "bitcoin", "row id -> slug");
 
 // Donor order: BTC, EVM, TRX, SOL, TON, SUI, XRP, LTC, BCH, DOGE, ZEC.
-const ORDER_IDS = ["zcash_p2pkh", "btc_p2wpkh", "doge_p2pkh", "evm", "tron", "ltc_p2pkh", "sui", "xrp_classic", "solana", "bch_legacy", "ton", "btc_p2pkh"];
+// The three TON rows report out of order and still render v4R2, W5, v3R2.
+const ORDER_IDS = ["ton_v3r2", "zcash_p2pkh", "btc_p2wpkh", "ton_w5", "doge_p2pkh", "evm", "tron", "ltc_p2pkh", "sui", "xrp_classic", "solana", "bch_legacy", "ton_v4r2", "btc_p2pkh"];
 const ordered = tools.orderAddressRows(ORDER_IDS.map((id) => ({ id }))).map((row) => row.id);
 assert(
-  ordered.join(",") === "btc_p2wpkh,btc_p2pkh,evm,tron,solana,ton,sui,xrp_classic,ltc_p2pkh,bch_legacy,doge_p2pkh,zcash_p2pkh",
+  ordered.join(",") === "btc_p2wpkh,btc_p2pkh,evm,tron,solana,ton_v4r2,ton_w5,ton_v3r2,sui,xrp_classic,ltc_p2pkh,bch_legacy,doge_p2pkh,zcash_p2pkh",
   `address order ${ordered.join(",")}`,
 );
 
@@ -974,21 +980,13 @@ assertEqual(
 // ------------------------------------------------------ both-curve row merge
 // The donor derives every 32-byte value on both curves, so the key page table
 // always carries the secp256k1 rows (plus the JS CashAddr/uncompressed rows)
-// and the ed25519-only rows SOL, SUI and both TON wallets: exactly 30 rows
-// after the EVM parent is expanded into its eight networks.
+// and the ed25519-only rows SOL, SUI and the three TON wallet versions: exactly
+// 31 rows after the EVM parent is expanded into its eight networks.
 const codecs = require("./address-codecs.js");
-const tonV4R2 = {
-  id: "ton",
-  label: "TON wallet v4R2",
-  address: "EQD4rL6q6f4vP7d8c8n7t6n5f4d3s2a1q0p9o8i7u6y5t4r3e2w1q",
-  steps: {},
-  curve: "ed25519",
-};
 const codecRows = Object.values(codecs.derive(secpReport)).filter(Boolean);
 assert(codecRows.length === 3, `three JS-encoded secp rows, got ${codecRows.length}`);
 const mergedRows = tools.mergeCurveAddresses(secpReport, edReport, {
   secp: codecRows,
-  ed25519: [tonV4R2],
 });
 const EVM_NETWORKS = [
   "evm", "evm_bnb", "evm_arbitrum", "evm_optimism",
@@ -1002,12 +1000,12 @@ const EXPECTED_IDS = [
   "btc_p2pkh", "btc_p2pkh_uncompressed", "btc_p2sh_p2wpkh", "btc_p2wpkh", "btc_p2tr",
   "evm_parent", "evm", "evm_bnb", "evm_arbitrum", "evm_optimism",
   "evm_base", "evm_polygon", "evm_avalanche", "evm_zksync",
-  "tron", "solana", "ton", "ton_w5", "sui", "xrp_classic",
+  "tron", "solana", "ton_v4r2", "ton_w5", "ton_v3r2", "sui", "xrp_classic",
   "ltc_p2pkh", "ltc_p2sh_p2wpkh", "ltc_p2wpkh", "ltc_p2tr",
   "bch_legacy", "bch_cashaddr", "doge_p2pkh", "doge_p2pkh_uncompressed",
   "zcash_p2pkh", "zcash_p2pkh_uncompressed",
 ];
-assert(displayIds.length === 30, `donor table has 30 rows, got ${displayIds.length}`);
+assert(displayIds.length === 31, `donor table has 31 rows, got ${displayIds.length}`);
 assert(
   displayIds.join(",") === EXPECTED_IDS.join(","),
   `merged row order ${displayIds.join(",")}`,
@@ -1017,19 +1015,26 @@ assert(
   displayRows.find((row) => row.id === "btc_p2pkh").curve === "secp256k1",
   "BTC row is tagged secp256k1",
 );
-for (const id of ["solana", "sui", "ton", "ton_w5"]) {
+for (const id of ["solana", "sui", "ton_v3r2", "ton_v4r2", "ton_w5"]) {
   assert(displayRows.find((row) => row.id === id).curve === "ed25519", `${id} is tagged ed25519`);
 }
+const tonAddresses = ["ton_v3r2", "ton_v4r2", "ton_w5"].map(
+  (id) => displayRows.find((row) => row.id === id).address,
+);
+assert(new Set(tonAddresses).size === 3, "each TON version has its own address");
 // One chain group per donor chain: 11 families + eight EVM networks, with the
-// 0x parent and the TON V4R2/W5 pair not double-counted.
+// three TON versions not double-counted.
 const chainGroups = new Set(displayRows.map((row) => tools.counterChainKey(row.id)).filter(Boolean));
 assert(chainGroups.size === 18, `18 chain groups, got ${chainGroups.size}`);
-assert(tools.rowGroup("ton") === "ton" && tools.rowGroup("ton_w5") === "ton", "TON rows share a chain cell");
+assert(
+  ["ton_v3r2", "ton_v4r2", "ton_w5"].every((id) => tools.rowGroup(id) === "ton"),
+  "TON rows share a chain cell",
+);
 
 // An out-of-range secp256k1 value has no secp report; the ed25519 rows and
 // their curves still render and are the only rows.
-const edOnlyRows = tools.mergeCurveAddresses(null, edReport, { ed25519: [tonV4R2] });
-assert(edOnlyRows.length === 4, `out-of-range value renders 4 ed25519 rows, got ${edOnlyRows.length}`);
+const edOnlyRows = tools.mergeCurveAddresses(null, edReport, {});
+assert(edOnlyRows.length === 5, `out-of-range value renders 5 ed25519 rows, got ${edOnlyRows.length}`);
 assert(edOnlyRows.every((row) => row.curve === "ed25519"), "out-of-range rows are all ed25519");
 
 // ------------------------------------------------------------- USD prices
@@ -1157,6 +1162,6 @@ for (const id of ["btc_legacy", "zcash_p2pkh", "tron"]) {
 console.log(
   "key-tools ok: integer, fragments, pubkey report/add/subtract/multiply, scrypt+pbkdf2 keystore (16/32-byte MAC), " +
     "JSON parser (64-hex MAC, array kdfparams), key facts (HEX/Decimal/WIF/WIF-u/Keypair/XRP/PubKey/Page), " +
-    "row order/grouping/type labels, address-format selector scope, both-curve 30-row merge, chain-group counters, USD ticker math/cache, " +
+    "row order/grouping/type labels, address-format selector scope, both-curve 31-row merge, chain-group counters, USD ticker math/cache, " +
     "ZEC SoChain amounts, explorer URLs",
 );

@@ -757,7 +757,8 @@
 
   /* ------------------------------------------------ key-page row plumbing */
   /* The donor key page orders chain groups BTC, EVM, TRX, SOL, TON, SUI,
-   * XRP, LTC, BCH, DOGE, ZEC. Within a family the report order is kept. */
+   * XRP, LTC, BCH, DOGE, ZEC. Within a family the report order is kept, except
+   * for the fixed TON version order below. */
   var GROUP_ORDER = ['btc', 'evm', 'tron', 'solana', 'ton', 'sui', 'xrp', 'ltc', 'bch', 'doge', 'zcash'];
   var CHAIN_GROUP_TOTAL = 18;
   var FAMILY_PREFIXES = ['btc', 'ltc', 'doge', 'bch', 'zcash', 'xrp', 'ton'];
@@ -829,16 +830,33 @@
     return { ticker: meta.symbol, icon: meta.icon, decimals: meta.decimals };
   }
 
+  /* Within the TON family the rows render v4R2 (the donor's format and the
+   * default tab), W5 and then v3R2, regardless of the order the WASM report
+   * emits them in. Other families keep the report order. */
+  var FAMILY_ROW_ORDER = { ton: ['ton_v4r2', 'ton_w5', 'ton_v3r2'] };
+
+  function rowOrderWithinFamily(id, family) {
+    var order = FAMILY_ROW_ORDER[family];
+    if (!order) return 0;
+    var index = order.indexOf(String(id == null ? '' : id));
+    return index < 0 ? order.length : index;
+  }
+
   function orderAddressRows(rows) {
     var list = Array.isArray(rows) ? rows.slice() : [];
     return list.map(function (row, index) {
       return { row: row, index: index };
     }).sort(function (left, right) {
-      var a = GROUP_ORDER.indexOf(rowFamily(left.row && left.row.id));
-      var b = GROUP_ORDER.indexOf(rowFamily(right.row && right.row.id));
+      var leftFamily = rowFamily(left.row && left.row.id);
+      var rightFamily = rowFamily(right.row && right.row.id);
+      var a = GROUP_ORDER.indexOf(leftFamily);
+      var b = GROUP_ORDER.indexOf(rightFamily);
       if (a < 0) a = GROUP_ORDER.length;
       if (b < 0) b = GROUP_ORDER.length;
-      return a - b || left.index - right.index;
+      if (a !== b) return a - b;
+      var rankA = rowOrderWithinFamily(left.row && left.row.id, leftFamily);
+      var rankB = rowOrderWithinFamily(right.row && right.row.id, rightFamily);
+      return rankA - rankB || left.index - right.index;
     }).map(function (entry) {
       return entry.row;
     });
@@ -848,9 +866,9 @@
    * always carries the secp256k1 rows and the ed25519-only rows together.
    * `secpReport` and `edReport` are the two derive_report outputs (either may
    * be null: an out-of-range value has no secp256k1 report), and `extras`
-   * carries rows the JS encoders add: { secp: [...], ed25519: [...] }. Each
-   * returned row is tagged with the curve that produced it; ids are unique. */
-  var ED25519_ONLY_IDS = ['solana', 'sui', 'ton_w5'];
+   * carries rows the JS encoders add: { secp: [...] }. Each returned row is
+   * tagged with the curve that produced it; ids are unique. */
+  var ED25519_ONLY_IDS = ['solana', 'sui', 'ton_v3r2', 'ton_v4r2', 'ton_w5'];
 
   function mergeCurveAddresses(secpReport, edReport, extras) {
     var out = [];
@@ -868,10 +886,6 @@
     var extra = extras || {};
     rowsOf(secpReport).forEach(function (row) { add(row, 'secp256k1'); });
     (Array.isArray(extra.secp) ? extra.secp : []).forEach(function (row) { add(row, 'secp256k1'); });
-    /* The TON V4R2 row is built by the page (the ed25519 report carries W5
-     * only), so extras land before the report rows and keep V4R2 above W5 in
-     * the TON group. */
-    (Array.isArray(extra.ed25519) ? extra.ed25519 : []).forEach(function (row) { add(row, 'ed25519'); });
     rowsOf(edReport).forEach(function (row) {
       if (row && ED25519_ONLY_IDS.indexOf(row.id) >= 0) add(row, 'ed25519');
     });
@@ -953,7 +967,8 @@
     doge_p2pkh_uncompressed: 'Legacy (u)',
     zcash_p2pkh: 't1 (c)',
     zcash_p2pkh_uncompressed: 't1 (u)',
-    ton: 'V4R2',
+    ton_v3r2: 'V3R2',
+    ton_v4r2: 'V4R2',
     ton_w5: 'W5',
     sui: '0x',
     tron: 'Base58',
@@ -1078,7 +1093,8 @@
     tron: 'tron',
     solana: 'solana',
     sui: 'sui',
-    ton: 'ton',
+    ton_v3r2: 'ton',
+    ton_v4r2: 'ton',
     ton_w5: 'ton'
   };
 

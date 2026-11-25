@@ -22,6 +22,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use rotor::address::ton::{TonWalletVersion, ton_addresses};
 use rotor::chain::{self, ChainDescriptor, KeyMaterial};
 use rotor::mnemonic;
 use rotor::scalar::Scalar;
@@ -134,8 +135,30 @@ fn desktop_vector(
             .unwrap_or_else(|error| panic!("{key_id}/{}: {error}", descriptor.id))
     };
 
+    // TON has no single canonical address: the wallet contract version selects
+    // the StateInit, so the vector carries the whole version set. Every other
+    // chain keeps one entry under its chain-map format.
     let mut addresses = serde_json::Map::new();
-    addresses.insert(format.to_owned(), Value::String(derived.address.clone()));
+    if descriptor.family == chain::Family::Ton {
+        let public = hex_to_32(&derived.public_hex);
+        for (version, address) in ton_addresses(&public)
+            .unwrap_or_else(|error| panic!("{key_id}/{}: {error}", descriptor.id))
+        {
+            let id = match version {
+                TonWalletVersion::V3R2 => "ton_v3r2",
+                TonWalletVersion::V4R2 => "ton_v4r2",
+                TonWalletVersion::W5 => "ton_w5",
+                other => panic!(
+                    "{key_id}/{}: unsupported TON wallet version {} in the parity vector",
+                    descriptor.id,
+                    other.label()
+                ),
+            };
+            addresses.insert(id.to_owned(), Value::String(address.address));
+        }
+    } else {
+        addresses.insert(format.to_owned(), Value::String(derived.address.clone()));
+    }
 
     json!({
         "key_id": key_id,

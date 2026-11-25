@@ -12,7 +12,7 @@ test('formats cover every chain and the paths this project uses', () => {
   assert.equal(seedFormatsFor('bitcoin').length, 4);
   assert.equal(seedFormatsFor('litecoin').length, 3);
   assert.equal(seedFormatsFor('bitcoin-cash').length, 2);
-  assert.equal(seedFormatsFor('ton').length, 2);
+  assert.equal(seedFormatsFor('ton').length, 3);
   assert.deepEqual(seedPathsFor('bitcoin'), [
     "m/44'/0'/0'/0/0",
     "m/49'/0'/0'/0/0",
@@ -59,10 +59,10 @@ test('ed25519 chains use SLIP-0010 and the chain-specific address', async () => 
   assert.match(sui[0]?.cells[0]?.address ?? '', /^0x[0-9a-f]{64}$/);
 
   const ton = await deriveSeedRows('ton', 1);
-  assert.equal(ton[0]?.cells.length, 2);
-  assert.match(ton[0]?.cells[0]?.address ?? '', /^[A-Za-z0-9_-]{48}$/);
-  assert.match(ton[0]?.cells[1]?.address ?? '', /^[A-Za-z0-9_-]{48}$/);
-  assert.notEqual(ton[0]?.cells[0]?.address, ton[0]?.cells[1]?.address);
+  assert.equal(ton[0]?.cells.length, 3);
+  assert.deepEqual(ton[0]?.cells.map((cell) => cell.formatId), ['ton_v4r2', 'ton_w5', 'ton_v3r2']);
+  for (const cell of ton[0]?.cells ?? []) assert.match(cell.address, /^[A-Za-z0-9_-]{48}$/);
+  assert.equal(new Set(ton[0]?.cells.map((cell) => cell.address)).size, 3, 'each TON wallet version has its own address');
 });
 
 test('Bitcoin Cash keeps one hash160 in two encodings', async () => {

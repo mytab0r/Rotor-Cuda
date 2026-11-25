@@ -233,15 +233,24 @@ assert.equal(ed.curve, "ed25519");
 assert.deepEqual(search.shapeReport(ed, { chain: "", count: 10 }).map((row) => row.chain), [
   "solana",
   "sui",
+  "ton",
 ]);
-const ton = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c";
-search.appendTonRow(ed, ton);
-search.appendTonRow(ed, ton);
+assert.equal(
+  search.shapeReport(ed, { chain: "", count: 10 }).find((row) => row.chain === "ton").id,
+  "ton_v4r2",
+  "the all-chains view picks v4R2 as the canonical TON row",
+);
 const tonRows = search.shapeReport(ed, { chain: "ton", count: 5 });
-assert.equal(tonRows.length, 1);
-assert.equal(tonRows[0].chainLabel, "TON");
-assert.equal(tonRows[0].address, ton);
-assert.equal(tonRows[0].explorer, "https://tonviewer.com/" + encodeURIComponent(ton));
+assert.deepEqual(
+  tonRows.map((row) => row.id),
+  ["ton_v3r2", "ton_v4r2", "ton_w5"],
+  "the TON filter returns every wallet version from the wasm report",
+);
+assert.deepEqual(tonRows.map((row) => row.type), ["v3R2", "v4R2", "W5"]);
+for (const row of tonRows) {
+  assert.equal(row.chainLabel, "TON");
+  assert.equal(row.explorer, "https://tonviewer.com/" + encodeURIComponent(row.address));
+}
 
 /* ------------------------------------------------------------------- CSV */
 
@@ -264,6 +273,9 @@ assert.equal(search.csvEscape("plain"), "plain");
 assert.equal(search.chainLabel("bitcoin"), "Bitcoin");
 assert.equal(search.familyOf("btc_p2wpkh"), "btc");
 assert.equal(search.familyOf("evm"), "evm");
+for (const id of ["ton_v3r2", "ton_v4r2", "ton_w5"]) {
+  assert.equal(search.familyOf(id), "ton", `${id} belongs to the TON family`);
+}
 assert.equal(search.shapeReport(report, { chain: "", count: 2 }).length, 5);
 assert.equal(search.CHAINS.length, 18);
 assert.deepEqual(
@@ -310,11 +322,9 @@ assert.equal(ethereumCard.rows[0].explorer, "https://etherscan.io/address/" + KE
 assert.equal(cards.find((card) => card.slug === "bnb").rows[0].explorer, "https://bscscan.com/address/" + KEY1_EVM);
 
 const tonCard = cards.find((card) => card.slug === "ton");
-assert.equal(tonCard.rows.length, 2, "the ed25519 report contributes V4R2 and W5");
-assert.ok(
-  tonCard.rows.some((row) => row.id === "ton_w5" && row.type === "W5"),
-  "the TON card includes the W5 row",
-);
+assert.equal(tonCard.rows.length, 3, "the ed25519 report contributes every TON version");
+assert.deepEqual(tonCard.rows.map((row) => row.id), ["ton_v3r2", "ton_v4r2", "ton_w5"]);
+assert.deepEqual(tonCard.rows.map((row) => row.type), ["v3R2", "v4R2", "W5"]);
 
 assert.equal(cards.find((card) => card.slug === "solana").rows[0].type, "Solana");
 assert.equal(cards.find((card) => card.slug === "sui").rows[0].type, "Sui");
@@ -405,6 +415,27 @@ assert.deepEqual(
   "a missing derivation yields no address line"
 );
 assert.deepEqual(browse.addressEntriesFor("ethereum", "legacy", null, "evm"), [], "no map, no rows");
+
+/* Each TON wallet version is its own tab: the tab's `field` selects exactly
+ * one address from the WASM report, like every other chain, and the sibling
+ * versions never leak into the row. */
+const tonMap = { ton_v3r2: "EQv3", ton_v4r2: "EQv4", ton_w5: "EQw5" };
+for (const [field, address] of [
+  ["ton_v4r2", "EQv4"],
+  ["ton_w5", "EQw5"],
+  ["ton_v3r2", "EQv3"],
+]) {
+  assert.deepEqual(
+    browse.addressEntriesFor("ton", field, tonMap, field),
+    [{ prefix: "", address }],
+    `the ${field} tab shows only its own address`
+  );
+}
+assert.deepEqual(
+  browse.addressEntriesFor("ton", "ton_v4r2", {}, "ton_v4r2"),
+  [],
+  "a report without the tab's field yields no address line"
+);
 
 assert.deepEqual(browse.metricFlags({ tx: 0, received: "0" }), { hasTx: false, hasRecv: false });
 assert.deepEqual(browse.metricFlags({ tx: 2, received: "5" }), { hasTx: true, hasRecv: true });

@@ -1922,6 +1922,86 @@ fn browse_listing_row_shows_every_address_without_disclosure() {
     handle.shutdown();
 }
 
+/// TON's directory exposes every wallet version as its own address-type tab
+/// and maps the address by the WASM report row id. v4R2 stays the default tab
+/// because it is the donor's format; an old `?type=legacy` link still lands on
+/// that default instead of 404ing.
+#[test]
+fn ton_directory_lists_three_wallet_versions_and_defaults_to_v4r2() {
+    let temp = TempState::new("ton-wallet-versions");
+    let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
+    let addr = handle.addr;
+
+    let (status, _, body) = raw(addr, "GET", "/private-keys/ton", None, None);
+    assert_eq!(status, 200, "/private-keys/ton");
+    assert!(
+        body.contains("data-type=\"ton_v4r2\" data-field=\"ton_v4r2\""),
+        "the TON page must default to the v4R2 report row"
+    );
+    assert!(
+        body.contains("class=\"address-type-card active\" data-type=\"ton_v4r2\""),
+        "v4R2 must be the active default tab"
+    );
+
+    let mut previous = 0;
+    for (value, label) in [
+        ("ton_v4r2", "Wallet v4R2"),
+        ("ton_w5", "Wallet W5"),
+        ("ton_v3r2", "Wallet v3R2"),
+    ] {
+        let needle = format!("data-type=\"{value}\"><span class=\"type-name\">{label}</span>");
+        let index = body
+            .find(&needle)
+            .unwrap_or_else(|| panic!("the TON {value} ({label}) tab is missing"));
+        assert!(index >= previous, "TON tabs are out of order at {value}");
+        previous = index;
+
+        // The tab's value is also the report row id the address map is read
+        // by: selecting it must set `data-field` to the same id.
+        let (status, _, selected) = raw(
+            addr,
+            "GET",
+            &format!("/private-keys/ton?type={value}"),
+            None,
+            None,
+        );
+        assert_eq!(status, 200, "?type={value}");
+        assert!(
+            selected.contains(&format!("data-type=\"{value}\" data-field=\"{value}\"")),
+            "the TON {value} tab must map to the report row of the same id"
+        );
+    }
+    assert!(
+        !body.contains("data-field=\"ton\""),
+        "the TON page still points the address map at the old `ton` field"
+    );
+    assert!(
+        !body.contains("data-type=\"legacy\""),
+        "the TON page still exposes a legacy address type"
+    );
+
+    let (status, _, legacy) = raw(addr, "GET", "/private-keys/ton?type=legacy", None, None);
+    assert_eq!(
+        status, 200,
+        "an old ?type=legacy TON link must still land, not 404"
+    );
+    assert!(
+        legacy.contains("class=\"address-type-card active\" data-type=\"ton_v4r2\""),
+        "an unknown TON type must fall back to the v4R2 default tab"
+    );
+
+    // The brainwallet directory derives TON through the RotorTon bundle and
+    // its engine has no TON type table, so it must not grow a version control.
+    let (status, _, brainwallet) = raw(addr, "GET", "/brainwallet/ton", None, None);
+    assert_eq!(status, 200, "/brainwallet/ton");
+    assert!(
+        !brainwallet.contains("bw-type-btn"),
+        "the TON brainwallet page must not offer an address-type control it cannot honour"
+    );
+
+    handle.shutdown();
+}
+
 /// UTXO chains keep the donor's Balance / Received / TX row; account-model
 /// chains show Balance / Active. The summary markup is chain-shaped, so this
 /// guards both variants against a regression to one shared three-card row.

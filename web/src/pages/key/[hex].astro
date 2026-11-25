@@ -24,7 +24,7 @@ const { key } = Astro.props as Props;
 const data = await deriveKeyPage(key.hex);
 
 const TITLE = `Private key ${key.value}: every address format on 18 chains | Crypto`;
-const DESCRIPTION = `The 256-bit key ${key.display} and all 30 addresses it derives on 18 chains, with WIF, public key, decimal and XRP secret. Computed in your browser.`;
+const DESCRIPTION = `The 256-bit key ${key.display} and all 31 addresses it derives on 18 chains, with WIF, public key, decimal and XRP secret. Computed in your browser.`;
 ---
 
 <KeyPage

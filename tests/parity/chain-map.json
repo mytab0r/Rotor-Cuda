@@ -120,6 +120,12 @@
     "ton": {
       "format": "ton-user-friendly",
       "wasm_row": "ton_w5",
+      "wasm_rows": [
+        "ton_v3r2",
+        "ton_v4r2",
+        "ton_w5"
+      ],
+      "address_set": true,
       "wif_comparable": false,
       "desktop": true
     },

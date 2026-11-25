@@ -111,3 +111,11 @@ test("the pooled job board is checked on the run page", () => {
   assert.match(source, /else if \(route === "\/run"\) \{/);
   assert.match(source, /--serve seeded a public job, but \/run rendered no \.puzzle-table/);
 });
+
+/* A balancing page re-renders rows after the hover-audit node query, which
+ * invalidates the CDP node ids. The audit must re-query instead of failing the
+ * run; the revert tier reverts ui-audit.mjs. */
+test("a stale CDP node id is re-queried instead of failing the run", () => {
+  assert.match(source, /Could not find node with given id/);
+  assert.match(source, /const \{ nodeIds: freshIds \} = await cdp\.send\("DOM\.querySelectorAll"/);
+});

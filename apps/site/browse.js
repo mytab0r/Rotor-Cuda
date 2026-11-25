@@ -120,8 +120,7 @@
     busy: false,
     balanceBusy: false,
     generation: 0,
-    balanceRun: 0,
-    tonPromise: null
+    balanceRun: 0
   };
 
   var cacheApi = window.RotorBalanceCache || null;
@@ -820,40 +819,6 @@
     await fetchAndApply(model, pending, run);
   }
 
-  function loadTon() {
-    if (window.RotorTon) return Promise.resolve(window.RotorTon);
-    if (state.tonPromise) return state.tonPromise;
-    state.tonPromise = new Promise(function (resolve, reject) {
-      var script = document.createElement('script');
-      script.src = window.RotorAssets.url('/ton.js');
-      script.onload = function () {
-        if (window.RotorTon) resolve(window.RotorTon);
-        else reject(new Error('TON library did not load.'));
-      };
-      script.onerror = function () { reject(new Error('TON library did not load.')); };
-      document.head.appendChild(script);
-    });
-    return state.tonPromise;
-  }
-
-  async function attachTonAddresses() {
-    setNote('Building TON wallet addresses in your browser…');
-    var ton = await loadTon();
-    for (var i = 0; i < rows.length; i += 1) {
-      var row = rows[i];
-      var hex = row.getAttribute('data-key');
-      var report = state.reports[hex];
-      if (!report || !report.ed_pubkey) continue;
-      var map = state.addressMaps[hex] || (state.addressMaps[hex] = addressMap(report));
-      try {
-        map.ton = await ton.address(report.ed_pubkey);
-      } catch (err) {
-        map.ton = '';
-      }
-      if (i % 8 === 0) setNote('Building TON wallet addresses… ' + i + ' of ' + rows.length);
-    }
-  }
-
   /* --------------------------------------------------------------- search */
 
   /* `?key=` pre-fills the input and highlights a matching row; when the key
@@ -1005,13 +970,6 @@
       renderAddresses(config.type);
       if (i + CHUNK < rows.length) {
         await new Promise(function (resolve) { window.setTimeout(resolve, 0); });
-      }
-    }
-    if (config.chain === 'ton') {
-      try {
-        await attachTonAddresses();
-      } catch (err) {
-        setNote(err && err.message ? err.message : 'TON addresses are unavailable.', 'err');
       }
     }
     renderAddresses(config.type);

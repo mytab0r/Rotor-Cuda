@@ -99,6 +99,16 @@ const V4R2_CODE_HASH: [u8; 32] = [
 /// Max Merkle depth of the v4R2 code cell, serialized in the StateInit refs.
 const V4R2_CODE_DEPTH: u16 = 7;
 
+/// Every supported wallet contract version, in report order.
+///
+/// The wasm derive report and the desktop parity vector both iterate this list,
+/// so a version can only be added or removed in one place.
+pub const TON_WALLET_VERSIONS: [TonWalletVersion; 3] = [
+    TonWalletVersion::V3R2,
+    TonWalletVersion::V4R2,
+    TonWalletVersion::W5,
+];
+
 /// Derive the default mainnet address for `public_key` on `version`.
 ///
 /// # Errors
@@ -124,6 +134,20 @@ pub fn ton_address(public_key: &[u8; 32], version: TonWalletVersion) -> Result<T
         code_hash,
         code_depth,
     })
+}
+
+/// Derive the address set for `public_key`: one entry per version in
+/// [`TON_WALLET_VERSIONS`] order.
+///
+/// # Errors
+///
+/// Propagates [`ton_address`]'s error for a version whose code cell cannot be
+/// parsed (only W5 can fail).
+pub fn ton_addresses(public_key: &[u8; 32]) -> Result<Vec<(TonWalletVersion, TonAddress)>, String> {
+    TON_WALLET_VERSIONS
+        .iter()
+        .map(|&version| ton_address(public_key, version).map(|address| (version, address)))
+        .collect()
 }
 
 /// Wallet v3R2 address for an ed25519 public key.
@@ -584,6 +608,29 @@ mod tests {
             ton_address(&public, TonWalletVersion::W5).unwrap(),
             ton_w5_address(&public).unwrap()
         );
+    }
+
+    /// The set helper returns every version in a fixed order, and each entry is
+    /// the same address as the per-version wrapper.
+    #[test]
+    fn address_set_is_ordered_and_matches_the_wrappers() {
+        let public = public_key("eda1888c122359f57027b8f7172fc2561ab13d596b64ad1c963acfaaba5c1ae7");
+        let set = ton_addresses(&public).unwrap();
+        let versions: Vec<TonWalletVersion> = set.iter().map(|(version, _)| *version).collect();
+        assert_eq!(
+            versions,
+            vec![
+                TonWalletVersion::V3R2,
+                TonWalletVersion::V4R2,
+                TonWalletVersion::W5,
+            ]
+        );
+        assert_eq!(set[0].1.address, ton_v3r2_address(&public));
+        assert_eq!(set[1].1.address, ton_v4r2_address(&public));
+        assert_eq!(set[2].1, ton_w5_address(&public).unwrap());
+        assert_ne!(set[0].1.address, set[1].1.address);
+        assert_ne!(set[1].1.address, set[2].1.address);
+        assert_ne!(set[0].1.address, set[2].1.address);
     }
 
     /// Intermediate hashes for the first official W5 vector, cross-checked

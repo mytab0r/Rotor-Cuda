@@ -6,7 +6,10 @@ license = "GPL-3.0-only"
 description = "WebAssembly scan core for Rotor-Cuda"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+# Doc comments carry JSON examples, not Rust doctests; a cdylib-only build never
+# ran them and the rlib adds doctest collection.
+doctest = false
 
 [dependencies]
 rotor-core = { path = "../rotor-core" }

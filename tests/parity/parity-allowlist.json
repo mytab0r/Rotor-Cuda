@@ -1,14 +1,5 @@
 {
   "version": 1,
   "description": "Known, accepted desktop/wasm divergences. Every entry must name the chain, the compared field, a reason and an issue. The comparison test fails on any mismatch not covered here and also fails when an entry no longer matches a real mismatch, so the list can only shrink.",
-  "entries": [
-    {
-      "chain": "ton",
-      "field": "address",
-      "key_id": "*",
-      "reason": "The desktop chain descriptor selects TON wallet v4R2 (crates/rotor-core/src/chain.rs); the wasm derive_report selects W5 (crates/rotor-wasm/src/derive.rs). P0 records both outputs; P1 exposes both encodings explicitly through TonWalletVersion and the product decision is separate.",
-      "issue": "https://github.com/mytab0r/Rotor-Cuda/issues/330",
-      "owner": "product-split"
-    }
-  ]
+  "entries": []
 }

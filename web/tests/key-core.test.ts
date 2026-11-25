@@ -27,9 +27,9 @@ test('the curated set is at least three unique 64-hex keys and starts at key 1',
   }
 });
 
-test('key 1 derives the 30-row donor table and the eight donor facts', async () => {
+test('key 1 derives the 31-row donor table and the eight donor facts', async () => {
   const page = await deriveKeyPage(KEY_1);
-  assert.equal(page.rows.length, 30);
+  assert.equal(page.rows.length, 31);
   assert.deepEqual(
     page.facts.map((fact) => fact.id),
     ['hex', 'decimal', 'wif', 'wif_u', 'keypair', 'xrp', 'pubkey', 'page'],
@@ -55,12 +55,13 @@ test('key 1 derives the 30-row donor table and the eight donor facts', async () 
   assert.equal(first?.address, '1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH');
   assert.equal(first?.chain, 'Bitcoin');
   assert.equal(first?.type, 'Legacy');
-  const ton = page.rows.find((row) => row.id === 'ton');
-  assert.match(ton?.address ?? '', /^EQ/);
+  const ton = ['ton_v3r2', 'ton_v4r2', 'ton_w5'].map((id) => page.rows.find((row) => row.id === id));
+  for (const row of ton) assert.match(row?.address ?? '', /^EQ/);
+  assert.equal(new Set(ton.map((row) => row?.address)).size, 3, 'each TON wallet version has its own address');
   const evm = page.rows.find((row) => row.id === 'evm');
   assert.equal(evm?.address, '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf');
   assert.equal(evm?.type, '↑ same');
-  assert.equal(page.model.rows.length, 30);
+  assert.equal(page.model.rows.length, 31);
 });
 
 test('keys 2 and 3 derive the same first legacy address the static page renders', async () => {
@@ -86,7 +87,7 @@ test('groupRows spans each contiguous chain run, not just the previous row', asy
   assert.equal(spanFor('ltc_p2pkh'), 4, 'Litecoin is one four-row group');
   assert.equal(spanFor('bch_legacy'), 2);
   assert.equal(spanFor('doge_p2pkh'), 2);
-  assert.equal(spanFor('ton'), 2);
+  assert.equal(spanFor('ton_v4r2'), 3, 'TON is one three-row group');
   assert.equal(spanFor('zcash_p2pkh'), 2);
   for (const id of ['evm', 'evm_bnb', 'evm_arbitrum', 'evm_optimism', 'evm_base', 'evm_polygon', 'evm_avalanche', 'evm_zksync']) {
     assert.equal(spanFor(id), 1, `${id} keeps its own chain cell`);

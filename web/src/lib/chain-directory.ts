@@ -82,7 +82,11 @@ const FORMATS: Record<string, FormatSpec[]> = {
   dogecoin: [{ id: 'doge_p2pkh', label: 'P2PKH legacy (D…)', curve: 0, addressId: 'doge_p2pkh' }],
   zcash: [{ id: 'zcash_p2pkh', label: 'Transparent P2PKH (t1…)', curve: 0, addressId: 'zcash_p2pkh' }],
   sui: [{ id: 'sui', label: 'Sui account (0x…)', curve: 1, addressId: 'sui' }],
-  ton: [{ id: 'ton_w5', label: 'TON wallet W5 (base64url)', curve: 1, addressId: 'ton_w5' }],
+  ton: [
+    { id: 'ton_v4r2', label: 'TON wallet v4R2 (base64url)', curve: 1, addressId: 'ton_v4r2' },
+    { id: 'ton_w5', label: 'TON wallet W5 (base64url)', curve: 1, addressId: 'ton_w5' },
+    { id: 'ton_v3r2', label: 'TON wallet v3R2 (base64url)', curve: 1, addressId: 'ton_v3r2' },
+  ],
 };
 
 export function formatsFor(slug: string): FormatSpec[] {

@@ -119,7 +119,8 @@
     xrp_classic: 'XRP classic address',
     zcash_p2pkh: 'Zcash transparent',
     sui: 'Sui account',
-    ton: 'TON wallet v4R2',
+    ton_v3r2: 'TON wallet v3R2',
+    ton_v4r2: 'TON wallet v4R2',
     ton_w5: 'TON wallet W5'
   };
 
@@ -143,7 +144,8 @@
     xrp_classic: 'XRP classic address: 0x00 || hash160(pubkey), base58check (Ripple alphabet).',
     zcash_p2pkh: 'Zcash transparent address: two-byte version 0x1cb8 || hash160(pubkey), base58check.',
     sui: 'Sui account: BLAKE2b-256 of the 0x00 ed25519 flag plus the public key, shown as 0x hex.',
-    ton: 'TON wallet: address of the standard v4R2 contract whose StateInit stores this ed25519 public key.',
+    ton_v3r2: 'TON wallet v3R2: address of the standard wallet_v3R2 contract whose StateInit stores this ed25519 public key.',
+    ton_v4r2: 'TON wallet v4R2: address of the standard wallet_v4R2 contract whose StateInit stores this ed25519 public key.',
     ton_w5: 'TON wallet W5: address of the standard wallet_v5 contract whose StateInit stores this ed25519 public key.'
   };
 
@@ -166,6 +168,8 @@
     zcash_p2pkh_uncompressed: ['pubkey', 'hash160', 'base58'],
     xrp_classic: ['pubkey', 'hash160', 'payload', 'checksum', 'base58'],
     sui: ['pubkey', 'blake2b'],
+    ton_v3r2: ['pubkey', 'state_init_hash', 'address'],
+    ton_v4r2: ['pubkey', 'state_init_hash', 'address'],
     ton_w5: ['pubkey', 'state_init_hash', 'address']
   };
 
@@ -253,7 +257,6 @@
     secpReport: null,
     edReport: null,
     addressRows: [],
-    tonRow: null,
     rangeNote: '',
     preset: 'all',
     chain: 'all',
@@ -658,7 +661,6 @@
     state.secpReport = null;
     state.edReport = null;
     state.addressRows = [];
-    state.tonRow = null;
     state.rangeNote = '';
     state.focusId = null;
     if (evmSharedNote) evmSharedNote.hidden = true;
@@ -704,7 +706,6 @@
       if (seq !== state.deriveSeq) return;
       state.secpReport = secpReport;
       state.edReport = edReport;
-      state.tonRow = null;
       state.rangeNote = secpReport ? '' : rangeNote;
       var primary = curve === 1 || !secpReport ? edReport : secpReport;
       await renderReport(primary);
@@ -850,7 +851,6 @@
     if (addressesCard) addressesCard.hidden = false;
     state.addressRows = mergeAddressRows();
     renderAddresses();
-    attachTon();
     var exposureSource = { addresses: state.addressRows };
     if (state.urlKey && !state.urlExposurePosted) scheduleExposure(exposureSource, true);
     else hideExposureStatus();
@@ -1058,41 +1058,6 @@
     });
   }
 
-  var tonLoader = null;
-  function loadTon() {
-    if (window.RotorTon) return Promise.resolve(window.RotorTon);
-    if (tonLoader) return tonLoader;
-    tonLoader = new Promise(function (resolve, reject) {
-      var script = document.createElement('script');
-      script.src = window.RotorAssets.url('/ton.js');
-      script.onload = function () {
-        if (window.RotorTon) resolve(window.RotorTon);
-        else reject(new Error('TON library did not load.'));
-      };
-      script.onerror = function () { reject(new Error('TON library did not load.')); };
-      document.head.appendChild(script);
-    });
-    tonLoader.catch(function () { tonLoader = null; });
-    return tonLoader;
-  }
-
-  function attachTon() {
-    var report = state.edReport;
-    if (!report || !report.ed_pubkey) return;
-    if ((state.addressRows || []).some(function (row) { return row.id === 'ton'; })) return;
-    loadTon().then(function (ton) {
-      return ton.address(report.ed_pubkey);
-    }).then(function (address) {
-      if (!address || state.edReport !== report) return;
-      state.tonRow = { id: 'ton', label: 'TON wallet v4R2', address: address, steps: {}, curve: 'ed25519' };
-      state.addressRows = mergeAddressRows();
-      renderAddresses();
-      updateDerivedStatus();
-    }).catch(function () {
-      /* Solana, Sui and the W5 row remain usable without the TON bundle */
-    });
-  }
-
   /* CashAddr and the uncompressed Dogecoin/Zcash rows are pure encodings of
    * hash160 values the WASM secp report already returned, so they join the
    * merged rows without another derivation. */
@@ -1113,8 +1078,7 @@
   function mergeAddressRows() {
     var helper = window.RotorKeyTools;
     var extras = {
-      secp: computedRows(state.secpReport),
-      ed25519: state.tonRow ? [state.tonRow] : []
+      secp: computedRows(state.secpReport)
     };
     if (helper && typeof helper.mergeCurveAddresses === 'function') {
       return helper.mergeCurveAddresses(state.secpReport, state.edReport, extras);
@@ -1138,7 +1102,8 @@
       tron: SSOT_CHAINS.bySlug.tron.explorerPrefix,
       solana: SSOT_CHAINS.bySlug.solana.explorerPrefix,
       sui: SSOT_CHAINS.bySlug.sui.explorerPrefix,
-      ton: SSOT_CHAINS.bySlug.ton.explorerPrefix,
+      ton_v3r2: SSOT_CHAINS.bySlug.ton.explorerPrefix,
+      ton_v4r2: SSOT_CHAINS.bySlug.ton.explorerPrefix,
       ton_w5: SSOT_CHAINS.bySlug.ton.explorerPrefix
     };
     return map[id] || '';
@@ -2479,7 +2444,7 @@
     if (!id) return null;
     if (id === 'solana') return 'solana';
     if (id === 'sui') return 'sui';
-    if (id === 'ton' || id === 'ton_w5') return 'toncenter';
+    if (id.indexOf('ton_') === 0) return 'toncenter';
     if (id.indexOf('xrp_') === 0) return 'xrpscan';
     if (id.indexOf('ltc_') === 0 || id.indexOf('doge_') === 0) return 'sochain';
     if (id.indexOf('bch_') === 0) return 'haskoin';
@@ -2671,7 +2636,7 @@
     if (id.indexOf('xrp_') === 0) return 'xrp';
     if (id === 'solana') return 'solana';
     if (id === 'sui') return 'sui';
-    if (id === 'ton' || id === 'ton_w5') return 'ton';
+    if (id.indexOf('ton_') === 0) return 'ton';
     if (id.indexOf('ltc_') === 0) return 'ltc';
     if (id.indexOf('doge_') === 0) return 'doge';
     if (id.indexOf('bch_') === 0) return 'bch';
@@ -2837,7 +2802,7 @@
       if (id.indexOf('xrp_') === 0) return fetchXrp(address, signal);
       if (id === 'solana') return fetchSolana(address, signal);
       if (id === 'sui') return fetchSui(address, signal);
-      if (id === 'ton' || id === 'ton_w5') return fetchTon(address, signal);
+      if (id.indexOf('ton_') === 0) return fetchTon(address, signal);
       if (id.indexOf('ltc_') === 0) return fetchSochainOrBlockcypher(address, signal, 'litecoin', 'ltc');
       if (id.indexOf('doge_') === 0) return fetchSochainOrBlockcypher(address, signal, 'dogecoin', 'doge');
       if (id.indexOf('bch_') === 0) return fetchHaskoinBch(address, signal);
@@ -3269,7 +3234,7 @@
     xrp_classic: ['xrp', 'xrp_classic'],
     zcash_p2pkh: ['zcash', 'zcash_p2pkh'],
     sui: ['sui', 'sui'],
-    ton: ['ton', 'ton']
+    ton: ['ton', 'ton_v4r2']
   };
   var ED25519_CHAINS = { solana: true, sui: true, ton: true };
 
