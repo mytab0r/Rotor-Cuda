@@ -25,7 +25,8 @@ test.describe('static routes', () => {
 
       switch (route.kind) {
         case 'landing': {
-          await expect(page.locator('#landing-leaderboard')).toBeVisible();
+          await expect(page.locator('#contribute')).toBeVisible();
+          await expect(page.locator('#landing-leaderboard')).toHaveCount(0);
           break;
         }
         case 'hub': {
