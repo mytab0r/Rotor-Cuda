@@ -29,7 +29,22 @@
 
 <main>
   <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumbs__sep" aria-hidden="true">/</span> <span aria-current="page">Docs</span></nav>
-  <section class="card docs">
+  <nav class="card docs-toc" aria-label="On this page" data-docs-toc>
+    <p class="docs-toc__title">On this page</p>
+    <ol>
+      <li><a href="#getting-a-token">Getting a token</a></li>
+      <li><a href="#running-a-client">Running a client</a></li>
+      <li><a href="#private-key-explorer">Private-key explorer</a></li>
+      <li><a href="#public-key-pages">Public key pages</a></li>
+      <li><a href="#derivation-paths-and-address-formats">Derivation paths and address formats</a></li>
+      <li><a href="#address-monitor">Address monitor</a></li>
+      <li><a href="#transaction-decoders">Transaction decoders</a></li>
+      <li><a href="#security-and-disclaimer">Security and disclaimer</a></li>
+      <li><a href="#common-questions">Common questions</a></li>
+    </ol>
+  </nav>
+
+  <section class="card docs" id="getting-a-token">
     <h2>Getting a token</h2>
     <p>
       A client token identifies you to the coordinator and ties heartbeats and
@@ -40,7 +55,9 @@
       <li><strong>Closed registration:</strong> ask the operator to create an account for you. The operator can issue a token from the admin API.</li>
     </ul>
     <p class="muted">Paste the token into the <a href="/me">cabinet</a> to see your personal stats.</p>
+  </section>
 
+  <section class="card docs" id="running-a-client">
     <h2>Running a client</h2>
     <p>The client leases disjoint key ranges; point it at this coordinator and pass your token.</p>
     <pre><code>rotor -m addresses --chain bitcoin --range 400000000000000000:7fffffffffffffffff \
@@ -90,7 +107,9 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>The page requires HTTPS or localhost.</li>
       <li>The token is stored in this browser's <code>localStorage</code> and sent only in the <code>Authorization</code> header.</li>
     </ul>
+  </section>
 
+  <section class="card docs" id="private-key-explorer">
     <h2>Private-key explorer</h2>
     <p>
       <a href="/key">/key</a> is a read-only private-key explorer. Derivation
@@ -105,7 +124,9 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>The private key never leaves the browser and is not stored in the URL, history or local storage.</li>
       <li>This is not a wallet: no signing or sweeping. Handle any key that holds funds offline on an air-gapped machine, never on an online page.</li>
     </ul>
+  </section>
 
+  <section class="card docs" id="public-key-pages">
     <h2>Public key pages</h2>
     <p>
       <a href="/private-keys">/private-keys</a> is the directory of 18 chains.
@@ -128,7 +149,23 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       opened a page containing their address. Typing a key locally on
       <a href="/key">/key</a> is checked only if you tick the opt-in box.
     </p>
+  </section>
 
+  <section class="card docs" id="derivation-paths-and-address-formats">
+    <h2>Derivation paths and address formats</h2>
+    <p>
+      The key explorer and the seed tools derive in this browser. The
+      <a href="/mnemonic-converter">mnemonic converter</a> turns BIP39, Electrum
+      BIP39 and legacy Electrum phrases into the first keys on the standard
+      derivation paths; the <a href="/seed">seed studio</a> and the
+      <a href="/mnemonic-seeds">mnemonic seed</a> examples use the same engine.
+      Address formats follow the chain: Bitcoin and Litecoin expose legacy,
+      P2SH, native segwit and taproot forms; account chains show one address
+      per key.
+    </p>
+  </section>
+
+  <section class="card docs" id="address-monitor">
     <h2>Address monitor</h2>
     <p>
       <a href="/cabinet">/cabinet</a> watches addresses you control: connect an
@@ -143,7 +180,9 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>Alerts are early warning, not protection: an idle stolen key is not observable, and delivery can be delayed or missed.</li>
       <li><code>recovery_opt_in</code> is consent to be contacted about recovery help, not permission to move your funds.</li>
     </ul>
+  </section>
 
+  <section class="card docs" id="transaction-decoders">
     <h2>Transaction decoders</h2>
     <p>
       <a href="/tx/bitcoin">/tx/bitcoin</a> decodes a raw Bitcoin legacy or
@@ -168,17 +207,9 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       Both pages are client-side only: no key, network request, storage or URL
       payload. <a href="/tx">/tx</a> is the shared index.
     </p>
+  </section>
 
-    <h2>Site map and donor parity</h2>
-    <p>
-      The parity audit maps every Crypto route against an internal reference
-      checklist. It is internal documentation, kept in
-      <code>docs/site-map/index.html</code> and
-      <code>docs/site-map/site-map-data.js</code>, not a public route. The data
-      also carries the feature matrix (parity, partial and missing capabilities
-      with a priority), so a gap closes only when the data says so.
-    </p>
-
+  <section class="card docs" id="security-and-disclaimer">
     <h2>Security and disclaimer</h2>
     <ul>
       <li>Tokens are secrets. The coordinator stores only a SHA-256 hash; the plaintext is shown once and cannot be recovered.</li>
@@ -187,6 +218,52 @@ rotor-coord --token &lt;admin-token&gt; --state coordinator.json --bind 127.0.0.
       <li>This is a puzzle-only tool. Search only keys and ranges you are authorized to search; do not target live wallets or funds you do not own.</li>
       <li>Progress and results are public aggregates. Job targets and found keys are visible to authenticated clients and the operator.</li>
     </ul>
+  </section>
+
+  <section class="card docs" id="common-questions">
+    <h2>Common questions</h2>
+    <div class="faq-item">
+      <h3 id="does-the-site-receive-my-private-key">Does the site receive my private key?</h3>
+      <p>
+        On <a href="/key">/key</a> and the seed tools, derivation runs in the
+        tab and the key is not sent to the coordinator. The public key pages are
+        the exception: the key range is in the page URL, so the coordinator
+        knows which page was requested; it checks only the derived addresses
+        against the registry, and a key typed on <a href="/key">/key</a> is
+        checked only when you tick the opt-in box.
+      </p>
+    </div>
+    <div class="faq-item">
+      <h3 id="can-i-use-this-as-a-wallet">Can I use this as a wallet?</h3>
+      <p>
+        No. The private-key explorer is read-only: it does not sign or sweep.
+        Handle any key that holds funds offline on an air-gapped machine, never
+        on an online page, and never paste a live key into a site you do not
+        control.
+      </p>
+    </div>
+    <div class="faq-item">
+      <h3 id="what-does-a-balance-lookup-send">What does a balance lookup send?</h3>
+      <p>
+        Balance lookups are opt-in and off by default on <a href="/key">/key</a>.
+        When enabled, only the derived addresses currently shown are sent to
+        public providers: BTC via mempool.space, EVM via public Ethereum
+        JSON-RPC providers, TRON via Tronscan. The private key never leaves the
+        browser.
+      </p>
+    </div>
+    <div class="faq-item">
+      <h3 id="what-are-the-client-requirements">What are the client requirements?</h3>
+      <p>
+        The CPU path supports every search mode. GPU mode uses <code>-g</code>
+        with <code>--gpui</code>, and address or xpoint grids also accept
+        <code>--gpux</code>; <code>-m bsgs -g</code> is rejected with
+        <code>--coordinator</code> because the giant walk lives on the
+        coordinator. The browser client needs HTTPS or localhost, keeps the
+        token in <code>localStorage</code> and sends it only in the
+        <code>Authorization</code> header.
+      </p>
+    </div>
   </section>
 </main>
 

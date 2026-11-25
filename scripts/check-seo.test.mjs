@@ -23,3 +23,12 @@ test("an arbitrary key is never advertised: the worker pages are noindex", () =>
   assert.match(source, /worker pages are noindex/);
   assert.match(source, /keySitemap\.keyPaths/);
 });
+
+/* A docs section card carries the id and the H2 sits inside it; the gate must
+ * accept that anchor while still requiring the TOC to cover every H2. */
+test("a section card id can anchor its heading in the TOC", () => {
+  assert.match(source, /heading\.sectionId/);
+  assert.match(source, /const anchors = \[heading\.id, heading\.sectionId\]\.filter\(Boolean\)/);
+  assert.match(source, /has no id and no anchored section/);
+  assert.match(source, /is missing from the TOC/);
+});
