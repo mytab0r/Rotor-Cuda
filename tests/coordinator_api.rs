@@ -1440,7 +1440,7 @@ fn public_pages_and_assets_are_served() {
     let handle = spawn("127.0.0.1:0", temp.path(), TOKEN.to_string()).expect("spawn");
     let addr = handle.addr;
 
-    let checks: [(&str, &[&str]); 10] = [
+    let checks: [(&str, &[&str]); 11] = [
         (
             "/",
             &[
@@ -1497,6 +1497,10 @@ fn public_pages_and_assets_are_served() {
                 "/wallet-vault.js",
                 "/theme.js",
             ],
+        ),
+        (
+            "/bitcoin-puzzle",
+            &["<div class=\"puzzle-actions\">", "Run a worker"],
         ),
         (
             "/key",
